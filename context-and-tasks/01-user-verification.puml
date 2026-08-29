@@ -1,0 +1,328 @@
+@startuml
+title Shelter Map - User & Verification (Core with providers)
+
+' ============================================================
+' CLASS-CREATION RULES (Thinking in Java, Ch 1 & 2)
+' 1. Every object is a service provider (Ch 1): ask "who is the
+'    best object to service this request?" -> entities answer
+'    about themselves; services perform work.
+' 2. Inheritance only for genuine is-a, fixed at creation (Ch 1):
+'    User (abstract = Bird) <- GuestUser (Pigeon), RegisteredUser
+'    (Penguin), AdminUser (Parrot). Subclasses OVERRIDE base
+'    methods; they never add methods a base reference cannot see.
+' 3. Prefer composition first (Ch 1): runtime-changing state is
+'    DATA. Verification = Set<VerificationClaim> - an object never
+'    changes class, but its claims can be added/revoked.
+' 4. Program to an interface (Ch 9): providers/channels/repos are
+'    interfaces; implementations are swappable (Twilio vs Dev).
+' 5. Hidden implementation (Ch 1): fields private, methods public.
+' 6. A class is a new data type (Ch 2): fields + methods bundled.
+' ============================================================
+
+package "domain" {
+  abstract class User {
+    - id : Long
+    --
+    + getData() : UserData
+    + canWatch() : boolean
+    + canWrite() : boolean
+    + deleteAccount() : void
+  }
+
+  class GuestUser {
+    --
+    + canWatch() : boolean
+    + canWrite() : boolean
+    + deleteAccount() : void
+  }
+
+  class RegisteredUser {
+    - name : String
+    - email : String
+    - phone : String
+    - nationalIdCode : String
+    - verifications : Set<VerificationClaim>
+    --
+    + RegisteredUser(name, email, phone, nationalIdCode)
+    + levels() : Set<VerificationLevel>
+    + canWrite() : boolean
+    + deleteAccount() : void
+  }
+
+  class AdminUser {
+    --
+    + canWrite() : boolean
+    + deleteAccount() : void
+    ' Minimal role - no moderator in the system.
+    ' Community rating governs shelter quality (see 05).
+  }
+
+  class UserData <<record>> {
+    + name : String
+    + email : String
+    + phone : String
+    + nationalIdCode : String
+    + levels : Set<VerificationLevel>
+  }
+
+  enum VerificationLevel {
+    EMAIL
+    PHONE
+    SMART_ID
+  }
+
+  class VerificationClaim {
+    - id : Long
+    - level : VerificationLevel
+    - provider : String
+    - externalRef : String
+    - verifiedAt : Instant
+    - revokedAt : Instant
+  }
+
+  class VerificationPolicy {
+    - rules : VerificationRules
+    --
+    + VerificationPolicy(rules : VerificationRules)
+    + allows(levels : Set<VerificationLevel>, capability : Capability) : boolean
+  }
+
+  class VerificationRules <<record>> {
+    + baseline : Set<Capability>
+    + byLevel : Map<VerificationLevel, Set<Capability>>
+    + ofDefaults() : VerificationRules
+  }
+
+  enum Capability {
+    VIEW_MAP
+    SUBMIT_SHELTER
+    PUBLISH_INSTANTLY
+  }
+
+  class Shelter {
+    - id : Long
+    - name : String
+    - location : GeoPoint
+    - status : ShelterStatus
+    - externalId : String
+    - source : ShelterSource
+    - address : String
+    - county : String
+    - municipality : String
+    - dataAsOf : String
+    - sourceAttribution : String
+    ' Full registry record stored locally (see 04-ingestion.puml);
+    ' the API serves a lean projection (05-shelter-api.puml).
+  }
+  enum ShelterStatus {
+    ACTIVE
+    INACTIVE
+    PENDING
+    REJECTED
+  }
+
+  enum ShelterSource {
+    PAASETEAMET
+    MUNICIPALITY
+    USER
+  }
+
+  class GeoPoint <<record>> {
+    + lat : double
+    + lng : double
+  }
+
+  class ShelterReview {
+    - id : Long
+    - shelterId : Long
+    - userId : Long
+    - rating : int
+    - comment : String
+    - createdAt : Instant
+    - updatedAt : Instant
+  }
+
+}
+
+package "verification" {
+  interface VerificationProvider {
+    + providerCode() : String
+    + level() : VerificationLevel
+    + request(user : RegisteredUser) : PendingVerification
+    + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+  }
+
+  class EmailVerificationProvider {
+    - sender : SmtpSender
+    --
+    + request(user : RegisteredUser) : PendingVerification
+    + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+  }
+
+  class PhoneVerificationProvider {
+    - sender : SmsSender
+    --
+    + request(user : RegisteredUser) : PendingVerification
+    + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+  }
+
+  class SmartIdVerificationProvider {
+    --
+    + request(user : RegisteredUser) : PendingVerification
+    + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+  }
+
+  interface SmsSender {
+    + send(phone : String, message : String) : void
+  }
+
+  class TwilioSmsSender {
+    + send(phone : String, message : String) : void
+  }
+
+  class DevSmsSender {
+    + send(phone : String, message : String) : void
+  }
+
+  interface SmtpSender {
+    + send(email : String, message : String) : void
+  }
+
+  class DevSmtpSender {
+    + send(email : String, message : String) : void
+    ' Dev/CI: logs the message to the console (no real SMTP).
+  }
+
+  class SmtpPulseSmtpSender {
+    + send(email : String, message : String) : void
+    ' Production channel (planned): spring-boot-starter-mail + smtp-pulse.com,
+    ' selected via app.mail.provider=smtp-pulse. Logs metadata only, never the body.
+  }
+
+  class VerificationService {
+    - providers : Map<VerificationLevel, VerificationProvider>
+    --
+    + VerificationService(providers : Map<VerificationLevel, VerificationProvider>)
+    + requestVerification(user : RegisteredUser, level : VerificationLevel) : void
+    + confirmVerification(user : RegisteredUser, level : VerificationLevel, code : String) : boolean
+    + revoke(user : RegisteredUser, level : VerificationLevel) : void
+  }
+
+  class PendingVerification {
+    - id : Long
+    - level : VerificationLevel
+    - contact : String
+    - codeHash : String
+    - attempts : int
+    - expiresAt : Instant
+  }
+}
+
+package "app" {
+  class UserService {
+    + register(name : String, email : String, phone : String, nationalIdCode : String) : RegisteredUser
+    + getData(user : User) : UserData
+    + deleteAccount(user : User) : void
+  }
+interface UserRepository {
+    + save(user : User) : void
+    + findById(id : Long) : User
+  }
+
+  class ShelterService {
+    + addPlace(user : User, place : Shelter) : void
+  }
+interface ShelterRepository {
+    + save(shelter : Shelter) : void
+    + findByExternalId(externalId : String) : Optional<Shelter>
+    + saveAll(shelters : List<Shelter>) : void
+    + deleteBySourceAndExternalIdNotIn(source : ShelterSource, externalIds : List<String>) : int
+    + findAll() : List<Shelter>
+    + findAllBySourceIn(sources : List<ShelterSource>) : List<Shelter>
+  }
+
+  interface ShelterReviewRepository {
+    + save(review : ShelterReview) : void
+    + findById(id : Long) : Optional<ShelterReview>
+    + findByShelterId(shelterId : Long) : List<ShelterReview>
+    + findByShelterIdAndUserId(shelterId : Long, userId : Long) : Optional<ShelterReview>
+    + delete(review : ShelterReview) : void
+  }
+}
+
+' ==================== THE BIRD RULE ====================
+GuestUser --|> User
+RegisteredUser --|> User
+AdminUser --|> User
+
+' ==================== COMPOSITION / DATA ====================
+RegisteredUser "1" *-- "many" VerificationClaim : holds
+VerificationClaim --> VerificationLevel
+User --> UserData : getData() returns snapshot
+RegisteredUser ..> Shelter : addPlace() creates
+VerificationPolicy --> VerificationRules : reads rules
+VerificationRules --> Capability
+VerificationRules --> VerificationLevel
+
+' ==================== REVIEWS (community rating) ====================
+ShelterReview --> Shelter : rated
+RegisteredUser "1" *-- "many" ShelterReview : writes
+ShelterReviewRepository ..> ShelterReview : persists
+
+' ==================== PROVIDERS (Ch 9) ====================
+EmailVerificationProvider ..|> VerificationProvider
+PhoneVerificationProvider ..|> VerificationProvider
+SmartIdVerificationProvider ..|> VerificationProvider
+TwilioSmsSender ..|> SmsSender
+DevSmsSender ..|> SmsSender
+PhoneVerificationProvider --> SmsSender : sends OTP
+EmailVerificationProvider --> SmtpSender : sends token
+DevSmtpSender ..|> SmtpSender
+SmtpPulseSmtpSender ..|> SmtpSender
+
+' ==================== SERVICES = COLLABORATORS ====================
+UserService ..> User : operates on
+UserService ..> UserRepository
+UserRepository ..> User : persists
+
+VerificationService --> VerificationProvider : dispatches by level
+VerificationService --> PendingVerification : creates / validates
+VerificationService --> VerificationClaim : creates / revokes
+RegisteredUser ..> VerificationPolicy : canWrite() delegates
+ShelterService ..> User : checks canWrite() first
+ShelterService ..> Shelter : creates ACTIVE shelter (no moderation)
+ShelterService ..> ShelterRepository
+ShelterRepository ..> Shelter : persists
+
+note bottom of ShelterReview
+  Community rating IS the moderation - one review per user per shelter
+  (unique constraint on shelterId + userId). Re-rating = update, not insert.
+  Comments with text = the comment section (no separate entity in v1).
+  rating: 1..5, comment <= 500 chars.
+end note
+
+note bottom of Shelter
+  User submissions are created ACTIVE immediately - nothing to approve,
+  there is no moderator. Quality is governed by community ratings
+  (ShelterReview) instead. PENDING/REJECTED reserved for future use.
+end note
+
+note bottom of User
+  ABSTRACT main class - common to ALL users (every kind IS-A User).
+  Subclasses are kinds of user, fixed at creation:
+    GuestUser       = anonymous viewer (never persisted)
+    RegisteredUser  = account holder, becomes verified over time
+    AdminUser       = staff, full rights
+  Verification is NOT a subclass: a user can become verified AFTER
+  creation, and objects never change class (TIJ Ch 1/7). So
+  verification = claims (data), like the wing colour of a pigeon.
+end note
+
+note bottom of VerificationPolicy
+  Rules as data (config, not code) - change without rebuilding:
+    VIEW_MAP          -> baseline (no claims needed; guests can watch)
+    SUBMIT_SHELTER    -> EMAIL or PHONE or SMART_ID
+    PUBLISH_INSTANTLY -> SMART_ID
+  Answer = baseline + union of byLevel[level] for each active level.
+end note
+@enduml

@@ -1,0 +1,91 @@
+@startuml
+title Registration & Verification Flow (Core with providers)
+
+actor Person
+
+participant "GuestUser" as GU
+participant "UserService" as US
+participant "RegisteredUser" as RU
+participant "VerificationService" as VS
+participant "PhoneVerificationProvider" as PP
+participant "TwilioSmsSender" as TW
+participant "EmailVerificationProvider" as EP
+participant "SmtpSender" as SM
+participant "SmartIdVerificationProvider" as SP
+participant "VerificationPolicy" as VP
+participant "VerificationRules" as VR
+participant "ShelterService" as SS
+database "Database" as DB
+
+== 0. Anonymous browsing ==
+Person -> GU : canWatch()
+GU --> Person : true
+
+== 1. Register ==
+Person -> US : register(name, email, phone, idCode, password)
+US -> RU : new RegisteredUser(...)
+note over Person, US
+  The password is captured here but stored by the AUTH
+  context (03-auth.puml): AuthService.register ->
+  PasswordHasher.hash -> UserCredentialsRepository.save.
+  Profile vs credentials are separate aggregates.
+end note
+US -> DB : save(RegisteredUser)
+US --> Person : RegisteredUser (levels = {})
+
+== 2. Phone verification: request OTP ==
+Person -> VS : requestVerification(user, PHONE)
+VS -> PP : request(user)
+PP -> TW : sendSms(phone, "OTP: 123456")
+TW --> PP : sent
+PP --> VS : PendingVerification(PHONE, codeHash, expiry)
+VS -> DB : save pending
+
+== 3. Phone verification: confirm OTP ==
+Person -> VS : confirmVerification(user, PHONE, otp)
+VS -> PP : confirm(user, pending, otp)
+PP --> VS : true (hash + attempts + expiry check)
+VS -> DB : save VerificationClaim(PHONE, provider=twilio)
+VS --> Person : levels = {PHONE}
+
+== 4. Email verification: request token ==
+Person -> VS : requestVerification(user, EMAIL)
+VS -> EP : request(user)
+EP -> SM : send(email, "token: abc123")
+SM --> EP : sent
+EP --> VS : PendingVerification(EMAIL, tokenHash, expiry)
+VS -> DB : save pending
+
+== 5. Email verification: confirm token ==
+Person -> VS : confirmVerification(user, EMAIL, token)
+VS -> EP : confirm(user, pending, token)
+EP --> VS : true
+VS -> DB : save VerificationClaim(EMAIL, provider=smtp)
+VS --> Person : levels = {PHONE, EMAIL}
+
+== 6. Smart-ID: stub ==
+note over Person, SP
+  Smart-ID: STUB in v1. Future flow = start session + poll;
+  the provider proves identity itself via PKI - no stored code.
+  Only this class changes when Smart-ID goes live (Ch 9).
+end note
+
+== 7. Capability check ==
+Person -> RU : canWrite()
+RU -> VP : allows({PHONE, EMAIL}, SUBMIT_SHELTER)
+VP -> VR : rules (baseline + byLevel)
+VR --> VP : {PHONE, EMAIL} -> {VIEW_MAP, SUBMIT_SHELTER}
+VP --> RU : true
+RU --> Person : true
+
+== 8. Add a shelter (write) ==
+Person -> SS : addPlace(user, shelter)
+SS -> RU : canWrite()
+RU --> SS : true
+SS -> DB : save shelter (status = ACTIVE)
+SS --> Person : submitted (published immediately - community rating governs quality)
+
+' Email = same two-phase shape (request -> confirm).
+' Smart-ID = future session + polling (stub in v1).
+' No moderator: quality governed by ShelterReview ratings (see 05-shelter-api.puml).
+@enduml

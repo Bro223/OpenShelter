@@ -1,0 +1,232 @@
+@startuml
+title Shelter Map - Authentication & Password Reset (auth context)
+
+' ============================================================
+' AUTH BOUNDED CONTEXT - developed independently (parallel work)
+' Depends only on CONTRACTS from other contexts:
+'   - UserService (app context, 01)  -> profile lookup
+'   - RegisteredUser (domain, 01)    -> identity
+'   - SmtpSender (verification, 01)  -> reset email channel
+' Three concerns kept separate (no blob service):
+'   VERIFICATION (01)  = prove you own a contact -> claims
+'   AUTHENTICATION     = prove you are the same person -> password
+'   PASSWORD RESET     = recover auth via the VERIFIED email
+' ============================================================
+
+package "auth" {
+  class UserCredentials {
+    - userId : Long
+    - passwordHash : String
+    - createdAt : Instant
+    - changedAt : Instant
+    --
+    + UserCredentials(userId : Long, passwordHash : String)
+  }
+
+  class PasswordResetToken {
+    - id : Long
+    - userId : Long
+    - tokenHash : String
+    - expiresAt : Instant
+    - usedAt : Instant
+  }
+
+  interface PasswordHasher {
+    + hash(plain : String) : String
+    + verify(plain : String, hash : String) : boolean
+  }
+
+  class Argon2PasswordHasher {
+    + hash(plain : String) : String
+    + verify(plain : String, hash : String) : boolean
+  }
+
+  interface TokenService {
+    + issue(user : RegisteredUser) : TokenResponse
+    + refresh(refreshToken : String) : TokenResponse
+    + revoke(refreshToken : String) : void
+  }
+
+  class JwtTokenService {
+    + issue(user : RegisteredUser) : TokenResponse
+    + refresh(refreshToken : String) : TokenResponse
+    + revoke(refreshToken : String) : void
+  }
+
+  interface RefreshTokenRepository {
+    + save(tokenHash : String, userId : Long, expiresAt : Instant) : void
+    + findByTokenHash(tokenHash : String) : RefreshTokenRecord
+    + revoke(tokenHash : String) : void
+    + revokeAllForUser(userId : Long) : void
+  }
+
+  class RefreshTokenRecord <<record>> {
+    + userId : Long
+    + tokenHash : String
+    + expiresAt : Instant
+    + revokedAt : Instant
+  }
+
+  class AuthService {
+    + register(request : RegisterRequest) : void
+    + login(request : LoginRequest) : TokenResponse
+    + refresh(request : RefreshRequest) : TokenResponse
+    + logout(refreshToken : String) : void
+    + requestPasswordReset(email : String) : void
+    + resetPassword(token : String, newPassword : String) : void
+  }
+
+  class PasswordResetService {
+    + requestReset(email : String) : void
+    + reset(token : String, newPassword : String) : boolean
+  }
+
+  interface UserCredentialsRepository {
+    + save(credentials : UserCredentials) : void
+    + findByUserId(userId : Long) : UserCredentials
+    + updateHash(userId : Long, newHash : String) : void
+  }
+
+  interface PasswordResetTokenRepository {
+    + save(token : PasswordResetToken) : void
+    + findByTokenHash(tokenHash : String) : PasswordResetToken
+    + markUsed(id : Long) : void
+  }
+
+  interface RateLimiter {
+    + tryAcquire(key : String) : boolean
+  }
+
+  class TokenBucketRateLimiter {
+    + tryAcquire(key : String) : boolean
+  }
+
+  class AuthController {
+    + register(request : RegisterRequest) : void
+    + login(request : LoginRequest) : TokenResponse
+    + refresh(request : RefreshRequest) : TokenResponse
+    + logout(refreshToken : String) : void
+    + requestPasswordReset(request : PasswordResetRequest) : void
+    + resetPassword(request : PasswordResetConfirmRequest) : void
+  }
+
+  class RegisterRequest <<record>> {
+    + name : String
+    + email : String
+    + phone : String
+    + nationalIdCode : String
+    + password : String
+  }
+
+  class LoginRequest <<record>> {
+    + emailOrPhone : String
+    + password : String
+  }
+
+  class RefreshRequest <<record>> {
+    + refreshToken : String
+  }
+
+  class TokenResponse <<record>> {
+    + accessToken : String
+    + refreshToken : String
+    + expiresIn : int
+  }
+
+  class PasswordResetRequest <<record>> {
+    + email : String
+  }
+
+  class PasswordResetConfirmRequest <<record>> {
+    + token : String
+    + newPassword : String
+  }
+}
+
+' ============ EXTERNAL CONTRACTS (defined in 01, shown here as contracts only) ============
+package "referenced from 01 (contracts only)" {
+  class "RegisteredUser" as RU {
+    - id : Long
+    - email : String
+    - phone : String
+  }
+
+  class "UserService" as US {
+    + findByEmailOrPhone(contact : String) : RegisteredUser
+    + findByEmail(email : String) : RegisteredUser
+  }
+
+  interface SmtpSender {
+    + send(email : String, message : String) : void
+  }
+}
+
+' ==================== IMPLEMENTATIONS (Ch 9: interface first) ====================
+Argon2PasswordHasher ..|> PasswordHasher
+JwtTokenService ..|> TokenService
+TokenBucketRateLimiter ..|> RateLimiter
+
+' ==================== SERVICE WIRING ====================
+AuthController --> AuthService : all auth endpoints
+AuthController ..> RateLimiter : guards login + reset-request
+
+AuthService --> UserService : profile lookup (register/login/reset)
+AuthService --> PasswordHasher : hash / verify
+AuthService --> UserCredentialsRepository : stores & reads hash
+AuthService --> TokenService : issue / refresh / revoke sessions
+AuthService --> PasswordResetService : delegates reset flow
+AuthService --> RefreshTokenRepository : revokeAll on password reset
+
+PasswordResetService --> UserService : findByEmail
+PasswordResetService --> PasswordResetTokenRepository : single-use token
+PasswordResetService --> SmtpSender : reset link email
+PasswordResetService --> UserCredentialsRepository : update hash
+PasswordResetService --> PasswordHasher : hash new password
+
+TokenService --> RefreshTokenRepository : persists refresh tokens
+JwtTokenService ..> RefreshTokenRepository
+
+UserCredentials --> RU : belongs to (by userId)
+PasswordResetToken --> RU : belongs to (by userId)
+
+note bottom of UserCredentials
+  Separate aggregate from RegisteredUser (01) ON PURPOSE:
+  profile PII and password secrets live apart - a leak of one
+  table does not leak the other. Argon2id embeds the salt in
+  the hash string (no separate salt column). Never store or
+  log plaintext passwords.
+end note
+
+note bottom of TokenService
+  Two-token session model (SDI Ch 7 style):
+    access  = JWT, 15 min, stateless, signed - the map API
+              trusts it without DB lookups
+    refresh = 30 days, stored HASHED via RefreshTokenRepository
+              -> revocable (logout, reset, compromise)
+  JwtTokenService implements signing/validation + exp/sub claims.
+end note
+
+note bottom of PasswordResetService
+  Reset flow:
+    1. requestReset(email) -> 32-char random token (in URL, not OTP)
+    2. store {tokenHash, expiresAt=15min, usedAt} - hashed, single-use
+    3. send https://app/reset?token=... via SmtpSender
+    4. ALWAYS respond success ("if the account exists, we sent an
+       email") - never reveal whether an email is registered
+    5. reset(token, newPwd) -> verify hash + expiry + unused, hash
+       new password, update UserCredentials, mark token used
+    6. AuthService then revokes ALL refresh tokens for that user
+       (stolen-session protection - old sessions die on reset)
+end note
+
+note bottom of AuthController
+  Thin HTTP shell - zero logic, just wiring (Ch 1). Rate limiting
+  on /auth/login and /auth/password-reset/request guards brute
+  force and email bombing (SDI Ch 4 token bucket).
+end note
+
+note bottom of US
+  Defined in 01 (app context). Shown here with the lookup
+  methods the auth context requires - contracts only.
+end note
+@enduml

@@ -1,0 +1,23 @@
+package ee.sheltermap.api;
+
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+/**
+ * {@code POST /api/shelters} body (05-shelter-api.puml).
+ *
+ * <p>{@code description} and {@code capacity} are part of the frontend
+ * contract and are validated here, but the Step-1 {@code Shelter} domain
+ * type has no fields for them yet — they are currently dropped at the
+ * boundary (see Step 5 report; storing them needs a domain + schema change).
+ */
+public record CreateShelterRequest(
+        @NotBlank @Size(max = 200) String name,
+        @DecimalMin("-90") @DecimalMax("90") double latitude,
+        @DecimalMin("-180") @DecimalMax("180") double longitude,
+        @Size(max = 2000) String description,
+        @Min(1) Integer capacity) {
+}

@@ -1,0 +1,62 @@
+# Shelter Map backend — local development configuration.
+# Values are overridable via environment variables (see README).
+spring:
+  application:
+    name: shelter-map
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sheltermap}
+    username: ${DB_USERNAME:sheltermap}
+    password: ${DB_PASSWORD:sheltermap}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  http:
+    client:
+      connect-timeout: 10s
+      read-timeout: 10s
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  jwt:
+    # Dev-only default secret (>= 32 bytes for HS256). Override with JWT_SECRET
+    # in any real environment — never ship or deploy this value.
+    secret: ${JWT_SECRET:dev-only-secret-change-me-sheltermap-0123456789abcdef}
+    access-ttl: 15m
+    refresh-ttl: 30d
+  ratelimit:
+    login-capacity: 5
+    login-refill-per-second: 0.084
+    reset-capacity: 3
+    reset-refill-per-second: 0.05
+  registry:
+    # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
+    # Override with REGISTRY_BASE_URL if the service endpoint moves.
+    base-url: ${REGISTRY_BASE_URL:https://xgis.maaamet.ee/xgis2/service/1pdl2oh}
+    page-size: 100
+    max-retries: 3
+    politeness-delay: 250ms
+    # Which client impl to use: 'paasteamet' (real HTTP) or 'dev' (local fixture)
+    client: ${REGISTRY_CLIENT:paasteamet}
+    # Set to true to run one import on startup (manual trigger, Step 5)
+    run-on-startup: false
+    # Weekly automatic sync (product decision). Chosen solution: Spring's
+    # built-in @Scheduled cron — single instance, no extra infrastructure.
+    # Disable entirely with --app.registry.schedule-enabled=false.
+    schedule-enabled: true
+    cron: 0 0 3 * * MON
+    zone: Europe/Tallinn

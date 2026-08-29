@@ -1,0 +1,174 @@
+@startuml
+title Shelter Map - Shelter API (read + write + community reviews)
+' Thin controllers (Ch 1: service providers for HTTP) - parse, validate, delegate, map. No business logic.
+' DTO records are the versioned contract with the frontend (Vue/Angular).
+' Depends only on interfaces from other contexts (01): ShelterRepository, ShelterReviewRepository, ShelterService.
+
+package "api" {
+  class ShelterController {
+    + GET  /api/shelters?source=REGISTRY|USER|ALL
+    + GET  /api/shelters/{id}
+    + POST /api/shelters
+  }
+
+  class ReviewController {
+    + GET    /api/shelters/{id}/reviews
+    + POST   /api/shelters/{id}/reviews
+    + PUT    /api/shelters/{id}/reviews/mine
+    + DELETE /api/shelters/{id}/reviews/mine
+  }
+
+  class ShelterQueryService {
+    + findAll(filter : ShelterSourceFilter) : List<ShelterDto>
+    + findById(id : Long) : Optional<ShelterDto>
+  }
+
+  class ShelterReviewService {
+    + addReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : void
+    + updateReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : void
+    + deleteReview(user : RegisteredUser, shelterId : Long) : void
+    + getReviews(shelterId : Long) : List<ShelterReviewDto>
+    + getRatingSummary(shelterId : Long) : RatingSummaryDto
+  }
+
+  class ShelterDto <<record>> {
+    + id : Long
+    + name : String
+    + address : String
+    + latitude : double
+    + longitude : double
+    + status : ShelterStatus
+    + source : ShelterSource
+    + averageRating : Double
+    + reviewCount : int
+    + createdAt : Instant
+    ' Lean projection: the full registry record (county, municipality,
+    ' data-as-of, attribution) is stored in the DB but not dumped here -
+    ' the UI gets only what the map needs.
+  }
+
+  class CreateShelterRequest <<record>> {
+    + name : String
+    + latitude : double
+    + longitude : double
+    + description : String
+    + capacity : Integer
+  }
+
+  class ReviewRequest <<record>> {
+    + rating : int
+    + comment : String
+  }
+
+  class ShelterReviewDto <<record>> {
+    + id : Long
+    + authorName : String
+    + rating : int
+    + comment : String
+    + createdAt : Instant
+  }
+
+  class RatingSummaryDto <<record>> {
+    + average : double
+    + count : int
+  }
+
+  class ErrorResponse <<record>> {
+    + timestamp : Instant
+    + status : int
+    + error : String
+    + message : String
+    + path : String
+  }
+
+  enum ShelterSourceFilter {
+    REGISTRY
+    USER
+    ALL
+  }
+}
+
+' ============ CONTRACT WITH OTHER CONTEXTS (interfaces only) ============
+ShelterController --> ShelterQueryService : GET
+ShelterController --> ShelterService : POST (app/01)
+ShelterController --> CreateShelterRequest : parses body
+ShelterController --> ErrorResponse : 400/401/403/404/429
+ShelterQueryService --> ShelterRepository : reads (interface, 01)
+ShelterQueryService --> Shelter : maps to DTO
+ShelterQueryService --> ShelterDto : returns
+
+ReviewController --> ShelterReviewService
+ShelterReviewService --> ShelterReviewRepository : interface (01)
+ShelterReviewService --> RegisteredUser : requires verified account
+ShelterReviewService ..> ShelterReview : upserts
+ShelterReviewService --> ShelterReviewDto
+ShelterReviewService --> RatingSummaryDto
+ReviewController --> ReviewRequest
+ShelterReviewService ..> ErrorResponse : 403 if not verified / not author
+
+ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()
+ShelterSourceFilter --> ShelterSource : REGISTRY={PAASETEAMET,MUNICIPALITY}, USER={USER}, ALL={all}
+
+note bottom of ShelterController
+  GET  /api/shelters?source=REGISTRY|USER|ALL  (public - guests can watch, canWatch)
+  GET  /api/shelters/{id}                      (public)
+  POST /api/shelters                           (Bearer JWT, canWrite() check)
+  Deferred: nearest/bbox queries need GeoService + PostGIS GIST index.
+  Paging deferred: Estonia-scale data is small; add limit/offset when it grows.
+end note
+
+note bottom of ShelterReviewService
+  Community rating IS the moderation - no moderator role.
+  - One review per user per shelter (unique shelterId+userId); re-rating updates
+  - Requires an authenticated, VERIFIED account (any VerificationClaim)
+  - update/delete: author only (ownership check)
+  - rating 1..5, comment <= 500 chars
+  - Aggregates computed per request in v1; denormalize onto Shelter or
+    Redis-cache when traffic grows (SDI Ch 6)
+end note
+@enduml
+
+@startuml
+title Shelter Map - API Flows (sequence)
+actor Client
+
+participant "ShelterController" as SC
+participant "ShelterQueryService" as SQS
+participant "ShelterRepository" as REPO
+participant "ShelterService" as SS
+participant "ShelterReviewService" as RVS
+participant "ShelterReviewRepository" as RREPO
+database "PostgreSQL" as DB
+
+== 1. GET /api/shelters?source=USER (public) ==
+Client -> SC : GET /api/shelters?source=USER
+SC -> SQS : findAll(USER)
+SQS -> REPO : findAllBySourceIn([USER])
+REPO -> DB : SELECT ... WHERE source IN (...)
+REPO --> SQS : List<Shelter>
+SQS --> SC : List<ShelterDto> (with averageRating, reviewCount)
+SC --> Client : 200 [ShelterDto]
+
+== 2. POST /api/shelters (Bearer JWT, verified user) ==
+Client -> SC : POST /api/shelters {name, lat, lng, ...}
+SC -> SS : addPlace(user, shelter)
+SS -> DB : save shelter (status = ACTIVE, source = USER)
+SS --> SC : Shelter
+SC --> Client : 201 + Location
+
+== 3. POST /api/shelters/{id}/reviews (Bearer JWT, verified user) ==
+Client -> RVS : POST review {rating, comment}
+RVS -> RREPO : findByShelterIdAndUserId(shelterId, userId)
+alt existing review
+  RVS -> RREPO : save(updated)  (re-rating = update)
+else new review
+  RVS -> RREPO : save(created)
+end
+RVS --> Client : 200/201
+
+== 4. GET /api/shelters/{id}/reviews (public) ==
+Client -> RVS : GET reviews
+RVS -> RREPO : findByShelterId(shelterId)
+RREPO --> RVS : List<ShelterReview>
+RVS --> Client : 200 [ShelterReviewDto]
+@enduml

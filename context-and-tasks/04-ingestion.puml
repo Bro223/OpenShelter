@@ -1,0 +1,192 @@
+@startuml
+title Shelter Map - Registry Ingestion (classes)
+' Anti-corruption layer: the external registry format never leaks into the domain.
+' Dependency direction: ingestion --> domain (Shelter, ShelterRepository). Nothing else changes.
+
+package "ingestion" {
+  interface ShelterRegistryClient {
+    + fetchAll() : List<RegistryShelterDto>
+  }
+
+  class PaasteametRegistryClient {
+    + fetchAll() : List<RegistryShelterDto>
+    ' WFS GetFeature client: typeName=VARJEKOHT, outputFormat=geojson,
+    ' startIndex pagination. Retries with backoff, politeness (SDI Ch 9).
+    ' Maa-amet ignores srsName - coordinates always arrive in EPSG:3301.
+    - pageSize : int
+    - maxRetries : int
+    - politenessDelay : Duration
+    - restClient : RestClient
+    - transformer : LEst97Transformer
+  }
+
+  class DevRegistryClient {
+    + fetchAll() : List<RegistryShelterDto>
+    ' Reads a local JSON fixture - dev/CI runs without network.
+  }
+
+  class LEst97Transformer {
+    + toWgs84(x : double, y : double) : GeoPoint
+    ' EPSG:3301 (L-EST97, meters) -> EPSG:4326 (WGS84) via proj4j.
+    ' CRS defined from parameters - no EPSG registry resource needed.
+  }
+
+  ' Internal WFS payload records (nested inside PaasteametRegistryClient):
+  class WfsFeatureCollection <<record>> {
+    + features : List<WfsFeature>
+  }
+  class WfsFeature <<record>> {
+    + properties : WfsProperties
+    + geometry : WfsGeometry
+  }
+  class WfsProperties <<record>> {
+    + ID : String
+    + NIMI : String
+    + AADRESS : String
+    + MK : String
+    + OV : String
+    + ANDMESEIS : String
+    + ALLIKAS : String
+  }
+  class WfsGeometry <<record>> {
+    + type : String
+    + coordinates : double[]   ' [x, y] in EPSG:3301 (L-EST97, meters)
+  }
+
+  class RegistryShelterDto <<record>> {
+    + externalId : String
+    + name : String
+    + address : String
+    + latitude : double
+    + longitude : double
+    + capacity : Integer
+    + accessible : boolean
+    + county : String
+    + municipality : String
+    + dataAsOf : String
+    + sourceAttribution : String
+    ' The registry JSON shape - dies at this boundary.
+    ' Full WFS record is stored locally; the API serves only the lean projection.
+  }
+
+  interface ShelterParser {
+    + parse(dtos : List<RegistryShelterDto>) : List<Shelter>
+  }
+
+  class RegistryShelterParser {
+    + parse(dtos : List<RegistryShelterDto>) : List<Shelter>
+    ' Validates coordinates + Estonia bbox; malformed rows skipped and counted.
+  }
+
+  class ShelterImportService {
+    + importFromRegistry() : ImportResult
+    ' Orchestrates: fetch, parse, dedupe, upsert, remove delisted.
+  }
+
+  class ImportResult <<record>> {
+    + created : int
+    + updated : int
+    + removed : int
+    + skipped : int
+    + failed : int
+    + at : Instant
+  }
+
+  class RegistryUnavailableException {
+    ' Thrown when the registry is unreachable - import fails gracefully.
+  }
+}
+
+package "config" {
+  class RegistryScheduler {
+    + runImport() : void
+    ' @Scheduled cron (default Mon 03:00 Europe/Tallinn; app.registry.cron/zone),
+    ' AtomicBoolean overlap guard, failure-tolerant logging, schedule-enabled toggle.
+  }
+}
+
+package "domain" {
+  class Shelter {
+    + id : Long
+    + name : String
+    + location : GeoPoint
+    + status : ShelterStatus
+    + externalId : String
+    + source : ShelterSource
+    + address : String
+    + county : String
+    + municipality : String
+    + dataAsOf : String
+    + sourceAttribution : String
+    ' externalId + source set by the import side. User submissions: externalId null, source USER.
+    ' Full WFS record (address/county/municipality/dataAsOf/sourceAttribution) is
+    ' stored locally; the API DTO serves only what the map needs.
+  }
+
+  enum ShelterSource {
+    PAASETEAMET
+    MUNICIPALITY
+    USER
+  }
+
+  interface ShelterRepository {
+    + save(shelter : Shelter) : void
+    + findByExternalId(externalId : String) : Optional<Shelter>
+    + saveAll(shelters : List<Shelter>) : void
+    + deleteBySourceAndExternalIdNotIn(source : ShelterSource, externalIds : List<String>) : int
+  }
+}
+
+PaasteametRegistryClient ..|> ShelterRegistryClient
+DevRegistryClient ..|> ShelterRegistryClient
+ShelterRegistryClient ..> RegistryShelterDto
+PaasteametRegistryClient --> LEst97Transformer : transforms EPSG:3301 -> WGS84
+PaasteametRegistryClient *-- WfsFeatureCollection : nested
+WfsFeatureCollection *-- WfsFeature
+WfsFeature *-- WfsProperties
+WfsFeature *-- WfsGeometry
+RegistryShelterParser ..|> ShelterParser
+ShelterParser ..> RegistryShelterDto
+RegistryShelterParser ..> Shelter : maps to domain
+ShelterImportService --> ShelterRegistryClient
+ShelterImportService --> ShelterParser
+ShelterImportService --> ShelterRepository
+RegistryScheduler --> ShelterImportService : weekly cron
+ShelterImportService ..> RegistryUnavailableException : catches
+ShelterRepository ..> Shelter
+
+note right of ShelterImportService
+  Re-import: existing externalId = UPDATE, new = CREATE,
+  registry rows missing from the latest fetch = DELETE.
+  User-added shelters (source USER) are never touched.
+  API filter GET /api/shelters?source=REGISTRY|USER|ALL arrives with the read side.
+end note
+@enduml
+
+@startuml
+title Shelter Map - Registry Import Flow (sequence)
+actor RegistryScheduler
+participant "ShelterImportService" as SIS
+participant "ShelterRegistryClient" as RC
+participant "RegistryShelterParser" as P
+participant "ShelterRepository" as REPO
+database "PostgreSQL" as DB
+
+RegistryScheduler -> SIS : importFromRegistry()
+SIS -> RC : fetchAll()
+RC --> SIS : List<RegistryShelterDto>
+SIS -> P : parse(dtos)
+P --> SIS : List<Shelter>
+loop each shelter
+  SIS -> REPO : findByExternalId(externalId)
+  alt existing
+    REPO --> SIS : Optional.of(shelter)
+    SIS -> REPO : saveAll(updated)
+  else new
+    SIS -> REPO : saveAll(created)
+  end
+end
+SIS -> REPO : deleteBySourceAndExternalIdNotIn(REGISTRY, fetchedIds)
+REPO -> DB : DELETE registry rows missing from the latest fetch
+SIS --> RegistryScheduler : ImportResult
+@enduml

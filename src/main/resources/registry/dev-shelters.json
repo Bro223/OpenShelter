@@ -1,0 +1,67 @@
+[
+  {
+    "externalId": "PK-0001",
+    "name": "Tallinna   varjend   1",
+    "address": "Endla 5, Tallinn",
+    "latitude": 59.437,
+    "longitude": 24.753,
+    "capacity": 120,
+    "accessible": true,
+    "county": "Harju maakond",
+    "municipality": "Tallinn",
+    "dataAsOf": "02.07.2026",
+    "sourceAttribution": "SMIT. Päästeameti avaandmed"
+  },
+  {
+    "externalId": "PK-0002",
+    "name": "Tartu keldri varjend",
+    "address": "Ülikooli 3, Tartu",
+    "latitude": 58.378,
+    "longitude": 26.728,
+    "capacity": 80,
+    "accessible": false,
+    "county": "Tartu maakond",
+    "municipality": "Tartu linn",
+    "dataAsOf": "02.07.2026",
+    "sourceAttribution": "SMIT. Päästeameti avaandmed"
+  },
+  {
+    "externalId": "PK-0003",
+    "name": "   ",
+    "address": "No name here",
+    "latitude": 59.0,
+    "longitude": 25.0,
+    "capacity": 10,
+    "accessible": true,
+    "county": null,
+    "municipality": null,
+    "dataAsOf": null,
+    "sourceAttribution": null
+  },
+  {
+    "externalId": "PK-0004",
+    "name": "Outside Estonia",
+    "address": "Helsinki, Finland",
+    "latitude": 60.17,
+    "longitude": 24.94,
+    "capacity": 50,
+    "accessible": true,
+    "county": "Uusimaa",
+    "municipality": "Helsinki",
+    "dataAsOf": "02.07.2026",
+    "sourceAttribution": "SMIT. Päästeameti avaandmed"
+  },
+  {
+    "externalId": "PK-0005",
+    "name": "Narva varjend",
+    "address": "Hariduse 6, Narva",
+    "latitude": 59.38,
+    "longitude": 28.19,
+    "capacity": 200,
+    "accessible": true,
+    "county": "Ida-Viru maakond",
+    "municipality": "Narva linn",
+    "dataAsOf": "02.07.2026",
+    "sourceAttribution": "SMIT. Päästeameti avaandmed"
+  }
+]
