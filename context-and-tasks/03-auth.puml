@@ -141,6 +141,55 @@ package "auth" {
     + token : String
     + newPassword : String
   }
+
+  class AccountController {
+    + requestEmailChange(request : ChangeEmailRequest) : void
+    + confirmEmailChange(request : ConfirmChangeRequest) : void
+    + requestPhoneChange(request : ChangePhoneRequest) : void
+    + confirmPhoneChange(request : ConfirmChangeRequest) : void
+    ' All 4 endpoints require JWT; request endpoints additionally
+    ' per-IP rate-limited (changeRequestRateLimiter).
+  }
+
+  class ContactChangeService {
+    + requestEmailChange(user : RegisteredUser, newEmail : String) : void
+    + confirmEmailChange(user : RegisteredUser, code : String) : void
+    + requestPhoneChange(user : RegisteredUser, newPhone : String) : void
+    + confirmPhoneChange(user : RegisteredUser, code : String) : void
+    ' Cross-channel: email change verified by SMS to current phone;
+    ' phone change verified by email to current email.
+  }
+
+  class PendingContactChange {
+    - id : Long
+    - userId : Long
+    - type : ContactChangeType
+    - target : String
+    - codeHash : String
+    - attempts : int
+    - expiresAt : Instant
+    - createdAt : Instant
+    ' code hashed (SHA-256), attempts-limited, expiring;
+    ' unique (userId, type) - one pending change at a time.
+  }
+
+  interface PendingContactChangeRepository {
+    + findByUserIdAndType(userId : Long, type : ContactChangeType) : Optional<PendingContactChange>
+    + save(change : PendingContactChange) : PendingContactChange
+    + delete(change : PendingContactChange) : void
+  }
+
+  class ChangeEmailRequest <<record>> {
+    + newEmail : String
+  }
+
+  class ChangePhoneRequest <<record>> {
+    + newPhone : String
+  }
+
+  class ConfirmChangeRequest <<record>> {
+    + code : String
+  }
 }
 
 ' ============ EXTERNAL CONTRACTS (defined in 01, shown here as contracts only) ============
@@ -159,6 +208,15 @@ package "referenced from 01 (contracts only)" {
   interface SmtpSender {
     + send(email : String, message : String) : void
   }
+
+  interface SmsSender {
+    + send(phone : String, message : String) : void
+  }
+
+  enum "ContactChangeType" as CCT {
+    EMAIL_CHANGE
+    PHONE_CHANGE
+  }
 }
 
 ' ==================== IMPLEMENTATIONS (Ch 9: interface first) ====================
@@ -176,6 +234,14 @@ AuthService --> UserCredentialsRepository : stores & reads hash
 AuthService --> TokenService : issue / refresh / revoke sessions
 AuthService --> PasswordResetService : delegates reset flow
 AuthService --> RefreshTokenRepository : revokeAll on password reset
+
+AccountController --> ContactChangeService : all contact-change endpoints
+AccountController ..> RateLimiter : guards change-request endpoints (per IP)
+ContactChangeService --> PendingContactChangeRepository : pending change (cooldown anchor)
+ContactChangeService --> SmsSender : email-change code -> current phone
+ContactChangeService --> SmtpSender : phone-change code -> current email
+ContactChangeService --> RegisteredUser : changeEmail() / changePhone()
+PendingContactChange --> ContactChangeType
 
 PasswordResetService --> UserService : findByEmail
 PasswordResetService --> PasswordResetTokenRepository : single-use token
@@ -223,6 +289,16 @@ note bottom of AuthController
   Thin HTTP shell - zero logic, just wiring (Ch 1). Rate limiting
   on /auth/login and /auth/password-reset/request guards brute
   force and email bombing (SDI Ch 4 token bucket).
+end note
+
+note bottom of ContactChangeService
+  CROSS-CHANNEL contact change (hardening against single-channel
+  compromise): changing the email requires an SMS code sent to the
+  CURRENT phone; changing the phone requires an email code sent to
+  the CURRENT email. Stealing only one channel is not enough.
+  One pending change per (user, type): resend cooldown (60 s),
+  code TTL (15 min), 5-attempt limit, duplicate target -> 409,
+  per-IP rate limit on the request endpoints.
 end note
 
 note bottom of US

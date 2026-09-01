@@ -2,17 +2,27 @@ package ee.sheltermap.verification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 /**
- * Production SMS channel via the Twilio SDK.
+ * Production SMS channel — Twilio Programmable Messaging (send-only).
  *
- * <p>Step 2 stubs the SDK call — no credentials exist in dev/CI. Wire the
- * real client here when Twilio credentials are available (see TODO). The
- * stub logs metadata only, never the message payload (it carries the OTP).
+ * <p>Twilio is only the transport: OTP generation, retry/cooldown and
+ * verification logic all live on the OpenShelter side (see
+ * {@link PhoneVerificationProvider} + {@link VerificationService}), so the
+ * provider stays swappable by changing {@code app.sms.provider}.
  *
- * <p>Only active when explicitly selected via {@code app.sms.provider=twilio}.
+ * <p>Credentials come from env vars ({@code TWILIO_ACCOUNT_SID},
+ * {@code TWILIO_AUTH_TOKEN}, plus {@code TWILIO_MESSAGING_SERVICE_SID} or
+ * {@code TWILIO_FROM}) — loaded from the gitignored {@code .env} by
+ * spring-dotenv, never committed. Logs metadata only, never the message body
+ * (it carries the OTP). Delivery errors are logged, not thrown — the
+ * verification request must not reveal whether a delivery succeeded
+ * (anti-enumeration, same policy as the SMTP sender).
  */
 @Service
 @ConditionalOnProperty(name = "app.sms.provider", havingValue = "twilio")
@@ -20,10 +30,64 @@ public class TwilioSmsSender implements SmsSender {
 
     private static final Logger log = LoggerFactory.getLogger(TwilioSmsSender.class);
 
+    /**
+     * Thin seam over the Twilio SDK so unit tests can use a hand-written fake
+     * (the suite is Mockito-free by design — stays JDK-agnostic).
+     */
+    interface TwilioApi {
+        void send(String toE164, String messagingServiceSid, String fromNumber, String body);
+    }
+
+    private final TwilioApi api;
+    private final String messagingServiceSid;
+    private final String fromNumber;
+
+    public TwilioSmsSender(@Value("${TWILIO_ACCOUNT_SID:}") String accountSid,
+                           @Value("${TWILIO_AUTH_TOKEN:}") String authToken,
+                           @Value("${TWILIO_MESSAGING_SERVICE_SID:}") String messagingServiceSid,
+                           @Value("${TWILIO_FROM:}") String fromNumber) {
+        this(new SdkTwilioApi(accountSid, authToken), messagingServiceSid, fromNumber);
+    }
+
+    TwilioSmsSender(TwilioApi api, String messagingServiceSid, String fromNumber) {
+        this.api = Objects.requireNonNull(api, "api");
+        this.messagingServiceSid = messagingServiceSid;
+        this.fromNumber = fromNumber;
+    }
+
     @Override
     public void send(String phone, String message) {
-        // TODO(real): construct the Twilio client from ACCOUNT_SID/AUTH_TOKEN
-        //  and call Message.creator(new PhoneNumber(phone), ...).create().
-        log.info("TwilioSmsSender stub: would send SMS to {} ({} chars)", phone, message.length());
+        String toE164 = PhoneNumbers.normalizeE164(phone);
+        try {
+            api.send(toE164, messagingServiceSid, fromNumber, message);
+            log.info("Twilio SMS sent to {} ({} chars)", toE164, message.length());
+        } catch (RuntimeException ex) {
+            // Logged, never thrown: callers must not be able to distinguish
+            // "delivery failed" from "request accepted" (anti-enumeration).
+            log.error("Twilio SMS delivery failed to {}: {}", toE164, ex.getMessage());
+        }
+    }
+
+    /** SDK-backed {@link TwilioApi}. Static init is idempotent; safe for a single app. */
+    static final class SdkTwilioApi implements TwilioApi {
+
+        SdkTwilioApi(String accountSid, String authToken) {
+            if (accountSid != null && !accountSid.isBlank()
+                    && authToken != null && !authToken.isBlank()) {
+                com.twilio.Twilio.init(accountSid, authToken);
+            }
+        }
+
+        @Override
+        public void send(String toE164, String messagingServiceSid, String fromNumber, String body) {
+            com.twilio.type.PhoneNumber to = new com.twilio.type.PhoneNumber(toE164);
+            if (messagingServiceSid != null && !messagingServiceSid.isBlank()) {
+                // Messaging Service: sender pooling, fallback + compliance built in.
+                com.twilio.rest.api.v2010.account.Message.creator(to, messagingServiceSid, body).create();
+            } else {
+                com.twilio.rest.api.v2010.account.Message.creator(
+                        to, new com.twilio.type.PhoneNumber(fromNumber), body).create();
+            }
+        }
     }
 }

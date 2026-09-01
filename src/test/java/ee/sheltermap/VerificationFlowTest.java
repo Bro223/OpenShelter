@@ -4,6 +4,7 @@ import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserService;
+import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
@@ -15,12 +16,16 @@ import ee.sheltermap.verification.CapturingSmsSender;
 import ee.sheltermap.verification.CapturingSmtpSender;
 import ee.sheltermap.verification.EmailVerificationProvider;
 import ee.sheltermap.verification.InMemoryPendingVerificationRepository;
+import ee.sheltermap.verification.InMemoryVerificationSendLog;
 import ee.sheltermap.verification.PhoneVerificationProvider;
 import ee.sheltermap.verification.VerificationProvider;
 import ee.sheltermap.verification.VerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -55,7 +60,9 @@ class VerificationFlowTest {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
-        verificationService = new VerificationService(providers, pendings);
+        verificationService = new VerificationService(providers, pendings,
+                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"),
+                Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC));
         shelterService = new ShelterService(shelters);
     }
 

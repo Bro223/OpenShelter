@@ -1,9 +1,11 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.Map;
@@ -18,36 +20,72 @@ import java.util.Objects;
  * <p>Providers stay pure channel adapters; they never touch the database.
  * (Claim revocation is pure domain state — {@code RegisteredUser.revoke} —
  * with no HTTP surface in v1, so there is no service method for it.)
+ *
+ * <p>Anti-spam (Twilio plan): every request is throttled per (user, level)
+ * via the durable {@link VerificationSendLog} — a resend cooldown plus a
+ * per-user daily cap. Violations raise {@link VerificationThrottledException}
+ * (→ 429); the check deliberately says nothing about the contact's existence.
  */
 public class VerificationService {
 
     private final Map<VerificationLevel, VerificationProvider> providers;
     private final PendingVerificationRepository pendingRepository;
+    private final VerificationSendLog sendLog;
+    private final VerificationProperties properties;
+    private final Clock clock;
 
     /**
-     * @param providers        provider per level; a level without a provider is rejected
-     * @param pendingRepository persistence seam for pending codes
+     * @param providers          provider per level; a level without a provider is rejected
+     * @param pendingRepository  persistence seam for pending codes
+     * @param sendLog            durable send log behind the cooldown + daily cap
+     * @param properties         throttle config ({@code cooldownSeconds}, {@code maxPerDay})
+     * @param clock              time source (injectable for deterministic tests)
      */
     public VerificationService(Map<VerificationLevel, VerificationProvider> providers,
-                               PendingVerificationRepository pendingRepository) {
+                               PendingVerificationRepository pendingRepository,
+                               VerificationSendLog sendLog,
+                               VerificationProperties properties,
+                               Clock clock) {
         this.providers = new EnumMap<>(VerificationLevel.class);
         if (providers != null) {
             this.providers.putAll(providers);
         }
         this.pendingRepository = Objects.requireNonNull(pendingRepository, "pendingRepository");
+        this.sendLog = Objects.requireNonNull(sendLog, "sendLog");
+        this.properties = Objects.requireNonNull(properties, "properties");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
      * Starts verification for {@code level}: the provider generates + sends
      * the code, the service persists the pending verification. Any previous
      * active code for the same user+level is invalidated (one code at a time).
+     *
+     * @throws VerificationThrottledException when the cooldown has not elapsed
+     *                                        or the daily cap is reached (→ 429)
      */
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         VerificationProvider provider = providerFor(level);
+        long userId = Objects.requireNonNull(user, "user").getId();
+        Instant now = clock.instant();
+
+        long cooldownSeconds = properties.cooldownSeconds();
+        if (cooldownSeconds > 0) {
+            Instant lastSentAt = sendLog.lastSentAt(userId, level);
+            if (lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
+                throw new VerificationThrottledException();
+            }
+        }
+        int maxPerDay = properties.maxPerDay();
+        if (maxPerDay > 0 && sendLog.countToday(userId, level) >= maxPerDay) {
+            throw new VerificationThrottledException();
+        }
+
         PendingVerification pending = provider.request(user);
-        pendingRepository.findActiveByUserAndLevel(user.getId(), level)
+        pendingRepository.findActiveByUserAndLevel(userId, level)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
+        sendLog.record(userId, level, pending.getContact(), now);
     }
 
     /**

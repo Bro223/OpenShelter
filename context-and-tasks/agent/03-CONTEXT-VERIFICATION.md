@@ -18,15 +18,19 @@ tokens) lives in the auth context (`03-auth.puml`).
 |---|---|---|
 | `VerificationProvider` | interface | `providerCode(): String`, `level(): VerificationLevel`, `request(user: RegisteredUser): PendingVerification`, `confirm(user: RegisteredUser, pending: PendingVerification, code: String): boolean`. |
 | `EmailVerificationProvider` | class | holds `sender: SmtpSender`. `request` → generate token → send via SMTP. `confirm` → validate token. |
-| `PhoneVerificationProvider` | class | holds `sender: SmsSender`. `request` → generate 6-digit OTP (`SecureRandom`) → send via SMS. `confirm` → validate OTP (hash + attempts + expiry). |
+| `PhoneVerificationProvider` | class | holds `sender: SmsSender`. `request` → generate 6-digit OTP (`SecureRandom`) → send via SMS. `confirm` → validate OTP (hash + attempts + expiry). `providerCode()` = `"sms"` (channel-agnostic — Twilio is swappable). E.164-normalizes the phone at the channel boundary (`PhoneNumbers`). |
+| `PhoneNumbers` | class | lenient E.164 normalization (strips separators, `00`→`+`, Estonian local → `+372…`). Never throws. |
 | `SmartIdVerificationProvider` | class | **Stub.** Same interface; body is a placeholder note — future flow = start session + poll, provider proves identity via PKI (no stored code). Only this class changes when Smart-ID goes live. |
 | `SmsSender` | interface | `send(phone: String, message: String): void`. |
-| `TwilioSmsSender` | class | Real SMS via Twilio SDK — **stub in v1** (logs metadata). `@ConditionalOnProperty(app.sms.provider=twilio)` — never active unless explicitly selected. |
+| `TwilioSmsSender` | class | **Real** SMS via Twilio Programmable Messaging — send-only. `@ConditionalOnProperty(app.sms.provider=twilio)`. Credentials from env vars (`TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` + `TWILIO_MESSAGING_SERVICE_SID` or `TWILIO_FROM`). Logs metadata only, never the OTP; delivery errors logged, never thrown (anti-enumeration). Internal `TwilioApi` seam → hand-written fakes in tests (no Mockito). |
 | `DevSmsSender` | class | Logs the code to console — free dev + CI. `@ConditionalOnProperty(app.sms.provider=dev, matchIfMissing=true)`. Exactly one `SmsSender` bean at runtime. |
+| `VerificationSendLog` | interface | `countToday(userId, level)`, `lastSentAt(userId, level)`, `record(userId, level, contact, sentAt)` — durable store behind the anti-spam throttle. Must never throw on `record`. |
+| `FileVerificationSendLog` | class | file-backed send log (`app.verification.send-log-path`, default `data/verification-send.log`) — **survives restarts** (product decision). One tab-separated line per send; prunes entries older than 2 days; corrupted lines skipped. |
+| `VerificationThrottledException` | class | → 429 uniform `ErrorResponse` (in `verification` package, not `auth` — dependency rule). |
 | `SmtpSender` | interface | `send(email: String, message: String): void`. |
 | `DevSmtpSender` | class | Logs the token to console — free dev + CI. `@ConditionalOnProperty(app.mail.provider=dev, matchIfMissing=true)`. |
 | `SmtpPulseSmtpSender` | class | **Real SMTP** via `JavaMailSender` (spring-boot-starter-mail, smtp-pulse.com), `@ConditionalOnProperty(app.mail.provider=smtp-pulse)`. Credentials from env vars only; From-address from `app.mail.from` (must be verified in the smtp-pulse dashboard). Logs metadata only, never the body; **delivery failures are logged, never thrown** (reset/verify must "always succeed"). Exactly one `SmtpSender` bean at runtime. |
-| `VerificationService` | class | holds `providers: Map<VerificationLevel, VerificationProvider>`; `requestVerification(user, level): void`, `confirmVerification(user, level, code): boolean`. **Owns all persistence**: saves `PendingVerification` on request; on successful confirm saves a `VerificationClaim` and attaches it to the user. Failed attempts are persisted (the JPA repo re-maps a fresh object per request, so without the save the attempts limit would never hold across HTTP calls). **No `revoke` method** — revocation is pure domain state (`RegisteredUser.revoke`), dead-code removed. Wired as a Spring bean by `VerificationConfig` (provider beans → level map); HTTP shell is `auth.VerificationController` (`POST /verify/request` + `/verify/confirm`, JWT required). |
+| `VerificationService` | class | holds `providers: Map<VerificationLevel, VerificationProvider>`, `sendLog: VerificationSendLog`, `properties: VerificationProperties`, `clock: Clock`; `requestVerification(user, level): void`, `confirmVerification(user, level, code): boolean`. **Owns all persistence**: saves `PendingVerification` on request; on successful confirm saves a `VerificationClaim` and attaches it to the user. Failed attempts are persisted (the JPA repo re-maps a fresh object per request, so without the save the attempts limit would never hold across HTTP calls). **Anti-spam**: before sending, checks resend cooldown (`lastSentAt` + `cooldown-seconds`) and the per-user daily cap (`countToday` vs `max-per-day`) via the durable send log → `VerificationThrottledException` (429); records each send afterwards. **No `revoke` method** — revocation is pure domain state (`RegisteredUser.revoke`), dead-code removed. Wired as a Spring bean by `VerificationConfig` (provider beans → level map + `FileVerificationSendLog`); HTTP shell is `auth.VerificationController` (`POST /verify/request` + `/verify/confirm`, JWT required, per-IP token bucket on request). |
 | `PendingVerification` | class | `id, level, contact, codeHash, attempts, expiresAt`. Code stored **hashed, never plaintext**. |
 | `PendingVerificationRepository` | interface | `save(pending)`, `findActiveByUserAndLevel(userId, level)`, `delete(pending)`. |
 
@@ -54,6 +58,18 @@ tokens) lives in the auth context (`03-auth.puml`).
    `VerificationPolicy`. Writing is not hidden on one subclass.
 5. **Registration creates a user with `levels = {}`** — verification happens *after* creation via
    `requestVerification` → `confirmVerification` (see `02-verification-flow.puml`).
+6. **Twilio is send-only; the OTP logic is ours.** `TwilioSmsSender` only delivers text via
+   Programmable Messaging. Code generation, retry/cooldown and verification live in
+   `PhoneVerificationProvider` + `VerificationService`, so swapping the SMS provider is a new
+   `SmsSender` class + a config line — no Twilio Verify, no vendor lock-in.
+7. **Anti-spam throttle, three independent dimensions** (reliable abuse prevention): per-IP token
+   bucket on `/verify/request` (controller, `ClientIps` X-Forwarded-For-aware) · resend cooldown
+   per (user, level) · per-user daily cap per (user, level) backed by the **file-based**
+   `VerificationSendLog` (survives restarts — product decision). Violations → 429, uniform
+   `ErrorResponse`, and the checks never reveal whether a contact exists (anti-enumeration).
+   Email and SMS go through the same throttle; codes stay hashed, expiring, attempt-limited.
+8. **E.164 at the channel boundary** — `PhoneNumbers` normalizes leniently in the sender path;
+   the domain stores what the user registered.
 
 ## Contracts with other contexts
 
@@ -68,7 +84,15 @@ tokens) lives in the auth context (`03-auth.puml`).
 
 - Provider tests with **fake senders**: assert OTP/token generated, sent, hashed, expiring;
   wrong code → `false`; attempts exhausted → `false`; expired → `false`.
-- `VerificationService` tests with fake providers: dispatch by level, claim persisted on confirm,
-  claim revoked on `revoke`, `levels()` reflects the change.
+- `VerificationService` tests with fake providers + `InMemoryVerificationSendLog` + `MutableClock`:
+  dispatch by level, claim persisted on confirm, `levels()` reflects the change; **anti-spam** —
+  resend within cooldown → `VerificationThrottledException`, resend after cooldown elapses → ok,
+  daily cap blocks the Nth+1 send, throttle is per (user, level).
+- `TwilioSmsSender` tests with a hand-written `TwilioApi` fake: E.164-normalized recipient,
+  Messaging-Service vs From-number path, delivery failure logged not thrown (no Mockito).
+- `FileVerificationSendLog` tests with `@TempDir`: per-user/level counts, `lastSentAt`, survival
+  across instances (restart), corrupted lines ignored, today-only counting, file created lazily.
+- `VerificationControllerIT` / `VerificationThrottleIT`: cooldown resend → 429 over HTTP; burst
+  beyond the per-IP bucket and daily cap → 429 with the uniform `ErrorResponse`.
 - `ShelterService.addPlace`: guest → rejected (canWrite false); unverified registered → rejected;
   verified → saved as ACTIVE/USER.

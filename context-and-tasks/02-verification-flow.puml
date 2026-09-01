@@ -10,6 +10,7 @@ participant "RegisteredUser" as RU
 participant "VerificationService" as VS
 participant "PhoneVerificationProvider" as PP
 participant "TwilioSmsSender" as TW
+participant "VerificationSendLog" as SL
 participant "EmailVerificationProvider" as EP
 participant "SmtpSender" as SM
 participant "SmartIdVerificationProvider" as SP
@@ -41,23 +42,35 @@ note over Person, VC
   required; user resolved from the token, never the body).
   SMART_ID -> 400 up front (stub in v1).
 end note
+note over VC, VS
+  Anti-spam (Twilio plan): per-IP token bucket in the controller
+  (ClientIps) + resend cooldown + per-user daily cap in the
+  service (VerificationSendLog, file-backed, survives restarts).
+  Violations -> 429 with the uniform ErrorResponse.
+end note
 
 == 2. Phone verification: request OTP ==
 Person -> VC : POST /verify/request {level=PHONE}
 VC -> VS : requestVerification(user, PHONE)
+VS -> SL : lastSentAt / countToday(userId, PHONE)  (cooldown + daily cap)
+alt within limits
 VS -> PP : request(user)
 PP -> TW : sendSms(phone, "OTP: 123456")
 TW --> PP : sent
 PP --> VS : PendingVerification(PHONE, codeHash, expiry)
 VS -> DB : save pending
+VS -> SL : record(userId, PHONE, phone, now)
 VC --> Person : 202
+else throttled
+VC --> Person : 429
+end
 
 == 3. Phone verification: confirm OTP ==
 Person -> VC : POST /verify/confirm {level=PHONE, code}
 VC -> VS : confirmVerification(user, PHONE, otp)
 VS -> PP : confirm(user, pending, otp)
 PP --> VS : true (hash + attempts + expiry check)
-VS -> DB : save VerificationClaim(PHONE, provider=twilio)
+VS -> DB : save VerificationClaim(PHONE, provider=sms)
 VS --> VC : true
 VC -> DB : save(user) - persists the new claim
 VC --> Person : 200 | 400

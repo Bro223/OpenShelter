@@ -2,11 +2,13 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
+import ee.sheltermap.auth.InvalidContactChangeException;
 import ee.sheltermap.auth.InvalidCredentialsException;
 import ee.sheltermap.auth.InvalidRefreshTokenException;
 import ee.sheltermap.auth.InvalidResetTokenException;
 import ee.sheltermap.auth.RateLimitExceededException;
 import ee.sheltermap.auth.VerificationFailedException;
+import ee.sheltermap.verification.VerificationThrottledException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -64,6 +66,11 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidContactChangeException.class)
+    ResponseEntity<ErrorResponse> invalidContactChange(InvalidContactChangeException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(DuplicateAccountException.class)
     ResponseEntity<ErrorResponse> duplicateAccount(DuplicateAccountException ex, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
@@ -92,6 +99,11 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ErrorResponse> rateLimit(RateLimitExceededException ex, HttpServletRequest request) {
+        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(VerificationThrottledException.class)
+    ResponseEntity<ErrorResponse> verificationThrottled(VerificationThrottledException ex, HttpServletRequest request) {
         return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
     }
 

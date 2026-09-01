@@ -75,3 +75,8 @@ apache-maven-*.tar.gz
 .ruff_cache/
 .pytest_cache/
 __pycache__/
+
+# ---- Runtime data ----
+# File-backed verification send log (anti-spam daily cap) — survives restarts,
+# but must never be committed (contains contacts/timestamps).
+data/

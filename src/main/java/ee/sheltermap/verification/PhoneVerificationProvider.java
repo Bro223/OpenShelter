@@ -30,7 +30,9 @@ public class PhoneVerificationProvider implements VerificationProvider {
 
     @Override
     public String providerCode() {
-        return "twilio";
+        // "sms" — the channel is provider-agnostic (Twilio is swappable via
+        // app.sms.provider); the claim must not be labeled with a vendor.
+        return "sms";
     }
 
     @Override
@@ -40,7 +42,9 @@ public class PhoneVerificationProvider implements VerificationProvider {
 
     @Override
     public PendingVerification request(RegisteredUser user) {
-        String phone = user.getData().phone();
+        // E.164 at the channel boundary: Twilio requires it, the domain stays
+        // as-registered. Lenient normalization never throws.
+        String phone = PhoneNumbers.normalizeE164(user.getData().phone());
         String otp = String.format("%0" + OTP_DIGITS + "d", random.nextInt(1_000_000));
         sender.send(phone, "Shelter Map OTP: " + otp);
         return new PendingVerification(

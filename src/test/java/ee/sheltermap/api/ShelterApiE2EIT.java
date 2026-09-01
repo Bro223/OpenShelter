@@ -3,10 +3,12 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.RecordingSmtpSender;
+import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import ee.sheltermap.verification.EmailVerificationProvider;
+import ee.sheltermap.verification.InMemoryVerificationSendLog;
 import ee.sheltermap.verification.PendingVerificationRepository;
 import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationService;
@@ -23,6 +25,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -95,7 +98,9 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
 
         VerificationService verification = new VerificationService(
                 Map.of(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp)),
-                pendingVerifications);
+                pendingVerifications,
+                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"),
+                Clock.systemUTC());
         verification.requestVerification(user, VerificationLevel.EMAIL);
 
         String message = smtp.last().message();

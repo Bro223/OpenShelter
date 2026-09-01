@@ -41,7 +41,8 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties({JwtProperties.class, RateLimitProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, RateLimitProperties.class, VerificationProperties.class,
+        ContactChangeProperties.class})
 public class SecurityConfig {
 
     @Bean
@@ -67,6 +68,25 @@ public class SecurityConfig {
     @Bean
     public RateLimiter registerRateLimiter(RateLimitProperties properties) {
         return new TokenBucketRateLimiter(properties.registerCapacity(), properties.registerRefillPerSecond());
+    }
+
+    /**
+     * Per-IP bucket on {@code POST /verify/request} (anti-spam, Twilio plan):
+     * blocks one IP spraying many accounts, keyed via {@link ClientIps}
+     * (X-Forwarded-For aware, trusted proxies only).
+     */
+    @Bean
+    public RateLimiter verifyRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.verifyCapacity(), properties.verifyRefillPerSecond());
+    }
+
+    /**
+     * Per-IP bucket on {@code POST /account/*-change/request} (contact-change
+     * anti-spam): blocks one IP spraying change requests across accounts.
+     */
+    @Bean
+    public RateLimiter changeRequestRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.changeCapacity(), properties.changeRefillPerSecond());
     }
 
     /**

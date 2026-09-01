@@ -12,19 +12,23 @@ shelters with community ratings (the rating system **is** the moderation — no 
 
 ## Status
 
-- ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass** — backend
-  functional end-to-end, **183 tests green**.
+- ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
+  backend functional end-to-end, **218 tests green**.
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
   (email/phone), so the full loop works: register → verify → add shelter → review.
+- ✅ **Anti-spam throttle on verification** — resend cooldown + per-user daily cap (file-backed,
+  survives restarts) + per-IP bucket → 429.
+- ✅ **Real SMS channel** — Twilio Programmable Messaging implemented (send-only; OTP logic stays
+  on our side), E.164 normalization, swappable via `app.sms.provider`.
 - ✅ **Hardening pass (code review)** — duplicate registration → 409, unique email/phone +
   one-active-claim constraints (V3), register rate limiting, X-Forwarded-For-aware buckets,
   atomic password reset + import, no-N+1 rating aggregates, stored `description`/`capacity`,
   CORS, SMTP delivery failures never surface as 500s. See [Hardening](#hardening-pass).
 - ⚠️ **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
-  dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), Smart-ID and Twilio
-  are stubs.
+  dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), SMS delivery needs
+  Twilio credentials in `.env`, Smart-ID is a stub.
 
 ## Features
 
@@ -35,6 +39,23 @@ shelters with community ratings (the rating system **is** the moderation — no 
 - **Verification over HTTP**: `POST /verify/request` / `POST /verify/confirm` (JWT required)
   for email OTP and phone OTP; Smart-ID stub rejected up front; codes hashed, expiring,
   attempt-limited. Verified users gain `canWrite()` (submit shelters, review).
+- **Cross-channel contact change**: `POST /account/email-change/request` + `/confirm` and
+  `POST /account/phone-change/request` + `/confirm` (JWT required). Changing the email is
+  verified by an SMS code to the current phone; changing the phone by an email code to the
+  current email — stealing only one channel is not enough to hijack an account. One pending
+  change per (user, type), 60 s resend cooldown, 15-min code TTL, 5-attempt limit, duplicate
+  target → 409, per-IP rate limit on the request endpoints.
+- **Anti-spam throttle (verification)**: resend cooldown (`app.verification.cooldown-seconds`),
+  per-user daily cap (`app.verification.max-per-day`) backed by a file-based send log
+  (`app.verification.send-log-path`, survives restarts), and a per-IP token bucket on
+  `/verify/request` — violations return 429 with the uniform `ErrorResponse`.
+- **SMS channels**: `DevSmsSender` (console, default, `app.sms.provider=dev`) and
+  `TwilioSmsSender` (real Twilio Programmable Messaging, `app.sms.provider=twilio`,
+  credentials from `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` + `TWILIO_MESSAGING_SERVICE_SID`
+  or `TWILIO_FROM` env vars) — exactly one bean at runtime. Twilio is send-only: OTP
+  generation, retry/cooldown and verification logic live on the OpenShelter side
+  (`PhoneVerificationProvider` + `VerificationService`), so the provider stays swappable.
+  Phone numbers are normalized to E.164 at the channel boundary (`PhoneNumbers`).
 - **E-mail channels**: `DevSmtpSender` (console, default, `app.mail.provider=dev`) and
   `SmtpPulseSmtpSender` (real SMTP via `spring-boot-starter-mail`, `app.mail.provider=smtp-pulse`,
   credentials from `SMTP_USERNAME`/`SMTP_PASSWORD` env vars only) — exactly one bean at runtime.
@@ -101,6 +122,10 @@ manually on boot (see below).
 | POST | `/auth/logout` | refresh | Revoke session |
 | POST | `/auth/password-reset/request` | — | Always 200 ("if the account exists, we sent an email") |
 | POST | `/auth/password-reset/confirm` | token | Set new password; revokes all sessions |
+| POST | `/account/email-change/request` | JWT | Start email change → **SMS code to current phone** (202) |
+| POST | `/account/email-change/confirm` | JWT | Complete email change with the SMS code (200/400) |
+| POST | `/account/phone-change/request` | JWT | Start phone change → **email code to current email** (202) |
+| POST | `/account/phone-change/confirm` | JWT | Complete phone change with the email code (200/400) |
 | GET | `/api/shelters?source=ALL\|USER\|REGISTRY` | public | List shelters with `averageRating`/`reviewCount` |
 | GET | `/api/shelters/{id}` | public | Shelter detail |
 | POST | `/api/shelters` | JWT + verified | Submit a shelter → 201 + Location |
@@ -196,6 +221,16 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `SMTP_HOST` / `SMTP_PORT` | `smtp-pulse.com` / `587` | SMTP relay (alt: 465 SSL, 2525) |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | — | SMTP login (real credentials → `.env`, never git) |
 | `SMTP_FROM` | falls back to `SMTP_USERNAME` | From-address — **must be verified in the smtp-pulse dashboard** |
+| `SMS_PROVIDER` | `dev` | `dev` (console) or `twilio` (real SMS) |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | — | Twilio credentials (real → `.env`, never git) |
+| `TWILIO_MESSAGING_SERVICE_SID` | — | Twilio Messaging Service (preferred over `TWILIO_FROM`) |
+| `TWILIO_FROM` | — | Fallback sender number (only if no Messaging Service) |
+| `VERIFICATION_COOLDOWN_SECONDS` | `60` | Min seconds between two codes for the same (user, level); `0` disables |
+| `VERIFICATION_MAX_PER_DAY` | `5` | Max codes per (user, level) per UTC day; `0` disables |
+| `VERIFICATION_SEND_LOG_PATH` | `data/verification-send.log` | File-backed send log (survives restarts; never commit `data/`) |
+| `CONTACT_CHANGE_COOLDOWN_SECONDS` | `60` | Min seconds between two change requests for the same (user, type) |
+| `CONTACT_CHANGE_CODE_TTL_SECONDS` | `900` | Contact-change code validity window (15 min) |
+| `CONTACT_CHANGE_MAX_ATTEMPTS` | `5` | Max wrong contact-change codes before the request is rejected |
 | `DEV_EMAIL_TEST_ENABLED` | `false` | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required) |
 | `REGISTRY_BASE_URL` | Maa-amet WFS URL | Registry endpoint |
 | `REGISTRY_CLIENT` | `paasteamet` | `paasteamet` (real HTTP) or `dev` (local fixture) |
@@ -254,15 +289,20 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 - Auth (register/login/refresh/logout/password-reset) with Argon2id + JWT + rate limiting
 - **Verification over HTTP** (`POST /verify/request` + `/verify/confirm`, email/phone) — the
   write path is now reachable: verified users can submit shelters and review
+- **Cross-channel contact change** (`POST /account/*-change/request` + `/confirm`) — email
+  change verified by SMS, phone change by email
 - Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
 - Public read API with rating aggregates, verified-write API for shelters and reviews
-- Persistence (Flyway V1+V2+V3, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway V1–V4, JPA, `ddl-auto=validate`), uniform error handling
 
 **Known gaps / next steps:**
 1. **E-mail delivery is dev console by default** (`DevSmtpSender` logs messages). Real SMTP is
    implemented (`SmtpPulseSmtpSender`) — enable with `MAIL_PROVIDER=smtp-pulse`,
-   `SMTP_USERNAME=…`, `SMTP_PASSWORD=…` (smtp-pulse.com:587). SMS stays a stub
-   (`TwilioSmsSender`) and Smart-ID a stub (rejected with 400 up front).
+   `SMTP_USERNAME=…`, `SMTP_PASSWORD=…` (smtp-pulse.com:587). **SMS delivery** needs real
+   Twilio credentials: set `SMS_PROVIDER=twilio` plus `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`
+   and `TWILIO_MESSAGING_SERVICE_SID` (or `TWILIO_FROM`) in `.env` — the sender is implemented
+   and tested, only the live account is unverified. Smart-ID remains a stub (rejected with 400
+   up front).
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend** — separate project, out of scope here.

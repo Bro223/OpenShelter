@@ -19,6 +19,10 @@ public record RateLimitProperties(
         double resetRefillPerSecond,
         int registerCapacity,
         double registerRefillPerSecond,
+        int verifyCapacity,
+        double verifyRefillPerSecond,
+        int changeCapacity,
+        double changeRefillPerSecond,
         List<String> trustedProxies) {
 
     public RateLimitProperties {

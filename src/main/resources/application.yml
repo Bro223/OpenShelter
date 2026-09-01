@@ -66,8 +66,28 @@ app:
     # Defaults to the SMTP login if SMTP_FROM is not set.
     from: ${SMTP_FROM:${SMTP_USERNAME:}}
   sms:
-    # Which SmsSender impl: 'dev' (console logging, default) or 'twilio' (stub, not wired).
+    # Which SmsSender impl: 'dev' (console logging, default) or 'twilio'
+    # (real SMS via Twilio Programmable Messaging — send-only; OTP logic
+    # stays on our side, see PhoneVerificationProvider + VerificationService).
     provider: ${SMS_PROVIDER:dev}
+  contact-change:
+    # Cross-channel contact change (email <-> phone): changing the email needs
+    # an SMS code to the current phone; changing the phone needs an email code
+    # to the current email. cooldown = min seconds between two change requests
+    # for the same (user, type); code TTL and max wrong attempts mirror the
+    # verification discipline. All 0 = disabled.
+    cooldown-seconds: ${CONTACT_CHANGE_COOLDOWN_SECONDS:60}
+    code-ttl-seconds: ${CONTACT_CHANGE_CODE_TTL_SECONDS:900}
+    max-attempts: ${CONTACT_CHANGE_MAX_ATTEMPTS:5}
+  verification:
+    # Anti-spam throttle for verification-code sends (Twilio plan):
+    # cooldown = min seconds between two sends for the same (user, level);
+    # max-per-day = cap per (user, level) per UTC day. Both 0 = disabled.
+    cooldown-seconds: ${VERIFICATION_COOLDOWN_SECONDS:60}
+    max-per-day: ${VERIFICATION_MAX_PER_DAY:5}
+    # Durable send log behind the daily cap — file-backed so it survives
+    # app restarts (product decision). Path must never be committed.
+    send-log-path: ${VERIFICATION_SEND_LOG_PATH:data/verification-send.log}
   dev-email-test:
     # Enables POST /dev/email-test (JWT required) — the SMTP diagnostic
     # endpoint. Off by default: it must never be an open e-mail relay on a
@@ -91,6 +111,14 @@ app:
     # Registration is rate-limited per client IP (account-spam vector).
     register-capacity: 10
     register-refill-per-second: 0.01
+    # /verify/request is rate-limited per client IP (anti-spam, Twilio plan):
+    # blocks one IP spraying many accounts with verification requests.
+    verify-capacity: 10
+    verify-refill-per-second: 0.01
+    # /account/*-change/request is rate-limited per client IP (anti-spam):
+    # blocks one IP spraying change requests across accounts.
+    change-capacity: 5
+    change-refill-per-second: 0.084
     # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
     # keys (hardening: without this, everyone behind nginx shares one bucket).
     # Loopback is always trusted (local nginx setups).

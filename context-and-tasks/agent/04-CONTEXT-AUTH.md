@@ -64,6 +64,38 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
    would share one bucket (hardening).
 6. **Controllers are thin shells.** No logic in `AuthController`.
 
+## Cross-channel contact change (email <-> phone)
+
+`AccountController` + `ContactChangeService` add four JWT-gated endpoints:
+
+| Endpoint | Verifies via | Sends to |
+|---|---|---|
+| `POST /account/email-change/request` → `/confirm` | SMS code | **current phone** |
+| `POST /account/phone-change/request` → `/confirm` | email code | **current email** |
+
+**Rationale (product decision):** stealing only one channel is not enough to hijack an
+account — an attacker who holds the email cannot change it (needs the phone), and one who
+holds the phone cannot change it (needs the email).
+
+**Discipline (mirrors verification):**
+- `PendingContactChange` — one per (user, type), code hashed (SHA-256) at rest, 15-min TTL,
+  5-attempt limit. A new request replaces the old (unique `(user_id, type)`).
+- Resend cooldown anchored on the pending row (`app.contact-change.cooldown-seconds`, 60 s).
+- Duplicate target → 409 (`DuplicateAccountException`); same-as-current / no pending /
+  wrong code → 400 (`InvalidContactChangeException`); cooldown → 429
+  (`VerificationThrottledException`).
+- Request endpoints are per-IP rate-limited (`changeRequestRateLimiter`,
+  `app.ratelimit.change-capacity`/`change-refill-per-second`), like login/register.
+- `RegisteredUser.changeEmail`/`changePhone` are the only mutation entry points; the change
+  is persisted by `JpaUserRepository.save` (claim set is preserved — see the bulk-delete note
+  below).
+
+**Persistence note (latent bug fixed while adding this):** `SpringDataVerificationClaimRepository
+.deleteByUserId` was a Spring Data *derived* delete, which queues `EntityManager.remove`; since
+Hibernate flushes INSERTs before DELETEs, re-saving a user who already had an active claim
+violated the V3 unique index `uq_verification_claims_user_level_active`. It is now a bulk
+`@Modifying @Query` delete that runs immediately in SQL.
+
 ## Spring Security wiring (Step 4)
 
 - `SecurityFilterChain`: `permitAll` on `POST /auth/register`, `/auth/login`,
@@ -82,3 +114,9 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
 - `PasswordResetService`: request for unknown email still "succeeds" (no enumeration); token
   single-use (second reset with same token fails); expired token fails; token is stored hashed.
 - `TokenBucketRateLimiter`: allows up to N, then denies until refill (injectable clock for tests).
+
+- `ContactChangeService`: email-change request sends an SMS to the current phone (cross-channel);
+  phone-change request sends an email to the current email; correct code updates the contact and
+  deletes the pending row; wrong code increments attempts (5 → "too many attempts"); duplicate
+  target → `DuplicateAccountException`; same-as-current → `InvalidContactChangeException`; resend
+  within cooldown → `VerificationThrottledException`.

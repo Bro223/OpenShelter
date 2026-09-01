@@ -244,3 +244,18 @@ rate-limit 429, email-test allowlist, plus updated persistence ITs for the uniqu
 constraints). V3 migrates cleanly on a fresh DB with `ddl-auto=validate`.
 
 **STOP — final review.**
+
+---
+
+## Post-step-7 additions (Twilio SMS + cross-channel contact change)
+
+Built after the Step 0–6 hardening pass; not a build step (see README for full details):
+
+- **Twilio SMS plan** — real `TwilioSmsSender` (Programmable Messaging, send-only),
+  `PhoneNumbers.normalizeE164()`, verification anti-spam throttle (resend cooldown + file-backed
+  daily cap in `FileVerificationSendLog` + per-IP bucket on `/verify/request`). `mvn test` →
+  **204 tests**.
+- **Cross-channel contact change** — `AccountController` + `ContactChangeService` +
+  `PendingContactChange` (V4 migration). Email change verified by SMS to the current phone;
+  phone change by email to the current email. Also fixed a latent claim-save bug (bulk delete).
+  `mvn test` → **218 tests**.

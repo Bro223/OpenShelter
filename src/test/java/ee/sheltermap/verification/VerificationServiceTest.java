@@ -1,10 +1,16 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -16,6 +22,8 @@ class VerificationServiceTest {
     private CapturingSmsSender sms;
     private CapturingSmtpSender smtp;
     private InMemoryPendingVerificationRepository pendingRepo;
+    private InMemoryVerificationSendLog sendLog;
+    private MutableClock clock;
     private VerificationService service;
     private RegisteredUser user;
 
@@ -24,16 +32,27 @@ class VerificationServiceTest {
         sms = new CapturingSmsSender();
         smtp = new CapturingSmtpSender();
         pendingRepo = new InMemoryPendingVerificationRepository();
+        sendLog = new InMemoryVerificationSendLog();
+        clock = new MutableClock(Instant.parse("2026-09-01T10:00:00Z"));
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
 
-        service = new VerificationService(providers, pendingRepo);
+        service = newService(new VerificationProperties(0, 0, "unused"));
 
         user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
         user.setId(1L);
+    }
+
+    /** Builds a service sharing this test's fakes, with the given throttle config. */
+    private VerificationService newService(VerificationProperties properties) {
+        Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
+        providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
+        return new VerificationService(providers, pendingRepo, sendLog, properties, clock);
     }
 
     @Test
@@ -110,7 +129,8 @@ class VerificationServiceTest {
 
     @Test
     void requestVerificationForUnknownLevelThrows() {
-        VerificationService bare = new VerificationService(Map.of(), pendingRepo);
+        VerificationService bare = new VerificationService(
+                Map.of(), pendingRepo, sendLog, new VerificationProperties(0, 0, "unused"), clock);
 
         assertThatThrownBy(() -> bare.requestVerification(user, VerificationLevel.PHONE))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -124,7 +144,84 @@ class VerificationServiceTest {
                 .hasMessageContaining("stub");
     }
 
+    // ---- Anti-spam throttle (Twilio plan): cooldown + daily cap ----
+
+    @Test
+    void requestWithinCooldownIsThrottled() {
+        VerificationService throttled = newService(new VerificationProperties(60, 5, "unused"));
+
+        throttled.requestVerification(user, VerificationLevel.PHONE); // ok
+
+        assertThatThrownBy(() -> throttled.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class);
+    }
+
+    @Test
+    void requestAfterCooldownElapsesSucceeds() {
+        VerificationService throttled = newService(new VerificationProperties(60, 5, "unused"));
+
+        throttled.requestVerification(user, VerificationLevel.PHONE);
+        clock.advance(Duration.ofSeconds(61));
+
+        throttled.requestVerification(user, VerificationLevel.PHONE); // no exception
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(2);
+    }
+
+    @Test
+    void dailyCapBlocksFurtherSends() {
+        VerificationService throttled = newService(new VerificationProperties(0, 2, "unused"));
+
+        throttled.requestVerification(user, VerificationLevel.PHONE);
+        clock.advance(Duration.ofSeconds(1));
+        throttled.requestVerification(user, VerificationLevel.PHONE);
+
+        assertThatThrownBy(() -> throttled.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class);
+    }
+
+    @Test
+    void cooldownIsPerUserAndPerLevel() {
+        VerificationService throttled = newService(new VerificationProperties(60, 5, "unused"));
+
+        throttled.requestVerification(user, VerificationLevel.PHONE);
+        // A different level for the same user is not throttled by the PHONE cooldown.
+        throttled.requestVerification(user, VerificationLevel.EMAIL);
+
+        RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111", "49001011111");
+        other.setId(2L);
+        throttled.requestVerification(other, VerificationLevel.PHONE); // different user, not throttled
+    }
+
     private static String extractOtp(String message) {
         return message.substring(message.lastIndexOf(' ') + 1);
+    }
+
+    /** Test clock that can be advanced to simulate the passage of time. */
+    static final class MutableClock extends Clock {
+
+        private Instant now;
+
+        MutableClock(Instant now) {
+            this.now = now;
+        }
+
+        void advance(Duration duration) {
+            now = now.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
     }
 }

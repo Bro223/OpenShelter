@@ -15,8 +15,8 @@ public class RegisteredUser extends User {
     private static final VerificationPolicy DEFAULT_POLICY = new VerificationPolicy(VerificationRules.ofDefaults());
 
     private final String name;
-    private final String email;
-    private final String phone;
+    private String email;
+    private String phone;
     private final String nationalIdCode;
     private final Set<VerificationClaim> verifications = new LinkedHashSet<>();
 
@@ -39,6 +39,24 @@ public class RegisteredUser extends User {
      */
     public Set<VerificationClaim> claims() {
         return Collections.unmodifiableSet(verifications);
+    }
+
+    /**
+     * Replaces the email. Caller must have verified the change via the OTHER
+     * channel (SMS code) — see {@code ee.sheltermap.auth.ContactChangeService}.
+     * Runtime-changing state is data, never a new subclass.
+     */
+    public void changeEmail(String newEmail) {
+        this.email = Objects.requireNonNull(newEmail, "newEmail");
+    }
+
+    /**
+     * Replaces the phone (stored as given; the SMS channel normalizes to E.164
+     * at the boundary). Caller must have verified the change via the OTHER
+     * channel (email code) — see {@code ee.sheltermap.auth.ContactChangeService}.
+     */
+    public void changePhone(String newPhone) {
+        this.phone = Objects.requireNonNull(newPhone, "newPhone");
     }
 
     /** Revokes the active claim for {@code level}, if any. No-op otherwise. */

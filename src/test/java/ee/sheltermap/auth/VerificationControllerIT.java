@@ -5,7 +5,9 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
+import ee.sheltermap.verification.InMemoryVerificationSendLog;
 import ee.sheltermap.verification.SmtpSender;
+import ee.sheltermap.verification.VerificationSendLog;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.reset-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0",
+        "app.ratelimit.verify-capacity=1000",
+        "app.ratelimit.verify-refill-per-second=0",
         "app.mail.provider=dev"
 })
 @Transactional
@@ -56,6 +60,9 @@ class VerificationControllerIT extends AbstractPersistenceIT {
     @Autowired
     RecordingSmtpSender smtp;
 
+    @Autowired
+    InMemoryVerificationSendLog sendLog;
+
     @TestConfiguration
     static class Config {
         @Bean
@@ -63,11 +70,18 @@ class VerificationControllerIT extends AbstractPersistenceIT {
         SmtpSender smtpSender() {
             return new RecordingSmtpSender();
         }
+
+        @Bean
+        @Primary
+        VerificationSendLog inMemoryVerificationSendLog() {
+            return new InMemoryVerificationSendLog();
+        }
     }
 
     @BeforeEach
-    void clearSmtp() {
+    void clearFakes() {
         smtp.clear();
+        sendLog.clear();
     }
 
     @Test
@@ -118,6 +132,15 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"SMART_ID\"}"))
                 .andExpect(status().isBadRequest());
+
+        // resend within the cooldown window (default 60s) -> 429, uniform shape
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"));
 
         // the write path now works over HTTP
         mvc.perform(post("/api/shelters")

@@ -168,12 +168,15 @@ package "verification" {
     --
     + request(user : RegisteredUser) : PendingVerification
     + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+    ' providerCode() = "sms" (channel-agnostic — Twilio is swappable).
+    ' E.164-normalizes the phone at the channel boundary (PhoneNumbers).
   }
 
   class SmartIdVerificationProvider {
     --
     + request(user : RegisteredUser) : PendingVerification
     + confirm(user : RegisteredUser, pending : PendingVerification, code : String) : boolean
+    ' STUB in v1 — both methods throw UnsupportedOperationException.
   }
 
   interface SmsSender {
@@ -181,11 +184,43 @@ package "verification" {
   }
 
   class TwilioSmsSender {
+    - api : TwilioApi
+    - messagingServiceSid : String
+    - fromNumber : String
+    --
     + send(phone : String, message : String) : void
+    ' Production channel: Twilio Programmable Messaging, send-only.
+    ' Selected via app.sms.provider=twilio; credentials from env vars
+    ' (TWILIO_ACCOUNT_SID/AUTH_TOKEN + MESSAGING_SERVICE_SID or TWILIO_FROM).
+    ' Logs metadata only, never the OTP body. Delivery errors are logged,
+    ' never thrown (anti-enumeration).
+    ' TwilioApi seam (SDK impl + hand-written fake in tests — no Mockito).
   }
 
   class DevSmsSender {
     + send(phone : String, message : String) : void
+    ' Dev/CI: logs the message to the console (no real SMS).
+    ' Default bean via app.sms.provider=dev (matchIfMissing).
+  }
+
+  class PhoneNumbers {
+    + normalizeE164(phone : String) : String
+    ' Lenient E.164 normalization (Estonian default +372, strips separators).
+  }
+
+  interface VerificationSendLog {
+    + countToday(userId : Long, level : VerificationLevel) : long
+    + lastSentAt(userId : Long, level : VerificationLevel) : Instant
+    + record(userId : Long, level : VerificationLevel, contact : String, sentAt : Instant) : void
+  }
+
+  class FileVerificationSendLog {
+    - path : Path
+    --
+    + FileVerificationSendLog(path : Path, clock : Clock)
+    ' Durable store behind the anti-spam daily cap — survives restarts.
+    ' One line per send: userId<TAB>level<TAB>contact<TAB>epochMillis.
+    ' Never throws on IO failures; prunes entries older than 2 days.
   }
 
   interface SmtpSender {
@@ -208,11 +243,16 @@ package "verification" {
 
   class VerificationService {
     - providers : Map<VerificationLevel, VerificationProvider>
+    - sendLog : VerificationSendLog
+    - properties : VerificationProperties
+    - clock : Clock
     --
-    + VerificationService(providers : Map<VerificationLevel, VerificationProvider>)
+    + VerificationService(providers : Map<VerificationLevel, VerificationProvider>, pendingRepository : PendingVerificationRepository, sendLog : VerificationSendLog, properties : VerificationProperties, clock : Clock)
     + requestVerification(user : RegisteredUser, level : VerificationLevel) : void
     + confirmVerification(user : RegisteredUser, level : VerificationLevel, code : String) : boolean
-    + revoke(user : RegisteredUser, level : VerificationLevel) : void
+    ' Anti-spam: resend cooldown + per-user daily cap (VerificationSendLog)
+    ' -> VerificationThrottledException -> 429. (No revoke method — claim
+    ' revocation is pure domain state: RegisteredUser.revoke.)
   }
 
   class PendingVerification {
@@ -282,10 +322,17 @@ PhoneVerificationProvider ..|> VerificationProvider
 SmartIdVerificationProvider ..|> VerificationProvider
 TwilioSmsSender ..|> SmsSender
 DevSmsSender ..|> SmsSender
+TwilioSmsSender --> PhoneNumbers : normalizes to E.164
 PhoneVerificationProvider --> SmsSender : sends OTP
+PhoneVerificationProvider --> PhoneNumbers : E.164 at the channel boundary
 EmailVerificationProvider --> SmtpSender : sends token
 DevSmtpSender ..|> SmtpSender
 SmtpPulseSmtpSender ..|> SmtpSender
+
+' ==================== ANTI-SPAM SEND LOG ====================
+FileVerificationSendLog ..|> VerificationSendLog
+VerificationService --> VerificationSendLog : cooldown + daily cap
+VerificationSendLog --> VerificationLevel
 
 ' ==================== SERVICES = COLLABORATORS ====================
 UserService ..> User : operates on

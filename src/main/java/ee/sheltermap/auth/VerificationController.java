@@ -5,7 +5,10 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.verification.VerificationService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,7 +18,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Thin HTTP shell for verification (closes the Step-2 gap: verification was
@@ -26,6 +32,10 @@ import java.util.Objects;
  * permit-all needs a token). The user is resolved from the token, never from
  * the body; the target contact (email/phone) comes from the user profile.
  *
+ * <p>Anti-spam (Twilio plan): the request endpoint is additionally throttled
+ * per client IP (token bucket via {@link ClientIps}, X-Forwarded-For aware),
+ * on top of the service-level cooldown + daily cap per (user, level).
+ *
  * <p>SMART_ID is rejected up front with 400 — the provider is a stub in v1.
  */
 @RestController
@@ -34,15 +44,28 @@ public class VerificationController {
 
     private final VerificationService verificationService;
     private final UserRepository userRepository;
+    private final RateLimiter verifyRateLimiter;
+    private final Set<String> trustedProxies;
 
-    public VerificationController(VerificationService verificationService, UserRepository userRepository) {
+    public VerificationController(VerificationService verificationService,
+                                  UserRepository userRepository,
+                                  @Qualifier("verifyRateLimiter") RateLimiter verifyRateLimiter,
+                                  @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies) {
         this.verificationService = Objects.requireNonNull(verificationService, "verificationService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
+        this.trustedProxies = Arrays.stream(trustedProxies.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     @PostMapping("/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void request(@Valid @RequestBody VerifyRequest body) {
+    public void request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
+        if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies))) {
+            throw new RateLimitExceededException();
+        }
         RegisteredUser user = currentUser();
         if (body.level() == VerificationLevel.SMART_ID) {
             throw new VerificationFailedException("SMART_ID verification is not available yet (stub in v1)");
