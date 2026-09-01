@@ -3,6 +3,7 @@ title Registration & Verification Flow (Core with providers)
 
 actor Person
 
+participant "VerificationController" as VC
 participant "GuestUser" as GU
 participant "UserService" as US
 participant "RegisteredUser" as RU
@@ -33,41 +34,59 @@ end note
 US -> DB : save(RegisteredUser)
 US --> Person : RegisteredUser (levels = {})
 
+== 1b. Verification over HTTP (JWT required) ==
+note over Person, VC
+  Step 2 gap closed: verification is now reachable via
+  POST /verify/request + POST /verify/confirm (Bearer JWT
+  required; user resolved from the token, never the body).
+  SMART_ID -> 400 up front (stub in v1).
+end note
+
 == 2. Phone verification: request OTP ==
-Person -> VS : requestVerification(user, PHONE)
+Person -> VC : POST /verify/request {level=PHONE}
+VC -> VS : requestVerification(user, PHONE)
 VS -> PP : request(user)
 PP -> TW : sendSms(phone, "OTP: 123456")
 TW --> PP : sent
 PP --> VS : PendingVerification(PHONE, codeHash, expiry)
 VS -> DB : save pending
+VC --> Person : 202
 
 == 3. Phone verification: confirm OTP ==
-Person -> VS : confirmVerification(user, PHONE, otp)
+Person -> VC : POST /verify/confirm {level=PHONE, code}
+VC -> VS : confirmVerification(user, PHONE, otp)
 VS -> PP : confirm(user, pending, otp)
 PP --> VS : true (hash + attempts + expiry check)
 VS -> DB : save VerificationClaim(PHONE, provider=twilio)
-VS --> Person : levels = {PHONE}
+VS --> VC : true
+VC -> DB : save(user) - persists the new claim
+VC --> Person : 200 | 400
 
 == 4. Email verification: request token ==
-Person -> VS : requestVerification(user, EMAIL)
+Person -> VC : POST /verify/request {level=EMAIL}
+VC -> VS : requestVerification(user, EMAIL)
 VS -> EP : request(user)
 EP -> SM : send(email, "token: abc123")
 SM --> EP : sent
 EP --> VS : PendingVerification(EMAIL, tokenHash, expiry)
 VS -> DB : save pending
+VC --> Person : 202
 
 == 5. Email verification: confirm token ==
-Person -> VS : confirmVerification(user, EMAIL, token)
+Person -> VC : POST /verify/confirm {level=EMAIL, code}
+VC -> VS : confirmVerification(user, EMAIL, token)
 VS -> EP : confirm(user, pending, token)
 EP --> VS : true
 VS -> DB : save VerificationClaim(EMAIL, provider=smtp)
-VS --> Person : levels = {PHONE, EMAIL}
+VS --> VC : true
+VC -> DB : save(user) - persists the new claim
+VC --> Person : 200 | 400
 
 == 6. Smart-ID: stub ==
 note over Person, SP
   Smart-ID: STUB in v1. Future flow = start session + poll;
   the provider proves identity itself via PKI - no stored code.
-  Only this class changes when Smart-ID goes live (Ch 9).
+  The controller rejects SMART_ID requests with 400 up front.
 end note
 
 == 7. Capability check ==

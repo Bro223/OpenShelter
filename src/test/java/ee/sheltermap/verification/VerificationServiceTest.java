@@ -92,13 +92,17 @@ class VerificationServiceTest {
     }
 
     @Test
-    void revokeRemovesLevelFromUser() {
+    void revokeIsPureDomainStateNotAServiceMethod() {
+        // Claim revocation lives on the domain aggregate (RegisteredUser.revoke),
+        // not on the service — the service has no HTTP surface for revocation in
+        // v1, so there is deliberately no VerificationService.revoke.
         service.requestVerification(user, VerificationLevel.PHONE);
         String otp = extractOtp(sms.getLastMessage());
         service.confirmVerification(user, VerificationLevel.PHONE, otp);
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
+        assertThat(user.canWrite()).isTrue();
 
-        service.revoke(user, VerificationLevel.PHONE);
+        user.revoke(VerificationLevel.PHONE);
 
         assertThat(user.levels()).isEmpty();
         assertThat(user.canWrite()).isFalse();

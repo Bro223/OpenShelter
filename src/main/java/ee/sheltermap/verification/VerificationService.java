@@ -13,9 +13,11 @@ import java.util.Objects;
  * Orchestrates verification: dispatches to the right
  * {@link VerificationProvider} by level and <strong>owns all persistence</strong>
  * — saves {@link PendingVerification} on request, saves + attaches a
- * {@link VerificationClaim} on successful confirmation, revokes on demand.
+ * {@link VerificationClaim} on successful confirmation.
  *
  * <p>Providers stay pure channel adapters; they never touch the database.
+ * (Claim revocation is pure domain state — {@code RegisteredUser.revoke} —
+ * with no HTTP surface in v1, so there is no service method for it.)
  */
 public class VerificationService {
 
@@ -63,6 +65,10 @@ public class VerificationService {
             return false;
         }
         if (!provider.confirm(user, pending, code)) {
+            // Persist the attempt count: the JPA repo re-maps a fresh object on
+            // every request, so without this save the attempts limit would never
+            // hold across HTTP calls (Step-2 key decision: attempts-limited).
+            pendingRepository.save(pending);
             return false;
         }
         VerificationClaim claim = new VerificationClaim(
@@ -70,11 +76,6 @@ public class VerificationService {
         user.addVerification(claim);
         pendingRepository.delete(pending);
         return true;
-    }
-
-    /** Revokes the active claim for {@code level} (no-op if none). */
-    public void revoke(RegisteredUser user, VerificationLevel level) {
-        user.revoke(level);
     }
 
     private VerificationProvider providerFor(VerificationLevel level) {

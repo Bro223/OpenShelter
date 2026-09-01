@@ -27,7 +27,7 @@ Three concerns, three services — **never one blob**:
 | `RefreshTokenRecord` | record | `userId, tokenHash, expiresAt, revokedAt`. |
 | `UserCredentialsRepository` | interface | `save(credentials): void`, `findByUserId(userId): UserCredentials`, `updateHash(userId, newHash): void`. |
 | `PasswordResetTokenRepository` | interface | `save(token): void`, `findByTokenHash(tokenHash): PasswordResetToken`, `markUsed(id): void`. |
-| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(token, newPassword): void`. |
+| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(token, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (V3 unique indexes as race-safe backstop). |
 | `PasswordResetService` | class | `requestReset(email): void`, `reset(token, newPassword): boolean`. |
 | `RateLimiter` | interface | `tryAcquire(key: String): boolean`. |
 | `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). |
@@ -35,7 +35,8 @@ Three concerns, three services — **never one blob**:
 | DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {token, newPassword}`. |
 
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
-RegisteredUser`, `findByEmail(email): RegisteredUser`.
+RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
+(duplicate-registration pre-check — hardening).
 
 ## Design decisions (from the puml notes — do not silently change)
 
@@ -46,15 +47,21 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`.
 3. **Reset flow:**
    1. `requestReset(email)` → 32-char random token (in URL, not OTP) →
    2. store `{tokenHash, expiresAt=15min, usedAt}` (hashed, single-use) →
-   3. send `https://app/reset?token=…` via `SmtpSender` →
+   3. send `{app.frontend.base-url}/reset?token=…` via `SmtpSender` (hardening: the link used to
+      be a hardcoded `https://app/…` that went nowhere; the base URL is configurable via
+      `FRONTEND_BASE_URL`) →
    4. **always respond success** ("if the account exists, we sent an email") →
    5. `reset(token, newPwd)` → verify hash + expiry + unused → hash new password → update
-      `UserCredentials` → mark token used →
-   6. `AuthService` then **revokes all refresh tokens** for that user (old sessions die on reset).
+      `UserCredentials` → mark token used → revoke all refresh tokens — **all in ONE
+      transaction** (hardening: previously three separate transactions; a mid-way failure
+      could leave the token replayable).
 4. **Two-token session model (SDI Ch 7 style):** access = JWT 15 min stateless; refresh = 30 days
    stored hashed → revocable (logout, reset, compromise). `JwtTokenService` owns signing/validation.
-5. **Rate limiting (SDI Ch 4, token bucket):** `AuthController` guards `/auth/login` and
-   `/auth/password-reset/request` (per IP + per email/phone key).
+5. **Rate limiting (SDI Ch 4, token bucket):** `AuthController` guards `/auth/login`,
+   `/auth/password-reset/request` **and `/auth/register`** (account-spam vector). Keys are
+   per real client IP + contact: `X-Forwarded-For` is honored ONLY from configured trusted
+   proxies (`app.ratelimit.trusted-proxies`) — otherwise every user behind a reverse proxy
+   would share one bucket (hardening).
 6. **Controllers are thin shells.** No logic in `AuthController`.
 
 ## Spring Security wiring (Step 4)

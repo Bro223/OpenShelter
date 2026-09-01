@@ -118,9 +118,12 @@ package "domain" {
     + municipality : String
     + dataAsOf : String
     + sourceAttribution : String
+    + description : String
+    + capacity : Integer
     ' externalId + source set by the import side. User submissions: externalId null, source USER.
     ' Full WFS record (address/county/municipality/dataAsOf/sourceAttribution) is
     ' stored locally; the API DTO serves only what the map needs.
+    ' description/capacity: USER-submission details (stored since V3; null for registry rows).
   }
 
   enum ShelterSource {

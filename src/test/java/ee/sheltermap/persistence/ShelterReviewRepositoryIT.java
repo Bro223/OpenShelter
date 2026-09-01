@@ -81,7 +81,7 @@ class ShelterReviewRepositoryIT extends AbstractPersistenceIT {
     void findByShelterIdAndUserIdAbsentForOtherUser() {
         Long shelterId = newShelterId();
         Long userA = newUserId();
-        Long userB = newUserId();
+        Long userB = saveUser(users, "teet@example.ee", "+37250000002").getId();
 
         reviews.save(new ShelterReview(shelterId, userA, 3, "ok"));
 

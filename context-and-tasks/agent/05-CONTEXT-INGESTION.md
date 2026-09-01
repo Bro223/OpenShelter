@@ -15,12 +15,13 @@ into the domain.
 | Type | Kind | Key members / notes |
 |---|---|---|
 | `ShelterRegistryClient` | interface | `fetchAll(): List<RegistryShelterDto>`. The seam — nothing in the system knows how data arrives. |
-| `PaasteametRegistryClient` | class | Real HTTP client: endpoint config, **pagination**, **retry with backoff**, timeout, **politeness** (SDI Ch 9 — don't hammer a public service). Parses JSON → DTOs. Fields `pageSize`, `maxRetries`. Throws `RegistryUnavailableException` when unreachable. |
+| `PaasteametRegistryClient` | class | Real HTTP client for the **Maa-amet WFS** (`service=WFS&request=GetFeature&typeName=VARJEKOHT&outputFormat=geojson`), paginated via `startIndex` until a short page; **retry with exponential backoff**, timeouts, **politeness delay** between pages (SDI Ch 9), a `User-Agent` identifying the client, and a runaway-page guard. Coordinates arrive in **EPSG:3301** (L-EST97) — every point is transformed to WGS84 by `LEst97Transformer` before it leaves the class. Throws `RegistryUnavailableException` when unreachable. |
 | `DevRegistryClient` | class | Reads a local JSON fixture (`src/test/resources` or `src/main/resources` fixture) — dev/CI runs with no network. Same interface, swap the impl. |
-| `RegistryShelterDto` | record | `externalId: String, name: String, address: String, latitude: double, longitude: double, capacity: Integer, accessible: boolean`. **The registry's JSON shape — dies at this boundary.** |
+| `RegistryShelterDto` | record | `externalId: String, name: String, address: String, latitude: double, longitude: double, capacity: Integer, accessible: boolean, county: String, municipality: String, dataAsOf: String, sourceAttribution: String`. **The registry's JSON shape — dies at this boundary.** Stores the FULL published record (the app owns the dataset; the API serves a lean projection). |
+| `LEst97Transformer` | class | EPSG:3301 (L-EST97, meters) → EPSG:4326 (WGS84) via proj4j. Maa-amet ignores `srsName`, so the client transforms every point itself. Verified against a known pair (Tallinn tunnel → 59.427685, 24.745890). |
 | `ShelterParser` | interface | `parse(dtos: List<RegistryShelterDto>): List<Shelter>`. Seam for per-registry parsing strategies. |
 | `RegistryShelterParser` | class | Maps DTO → domain `Shelter`: name normalization (trim/collapse spaces), coordinate validation (lat ∈ [-90,90], lng ∈ [-180,180] + **Estonia bbox sanity check**), malformed rows **skipped and counted, never fatal**. Sets `source = PAASETEAMET` (or MUNICIPALITY per registry). |
-| `ShelterImportService` | class | Orchestrator: `importFromRegistry(): ImportResult` — fetch → parse → dedupe (by `externalId`) → upsert → remove delisted → return result. Catches `RegistryUnavailableException` → failed result, **app never crashes because the registry is down**. |
+| `ShelterImportService` | class | Orchestrator: `importFromRegistry(): ImportResult` — fetch → parse → dedupe (by `externalId`) → upsert → remove delisted → return result. Catches `RegistryUnavailableException` → failed result, **app never crashes because the registry is down**. **Hardening:** the network fetch happens OUTSIDE the transaction; the apply phase runs in ONE transaction (a mid-batch failure rolls back everything). The `AtomicBoolean` overlap guard lives HERE — the weekly scheduler and the startup runner share it, so runs never overlap. Intra-fetch duplicate `externalId`s are counted as skipped. |
 | `ImportResult` | record | `created: int, updated: int, removed: int, skipped: int, failed: int, at: Instant`. |
 | `RegistryUnavailableException` | class | Runtime exception with a name — the "registry is down" failure mode is explicit. |
 
@@ -44,8 +45,12 @@ ImportResult`
 
 ## Scheduling
 
-Step 5 wires it manually (a `CommandLineRunner`/admin trigger or a test). A scheduled cron
-(`@Scheduled`) may be added in a later step — the service stays the same either way.
+**Implemented:** `RegistryScheduler` (`ee.sheltermap.config`) — Spring's built-in `@Scheduled`,
+cron default `0 0 3 * * MON` Europe/Tallinn (`app.registry.cron` / `app.registry.zone`,
+disable with `app.registry.schedule-enabled=false`). Chosen over Quartz / Spring Cloud Task /
+external cron because the app is a single instance with no clustering needs. The manual
+`CommandLineRunner` trigger (`--app.registry.run-on-startup=true`) still works and shares the
+service's overlap guard.
 
 ## Testing notes
 

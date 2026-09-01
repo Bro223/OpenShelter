@@ -65,4 +65,9 @@ public class UserService {
     public RegisteredUser findByEmail(String email) {
         return userRepository.findByEmail(email);
     }
+
+    /** Duplicate-registration pre-check (hardening): {@code null} if the phone is free. */
+    public RegisteredUser findByPhone(String phone) {
+        return userRepository.findByPhone(phone);
+    }
 }

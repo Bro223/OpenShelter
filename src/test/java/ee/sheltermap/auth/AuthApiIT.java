@@ -32,7 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.reset-capacity=1000",
-        "app.ratelimit.reset-refill-per-second=0"
+        "app.ratelimit.reset-refill-per-second=0",
+        "app.ratelimit.register-capacity=1000",
+        "app.ratelimit.register-refill-per-second=0"
 })
 @Transactional
 class AuthApiIT extends AbstractPersistenceIT {
@@ -59,6 +61,27 @@ class AuthApiIT extends AbstractPersistenceIT {
     @BeforeEach
     void clearSmtp() {
         smtp.clear();
+    }
+
+    @Test
+    void duplicateRegistrationReturns409() throws Exception {
+        // First registration -> 201
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
+                .andExpect(status().isCreated());
+
+        // Same email again -> 409 with the uniform error shape (hardening:
+        // V3 unique index + DuplicateAccountException pre-check).
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.error").value("Conflict"));
+
+        // Same phone, different email -> also 409
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Mari\",\"email\":\"mari2@example.ee\","
+                                + "\"phone\":\"+37250000001\",\"nationalIdCode\":\"49001010002\","
+                                + "\"password\":\"s3cret\"}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

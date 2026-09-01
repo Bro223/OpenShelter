@@ -21,11 +21,12 @@ tokens) lives in the auth context (`03-auth.puml`).
 | `PhoneVerificationProvider` | class | holds `sender: SmsSender`. `request` → generate 6-digit OTP (`SecureRandom`) → send via SMS. `confirm` → validate OTP (hash + attempts + expiry). |
 | `SmartIdVerificationProvider` | class | **Stub.** Same interface; body is a placeholder note — future flow = start session + poll, provider proves identity via PKI (no stored code). Only this class changes when Smart-ID goes live. |
 | `SmsSender` | interface | `send(phone: String, message: String): void`. |
-| `TwilioSmsSender` | class | Real SMS via Twilio SDK. (Step 2 may stub the SDK call — wire it for real in a later step if credentials exist.) |
-| `DevSmsSender` | class | Logs the code to console — free dev + CI. |
+| `TwilioSmsSender` | class | Real SMS via Twilio SDK — **stub in v1** (logs metadata). `@ConditionalOnProperty(app.sms.provider=twilio)` — never active unless explicitly selected. |
+| `DevSmsSender` | class | Logs the code to console — free dev + CI. `@ConditionalOnProperty(app.sms.provider=dev, matchIfMissing=true)`. Exactly one `SmsSender` bean at runtime. |
 | `SmtpSender` | interface | `send(email: String, message: String): void`. |
-| `DevSmtpSender` | class | Logs the token to console. (Real JavaMail impl optional — reset email can use the dev sender for now.) |
-| `VerificationService` | class | holds `providers: Map<VerificationLevel, VerificationProvider>`; `requestVerification(user, level): void`, `confirmVerification(user, level, code): boolean`, `revoke(user, level): void`. **Owns all persistence**: saves `PendingVerification` on request; on successful confirm saves a `VerificationClaim` and attaches it to the user. |
+| `DevSmtpSender` | class | Logs the token to console — free dev + CI. `@ConditionalOnProperty(app.mail.provider=dev, matchIfMissing=true)`. |
+| `SmtpPulseSmtpSender` | class | **Real SMTP** via `JavaMailSender` (spring-boot-starter-mail, smtp-pulse.com), `@ConditionalOnProperty(app.mail.provider=smtp-pulse)`. Credentials from env vars only; From-address from `app.mail.from` (must be verified in the smtp-pulse dashboard). Logs metadata only, never the body; **delivery failures are logged, never thrown** (reset/verify must "always succeed"). Exactly one `SmtpSender` bean at runtime. |
+| `VerificationService` | class | holds `providers: Map<VerificationLevel, VerificationProvider>`; `requestVerification(user, level): void`, `confirmVerification(user, level, code): boolean`. **Owns all persistence**: saves `PendingVerification` on request; on successful confirm saves a `VerificationClaim` and attaches it to the user. Failed attempts are persisted (the JPA repo re-maps a fresh object per request, so without the save the attempts limit would never hold across HTTP calls). **No `revoke` method** — revocation is pure domain state (`RegisteredUser.revoke`), dead-code removed. Wired as a Spring bean by `VerificationConfig` (provider beans → level map); HTTP shell is `auth.VerificationController` (`POST /verify/request` + `/verify/confirm`, JWT required). |
 | `PendingVerification` | class | `id, level, contact, codeHash, attempts, expiresAt`. Code stored **hashed, never plaintext**. |
 | `PendingVerificationRepository` | interface | `save(pending)`, `findActiveByUserAndLevel(userId, level)`, `delete(pending)`. |
 

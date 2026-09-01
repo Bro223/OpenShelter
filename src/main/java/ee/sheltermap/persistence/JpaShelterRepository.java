@@ -87,6 +87,8 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setMunicipality(shelter.getMunicipality());
         entity.setDataAsOf(shelter.getDataAsOf());
         entity.setSourceAttribution(shelter.getSourceAttribution());
+        entity.setDescription(shelter.getDescription());
+        entity.setCapacity(shelter.getCapacity());
         return entity;
     }
 
@@ -101,7 +103,9 @@ public class JpaShelterRepository implements ShelterRepository {
                 entity.getCounty(),
                 entity.getMunicipality(),
                 entity.getDataAsOf(),
-                entity.getSourceAttribution());
+                entity.getSourceAttribution(),
+                entity.getDescription(),
+                entity.getCapacity());
         shelter.setId(entity.getId());
         return shelter;
     }

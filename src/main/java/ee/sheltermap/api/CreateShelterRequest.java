@@ -9,10 +9,9 @@ import jakarta.validation.constraints.Size;
 /**
  * {@code POST /api/shelters} body (05-shelter-api.puml).
  *
- * <p>{@code description} and {@code capacity} are part of the frontend
- * contract and are validated here, but the Step-1 {@code Shelter} domain
- * type has no fields for them yet — they are currently dropped at the
- * boundary (see Step 5 report; storing them needs a domain + schema change).
+ * <p>{@code description} and {@code capacity} are USER-submission details and
+ * are stored on the shelter (V3 hardening — previously validated then
+ * silently dropped at the boundary).
  */
 public record CreateShelterRequest(
         @NotBlank @Size(max = 200) String name,

@@ -22,12 +22,12 @@ depends on it. It answers "what is this app about": users, verification claims, 
 | `VerificationPolicy` | class | holds `rules: VerificationRules`; `allows(levels: Set<VerificationLevel>, capability: Capability): boolean`. |
 | `VerificationRules` | record | `baseline: Set<Capability>`, `byLevel: Map<VerificationLevel, Set<Capability>>`, `ofDefaults(): VerificationRules`. |
 | `Capability` | enum | `VIEW_MAP, SUBMIT_SHELTER, PUBLISH_INSTANTLY`. |
-| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource`. User submissions: `externalId = null`, `source = USER`. |
+| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource, address, county, municipality, dataAsOf, sourceAttribution, description: String, capacity: Integer`. User submissions: `externalId = null`, `source = USER`. Registry rows carry the FULL published record; `description`/`capacity` are USER-submission details (stored since V3 — previously validated then silently dropped). |
 | `ShelterStatus` | enum | `ACTIVE, INACTIVE, PENDING, REJECTED` (PENDING/REJECTED reserved for future; nothing uses them now). |
 | `ShelterSource` | enum | `PAASETEAMET, MUNICIPALITY, USER`. |
 | `GeoPoint` | record | `lat: double, lng: double`. |
 | `ShelterReview` | class | `id, shelterId, userId, rating: int (1..5), comment: String (≤500), createdAt, updatedAt`. **Unique (shelterId, userId)** — one review per user per shelter. |
-| `ShelterReviewRepository` | interface | `save, findById, findByShelterId, findByShelterIdAndUserId, delete`. |
+| `ShelterReviewRepository` | interface | `save, findById, findByShelterId, findByShelterIdAndUserId, delete, findRatingAggregates(ids): List<RatingAggregate>` (one batched query — no N+1 on listings). |
 
 Repository interfaces `UserRepository`, `ShelterRepository` live in the **`app` package** per the
 diagram (see `03-CONTEXT-VERIFICATION.md` note / `01` puml package `app`).

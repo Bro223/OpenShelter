@@ -25,6 +25,10 @@ class RefreshTokenRepositoryIT extends AbstractPersistenceIT {
         return saveUser(users).getId();
     }
 
+    private Long newUserId(String email, String phone) {
+        return saveUser(users, email, phone).getId();
+    }
+
     @Test
     void saveAndFindByTokenHash() {
         Long userId = newUserId();
@@ -53,7 +57,7 @@ class RefreshTokenRepositoryIT extends AbstractPersistenceIT {
     @Test
     void revokeAllForUserRevokesOnlyThatUsersTokens() {
         Long userA = newUserId();
-        Long userB = newUserId();
+        Long userB = newUserId("teet@example.ee", "+37250000002");
         tokens.save("hash-a1", userA, Instant.now().plus(30, DAYS));
         tokens.save("hash-a2", userA, Instant.now().plus(30, DAYS));
         tokens.save("hash-b1", userB, Instant.now().plus(30, DAYS));

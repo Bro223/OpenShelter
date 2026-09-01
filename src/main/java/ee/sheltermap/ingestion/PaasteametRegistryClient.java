@@ -56,7 +56,11 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
         this.transformer = transformer;
         // Timeouts come from spring.http.client.* (Boot auto-config) — the
         // builder stays untouched so tests can bind MockRestServiceServer to it.
-        this.restClient = builder.baseUrl(this.baseUrl).build();
+        // A User-Agent identifies our client (politeness — see SDI Ch 9).
+        this.restClient = builder.defaultHeader("User-Agent",
+                        "OpenShelter/0.1 (+https://github.com/Bro223/OpenShelter)")
+                .baseUrl(this.baseUrl)
+                .build();
     }
 
     @Override

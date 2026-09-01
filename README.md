@@ -12,20 +12,32 @@ shelters with community ratings (the rating system **is** the moderation — no 
 
 ## Status
 
-- ✅ **Steps 0–6 complete** — backend functional end-to-end, **176 tests green**.
+- ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass** — backend
+  functional end-to-end, **183 tests green**.
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
-- ⚠️ **Known gaps** (see [Current state](#current-state--known-gaps)): verification has no
-  HTTP endpoints yet, email delivery is console-only (dev), Smart-ID and Twilio are stubs.
+- ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
+  (email/phone), so the full loop works: register → verify → add shelter → review.
+- ✅ **Hardening pass (code review)** — duplicate registration → 409, unique email/phone +
+  one-active-claim constraints (V3), register rate limiting, X-Forwarded-For-aware buckets,
+  atomic password reset + import, no-N+1 rating aggregates, stored `description`/`capacity`,
+  CORS, SMTP delivery failures never surface as 500s. See [Hardening](#hardening-pass).
+- ⚠️ **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
+  dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), Smart-ID and Twilio
+  are stubs.
 
 ## Features
 
 - **Auth**: register, login (Argon2id hashing), JWT access (15 min) + refresh (30 days, hashed
   at rest, rotated on refresh), logout revokes sessions, password reset (always "succeeds",
-  single-use token, revokes all sessions), rate limiting on login + reset.
-- **Verification services** (tested, not yet exposed over HTTP): email OTP / phone OTP /
-  Smart-ID stub; codes hashed, expiring, attempt-limited. Verified users gain
-  `canWrite()` (submit shelters, review).
+  single-use token, revokes all sessions), rate limiting on login + reset + register
+  (per client IP, X-Forwarded-For aware).
+- **Verification over HTTP**: `POST /verify/request` / `POST /verify/confirm` (JWT required)
+  for email OTP and phone OTP; Smart-ID stub rejected up front; codes hashed, expiring,
+  attempt-limited. Verified users gain `canWrite()` (submit shelters, review).
+- **E-mail channels**: `DevSmtpSender` (console, default, `app.mail.provider=dev`) and
+  `SmtpPulseSmtpSender` (real SMTP via `spring-boot-starter-mail`, `app.mail.provider=smtp-pulse`,
+  credentials from `SMTP_USERNAME`/`SMTP_PASSWORD` env vars only) — exactly one bean at runtime.
 - **Shelter ingestion**: weekly automatic sync (Mon 03:00 Europe/Tallinn) from the
   **Maa-amet WFS** (`https://xgis.maaamet.ee/xgis2/service/1pdl2oh`, `typeName=VARJEKOHT`),
   EPSG:3301 → WGS84 transformation via proj4j, pagination + retry/backoff + politeness delay,
@@ -38,7 +50,7 @@ shelters with community ratings (the rating system **is** the moderation — no 
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -96,9 +108,37 @@ manually on boot (see below).
 | POST | `/api/shelters/{id}/reviews` | JWT + verified | Review (upsert: re-rating updates) |
 | PUT | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Update own review |
 | DELETE | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Delete own review |
+| POST | `/dev/email-test` | JWT + opt-in | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below) |
 | GET | `/actuator/health` | public | Health check |
 
 Every error path returns the uniform `ErrorResponse` shape.
+
+### SMTP diagnostic endpoint (`POST /dev/email-test`)
+
+Off by default (it must never be an open relay on a public deploy). Enable with
+`DEV_EMAIL_TEST_ENABLED=true` in `.env`, then:
+
+```bash
+# 1. register + login → token (see curl examples above)
+TOKEN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' \
+  -d '{"emailOrPhone":"mari@example.ee","password":"s3cret"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
+
+# 2. send a test email — minimal body works (subject/message have defaults)
+curl -s -X POST localhost:8080/dev/email-test -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"to":"you@example.com"}'
+# → {"provider":"SmtpPulseSmtpSender","from":"noreply@sheltermap.ee","to":"you@example.com",
+#    "subject":"OpenShelter test","sent":true,"error":null}
+
+# 3. explicit subject/message
+curl -s -X POST localhost:8080/dev/email-test -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"to":"you@example.com","subject":"Hi","message":"OpenShelter works!"}'
+```
+
+`provider` shows which channel is active (`SmtpPulseSmtpSender` = real SMTP,
+`DevSmtpSender` = console logging). Unlike the production senders (which swallow
+delivery failures for anti-enumeration), this endpoint reports the truth:
+`"sent":false` + the relay error tells you exactly what went wrong.
 
 ## Running locally
 
@@ -142,34 +182,90 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.client=dev --app
 
 ## Configuration (environment variables)
 
+**Local `.env` file** (project root): Spring loads it automatically at startup via
+`spring-dotenv` (`me.paulschwarz:spring-dotenv`). Put real credentials there instead of
+exporting them each launch — `.env` is gitignored and never committed. A `*.env.example`
+naming convention is reserved; shell-exported env vars take precedence over `.env` values.
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | `jdbc:postgresql://localhost:5432/sheltermap` / `sheltermap` / `sheltermap` | Datasource (dev-only defaults) |
 | `SERVER_PORT` | `8080` | HTTP port |
 | `JWT_SECRET` | dev-only placeholder | **Must be overridden in any real environment** (≥ 32 bytes) |
+| `MAIL_PROVIDER` | `dev` | `dev` (console) or `smtp-pulse` (real SMTP) |
+| `SMTP_HOST` / `SMTP_PORT` | `smtp-pulse.com` / `587` | SMTP relay (alt: 465 SSL, 2525) |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | — | SMTP login (real credentials → `.env`, never git) |
+| `SMTP_FROM` | falls back to `SMTP_USERNAME` | From-address — **must be verified in the smtp-pulse dashboard** |
+| `DEV_EMAIL_TEST_ENABLED` | `false` | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required) |
 | `REGISTRY_BASE_URL` | Maa-amet WFS URL | Registry endpoint |
 | `REGISTRY_CLIENT` | `paasteamet` | `paasteamet` (real HTTP) or `dev` (local fixture) |
+| `FRONTEND_BASE_URL` | `http://localhost:5173` | Base URL for password-reset links in e-mails |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Browser origins allowed to call the API |
+| `RATELIMIT_TRUSTED_PROXIES` | — | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys) |
+| `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false` | E-mail-test recipient allowlist (spam-relay guard) |
 | — scheduler — | see `application.yml` | `app.registry.*`: page-size, retries, politeness, cron, zone, `schedule-enabled` |
+
+## Hardening pass
+
+A code-review pass over the completed Steps 0–6 fixed the following (each with tests):
+
+**High**
+- **Duplicate registration → 409** — `users.email` / `users.phone` are now UNIQUE (V3 migration);
+  the API pre-checks and answers `409 Conflict` with the uniform `ErrorResponse` (race-safe via
+  the DB constraint as backstop).
+- **Password-reset links work** — the e-mail used to carry a hardcoded `https://app/…` link;
+  the base URL is now `app.frontend.base-url` (`FRONTEND_BASE_URL` env var).
+
+**Medium**
+- **Atomic password reset** — hash update, token mark-used and session revocation now run in
+  ONE transaction (a mid-way failure can no longer leave the token replayable).
+- **Atomic registry import** — the apply/upsert/delist phase runs in one transaction; the
+  network fetch happens outside it. A failure rolls back the whole batch (no partial state).
+- **Register rate limiting** — registration is guarded per client IP (account-spam vector),
+  alongside login + reset-request.
+- **`description`/`capacity` are stored** — user submissions used to validate these fields then
+  silently drop them; they now persist (V3 columns, domain, entity, mapper, DTO).
+- **No N+1 on the shelter listing** — rating aggregates are computed in ONE batched query
+  (`findRatingAggregates`) instead of one query per shelter.
+- **X-Forwarded-For-aware rate limiting** — behind a reverse proxy, every user used to share one
+  IP bucket (global lockout risk); `X-Forwarded-For` is honored only from configured trusted
+  proxies (`RATELIMIT_TRUSTED_PROXIES`), so clients can't spoof their key.
+- **Health endpoint hardening** — `/actuator/health` details are now shown only to authorized
+  callers (`show-details: when-authorized`); SMTP reachability no longer flips the app DOWN.
+
+**Low**
+- Review add is upsert-safe under concurrency (unique-constraint race → update, not 500).
+- Concurrent verification confirms can't produce duplicate active claims (unique
+  `(user_id, level)` on non-revoked claims); failed attempts are persisted so the limit holds
+  across HTTP requests.
+- Startup import and the weekly scheduler share one overlap guard (`AtomicBoolean` in
+  `ShelterImportService`).
+- Intra-fetch duplicate `externalId`s are counted as skipped, never silently dropped.
+- The registry client sends a `User-Agent` identifying the app (politeness).
+- `RatingSummaryDto.average` is `null` for no reviews — consistent with `ShelterDto.averageRating`.
+- CORS configured (`app.cors.allowed-origins`) for the browser frontend.
+- `/dev/email-test` has a recipient allowlist (never an open relay); `DevSmtpSender`/`DevSmsSender`/
+  `TwilioSmsSender` are conditional beans — exactly one active per channel.
+- Dead code removed (`VerificationService.revoke` — revocation is pure domain state).
 
 ## Current state & known gaps
 
 **Done and working (production-grade):**
 - Auth (register/login/refresh/logout/password-reset) with Argon2id + JWT + rate limiting
+- **Verification over HTTP** (`POST /verify/request` + `/verify/confirm`, email/phone) — the
+  write path is now reachable: verified users can submit shelters and review
 - Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
 - Public read API with rating aggregates, verified-write API for shelters and reviews
-- Persistence (Flyway V1+V2, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway V1+V2+V3, JPA, `ddl-auto=validate`), uniform error handling
 
 **Known gaps / next steps:**
-1. **Verification has no HTTP endpoints yet.** `VerificationService` + providers exist and are
-   fully tested, but there is no `POST /verify/request` / `POST /verify/confirm` controller and
-   they are not yet Spring beans — so no user can become *verified* through the API, which means
-   `POST /api/shelters` and reviews return 403 in practice. **This is the critical missing piece.**
-2. **Email delivery is console-only** (`DevSmtpSender` logs messages; no real SMTP yet). A real
-   sender (e.g. smtp-pulse via `spring-boot-starter-mail`, selected with `app.mail.provider`)
-   is planned. Same for SMS (`TwilioSmsSender` is a stub) and Smart-ID (stub).
-3. **nearest/bbox search + paging** — documented as deferred, not built.
-4. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
-5. **Frontend** — separate project, out of scope here.
+1. **E-mail delivery is dev console by default** (`DevSmtpSender` logs messages). Real SMTP is
+   implemented (`SmtpPulseSmtpSender`) — enable with `MAIL_PROVIDER=smtp-pulse`,
+   `SMTP_USERNAME=…`, `SMTP_PASSWORD=…` (smtp-pulse.com:587). SMS stays a stub
+   (`TwilioSmsSender`) and Smart-ID a stub (rejected with 400 up front).
+2. **nearest/bbox search + paging** — documented as deferred, not built.
+3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
+4. **Frontend** — separate project, out of scope here.
 
 ## License
 

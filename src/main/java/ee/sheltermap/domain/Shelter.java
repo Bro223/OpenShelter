@@ -22,14 +22,24 @@ public class Shelter {
     private final String municipality;
     private final String dataAsOf;
     private final String sourceAttribution;
+    private final String description;
+    private final Integer capacity;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
-        this(name, location, status, externalId, source, null, null, null, null, null);
+        this(name, location, status, externalId, source, null, null, null, null, null, null, null);
     }
 
-    /** Full constructor — registry fields are {@code null} for USER submissions. */
+    /** Registry constructor — registry fields are {@code null} for USER submissions. */
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source,
                    String address, String county, String municipality, String dataAsOf, String sourceAttribution) {
+        this(name, location, status, externalId, source, address, county, municipality, dataAsOf, sourceAttribution,
+                null, null);
+    }
+
+    /** Full constructor — {@code description}/{@code capacity} are USER-submission details. */
+    public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source,
+                   String address, String county, String municipality, String dataAsOf, String sourceAttribution,
+                   String description, Integer capacity) {
         this.name = Objects.requireNonNull(name, "name");
         this.location = Objects.requireNonNull(location, "location");
         this.status = Objects.requireNonNull(status, "status");
@@ -40,6 +50,8 @@ public class Shelter {
         this.municipality = municipality;
         this.dataAsOf = dataAsOf;
         this.sourceAttribution = sourceAttribution;
+        this.description = description;
+        this.capacity = capacity;
     }
 
     public Long getId() {
@@ -89,5 +101,13 @@ public class Shelter {
 
     public String getSourceAttribution() {
         return sourceAttribution;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Integer getCapacity() {
+        return capacity;
     }
 }

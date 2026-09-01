@@ -46,7 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.reset-capacity=1000",
-        "app.ratelimit.reset-refill-per-second=0"
+        "app.ratelimit.reset-refill-per-second=0",
+        "app.ratelimit.register-capacity=1000",
+        "app.ratelimit.register-refill-per-second=0"
 })
 @Transactional
 class ShelterApiE2EIT extends AbstractPersistenceIT {

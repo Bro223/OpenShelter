@@ -22,7 +22,8 @@ class AuthServiceTest {
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService passwordReset = new PasswordResetService(
-            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock);
+            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock,
+            "http://localhost:5173");
     private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset);
 
     private void registerMari() {

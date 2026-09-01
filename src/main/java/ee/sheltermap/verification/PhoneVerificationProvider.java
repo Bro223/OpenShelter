@@ -2,6 +2,7 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -13,6 +14,7 @@ import java.util.Objects;
  * {@link SmsSender} and validates it (hash + attempts limit + expiry).
  * Pure channel adapter — no database access.
  */
+@Service
 public class PhoneVerificationProvider implements VerificationProvider {
 
     static final int MAX_ATTEMPTS = 5;

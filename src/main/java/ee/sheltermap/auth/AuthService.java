@@ -2,7 +2,9 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserService;
 import ee.sheltermap.domain.RegisteredUser;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 
@@ -32,11 +34,32 @@ public class AuthService {
         this.passwordReset = Objects.requireNonNull(passwordReset, "passwordReset");
     }
 
-    /** Creates the profile (no claims yet) and stores the Argon2id password hash. */
+    /**
+     * Creates the profile (no claims yet) and stores the Argon2id password hash.
+     *
+     * <p>Hardening: email and phone are unique (V3). A duplicate is rejected
+     * with {@link DuplicateAccountException} → 409 — pre-checked to give a
+     * clean error, and the DB unique index is the race-safe backstop (a
+     * concurrent duplicate surfaces as {@link DataIntegrityViolationException},
+     * converted to the same 409). The whole register is one transaction:
+     * profile + credentials are created atomically.
+     */
+    @Transactional
     public void register(RegisterRequest request) {
         Objects.requireNonNull(request, "request");
-        RegisteredUser user = users.register(request.name(), request.email(), request.phone(), request.nationalIdCode());
-        credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
+        if (users.findByEmail(request.email()) != null) {
+            throw new DuplicateAccountException("an account with this email already exists");
+        }
+        if (users.findByPhone(request.phone()) != null) {
+            throw new DuplicateAccountException("an account with this phone already exists");
+        }
+        try {
+            RegisteredUser user = users.register(request.name(), request.email(), request.phone(), request.nationalIdCode());
+            credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
+        } catch (DataIntegrityViolationException e) {
+            // concurrent duplicate slipped past the pre-check — same 409
+            throw new DuplicateAccountException("an account with this email or phone already exists");
+        }
     }
 
     /**

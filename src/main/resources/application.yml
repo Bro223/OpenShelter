@@ -14,6 +14,17 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  mail:
+    # Real SMTP (smtp-pulse.com) — credentials ONLY via env vars, never committed.
+    host: ${SMTP_HOST:smtp-pulse.com}
+    port: ${SMTP_PORT:587}            # alt: 465 (SSL) or 2525
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
   http:
     client:
       connect-timeout: 10s
@@ -29,9 +40,43 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: always
+      # Details (DB type, validation query, ...) only for authorized callers —
+      # an anonymous health probe must not leak infrastructure info (hardening).
+      show-details: when-authorized
+  health:
+    # SMTP reachability must not flip the app DOWN — e-mail is not the
+    # critical path; delivery errors are logged by the senders themselves.
+    mail:
+      enabled: false
 
 app:
+  frontend:
+    # Base URL used to build password-reset links (hardening: the reset email
+    # used to carry a hardcoded https://app/... link that went nowhere).
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+  cors:
+    # Origins the browser frontend may call (preflight handled by Spring Security).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  mail:
+    # Which SmtpSender impl: 'dev' (console logging, default) or 'smtp-pulse' (real SMTP).
+    provider: ${MAIL_PROVIDER:dev}
+    # From-address for real mail. MUST be a sender verified in the smtp-pulse
+    # dashboard (proton.me can't be verified there — that's why smtp-pulse
+    # replies "554 5.9.2 Sender domain is not valid" with the login as From).
+    # Defaults to the SMTP login if SMTP_FROM is not set.
+    from: ${SMTP_FROM:${SMTP_USERNAME:}}
+  sms:
+    # Which SmsSender impl: 'dev' (console logging, default) or 'twilio' (stub, not wired).
+    provider: ${SMS_PROVIDER:dev}
+  dev-email-test:
+    # Enables POST /dev/email-test (JWT required) — the SMTP diagnostic
+    # endpoint. Off by default: it must never be an open e-mail relay on a
+    # public deploy. Enable locally with DEV_EMAIL_TEST_ENABLED=true.
+    enabled: ${DEV_EMAIL_TEST_ENABLED:false}
+    # Only these recipients may receive test mail (unless allow-any=true).
+    # Hardening: an authenticated user must not turn this into a spam relay.
+    allowed-recipients: ${DEV_EMAIL_TEST_ALLOWED_RECIPIENTS:}
+    allow-any: ${DEV_EMAIL_TEST_ALLOW_ANY:false}
   jwt:
     # Dev-only default secret (>= 32 bytes for HS256). Override with JWT_SECRET
     # in any real environment — never ship or deploy this value.
@@ -43,6 +88,13 @@ app:
     login-refill-per-second: 0.084
     reset-capacity: 3
     reset-refill-per-second: 0.05
+    # Registration is rate-limited per client IP (account-spam vector).
+    register-capacity: 10
+    register-refill-per-second: 0.01
+    # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
+    # keys (hardening: without this, everyone behind nginx shares one bucket).
+    # Loopback is always trusted (local nginx setups).
+    trusted-proxies: ${RATELIMIT_TRUSTED_PROXIES:}
   registry:
     # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
     # Override with REGISTRY_BASE_URL if the service endpoint moves.

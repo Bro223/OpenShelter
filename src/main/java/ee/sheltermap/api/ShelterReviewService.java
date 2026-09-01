@@ -7,6 +7,7 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.UserData;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -51,9 +52,21 @@ public class ShelterReviewService {
             reviewRepository.save(existing);
             return new SaveResult(existing, false);
         }
-        ShelterReview created = new ShelterReview(shelterId, user.getId(), rating, comment);
-        reviewRepository.save(created);
-        return new SaveResult(created, true);
+        try {
+            ShelterReview created = new ShelterReview(shelterId, user.getId(), rating, comment);
+            reviewRepository.save(created);
+            return new SaveResult(created, true);
+        } catch (DataIntegrityViolationException race) {
+            // Two concurrent adds raced: the other request's insert won the
+            // unique (shelter_id, user_id) constraint. Re-read and update
+            // instead of failing with a 500 (hardening pass).
+            ShelterReview loser = reviewRepository
+                    .findByShelterIdAndUserId(shelterId, user.getId())
+                    .orElseThrow(() -> new IllegalStateException("concurrent review insert vanished", race));
+            loser.update(rating, comment);
+            reviewRepository.save(loser);
+            return new SaveResult(loser, false);
+        }
     }
 
     /** Updates the authenticated user's review of {@code shelterId} (author-only). */
@@ -92,6 +105,9 @@ public class ShelterReviewService {
     public RatingSummaryDto getRatingSummary(long shelterId) {
         requireShelter(shelterId);
         List<ShelterReview> reviews = reviewRepository.findByShelterId(shelterId);
+        if (reviews.isEmpty()) {
+            return RatingSummaryDto.empty();
+        }
         double average = reviews.stream().mapToInt(ShelterReview::getRating).average().orElse(0);
         return new RatingSummaryDto(average, reviews.size());
     }

@@ -71,9 +71,10 @@ public class ShelterController {
                 new GeoPoint(request.latitude(), request.longitude()),
                 ShelterStatus.ACTIVE,
                 null, // USER submissions have no external id
-                ShelterSource.USER);
-        // description/capacity: validated at the boundary, then dropped —
-        // the domain Shelter has no fields for them (see CreateShelterRequest javadoc).
+                ShelterSource.USER,
+                null, null, null, null, null, // no registry fields on USER rows
+                request.description(),
+                request.capacity());
         shelterService.addPlace(user, shelter);
         ShelterDto dto = queryService.findById(shelter.getId())
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));

@@ -23,7 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-capacity=3",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.reset-capacity=3",
-        "app.ratelimit.reset-refill-per-second=0"
+        "app.ratelimit.reset-refill-per-second=0",
+        "app.ratelimit.register-capacity=3",
+        "app.ratelimit.register-refill-per-second=0"
 })
 @Transactional
 class AuthRateLimitIT extends AbstractPersistenceIT {
@@ -39,6 +41,26 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
                     .andExpect(status().isUnauthorized()); // passes the limiter, generic 401
         }
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.message").value("too many requests"));
+    }
+
+    @Test
+    void registerBurstOverCapacityReturns429() throws Exception {
+        // Registration is rate-limited per client IP (account-spam vector —
+        // hardening pass). Different emails share the IP bucket.
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\":\"Spam\",\"email\":\"spam" + i + "@example.ee\","
+                                    + "\"phone\":\"+37250009" + i + "\",\"nationalIdCode\":\"49001019" + i + "\","
+                                    + "\"password\":\"s3cret\"}"))
+                    .andExpect(status().isCreated());
+        }
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Spam\",\"email\":\"spam9@example.ee\","
+                                + "\"phone\":\"+3725000999\",\"nationalIdCode\":\"4900101999\","
+                                + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value("too many requests"));

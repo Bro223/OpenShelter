@@ -16,4 +16,9 @@ public record ImportResult(int created, int updated, int removed, int skipped, i
     public static ImportResult failure(java.time.Instant at) {
         return new ImportResult(0, 0, 0, 0, 1, at);
     }
+
+    /** Result of a run skipped because another import was already running. */
+    public static ImportResult skipped(java.time.Instant at) {
+        return new ImportResult(0, 0, 0, 0, 0, at);
+    }
 }

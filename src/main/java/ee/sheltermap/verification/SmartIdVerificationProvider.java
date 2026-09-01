@@ -2,6 +2,7 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
+import org.springframework.stereotype.Service;
 
 /**
  * Smart-ID channel adapter — <strong>STUB in v1</strong>.
@@ -11,8 +12,11 @@ import ee.sheltermap.domain.VerificationLevel;
  * changes when Smart-ID goes live (TIJ Ch 9: the seam is the interface).
  *
  * <p>Until then both methods throw {@link UnsupportedOperationException} so
- * the stub can never be mistaken for a working channel.
+ * the stub can never be mistaken for a working channel. Registered as a bean
+ * so the level map is complete; the controller rejects SMART_ID requests
+ * with 400 before reaching the stub.
  */
+@Service
 public class SmartIdVerificationProvider implements VerificationProvider {
 
     @Override

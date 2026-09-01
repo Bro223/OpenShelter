@@ -48,6 +48,19 @@ public class InMemoryShelterReviewRepository implements ShelterReviewRepository 
     }
 
     @Override
+    public List<RatingAggregate> findRatingAggregates(List<Long> shelterIds) {
+        return store.values().stream()
+                .filter(r -> shelterIds.contains(r.getShelterId()))
+                .collect(java.util.stream.Collectors.groupingBy(ShelterReview::getShelterId))
+                .entrySet().stream()
+                .map(e -> new RatingAggregate(
+                        e.getKey(),
+                        e.getValue().stream().mapToInt(ShelterReview::getRating).average().orElse(0),
+                        e.getValue().size()))
+                .toList();
+    }
+
+    @Override
     public void delete(ShelterReview review) {
         if (review.getId() != null) {
             store.remove(review.getId());

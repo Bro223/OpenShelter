@@ -111,8 +111,12 @@ package "domain" {
     - municipality : String
     - dataAsOf : String
     - sourceAttribution : String
+    - description : String
+    - capacity : Integer
     ' Full registry record stored locally (see 04-ingestion.puml);
     ' the API serves a lean projection (05-shelter-api.puml).
+    ' description/capacity are USER-submission details (V3 hardening:
+    ' previously validated at the boundary then silently dropped).
   }
   enum ShelterStatus {
     ACTIVE
@@ -191,12 +195,15 @@ package "verification" {
   class DevSmtpSender {
     + send(email : String, message : String) : void
     ' Dev/CI: logs the message to the console (no real SMTP).
+    ' Default bean via app.mail.provider=dev (matchIfMissing) - exactly one
+    ' SmtpSender exists at runtime (dev | smtp-pulse).
   }
 
   class SmtpPulseSmtpSender {
     + send(email : String, message : String) : void
-    ' Production channel (planned): spring-boot-starter-mail + smtp-pulse.com,
-    ' selected via app.mail.provider=smtp-pulse. Logs metadata only, never the body.
+    ' Production channel: spring-boot-starter-mail + smtp-pulse.com, selected
+    ' via app.mail.provider=smtp-pulse. Logs metadata only, never the body.
+    ' Credentials via env vars only (spring.mail.username/password).
   }
 
   class VerificationService {

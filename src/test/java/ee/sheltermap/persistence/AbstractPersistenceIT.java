@@ -46,8 +46,16 @@ public abstract class AbstractPersistenceIT {
 
     /** Persists a fresh registered user and returns it (with id assigned). */
     protected final RegisteredUser saveUser(UserRepository users) {
-        RegisteredUser user = new RegisteredUser(
-                "Mari Maasikas", "mari@example.ee", "+37250000001", "49001010001");
+        return saveUser(users, "mari@example.ee", "+37250000001");
+    }
+
+    /**
+     * Variant with explicit contact — for tests that need TWO users in one
+     * test method (email/phone are UNIQUE since the V3 hardening migration,
+     * so a second call must use different contacts).
+     */
+    protected final RegisteredUser saveUser(UserRepository users, String email, String phone) {
+        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
         users.save(user);
         return user;
     }

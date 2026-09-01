@@ -18,7 +18,8 @@ class PasswordResetServiceTest {
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService service = new PasswordResetService(
-            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock);
+            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock,
+            "http://localhost:5173");
 
     private RegisteredUser savedUser() {
         RegisteredUser user = new RegisteredUser("Mari", "mari@example.ee", "+37250000001", "49001010001");
@@ -44,7 +45,7 @@ class PasswordResetServiceTest {
         assertThat(stored.isExpired(clock.instant())).isFalse();
 
         String message = smtp.last().message();
-        assertThat(message).startsWith("https://app/reset?token=");
+        assertThat(message).startsWith("http://localhost:5173/reset?token=");
         String token = TestTokens.fromResetUrl(message);
         assertThat(stored.getTokenHash()).isNotEqualTo(token); // hashed at rest
         assertThat(stored.getTokenHash()).isEqualTo(Hashes.sha256Hex(token));

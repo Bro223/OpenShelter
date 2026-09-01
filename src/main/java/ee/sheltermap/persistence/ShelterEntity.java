@@ -55,6 +55,11 @@ public class ShelterEntity {
     @Column(name = "source_attribution", length = 255)
     private String sourceAttribution;
 
+    @Column(length = 2000)
+    private String description;
+
+    private Integer capacity;
+
     public Long getId() {
         return id;
     }
@@ -149,5 +154,21 @@ public class ShelterEntity {
 
     public void setSourceAttribution(String sourceAttribution) {
         this.sourceAttribution = sourceAttribution;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Integer getCapacity() {
+        return capacity;
+    }
+
+    public void setCapacity(Integer capacity) {
+        this.capacity = capacity;
     }
 }

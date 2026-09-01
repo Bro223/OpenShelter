@@ -196,3 +196,51 @@ paging documented as deferred, not built.
 **Manual review:** full API surface + error handling.
 
 **STOP — final review.**
+
+---
+
+## Step 7 — Hardening pass (code review) ✅ DONE
+
+**Inputs:** the completed Steps 0–6 + a whole-system code review.
+
+A full read-through of the system after Step 6 fixed the issues that per-step acceptance
+criteria never checked (the suite validated the happy paths per spec, not the edge cases).
+
+**Deliverables / fixes (all with tests):**
+
+*High*
+- Duplicate registration → **409** — `users.email`/`users.phone` UNIQUE (V3 migration) +
+  `DuplicateAccountException` pre-check; DB constraint as the race-safe backstop.
+- Password-reset e-mails no longer carry a hardcoded `https://app/…` link — the base URL is
+  `app.frontend.base-url` (`FRONTEND_BASE_URL`).
+
+*Medium*
+- **Atomic password reset** — hash update + token mark-used + session revocation in ONE
+  transaction (no replayable token on mid-way failure).
+- **Atomic registry import** — fetch outside the transaction, apply/upsert/delist in one
+  transaction (no partial batch); the `AtomicBoolean` overlap guard moved into
+  `ShelterImportService` so the scheduler and the startup runner share it.
+- **Register rate limiting** — per client IP (account-spam vector), alongside login/reset.
+- **`description`/`capacity` stored** (V3 columns) — previously validated then dropped.
+- **No N+1** — rating aggregates in one batched query (`findRatingAggregates`).
+- **X-Forwarded-For-aware rate limiting** — header honored only from configured trusted
+  proxies; per-IP buckets survive reverse proxies without a global-lockout hazard.
+- **Actuator hardening** — `show-details: when-authorized`; mail health check disabled
+  (SMTP reachability must not flip the app DOWN).
+
+*Low*
+- Review upsert is concurrency-safe (unique-constraint race → update, not 500).
+- One active claim per (user, level) (V3 unique index) — concurrent confirms can't dup.
+- Startup import and scheduler share one overlap guard.
+- Intra-fetch duplicate `externalId`s counted as skipped.
+- Registry client sends a `User-Agent`.
+- `RatingSummaryDto.average` `null` for no reviews (consistent with `ShelterDto`).
+- CORS configured for the browser frontend.
+- `/dev/email-test` recipient allowlist (never an open relay).
+- Dead code removed (`VerificationService.revoke`).
+
+**Acceptance:** `mvn test` green — **183 tests** (added: duplicate-register 409, register
+rate-limit 429, email-test allowlist, plus updated persistence ITs for the unique
+constraints). V3 migrates cleanly on a fresh DB with `ddl-auto=validate`.
+
+**STOP — final review.**

@@ -11,6 +11,10 @@ import java.util.Optional;
  */
 public interface ShelterReviewRepository {
 
+    /** One shelter's rating aggregate — used to batch rating summaries (no N+1). */
+    record RatingAggregate(Long shelterId, double average, long count) {
+    }
+
     void save(ShelterReview review);
 
     Optional<ShelterReview> findById(Long id);
@@ -18,6 +22,13 @@ public interface ShelterReviewRepository {
     List<ShelterReview> findByShelterId(Long shelterId);
 
     Optional<ShelterReview> findByShelterIdAndUserId(Long shelterId, Long userId);
+
+    /**
+     * Rating aggregates for all given shelter ids in ONE query.
+     * Shelters without reviews are absent from the result (caller treats
+     * "missing" as count 0 / no average).
+     */
+    List<RatingAggregate> findRatingAggregates(List<Long> shelterIds);
 
     void delete(ShelterReview review);
 }

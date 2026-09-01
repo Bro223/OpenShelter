@@ -1,10 +1,12 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.auth.InvalidAccessTokenException;
+import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidCredentialsException;
 import ee.sheltermap.auth.InvalidRefreshTokenException;
 import ee.sheltermap.auth.InvalidResetTokenException;
 import ee.sheltermap.auth.RateLimitExceededException;
+import ee.sheltermap.auth.VerificationFailedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -55,6 +57,16 @@ public class ApiErrorHandler {
     @ExceptionHandler(InvalidResetTokenException.class)
     ResponseEntity<ErrorResponse> invalidResetToken(InvalidResetTokenException ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(VerificationFailedException.class)
+    ResponseEntity<ErrorResponse> verificationFailed(VerificationFailedException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(DuplicateAccountException.class)
+    ResponseEntity<ErrorResponse> duplicateAccount(DuplicateAccountException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler({

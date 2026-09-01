@@ -53,6 +53,20 @@ public class JpaShelterReviewRepository implements ShelterReviewRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<RatingAggregate> findRatingAggregates(List<Long> shelterIds) {
+        if (shelterIds == null || shelterIds.isEmpty()) {
+            return List.of();
+        }
+        return reviews.findRatingAggregates(shelterIds).stream()
+                .map(row -> new RatingAggregate(
+                        ((Number) row[0]).longValue(),
+                        ((Number) row[1]).doubleValue(),
+                        ((Number) row[2]).longValue()))
+                .toList();
+    }
+
+    @Override
     @Transactional
     public void delete(ShelterReview review) {
         if (review.getId() != null) {
