@@ -24,11 +24,6 @@ public abstract class User {
     /** Immutable snapshot of this user's data — never live internals. */
     public abstract UserData getData();
 
-    /** {@code VIEW_MAP} is baseline: everyone, including guests, can watch. */
-    public boolean canWatch() {
-        return true;
-    }
-
     public abstract boolean canWrite();
 
     public abstract void deleteAccount();

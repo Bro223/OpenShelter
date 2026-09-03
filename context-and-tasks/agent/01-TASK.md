@@ -60,8 +60,9 @@ This task pack covers the **backend only**.
    `RateLimiter`, `ShelterRegistryClient`, `ShelterParser`, all repositories). Services depend on
    interfaces, never on concrete collaborators. Implementations are separate, swappable classes
    (`TwilioSmsSender` vs `DevSmsSender`, `PaasteametRegistryClient` vs `DevRegistryClient`).
-3. **Inheritance only for genuine is-a (TIJ Ch 1/7).** `GuestUser`, `RegisteredUser`, `AdminUser`
-   extend `User` (kind is fixed at creation). **Never** model verification as subclasses
+3. **Inheritance only for genuine is-a (TIJ Ch 1/7).** `GuestUser`, `RegisteredUser` extend
+   `User` (kind is fixed at creation; `AdminUser` was removed in the review-fix pass — v1 has no
+   staff role). **Never** model verification as subclasses
    (`VerifiedUser` etc.) — verification is data: `Set<VerificationClaim>` on `RegisteredUser`.
    An object never changes class; claims are added/revoked at runtime.
 4. **Composition first.** Runtime-changing state is data held by an object, not new subclasses.

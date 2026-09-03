@@ -164,6 +164,33 @@ class AccountControllerIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void confirmChangeReturns409WhenTheTargetWasClaimedInTheMeantime() throws Exception {
+        String tokenA = registerAndLogin();
+
+        // A requests an email change to a free address
+        mvc.perform(post("/account/email-change/request")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"vaidlustatud@example.ee\"}"))
+                .andExpect(status().isAccepted());
+        String changeCode = codeFrom(sms.last().message());
+
+        // P2 race: another account claims that address before A confirms
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Konkurent\",\"email\":\"vaidlustatud@example.ee\","
+                                + "\"phone\":\"+37250007777\",\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}"))
+                .andExpect(status().isCreated());
+
+        // A's confirm must surface as 409 (uniform ErrorResponse), never 500
+        mvc.perform(post("/account/email-change/confirm")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + changeCode + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
     void phoneChangeIsVerifiedByEmailToCurrentEmail() throws Exception {
         String token = registerAndLogin();
 

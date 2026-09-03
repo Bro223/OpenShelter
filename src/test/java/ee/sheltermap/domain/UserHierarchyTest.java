@@ -7,8 +7,8 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Bird-rule test (Step 1 acceptance): guest can watch / can't write,
- * admin can write, RegisteredUser.levels() reflects add/revoke.
+ * Bird-rule test (Step 1 acceptance): guest can't write,
+ * RegisteredUser.levels() reflects add/revoke.
  */
 class UserHierarchyTest {
 
@@ -22,18 +22,10 @@ class UserHierarchyTest {
     }
 
     @Test
-    void guestCanWatchButCannotWrite() {
+    void guestCannotWrite() {
         User guest = new GuestUser();
-        assertThat(guest.canWatch()).isTrue();
         assertThat(guest.canWrite()).isFalse();
         assertThat(guest.getData().levels()).isEmpty();
-    }
-
-    @Test
-    void adminCanWrite() {
-        User admin = new AdminUser();
-        assertThat(admin.canWatch()).isTrue();
-        assertThat(admin.canWrite()).isTrue();
     }
 
     @Test

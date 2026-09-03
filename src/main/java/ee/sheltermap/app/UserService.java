@@ -1,6 +1,5 @@
 package ee.sheltermap.app;
 
-import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.UserData;
@@ -37,16 +36,6 @@ public class UserService {
         return user.getData();
     }
 
-    /** Removes the user's domain state (claims) and persists the change. */
-    public void deleteAccount(User user) {
-        user.deleteAccount();
-        userRepository.save(user);
-    }
-
-    /** Anonymous viewer — never persisted; kept here for service callers. */
-    public GuestUser guest() {
-        return new GuestUser();
-    }
 
     /**
      * Login lookup (03-auth.puml contract): resolves by email when the contact

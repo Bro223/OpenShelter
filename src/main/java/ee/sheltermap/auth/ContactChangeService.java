@@ -8,6 +8,7 @@ import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
 import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationThrottledException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -101,8 +102,19 @@ public class ContactChangeService {
     public void confirmEmailChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.EMAIL_CHANGE);
         verifyCode(change, code);
-        user.changeEmail(change.getTarget());
-        userRepository.save(user);
+        String target = change.getTarget();
+        // The target may have been claimed by another account between request
+        // and confirm (it was checked at request time only) — re-check, and
+        // convert a DB-level race into the same 409 (P2 fix).
+        if (userRepository.findByEmail(target) != null) {
+            throw new DuplicateAccountException("an account with this email already exists");
+        }
+        user.changeEmail(target);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException race) {
+            throw new DuplicateAccountException("an account with this email already exists");
+        }
         changes.delete(change);
     }
 
@@ -137,8 +149,18 @@ public class ContactChangeService {
     public void confirmPhoneChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.PHONE_CHANGE);
         verifyCode(change, code);
-        user.changePhone(change.getTarget());
-        userRepository.save(user);
+        String target = change.getTarget();
+        // P2 fix: re-check the target (claimed between request and confirm?)
+        // and convert a DB-level race into the same 409.
+        if (userRepository.findByPhone(target) != null) {
+            throw new DuplicateAccountException("an account with this phone already exists");
+        }
+        user.changePhone(target);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException race) {
+            throw new DuplicateAccountException("an account with this phone already exists");
+        }
         changes.delete(change);
     }
 

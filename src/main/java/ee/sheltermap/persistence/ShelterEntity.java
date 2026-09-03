@@ -10,6 +10,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.Instant;
 
 /** JPA entity for {@code shelters}. {@code externalId} is NULL for USER submissions. */
 @Entity
@@ -59,6 +62,10 @@ public class ShelterEntity {
     private String description;
 
     private Integer capacity;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
 
     public Long getId() {
         return id;
@@ -170,5 +177,13 @@ public class ShelterEntity {
 
     public void setCapacity(Integer capacity) {
         this.capacity = capacity;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 }

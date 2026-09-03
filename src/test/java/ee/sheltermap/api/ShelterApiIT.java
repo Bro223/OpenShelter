@@ -148,7 +148,8 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].source").value("USER"))
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].averageRating").value(4.5))
-                .andExpect(jsonPath("$[0].reviewCount").value(2));
+                .andExpect(jsonPath("$[0].reviewCount").value(2))
+                .andExpect(jsonPath("$[0].createdAt").isNotEmpty());
 
         mvc.perform(get("/api/shelters").param("source", "REGISTRY"))
                 .andExpect(status().isOk())
@@ -175,7 +176,8 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.name").value("Üksik varjend"))
                 .andExpect(jsonPath("$.averageRating").value(5.0))
-                .andExpect(jsonPath("$.reviewCount").value(1));
+                .andExpect(jsonPath("$.reviewCount").value(1))
+                .andExpect(jsonPath("$.createdAt").isNotEmpty());
     }
 
     @Test

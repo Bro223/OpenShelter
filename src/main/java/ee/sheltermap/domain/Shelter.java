@@ -1,5 +1,6 @@
 package ee.sheltermap.domain;
 
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -24,6 +25,7 @@ public class Shelter {
     private final String sourceAttribution;
     private final String description;
     private final Integer capacity;
+    private Instant createdAt;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -61,6 +63,15 @@ public class Shelter {
     /** Assigned by persistence/repositories; {@code null} until persisted. */
     public void setId(Long id) {
         this.id = id;
+    }
+
+    /** Creation time, owned by the database ({@code created_at}, DEFAULT now()). */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 
     public String getName() {

@@ -85,7 +85,7 @@ public class EmailTestController {
             mail.setText(request.message());
             mailSender.send(mail);
             return new EmailTestResult(provider, from, request.to(), request.subject(), true, null);
-        } catch (MailException ex) {
+        } catch (Exception ex) {
             log.error("[email-test] delivery to {} failed: {}", request.to(), ex.getMessage());
             return new EmailTestResult(provider, from, request.to(), request.subject(), false, ex.getMessage());
         }

@@ -5,7 +5,9 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserService;
 import ee.sheltermap.config.VerificationProperties;
+import ee.sheltermap.domain.Capability;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.VerificationPolicy;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
@@ -57,12 +59,13 @@ class VerificationFlowTest {
         shelters = new InMemoryShelterRepository();
 
         userService = new UserService(users);
+        // anchored at real now (the in-memory pending repo checks Instant.now() for expiry)
+        Clock clock = Clock.systemUTC();
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         verificationService = new VerificationService(providers, pendings,
-                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"),
-                Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC));
+                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"), clock);
         shelterService = new ShelterService(shelters);
     }
 
@@ -70,7 +73,8 @@ class VerificationFlowTest {
     void fullHappyPathRegisterVerifyThenWrite() {
         // == 0. Anonymous browsing ==
         GuestUser guest = new GuestUser();
-        assertThat(guest.canWatch()).isTrue();
+        // "guest can watch" == VIEW_MAP is baseline in the verification policy
+        assertThat(VerificationPolicy.defaults().allows(guest.getData().levels(), Capability.VIEW_MAP)).isTrue();
         assertThat(guest.canWrite()).isFalse();
 
         // == 1. Register ==

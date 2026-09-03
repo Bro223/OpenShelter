@@ -97,6 +97,14 @@ app:
     # Hardening: an authenticated user must not turn this into a spam relay.
     allowed-recipients: ${DEV_EMAIL_TEST_ALLOWED_RECIPIENTS:}
     allow-any: ${DEV_EMAIL_TEST_ALLOW_ANY:false}
+  dev-sms-test:
+    # Dev-only diagnostic endpoint (POST /dev/sms-test). Disabled by default —
+    # never an open SMS relay on a public deploy.
+    enabled: ${DEV_SMS_TEST_ENABLED:false}
+    # Only these recipients may receive test SMS (unless allow-any=true).
+    # Comma-separated; numbers are matched in E.164 form (+372...).
+    allowed-recipients: ${DEV_SMS_TEST_ALLOWED_RECIPIENTS:}
+    allow-any: ${DEV_SMS_TEST_ALLOW_ANY:false}
   jwt:
     # Dev-only default secret (>= 32 bytes for HS256). Override with JWT_SECRET
     # in any real environment — never ship or deploy this value.

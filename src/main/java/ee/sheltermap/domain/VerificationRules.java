@@ -11,8 +11,7 @@ import java.util.Set;
  * without rebuilding.
  *
  * <p>Defaults: {@code VIEW_MAP} is baseline (no claims needed — guests can
- * watch); {@code SUBMIT_SHELTER} is granted by any single level;
- * {@code PUBLISH_INSTANTLY} only by {@link VerificationLevel#SMART_ID}.
+ * watch); {@code SUBMIT_SHELTER} is granted by any single level.
  */
 public record VerificationRules(
         Set<Capability> baseline,
@@ -32,8 +31,7 @@ public record VerificationRules(
         Map<VerificationLevel, Set<Capability>> byLevel = new EnumMap<>(VerificationLevel.class);
         byLevel.put(VerificationLevel.EMAIL, EnumSet.of(Capability.SUBMIT_SHELTER));
         byLevel.put(VerificationLevel.PHONE, EnumSet.of(Capability.SUBMIT_SHELTER));
-        byLevel.put(VerificationLevel.SMART_ID,
-                EnumSet.of(Capability.SUBMIT_SHELTER, Capability.PUBLISH_INSTANTLY));
+        byLevel.put(VerificationLevel.SMART_ID, EnumSet.of(Capability.SUBMIT_SHELTER));
         return new VerificationRules(EnumSet.of(Capability.VIEW_MAP), byLevel);
     }
 }

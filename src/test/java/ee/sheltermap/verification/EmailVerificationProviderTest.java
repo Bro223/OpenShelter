@@ -5,7 +5,9 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,11 +20,13 @@ class EmailVerificationProviderTest {
     private CapturingSmtpSender sender;
     private EmailVerificationProvider provider;
     private RegisteredUser user;
+    private Clock clock;
 
     @BeforeEach
     void setUp() {
         sender = new CapturingSmtpSender();
-        provider = new EmailVerificationProvider(sender);
+        clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
+        provider = new EmailVerificationProvider(sender, clock);
         user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
         user.setId(1L);
     }
@@ -35,7 +39,7 @@ class EmailVerificationProviderTest {
         assertThat(pending.getUserId()).isEqualTo(1L);
         assertThat(pending.getContact()).isEqualTo("aleks@example.com");
         assertThat(pending.getAttempts()).isZero();
-        assertThat(pending.getExpiresAt()).isAfter(Instant.now());
+        assertThat(pending.getExpiresAt()).isAfter(clock.instant());
 
         assertThat(sender.getLastEmail()).isEqualTo("aleks@example.com");
         assertThat(sender.getLastMessage()).contains("token");
@@ -81,7 +85,7 @@ class EmailVerificationProviderTest {
     void confirmExpiredPendingReturnsFalse() {
         PendingVerification expired = new PendingVerification(
                 1L, VerificationLevel.EMAIL, "aleks@example.com",
-                PendingVerification.sha256("token123"), Instant.now().minusSeconds(1));
+                PendingVerification.sha256("token123"), clock.instant().minusSeconds(1));
 
         assertThat(provider.confirm(user, expired, "token123")).isFalse();
     }
@@ -90,7 +94,7 @@ class EmailVerificationProviderTest {
     void confirmPendingForAnotherLevelReturnsFalse() {
         PendingVerification phonePending = new PendingVerification(
                 1L, VerificationLevel.PHONE, "+37250000000",
-                PendingVerification.sha256("123456"), Instant.now().plusSeconds(60));
+                PendingVerification.sha256("123456"), clock.instant().plusSeconds(60));
 
         assertThat(provider.confirm(user, phonePending, "123456")).isFalse();
     }

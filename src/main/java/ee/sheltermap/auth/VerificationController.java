@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -82,7 +83,18 @@ public class VerificationController {
             throw new VerificationFailedException("invalid or expired verification code");
         }
         // Persist the new claim (JpaUserRepository.save rewrites the claim set).
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (DataIntegrityViolationException race) {
+            // P2 fix: two concurrent confirms of the same level+code both pass
+            // the already-verified guard, and the losing insert violates the V3
+            // partial unique index. The claim is already active (the other
+            // request persisted it) — treat as an idempotent success, never a 500.
+            if (user.levels().contains(body.level())) {
+                return;
+            }
+            throw race;
+        }
     }
 
     private RegisteredUser currentUser() {

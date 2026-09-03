@@ -20,8 +20,11 @@ participant "ShelterService" as SS
 database "Database" as DB
 
 == 0. Anonymous browsing ==
-Person -> GU : canWatch()
-GU --> Person : true
+note over Person, GU
+  The map is public (VIEW_MAP is the baseline capability in
+  VerificationRules.ofDefaults()) - no canWatch() method exists:
+  guests simply can't write. (canWatch was removed in the review-fix pass.)
+end note
 
 == 1. Register ==
 Person -> US : register(name, email, phone, idCode, password)

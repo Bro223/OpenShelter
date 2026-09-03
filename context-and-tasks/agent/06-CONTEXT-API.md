@@ -18,7 +18,7 @@ lives in the services.
 | `ShelterController` | class | `GET /api/shelters?source=REGISTRY\|USER\|ALL` (public), `GET /api/shelters/{id}` (public), `POST /api/shelters` (Bearer JWT + `canWrite()` check). |
 | `ReviewController` | class | `GET /api/shelters/{id}/reviews` (public), `POST /api/shelters/{id}/reviews` (Bearer, verified), `PUT /api/shelters/{id}/reviews/mine` (author only), `DELETE /api/shelters/{id}/reviews/mine` (author only). |
 | `ShelterQueryService` | class | `findAll(filter: ShelterSourceFilter): List<ShelterDto>`, `findById(id: Long): Optional<ShelterDto>`. Returns **DTOs only, never entities**. **Hardening:** rating aggregates are computed in ONE batched query (`findRatingAggregates(ids)`) — no N+1. |
-| `ShelterReviewService` | class | `addReview(user, shelterId, rating, comment): SaveResult`, `updateReview(user, shelterId, rating, comment): void`, `deleteReview(user, shelterId): void`, `getReviews(shelterId): List<ShelterReviewDto>`, `getRatingSummary(shelterId): RatingSummaryDto`. **Hardening:** the find-then-insert upsert is concurrency-safe — a unique-constraint race is caught and retried as an update (no 500). |
+| `ShelterReviewService` | class | `addReview(user, shelterId, rating, comment): SaveResult`, `updateReview(user, shelterId, rating, comment): void`, `deleteReview(user, shelterId): void`, `getReviews(shelterId): List<ShelterReviewDto>` (`getRatingSummary` removed in the review-fix pass — no endpoint consumed it; rating aggregates are served via `ShelterDto` + the batched `findRatingAggregates` query). **Hardening:** the find-then-insert upsert is concurrency-safe — a unique-constraint race is caught and retried as an update (no 500). |
 | `ShelterDto` | record | `id, name, address, latitude, longitude, status: ShelterStatus, source: ShelterSource, averageRating: Double, reviewCount: int, createdAt: Instant, description: String, capacity: Integer`. **Lean projection** — the full registry record (county, municipality, data-as-of, attribution) stays in the DB but is not dumped to the UI. |
 | `CreateShelterRequest` | record | `name, latitude, longitude, description: String, capacity: Integer` (validated at the boundary). **Hardening:** `description`/`capacity` are STORED (V3) — previously validated then silently dropped. |
 | `ReviewRequest` | record | `rating: int (1..5), comment: String (≤500)`. |
@@ -29,7 +29,7 @@ lives in the services.
 
 ## Endpoint semantics (from the puml notes — do not silently change)
 
-- `GET /api/shelters` and `GET /api/shelters/{id}` are **public** — `GuestUser.canWatch()` is
+- `GET /api/shelters` and `GET /api/shelters/{id}` are **public** — the `VIEW_MAP` baseline in
   always true (an emergency map must be viewable without an account).
 - `POST /api/shelters` requires a Bearer JWT; the service checks `user.canWrite()`; shelter is
   saved `status = ACTIVE`, `source = USER`; respond `201 + Location`.

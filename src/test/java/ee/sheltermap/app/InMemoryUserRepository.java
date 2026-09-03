@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,21 @@ public class InMemoryUserRepository implements UserRepository {
                 .map(u -> (RegisteredUser) u)
                 .findFirst()
                 .orElse(null);
+    }
+
+    @Override
+    public Map<Long, User> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, User> result = new LinkedHashMap<>();
+        for (Long id : ids) {
+            User user = store.get(id);
+            if (user != null) {
+                result.put(id, user);
+            }
+        }
+        return result;
     }
 
     public List<User> findAll() {

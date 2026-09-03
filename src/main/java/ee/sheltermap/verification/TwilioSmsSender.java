@@ -46,7 +46,30 @@ public class TwilioSmsSender implements SmsSender {
                            @Value("${TWILIO_AUTH_TOKEN:}") String authToken,
                            @Value("${TWILIO_MESSAGING_SERVICE_SID:}") String messagingServiceSid,
                            @Value("${TWILIO_FROM:}") String fromNumber) {
-        this(new SdkTwilioApi(accountSid, authToken), messagingServiceSid, fromNumber);
+        this(newApiOrFail(accountSid, authToken, messagingServiceSid, fromNumber),
+                messagingServiceSid, fromNumber);
+    }
+
+    /**
+     * Fail fast (hardening): with app.sms.provider=twilio, missing credentials
+     * would otherwise make EVERY send fail silently (the sender swallows
+     * delivery errors for anti-enumeration). Refuse to start instead — the
+     * misconfiguration is caught at boot, not at the first user's OTP request.
+     * Kept as a static helper because {@code this(...)} must be the first
+     * statement of the delegated constructor.
+     */
+    private static TwilioApi newApiOrFail(String accountSid, String authToken,
+                                          String messagingServiceSid, String fromNumber) {
+        if (accountSid == null || accountSid.isBlank() || authToken == null || authToken.isBlank()) {
+            throw new IllegalStateException(
+                    "app.sms.provider=twilio requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (see .env)");
+        }
+        if ((messagingServiceSid == null || messagingServiceSid.isBlank())
+                && (fromNumber == null || fromNumber.isBlank())) {
+            throw new IllegalStateException(
+                    "app.sms.provider=twilio requires TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM (see .env)");
+        }
+        return new SdkTwilioApi(accountSid, authToken);
     }
 
     TwilioSmsSender(TwilioApi api, String messagingServiceSid, String fromNumber) {

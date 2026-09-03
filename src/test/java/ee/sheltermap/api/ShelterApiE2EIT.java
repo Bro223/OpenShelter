@@ -97,7 +97,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
         assertThat(user.canWrite()).isFalse(); // not verified yet
 
         VerificationService verification = new VerificationService(
-                Map.of(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp)),
+                Map.of(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, Clock.systemUTC())),
                 pendingVerifications,
                 new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"),
                 Clock.systemUTC());

@@ -105,6 +105,15 @@ class VerificationControllerIT extends AbstractPersistenceIT {
         assertThat(message).contains("verification token: ");
         String code = message.substring(message.lastIndexOf(' ') + 1);
 
+        // resend within the cooldown window (default 60s) -> 429, uniform shape
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"));
+
         // wrong code -> 400 with the uniform ErrorResponse shape
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
@@ -133,15 +142,6 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"SMART_ID\"}"))
                 .andExpect(status().isBadRequest());
 
-        // resend within the cooldown window (default 60s) -> 429, uniform shape
-        mvc.perform(post("/verify/request")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"level\":\"EMAIL\"}"))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.error").value("Too Many Requests"));
-
         // the write path now works over HTTP
         mvc.perform(post("/api/shelters")
                         .header("Authorization", "Bearer " + token)
@@ -149,6 +149,43 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"name\":\"HTTP Verified Varjend\",\"latitude\":59.4372,\"longitude\":24.7453}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.source").value("USER"));
+    }
+
+    @Test
+    void reVerifyingAnAlreadyVerifiedLevelIsAConflictAndIdempotent() throws Exception {
+        registerUser();
+        String token = loginAndGetAccessToken();
+
+        // first verification round succeeds
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isAccepted());
+        String firstMessage = smtp.last().message();
+        String firstCode = firstMessage.substring(firstMessage.lastIndexOf(' ') + 1);
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"" + firstCode + "\"}"))
+                .andExpect(status().isOk());
+
+        // P1 fix: requesting the already-verified level again -> 409, no code sent
+        int sentBefore = smtp.sent().size();
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+        assertThat(smtp.sent()).hasSize(sentBefore);
+
+        // P1 fix: re-confirming an already-verified level is an idempotent no-op
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"000000\"}"))
+                .andExpect(status().isOk());
     }
 
     private void registerUser() throws Exception {

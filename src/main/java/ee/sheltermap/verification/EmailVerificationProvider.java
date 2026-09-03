@@ -5,6 +5,7 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -25,9 +26,11 @@ public class EmailVerificationProvider implements VerificationProvider {
 
     private final SmtpSender sender;
     private final SecureRandom random = new SecureRandom();
+    private final Clock clock;
 
-    public EmailVerificationProvider(SmtpSender sender) {
+    public EmailVerificationProvider(SmtpSender sender, Clock clock) {
         this.sender = Objects.requireNonNull(sender, "sender");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -50,7 +53,7 @@ public class EmailVerificationProvider implements VerificationProvider {
                 VerificationLevel.EMAIL,
                 email,
                 PendingVerification.sha256(token),
-                Instant.now().plus(TTL));
+                clock.instant().plus(TTL));
     }
 
     @Override
@@ -58,7 +61,7 @@ public class EmailVerificationProvider implements VerificationProvider {
         if (pending.getLevel() != VerificationLevel.EMAIL) {
             return false;
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (pending.isExpired(now)) {
             return false;
         }

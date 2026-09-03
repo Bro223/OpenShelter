@@ -8,8 +8,9 @@ title Shelter Map - User & Verification (Core with providers)
 '    about themselves; services perform work.
 ' 2. Inheritance only for genuine is-a, fixed at creation (Ch 1):
 '    User (abstract = Bird) <- GuestUser (Pigeon), RegisteredUser
-'    (Penguin), AdminUser (Parrot). Subclasses OVERRIDE base
-'    methods; they never add methods a base reference cannot see.
+'    (Penguin). Subclasses OVERRIDE base methods; they never add
+'    methods a base reference cannot see. (AdminUser was removed in
+'    the review-fix pass - v1 has no admin/staff role.)
 ' 3. Prefer composition first (Ch 1): runtime-changing state is
 '    DATA. Verification = Set<VerificationClaim> - an object never
 '    changes class, but its claims can be added/revoked.
@@ -24,14 +25,12 @@ package "domain" {
     - id : Long
     --
     + getData() : UserData
-    + canWatch() : boolean
     + canWrite() : boolean
     + deleteAccount() : void
   }
 
   class GuestUser {
     --
-    + canWatch() : boolean
     + canWrite() : boolean
     + deleteAccount() : void
   }
@@ -47,14 +46,6 @@ package "domain" {
     + levels() : Set<VerificationLevel>
     + canWrite() : boolean
     + deleteAccount() : void
-  }
-
-  class AdminUser {
-    --
-    + canWrite() : boolean
-    + deleteAccount() : void
-    ' Minimal role - no moderator in the system.
-    ' Community rating governs shelter quality (see 05).
   }
 
   class UserData <<record>> {
@@ -96,7 +87,6 @@ package "domain" {
   enum Capability {
     VIEW_MAP
     SUBMIT_SHELTER
-    PUBLISH_INSTANTLY
   }
 
   class Shelter {
@@ -121,8 +111,7 @@ package "domain" {
   enum ShelterStatus {
     ACTIVE
     INACTIVE
-    PENDING
-    REJECTED
+    ' PENDING/REJECTED removed in the review-fix pass (no moderator in v1)
   }
 
   enum ShelterSource {
@@ -300,7 +289,6 @@ interface ShelterRepository {
 ' ==================== THE BIRD RULE ====================
 GuestUser --|> User
 RegisteredUser --|> User
-AdminUser --|> User
 
 ' ==================== COMPOSITION / DATA ====================
 RegisteredUser "1" *-- "many" VerificationClaim : holds
@@ -358,7 +346,8 @@ end note
 note bottom of Shelter
   User submissions are created ACTIVE immediately - nothing to approve,
   there is no moderator. Quality is governed by community ratings
-  (ShelterReview) instead. PENDING/REJECTED reserved for future use.
+  (ShelterReview) instead. (ShelterStatus.PENDING/REJECTED were removed
+  in the review-fix pass.)
 end note
 
 note bottom of User
@@ -366,7 +355,6 @@ note bottom of User
   Subclasses are kinds of user, fixed at creation:
     GuestUser       = anonymous viewer (never persisted)
     RegisteredUser  = account holder, becomes verified over time
-    AdminUser       = staff, full rights
   Verification is NOT a subclass: a user can become verified AFTER
   creation, and objects never change class (TIJ Ch 1/7). So
   verification = claims (data), like the wing colour of a pigeon.
@@ -376,7 +364,6 @@ note bottom of VerificationPolicy
   Rules as data (config, not code) - change without rebuilding:
     VIEW_MAP          -> baseline (no claims needed; guests can watch)
     SUBMIT_SHELTER    -> EMAIL or PHONE or SMART_ID
-    PUBLISH_INSTANTLY -> SMART_ID
   Answer = baseline + union of byLevel[level] for each active level.
 end note
 @enduml

@@ -37,18 +37,18 @@ Each step lists its **inputs** (puml + context files to read), **deliverables**,
 **Inputs:** `01-user-verification.puml` (package `domain`), `02-CONTEXT-DOMAIN.md`.
 
 **Deliverables** — pure Java, no Spring annotations (persistence mapping is decided in Step 3):
-`User` (abstract), `GuestUser`, `RegisteredUser`, `AdminUser`, `UserData` (record),
+`User` (abstract), `GuestUser`, `RegisteredUser`, `UserData` (record),
 `VerificationLevel` (enum), `VerificationClaim`, `VerificationPolicy`, `VerificationRules`
 (record, `ofDefaults()`), `Capability` (enum), `Shelter`, `ShelterStatus` (enum),
 `ShelterSource` (enum), `GeoPoint` (record), `ShelterReview`, `ShelterReviewRepository`
 (interface). Plus unit tests.
 
 **Key decisions:** verification = `Set<VerificationClaim>` data, never subclasses; policy rules as
-data; `AdminUser` has **no** moderation methods; `levels()` derived from non-revoked claims.
+data; `levels()` derived from non-revoked claims.
 
 **Acceptance**
 - Policy matrix test: `VIEW_MAP` allowed for `{}`; `SUBMIT_SHELTER` allowed for each single claim,
-  denied for `{}`; `PUBLISH_INSTANTLY` only for `{SMART_ID}`.
+  denied for `{}`.
 - Bird-rule test: guest can watch / can't write; admin can write; `RegisteredUser.levels()`
   reflects add/revoke.
 
@@ -259,3 +259,37 @@ Built after the Step 0–6 hardening pass; not a build step (see README for full
   `PendingContactChange` (V4 migration). Email change verified by SMS to the current phone;
   phone change by email to the current email. Also fixed a latent claim-save bug (bulk delete).
   `mvn test` → **218 tests**.
+
+
+---
+
+## Post-step-7 additions (second review pass — P2 report-only findings)
+
+Follow-up code review findings, all fixed (dead-code removal was part of this pass):
+
+- **P1 re-verify → 500 fixed** — `requestVerification` now throws `AlreadyVerifiedException`
+  (→ 409) for already-verified levels (no code sent, no throttle consumed); `confirmVerification`
+  is an idempotent no-op for verified levels (no duplicate claim re-insert).
+- **Contact-change confirm race → 409** — target re-checked at confirm time + the save is wrapped
+  (`DataIntegrityViolationException` → `DuplicateAccountException`).
+- **N+1 author lookup in reviews** — `UserRepository.findByIds(Collection)` batches the lookup.
+- **`ShelterDto.createdAt` populated** — V5 migration adds `shelters.created_at`
+  (`DEFAULT now()`, NOT NULL); `@CreationTimestamp` on the entity keeps the value in the
+  persistence context after save.
+- **Phone canonicalization** — `PhoneNumbers.normalizeE164` no longer double-prefixes ambiguous
+  `372…` numbers (`37212345` stays as-is instead of becoming `+37237212345`); registration and
+  login normalize to E.164 so `50000000` and `+37250000000` collide → 409.
+- **Twilio fail-fast + diagnostic** — `TwilioSmsSender` refuses to start with missing
+  credentials; new `POST /dev/sms-test` mirrors `/dev/email-test` (JWT + allowlist).
+- **Clock-deterministic providers** — `EmailVerificationProvider`/`PhoneVerificationProvider`
+  now take the injected `Clock` (no `Instant.now()` in confirm/expiry logic).
+- **`CreateShelterRequest.capacity`** bounded `@Max(100_000)`; user-shelter coordinates sanity-
+  checked inside Estonia (bbox) → 400 via `InvalidShelterException`.
+- **Dead code removed** — `AdminUser`, `User.canWatch()`, `UserService.guest()`/`deleteAccount()`,
+  `Capability.PUBLISH_INSTANTLY`, `ShelterReviewService.getRatingSummary()`,
+  `ShelterStatus.PENDING/REJECTED`. Hierarchy is now `User` → `GuestUser`/`RegisteredUser` only.
+- **Prod JWT guard** — refuses to boot with `spring.profiles.active=prod` and the dev-default
+  `JWT_SECRET` (`ProdJwtGuard`).
+- **Docs/hygiene** — stale `.gitkeep` files removed; README/puml/MD synced.
+
+**Acceptance:** `mvn test` green — **216 tests** (net −6: the removed dead-code tests).

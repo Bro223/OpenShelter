@@ -8,6 +8,7 @@ import ee.sheltermap.auth.InvalidRefreshTokenException;
 import ee.sheltermap.auth.InvalidResetTokenException;
 import ee.sheltermap.auth.RateLimitExceededException;
 import ee.sheltermap.auth.VerificationFailedException;
+import ee.sheltermap.verification.AlreadyVerifiedException;
 import ee.sheltermap.verification.VerificationThrottledException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -71,8 +72,18 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidShelterException.class)
+    ResponseEntity<ErrorResponse> invalidShelter(InvalidShelterException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(DuplicateAccountException.class)
     ResponseEntity<ErrorResponse> duplicateAccount(DuplicateAccountException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(AlreadyVerifiedException.class)
+    ResponseEntity<ErrorResponse> alreadyVerified(AlreadyVerifiedException ex, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 

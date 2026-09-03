@@ -89,6 +89,7 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setSourceAttribution(shelter.getSourceAttribution());
         entity.setDescription(shelter.getDescription());
         entity.setCapacity(shelter.getCapacity());
+        entity.setCreatedAt(shelter.getCreatedAt());
         return entity;
     }
 
@@ -107,6 +108,7 @@ public class JpaShelterRepository implements ShelterRepository {
                 entity.getDescription(),
                 entity.getCapacity());
         shelter.setId(entity.getId());
+        shelter.setCreatedAt(entity.getCreatedAt());
         return shelter;
     }
 }

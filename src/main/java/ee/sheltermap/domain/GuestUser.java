@@ -11,11 +11,6 @@ public class GuestUser extends User {
     }
 
     @Override
-    public boolean canWatch() {
-        return true;
-    }
-
-    @Override
     public boolean canWrite() {
         return false;
     }

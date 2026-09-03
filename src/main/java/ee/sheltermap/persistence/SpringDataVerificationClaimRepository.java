@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 
 /** Spring Data repository for {@link VerificationClaimEntity} — internal to the persistence layer. */
@@ -25,4 +26,7 @@ public interface SpringDataVerificationClaimRepository extends JpaRepository<Ver
     @Modifying(flushAutomatically = true)
     @Query("delete from VerificationClaimEntity v where v.userId = :userId")
     void deleteByUserId(@Param("userId") Long userId);
+
+    /** Batched claims lookup (used by {@code JpaUserRepository.findByIds}). */
+    List<VerificationClaimEntity> findByUserIdIn(Collection<Long> userIds);
 }

@@ -28,7 +28,9 @@ package "api" {
     + updateReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : void
     + deleteReview(user : RegisteredUser, shelterId : Long) : void
     + getReviews(shelterId : Long) : List<ShelterReviewDto>
-    + getRatingSummary(shelterId : Long) : RatingSummaryDto
+    ' getRatingSummary was removed in the review-fix pass (dead code -
+    ' no HTTP endpoint consumed it; rating aggregates are served via
+    ' ShelterDto / the batched findRatingAggregates query).
   }
 
   class ShelterDto <<record>> {
@@ -110,7 +112,7 @@ ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()
 ShelterSourceFilter --> ShelterSource : REGISTRY={PAASETEAMET,MUNICIPALITY}, USER={USER}, ALL={all}
 
 note bottom of ShelterController
-  GET  /api/shelters?source=REGISTRY|USER|ALL  (public - guests can watch, canWatch)
+  GET  /api/shelters?source=REGISTRY|USER|ALL  (public - VIEW_MAP baseline)
   GET  /api/shelters/{id}                      (public)
   POST /api/shelters                           (Bearer JWT, canWrite() check)
   Deferred: nearest/bbox queries need GeoService + PostGIS GIST index.

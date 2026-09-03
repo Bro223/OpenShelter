@@ -69,4 +69,17 @@ class TwilioSmsSenderTest {
 
         assertThatCode(() -> sender.send(null, "OTP")).doesNotThrowAnyException();
     }
+
+    @Test
+    void failFastWhenTwilioCredentialsAreMissing() {
+        // P2 fix: with app.sms.provider=twilio, missing credentials would make
+        // every send fail silently (delivery errors are swallowed) — refuse to
+        // start instead.
+        assertThatCode(() -> new TwilioSmsSender("", "", "MG123", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("TWILIO_ACCOUNT_SID");
+        assertThatCode(() -> new TwilioSmsSender("AC123", "tok123", "", null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("TWILIO_MESSAGING_SERVICE_SID");
+    }
 }

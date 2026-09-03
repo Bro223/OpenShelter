@@ -2,10 +2,12 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserService;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.verification.PhoneNumbers;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -47,14 +49,22 @@ public class AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         Objects.requireNonNull(request, "request");
-        if (users.findByEmail(request.email()) != null) {
+        // Canonical email identity (P2 fix): lower-case BEFORE the uniqueness
+        // check. The V3 unique index is case-sensitive, so without this,
+        // "Foo@x.com" and "foo@x.com" could both be stored (the pre-check is
+        // case-insensitive) and login would later hit IncorrectResultSize.
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (users.findByEmail(email) != null) {
             throw new DuplicateAccountException("an account with this email already exists");
         }
-        if (users.findByPhone(request.phone()) != null) {
+        // Canonical phone identity (hardening): normalize to E.164 BEFORE the
+        // uniqueness check so "+37250000000" and "50000000" collide → 409.
+        String phone = PhoneNumbers.normalizeE164(request.phone());
+        if (users.findByPhone(phone) != null) {
             throw new DuplicateAccountException("an account with this phone already exists");
         }
         try {
-            RegisteredUser user = users.register(request.name(), request.email(), request.phone(), request.nationalIdCode());
+            RegisteredUser user = users.register(request.name(), email, phone, request.nationalIdCode());
             credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
         } catch (DataIntegrityViolationException e) {
             // concurrent duplicate slipped past the pre-check — same 409
@@ -67,7 +77,13 @@ public class AuthService {
      * password — the API never reveals which.
      */
     public TokenResponse login(LoginRequest request) {
-        RegisteredUser user = users.findByEmailOrPhone(request.emailOrPhone());
+        // P2 fix: normalize the phone before lookup so "51234567" matches an
+        // account registered as "+37251234567" (the phone is canonical E.164).
+        String contact = request.emailOrPhone();
+        if (contact != null && !contact.contains("@")) {
+            contact = PhoneNumbers.normalizeE164(contact);
+        }
+        RegisteredUser user = users.findByEmailOrPhone(contact);
         UserCredentials stored = user == null ? null : credentials.findByUserId(user.getId());
         if (stored == null || !passwordHasher.verify(request.password(), stored.getPasswordHash())) {
             throw new InvalidCredentialsException();

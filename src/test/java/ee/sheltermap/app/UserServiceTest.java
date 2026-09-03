@@ -2,12 +2,10 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.UserData;
-import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -50,17 +48,4 @@ class UserServiceTest {
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 
-    @Test
-    void deleteAccountClearsClaimsAndPersists() {
-        RegisteredUser user = service.register(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
-        user.addVerification(new VerificationClaim(
-                VerificationLevel.PHONE, "twilio", "+37250000000", Instant.now()));
-        assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
-
-        service.deleteAccount(user);
-
-        assertThat(user.levels()).isEmpty();
-        assertThat(repo.findById(user.getId()).getData().levels()).isEmpty();
-    }
 }

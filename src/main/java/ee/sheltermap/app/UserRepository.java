@@ -3,6 +3,9 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
+import java.util.Collection;
+import java.util.Map;
+
 /**
  * Persistence seam for {@link User}. Real implementation in
  * {@code ee.sheltermap.persistence} (Step 3); tests use an in-memory fake.
@@ -22,4 +25,10 @@ public interface UserRepository {
 
     /** Registered user by exact phone; {@code null} if none (03-auth.puml). */
     RegisteredUser findByPhone(String phone);
+
+    /**
+     * Batched lookup by ids (hardening: removes the N+1 author lookup in
+     * review listings). Missing ids are simply absent from the result map.
+     */
+    Map<Long, User> findByIds(Collection<Long> ids);
 }

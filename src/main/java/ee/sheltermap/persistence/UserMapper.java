@@ -1,6 +1,5 @@
 package ee.sheltermap.persistence;
 
-import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
@@ -36,9 +35,10 @@ final class UserMapper {
     static User toDomain(UserEntity entity, List<VerificationClaimEntity> claimEntities) {
         User user = switch (entity.getKind()) {
             case GUEST -> new GuestUser();
-            case ADMIN -> new AdminUser();
             case REGISTERED -> new RegisteredUser(
                     entity.getName(), entity.getEmail(), entity.getPhone(), entity.getNationalIdCode());
+            case ADMIN -> throw new IllegalStateException(
+                    "admin accounts are not supported in v1 (AdminUser was removed as dead code)");
         };
         user.setId(entity.getId());
         if (user instanceof RegisteredUser registered) {
@@ -67,9 +67,6 @@ final class UserMapper {
     private static UserKind kindOf(User user) {
         if (user instanceof RegisteredUser) {
             return UserKind.REGISTERED;
-        }
-        if (user instanceof AdminUser) {
-            return UserKind.ADMIN;
         }
         return UserKind.GUEST;
     }

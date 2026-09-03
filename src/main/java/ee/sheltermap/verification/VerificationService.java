@@ -65,6 +65,11 @@ public class VerificationService {
      *                                        or the daily cap is reached (→ 429)
      */
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
+        if (user.levels().contains(level)) {
+            // P1 fix: requesting a level that is already verified is a conflict
+            // (409). No code is sent and no throttle budget is consumed.
+            throw new AlreadyVerifiedException(level);
+        }
         VerificationProvider provider = providerFor(level);
         long userId = Objects.requireNonNull(user, "user").getId();
         Instant now = clock.instant();
@@ -95,6 +100,12 @@ public class VerificationService {
      * code or when no active code exists — never reveals which.
      */
     public boolean confirmVerification(RegisteredUser user, VerificationLevel level, String code) {
+        if (user.levels().contains(level)) {
+            // P1 fix: re-confirming an already-verified level is an idempotent
+            // no-op. Without this guard, the second confirm re-inserts an
+            // active claim row and violates the V3 partial unique index.
+            return true;
+        }
         VerificationProvider provider = providerFor(level);
         PendingVerification pending = pendingRepository
                 .findActiveByUserAndLevel(user.getId(), level)
@@ -110,7 +121,7 @@ public class VerificationService {
             return false;
         }
         VerificationClaim claim = new VerificationClaim(
-                level, provider.providerCode(), pending.getContact(), Instant.now());
+                level, provider.providerCode(), pending.getContact(), clock.instant());
         user.addVerification(claim);
         pendingRepository.delete(pending);
         return true;

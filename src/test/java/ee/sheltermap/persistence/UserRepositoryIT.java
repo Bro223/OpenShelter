@@ -1,7 +1,6 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.UserData;
@@ -58,19 +57,6 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         assertThat(loaded.claims().iterator().next().isRevoked()).isTrue();
         assertThat(loaded.levels()).isEmpty();
         assertThat(loaded.canWrite()).isFalse();
-    }
-
-    @Test
-    void adminUserRoundTrips() {
-        AdminUser admin = new AdminUser();
-        users.save(admin);
-
-        assertThat(admin.getId()).isNotNull();
-
-        User loaded = users.findById(admin.getId());
-        assertThat(loaded).isInstanceOf(AdminUser.class);
-        assertThat(loaded.canWrite()).isTrue();
-        assertThat(loaded.canWatch()).isTrue();
     }
 
     @Test

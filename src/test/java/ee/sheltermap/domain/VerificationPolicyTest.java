@@ -42,12 +42,4 @@ class VerificationPolicyTest {
         assertThat(policy.allows(PHONE_EMAIL, Capability.SUBMIT_SHELTER)).isTrue();
     }
 
-    @Test
-    void publishInstantlyOnlyForSmartId() {
-        assertThat(policy.allows(NONE, Capability.PUBLISH_INSTANTLY)).isFalse();
-        assertThat(policy.allows(EMAIL, Capability.PUBLISH_INSTANTLY)).isFalse();
-        assertThat(policy.allows(PHONE, Capability.PUBLISH_INSTANTLY)).isFalse();
-        assertThat(policy.allows(PHONE_EMAIL, Capability.PUBLISH_INSTANTLY)).isFalse();
-        assertThat(policy.allows(SMART_ID, Capability.PUBLISH_INSTANTLY)).isTrue();
-    }
 }

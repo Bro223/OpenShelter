@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Community reviews — the rating system IS the moderation (no moderator).
@@ -97,27 +99,26 @@ public class ShelterReviewService {
 
     public List<ShelterReviewDto> getReviews(long shelterId) {
         requireShelter(shelterId);
-        return reviewRepository.findByShelterId(shelterId).stream()
-                .map(this::toDto)
+        List<ShelterReview> reviews = reviewRepository.findByShelterId(shelterId);
+        // Batched author lookup — one query for all authors, not one per review
+        // (P2 fix; previously this was an N+1 via toDto's findById).
+        Map<Long, User> authors = userRepository.findByIds(
+                reviews.stream().map(ShelterReview::getUserId).collect(Collectors.toSet()));
+        return reviews.stream()
+                .map(review -> toDto(review, authors))
                 .toList();
     }
 
-    public RatingSummaryDto getRatingSummary(long shelterId) {
-        requireShelter(shelterId);
-        List<ShelterReview> reviews = reviewRepository.findByShelterId(shelterId);
-        if (reviews.isEmpty()) {
-            return RatingSummaryDto.empty();
-        }
-        double average = reviews.stream().mapToInt(ShelterReview::getRating).average().orElse(0);
-        return new RatingSummaryDto(average, reviews.size());
-    }
 
     /** Maps a review to its DTO, resolving the author's display name. */
     public ShelterReviewDto toDto(ShelterReview review) {
-        String authorName = Optional.ofNullable(userRepository.findById(review.getUserId()))
-                .map(User::getData)
-                .map(UserData::name)
-                .orElse("Unknown");
+        User author = userRepository.findById(review.getUserId());
+        return toDto(review, author == null ? Map.of() : Map.of(review.getUserId(), author));
+    }
+
+    private ShelterReviewDto toDto(ShelterReview review, Map<Long, User> authors) {
+        User author = authors.get(review.getUserId());
+        String authorName = author == null ? "Unknown" : author.getData().name();
         return new ShelterReviewDto(
                 review.getId(),
                 authorName,

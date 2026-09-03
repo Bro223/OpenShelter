@@ -20,12 +20,6 @@ import java.util.List;
 @Service
 public class RegistryShelterParser implements ShelterParser {
 
-    /** Estonia bounding box (sanity check — not a hard geopolitical border). */
-    static final double MIN_LAT = 57.5;
-    static final double MAX_LAT = 59.7;
-    static final double MIN_LNG = 21.5;
-    static final double MAX_LNG = 28.2;
-
     @Override
     public List<Shelter> parse(List<RegistryShelterDto> dtos) {
         if (dtos == null || dtos.isEmpty()) {
@@ -56,7 +50,7 @@ public class RegistryShelterParser implements ShelterParser {
         if (!validCoordinates(dto.latitude(), dto.longitude())) {
             return null; // out of WGS84 range — skip
         }
-        if (!inEstonia(dto.latitude(), dto.longitude())) {
+        if (!GeoPoint.inEstonia(dto.latitude(), dto.longitude())) {
             return null; // outside Estonia bbox — skip
         }
         return new Shelter(name, new GeoPoint(dto.latitude(), dto.longitude()),
@@ -76,7 +70,4 @@ public class RegistryShelterParser implements ShelterParser {
         return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
     }
 
-    private static boolean inEstonia(double lat, double lng) {
-        return lat >= MIN_LAT && lat <= MAX_LAT && lng >= MIN_LNG && lng <= MAX_LNG;
-    }
 }

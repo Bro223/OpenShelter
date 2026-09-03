@@ -152,12 +152,10 @@ class ShelterReviewServiceTest {
     }
 
     @Test
-    void reviewsAndSummaryRequireExistingShelter() {
+    void reviewsRequireExistingShelter() {
         assertThatThrownBy(() -> service.addReview(verified, 999_999L, 4, "x"))
                 .isInstanceOf(ShelterNotFoundException.class);
         assertThatThrownBy(() -> service.getReviews(999_999L))
-                .isInstanceOf(ShelterNotFoundException.class);
-        assertThatThrownBy(() -> service.getRatingSummary(999_999L))
                 .isInstanceOf(ShelterNotFoundException.class);
     }
 
@@ -175,16 +173,6 @@ class ShelterReviewServiceTest {
                 .containsExactlyInAnyOrder(4, 5);
     }
 
-    @Test
-    void getRatingSummaryComputesAverageAndCount() {
-        service.addReview(verified, shelter.getId(), 4, "hea");
-        service.addReview(otherUser, shelter.getId(), 5, "väga hea");
-
-        RatingSummaryDto summary = service.getRatingSummary(shelter.getId());
-
-        assertThat(summary.average()).isEqualTo(4.5);
-        assertThat(summary.count()).isEqualTo(2);
-    }
 
     @Test
     void ratingBoundsAndCommentLengthAreEnforcedByTheDomain() {

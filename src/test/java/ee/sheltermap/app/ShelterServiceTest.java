@@ -1,6 +1,5 @@
 package ee.sheltermap.app;
 
-import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
@@ -78,18 +77,11 @@ class ShelterServiceTest {
     }
 
     @Test
-    void adminCanAddPlace() {
-        service.addPlace(new AdminUser(), userPlace());
-
-        assertThat(repo.findAll()).hasSize(1);
-    }
-
-    @Test
     void rejectsPlaceThatIsNotActiveOrNotUserSource() {
-        Shelter pendingPlace = new Shelter("P", POINT, ShelterStatus.PENDING, null, ShelterSource.USER);
+        Shelter inactivePlace = new Shelter("P", POINT, ShelterStatus.INACTIVE, null, ShelterSource.USER);
         Shelter registryPlace = new Shelter("R", POINT, ShelterStatus.ACTIVE, "ext-1", ShelterSource.PAASETEAMET);
 
-        assertThatThrownBy(() -> service.addPlace(verifiedUser(), pendingPlace))
+        assertThatThrownBy(() -> service.addPlace(verifiedUser(), inactivePlace))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.addPlace(verifiedUser(), registryPlace))
                 .isInstanceOf(IllegalArgumentException.class);

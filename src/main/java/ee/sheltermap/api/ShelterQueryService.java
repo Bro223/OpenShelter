@@ -64,10 +64,7 @@ public class ShelterQueryService {
                 shelter.getSource(),
                 count == 0 ? null : average,
                 (int) count,
-                // createdAt is part of the frontend contract (puml) but is not
-                // captured anywhere in the model yet (domain Shelter has no
-                // createdAt, no created_at column) — see report.
-                null,
+                shelter.getCreatedAt(),
                 shelter.getDescription(),
                 shelter.getCapacity());
     }

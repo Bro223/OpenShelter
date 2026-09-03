@@ -18,8 +18,14 @@ public final class PhoneNumbers {
      * <ul>
      *   <li>strips spaces, dashes, parentheses and dots</li>
      *   <li>{@code 00}-prefix (international dialing) → {@code +}</li>
-     *   <li>7–8 digit Estonian local numbers get the {@code +372} default</li>
-     *   <li>{@code 372XXXXXXX} without {@code +} → {@code +372XXXXXXX}</li>
+     *   <li>7–8 digit numbers are treated as national format and get the
+     *       {@code +372} default — EXCEPT numbers starting with {@code 372}
+     *       (e.g. {@code 37212345}), which are ambiguous: prefixing them
+     *       again ({@code +37237212345}) would misroute to Estonia. Those are
+     *       left as-is so the SMS channel surfaces the invalid number instead
+     *       of silently sending it to the wrong country (P2 fix)</li>
+     *   <li>{@code 372XXXXXXX} (country code typed without {@code +}) →
+     *       {@code +372XXXXXXX}</li>
      *   <li>already {@code +}… is passed through unchanged</li>
      * </ul>
      */
@@ -38,9 +44,13 @@ public final class PhoneNumbers {
             return cleaned;
         }
         if (cleaned.matches("372\\d{7,8}")) {
+            // country code typed without the '+': 372 + 7-8 subscriber digits
             return "+" + cleaned;
         }
-        if (cleaned.matches("\\d{7,8}")) {
+        if (cleaned.matches("\\d{7,8}") && !cleaned.startsWith("372")) {
+            // national-format subscriber number -> default +372 country code.
+            // Numbers starting with 372 are ambiguous (see class javadoc) and
+            // are deliberately NOT prefixed again.
             return "+372" + cleaned;
         }
         return cleaned;

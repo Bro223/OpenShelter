@@ -66,6 +66,11 @@ public class ShelterController {
         if (!user.canWrite()) {
             throw new NotVerifiedException("a verified account is required to submit shelters");
         }
+        // P2 fix: user-submitted shelters get the same Estonia bounding-box
+        // sanity check the registry parser applies — no ocean shelters.
+        if (!GeoPoint.inEstonia(request.latitude(), request.longitude())) {
+            throw new InvalidShelterException("shelter location must be inside Estonia");
+        }
         Shelter shelter = new Shelter(
                 request.name(),
                 new GeoPoint(request.latitude(), request.longitude()),

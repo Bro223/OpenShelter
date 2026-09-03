@@ -33,11 +33,13 @@ class VerificationServiceTest {
         smtp = new CapturingSmtpSender();
         pendingRepo = new InMemoryPendingVerificationRepository();
         sendLog = new InMemoryVerificationSendLog();
-        clock = new MutableClock(Instant.parse("2026-09-01T10:00:00Z"));
+        // anchored at real now: the in-memory pending repo filters "active" by
+        // Instant.now(), so a fixed past date would make fresh pendings look expired
+        clock = new MutableClock(Instant.now());
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
 
         service = newService(new VerificationProperties(0, 0, "unused"));
@@ -49,8 +51,8 @@ class VerificationServiceTest {
     /** Builds a service sharing this test's fakes, with the given throttle config. */
     private VerificationService newService(VerificationProperties properties) {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
-        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms));
-        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp));
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
         return new VerificationService(providers, pendingRepo, sendLog, properties, clock);
     }

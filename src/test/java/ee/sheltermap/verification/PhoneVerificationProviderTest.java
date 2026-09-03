@@ -5,7 +5,9 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,11 +20,13 @@ class PhoneVerificationProviderTest {
     private CapturingSmsSender sender;
     private PhoneVerificationProvider provider;
     private RegisteredUser user;
+    private Clock clock;
 
     @BeforeEach
     void setUp() {
         sender = new CapturingSmsSender();
-        provider = new PhoneVerificationProvider(sender);
+        clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
+        provider = new PhoneVerificationProvider(sender, clock);
         user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
         user.setId(1L);
     }
@@ -35,7 +39,7 @@ class PhoneVerificationProviderTest {
         assertThat(pending.getUserId()).isEqualTo(1L);
         assertThat(pending.getContact()).isEqualTo("+37250000000");
         assertThat(pending.getAttempts()).isZero();
-        assertThat(pending.getExpiresAt()).isAfter(Instant.now());
+        assertThat(pending.getExpiresAt()).isAfter(clock.instant());
 
         // sent to the right phone, code embedded in the message
         assertThat(sender.getLastPhone()).isEqualTo("+37250000000");
@@ -89,7 +93,7 @@ class PhoneVerificationProviderTest {
     void confirmExpiredPendingReturnsFalse() {
         PendingVerification expired = new PendingVerification(
                 1L, VerificationLevel.PHONE, "+37250000000",
-                PendingVerification.sha256("123456"), Instant.now().minusSeconds(1));
+                PendingVerification.sha256("123456"), clock.instant().minusSeconds(1));
 
         assertThat(provider.confirm(user, expired, "123456")).isFalse();
     }
@@ -98,7 +102,7 @@ class PhoneVerificationProviderTest {
     void confirmPendingForAnotherLevelReturnsFalse() {
         PendingVerification emailPending = new PendingVerification(
                 1L, VerificationLevel.EMAIL, "aleks@example.com",
-                PendingVerification.sha256("123456"), Instant.now().plusSeconds(60));
+                PendingVerification.sha256("123456"), clock.instant().plusSeconds(60));
 
         assertThat(provider.confirm(user, emailPending, "123456")).isFalse();
     }

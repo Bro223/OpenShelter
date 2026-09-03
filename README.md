@@ -13,7 +13,7 @@ shelters with community ratings (the rating system **is** the moderation — no 
 ## Status
 
 - ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
-  backend functional end-to-end, **218 tests green**.
+  backend functional end-to-end, **216 tests green**.
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
@@ -71,7 +71,7 @@ shelters with community ratings (the rating system **is** the moderation — no 
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -134,6 +134,7 @@ manually on boot (see below).
 | PUT | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Update own review |
 | DELETE | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Delete own review |
 | POST | `/dev/email-test` | JWT + opt-in | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below) |
+| POST | `/dev/sms-test` | JWT + opt-in | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below) |
 | GET | `/actuator/health` | public | Health check |
 
 Every error path returns the uniform `ErrorResponse` shape.
@@ -165,6 +166,29 @@ curl -s -X POST localhost:8080/dev/email-test -H "Authorization: Bearer $TOKEN" 
 delivery failures for anti-enumeration), this endpoint reports the truth:
 `"sent":false` + the relay error tells you exactly what went wrong.
 
+### SMS diagnostic endpoint (`POST /dev/sms-test`)
+
+Mirror of the SMTP diagnostic for the phone channel (the hardening pass found
+the Twilio channel had no way to be exercised end-to-end). Enable it with
+`DEV_SMS_TEST_ENABLED=true` in `.env`, then:
+
+```bash
+# minimal body works (message has a default)
+curl -s -X POST localhost:8080/dev/sms-test -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"to":"+37251234567"}'
+# → {"provider":"TwilioSmsSender","to":"+37251234567","toE164":"+37251234567","sent":true,"error":null}
+```
+
+`sent:true` means the active sender accepted the message; a Twilio-side
+rejection is logged by `TwilioSmsSender` (delivery errors are swallowed by
+design — anti-enumeration), so check the app log for the error line.
+Misconfiguration itself is caught at startup: with `app.sms.provider=twilio`
+and missing `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_MESSAGING_SERVICE_SID`
+(or `TWILIO_FROM`) the app refuses to start (fail-fast). Same safety as the
+SMTP endpoint: disabled by default, JWT required, recipient allowlist
+(`DEV_SMS_TEST_ALLOWED_RECIPIENTS`, matched in E.164 form) unless
+`DEV_SMS_TEST_ALLOW_ANY=true`.
+
 ## Running locally
 
 Requirements: JDK 21, Maven 3.9+, Docker (Compose).
@@ -176,7 +200,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 176 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 216 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
@@ -238,6 +262,8 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Browser origins allowed to call the API |
 | `RATELIMIT_TRUSTED_PROXIES` | — | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys) |
 | `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false` | E-mail-test recipient allowlist (spam-relay guard) |
+| `DEV_SMS_TEST_ENABLED` | `false` | Enables `POST /dev/sms-test` (SMS diagnostic, JWT required) |
+| `DEV_SMS_TEST_ALLOWED_RECIPIENTS` / `DEV_SMS_TEST_ALLOW_ANY` | — / `false` | SMS-test recipient allowlist (spam-relay guard; numbers matched in E.164) |
 | — scheduler — | see `application.yml` | `app.registry.*`: page-size, retries, politeness, cron, zone, `schedule-enabled` |
 
 ## Hardening pass
@@ -281,7 +307,13 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 - CORS configured (`app.cors.allowed-origins`) for the browser frontend.
 - `/dev/email-test` has a recipient allowlist (never an open relay); `DevSmtpSender`/`DevSmsSender`/
   `TwilioSmsSender` are conditional beans — exactly one active per channel.
-- Dead code removed (`VerificationService.revoke` — revocation is pure domain state).
+- Dead code removed — `VerificationService.revoke` (revocation is pure domain state),
+  `AdminUser`, `User.canWatch()`, `UserService.guest()`/`deleteAccount()`,
+  `Capability.PUBLISH_INSTANTLY`, `ShelterReviewService.getRatingSummary()`, and
+  `ShelterStatus.PENDING`/`REJECTED` were deleted as part of the review-fix pass.
+  The remaining hierarchy is `User` → `GuestUser`/`RegisteredUser` only; `revoke(level)`
+  survives on `RegisteredUser` because the Step-1 contract ("levels() reflects add/revoke")
+  requires it.
 
 ## Current state & known gaps
 
@@ -293,7 +325,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   change verified by SMS, phone change by email
 - Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
 - Public read API with rating aggregates, verified-write API for shelters and reviews
-- Persistence (Flyway V1–V4, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway V1–V5, JPA, `ddl-auto=validate`), uniform error handling
 
 **Known gaps / next steps:**
 1. **E-mail delivery is dev console by default** (`DevSmtpSender` logs messages). Real SMTP is
@@ -306,6 +338,13 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend** — separate project, out of scope here.
+5. **`national_id_code` is stored plaintext** — privacy consideration for launch:
+   the Estonian personal ID is treated as an account key, not encrypted at rest
+   (documented decision; encrypting it is a schema + service change, deferred).
+6. **Live Twilio send is not yet proven end-to-end** — the sender, E.164
+   normalization and fail-fast are tested with fakes/fixtures; a real SMS from a
+   production Twilio account is the one thing only a live run confirms (use
+   `POST /dev/sms-test` once `DEV_SMS_TEST_ENABLED=true`).
 
 ## License
 

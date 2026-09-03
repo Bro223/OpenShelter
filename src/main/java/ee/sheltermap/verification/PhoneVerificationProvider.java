@@ -5,6 +5,7 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -23,9 +24,11 @@ public class PhoneVerificationProvider implements VerificationProvider {
 
     private final SmsSender sender;
     private final SecureRandom random = new SecureRandom();
+    private final Clock clock;
 
-    public PhoneVerificationProvider(SmsSender sender) {
+    public PhoneVerificationProvider(SmsSender sender, Clock clock) {
         this.sender = Objects.requireNonNull(sender, "sender");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -52,7 +55,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
                 VerificationLevel.PHONE,
                 phone,
                 PendingVerification.sha256(otp),
-                Instant.now().plus(TTL));
+                clock.instant().plus(TTL));
     }
 
     @Override
@@ -60,7 +63,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
         if (pending.getLevel() != VerificationLevel.PHONE) {
             return false;
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (pending.isExpired(now)) {
             return false;
         }
