@@ -1,0 +1,204 @@
+@startuml
+title OpenShelter Frontend - App Architecture (Angular 22, standalone, zoneless)
+
+' ============================================================
+' STRUCTURE RULES (mirror of the backend pack, 01-TASK.md)
+' 1. Layering: components (views) -> gateways (API access) ->
+'    ApiClient (HTTP + error mapping). Never call HttpClient
+'    outside the ApiClient.
+' 2. Components are thin shells (backend rule §7): parse events,
+'    delegate to services, bind signals. Zero business logic.
+' 3. One gateway per backend resource group, mirroring the
+'    backend controllers 1:1 (auth, shelter, review, verify,
+'    account). Field-for-field typed models (02-CONTEXT-API.md).
+' 4. State: signals (Angular 22, zoneless - no zone.js in the
+'    scaffold). AuthStore owns session state; feature pages own
+'    local UI state; no NgRx in v1.
+' 5. Program to an interface: gateways return typed models and
+'    throw ApiError; pages depend on gateways, never on the
+'    transport. Swapping HTTP for a fake (tests) is a one-line
+'    provider change.
+' 6. Secrets discipline: tokens are NOT placed in environment.ts.
+'    Access token lives in memory; refresh token in localStorage
+'    (XSS tradeoff documented) - httpOnly cookies deferred.
+' ============================================================
+
+package "core" {
+  class ApiClient {
+    - baseUrl : string
+    + request<T>(method, path, body?) : Observable<T>
+    + get<T>(path) : Observable<T>
+    + post<T>(path, body) : Observable<T>
+    + put<T>(path, body) : Observable<T>
+    + delete(path) : Observable<void>
+  }
+
+  class ApiError {
+    - timestamp : string
+    - status : number
+    - error : string
+    - message : string
+    - path : string
+    + fromHttp(status, payload) : ApiError
+  }
+
+  class TokenStore {
+    - accessToken : signal<string|null>
+    ' localStorage
+    - refreshToken : string|null
+    + access(): string|null
+    + setTokens(access, refresh, expiresIn)
+    + clear()
+  }
+
+  class AuthStore {
+    - user : signal<RegisteredUser|null>
+    - initialized : signal<boolean>
+    ' silent refresh at boot
+    + init() : Promise<void>
+    + register(name, email, phone, idCode, password)
+    + login(emailOrPhone, password)
+    + logout()
+    ' single-flight
+    + refresh(): Promise<boolean>
+  }
+
+  class ApiInterceptor {
+    + intercept(req, next)
+    ' attaches Bearer access token
+    ' on 401: single-flight refresh + retry once
+    ' on refresh failure: AuthStore.logout() + redirect /login
+  }
+
+  class AuthGuard {
+    ' redirects to /login when anonymous
+    + canActivate() : boolean
+  }
+
+  class GuestGuard {
+    ' redirects to /map when already logged in
+    + canActivate() : boolean
+  }
+
+  class VerifiedGuard {
+    ' redirects to /verify when no claims
+    + canActivate() : boolean
+  }
+}
+
+package "gateways" {
+  class AuthGateway {
+    + register(request: RegisterRequest) : void
+    + login(emailOrPhone, password) : TokenResponse
+    + refresh(refreshToken) : TokenResponse
+    + logout(refreshToken) : void
+    + requestPasswordReset(email) : void
+    + resetPassword(token, newPassword) : void
+  }
+
+  class VerifyGateway {
+    + request(level: VerificationLevel) : void
+    + confirm(level, code) : void
+  }
+
+  class ShelterGateway {
+    + list(source: ShelterSourceFilter) : ShelterDto[]
+    + get(id: number) : ShelterDto
+    + create(request: CreateShelterRequest) : ShelterDto
+  }
+
+  class ReviewGateway {
+    + list(shelterId: number) : ShelterReviewDto[]
+    + add(shelterId, rating, comment) : ShelterReviewDto
+    + updateMine(shelterId, rating, comment) : ShelterReviewDto
+    + deleteMine(shelterId) : void
+  }
+
+  class AccountGateway {
+    + requestEmailChange(newEmail) : void
+    + confirmEmailChange(code) : void
+    + requestPhoneChange(newPhone) : void
+    + confirmPhoneChange(code) : void
+  }
+}
+
+package "features" {
+  package "auth" {
+    class LoginPage
+    class RegisterPage
+    class ResetPage
+  }
+
+  package "account" {
+    class VerifyPage
+    class ContactChangePage
+  }
+
+  package "map" {
+    class MapPage
+    ' thin wrapper around leaflet (no ngx wrapper)
+    class LeafletService
+  }
+
+  package "shelter" {
+    class ShelterDetailPage
+    class SubmitShelterPage
+    class ReviewForm
+    class RatingStars
+  }
+}
+
+package "shared" {
+  ' error / verify-prompt banners
+  class BannerComponent
+  class LoadingIndicator
+  ' header/nav + router-outlet
+  class PageShell
+}
+
+' --- wiring ---------------------------------------------------
+PageShell --> RouterOutlet
+AuthGateway ..> ApiClient
+VerifyGateway ..> ApiClient
+ShelterGateway ..> ApiClient
+ReviewGateway ..> ApiClient
+AccountGateway ..> ApiClient
+AuthStore ..> AuthGateway
+AuthStore ..> TokenStore
+ApiInterceptor ..> TokenStore
+ApiInterceptor ..> AuthStore
+AuthGuard ..> AuthStore
+GuestGuard ..> AuthStore
+VerifiedGuard ..> AuthStore
+
+LoginPage --> AuthStore
+RegisterPage --> AuthStore
+ResetPage --> AuthGateway
+VerifyPage --> VerifyGateway
+ContactChangePage --> AccountGateway
+MapPage --> ShelterGateway
+MapPage --> LeafletService
+ShelterDetailPage --> ShelterGateway
+ShelterDetailPage --> ReviewGateway
+SubmitShelterPage --> ShelterGateway
+ReviewForm --> ReviewGateway
+RatingStars --> ReviewForm
+
+note top of LeafletService
+  leaflet is used directly (npm "leaflet") behind this thin
+  service - ngx-leaflet style wrappers lag Angular majors and
+  are NOT used. MapLibre GL is a documented future swap.
+end note
+
+' --- routes (M0-M6 build-up) ---------------------------------
+note as Routes
+  /login            GuestGuard   -> LoginPage        (M2)
+  /register         GuestGuard   -> RegisterPage     (M2)
+  /reset            GuestGuard   -> ResetPage        (M2)
+  /verify           AuthGuard    -> VerifyPage       (M3)
+  /account          AuthGuard    -> ContactChangePage(M3)
+  /map              public       -> MapPage          (M4, default)
+  /shelters/:id     public       -> ShelterDetailPage(M5)
+  /submit           AuthGuard + VerifiedGuard -> SubmitShelterPage (M5)
+end note
+@enduml

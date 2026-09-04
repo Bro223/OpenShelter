@@ -1,0 +1,89 @@
+@startuml
+title Shelter Detail, Reviews & Submission Flow (M5)
+
+actor Person
+
+participant "ShelterDetailPage" as DP
+participant "SubmitShelterPage" as SP
+participant "ReviewForm" as RF
+participant "ShelterGateway" as SHG
+participant "ReviewGateway" as RG
+participant "ApiClient" as AC
+participant "AuthStore" as AS
+database "Spring Boot API" as API
+
+== Shelter detail (public) ==
+Person -> DP : open /shelters/123
+DP -> SHG : get(123)
+SHG -> AC : get<ShelterDto>('/api/shelters/123')
+AC -> API : GET /api/shelters/123
+API --> AC : ShelterDto (averageRating null when no reviews yet)
+DP -> RG : list(123)
+RG -> AC : get<ShelterReviewDto[]>('/api/shelters/123/reviews')
+AC -> API : GET /api/shelters/123/reviews
+API --> AC : ShelterReviewDto[]
+DP --> Person : shelter info + rating summary + review list
+
+== My review: add / update (upsert semantics) ==
+note over RF
+  Reviews require an authenticated, VERIFIED account (any claim).
+  One review per user per shelter - the backend upserts:
+  POST returns 201 (created) or 200 (updated existing).
+end note
+Person -> RF : rate 1..5 stars + optional comment (<= 500 chars)
+alt anonymous
+  RF -> AS : isAuthenticated()? no
+  RF --> Person : "log in to review" -> /login?returnUrl=...
+else logged in, NOT verified
+  RF -> AS : verified()? no
+  RF --> Person : banner "verify your email/phone first" -> /verify
+else verified
+  RF -> RG : add(shelterId, rating, comment)
+  RG -> AC : post<ShelterReviewDto>('/api/shelters/123/reviews', body)
+  AC -> API : POST /api/shelters/123/reviews
+  alt 201 created / 200 updated
+    API --> AC : ShelterReviewDto
+    DP --> Person : updated rating summary (refetch shelter)
+  else 403 (somehow not verified)
+    API --> AC : ErrorResponse 403
+    DP --> Person : verify prompt
+  end
+end
+
+== Edit / delete my review ==
+Person -> RF : "edit" (author only)
+RF -> RG : updateMine(123, rating, comment)
+RG -> AC : put<ShelterReviewDto>('/api/shelters/123/reviews/mine', body)
+AC -> API : PUT /api/shelters/123/reviews/mine
+API --> AC : ShelterReviewDto
+
+Person -> RF : "delete"
+RF -> RG : deleteMine(123)
+RG -> AC : delete('/api/shelters/123/reviews/mine')
+AC -> API : DELETE /api/shelters/123/reviews/mine
+API --> AC : 204 No Content
+DP --> Person : review removed, summary refetched
+
+== Submit a shelter (verified users) ==
+note over SP
+  Route /submit guarded by AuthGuard + VerifiedGuard. Location must
+  be inside Estonia (backend enforces the bbox -> 400 otherwise).
+  capacity 1..100_000, description <= 2000 chars.
+end note
+Person -> SP : fill name, description, capacity, pick map point
+SP -> SHG : create(request)
+SHG -> AC : post<ShelterDto>('/api/shelters', body)
+AC -> API : POST /api/shelters
+alt 201 Created + Location header
+  API --> AC : ShelterDto (source=USER, status=ACTIVE)
+  SP --> Person : success -> navigate('/shelters/{id}')
+else 401 anonymous / 403 not verified / 400 out-of-Estonia
+  API --> AC : ErrorResponse
+  SP --> Person : banner with message
+end
+
+note over DP
+  USER-submitted rows are sacred on the backend: the registry
+  importer never touches source=USER shelters.
+end note
+@enduml

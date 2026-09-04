@@ -38,8 +38,8 @@ tokens) lives in the auth context (`03-auth.puml`).
 
 | Type | Kind | Key members / notes |
 |---|---|---|
-| `UserService` | class | `register(name, email, phone, nationalIdCode): RegisteredUser`, `getData(user): UserData`, `deleteAccount(user): void`. |
-| `UserRepository` | interface | `save(user): void`, `findById(id): User`. |
+| `UserService` | class | `register(name, email, phone, nationalIdCode): RegisteredUser`, `getData(user): UserData`, `findByEmailOrPhone(contact): RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`. (`guest()`/`deleteAccount(user)` removed in the review-fix pass — account deletion is not part of the product contract; the domain `User.deleteAccount()` cascade remains for future use.) |
+| `UserRepository` | interface | `save(user): void`, `findById(id): User`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`, `findByIds(ids: Collection<Long>): Map<Long, User>` (batched lookup — no N+1 on listings). |
 | `ShelterService` | class | `addPlace(user: User, place: Shelter): void` — **checks `user.canWrite()` first**, then saves (status `ACTIVE`, source `USER`). |
 | `ShelterRepository` | interface | `save(shelter): void`, `findByExternalId(String): Optional<Shelter>`, `saveAll(List<Shelter>): void`, `deleteBySourceAndExternalIdNotIn(ShelterSource, List<String>): int`, `findAll(): List<Shelter>`, `findAllBySourceIn(List<ShelterSource>): List<Shelter>`. |
 | `ShelterReviewRepository` | interface | (listed in `02-CONTEXT-DOMAIN.md`). |

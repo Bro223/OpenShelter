@@ -258,11 +258,16 @@ package "app" {
   class UserService {
     + register(name : String, email : String, phone : String, nationalIdCode : String) : RegisteredUser
     + getData(user : User) : UserData
-    + deleteAccount(user : User) : void
+    + findByEmailOrPhone(contact : String) : RegisteredUser
+    + findByEmail(email : String) : RegisteredUser
+    + findByPhone(phone : String) : RegisteredUser
   }
-interface UserRepository {
+  interface UserRepository {
     + save(user : User) : void
     + findById(id : Long) : User
+    + findByEmail(email : String) : RegisteredUser
+    + findByPhone(phone : String) : RegisteredUser
+    + findByIds(ids : Collection<Long>) : Map<Long, User>
   }
 
   class ShelterService {

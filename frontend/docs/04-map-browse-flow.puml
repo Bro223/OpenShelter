@@ -1,0 +1,65 @@
+@startuml
+title Map & Browse Flow - Public Shelter List + Leaflet Map (M4)
+
+actor Visitor
+
+participant "MapPage" as MP
+participant "ShelterGateway" as SG
+participant "ApiClient" as AC
+participant "LeafletService" as LS
+participant "Router" as R
+database "Spring Boot /api/shelters" as API
+
+== Default route: /map ==
+note over MP
+  Public - no auth. GET /api/shelters?source=ALL returns every
+  shelter (registry + user). Estonia-scale data (hundreds) - the
+  backend deliberately has no paging yet (fetch-all is fine).
+end note
+Visitor -> MP : open /map
+MP -> SG : list(ALL)
+SG -> AC : get<ShelterDto[]>('/api/shelters?source=ALL')
+AC -> API : GET /api/shelters?source=ALL
+API --> AC : ShelterDto[]
+AC --> SG : typed array
+SG --> MP : models
+MP -> LS : renderShelters(shelters)
+note over LS
+  leaflet map centered on Estonia (lat ~58.6, lng ~25.0, zoom 7).
+  One L.marker per shelter; markers for USER vs REGISTRY sources
+  get distinct icons; no clustering needed at this scale.
+end note
+LS --> MP : markers layer ready
+MP --> Visitor : map + sidebar list
+
+== Source filter ==
+Visitor -> MP : click "Registry / User / All" chip
+MP -> SG : list(REGISTRY)   ' server-side filter
+SG -> AC : get<ShelterDto[]>('/api/shelters?source=REGISTRY')
+AC -> API : GET /api/shelters?source=REGISTRY
+API --> AC : ShelterDto[]
+SG --> MP : models
+MP -> LS : replaceMarkers(shelters)
+LS --> MP : updated
+MP --> Visitor : filtered markers
+
+== Error / empty handling ==
+alt backend unreachable
+  API --> AC : connection error
+  AC --> MP : ApiError (network)
+  MP --> Visitor : banner "map unavailable - is the backend running?"
+else zero shelters
+  API --> AC : []
+  MP --> Visitor : empty state "no shelters yet"
+end
+
+== Open detail ==
+Visitor -> MP : click marker (or list row)
+MP -> R : navigate('/shelters', id)
+R --> : ShelterDetailPage (M5)
+
+note over MP
+  M4 keeps the list/map read-only. Submission ("+ Add shelter"),
+  detail and reviews arrive in M5 (verified accounts only).
+end note
+@enduml

@@ -126,6 +126,8 @@ manually on boot (see below).
 | POST | `/account/email-change/confirm` | JWT | Complete email change with the SMS code (200/400) |
 | POST | `/account/phone-change/request` | JWT | Start phone change → **email code to current email** (202) |
 | POST | `/account/phone-change/confirm` | JWT | Complete phone change with the email code (200/400) |
+| POST | `/verify/request` | JWT | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap) |
+| POST | `/verify/confirm` | JWT | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200) |
 | GET | `/api/shelters?source=ALL\|USER\|REGISTRY` | public | List shelters with `averageRating`/`reviewCount` |
 | GET | `/api/shelters/{id}` | public | Shelter detail |
 | POST | `/api/shelters` | JWT + verified | Submit a shelter → 201 + Location |

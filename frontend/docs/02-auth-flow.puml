@@ -1,0 +1,106 @@
+@startuml
+title Auth Flow - Register, Login, Silent Refresh, 401 Handling (M1-M2)
+
+actor Person
+
+participant "LoginPage / RegisterPage" as PG
+participant "AuthStore" as AS
+participant "AuthGateway" as AG
+participant "ApiClient" as AC
+participant "ApiInterceptor" as AI
+participant "TokenStore" as TS
+participant "AuthGuard" as G
+database "Spring Boot /auth" as API
+
+== Register ==
+Person -> PG : name, email, phone, nationalIdCode, password
+PG -> AS : register(...)
+AS -> AG : register(request)
+AG -> AC : post<void>('/auth/register', body)
+AC -> API : POST /auth/register
+API --> AC : 201 Created
+note over AC
+  backend stores Argon2id hash; email/phone normalized
+  (E.164 + lowercase). Duplicates -> 409.
+end note
+AC --> AS : ok
+AS --> PG : navigates to /verify (EMAIL first) - M3
+note over PG
+  backend response is empty on register; no session yet -
+  user must log in once (M2 flow below). The 409 path
+  surfaces ApiError.message from the uniform ErrorResponse.
+end note
+
+== Login ==
+Person -> PG : emailOrPhone, password
+PG -> AS : login(emailOrPhone, password)
+AS -> AG : login(...)
+AG -> AC : post<TokenResponse>('/auth/login', body)
+AC -> API : POST /auth/login
+alt 401
+  API --> AC : ErrorResponse 401 "invalid credentials"
+  AC --> AS : ApiError thrown
+  AS --> PG : generic error banner (no enumeration)
+else 200
+  API --> AC : TokenResponse { accessToken, refreshToken, expiresIn }
+  AC --> AS : tokens
+  AS -> TS : setTokens(access, refresh, expiresIn)
+  note over TS
+    access token: in-memory signal only.
+    refresh token: localStorage (survives reload).
+    v1 XSS tradeoff documented; httpOnly-cookie migration is a
+    deferred backend change.
+  end note
+  AS --> PG : redirect to /map (or returnUrl)
+end
+
+== App boot: silent refresh ==
+note over AS
+  AuthStore.init() runs once at bootstrap.
+end note
+AS -> TS : read refresh token
+alt no refresh token
+  AS --> : anonymous - route guards allow public pages only
+else refresh token exists
+  AS -> AG : refresh(refreshToken)
+  AG -> AC : post<TokenResponse>('/auth/refresh', body)
+  AC -> API : POST /auth/refresh
+  alt 200 -> rotated pair
+    API --> AS : new access + refresh
+    AS -> TS : setTokens(...)
+  else 401 (expired/revoked)
+    API --> AS : 401
+    AS -> TS : clear()
+    AS --> G : route to /login
+  end
+end
+
+== Any API call: 401 mid-session ==
+note over AI
+  ApiInterceptor attaches "Authorization: Bearer <access>"
+  to every request that carries a token (never to /auth/login
+  or /auth/refresh).
+end note
+PG -> AC : fetch protected resource
+AC -> API : GET /protected (stale access token)
+API --> AC : 401
+AC --> AI : intercepted
+AI -> AS : refresh()   ' single-flight: concurrent 401s share one refresh
+alt refresh succeeds
+  AI -> AC : retry original request once (new Bearer)
+  AC --> PG : data
+else refresh fails (401)
+  AI -> AS : logout()
+  AS -> TS : clear()
+  AS --> : redirect /login?session=expired
+end
+
+== Logout ==
+Person -> PG : logout
+PG -> AS : logout()
+AS -> AG : logout(refreshToken)
+AG -> AC : post<void>('/auth/logout', body)
+AC -> API : POST /auth/logout  -> 204
+AS -> TS : clear()  ' local state cleared regardless of network
+AS --> PG : redirect /map
+@enduml

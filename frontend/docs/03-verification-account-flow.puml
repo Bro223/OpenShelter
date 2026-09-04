@@ -1,0 +1,104 @@
+@startuml
+title Verification & Account Flow - Email/Phone Verify + Cross-Channel Contact Change (M3)
+
+actor Person
+
+participant "VerifyPage" as VP
+participant "ContactChangePage" as CP
+participant "VerifyGateway" as VG
+participant "AccountGateway" as AG
+participant "ApiClient" as AC
+participant "ApiInterceptor" as AI
+participant "AuthStore" as AS
+database "Spring Boot /verify + /account" as API
+
+note over Person, API
+  All endpoints below require a valid JWT (ApiInterceptor adds
+  the Bearer token). Cooldown (60s) and daily cap (5) violations
+  return 429 -> surface the uniform ErrorResponse message.
+end note
+
+== Verify a level (EMAIL first, then PHONE) ==
+Person -> VP : "Verify my email" (post-register banner / /verify)
+VP -> VG : request(EMAIL)
+VG -> AC : post<void>('/verify/request', {level: EMAIL})
+AC -> API : POST /verify/request
+alt 202 Accepted
+  API --> AC : (empty body)
+  note over VP
+    dev sender logs the code to the backend console;
+    smtp-pulse delivers it to the inbox. PHONE does the same
+    via DevSmsSender (console) or Twilio once credentials are set.
+  end note
+  VP --> Person : "enter the 6-char code / 6-digit OTP"
+  Person -> VP : code
+  VP -> VG : confirm(EMAIL, code)
+  VG -> AC : post<void>('/verify/confirm', {level, code})
+  AC -> API : POST /verify/confirm
+  alt correct
+    API --> AC : 200 (claim persisted)
+    VP --> Person : verified - levels() includes EMAIL
+  else wrong/expired (400) or throttled (429)
+    API --> AC : ErrorResponse
+    VP --> Person : retry with remaining attempts
+  end
+else 409 AlreadyVerified
+  API --> AC : conflict
+  VP --> Person : already verified - hide the button
+else 429 throttled
+  API --> AC : too many requests
+  VP --> Person : wait and retry
+end
+
+note over VP
+  Re-requesting an already-verified level -> 409 (M2 guard on the
+  backend: no code is sent, no throttle consumed). Confirm is
+  idempotent. UX: treat 409 on request as "you are verified".
+end note
+
+== Contact change: email -> phone SMS proof (cross-channel) ==
+Person -> CP : "change email to new@example.com" (in /account)
+CP -> AG : requestEmailChange(newEmail)
+AG -> AC : post<void>('/account/email-change/request', body)
+AC -> API : POST /account/email-change/request
+note over API
+  backend sends the OTP to the CURRENT PHONE (SMS), NOT to the
+  new email - stealing the mailbox alone cannot change it.
+end note
+API --> AC : 202 Accepted
+CP --> Person : "enter the SMS code sent to +372... "
+Person -> CP : code
+CP -> AG : confirmEmailChange(code)
+AG -> AC : post<void>('/account/email-change/confirm', {code})
+AC -> API : POST /account/email-change/confirm
+API --> AC : 200 OK
+CP --> Person : email updated
+note over CP
+  duplicate new email -> 409; same as current -> 400;
+  sessions are NOT revoked by contact change (only a password
+  reset revokes all refresh tokens).
+end note
+
+== Contact change: phone -> email code proof (cross-channel) ==
+Person -> CP : "change phone to +3725..." (in /account)
+CP -> AG : requestPhoneChange(newPhone)
+AG -> AC : post<void>('/account/phone-change/request', body)
+AC -> API : POST /account/phone-change/request
+note over API
+  backend sends the OTP to the CURRENT EMAIL - losing the SIM
+  alone cannot let an attacker re-route verification texts.
+end note
+API --> AC : 202 Accepted
+CP --> Person : "enter the code sent to current@email.com"
+Person -> CP : code
+CP -> AG : confirmPhoneChange(code)
+AG -> AC : post<void>('/account/phone-change/confirm', {code})
+AC -> API : POST /account/phone-change/confirm
+API --> AC : 200 OK
+CP --> Person : phone updated (E.164 normalized)
+
+note over AS
+  After any successful confirm the account page re-reads the
+  profile so the UI shows the new contact immediately.
+end note
+@enduml
