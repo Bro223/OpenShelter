@@ -40,6 +40,8 @@ package "core" {
     - message : string
     - path : string
     + fromHttp(status, payload) : ApiError
+    + fromNetwork() : ApiError   ' status 0 = backend unreachable
+    + isNetworkError : boolean
   }
 
   class TokenStore {
@@ -52,22 +54,27 @@ package "core" {
   }
 
   class AuthStore {
-    - user : signal<RegisteredUser|null>
+    - authenticated : signal<boolean>
     - initialized : signal<boolean>
-    ' silent refresh at boot
+    ' NO user payload in v1 - the backend has no GET /me
+    ' (documented follow-up); levels()/addLevel() land in M3
+    ' silent refresh at boot: init()
     + init() : Promise<void>
-    + register(name, email, phone, idCode, password)
-    + login(emailOrPhone, password)
-    + logout()
-    ' single-flight
+    + register(request: RegisterRequest) : Promise<void>
+    + login(emailOrPhone, password) : Promise<void>
+    + logout() : Promise<void>
+    ' single-flight: concurrent 401s share one refresh
     + refresh(): Promise<boolean>
   }
 
   class ApiInterceptor {
     + intercept(req, next)
-    ' attaches Bearer access token
-    ' on 401: single-flight refresh + retry once
-    ' on refresh failure: AuthStore.logout() + redirect /login
+    ' functional interceptor, registered in app.config.ts via
+    ' provideHttpClient(withInterceptors([apiInterceptor])) (M1)
+    ' attaches Bearer access token (never to /auth/login|refresh)
+    ' on 401: single-flight AuthStore.refresh() + retry once
+    ' on refresh failure: AuthStore cleared the session;
+    '   Router -> /login?session=expired
   }
 
   class AuthGuard {
@@ -167,9 +174,18 @@ AuthStore ..> AuthGateway
 AuthStore ..> TokenStore
 ApiInterceptor ..> TokenStore
 ApiInterceptor ..> AuthStore
+ApiInterceptor ..> Router
 AuthGuard ..> AuthStore
 GuestGuard ..> AuthStore
 VerifiedGuard ..> AuthStore
+
+note top of ApiClient
+  Typed models live in core/models.ts - field-for-field mirror of the
+  backend DTOs (02-CONTEXT-API.md). One caveat fixed against the real
+  backend: ShelterDto.address is string|null (USER rows store no
+  address) even though the md types it string. M1 also keeps the full
+  model set; only AuthGateway exists until M3-M5 add the rest.
+end note
 
 LoginPage --> AuthStore
 RegisterPage --> AuthStore

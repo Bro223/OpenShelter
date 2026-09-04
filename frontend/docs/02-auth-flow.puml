@@ -90,9 +90,12 @@ alt refresh succeeds
   AI -> AC : retry original request once (new Bearer)
   AC --> PG : data
 else refresh fails (401)
-  AI -> AS : logout()
+  note over AS
+    AuthStore.refresh() returns false and clears the session
+    (tokens.clear + authenticated=false) inside the refresh call.
+  end note
   AS -> TS : clear()
-  AS --> : redirect /login?session=expired
+  AI --> : Router redirect /login?session=expired
 end
 
 == Logout ==

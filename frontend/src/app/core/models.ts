@@ -1,0 +1,133 @@
+/**
+ * Field-for-field TypeScript mirror of the backend DTOs/request records.
+ *
+ * Contract source: docs/agent/02-CONTEXT-API.md, verified against the real
+ * Spring controllers/records in src/main/java/ee/sheltermap. JSON is
+ * camelCase and maps 1:1 — nothing is renamed or reshaped here.
+ *
+ * NOTE (deliberate deviation, reported in the M1 hand-off): 02-CONTEXT-API.md
+ * types `ShelterDto.address` as `string`, but the backend stores `null` for
+ * USER-submitted rows (ShelterController passes null for all registry fields
+ * and the Shelter entity keeps that null) — so the honest type here is
+ * `string | null`. UI must render it null-safe.
+ */
+
+/** The verification channels a user can earn (backend domain enum). */
+export type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
+
+/** Lifecycle of a shelter row. */
+export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
+
+/** Where a shelter record came from. */
+export type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
+
+/** Frontend-facing source filter for GET /api/shelters?source=... */
+export type ShelterSourceFilter = 'ALL' | 'REGISTRY' | 'USER';
+
+// ---------------------------------------------------------------------------
+// Request bodies (records on the backend, `interface`s here)
+// ---------------------------------------------------------------------------
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  phone: string;
+  nationalIdCode: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  /** Phone may be local (`5xxxxxxx`) or +372 form; email is lowercase. */
+  emailOrPhone: string;
+  password: string;
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
+}
+
+export interface PasswordResetRequest {
+  email: string;
+}
+
+export interface PasswordResetConfirmRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface VerifyRequest {
+  level: VerificationLevel;
+}
+
+export interface VerifyConfirmRequest {
+  level: VerificationLevel;
+  code: string;
+}
+
+export interface ChangeEmailRequest {
+  newEmail: string;
+}
+
+export interface ChangePhoneRequest {
+  newPhone: string;
+}
+
+export interface ConfirmChangeRequest {
+  code: string;
+}
+
+export interface CreateShelterRequest {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  capacity?: number;
+}
+
+export interface ReviewRequest {
+  /** 1..5 */
+  rating: number;
+  /** <= 500 chars; absent = no comment. */
+  comment?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Response bodies (DTOs)
+// ---------------------------------------------------------------------------
+
+export interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  /** Access-token lifetime in seconds. */
+  expiresIn: number;
+}
+
+export interface ShelterDto {
+  id: number;
+  /** null for USER-submitted rows — registry rows always carry one. */
+  address: string | null;
+  name: string;
+  latitude: number;
+  longitude: number;
+  status: ShelterStatus;
+  source: ShelterSource;
+  /** null = no reviews yet (NOT 0). */
+  averageRating: number | null;
+  reviewCount: number;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** USER submissions only. */
+  description: string | null;
+  /** USER submissions only. */
+  capacity: number | null;
+}
+
+export interface ShelterReviewDto {
+  id: number;
+  authorName: string;
+  /** 1..5 */
+  rating: number;
+  comment: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
