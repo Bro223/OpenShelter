@@ -1,0 +1,20 @@
+<header class="shell-header">
+  <a class="brand" routerLink="/map">OpenShelter</a>
+  <nav class="shell-nav" aria-label="Primary">
+    <a routerLink="/map" routerLinkActive="active">Shelter map</a>
+  </nav>
+  <div class="shell-actions">
+    @if (auth.initialized()) {
+      @if (auth.authenticated()) {
+        <button type="button" class="btn btn--ghost" (click)="logout()">Log out</button>
+      } @else {
+        <a routerLink="/login" class="btn btn--ghost">Log in</a>
+        <a routerLink="/register" class="btn btn--primary">Create account</a>
+      }
+    }
+  </div>
+</header>
+
+<main class="shell-body">
+  <router-outlet />
+</main>

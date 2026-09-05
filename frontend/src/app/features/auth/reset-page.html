@@ -1,0 +1,85 @@
+<section class="auth-card">
+  @switch (mode()) {
+    @case ('request') {
+      <h1 class="page-title">Reset password</h1>
+      <p class="page-subtitle">
+        Enter the email of your account and we will send you a reset link.
+      </p>
+
+      <form [formGroup]="requestForm" (ngSubmit)="requestReset()" novalidate>
+        <div class="field">
+          <label for="reset-email">Email</label>
+          <input
+            id="reset-email"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            placeholder="you@example.ee"
+          />
+          @if (requestForm.controls.email.touched && requestForm.controls.email.invalid) {
+            <p class="field-error">A valid email is required.</p>
+          }
+        </div>
+
+        <app-banner severity="error" [message]="error()" />
+
+        <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
+          {{ pending() ? 'Sending…' : 'Send reset link' }}
+        </button>
+      </form>
+    }
+    @case ('sent') {
+      <h1 class="page-title">Check your inbox</h1>
+      <app-banner
+        severity="info"
+        message="If an account exists for that email, a password-reset link has been sent. Follow the link to choose a new password."
+      />
+      <p class="auth-links"><a routerLink="/login">Back to log in</a></p>
+    }
+    @case ('confirm') {
+      <h1 class="page-title">Choose a new password</h1>
+      <p class="page-subtitle">
+        This link is valid for 15 minutes and signs you out of all other sessions.
+      </p>
+
+      <form [formGroup]="confirmForm" (ngSubmit)="confirmReset()" novalidate>
+        <div class="field">
+          <label for="reset-password">New password</label>
+          <input
+            id="reset-password"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+          />
+          @if (confirmForm.controls.password.touched && confirmForm.controls.password.invalid) {
+            <p class="field-error">Password is required.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="reset-password-again">Repeat new password</label>
+          <input
+            id="reset-password-again"
+            type="password"
+            formControlName="passwordAgain"
+            autocomplete="new-password"
+          />
+          @if (
+            confirmForm.controls.passwordAgain.touched && confirmForm.controls.passwordAgain.invalid
+          ) {
+            <p class="field-error">Please repeat the password.</p>
+          }
+          @if (confirmMismatch) {
+            <p class="field-error">The passwords do not match.</p>
+          }
+        </div>
+
+        <app-banner severity="error" [message]="error()" />
+
+        <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
+          {{ pending() ? 'Updating…' : 'Set new password' }}
+        </button>
+      </form>
+    }
+  }
+</section>

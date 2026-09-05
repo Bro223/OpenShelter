@@ -1,12 +1,22 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject, type OnInit } from '@angular/core';
+import { AuthStore } from './core/auth-store';
+import { PageShell } from './shared/page-shell';
 
+/**
+ * Root. Renders the PageShell (header + router-outlet) and kicks off the
+ * one-time boot init: AuthStore.init() silently refreshes a persisted session
+ * before the first guard decides (no login flash on reload).
+ */
 @Component({
-  imports: [RouterOutlet],
   selector: 'app-root',
-  styleUrl: './app.scss',
+  imports: [PageShell],
   templateUrl: './app.html',
+  styleUrl: './app.scss',
 })
-export class App {
-  protected readonly title = signal('frontend');
+export class App implements OnInit {
+  private readonly auth = inject(AuthStore);
+
+  ngOnInit(): void {
+    void this.auth.init();
+  }
 }

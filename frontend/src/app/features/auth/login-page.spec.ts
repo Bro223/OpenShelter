@@ -1,0 +1,194 @@
+import { Component, type DebugElement } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { AuthGateway } from '../../gateways/auth-gateway';
+import { ApiError } from '../../core/api-error';
+import type { TokenResponse } from '../../core/models';
+import { LoginPage } from './login-page';
+
+const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
+
+/** Hand-written fake gateway — the pages never see HTTP. */
+class FakeAuthGateway {
+  register = vi.fn();
+  login = vi.fn();
+  refresh = vi.fn();
+  logout = vi.fn();
+  requestPasswordReset = vi.fn();
+  resetPassword = vi.fn();
+}
+
+@Component({ template: '<p>map stub</p>' })
+class MapStub {}
+
+@Component({ template: '<p>protected stub</p>' })
+class ProtectedStub {}
+
+@Component({ imports: [RouterOutlet], template: '<router-outlet />' })
+class Host {}
+
+describe('LoginPage', () => {
+  let gateway: FakeAuthGateway;
+  let router: Router;
+
+  beforeEach(() => {
+    localStorage.clear();
+    gateway = new FakeAuthGateway();
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        provideRouter([
+          { path: 'map', component: MapStub },
+          { path: 'protected', component: ProtectedStub },
+          { path: 'login', component: LoginPage },
+        ]),
+        { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+      ],
+    });
+    router = TestBed.inject(Router);
+  });
+
+  async function open(
+    url: string,
+  ): Promise<{
+    page: LoginPage;
+    element: HTMLElement;
+    fixture: ReturnType<typeof TestBed.createComponent<Host>>;
+  }> {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await router.navigateByUrl(url);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const debug: DebugElement = fixture.debugElement.query(By.directive(LoginPage));
+    if (!debug) {
+      throw new Error('LoginPage not rendered at ' + router.url);
+    }
+    return { page: debug.componentInstance, element: debug.nativeElement as HTMLElement, fixture };
+  }
+
+  function bannerText(element: HTMLElement): string {
+    return element.querySelector('.banner')?.textContent ?? '';
+  }
+
+  it('renders the login form with real labels', async () => {
+    const { element } = await open('/login');
+    expect(element.querySelector('label[for="login-contact"]')?.textContent).toContain(
+      'Email or phone',
+    );
+    expect(element.querySelector('label[for="login-password"]')?.textContent).toContain('Password');
+    expect(element.querySelector('input#login-password')?.getAttribute('type')).toBe('password');
+  });
+
+  it('does not submit an empty form and shows required errors', async () => {
+    const { page, fixture } = await open('/login');
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.login).not.toHaveBeenCalled();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'Email or phone is required.',
+    );
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Password is required.');
+  });
+
+  it('logs in and returns to the map', async () => {
+    const { page, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockResolvedValue(PAIR);
+
+    await page.submit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(gateway.login).toHaveBeenCalledWith('user@example.ee', 'secret');
+    expect(router.url).toBe('/map');
+  });
+
+  it('honours a safe returnUrl on success', async () => {
+    const { page, fixture } = await open('/login?returnUrl=/protected');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockResolvedValue(PAIR);
+
+    await page.submit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/protected');
+  });
+
+  it('never sends the user to an external returnUrl', async () => {
+    const { page, fixture } = await open('/login?returnUrl=https://evil.example');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockResolvedValue(PAIR);
+
+    await page.submit();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/map');
+  });
+
+  it('shows a GENERIC banner for a 401 (anti-enumeration — no backend detail)', async () => {
+    const { page, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'wrong' });
+    gateway.login.mockRejectedValue(
+      ApiError.fromHttp(401, {
+        timestamp: 't',
+        status: 401,
+        error: 'Unauthorized',
+        message: 'invalid credentials',
+        path: '/auth/login',
+      }),
+    );
+
+    await page.submit();
+    fixture.detectChanges();
+
+    const text = bannerText(
+      (fixture.nativeElement as HTMLElement).querySelector('app-login-page') as HTMLElement,
+    );
+    expect(text).toContain('Invalid email/phone or password.');
+    expect(text).not.toContain('invalid credentials');
+    expect(router.url).toBe('/login');
+  });
+
+  it('maps a 429 to the slow-down copy', async () => {
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockRejectedValue(
+      ApiError.fromHttp(429, {
+        timestamp: 't',
+        status: 429,
+        error: 'Too Many Requests',
+        message: 'rate limited',
+        path: '/auth/login',
+      }),
+    );
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(bannerText(element)).toContain('Too many attempts');
+  });
+
+  it('maps a network failure to the offline message', async () => {
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockRejectedValue(ApiError.fromNetwork());
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(bannerText(element)).toContain('Cannot reach the backend');
+  });
+
+  it('shows an info note when bounced here with ?session=expired', async () => {
+    const { element } = await open('/login?session=expired');
+    const banner = element.querySelector('.banner--info') as HTMLElement | null;
+    expect(banner?.textContent).toContain('session has expired');
+  });
+});

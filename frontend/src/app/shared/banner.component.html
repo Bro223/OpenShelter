@@ -1,0 +1,8 @@
+@if (message(); as text) {
+  <div
+    class="banner banner--{{ severity() }}"
+    [attr.role]="severity() === 'error' ? 'alert' : 'status'"
+  >
+    {{ text }}
+  </div>
+}

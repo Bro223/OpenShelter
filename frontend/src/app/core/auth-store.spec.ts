@@ -103,6 +103,39 @@ describe('AuthStore', () => {
       expect(store.initialized()).toBe(true);
       expect(localStorage.getItem('os.refresh')).toBe('refresh-1');
     });
+
+    it('is single-flight — concurrent init() callers share one boot refresh', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      let resolveRefresh!: (value: TokenResponse) => void;
+      gateway.refresh.mockReturnValue(
+        new Promise<TokenResponse>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      const first = store.init();
+      const second = store.init();
+
+      expect(gateway.refresh).toHaveBeenCalledTimes(1);
+      resolveRefresh(ROTATED);
+      await first;
+      await second;
+
+      expect(store.authenticated()).toBe(true);
+      expect(store.initialized()).toBe(true);
+    });
+
+    it('is a no-op once already initialized', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      gateway.refresh.mockResolvedValue(ROTATED);
+      await store.init();
+      gateway.refresh.mockClear();
+
+      await store.init();
+
+      expect(gateway.refresh).not.toHaveBeenCalled();
+      expect(store.authenticated()).toBe(true);
+    });
   });
 
   describe('login / register', () => {

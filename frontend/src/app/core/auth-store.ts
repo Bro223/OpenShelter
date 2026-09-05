@@ -27,13 +27,33 @@ export class AuthStore {
   /** In-flight single-flight refresh — concurrent callers share one promise. */
   private pendingRefresh: Promise<boolean> | null = null;
 
+  /** In-flight boot init — guards and the shell may race on the same init. */
+  private bootInit: Promise<void> | null = null;
+
   /**
    * Boot-time silent refresh. No persisted refresh token -> anonymous.
    * Valid token -> rotates the pair (auth/refresh); 401 -> expired, cleared.
    * Any other failure (backend down) keeps the refresh token so the session
    * can still be recovered on the next boot or by a mid-session 401 refresh.
+   *
+   * Idempotent and single-flight: concurrent callers (App boot + a guard on
+   * the first navigation) share one run so the refresh token is never raced.
    */
-  async init(): Promise<void> {
+  init(): Promise<void> {
+    if (this.initialized()) {
+      return Promise.resolve();
+    }
+    if (this.bootInit !== null) {
+      return this.bootInit;
+    }
+    const run = this.performInit().finally(() => {
+      this.bootInit = null;
+    });
+    this.bootInit = run;
+    return run;
+  }
+
+  private async performInit(): Promise<void> {
     const refreshToken = this.tokens.refresh();
     if (refreshToken === null) {
       this.authenticated.set(false);

@@ -1,0 +1,100 @@
+import { Component } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { AuthGateway } from '../gateways/auth-gateway';
+import type { TokenResponse } from '../core/models';
+import { AuthStore } from '../core/auth-store';
+import { PageShell } from './page-shell';
+
+const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
+
+/** Hand-written fake gateway — drives the real AuthStore without HTTP. */
+class FakeAuthGateway {
+  register = vi.fn();
+  login = vi.fn();
+  refresh = vi.fn();
+  logout = vi.fn();
+  requestPasswordReset = vi.fn();
+  resetPassword = vi.fn();
+}
+
+@Component({ template: '<p>map stub</p>' })
+class MapStub {}
+
+describe('PageShell', () => {
+  let gateway: FakeAuthGateway;
+  let store: AuthStore;
+  let router: Router;
+  let fixture: ReturnType<typeof TestBed.createComponent<PageShell>>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    gateway = new FakeAuthGateway();
+    TestBed.configureTestingModule({
+      imports: [PageShell],
+      providers: [
+        provideRouter([
+          { path: 'map', component: MapStub },
+          { path: 'login', component: MapStub },
+          { path: 'register', component: MapStub },
+        ]),
+        { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+      ],
+    });
+    store = TestBed.inject(AuthStore);
+    router = TestBed.inject(Router);
+    fixture = TestBed.createComponent(PageShell);
+  });
+
+  function text(): string {
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  it('shows the brand and a router outlet', () => {
+    fixture.detectChanges();
+    expect(text()).toContain('OpenShelter');
+    expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
+  });
+
+  it('hides auth controls until init settled, then shows log in / register for guests', async () => {
+    fixture.detectChanges();
+    expect(text()).not.toContain('Log in');
+
+    await store.init();
+    fixture.detectChanges();
+
+    expect(text()).toContain('Log in');
+    expect(text()).toContain('Create account');
+    expect(text()).not.toContain('Log out');
+  });
+
+  it('shows Log out instead of the guest links once a session exists', async () => {
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('Log out');
+    expect(element.textContent).not.toContain('Log in');
+  });
+
+  it('logout revokes the session and returns to /map', async () => {
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    gateway.logout.mockResolvedValue(undefined);
+    fixture.detectChanges();
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector('button');
+    expect(button?.textContent?.trim()).toBe('Log out');
+    button?.dispatchEvent(new MouseEvent('click'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(gateway.logout).toHaveBeenCalledWith('refresh-1');
+    expect(store.authenticated()).toBe(false);
+    expect(router.url).toBe('/map');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Log in');
+  });
+});

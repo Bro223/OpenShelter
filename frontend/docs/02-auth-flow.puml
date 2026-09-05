@@ -24,7 +24,7 @@ note over AC
   (E.164 + lowercase). Duplicates -> 409.
 end note
 AC --> AS : ok
-AS --> PG : navigates to /verify (EMAIL first) - M3
+AS --> PG : success view -> /login (M2) -> /verify (EMAIL first) in M3
 note over PG
   backend response is empty on register; no session yet -
   user must log in once (M2 flow below). The 409 path

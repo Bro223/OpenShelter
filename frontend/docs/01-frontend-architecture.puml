@@ -78,13 +78,16 @@ package "core" {
   }
 
   class AuthGuard {
-    ' redirects to /login when anonymous
-    + canActivate() : boolean
+    ' functional guard (core/guards.ts), awaits AuthStore.init()
+    ' so a reload restores the session before it decides
+    ' anonymous -> /login?returnUrl=<current>
+    + canActivate() : Promise<boolean | UrlTree>
   }
 
   class GuestGuard {
-    ' redirects to /map when already logged in
-    + canActivate() : boolean
+    ' functional guard (core/guards.ts), awaits AuthStore.init()
+    ' already authenticated -> home (/map)
+    + canActivate() : Promise<boolean | UrlTree>
   }
 
   class VerifiedGuard {
@@ -190,6 +193,9 @@ end note
 LoginPage --> AuthStore
 RegisterPage --> AuthStore
 ResetPage --> AuthGateway
+LoginPage --> BannerComponent
+RegisterPage --> BannerComponent
+ResetPage --> BannerComponent
 VerifyPage --> VerifyGateway
 ContactChangePage --> AccountGateway
 MapPage --> ShelterGateway
@@ -199,6 +205,13 @@ ShelterDetailPage --> ReviewGateway
 SubmitShelterPage --> ShelterGateway
 ReviewForm --> ReviewGateway
 RatingStars --> ReviewForm
+PageShell --> AuthStore
+PageShell --> Router
+
+note bottom of MapPage
+  M2 renders a placeholder only - the Leaflet map, source
+  filter and sidebar land in M4 (04-map-browse-flow.puml).
+end note
 
 note top of LeafletService
   leaflet is used directly (npm "leaflet") behind this thin
@@ -208,13 +221,14 @@ end note
 
 ' --- routes (M0-M6 build-up) ---------------------------------
 note as Routes
-  /login            GuestGuard   -> LoginPage        (M2)
-  /register         GuestGuard   -> RegisterPage     (M2)
-  /reset            GuestGuard   -> ResetPage        (M2)
-  /verify           AuthGuard    -> VerifyPage       (M3)
-  /account          AuthGuard    -> ContactChangePage(M3)
-  /map              public       -> MapPage          (M4, default)
-  /shelters/:id     public       -> ShelterDetailPage(M5)
-  /submit           AuthGuard + VerifiedGuard -> SubmitShelterPage (M5)
+  '/ -> redirect'        public       -> MapPage      (M2 stub; real map M4)
+  /map               public       -> MapPage        (M2 stub page; Leaflet map in M4)
+  /login             GuestGuard   -> LoginPage      (M2)
+  /register          GuestGuard   -> RegisterPage   (M2)
+  /reset             GuestGuard   -> ResetPage      (M2)
+  /verify            AuthGuard    -> VerifyPage     (M3)
+  /account           AuthGuard    -> ContactChangePage(M3)
+  /shelters/:id      public       -> ShelterDetailPage(M5)
+  /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5)
 end note
 @enduml

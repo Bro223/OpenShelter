@@ -1,0 +1,91 @@
+@if (registered()) {
+  <section class="auth-card">
+    <h1 class="page-title">Account created</h1>
+    <p class="page-subtitle">
+      Your account is ready. Please log in, then verify your email address — a verification code
+      will be sent to it.
+    </p>
+    <a routerLink="/login" class="btn btn--primary">Log in</a>
+  </section>
+} @else {
+  <section class="auth-card">
+    <h1 class="page-title">Create account</h1>
+    <p class="page-subtitle">
+      Anonymous viewing is free — an account lets you submit shelters and reviews once verified.
+    </p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <div class="field">
+        <label for="register-name">Full name</label>
+        <input id="register-name" type="text" formControlName="name" autocomplete="name" />
+        @if (form.controls.name.touched && form.controls.name.invalid) {
+          <p class="field-error">Name is required.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="register-email">Email</label>
+        <input
+          id="register-email"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          placeholder="you@example.ee"
+        />
+        @if (form.controls.email.touched && form.controls.email.invalid) {
+          <p class="field-error">A valid email is required.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="register-phone">Phone</label>
+        <input
+          id="register-phone"
+          type="tel"
+          formControlName="phone"
+          autocomplete="tel"
+          placeholder="+3725… or 5xxxxxxx"
+        />
+        @if (form.controls.phone.touched && form.controls.phone.invalid) {
+          <p class="field-error">Phone is required.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="register-idcode">National ID code</label>
+        <input
+          id="register-idcode"
+          type="text"
+          formControlName="nationalIdCode"
+          autocomplete="off"
+          inputmode="numeric"
+          placeholder="11-digit Estonian ID code"
+        />
+        @if (form.controls.nationalIdCode.touched && form.controls.nationalIdCode.invalid) {
+          <p class="field-error">National ID code is required.</p>
+        }
+      </div>
+
+      <div class="field">
+        <label for="register-password">Password</label>
+        <input
+          id="register-password"
+          type="password"
+          formControlName="password"
+          autocomplete="new-password"
+        />
+        @if (form.controls.password.touched && form.controls.password.invalid) {
+          <p class="field-error">Password is required.</p>
+        }
+      </div>
+
+      <app-banner severity="error" [message]="error()" />
+
+      <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
+        {{ pending() ? 'Creating account…' : 'Create account' }}
+      </button>
+    </form>
+
+    <p class="auth-links">Already have an account? <a routerLink="/login">Log in</a></p>
+  </section>
+}
