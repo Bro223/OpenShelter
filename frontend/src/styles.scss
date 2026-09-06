@@ -1,9 +1,18 @@
 /* Global styles (design-token pass lands in M6 — a minimal shared layer now). */
+
+/* Leaflet map styles — imported globally (M4): the map container and the
+   divIcon markers are created by leaflet itself, so component-scoped styles
+   could not reach them (design decision 6). */
+@use 'leaflet/dist/leaflet.css';
+
 :root {
   --color-text: #1c1c1e;
   --color-muted: #5f5f66;
   --color-primary: #0b5cad;
   --color-border: #d8d8dd;
+  /* M4 marker colours: registry (Päästeamet / municipality) blue, user green. */
+  --color-shelter-registry: #0b5cad;
+  --color-shelter-user: #2e7d32;
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
@@ -111,4 +120,22 @@ body {
 .btn--block {
   width: 100%;
   display: block;
+}
+
+/* M4 shelter marker pins — global for the same reason as the leaflet import
+   above: leaflet creates the marker DOM outside Angular templates, so
+   component-scoped styles cannot reach it. The map legend swatches reuse
+   these exact classes, keeping the visual single-sourced. */
+.shelter-marker {
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.shelter-marker--registry {
+  background: var(--color-shelter-registry);
+}
+
+.shelter-marker--user {
+  background: var(--color-shelter-user);
 }

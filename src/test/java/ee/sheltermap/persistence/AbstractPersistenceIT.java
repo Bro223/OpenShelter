@@ -7,6 +7,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 /**
  * Base class for persistence integration tests (Step 3).
  *
@@ -41,6 +46,34 @@ public abstract class AbstractPersistenceIT {
             registry.add("spring.datasource.url", () -> System.getProperty("it.db.url"));
             registry.add("spring.datasource.username", () -> System.getProperty("it.db.username", "sheltermap"));
             registry.add("spring.datasource.password", () -> System.getProperty("it.db.password", "sheltermap"));
+        }
+    }
+
+    /**
+     * Isolates the durable verification send log per JVM run.
+     *
+     * <p>The prod config points {@code app.verification.send-log-path} at
+     * {@code data/verification-send.log}, which is meant to survive restarts
+     * (anti-spam daily cap is a product decision). Every test run spins up a
+     * <em>fresh</em> Postgres, so fixture users keep landing on the same low
+     * ids — but the file keeps accumulating their sends across runs, until
+     * {@code countToday() >= max-per-day} trips a spurious 429 (observed in
+     * {@code AccountControllerIT.verificationClaimsSurviveAnEmailChange} after
+     * a few same-day runs). Pointing tests at a throwaway temp file makes each
+     * run start from an empty log, so the daily cap only ever counts sends
+     * from the current run. {@code VerificationThrottleIT} swaps in an
+     * in-memory log and clears it per test, so it is unaffected.
+     */
+    @DynamicPropertySource
+    static void verificationSendLog(DynamicPropertyRegistry registry) {
+        registry.add("app.verification.send-log-path", () -> sendLogPath().toString());
+    }
+
+    private static Path sendLogPath() {
+        try {
+            return Files.createTempFile("sheltermap-it-verification-send", ".log");
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not create temp verification send log", e);
         }
     }
 

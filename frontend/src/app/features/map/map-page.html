@@ -1,10 +1,71 @@
-<section class="landing">
-  <h1 class="page-title">Shelter map</h1>
-  <p class="page-subtitle">
-    Find every registered and community-submitted bomb shelter in Estonia.
-  </p>
-  <p class="landing-note">
-    The interactive map arrives in the next milestone (M4). In the meantime you can
-    <a routerLink="/register">create an account</a> or <a routerLink="/login">log in</a>.
-  </p>
+<section class="map-page">
+  <header class="map-page__header">
+    <h1 class="page-title">Shelter map</h1>
+    <p class="page-subtitle">
+      Find every registered and community-submitted bomb shelter in Estonia.
+    </p>
+  </header>
+
+  <div class="map-page__layout">
+    <div class="map-page__map">
+      <div #mapEl class="map-page__leaflet"></div>
+      <div class="map-legend" aria-label="Marker legend">
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--registry legend-swatch" aria-hidden="true"></span>
+          Registry (Päästeamet / municipality)
+        </span>
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
+          User-submitted
+        </span>
+      </div>
+    </div>
+
+    <aside class="map-page__sidebar">
+      <div class="filter-chips" role="group" aria-label="Filter shelters by source">
+        @for (chip of sourceFilters; track chip.value) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip--active]="filter() === chip.value"
+            (click)="setFilter(chip.value)"
+          >
+            {{ chip.label }}
+          </button>
+        }
+      </div>
+
+      <app-banner severity="error" [message]="error()" />
+
+      @if (loading()) {
+        <p class="sidebar-state" role="status">Loading shelters…</p>
+      } @else if (showEmpty()) {
+        <p class="sidebar-state">No shelters match this filter.</p>
+      } @else if (sorted().length) {
+        <ul class="shelter-list" aria-label="Shelters">
+          @for (shelter of sorted(); track shelter.id) {
+            <li>
+              <a
+                class="shelter-row"
+                [class.shelter-row--selected]="selectedId() === shelter.id"
+                [routerLink]="['/shelters', shelter.id]"
+                (click)="selectShelter(shelter)"
+              >
+                <span class="shelter-row__name">{{ shelter.name }}</span>
+                @if (shelter.address) {
+                  <span class="shelter-row__address">{{ shelter.address }}</span>
+                }
+                <span class="shelter-row__meta">
+                  <span class="badge" [class.badge--user]="shelter.source === 'USER'">
+                    {{ sourceLabel(shelter) }}
+                  </span>
+                  <span class="shelter-row__rating">{{ ratingText(shelter) }}</span>
+                </span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+  </div>
 </section>

@@ -4,6 +4,7 @@ import { LoginPage } from './features/auth/login-page';
 import { RegisterPage } from './features/auth/register-page';
 import { ResetPage } from './features/auth/reset-page';
 import { MapPage } from './features/map/map-page';
+import { ShelterPlaceholderPage } from './features/shelter/shelter-placeholder-page';
 import { VerifyPage } from './features/account/verify-page';
 import { ContactChangePage } from './features/account/contact-change-page';
 
@@ -12,7 +13,8 @@ import { ContactChangePage } from './features/account/contact-change-page';
  *  - M2: /login /register /reset (GuestGuard) + home (/map, public)
  *  - M3: /verify + /account (AuthGuard)
  *  - M4: the real Leaflet map replaces the /map placeholder
- *  - M5: /shelters/:id (public), /submit (AuthGuard + VerifiedGuard)
+ *        + /shelters/:id stub (public) — marker/row navigation lands here
+ *  - M5: the real /shelters/:id detail page replaces the stub, /submit (AuthGuard + VerifiedGuard)
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'map' },
@@ -22,5 +24,8 @@ export const routes: Routes = [
   { path: 'reset', canActivate: [guestGuard], component: ResetPage },
   { path: 'verify', canActivate: [authGuard], component: VerifyPage },
   { path: 'account', canActivate: [authGuard], component: ContactChangePage },
+  // M5 will replace ShelterPlaceholderPage with the real ShelterDetailPage
+  // (same path — no route change at that point).
+  { path: 'shelters/:id', component: ShelterPlaceholderPage },
   { path: '**', redirectTo: 'map' },
 ];
