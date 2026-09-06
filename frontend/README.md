@@ -1,59 +1,136 @@
-# Frontend
+# OpenShelter — Frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.1.7.
+Angular SPA for the OpenShelter public-shelter map (Estonia): browse the registry +
+user-submitted shelters on a map, register and verify an account, submit shelters,
+review them (the community rating **is** the moderation), and manage the account.
 
-## Development server
+The Spring Boot backend lives in the repo root (`src/`); the backend task pack is in
+`context-and-tasks/agent/`. This frontend was built from the task pack in
+[`docs/agent/`](docs/agent/) (`01-TASK.md` is the contract, `07-STEPS.md` the milestone
+plan M0–M6, all milestones complete). OpenSpec change history: `openspec/changes/` (M6:
+`frontend-m6-polish-prod`).
 
-To start a local development server, run:
+## Stack
 
-```bash
-ng serve
-```
+- **Angular 22** — standalone components, **zoneless** change detection, signals
+  (signals + `computed()` are the state layer; `@angular/core/rxjs-interop` `toSignal`
+  where a value needs to cross into a template without a store)
+- **TypeScript** (strict) · **SCSS**
+- **Leaflet 1.9** (plain CSS import, no `ng-leaflet`) for the map
+- **Vitest + @angular/build:unit-test** (Karma-style specs, `fakeAsync`-free: explicit
+  tick/polling against real async timing)
+- No state library, no UI kit, no e2e framework in v1 (see [Deferrals](#deferrals))
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Quick start (dev)
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+Prereqs: a running backend on `http://localhost:8080` (repo root: Docker Postgres +
+`mvn spring-boot:run` — see the root [README](../README.md)) and Node 22+.
 
 ```bash
-ng build
+cd frontend
+npm install
+
+npm start          # ng serve → http://localhost:5173 (environment.development.ts → :8080)
+npm test           # Vitest suite (ng test, watch mode)
+npm test -- --watch=false   # single run (CI style)
+npm run build      # production build → dist/frontend/
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+Every page works against the live backend — no mocks. The dev server is what the
+milestone manual reviews used (backend `:8080` + frontend `:5173`).
 
-## Running unit tests
+## Project layout
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+```
+src/
+├── app/
+│   ├── core/          # ApiClient, ApiError, TokenStore, AuthStore, guards (auth/guest/verified),
+│   │                  #   titleGuard (route titles), models
+│   ├── gateways/      # auth / verify / account / shelter / review — HTTP, no UI
+│   ├── features/
+│   │   ├── auth/      # login, register, reset (guestGuard)
+│   │   ├── account/   # verify (cross-channel), contact change
+│   │   ├── map/       # browse: Leaflet map + list + source filter (default route)
+│   │   └── shelter/   # detail + reviews (review-form, rating-stars), submit
+│   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent, error copy
+│   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
+│   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
+├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
+└── styles.scss        # design tokens (the single source of truth) + global rules
+```
+
+Dependency rule (enforced by review, not tooling): `features → gateways → core`;
+`shared` is UI-only; no `features ↔ features` imports.
+
+## Design tokens (M6)
+
+All visual constants are CSS custom properties on `:root` in [`src/styles.scss`](src/styles.scss)
+(colors, 9-step type scale, 2px-grid spacing, radii, weights, tracking, the 720px narrow
+breakpoint, content max-width). Components may only use token references or layout-neutral
+literals; `design-tokens.spec.ts` scans every `.scss` file and fails on hex/rgb colors or
+off-grid font-sizes, so the audit stays mechanical. A global `:focus-visible` rule makes
+every interactive element keyboard-visible.
+
+## Production build
 
 ```bash
-ng test
+npm run build     # → dist/frontend/browser/ (outputHashing: all, relative asset paths)
 ```
 
-## Running end-to-end tests
+- **Deploy**: serve `dist/frontend/browser/` from any static host. `index.html` uses
+  relative asset paths and `<base href="/">`, so it works at the domain root as-is;
+  for a sub-path use `ng build --base-href /path/`. Point the browser's API origin at
+  the backend — see [`environment.ts`](src/environments/environment.ts): the production
+  file ships `apiUrl: ''` (same-origin default: correct when a reverse proxy serves
+  SPA + API from one origin, and never points an end user at their own localhost). If
+  the API lives on another origin, set it to that public origin and rebuild.
+- **Bundle budget** (`angular.json`, documented per the M6 change — strict-JSON
+  tooling keeps the rationale here, not in the file): the default route `/map` is a
+  Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
+  500 kB default warning is unreachable without dropping the map from first paint.
+  `/shelters/:id` and `/submit` are `loadComponent`-lazy (~27 kB out of the initial
+  bundle). Measured initial total: **530.5 kB raw / 136 kB transfer** →
+  `maximumWarning: 560kB` (measured + ~5% headroom), `maximumError: 1MB` unchanged.
+- **dist sanity** (M6): hashed assets referenced by `index.html`, Leaflet media
+  (marker icons) copied under `media/`, favicon (`.ico` + `.svg`) present, all
+  assets 200 when the folder is served statically, `3rdpartylicenses.txt` shipped
+  (Leaflet MIT).
 
-For end-to-end (e2e) testing, run:
+## Token-storage tradeoff (documented decision)
 
-```bash
-ng e2e
-```
+Only the **refresh token** is persisted in `localStorage`; the **access token lives in
+memory only** (a `TokenStore` signal) and is lost on reload — whereupon boot re-validates
+the refresh token and mints a fresh pair (`AuthStore.init()` silent refresh). The tradeoff:
+`localStorage` is readable by any script on the origin, so an XSS would expose the refresh
+token and thereby the session (it can mint new access tokens) — but not a persisted access
+token, whose in-memory-only lifetime keeps the XSS surface smaller. Accepted for v1 because
+(a) the backend surface is public, rate-limited and rotation-revoked (a stolen refresh token
+is single-use), and (b) the httpOnly-cookie + CSRF-protection alternative is a cross-stack
+change (Spring security config + Angular `withCredentials`) that v1 deliberately defers — see
+[`docs/agent/03-CONTEXT-CORE-AUTH.md`](docs/agent/03-CONTEXT-CORE-AUTH.md).
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+## Deferrals (v1, honest list)
 
-## Additional Resources
+- **`GET /me`** — not in the API; a hard refresh restores the session by re-validating
+  the refresh token (`AuthStore.init()`), not by an account fetch. The account panel
+  therefore shows what the backend already returns (claims) and no profile edit.
+- **`GET /shelters/{id}/reviews/mine`** — no such endpoint; the detail page loads all
+  reviews and finds "mine" client-side (fine at v1 review counts).
+- **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
+  (≈300). `GET /api/shelters/nearest` exists but is not wired.
+- **i18n** — English-only strings; `titleGuard` builds "<Page> — OpenShelter" in code.
+- **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
+- **httpOnly refresh cookie** — see [token storage](#token-storage-tradeoff).
+- **SSR / prerender** — client-rendered SPA; v1 is a JS app by design.
+- **e2e framework** — no `ng e2e`; the milestones were verified by manual E2E against
+  the live backend (the M6 manual journey: browse → narrow-viewport reflow → register →
+  login → verify EMAIL → submit shelter → review (★5) → account, run headless with a
+  scripted Chromium/CDP driver — zero console errors).
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+## Docs
+
+- [`docs/agent/`](docs/agent/) — the build pack (task contract, API contract, per-milestone
+  context, milestone plan with acceptance criteria).
+- [`docs/`](docs/) PlantUML — source-of-truth UML (`01-frontend-architecture.puml`
+  covers layering, guards incl. `titleGuard`, and the route table; `./render.sh` for PNGs).
+- `openspec/changes/` — change proposals (M6: `frontend-m6-polish-prod`).

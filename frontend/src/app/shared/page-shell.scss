@@ -7,27 +7,28 @@
 .shell-header {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 0.7rem 1.25rem;
-  border-bottom: 1px solid var(--border, #e3e3e3);
+  flex-wrap: wrap; /* M6: brand/nav/actions reflow instead of overflowing at narrow widths */
+  gap: var(--space-12) var(--space-24);
+  padding: var(--space-12) var(--space-20);
+  border-bottom: 1px solid var(--color-border-subtle);
 
   .brand {
-    font-weight: 700;
-    font-size: 1.1rem;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--text-xl);
     color: inherit;
     text-decoration: none;
-    letter-spacing: -0.01em;
+    letter-spacing: var(--tracking-brand);
   }
 }
 
 .shell-nav {
   display: flex;
-  gap: 1rem;
+  gap: var(--space-16);
 
   a {
     color: inherit;
     text-decoration: none;
-    padding: 0.25rem 0.4rem;
+    padding: var(--space-4) var(--space-6);
 
     &.active {
       text-decoration: underline;
@@ -40,13 +41,13 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--space-10);
 }
 
 .shell-body {
   flex: 1;
   width: 100%;
-  max-width: 1080px;
+  max-width: var(--content-max-width);
   margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
+  padding: var(--space-24) var(--space-20) var(--space-48);
 }

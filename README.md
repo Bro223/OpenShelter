@@ -4,7 +4,9 @@ Backend for an Estonia public-shelter map: verified user registration, password 
 JWT sessions, shelter data ingested automatically from the official registry, user-submitted
 shelters with community ratings (the rating system **is** the moderation — no moderator).
 
-**Backend only** — the frontend (Vue/Angular) is out of scope for this repo.
+**Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse, auth, verification,
+shelter submission, community reviews); run/build docs in
+[frontend/README.md](frontend/README.md).
 
 > Built step by step from the task pack in [`context and tasks/agent/`](context%20and%20tasks/agent/):
 > `01-TASK.md` is the contract, `07-STEPS.md` the build plan, the puml files in
@@ -339,7 +341,9 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
    up front).
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
-4. **Frontend** — separate project, out of scope here.
+4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete); the honest
+   deferral list (`GET /me`, paging, i18n, MapLibre, httpOnly cookies, SSR) is in
+   [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
 5. **`national_id_code` is stored plaintext** — privacy consideration for launch:
    the Estonian personal ID is treated as an account key, not encrypted at rest
    (documented decision; encrypting it is a schema + service change, deferred).

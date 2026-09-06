@@ -104,6 +104,12 @@ package "core" {
     ' used on /submit - mirrors the backend "verified account required" 403
     + canActivate() : Promise<boolean | UrlTree>
   }
+
+  class TitleGuard {
+    ' functional guard (core/title.ts) (M6) — every route carries data.title
+    ' and sets document.title = "<Page> — OpenShelter" on activation
+    + canActivate() : boolean | UrlTree
+  }
 }
 
 package "gateways" {
@@ -191,6 +197,7 @@ ApiInterceptor ..> Router
 AuthGuard ..> AuthStore
 GuestGuard ..> AuthStore
 VerifiedGuard ..> AuthStore
+TitleGuard ..> Title
 
 note top of ApiClient
   Typed models live in core/models.ts - field-for-field mirror of the
@@ -244,7 +251,7 @@ note top of LeafletService
   are NOT used. MapLibre GL is a documented future swap.
 end note
 
-' --- routes (M0-M6 build-up) ---------------------------------
+' --- routes (M0-M6 build-up; every route also runs TitleGuard (M6)) -------
 note as Routes
   '/ -> redirect'        public       -> MapPage      (M2 stub; real map M4)
   /map               public       -> MapPage        (M2 stub page; Leaflet map in M4)
@@ -253,7 +260,9 @@ note as Routes
   /reset             GuestGuard   -> ResetPage      (M2)
   /verify            AuthGuard    -> VerifyPage        (M3 DONE)
   /account           AuthGuard    -> ContactChangePage (M3 DONE)
-  /shelters/:id      public       -> ShelterDetailPage(M5)
-  /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5)
+  /shelters/:id      public       -> ShelterDetailPage(M5, lazy M6)
+  /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5, lazy M6)
+  ' M6: all routes data.title + TitleGuard; /shelters/:id and /submit
+  '     loadComponent-lazy for the documented bundle budget
 end note
 @enduml

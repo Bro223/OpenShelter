@@ -3,12 +3,13 @@
 }
 
 .auth-card {
+  /* page-specific layout dimension (documented exception, not spacing) */
   max-width: 26rem;
-  margin: 2rem auto 0;
+  margin: var(--space-32) auto 0;
 }
 
 .auth-links {
-  margin-top: 1.1rem;
-  font-size: 0.92rem;
+  margin-top: var(--space-18);
+  font-size: var(--text-md);
   text-align: center;
 }

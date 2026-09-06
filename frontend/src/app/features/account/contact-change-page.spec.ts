@@ -103,6 +103,31 @@ describe('ContactChangePage', () => {
     expect(element.querySelector('a[href="/verify"]')).not.toBeNull();
   });
 
+  it('shows the loading state while a change request is in flight', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('new@example.ee');
+    let resolveRequest: () => void = () => {};
+    account.requestEmailChange.mockReturnValue(
+      new Promise<void>((resolve) => (resolveRequest = resolve)),
+    );
+
+    const inFlight = page.emailSend();
+    fixture.detectChanges();
+
+    // The email panel's button shows its loading copy and is disabled
+    // (and so is the phone panel's — busy() covers the whole page).
+    expect(element.textContent).toContain('Sending…');
+    for (const b of element.querySelectorAll<HTMLButtonElement>('button')) {
+      expect(b.disabled).toBe(true);
+    }
+    expect(element.querySelector('.banner')).toBeNull();
+
+    resolveRequest();
+    await inFlight;
+    fixture.detectChanges();
+    expect(element.textContent).not.toContain('Sending…');
+  });
+
   it('email send -> 202: normalises the address and moves to the code phase', async () => {
     const { page, element, fixture } = await open();
     // No surrounding whitespace: Validators.email rejects padded addresses

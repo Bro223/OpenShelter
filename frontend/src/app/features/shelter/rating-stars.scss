@@ -1,7 +1,7 @@
 .rating-stars {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
 
   &--display {
     .star-strip {
@@ -12,11 +12,11 @@
     .star {
       position: relative;
       display: inline-block;
-      font-size: 1rem;
+      font-size: var(--text-lg);
     }
 
     .star__base {
-      color: var(--color-star-empty, #c9ced6);
+      color: var(--color-star-empty);
     }
 
     .star__fill {
@@ -25,42 +25,42 @@
       left: 0;
       overflow: hidden;
       white-space: nowrap;
-      color: var(--color-star-filled, #e8a33d);
+      color: var(--color-star-filled);
     }
 
     .rating-value {
-      font-size: 0.9rem;
-      color: var(--color-text-muted, #5b6472);
+      font-size: var(--text-md);
+      color: var(--color-text-muted);
       font-variant-numeric: tabular-nums;
     }
   }
 
   &--input {
-    gap: 2px;
+    gap: var(--space-2);
   }
 }
 
 .star-btn {
   background: none;
   border: none;
-  padding: 2px;
+  padding: var(--space-2);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   line-height: 1;
 
   .star-glyph {
-    font-size: 1.4rem;
-    color: var(--color-star-empty, #c9ced6);
+    font-size: var(--text-2xl);
+    color: var(--color-star-empty);
   }
 
   &--active .star-glyph,
   &:hover .star-glyph,
   &:focus .star-glyph {
-    color: var(--color-star-filled, #e8a33d);
+    color: var(--color-star-filled);
   }
 
   &:focus {
-    outline: 2px solid var(--color-focus, #2563eb);
+    outline: 2px solid var(--color-focus); /* line weight, not spacing */
     outline-offset: 1px;
   }
 }

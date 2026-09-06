@@ -1,6 +1,6 @@
 .map-page__layout {
   display: flex;
-  gap: 1.25rem;
+  gap: var(--space-20);
   align-items: stretch;
 }
 
@@ -10,10 +10,11 @@
   min-width: 0;
 
   .map-page__leaflet {
+    /* page-specific layout dimension (documented exception, not spacing) */
     height: 560px;
     border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: #e9eef2; /* visible before the first tiles paint */
+    border-radius: var(--radius-lg);
+    background: var(--color-map-placeholder); /* visible before the first tiles paint */
   }
 }
 
@@ -21,59 +22,60 @@
    single source of truth for marker colours); only the size differs here. */
 .map-legend {
   position: absolute;
-  left: 0.75rem;
-  bottom: 1.9rem; /* clear of the OSM attribution control (bottom-right) */
+  left: var(--space-12);
+  bottom: var(--space-32); /* clear of the OSM attribution control (bottom-right) */
   z-index: 1000; /* above leaflet panes (400) */
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.5rem 0.65rem;
-  background: rgba(255, 255, 255, 0.92);
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-10);
+  background: var(--color-surface-overlay);
   border: 1px solid var(--color-border);
-  border-radius: 6px;
-  font-size: 0.8rem;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
   color: var(--color-text);
 
   .legend-item {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--space-6);
   }
 
   .legend-swatch {
-    width: 12px;
+    width: 12px; /* marker-size swatch, not spacing */
     height: 12px;
     flex-shrink: 0;
   }
 }
 
 .map-page__sidebar {
+  /* page-specific layout dimension (documented exception, not spacing) */
   width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-12);
 
   .shelter-list {
     list-style: none;
     margin: 0;
     padding: 0;
     overflow-y: auto;
-    max-height: 560px;
+    max-height: 560px; /* matches the map height at wide widths */
   }
 }
 
 .filter-chips {
   display: flex;
-  gap: 0.4rem;
+  gap: var(--space-6);
 
   .chip {
     flex: 1;
-    padding: 0.4rem 0.6rem;
+    padding: var(--space-6) var(--space-10);
     border: 1px solid var(--color-border);
-    border-radius: 999px;
-    background: #fff;
-    font-size: 0.9rem;
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    font-size: var(--text-md);
     font-family: inherit;
     cursor: pointer;
 
@@ -84,7 +86,7 @@
     &.chip--active {
       background: var(--color-primary);
       border-color: var(--color-primary);
-      color: #fff;
+      color: var(--color-bg-surface);
     }
   }
 }
@@ -92,19 +94,19 @@
 .sidebar-state {
   color: var(--color-muted);
   text-align: center;
-  padding: 1.5rem 0.5rem;
+  padding: var(--space-24) var(--space-8);
   margin: 0;
 }
 
 .shelter-row {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.6rem 0.7rem;
-  margin-bottom: 0.5rem;
+  gap: var(--space-2);
+  padding: var(--space-10) var(--space-12);
+  margin-bottom: var(--space-8);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: #fff;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
   color: inherit;
   text-decoration: none;
 
@@ -118,34 +120,55 @@
   }
 
   .shelter-row__name {
-    font-weight: 600;
+    font-weight: var(--font-weight-semibold);
   }
 
   .shelter-row__address {
     color: var(--color-muted);
-    font-size: 0.85rem;
+    font-size: var(--text-sm);
   }
 
   .shelter-row__meta {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-top: 0.25rem;
-    font-size: 0.85rem;
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
     color: var(--color-muted);
   }
 }
 
 .badge {
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--color-shelter-registry) 12%, #fff);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-full);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  background: color-mix(in srgb, var(--color-shelter-registry) 12%, var(--color-bg-surface));
   color: var(--color-shelter-registry);
 
   &.badge--user {
-    background: color-mix(in srgb, var(--color-shelter-user) 12%, #fff);
+    background: color-mix(in srgb, var(--color-shelter-user) 12%, var(--color-bg-surface));
     color: var(--color-shelter-user);
+  }
+}
+
+/* M6 responsive (breakpoint: --bp-narrow; @media cannot consume var()):
+   map on top, sidebar full-width below; no horizontal scroll at mobile
+   widths. Wide-width rendering (and every class name) is untouched. */
+@media (max-width: 720px) {
+  .map-page__layout {
+    flex-direction: column;
+  }
+
+  .map-page__leaflet {
+    height: 420px;
+  }
+
+  .map-page__sidebar {
+    width: auto;
+  }
+
+  .shelter-list {
+    max-height: 420px;
   }
 }

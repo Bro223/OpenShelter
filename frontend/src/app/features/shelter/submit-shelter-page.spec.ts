@@ -325,6 +325,32 @@ describe('SubmitShelterPage (/submit)', () => {
     },
   );
 
+  it('shows the loading state while the create request is in flight', async () => {
+    let resolveCreate: (shelter: ShelterDto) => void = () => {};
+    gateway.create.mockReturnValue(
+      new Promise<ShelterDto>((resolve) => (resolveCreate = resolve)),
+    );
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    fixture.detectChanges();
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    fixture.detectChanges();
+
+    const button = element.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(button.textContent).toContain('Submitting…');
+    expect(button.disabled).toBe(true);
+    expect(element.querySelector('.banner')).toBeNull(); // no error while loading
+
+    resolveCreate(CREATED);
+    // Zoneless: the navigation's microtask chain needs more than one settle
+    // tick — poll (bounded) instead of asserting on a single settle.
+    for (let i = 0; i < 10 && router.url !== '/shelters/42'; i++) {
+      await settle(fixture);
+    }
+    expect(router.url).toBe('/shelters/42');
+  });
+
   it('destroys the mini-map on route leave (no listener leaks)', async () => {
     gateway.create.mockResolvedValue(CREATED);
     const { fixture } = await open();

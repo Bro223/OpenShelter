@@ -132,6 +132,31 @@ describe('LoginPage', () => {
     expect(router.url).toBe('/map');
   });
 
+  it('shows the loading state while the login request is in flight', async () => {
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    let resolveLogin: (pair: TokenResponse) => void = () => {};
+    gateway.login.mockReturnValue(
+      new Promise<TokenResponse>((resolve) => (resolveLogin = resolve)),
+    );
+
+    const inFlight = page.submit();
+    fixture.detectChanges();
+
+    const button = element.querySelector('button[type="submit"]') as HTMLButtonElement;
+    expect(button.textContent).toContain('Logging in…');
+    expect(button.disabled).toBe(true);
+    expect(element.querySelector('.banner')).toBeNull(); // no error while loading
+
+    resolveLogin(PAIR);
+    await inFlight;
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // Success navigates to /map (LoginPage is replaced — the old button
+    // reference would be stale detached DOM).
+    expect(router.url).toBe('/map');
+  });
+
   it('shows a GENERIC banner for a 401 (anti-enumeration — no backend detail)', async () => {
     const { page, fixture } = await open('/login');
     page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'wrong' });

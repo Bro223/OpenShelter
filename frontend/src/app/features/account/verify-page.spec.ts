@@ -189,6 +189,32 @@ describe('VerifyPage', () => {
     expect(store.levels()).not.toContain('EMAIL');
   });
 
+  it('shows the loading state while a code request is in flight', async () => {
+    const { page, element, fixture } = await open();
+    let resolveRequest: () => void = () => {};
+    verifyGateway.request.mockReturnValue(
+      new Promise<void>((resolve) => (resolveRequest = resolve)),
+    );
+
+    const inFlight = page.request('EMAIL');
+    fixture.detectChanges();
+
+    // The requesting button shows its loading copy and every panel action is
+    // disabled while the request is in flight (no double sends, no error).
+    expect(element.textContent).toContain('Sending…');
+    const buttons = [...element.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) {
+      expect(b.disabled).toBe(true);
+    }
+    expect(element.querySelector('.banner')).toBeNull();
+
+    resolveRequest();
+    await inFlight;
+    fixture.detectChanges();
+    expect(element.textContent).not.toContain('Sending…');
+  });
+
   it('resend hits request() again from the code phase', async () => {
     const { page } = await open();
     verifyGateway.request.mockResolvedValue(undefined);

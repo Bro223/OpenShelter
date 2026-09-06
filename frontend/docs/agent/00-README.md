@@ -59,4 +59,19 @@ what lets you check and build every file manually — exactly how the backend wa
 - **M0 (skeleton)** — DONE: Angular 22 scaffold in `frontend/` (standalone, zoneless, SCSS,
   Vitest), `npm start` → port 5173, `environment.development.ts` → `http://localhost:8080`,
   no nested git repo. This doc pack is part of M0.
-- **M1–M6** — planned below, none started.
+- **M1 (core plumbing)** — DONE: ApiClient/ApiError, TokenStore + AuthStore (silent refresh,
+  401 → session-expired), guest/auth guards, models mirroring the API contract.
+- **M2 (auth UI)** — DONE: login / register / reset pages, `returnUrl` + `session=expired`
+  handling, first route table.
+- **M3 (verification & account)** — DONE: cross-channel verify screen (EMAIL + PHONE,
+  409/429/400/5xx handling) and cross-channel contact change (email ⇄ phone).
+- **M4 (map & browse)** — DONE: public Leaflet map (registry blue / user green / pick red),
+  list + source filter, detail navigation.
+- **M5 (shelter detail, reviews & submission)** — DONE: public detail + reviews (upsert,
+  delete own), verified-only `/submit` (map point picking, in-Estonia pre-check) → 201 →
+  detail.
+- **M6 (polish, hardening & prod build)** — DONE: design tokens (`styles.scss` + audit
+  spec), 375px reflow, route titles + favicon, loading/empty/error audit, production
+  `environment.ts`, documented bundle budget (initial 530.5 kB → 560 kB warning),
+  README rewritten, full manual E2E (headless Chromium driver, zero console errors).
+  See `openspec/changes/frontend-m6-polish-prod/`.

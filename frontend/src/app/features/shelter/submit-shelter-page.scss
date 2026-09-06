@@ -1,15 +1,16 @@
 .submit-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-20);
+  /* page-specific layout dimension (documented exception, not spacing) */
   max-width: 44rem;
 }
 
 .back-link {
   align-self: flex-start;
-  color: var(--color-primary, #0b5cad);
+  color: var(--color-primary);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: var(--text-md);
 
   &:hover {
     text-decoration: underline;
@@ -18,18 +19,18 @@
 
 .verify-hint {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-muted, #5f5f66);
+  font-size: var(--text-md);
+  color: var(--color-muted);
 
   a {
-    color: var(--color-primary, #0b5cad);
+    color: var(--color-primary);
   }
 }
 
 .submit-form {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
 
   .btn {
     align-self: flex-start;
@@ -38,51 +39,52 @@
 
 .location-field {
   margin: 0;
-  padding: 12px 14px 14px;
-  border: 1px solid var(--color-border, #d8d8dd);
-  border-radius: 8px;
+  padding: var(--space-12) var(--space-14) var(--space-14);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 
   legend {
-    font-size: 0.9rem;
-    font-weight: 550;
-    padding: 0 6px;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    padding: 0 var(--space-6);
   }
 }
 
 .field-note {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
-  color: var(--color-muted, #5f5f66);
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
 }
 
 .submit-map {
+  /* page-specific layout dimension (documented exception, not spacing) */
   height: 260px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border, #d8d8dd);
-  margin-bottom: 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-10);
 }
 
 .location-inputs {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-12);
 }
 
 .location-input {
-  flex: 1 1 140px;
+  flex: 1 1 140px; /* min field width before wrapping at narrow widths */
 
   label {
     display: block;
-    font-size: 0.9rem;
-    font-weight: 550;
-    margin-bottom: 0.3rem;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
   }
 
   input {
     width: 100%;
-    padding: 0.55rem 0.7rem;
-    border: 1px solid var(--color-border, #d8d8dd);
-    border-radius: 6px;
-    font-size: 1rem;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-lg);
   }
 }

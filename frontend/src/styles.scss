@@ -1,4 +1,13 @@
-/* Global styles (design-token pass lands in M6 — a minimal shared layer now). */
+/* Global styles — design tokens + global element styles.
+ *
+ * M6: the :root block below is the SINGLE SOURCE OF TRUTH for visual values.
+ * Component .scss files must reference these custom properties instead of
+ * introducing new literals (policed by src/app/design-tokens.spec.ts).
+ * Need a new value? Add a token here first, then use it — no per-component
+ * literals. Documented exceptions (kept as literals, commented in place):
+ * line weights (1/2/3px borders and outlines) and page-specific layout
+ * dimensions (map heights, sidebar width).
+ */
 
 /* Leaflet map styles — imported globally (M4): the map container and the
    divIcon markers are created by leaflet itself, so component-scoped styles
@@ -6,16 +15,124 @@
 @use 'leaflet/dist/leaflet.css';
 
 :root {
-  --color-text: #1c1c1e;
-  --color-muted: #5f5f66;
+  /* ============ Colors ================================================
+   * Exact values shipped since M2 — M6 moved them here without changing a
+   * single one (no visual redesign).
+   */
+
+  /* Text & surfaces */
+  --color-text: #1c1c1e; /* primary text */
+  --color-muted: #5f5f66; /* secondary text (shell, map, global .field) */
+  --color-text-muted: #5b6472; /* secondary text (M5 shelter components) */
+  --color-bg: #fafafa; /* page background */
+  --color-bg-surface: #fff; /* cards, rows, list items, text on primary */
+  --color-bg-subtle: #f6f7f8; /* inset note background (proof-note) */
+  --color-surface-hover: #f0f0f2; /* ghost button hover fill */
+  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay */
+
+  /* Brand */
   --color-primary: #0b5cad;
-  --color-border: #d8d8dd;
-  /* M4 marker colours: registry (Päästeamet / municipality) blue, user green. */
-  --color-shelter-registry: #0b5cad;
-  --color-shelter-user: #2e7d32;
+  --color-primary-hover: #094e99;
+
+  /* Borders */
+  --color-border: #d8d8dd; /* inputs, cards, list rows */
+  --color-border-subtle: #e3e3e3; /* shell header divider */
+
+  /* Status palette (BannerComponent + verification level chips) */
+  --color-danger: #8c1d18; /* error text (banners, field errors) */
+  --color-danger-bg: #fdecea;
+  --color-danger-border: #f5c6c3;
+  --color-error: #c0392b; /* M5 review-form error text (slightly brighter red) */
+  --color-warning: #7a4d00;
+  --color-warning-bg: #fff7e6;
+  --color-warning-border: #ffd591;
+  --color-info: #15476e;
+  --color-info-bg: #e8f1fb;
+  --color-info-border: #b9d6f5;
+  --color-success: #1a5b2d;
+  --color-success-bg: #e8f8ee;
+  --color-success-border: #b7e3c4;
+  --color-success-bg-soft: #f4fcf6; /* fully-verified panel fill */
+
+  /* Source badges (shelter detail page) */
+  --color-badge-registry: #e8eef7;
+  --color-badge-user: #e8f3ea;
+
+  /* Map + markers (global for the reason above: leaflet builds the marker
+     DOM outside Angular, so component-scoped styles cannot reach it). */
+  --color-shelter-registry: #0b5cad; /* registry (Päästeamet / municipality) */
+  --color-shelter-user: #2e7d32; /* user-submitted */
+  --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
+  --color-map-placeholder: #e9eef2; /* map container before the first tiles */
+  --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
+
+  /* Rating stars */
+  --color-star-empty: #c9ced6;
+  --color-star-filled: #e8a33d;
+  --color-focus: #2563eb; /* star-input focus ring */
+
+  /* ============ Typography ============================================ */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+
+  /* Type scale: every step is an exact shipped value, except 0.88rem and
+     0.92rem, which M6 rounded onto the adjacent step (≤ 0.5px) so the
+     scale stays continuous. */
+  --text-2xs: 0.75rem; /* badges, map legend, tiny meta */
+  --text-xs: 0.8rem; /* review date, character counters */
+  --text-sm: 0.85rem; /* secondary lines: addresses, notes, level chips */
+  --text-md: 0.9rem; /* labels, links, small meta (was 0.88/0.9/0.92) */
+  --text-base: 0.95rem; /* buttons, banners, panel copy */
+  --text-lg: 1rem; /* inputs, star display */
+  --text-xl: 1.1rem; /* brand, panel titles */
+  --text-2xl: 1.4rem; /* rating input star glyph */
+  --text-3xl: 1.6rem; /* page titles */
+
+  --font-weight-medium: 550; /* labels, buttons */
+  --font-weight-semibold: 600; /* row names, badges */
+  --font-weight-title: 650; /* page titles, section titles */
+  --font-weight-bold: 700; /* brand */
+
+  --tracking-tight: -0.02em; /* page titles */
+  --tracking-brand: -0.01em; /* shell brand */
+
+  /* ============ Spacing ===============================================
+   * 2px grid. The shipped values are the pre-M6 literals rounded onto the
+   * nearest 2px step — the delta is always <= 1.6px (a sub-2px rounding,
+   * disclosed here because it is the one visual change M6 made; colors are
+   * exact, not rounded). The same source literal could round up or down
+   * depending on context (e.g. a 0.3rem chip gap landed on space-6 while a
+   * 0.3rem heading margin landed on space-4), so there is no single rem->px
+   * table — each migrated rule is the value the nearest-step rule produced
+   * (git diff of the M6 commit shows every literal -> token pair).
+   */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* ============ Radius ================================================ */
+  --radius-sm: 4px; /* star buttons */
+  --radius-md: 6px; /* inputs, buttons, banners */
+  --radius-lg: 8px; /* cards, panels, map frames */
+  --radius-full: 999px; /* chips, badges, pills */
+
+  /* ============ Layout ================================================ */
+  /* Narrow-viewport breakpoint. Media queries cannot consume var()
+     (browser limitation), so @media rules use the literal 720px with a
+     reference comment — keep this token and those rules in sync. */
+  --bp-narrow: 720px;
+  --content-max-width: 1080px; /* shell-body page width cap */
 }
 
 * {
@@ -31,41 +148,51 @@ body {
 body {
   font-family: var(--font-sans);
   color: var(--color-text);
-  background: #fafafa;
+  background: var(--color-bg);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
+/* Visible keyboard focus everywhere (M6 a11y audit): component-scoped
+   :focus-visible rules win where they exist (e.g. .field input). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 /* Page titles */
 .page-title {
-  font-size: 1.6rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  margin: 0 0 0.25rem;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-title);
+  letter-spacing: var(--tracking-tight);
+  margin: 0 0 var(--space-4);
 }
 
 .page-subtitle {
   color: var(--color-muted);
-  margin: 0 0 1.25rem;
+  margin: 0 0 var(--space-20);
 }
 
 /* Form fields */
 .field {
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-16);
 
   label {
     display: block;
-    font-size: 0.9rem;
-    font-weight: 550;
-    margin-bottom: 0.3rem;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
   }
 
   input {
     width: 100%;
-    padding: 0.55rem 0.7rem;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--color-border);
-    border-radius: 6px;
-    font-size: 1rem;
+    border-radius: var(--radius-md);
+    font-size: var(--text-lg);
 
     &:focus-visible {
       outline: 2px solid var(--color-primary);
@@ -75,19 +202,19 @@ body {
 }
 
 .field-error {
-  color: #8c1d18;
-  font-size: 0.85rem;
-  margin: 0.3rem 0 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin: var(--space-4) 0 0;
 }
 
 /* Buttons */
 .btn {
   display: inline-block;
   border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 0.55rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 550;
+  border-radius: var(--radius-md);
+  padding: var(--space-8) var(--space-16);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   text-decoration: none;
   font-family: inherit;
@@ -100,10 +227,10 @@ body {
 
 .btn--primary {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-bg-surface);
 
   &:hover:not(:disabled) {
-    background: #094e99;
+    background: var(--color-primary-hover);
   }
 }
 
@@ -113,7 +240,7 @@ body {
   color: var(--color-text);
 
   &:hover:not(:disabled) {
-    background: #f0f0f2;
+    background: var(--color-surface-hover);
   }
 }
 
@@ -128,8 +255,8 @@ body {
    these exact classes, keeping the visual single-sourced. */
 .shelter-marker {
   border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  border: 2px solid var(--color-bg-surface);
+  box-shadow: var(--shadow-marker);
 }
 
 .shelter-marker--registry {
@@ -144,6 +271,6 @@ body {
  * Registry/user markers already fill their circle; without a background the
  * pick pin rendered as a hollow ring and was invisible on OSM tiles. */
 .shelter-marker--pick {
-  background: var(--color-shelter-pick, #d32f2f);
-  border-color: #fff;
+  background: var(--color-shelter-pick);
+  border-color: var(--color-bg-surface);
 }

@@ -6,8 +6,9 @@ report files created + how to verify manually, then **STOP and wait for the huma
 Each milestone lists its **inputs** (puml + context files), **deliverables**, **key decisions**,
 **acceptance criteria** (must all pass), and a **manual review checklist**.
 
-**Status:** M0 DONE. M1–M6 pending. The backend is complete — every milestone is verified against
-the real running API (`mvn spring-boot:run` at the repo root, port 8080).
+**Status:** M0–M6 DONE (all milestones complete; M6 verified 2026-09-06 against the real
+running API — `mvn spring-boot:run` at the repo root, port 8080, with the dev server at
+`http://localhost:5173`). Every milestone was verified against the real running API.
 
 ---
 
@@ -171,6 +172,12 @@ after write → refetch shelter.
 ---
 
 ## M6 — Polish, hardening & prod build
+
+**Status: DONE.** Design tokens (`styles.scss` + `design-tokens.spec.ts` audit), 375px
+reflow, route titles + favicon, loading/empty/error audit, production `environment.ts`,
+documented bundle budget (initial 530.5 kB → justified 560 kB warning), README rewritten,
+manual E2E via headless Chromium/CDP driver — 16/16 journey steps, zero console errors.
+See `openspec/changes/frontend-m6-polish-prod/`.
 
 **Inputs:** all context files, `01-frontend-architecture.puml`.
 
