@@ -1,0 +1,150 @@
+.shelter-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 44rem;
+
+  &--not-found {
+    align-items: flex-start;
+  }
+}
+
+.back-link {
+  align-self: flex-start;
+  color: var(--color-primary, #0b5cad);
+  text-decoration: none;
+  font-size: 0.9rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.shelter-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shelter-detail__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8eef7;
+  color: var(--color-shelter-registry, #0b5cad);
+
+  &.badge--user {
+    background: #e8f3ea;
+    color: var(--color-shelter-user, #2e7d32);
+  }
+}
+
+.shelter-detail__address {
+  margin: 0;
+  color: var(--color-muted, #5f5f66);
+}
+
+.shelter-detail__rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .review-count {
+    font-size: 0.85rem;
+    color: var(--color-muted, #5f5f66);
+  }
+
+  .no-ratings {
+    font-size: 0.9rem;
+    color: var(--color-muted, #5f5f66);
+    font-style: italic;
+  }
+}
+
+.detail-state {
+  color: var(--color-muted, #5f5f66);
+  margin: 0;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border, #d8d8dd);
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 650;
+  margin: 0;
+}
+
+.detail-description {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.detail-meta {
+  margin: 0;
+  color: var(--color-muted, #5f5f66);
+  font-size: 0.9rem;
+}
+
+.review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.review {
+  padding: 12px 14px;
+  border: 1px solid var(--color-border, #d8d8dd);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__author {
+    font-weight: 600;
+  }
+
+  &__date {
+    margin-left: auto;
+    font-size: 0.8rem;
+    color: var(--color-muted, #5f5f66);
+  }
+
+  &__comment {
+    margin: 0;
+  }
+}
+
+.my-review-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+
+  p {
+    margin: 0;
+  }
+}

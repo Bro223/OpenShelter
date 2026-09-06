@@ -25,40 +25,54 @@ API --> AC : ShelterReviewDto[]
 DP --> Person : shelter info + rating summary + review list
 
 == My review: add / update (upsert semantics) ==
-note over RF
+note over DP, RF
   Reviews require an authenticated, VERIFIED account (any claim).
+  The detail page owns the branch (forms stay dumb): ReviewForm
+  emits {rating, comment}, ShelterDetailPage makes the call.
   One review per user per shelter - the backend upserts:
-  POST returns 201 (created) or 200 (updated existing).
+  the first save of a session is always POST and returns 201
+  (created) or 200 (updated a prior-session review - the page
+  adopts it and switches to edit mode, PUT /mine afterwards).
 end note
-Person -> RF : rate 1..5 stars + optional comment (<= 500 chars)
 alt anonymous
-  RF -> AS : isAuthenticated()? no
-  RF --> Person : "log in to review" -> /login?returnUrl=...
+  DP -> AS : authenticated()? no
+  DP --> Person : "log in to review" -> /login?returnUrl=...
 else logged in, NOT verified
-  RF -> AS : verified()? no
-  RF --> Person : banner "verify your email/phone first" -> /verify
+  DP -> AS : isVerified()? no
+  DP --> Person : banner "verify your email/phone first" -> /verify
 else verified
-  RF -> RG : add(shelterId, rating, comment)
+  Person -> RF : rate 1..5 stars + optional comment (<= 500 chars)
+  RF --> DP : save {rating, comment}
+  DP -> RG : add(123, rating, comment)   ' first save of the session
   RG -> AC : post<ShelterReviewDto>('/api/shelters/123/reviews', body)
   AC -> API : POST /api/shelters/123/reviews
   alt 201 created / 200 updated
     API --> AC : ShelterReviewDto
-    DP --> Person : updated rating summary (refetch shelter)
-  else 403 (somehow not verified)
+    DP -> SHG : get(123)  ' and RG.list(123)
+    DP --> Person : updated rating summary + review list
+  else 403 (claim expired mid-session)
     API --> AC : ErrorResponse 403
-    DP --> Person : verify prompt
+    DP --> Person : banner + verify prompt
   end
 end
 
-== Edit / delete my review ==
-Person -> RF : "edit" (author only)
-RF -> RG : updateMine(123, rating, comment)
+== Edit / delete my review (session-tracked "mine") ==
+note over DP, RF
+  The v1 review DTO has no author identity, so the page tracks the
+  user's own review in a per-session signal (06-CONTEXT decision 2).
+  Fresh page load = add mode; after a save, edit mode.
+end note
+Person -> RF : edit stars/comment (edit mode)
+RF --> DP : save {rating, comment}
+DP -> RG : updateMine(123, rating, comment)
 RG -> AC : put<ShelterReviewDto>('/api/shelters/123/reviews/mine', body)
 AC -> API : PUT /api/shelters/123/reviews/mine
 API --> AC : ShelterReviewDto
+DP --> Person : review updated, summary refetched
 
-Person -> RF : "delete"
-RF -> RG : deleteMine(123)
+Person -> RF : "delete my review" (edit mode only)
+RF --> DP : deleteReview
+DP -> RG : deleteMine(123)
 RG -> AC : delete('/api/shelters/123/reviews/mine')
 AC -> API : DELETE /api/shelters/123/reviews/mine
 API --> AC : 204 No Content
@@ -67,7 +81,8 @@ DP --> Person : review removed, summary refetched
 == Submit a shelter (verified users) ==
 note over SP
   Route /submit guarded by AuthGuard + VerifiedGuard. Location must
-  be inside Estonia (backend enforces the bbox -> 400 otherwise).
+  be inside Estonia: the page pre-checks the bbox client-side (inline
+  error, nothing is sent) and the backend re-checks (400 otherwise).
   capacity 1..100_000, description <= 2000 chars.
 end note
 Person -> SP : fill name, description, capacity, pick map point
@@ -76,10 +91,10 @@ SHG -> AC : post<ShelterDto>('/api/shelters', body)
 AC -> API : POST /api/shelters
 alt 201 Created + Location header
   API --> AC : ShelterDto (source=USER, status=ACTIVE)
-  SP --> Person : success -> navigate('/shelters/{id}')
+  SP --> Person : navigate('/shelters/{id}')
 else 401 anonymous / 403 not verified / 400 out-of-Estonia
   API --> AC : ErrorResponse
-  SP --> Person : banner with message
+  SP --> Person : banner with message (input preserved; 403 adds a /verify link)
 end
 
 note over DP

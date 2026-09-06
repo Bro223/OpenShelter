@@ -9,6 +9,31 @@ export const ESTONIA_CENTER: [number, number] = [58.6, 25.0];
 export const ESTONIA_ZOOM = 7;
 
 /**
+ * Estonia bounding box — the client-side mirror of the backend's
+ * GeoPoint.inEstonia (src/main/java/ee/sheltermap/domain/GeoPoint.java).
+ * Used for instant feedback on /submit; the backend re-checks and rejects
+ * out-of-bounds points with 400 either way (06-CONTEXT decision 1).
+ */
+export const ESTONIA_BOUNDS = {
+  minLat: 57.5,
+  maxLat: 59.7,
+  minLng: 21.5,
+  maxLng: 28.2,
+} as const;
+
+/** True when the point falls inside the Estonia bounding box. */
+export function inEstonia(latitude: number, longitude: number): boolean {
+  return (
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= ESTONIA_BOUNDS.minLat &&
+    latitude <= ESTONIA_BOUNDS.maxLat &&
+    longitude >= ESTONIA_BOUNDS.minLng &&
+    longitude <= ESTONIA_BOUNDS.maxLng
+  );
+}
+
+/**
  * Thin wrapper around the `leaflet` npm package (05-CONTEXT-MAP.md decision 3:
  * leaflet is called directly — no ngx-leaflet, which lags Angular majors).
  *
@@ -28,8 +53,15 @@ export class LeafletService {
   /** Set by the page; invoked with the shelter id whenever a marker is clicked. */
   markerClick: ((shelterId: number) => void) | null = null;
 
+  /**
+   * Set by the page (M5 /submit mini-map); invoked with [lat, lng] whenever
+   * the map surface is clicked or the pick marker is dragged.
+   */
+  mapClick: ((latitude: number, longitude: number) => void) | null = null;
+
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
+  private pickMarker: L.Marker | null = null;
 
   /**
    * Builds the single map instance on the given container, with OSM standard
@@ -52,6 +84,9 @@ export class LeafletService {
       maxZoom: 19,
     }).addTo(this.map);
     this.markers = L.layerGroup().addTo(this.map);
+    this.map.on('click', (event: L.LeafletMouseEvent) => {
+      this.mapClick?.(event.latlng.lat, event.latlng.lng);
+    });
   }
 
   /**
@@ -82,11 +117,53 @@ export class LeafletService {
     this.map?.flyTo([latitude, longitude]);
   }
 
+  /**
+   * Drops (or moves) the single location-pick marker (M5 /submit mini-map).
+   * Draggable: a drag-end reports the new point through `mapClick`, so the
+   * page's signals stay the single source of truth. Null args remove the
+   * marker. No-ops before create / after destroy.
+   */
+  setPick(latitude: number | null, longitude: number | null): void {
+    if (!this.map) {
+      return;
+    }
+    if (latitude === null || longitude === null) {
+      this.removePickMarker();
+      return;
+    }
+    if (this.pickMarker === null) {
+      this.pickMarker = L.marker([latitude, longitude], {
+        icon: L.divIcon({
+          className: 'shelter-marker shelter-marker--pick',
+          iconSize: [14, 14],
+        }),
+        draggable: true,
+        title: 'Selected location',
+      });
+      this.pickMarker.on('dragend', () => {
+        const point = this.pickMarker?.getLatLng();
+        if (point) {
+          this.mapClick?.(point.lat, point.lng);
+        }
+      });
+      this.pickMarker.addTo(this.map);
+    } else {
+      this.pickMarker.setLatLng([latitude, longitude]);
+    }
+  }
+
+  private removePickMarker(): void {
+    this.pickMarker?.remove();
+    this.pickMarker = null;
+  }
+
   /** Removes the map instance (panes, tile + marker layers, all listeners). */
   destroy(): void {
     this.map?.remove();
     this.map = null;
     this.markers = null;
+    this.pickMarker = null;
     this.markerClick = null;
+    this.mapClick = null;
   }
 }

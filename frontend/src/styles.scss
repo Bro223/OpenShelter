@@ -139,3 +139,11 @@ body {
 .shelter-marker--user {
   background: var(--color-shelter-user);
 }
+
+/* Selected-location pin on the /submit mini-map (leaflet-service setPick).
+ * Registry/user markers already fill their circle; without a background the
+ * pick pin rendered as a hollow ring and was invisible on OSM tiles. */
+.shelter-marker--pick {
+  background: var(--color-shelter-pick, #d32f2f);
+  border-color: #fff;
+}

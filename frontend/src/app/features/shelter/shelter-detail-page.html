@@ -1,0 +1,118 @@
+@if (notFound()) {
+  <section class="shelter-detail shelter-detail--not-found">
+    <h1 class="page-title">Shelter not found</h1>
+    <p class="page-subtitle">No shelter exists at this address — it may have been removed.</p>
+    <a routerLink="/map" class="btn btn--primary">Back to the map</a>
+  </section>
+} @else {
+  <section class="shelter-detail">
+    <a routerLink="/map" class="back-link">&larr; Back to the map</a>
+
+    <header class="shelter-detail__header">
+      <div class="shelter-detail__title-row">
+        <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
+        @if (shelter(); as s) {
+          <span class="badge" [class.badge--user]="s.source === 'USER'">
+            {{ sourceLabel(s) }}
+          </span>
+        }
+      </div>
+      @if (shelter()?.address; as address) {
+        <p class="shelter-detail__address">{{ address }}</p>
+      }
+      @if (shelter(); as s) {
+        <div class="shelter-detail__rating">
+          @if (s.averageRating !== null) {
+            <app-rating-stars [rating]="s.averageRating" />
+            <span class="review-count">{{ reviewCountText() }}</span>
+          } @else {
+            <span class="no-ratings">No ratings yet</span>
+          }
+        </div>
+      }
+    </header>
+
+    <app-banner severity="error" [message]="error()" />
+    @if (notice(); as n) {
+      <app-banner severity="success" [message]="n.text" />
+    }
+
+    @if (loading()) {
+      <p class="detail-state" role="status">Loading shelter…</p>
+    } @else if (shelter(); as s) {
+      @if (hasUserDetails()) {
+        <section class="detail-section">
+          <h2 class="section-title">Details</h2>
+          @if (s.description) {
+            <p class="detail-description">{{ s.description }}</p>
+          }
+          @if (s.capacity !== null) {
+            <p class="detail-meta">Capacity: {{ s.capacity }}</p>
+          }
+        </section>
+      }
+
+      <section class="detail-section" aria-labelledby="reviews-heading">
+        <h2 class="section-title" id="reviews-heading">Reviews</h2>
+        @if (reviewsList().length === 0) {
+          <p class="detail-state">No reviews yet.</p>
+        } @else {
+          <ul class="review-list">
+            @for (review of reviewsList(); track review.id) {
+              <li class="review">
+                <div class="review__head">
+                  <span class="review__author">{{ review.authorName }}</span>
+                  <app-rating-stars [rating]="review.rating" />
+                  <time
+                    class="review__date"
+                    [attr.datetime]="review.createdAt"
+                    >{{ review.createdAt | date: 'medium' }}</time
+                  >
+                </div>
+                @if (review.comment) {
+                  <p class="review__comment">{{ review.comment }}</p>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="detail-section" aria-labelledby="my-review-heading">
+        <h2 class="section-title" id="my-review-heading">Your review</h2>
+        @if (auth.authenticated()) {
+          @if (auth.isVerified()) {
+            <app-review-form
+              [mode]="myReview() ? 'edit' : 'add'"
+              [initialRating]="myReview()?.rating ?? null"
+              [initialComment]="myReview()?.comment ?? null"
+              [busy]="saving()"
+              (save)="onSaveReview($event)"
+              (deleteReview)="onDeleteMyReview()"
+            />
+          } @else {
+            <div class="my-review-prompt">
+              <p>Verify your email or phone to rate this shelter.</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >Verify your account</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="my-review-prompt">
+            <p>Log in to rate this shelter.</p>
+            <a
+              routerLink="/login"
+              [queryParams]="{ returnUrl: '/shelters/' + id() }"
+              class="btn btn--primary"
+              >Log in to review</a
+            >
+          </div>
+        }
+      </section>
+    }
+  </section>
+}

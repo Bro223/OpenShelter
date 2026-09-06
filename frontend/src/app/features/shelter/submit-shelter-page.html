@@ -1,0 +1,107 @@
+<section class="submit-page">
+  <a routerLink="/map" class="back-link">&larr; Back to the map</a>
+
+  <header>
+    <h1 class="page-title">Submit a shelter</h1>
+    <p class="page-subtitle">
+      Add a community bomb shelter to the map. It appears immediately (no moderator —
+      the rating system is the moderation).
+    </p>
+  </header>
+
+  <app-banner severity="error" [message]="error()" />
+  @if (verifyLink()) {
+    <p class="verify-hint">
+      This account no longer has a verified claim.
+      <a routerLink="/verify">Go to verification</a>
+    </p>
+  }
+
+  <form class="submit-form" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="field">
+      <label for="shelter-name">Name *</label>
+      <input
+        id="shelter-name"
+        type="text"
+        formControlName="name"
+        maxlength="200"
+        placeholder="e.g. Kalamaja community shelter"
+        autocomplete="off"
+      />
+      @if (name().touched && name().invalid) {
+        <p class="field-error">
+          {{ name().errors?.['required'] ? 'A name is required.' : 'Name must be 200 characters or fewer.' }}
+        </p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="shelter-description">Description (optional)</label>
+      <textarea
+        id="shelter-description"
+        rows="4"
+        formControlName="description"
+        maxlength="2000"
+        placeholder="Access, conditions, who runs it…"
+      ></textarea>
+      @if (description().invalid && description().touched) {
+        <p class="field-error">Description must be 2000 characters or fewer.</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="shelter-capacity">Capacity (optional, 1–100 000 people)</label>
+      <input
+        id="shelter-capacity"
+        type="number"
+        min="1"
+        max="100000"
+        step="1"
+        formControlName="capacity"
+        placeholder="e.g. 40"
+      />
+      @if (capacity().invalid && capacity().touched) {
+        <p class="field-error">Capacity must be a whole number between 1 and 100 000.</p>
+      }
+    </div>
+
+    <fieldset class="field location-field">
+      <legend>Location *</legend>
+      <p class="field-note">
+        Click the map — or type coordinates — to place the shelter. It must be inside Estonia.
+      </p>
+      <div #mapEl class="submit-map"></div>
+      <div class="location-inputs">
+        <div class="location-input">
+          <label for="shelter-latitude">Latitude</label>
+          <input
+            id="shelter-latitude"
+            type="number"
+            step="any"
+            formControlName="latitude"
+            placeholder="58.6"
+            (input)="onLocationInput()"
+          />
+        </div>
+        <div class="location-input">
+          <label for="shelter-longitude">Longitude</label>
+          <input
+            id="shelter-longitude"
+            type="number"
+            step="any"
+            formControlName="longitude"
+            placeholder="25.0"
+            (input)="onLocationInput()"
+          />
+        </div>
+      </div>
+      @if (locationError(); as locationMsg) {
+        <p class="field-error" role="alert">{{ locationMsg }}</p>
+      }
+    </fieldset>
+
+    <button type="submit" class="btn btn--primary" [disabled]="pending()">
+      {{ pending() ? 'Submitting…' : 'Submit shelter' }}
+    </button>
+  </form>
+</section>

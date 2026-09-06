@@ -99,8 +99,10 @@ package "core" {
   }
 
   class VerifiedGuard {
-    ' redirects to /verify when no claims
-    + canActivate() : boolean
+    ' functional guard (core/guards.ts), awaits AuthStore.init() (M5)
+    ' no verification claim -> /verify?returnUrl=<current>
+    ' used on /submit - mirrors the backend "verified account required" 403
+    + canActivate() : Promise<boolean | UrlTree>
   }
 }
 
@@ -214,9 +216,14 @@ MapPage --> ShelterGateway
 MapPage --> LeafletService
 ShelterDetailPage --> ShelterGateway
 ShelterDetailPage --> ReviewGateway
+ShelterDetailPage --> AuthStore
+ShelterDetailPage --> ReviewForm
+ShelterDetailPage --> RatingStars
+ShelterDetailPage --> BannerComponent
 SubmitShelterPage --> ShelterGateway
-ReviewForm --> ReviewGateway
-RatingStars --> ReviewForm
+SubmitShelterPage --> LeafletService
+SubmitShelterPage --> BannerComponent
+ReviewForm --> RatingStars
 PageShell --> AuthStore
 PageShell --> Router
 
@@ -226,8 +233,9 @@ note bottom of PageShell
 end note
 
 note bottom of MapPage
-  M2 renders a placeholder only - the Leaflet map, source
-  filter and sidebar land in M4 (04-map-browse-flow.puml).
+  M4: real Leaflet map + source filter + sidebar
+  (04-map-browse-flow.puml). Marker/list rows navigate to
+  /shelters/:id - the M5 detail page.
 end note
 
 note top of LeafletService

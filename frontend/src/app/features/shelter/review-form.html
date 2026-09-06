@@ -1,0 +1,50 @@
+<form class="review-form" (submit)="$event.preventDefault(); onSubmit()">
+  @if (mode() === 'edit') {
+    <h2 class="panel-title">Update your review</h2>
+  } @else {
+    <h2 class="panel-title">Rate this shelter</h2>
+  }
+
+  <div class="field">
+    <span class="field-label" id="review-rating-label">Rating (1–5 stars)</span>
+    <app-rating-stars
+      mode="input"
+      [selected]="ratingValue()"
+      (selectionChange)="onStars($event)"
+    />
+    @if (ratingMissing()) {
+      <p class="field-error">Please pick a rating from 1 to 5 stars.</p>
+    }
+  </div>
+
+  <div class="field">
+    <label for="review-comment">Comment (optional)</label>
+    <textarea
+      id="review-comment"
+      rows="3"
+      [formControl]="comment"
+      placeholder="What should people know about this shelter?"
+    ></textarea>
+    <p class="field-counter" [class.field-counter--over]="comment.invalid">
+      {{ comment.value.length }}/500
+    </p>
+    @if (comment.invalid && comment.touched) {
+      <p class="field-error">Comment must be 500 characters or fewer.</p>
+    }
+  </div>
+
+  <div class="panel-actions">
+    <button
+      type="submit"
+      class="btn btn--primary"
+      [disabled]="!canSave() || busy()"
+    >
+      {{ mode() === 'edit' ? 'Update review' : 'Save review' }}
+    </button>
+    @if (mode() === 'edit') {
+      <button type="button" class="btn btn--ghost btn--danger" (click)="onDelete()" [disabled]="busy()">
+        Delete my review
+      </button>
+    }
+  </div>
+</form>

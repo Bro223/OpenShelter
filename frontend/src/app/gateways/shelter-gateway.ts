@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
-import type { ShelterDto, ShelterSourceFilter } from '../core/models';
+import type { CreateShelterRequest, ShelterDto, ShelterSourceFilter } from '../core/models';
 
 /**
  * The door to the /api/shelters controller group (01-TASK.md §4: gateways are
@@ -25,5 +25,14 @@ export class ShelterGateway {
   /** GET /api/shelters/{id} -> one ShelterDto, or a 404 ApiError. */
   get(id: number): Promise<ShelterDto> {
     return lastValueFrom(this.api.get<ShelterDto>(`/api/shelters/${id}`));
+  }
+
+  /**
+   * POST /api/shelters -> the created ShelterDto (201 + Location, body carries
+   * the full row). Verified accounts only (403 otherwise); the backend
+   * re-checks the Estonia bbox and field bounds (400).
+   */
+  create(request: CreateShelterRequest): Promise<ShelterDto> {
+    return lastValueFrom(this.api.post<ShelterDto>('/api/shelters', request));
   }
 }

@@ -1,0 +1,46 @@
+@if (isInputMode()) {
+  <div
+    class="rating-stars rating-stars--input"
+    role="radiogroup"
+    aria-label="Rating"
+  >
+    @for (star of starValues; track star) {
+      <button
+        #starBtn
+        type="button"
+        class="star-btn"
+        role="radio"
+        [attr.aria-checked]="isSelected(star)"
+        [attr.aria-label]="'Rate ' + star + (star === 1 ? ' star' : ' stars')"
+        [attr.tabindex]="tabIndexFor(star)"
+        [class.star-btn--active]="isSelected(star)"
+        [attr.data-value]="star"
+        (click)="pick(star)"
+        (keydown)="onStarKeydown($event, star)"
+      >
+        <span class="star-glyph" aria-hidden="true">{{ isSelected(star) ? '★' : '☆' }}</span>
+      </button>
+    }
+  </div>
+} @else {
+  <div
+    class="rating-stars rating-stars--display"
+    role="img"
+    [attr.aria-label]="ariaLabel()"
+  >
+    <span class="star-strip" aria-hidden="true">
+      @for (star of starValues; track star; let i = $index) {
+        <span class="star">
+          <span class="star__base" aria-hidden="true">★</span>
+          <span class="star__fill" [style.width.%]="fill(i)">★</span>
+        </span>
+      }
+    </span>
+    @if (rating() !== null) {
+      <!-- aria-hidden: the value is already announced by the container's
+           aria-label ("4.2 out of 5") — reading it again as text would
+           double-announce for screen-reader users (reviewer N4). -->
+      <span class="rating-value" aria-hidden="true">{{ ratingText() }}</span>
+    }
+  </div>
+}

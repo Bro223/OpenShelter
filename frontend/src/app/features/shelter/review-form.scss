@@ -1,0 +1,55 @@
+.review-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .panel-title {
+    font-size: 1.1rem;
+    font-weight: 650;
+    margin: 0;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border, #d4d9e0);
+    border-radius: 6px;
+    font: inherit;
+    resize: vertical;
+  }
+
+  .field-counter {
+    align-self: flex-end;
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #5b6472);
+    font-variant-numeric: tabular-nums;
+
+    &--over {
+      color: var(--color-error, #c0392b);
+    }
+  }
+
+  .field-error {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-error, #c0392b);
+  }
+
+  .panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

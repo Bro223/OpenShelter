@@ -5,7 +5,13 @@ import ee.sheltermap.persistence.AbstractPersistenceIT;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -43,6 +49,32 @@ class EmailTestControllerAllowlistIT extends AbstractPersistenceIT {
 
     @Autowired
     MockMvc mvc;
+
+    /**
+     * Captures mail instead of dialling out — the allowlist assertions must
+     * test the allow/deny logic, not the reachability of the real smtp-pulse
+     * relay (whose credentials come from .env). Without this the test made a
+     * live SMTP delivery and flaked whenever the relay hiccuped (mirrors the
+     * sibling {@code EmailTestControllerIT}).
+     */
+    @TestConfiguration
+    static class Config {
+        @Bean
+        @Primary
+        JavaMailSender javaMailSender() {
+            return new FakeJavaMailSender();
+        }
+    }
+
+    /** Capturing {@link JavaMailSender} — records the last message instead of dialling out. */
+    static class FakeJavaMailSender extends JavaMailSenderImpl {
+        SimpleMailMessage last;
+
+        @Override
+        public void send(SimpleMailMessage simpleMessage) {
+            this.last = simpleMessage;
+        }
+    }
 
     @Test
     void unlistedRecipientIsRejected() throws Exception {

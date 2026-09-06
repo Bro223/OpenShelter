@@ -1,10 +1,11 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard } from './core/guards';
+import { authGuard, guestGuard, verifiedGuard } from './core/guards';
 import { LoginPage } from './features/auth/login-page';
 import { RegisterPage } from './features/auth/register-page';
 import { ResetPage } from './features/auth/reset-page';
 import { MapPage } from './features/map/map-page';
-import { ShelterPlaceholderPage } from './features/shelter/shelter-placeholder-page';
+import { ShelterDetailPage } from './features/shelter/shelter-detail-page';
+import { SubmitShelterPage } from './features/shelter/submit-shelter-page';
 import { VerifyPage } from './features/account/verify-page';
 import { ContactChangePage } from './features/account/contact-change-page';
 
@@ -14,7 +15,8 @@ import { ContactChangePage } from './features/account/contact-change-page';
  *  - M3: /verify + /account (AuthGuard)
  *  - M4: the real Leaflet map replaces the /map placeholder
  *        + /shelters/:id stub (public) — marker/row navigation lands here
- *  - M5: the real /shelters/:id detail page replaces the stub, /submit (AuthGuard + VerifiedGuard)
+ *  - M5: the real /shelters/:id detail page replaces the stub (still public —
+ *        the review area branches in-component), /submit (AuthGuard + VerifiedGuard)
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'map' },
@@ -24,8 +26,10 @@ export const routes: Routes = [
   { path: 'reset', canActivate: [guestGuard], component: ResetPage },
   { path: 'verify', canActivate: [authGuard], component: VerifyPage },
   { path: 'account', canActivate: [authGuard], component: ContactChangePage },
-  // M5 will replace ShelterPlaceholderPage with the real ShelterDetailPage
-  // (same path — no route change at that point).
-  { path: 'shelters/:id', component: ShelterPlaceholderPage },
+  // Public: anonymous visitors see the detail without the review controls;
+  // the page itself branches on auth/verification (design decision 2).
+  { path: 'shelters/:id', component: ShelterDetailPage },
+  // Verified accounts only — mirrors the backend 403 (design decision 5).
+  { path: 'submit', canActivate: [authGuard, verifiedGuard], component: SubmitShelterPage },
   { path: '**', redirectTo: 'map' },
 ];

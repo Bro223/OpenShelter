@@ -1,4 +1,4 @@
-import { LeafletService, ESTONIA_CENTER, ESTONIA_ZOOM } from './leaflet-service';
+import { LeafletService, ESTONIA_CENTER, ESTONIA_ZOOM, ESTONIA_BOUNDS, inEstonia } from './leaflet-service';
 import type { ShelterDto } from '../../core/models';
 
 function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'>): ShelterDto {
@@ -42,6 +42,23 @@ function clickMarker(container: HTMLElement, name: string): void {
   }
   marker.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
+
+describe('inEstonia (client-side bbox pre-check)', () => {
+  it('accepts points inside the box and rejects the edges outside', () => {
+    expect(inEstonia(ESTONIA_CENTER[0], ESTONIA_CENTER[1])).toBe(true);
+    // Boundary values are inclusive (the backend's GeoPoint.inEstonia is too).
+    expect(inEstonia(ESTONIA_BOUNDS.minLat, ESTONIA_BOUNDS.minLng)).toBe(true);
+    expect(inEstonia(ESTONIA_BOUNDS.maxLat, ESTONIA_BOUNDS.maxLng)).toBe(true);
+    expect(inEstonia(ESTONIA_BOUNDS.minLat - 0.01, ESTONIA_CENTER[1])).toBe(false);
+    expect(inEstonia(ESTONIA_BOUNDS.maxLat + 0.01, ESTONIA_CENTER[1])).toBe(false);
+    expect(inEstonia(ESTONIA_CENTER[0], ESTONIA_BOUNDS.minLng - 0.01)).toBe(false);
+    expect(inEstonia(ESTONIA_CENTER[0], ESTONIA_BOUNDS.maxLng + 0.01)).toBe(false);
+    // The open sea west of Saaremaa is outside.
+    expect(inEstonia(58.6, 20.0)).toBe(false);
+    // Non-finite garbage is rejected (bad numeric input).
+    expect(inEstonia(Number.NaN, 25)).toBe(false);
+  });
+});
 
 describe('LeafletService', () => {
   let container: HTMLElement;
@@ -117,6 +134,41 @@ describe('LeafletService', () => {
     // Still exactly one map instance (the second create was a no-op).
     expect(container.classList.contains('leaflet-container')).toBe(true);
     expect(container.querySelectorAll('.leaflet-map-pane')).toHaveLength(1);
+  });
+
+  it('a map-surface click invokes the mapClick callback with [lat, lng] (M5 mini-map)', () => {
+    const onMapClick = vi.fn();
+    service.mapClick = onMapClick;
+
+    // Click the map pane (leaflet translates the DOM click into a latlng).
+    const pane = container.querySelector('.leaflet-map-pane') as HTMLElement;
+    pane.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 10, clientY: 10 }));
+
+    expect(onMapClick).toHaveBeenCalledTimes(1);
+    const [lat, lng] = onMapClick.mock.calls[0] as unknown as [number, number];
+    expect(Number.isFinite(lat)).toBe(true);
+    expect(Number.isFinite(lng)).toBe(true);
+  });
+
+  it('setPick drops a single pick marker, re-centers it on update, removes on null', () => {
+    service.setPick(58.8, 25.0);
+    const pick = () => container.querySelectorAll<HTMLElement>('.shelter-marker--pick');
+    expect(pick()).toHaveLength(1);
+    expect(pick()[0].classList.contains('leaflet-marker-icon')).toBe(true);
+
+    // Moving the pick never duplicates the marker.
+    service.setPick(59.1, 26.1);
+    expect(pick()).toHaveLength(1);
+
+    // null args remove it.
+    service.setPick(null, null);
+    expect(pick()).toHaveLength(0);
+  });
+
+  it('setPick is a safe no-op before create (null map guard)', () => {
+    const uncreated = new LeafletService();
+    expect(() => uncreated.setPick(58.8, 25.0)).not.toThrow();
+    expect(() => uncreated.setPick(null, null)).not.toThrow();
   });
 
   it('destroy removes the map; a later visit gets a fresh map without stale markers', () => {

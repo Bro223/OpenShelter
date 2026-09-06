@@ -108,4 +108,45 @@ describe('ShelterGateway', () => {
 
     await expect(gateway.get(999)).rejects.toBe(failure);
   });
+
+  it('create POSTs the typed request body to /api/shelters and returns the new row', async () => {
+    api.post.mockReturnValue(of(USER_ROW));
+
+    const row = await gateway.create({
+      name: 'Community Cellar',
+      latitude: 59.437,
+      longitude: 24.754,
+      description: 'Neighbourhood basement',
+      capacity: 12,
+    });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/shelters', {
+      name: 'Community Cellar',
+      latitude: 59.437,
+      longitude: 24.754,
+      description: 'Neighbourhood basement',
+      capacity: 12,
+    });
+    expect(row).toEqual(USER_ROW);
+  });
+
+  it('create rejects with ApiError when the backend rejects the point (400)', async () => {
+    const failure = ApiError.fromHttp(
+      400,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 400,
+        error: 'Bad Request',
+        message: 'shelter location must be inside Estonia',
+        path: '/api/shelters',
+      },
+      '/api/shelters',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(
+      gateway.create({ name: 'Open Water', latitude: 54.5, longitude: 25.0 }),
+    ).rejects.toBe(failure);
+  });
 });

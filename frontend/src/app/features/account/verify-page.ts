@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AuthStore } from '../../core/auth-store';
 import { VerifyGateway } from '../../gateways/verify-gateway';
@@ -80,8 +80,26 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
 export class VerifyPage {
   private readonly store = inject(AuthStore);
   private readonly verify = inject(VerifyGateway);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly auth = this.store;
+
+  /**
+   * Where to send the user once they are verified — set by
+   * {@link verifiedGuard} (and the review/submit prompts) as
+   * {@code /verify?returnUrl=…}. The login page already preserves the
+   * destination; the verify page must too (reviewer finding N1), so a user
+   * who verifies from a shelter detail or /submit lands back there instead of
+   * having to navigate manually. Null (no param / unsafe value) keeps the
+   * default post-verify actions.
+   */
+  protected readonly returnUrl = (() => {
+    const raw = this.route.snapshot.queryParamMap.get('returnUrl');
+    if (raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\')) {
+      return raw;
+    }
+    return null;
+  })();
 
   /** Panels still open — a level drops off once AuthStore knows it is verified. */
   protected readonly offered = computed<VerifyChannel[]>(() =>

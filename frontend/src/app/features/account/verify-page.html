@@ -85,8 +85,24 @@
         Your email and phone are verified — you can now submit shelters and write reviews.
       </p>
       <div class="panel-actions">
-        <a routerLink="/account" class="btn btn--primary">Manage account</a>
+        @if (returnUrl) {
+          <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
+        } @else {
+          <a routerLink="/account" class="btn btn--primary">Manage account</a>
+        }
         <a routerLink="/map" class="btn btn--ghost">Back to the map</a>
+      </div>
+    </section>
+  } @else if (auth.isVerified() && returnUrl) {
+    <!-- One claim is enough to review/submit (backend canWrite): a user
+         redirected here by verifiedGuard (e.g. from /submit) can continue
+         once any channel is verified instead of being forced to do both. -->
+    <section class="verify-panel verify-panel--done">
+      <p class="panel-copy">
+        You're verified — you can submit shelters and write reviews.
+      </p>
+      <div class="panel-actions">
+        <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
       </div>
     </section>
   }

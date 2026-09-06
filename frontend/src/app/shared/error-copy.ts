@@ -24,7 +24,7 @@ export const COPY = {
   accountSameValue: 'That is already the value on your account — the new one must be different.',
 } as const;
 
-export type ErrorKind = 'login' | 'register' | 'reset' | 'verify' | 'account';
+export type ErrorKind = 'login' | 'register' | 'reset' | 'verify' | 'account' | 'shelter';
 
 export function bannerMessage(error: unknown, kind: ErrorKind): string {
   const api = error instanceof ApiError ? error : toApiError(error);
@@ -57,6 +57,8 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       if (kind === 'account') {
         return COPY.accountBadCode;
       }
+      // Shelter detail/reviews/submit: echo the backend message (it is the
+      // honest user-facing text for 400/403/409 there).
       return api.message || 'Please check your input and try again.';
     case 409:
       return api.message || 'That value is already in use.';

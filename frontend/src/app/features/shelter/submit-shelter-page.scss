@@ -1,0 +1,88 @@
+.submit-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 44rem;
+}
+
+.back-link {
+  align-self: flex-start;
+  color: var(--color-primary, #0b5cad);
+  text-decoration: none;
+  font-size: 0.9rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.verify-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-muted, #5f5f66);
+
+  a {
+    color: var(--color-primary, #0b5cad);
+  }
+}
+
+.submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  .btn {
+    align-self: flex-start;
+  }
+}
+
+.location-field {
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--color-border, #d8d8dd);
+  border-radius: 8px;
+
+  legend {
+    font-size: 0.9rem;
+    font-weight: 550;
+    padding: 0 6px;
+  }
+}
+
+.field-note {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--color-muted, #5f5f66);
+}
+
+.submit-map {
+  height: 260px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border, #d8d8dd);
+  margin-bottom: 10px;
+}
+
+.location-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.location-input {
+  flex: 1 1 140px;
+
+  label {
+    display: block;
+    font-size: 0.9rem;
+    font-weight: 550;
+    margin-bottom: 0.3rem;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--color-border, #d8d8dd);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+}
