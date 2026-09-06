@@ -15,90 +15,101 @@ database "Spring Boot /verify + /account" as API
 note over Person, API
   All endpoints below require a valid JWT (ApiInterceptor adds
   the Bearer token). Cooldown (60s) and daily cap (5) violations
-  return 429 -> surface the uniform ErrorResponse message.
+  both answer 429 with one generic backend message, so the client
+  copy cannot promise a precise wait - it says "wait a while"
+  (verified against the backend exception messages).
 end note
 
 == Verify a level (EMAIL first, then PHONE) ==
-Person -> VP : "Verify my email" (post-register banner / /verify)
-VP -> VG : request(EMAIL)
-VG -> AC : post<void>('/verify/request', {level: EMAIL})
+Person -> VP : open /verify (AuthGuard) or the shell's Verify link
+VP -> VG : request(level)
+VG -> AC : post<void>('/verify/request', {level})
 AC -> API : POST /verify/request
 alt 202 Accepted
   API --> AC : (empty body)
+  VP --> Person : code-entry phase - 8-char code (EMAIL) or 6-digit OTP (PHONE)
   note over VP
-    dev sender logs the code to the backend console;
-    smtp-pulse delivers it to the inbox. PHONE does the same
-    via DevSmsSender (console) or Twilio once credentials are set.
+    Dev senders log the code to the backend console ([DEV SMTP]/[DEV SMS]);
+    smtp-pulse / Twilio deliver for real once .env credentials are set.
   end note
-  VP --> Person : "enter the 6-char code / 6-digit OTP"
   Person -> VP : code
-  VP -> VG : confirm(EMAIL, code)
+  VP -> VG : confirm(level, code)
   VG -> AC : post<void>('/verify/confirm', {level, code})
   AC -> API : POST /verify/confirm
-  alt correct
-    API --> AC : 200 (claim persisted)
-    VP --> Person : verified - levels() includes EMAIL
+  alt correct (200 empty)
+    API --> AC : 200 (claim persisted backend-side)
+    VP -> AS : addLevel(level)   ' optimistic - no GET /me to re-read claims
+    VP --> Person : "your <channel> is verified" - the panel disappears
   else wrong/expired (400) or throttled (429)
-    API --> AC : ErrorResponse
-    VP --> Person : retry with remaining attempts
+    API --> AC : ErrorResponse (generic message)
+    VP --> Person : generic "invalid or expired" copy - stay on the code phase
   end
 else 409 AlreadyVerified
-  API --> AC : conflict
-  VP --> Person : already verified - hide the button
+  API --> AC : conflict (no code is sent, no throttle consumed)
+  VP -> AS : addLevel(level)     ' the server says the claim exists
+  VP --> Person : info notice "already verified" - never an error banner
 else 429 throttled
-  API --> AC : too many requests
-  VP --> Person : wait and retry
+  API --> AC : too many requests (cooldown OR daily cap)
+  VP --> Person : rate-limit copy, no auto-retry (resend = manual request again)
 end
 
 note over VP
-  Re-requesting an already-verified level -> 409 (M2 guard on the
-  backend: no code is sent, no throttle consumed). Confirm is
-  idempotent. UX: treat 409 on request as "you are verified".
+  SMART_ID is never offered - the backend rejects it with 400 (stub in v1).
+  Level state is SESSION-LOCAL: after a reload the page shows both buttons
+  again (no GET /me in v1 - reported gap); the first request re-discovers a
+  verified level via the 409 above and re-hides the panel.
 end note
 
-== Contact change: email -> phone SMS proof (cross-channel) ==
-Person -> CP : "change email to new@example.com" (in /account)
-CP -> AG : requestEmailChange(newEmail)
+== Contact change: email -> SMS proof to the current phone (cross-channel) ==
+Person -> CP : open /account (AuthGuard) -> Change email section
+CP -> AG : requestEmailChange(newEmail)   ' lowercased client-side
 AG -> AC : post<void>('/account/email-change/request', body)
 AC -> API : POST /account/email-change/request
 note over API
-  backend sends the OTP to the CURRENT PHONE (SMS), NOT to the
-  new email - stealing the mailbox alone cannot change it.
+  backend sends the OTP to the CURRENT PHONE (SMS), NOT to the new
+  email - stealing the mailbox alone cannot change the contact.
 end note
-API --> AC : 202 Accepted
-CP --> Person : "enter the SMS code sent to +372... "
-Person -> CP : code
+API --> AC : 202 Accepted (empty - the backend never echoes the destination)
+CP --> Person : "we sent an SMS code to the phone number on your account"
+note over CP
+  Copy names the CHANNEL only: without GET /me there is no masked
+  "+372..." to truthfully show (md examples were aspirational - gap).
+end note
+Person -> CP : 6-digit code
 CP -> AG : confirmEmailChange(code)
 AG -> AC : post<void>('/account/email-change/confirm', {code})
 AC -> API : POST /account/email-change/confirm
 API --> AC : 200 OK
-CP --> Person : email updated
+CP --> Person : success - shows the NEW email (known locally)
 note over CP
-  duplicate new email -> 409; same as current -> 400;
-  sessions are NOT revoked by contact change (only a password
-  reset revokes all refresh tokens).
+  request 400 "same as current" -> "the new one must be different" copy;
+  duplicate target 409 -> backend message inline; wrong/expired/no-pending
+  code on confirm -> generic copy. Sessions are NOT revoked by a contact
+  change (only a password reset revokes refresh tokens).
 end note
 
-== Contact change: phone -> email code proof (cross-channel) ==
-Person -> CP : "change phone to +3725..." (in /account)
+== Contact change: phone -> email proof to the current address (cross-channel) ==
+Person -> CP : /account -> Change phone section
 CP -> AG : requestPhoneChange(newPhone)
 AG -> AC : post<void>('/account/phone-change/request', body)
 AC -> API : POST /account/phone-change/request
 note over API
-  backend sends the OTP to the CURRENT EMAIL - losing the SIM
-  alone cannot let an attacker re-route verification texts.
+  backend sends the OTP to the CURRENT EMAIL - losing the SIM alone
+  cannot re-route verification texts.
 end note
 API --> AC : 202 Accepted
-CP --> Person : "enter the code sent to current@email.com"
-Person -> CP : code
+CP --> Person : "we sent an email code to the email address on your account"
+Person -> CP : 6-digit code
 CP -> AG : confirmPhoneChange(code)
 AG -> AC : post<void>('/account/phone-change/confirm', {code})
 AC -> API : POST /account/phone-change/confirm
 API --> AC : 200 OK
-CP --> Person : phone updated (E.164 normalized)
+CP --> Person : success - shows the NEW phone
 
-note over AS
-  After any successful confirm the account page re-reads the
-  profile so the UI shows the new contact immediately.
+note over AS, CP
+  M3 as-built: AuthStore.levels() is an optimistic mirror (confirm success or
+  request-409 adds the level; login/logout/cleared session resets it). The
+  account page never shows a server-truthful "current email/phone" before a
+  change - candidate backend follow-up: GET /me (04-CONTEXT decision 3).
 end note
 @enduml

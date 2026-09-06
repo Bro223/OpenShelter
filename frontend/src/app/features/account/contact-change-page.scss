@@ -1,0 +1,74 @@
+:host {
+  display: block;
+}
+
+.account-card {
+  max-width: 36rem;
+  margin: 1rem auto 0;
+}
+
+.verify-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border: 1px solid #b9d6f5;
+  background: #e8f1fb;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  color: #15476e;
+  font-size: 0.95rem;
+}
+
+.session-note {
+  color: var(--color-muted);
+  font-size: 0.88rem;
+  margin: 0 0 1.5rem;
+}
+
+.change-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  background: #fff;
+}
+
+.panel-title {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+}
+
+.current-value {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.panel-copy {
+  margin: 0 0 1rem;
+}
+
+.proof-note {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  background: #f6f7f8;
+  border-left: 3px solid var(--color-primary);
+  padding: 0.55rem 0.8rem;
+  border-radius: 0 6px 6px 0;
+  margin: 0 0 1rem;
+}
+
+.field-note {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}

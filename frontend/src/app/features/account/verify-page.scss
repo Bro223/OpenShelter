@@ -1,0 +1,75 @@
+:host {
+  display: block;
+}
+
+.account-card {
+  max-width: 34rem;
+  margin: 1rem auto 0;
+}
+
+/* Per-channel verification status (derived from AuthStore.levels()). */
+.level-chips {
+  list-style: none;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0;
+  margin: 0 0 1.25rem;
+  flex-wrap: wrap;
+}
+
+.level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+
+  &--done {
+    border-color: #b7e3c4;
+    background: #e8f8ee;
+    color: #1a5b2d;
+  }
+}
+
+.level-chip__mark {
+  font-weight: 700;
+}
+
+.verify-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: #fff;
+}
+
+.panel-title {
+  font-size: 1.1rem;
+  margin: 0 0 0.35rem;
+}
+
+.panel-copy {
+  color: var(--color-muted);
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.field-note {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+}
+
+.verify-panel--done {
+  border-color: #b7e3c4;
+  background: #f4fcf6;
+}

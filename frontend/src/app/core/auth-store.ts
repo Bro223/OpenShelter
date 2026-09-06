@@ -1,14 +1,25 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { ApiError } from './api-error';
 import { AuthGateway } from '../gateways/auth-gateway';
-import type { RegisterRequest } from './models';
+import type { RegisterRequest, VerificationLevel } from './models';
 import { TokenStore } from './token-store';
 
 /**
  * The session store (03-CONTEXT-CORE-AUTH.md). Owns the session lifecycle:
  * silent refresh at boot, login/logout, and the single-flight refresh used by
- * the interceptor on 401. Pages/guards read `authenticated`; the backend has
- * no GET /me in v1, so no user profile is held here (levels() arrives in M3).
+ * the interceptor on 401. Pages/guards read `authenticated`.
+ *
+ * Verification levels (M3): the backend has no GET /me and the JWT carries
+ * only the user id — no endpoint returns the verified-claim set (04-CONTEXT
+ * decision 3). So `levels` is an OPTIMISTIC, session-lifetime mirror: it
+ * starts empty and grows only when this browser saw a confirm succeed, or a
+ * request came back 409 "already verified". It is deliberately NOT persisted
+ * and resets whenever the identity may change (login/logout/cleared session):
+ * a stale cache could wrongly hide the verify buttons, and there is no way to
+ * re-derive claims without the endpoint. Consequences are self-healing — after
+ * a reload the buttons reappear and a request to an already-verified level
+ * answers 409 without sending a code (backed by the backend's
+ * AlreadyVerifiedException) and re-marks the level here.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthStore {
@@ -20,6 +31,14 @@ export class AuthStore {
    * neutral header until then instead of flashing "logged out".
    */
   readonly initialized = signal<boolean>(false);
+
+  /**
+   * Verification levels THIS session has seen confirmed (EMAIL/PHONE). Read
+   * via `levels()` in templates; mutate ONLY through {@link addLevel}. Resets
+   * on login/logout/cleared session — see the class note for why it is not
+   * persisted. (SMART_ID is never added: the backend rejects it with 400.)
+   */
+  readonly levels = signal<VerificationLevel[]>([]);
 
   private readonly tokens = inject(TokenStore);
   private readonly authGateway = inject(AuthGateway);
@@ -87,11 +106,15 @@ export class AuthStore {
   /**
    * Log in with email-or-phone + password. Stores the returned pair and marks
    * the session authenticated. Throws ApiError on failure (401/429).
+   *
+   * Starts with an empty level set: a fresh login is a fresh identity, and the
+   * backend never tells us this account's verified claims (no GET /me).
    */
   async login(emailOrPhone: string, password: string): Promise<void> {
     const pair = await this.authGateway.login(emailOrPhone, password);
     this.tokens.setTokens(pair.accessToken, pair.refreshToken, pair.expiresIn);
     this.authenticated.set(true);
+    this.levels.set([]);
   }
 
   /**
@@ -152,5 +175,30 @@ export class AuthStore {
   private clearSession(): void {
     this.tokens.clear();
     this.authenticated.set(false);
+    this.levels.set([]);
+  }
+
+  /**
+   * True once at least one channel (EMAIL or PHONE) is verified. Mirrors the
+   * backend VerificationRules: any single level grants SUBMIT_SHELTER.
+   *
+   * Caveat: purely session-local knowledge — on a fresh reload this is false
+   * until a request 409 "already verified" re-marks the level (see class note).
+   */
+  isVerified(): boolean {
+    return this.levels().includes('EMAIL') || this.levels().includes('PHONE');
+  }
+
+  /**
+   * Optimistic claim add (04-CONTEXT decision 3). Called by the pages after a
+   * successful confirm AND after a request that answered 409 "already
+   * verified" — both mean the backend holds the claim. Dedupes; SMART_ID is
+   * ignored (the backend rejects it as a stub, so it can never be verified).
+   */
+  addLevel(level: VerificationLevel): void {
+    if (level === 'SMART_ID' || this.levels().includes(level)) {
+      return;
+    }
+    this.levels.set([...this.levels(), level]);
   }
 }

@@ -266,4 +266,68 @@ describe('AuthStore', () => {
       expect(localStorage.getItem('os.refresh')).toBeNull();
     });
   });
+
+  describe('verification levels (M3)', () => {
+    it('starts empty and unverified', () => {
+      expect(store.levels()).toEqual([]);
+      expect(store.isVerified()).toBe(false);
+    });
+
+    it('addLevel(EMAIL) records the level and isVerified() turns true', () => {
+      store.addLevel('EMAIL');
+
+      expect(store.levels()).toEqual(['EMAIL']);
+      expect(store.isVerified()).toBe(true);
+    });
+
+    it('a single level (PHONE alone) is enough for isVerified()', () => {
+      store.addLevel('PHONE');
+
+      expect(store.isVerified()).toBe(true);
+    });
+
+    it('addLevel dedupes — re-adding an existing level does not grow the list', () => {
+      store.addLevel('EMAIL');
+      store.addLevel('EMAIL');
+
+      expect(store.levels()).toEqual(['EMAIL']);
+    });
+
+    it('SMART_ID is never added (the backend rejects it as a stub)', () => {
+      store.addLevel('SMART_ID');
+
+      expect(store.levels()).toEqual([]);
+      expect(store.isVerified()).toBe(false);
+    });
+
+    it('logout resets the optimistic levels', async () => {
+      store.addLevel('EMAIL');
+      gateway.logout.mockResolvedValue(undefined);
+
+      await store.logout();
+
+      expect(store.levels()).toEqual([]);
+      expect(store.isVerified()).toBe(false);
+    });
+
+    it('a fresh login starts a fresh identity — levels do not carry over', async () => {
+      store.addLevel('EMAIL');
+      gateway.login.mockResolvedValue(PAIR);
+
+      await store.login('other@example.ee', 's3cret!');
+
+      expect(store.levels()).toEqual([]);
+      expect(store.isVerified()).toBe(false);
+    });
+
+    it('a failed mid-session refresh (session cleared) also drops the levels', async () => {
+      store.addLevel('EMAIL');
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      gateway.refresh.mockRejectedValue(expiredRefreshError());
+
+      await expect(store.refresh()).resolves.toBe(false);
+
+      expect(store.levels()).toEqual([]);
+    });
+  });
 });

@@ -37,6 +37,8 @@ describe('PageShell', () => {
           { path: 'map', component: MapStub },
           { path: 'login', component: MapStub },
           { path: 'register', component: MapStub },
+          { path: 'verify', component: MapStub },
+          { path: 'account', component: MapStub },
         ]),
         { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
       ],
@@ -77,6 +79,39 @@ describe('PageShell', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.textContent).toContain('Log out');
     expect(element.textContent).not.toContain('Log in');
+  });
+
+  it('an authenticated user gets Account + Verify links (Verify while no level is known)', async () => {
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('a[href="/account"]')).not.toBeNull();
+    // No GET /me -> a fresh session knows no verified level, so Verify shows.
+    expect(element.querySelector('a[href="/verify"]')).not.toBeNull();
+  });
+
+  it('hides the Verify link once a level is known verified in this session', async () => {
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    store.addLevel('EMAIL');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('a[href="/verify"]')).toBeNull();
+    expect(element.querySelector('a[href="/account"]')).not.toBeNull();
+  });
+
+  it('guests never see the Account/Verify links', async () => {
+    await store.init();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('a[href="/account"]')).toBeNull();
+    expect(element.querySelector('a[href="/verify"]')).toBeNull();
   });
 
   it('logout revokes the session and returns to /map', async () => {

@@ -56,15 +56,23 @@ package "core" {
   class AuthStore {
     - authenticated : signal<boolean>
     - initialized : signal<boolean>
-    ' NO user payload in v1 - the backend has no GET /me
-    ' (documented follow-up); levels()/addLevel() land in M3
-    ' silent refresh at boot: init()
+    - levels : signal<VerificationLevel[]>
+    ' M3 as-built: OPTIMISTIC verified claims (EMAIL/PHONE only; SMART_ID is a
+    ' backend stub and never added). No GET /me in v1, so nothing is
+    ' server-provided - levels grow on confirm success (addLevel) or when a
+    ' verify/request answers 409 "already verified"; they reset on
+    ' login/logout/cleared session and are NOT persisted (a stale cache could
+    ' wrongly hide the verify buttons). Consequence: a reload forgets claims;
+    ' the first send attempt re-discovers them via the 409 (no code is sent).
     + init() : Promise<void>
     + register(request: RegisterRequest) : Promise<void>
     + login(emailOrPhone, password) : Promise<void>
     + logout() : Promise<void>
     ' single-flight: concurrent 401s share one refresh
     + refresh(): Promise<boolean>
+    + addLevel(level) : void        ' optimistic, dedupes; SMART_ID ignored
+    + isVerified(): boolean         ' levels has EMAIL or PHONE (backend: any
+                                    ' single level grants SUBMIT_SHELTER)
   }
 
   class ApiInterceptor {
@@ -186,8 +194,7 @@ note top of ApiClient
   Typed models live in core/models.ts - field-for-field mirror of the
   backend DTOs (02-CONTEXT-API.md). One caveat fixed against the real
   backend: ShelterDto.address is string|null (USER rows store no
-  address) even though the md types it string. M1 also keeps the full
-  model set; only AuthGateway exists until M3-M5 add the rest.
+  address) even though the md types it string.
 end note
 
 LoginPage --> AuthStore
@@ -198,6 +205,11 @@ RegisterPage --> BannerComponent
 ResetPage --> BannerComponent
 VerifyPage --> VerifyGateway
 ContactChangePage --> AccountGateway
+' M3 wiring: both account pages read AuthStore (levels / verify CTA)
+VerifyPage --> AuthStore
+ContactChangePage --> AuthStore
+VerifyPage --> BannerComponent
+ContactChangePage --> BannerComponent
 MapPage --> ShelterGateway
 MapPage --> LeafletService
 ShelterDetailPage --> ShelterGateway
@@ -207,6 +219,11 @@ ReviewForm --> ReviewGateway
 RatingStars --> ReviewForm
 PageShell --> AuthStore
 PageShell --> Router
+
+note bottom of PageShell
+  M3: the shell adds authenticated nav links - "Account" (/account) always,
+  plus "Verify" (/verify) while AuthStore.isVerified() is false.
+end note
 
 note bottom of MapPage
   M2 renders a placeholder only - the Leaflet map, source
@@ -226,8 +243,8 @@ note as Routes
   /login             GuestGuard   -> LoginPage      (M2)
   /register          GuestGuard   -> RegisterPage   (M2)
   /reset             GuestGuard   -> ResetPage      (M2)
-  /verify            AuthGuard    -> VerifyPage     (M3)
-  /account           AuthGuard    -> ContactChangePage(M3)
+  /verify            AuthGuard    -> VerifyPage        (M3 DONE)
+  /account           AuthGuard    -> ContactChangePage (M3 DONE)
   /shelters/:id      public       -> ShelterDetailPage(M5)
   /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5)
 end note

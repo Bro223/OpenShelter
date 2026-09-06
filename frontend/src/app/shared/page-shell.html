@@ -2,6 +2,12 @@
   <a class="brand" routerLink="/map">OpenShelter</a>
   <nav class="shell-nav" aria-label="Primary">
     <a routerLink="/map" routerLinkActive="active">Shelter map</a>
+    @if (auth.initialized() && auth.authenticated()) {
+      @if (!auth.isVerified()) {
+        <a routerLink="/verify" routerLinkActive="active">Verify</a>
+      }
+      <a routerLink="/account" routerLinkActive="active">Account</a>
+    }
   </nav>
   <div class="shell-actions">
     @if (auth.initialized()) {
