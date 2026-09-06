@@ -4,8 +4,8 @@
   <header>
     <h1 class="page-title">Submit a shelter</h1>
     <p class="page-subtitle">
-      Add a community bomb shelter to the map. It appears immediately (no moderator —
-      the rating system is the moderation).
+      Add a community bomb shelter to the map. It appears immediately (no moderator — the rating
+      system is the moderation).
     </p>
   </header>
 
@@ -30,7 +30,11 @@
       />
       @if (name().touched && name().invalid) {
         <p class="field-error">
-          {{ name().errors?.['required'] ? 'A name is required.' : 'Name must be 200 characters or fewer.' }}
+          {{
+            name().errors?.['required']
+              ? 'A name is required.'
+              : 'Name must be 200 characters or fewer.'
+          }}
         </p>
       }
     </div>

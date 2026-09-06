@@ -63,11 +63,9 @@
                 <div class="review__head">
                   <span class="review__author">{{ review.authorName }}</span>
                   <app-rating-stars [rating]="review.rating" />
-                  <time
-                    class="review__date"
-                    [attr.datetime]="review.createdAt"
-                    >{{ review.createdAt | date: 'medium' }}</time
-                  >
+                  <time class="review__date" [attr.datetime]="review.createdAt">{{
+                    review.createdAt | date: 'medium'
+                  }}</time>
                 </div>
                 @if (review.comment) {
                   <p class="review__comment">{{ review.comment }}</p>

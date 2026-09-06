@@ -7,11 +7,7 @@
 
   <div class="field">
     <span class="field-label" id="review-rating-label">Rating (1–5 stars)</span>
-    <app-rating-stars
-      mode="input"
-      [selected]="ratingValue()"
-      (selectionChange)="onStars($event)"
-    />
+    <app-rating-stars mode="input" [selected]="ratingValue()" (selectionChange)="onStars($event)" />
     @if (ratingMissing()) {
       <p class="field-error">Please pick a rating from 1 to 5 stars.</p>
     }
@@ -34,15 +30,16 @@
   </div>
 
   <div class="panel-actions">
-    <button
-      type="submit"
-      class="btn btn--primary"
-      [disabled]="!canSave() || busy()"
-    >
+    <button type="submit" class="btn btn--primary" [disabled]="!canSave() || busy()">
       {{ mode() === 'edit' ? 'Update review' : 'Save review' }}
     </button>
     @if (mode() === 'edit') {
-      <button type="button" class="btn btn--ghost btn--danger" (click)="onDelete()" [disabled]="busy()">
+      <button
+        type="button"
+        class="btn btn--ghost btn--danger"
+        (click)="onDelete()"
+        [disabled]="busy()"
+      >
         Delete my review
       </button>
     }

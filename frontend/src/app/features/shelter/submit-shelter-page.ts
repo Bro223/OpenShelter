@@ -21,12 +21,7 @@ import { toApiError } from '../../core/api-error';
 import type { CreateShelterRequest } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import {
-  ESTONIA_CENTER,
-  ESTONIA_ZOOM,
-  inEstonia,
-  LeafletService,
-} from '../map/leaflet-service';
+import { ESTONIA_CENTER, ESTONIA_ZOOM, inEstonia, LeafletService } from '../map/leaflet-service';
 import { BannerComponent } from '../../shared/banner.component';
 
 /** The capacity bounds (backend CreateShelterRequest: 1..100_000). */
@@ -121,7 +116,10 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
           (c) => (String(c.value ?? '').trim() === '' ? { blank: true } : null),
         ],
       }),
-      description: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(2000)] }),
+      description: new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.maxLength(2000)],
+      }),
       capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
       latitude: new FormControl<number | null>(null),
       longitude: new FormControl<number | null>(null),

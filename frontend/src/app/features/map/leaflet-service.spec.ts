@@ -1,4 +1,10 @@
-import { LeafletService, ESTONIA_CENTER, ESTONIA_ZOOM, ESTONIA_BOUNDS, inEstonia } from './leaflet-service';
+import {
+  LeafletService,
+  ESTONIA_CENTER,
+  ESTONIA_ZOOM,
+  ESTONIA_BOUNDS,
+  inEstonia,
+} from './leaflet-service';
 import type { ShelterDto } from '../../core/models';
 
 function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'>): ShelterDto {

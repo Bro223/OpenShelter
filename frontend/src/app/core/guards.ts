@@ -73,10 +73,7 @@ export const guestGuard: CanActivateFn = async (): Promise<boolean | UrlTree> =>
  * claim goes to /verify?returnUrl=<current> (the form becomes reachable
  * once a claim lands this session).
  */
-export const verifiedGuard: CanActivateFn = async (
-  _route,
-  state,
-): Promise<boolean | UrlTree> => {
+export const verifiedGuard: CanActivateFn = async (_route, state): Promise<boolean | UrlTree> => {
   const store = inject(AuthStore);
   const router = inject(Router);
   await decideAfterInit(store);

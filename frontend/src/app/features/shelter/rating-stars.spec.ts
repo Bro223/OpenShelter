@@ -36,8 +36,8 @@ describe('RatingStars', () => {
   }
 
   function fills(): number[] {
-    return stars().map(
-      (s) => Number((s.querySelector('.star__fill') as HTMLElement).style.width.replace('%', '')),
+    return stars().map((s) =>
+      Number((s.querySelector('.star__fill') as HTMLElement).style.width.replace('%', '')),
     );
   }
 
@@ -46,7 +46,9 @@ describe('RatingStars', () => {
   }
 
   function key(btn: HTMLElement, keyName: string): void {
-    btn.dispatchEvent(new KeyboardEvent('keydown', { key: keyName, bubbles: true, cancelable: true }));
+    btn.dispatchEvent(
+      new KeyboardEvent('keydown', { key: keyName, bubbles: true, cancelable: true }),
+    );
     fixture.detectChanges();
   }
 

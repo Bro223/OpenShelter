@@ -131,6 +131,8 @@ export class RatingStars {
   }
 
   private focusStar(value: number): void {
-    this.starBtns().find((btn) => Number(btn.nativeElement.dataset['value']) === value)?.nativeElement.focus();
+    this.starBtns()
+      .find((btn) => Number(btn.nativeElement.dataset['value']) === value)
+      ?.nativeElement.focus();
   }
 }

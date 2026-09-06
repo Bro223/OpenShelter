@@ -18,7 +18,13 @@ class FakeShelterGateway {
     if (row === undefined) {
       throw ApiError.fromHttp(
         404,
-        { timestamp: 't', status: 404, error: 'Not Found', message: 'Shelter not found', path: `x` },
+        {
+          timestamp: 't',
+          status: 404,
+          error: 'Not Found',
+          message: 'Shelter not found',
+          path: `x`,
+        },
         `/api/shelters/${id}`,
       );
     }
@@ -77,7 +83,9 @@ function fakeAuthStore(
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
     addLevel: (level: VerificationLevel) =>
-      level !== 'SMART_ID' && !levels().includes(level) ? levels.update((l) => [...l, level]) : undefined,
+      level !== 'SMART_ID' && !levels().includes(level)
+        ? levels.update((l) => [...l, level])
+        : undefined,
   } as unknown as AuthStore;
 }
 
@@ -180,10 +188,17 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     if (!debug) {
       throw new Error('ShelterDetailPage not rendered');
     }
-    return { page: debug.componentInstance, element: debug.nativeElement as HTMLElement, fixture, router };
+    return {
+      page: debug.componentInstance,
+      element: debug.nativeElement as HTMLElement,
+      fixture,
+      router,
+    };
   }
 
-  async function settle(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): Promise<void> {
+  async function settle(
+    fixture: ReturnType<typeof TestBed.createComponent<PageShell>>,
+  ): Promise<void> {
     await fixture.whenStable();
     fixture.detectChanges();
     await Promise.resolve();
@@ -230,7 +245,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Registry');
       expect(text(fixture)).toContain('Tornimäe 1, Tallinn');
       // Rating summary: stars + numeric + count.
-      expect(element.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('4.5 out of 5');
+      expect(element.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
+        '4.5 out of 5',
+      );
       expect(text(fixture)).toContain('4.5');
       expect(text(fixture)).toContain('2 reviews');
       // No reviews were seeded for this shelter — the empty state shows.
@@ -335,9 +352,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(form).not.toBeNull();
       expect(starButtons(element)).toHaveLength(5);
       expect(form.querySelector('#review-comment')).not.toBeNull();
-      expect((form.querySelector('button[type="submit"]') as HTMLButtonElement).textContent).toContain(
-        'Save review',
-      );
+      expect(
+        (form.querySelector('button[type="submit"]') as HTMLButtonElement).textContent,
+      ).toContain('Save review');
     });
   });
 
@@ -401,19 +418,27 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // Backend semantics: author has one review server-side; a POST by the
       // same user updates it in place (single row, changed rating).
       reviewGateway.rows.set(1, [
-        { id: 11, authorName: 'Marek T.', rating: 2, comment: 'Old take', createdAt: '2025-09-01T08:00:00Z' },
-      ]);
-      reviewGateway.add = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
-        const updated: ShelterReviewDto = {
+        {
           id: 11,
           authorName: 'Marek T.',
-          rating,
-          comment,
+          rating: 2,
+          comment: 'Old take',
           createdAt: '2025-09-01T08:00:00Z',
-        };
-        reviewGateway.rows.set(shelterId, [updated]);
-        return updated;
-      });
+        },
+      ]);
+      reviewGateway.add = vi.fn(
+        async (shelterId: number, rating: number, comment: string | null) => {
+          const updated: ShelterReviewDto = {
+            id: 11,
+            authorName: 'Marek T.',
+            rating,
+            comment,
+            createdAt: '2025-09-01T08:00:00Z',
+          };
+          reviewGateway.rows.set(shelterId, [updated]);
+          return updated;
+        },
+      );
 
       submitReview(element, 5, 'Rethought');
       await settle(fixture);
@@ -443,21 +468,23 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(elText(element)).toContain('No ratings yet');
 
       // Simulate the backend aggregate changing as a side effect of the POST.
-      reviewGateway.add = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
-        const row: ShelterReviewDto = {
-          id: 200,
-          authorName: 'Marek T.',
-          rating,
-          comment,
-          createdAt: '2025-09-10T09:30:00Z',
-        };
-        reviewGateway.rows.set(shelterId, [row]);
-        shelterGateway.rows.set(
-          shelterId,
-          registryShelter({ reviewCount: 1, averageRating: rating }),
-        );
-        return row;
-      });
+      reviewGateway.add = vi.fn(
+        async (shelterId: number, rating: number, comment: string | null) => {
+          const row: ShelterReviewDto = {
+            id: 200,
+            authorName: 'Marek T.',
+            rating,
+            comment,
+            createdAt: '2025-09-10T09:30:00Z',
+          };
+          reviewGateway.rows.set(shelterId, [row]);
+          shelterGateway.rows.set(
+            shelterId,
+            registryShelter({ reviewCount: 1, averageRating: rating }),
+          );
+          return row;
+        },
+      );
 
       submitReview(element, 4, 'Solid spot');
       await settle(fixture);

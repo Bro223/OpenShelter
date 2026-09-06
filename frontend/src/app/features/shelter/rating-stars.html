@@ -1,9 +1,5 @@
 @if (isInputMode()) {
-  <div
-    class="rating-stars rating-stars--input"
-    role="radiogroup"
-    aria-label="Rating"
-  >
+  <div class="rating-stars rating-stars--input" role="radiogroup" aria-label="Rating">
     @for (star of starValues; track star) {
       <button
         #starBtn
@@ -23,11 +19,7 @@
     }
   </div>
 } @else {
-  <div
-    class="rating-stars rating-stars--display"
-    role="img"
-    [attr.aria-label]="ariaLabel()"
-  >
+  <div class="rating-stars rating-stars--display" role="img" [attr.aria-label]="ariaLabel()">
     <span class="star-strip" aria-hidden="true">
       @for (star of starValues; track star; let i = $index) {
         <span class="star">

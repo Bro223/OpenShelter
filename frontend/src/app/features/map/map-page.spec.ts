@@ -132,7 +132,9 @@ describe('MapPage', () => {
     return { page: debug.componentInstance, element: debug.nativeElement as HTMLElement, fixture };
   }
 
-  async function settle(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): Promise<void> {
+  async function settle(
+    fixture: ReturnType<typeof TestBed.createComponent<PageShell>>,
+  ): Promise<void> {
     await fixture.whenStable();
     fixture.detectChanges();
     await Promise.resolve();
@@ -145,9 +147,8 @@ describe('MapPage', () => {
 
   describe('map lifecycle (one instance per visit, no leaks between visits)', () => {
     it('destroys the map on route leave and renders a fresh map on return', async () => {
-      gateway.list.mockImplementation(
-        (source: ShelterSourceFilter) =>
-          Promise.resolve(source === 'USER' ? [BASEMENT] : ALL_ROWS),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'USER' ? [BASEMENT] : ALL_ROWS),
       );
       const { fixture } = await open('/map');
 
@@ -190,11 +191,10 @@ describe('MapPage', () => {
 
   describe('browse', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation(
-        (source: ShelterSourceFilter) =>
-          Promise.resolve(
-            source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
-          ),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(
+          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
+        ),
       );
     });
 
@@ -241,9 +241,12 @@ describe('MapPage', () => {
     });
 
     it('shows a loading indicator while fetching (no empty/error state meanwhile)', async () => {
-      gateway.list.mockImplementation(() => new Promise<ShelterDto[]>((resolve) => {
-        void resolve; // never settles
-      }));
+      gateway.list.mockImplementation(
+        () =>
+          new Promise<ShelterDto[]>((resolve) => {
+            void resolve; // never settles
+          }),
+      );
       const { element, fixture } = await open('/map');
 
       expect(text(fixture)).toContain('Loading shelters…');
@@ -290,8 +293,8 @@ describe('MapPage', () => {
     });
 
     it('shows an empty state (map stays usable) when no shelters match the filter', async () => {
-      gateway.list.mockImplementation(
-        (source: ShelterSourceFilter) => Promise.resolve(source === 'USER' ? [] : ALL_ROWS),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'USER' ? [] : ALL_ROWS),
       );
       const { element, fixture } = await open('/map');
       expect(text(fixture)).not.toContain('No shelters match this filter.');
@@ -324,15 +327,15 @@ describe('MapPage', () => {
 
   describe('selection sync & navigation', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation(
-        (source: ShelterSourceFilter) => Promise.resolve(source === 'ALL' ? ALL_ROWS : []),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? ALL_ROWS : []),
       );
     });
 
     it('a row click selects + flies the map, then opens the detail route', async () => {
       const { element, fixture } = await open('/map');
-      const tallinnRow = [...element.querySelectorAll<HTMLElement>('.shelter-row')].find(
-        (r) => r.textContent?.includes('Tallinn Central Shelter'),
+      const tallinnRow = [...element.querySelectorAll<HTMLElement>('.shelter-row')].find((r) =>
+        r.textContent?.includes('Tallinn Central Shelter'),
       ) as HTMLElement;
 
       tallinnRow.click();

@@ -265,7 +265,9 @@ describe('SubmitShelterPage (/submit)', () => {
       cap.dispatchEvent(new Event('input'));
       cap.dispatchEvent(new Event('blur'));
       fixture.detectChanges();
-      expect(element.textContent).toContain('Capacity must be a whole number between 1 and 100 000.');
+      expect(element.textContent).toContain(
+        'Capacity must be a whole number between 1 and 100 000.',
+      );
       (element.querySelector('form') as HTMLFormElement).requestSubmit();
       await settle(fixture);
     }

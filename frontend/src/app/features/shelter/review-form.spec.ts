@@ -140,9 +140,7 @@ describe('ReviewForm', () => {
     ]);
     expect(commentInput().value).toBe('Great shelter');
 
-    const deleteButton = host().querySelector(
-      'button.btn--danger',
-    ) as HTMLButtonElement;
+    const deleteButton = host().querySelector('button.btn--danger') as HTMLButtonElement;
     expect(deleteButton).not.toBeNull();
     deleteButton.click();
     fixture.detectChanges();

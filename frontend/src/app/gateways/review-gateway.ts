@@ -36,18 +36,20 @@ export class ReviewGateway {
    */
   add(shelterId: number, rating: number, comment: string | null): Promise<ShelterReviewDto> {
     return lastValueFrom(
-      this.api.post<ShelterReviewDto>(`/api/shelters/${shelterId}/reviews`, reviewBody(rating, comment)),
+      this.api.post<ShelterReviewDto>(
+        `/api/shelters/${shelterId}/reviews`,
+        reviewBody(rating, comment),
+      ),
     );
   }
 
   /** PUT /api/shelters/{id}/reviews/mine -> the updated own review (404 if absent). */
-  updateMine(
-    shelterId: number,
-    rating: number,
-    comment: string | null,
-  ): Promise<ShelterReviewDto> {
+  updateMine(shelterId: number, rating: number, comment: string | null): Promise<ShelterReviewDto> {
     return lastValueFrom(
-      this.api.put<ShelterReviewDto>(`/api/shelters/${shelterId}/reviews/mine`, reviewBody(rating, comment)),
+      this.api.put<ShelterReviewDto>(
+        `/api/shelters/${shelterId}/reviews/mine`,
+        reviewBody(rating, comment),
+      ),
     );
   }
 

@@ -60,7 +60,10 @@ describe('ReviewGateway', () => {
     const saved = await gateway.add(7, 5, 'Deep and dry');
 
     expect(api.post).toHaveBeenCalledTimes(1);
-    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reviews', { rating: 5, comment: 'Deep and dry' });
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reviews', {
+      rating: 5,
+      comment: 'Deep and dry',
+    });
     expect(saved).toEqual(REVIEW);
   });
 
