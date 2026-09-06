@@ -49,9 +49,7 @@ describe('LoginPage', () => {
     router = TestBed.inject(Router);
   });
 
-  async function open(
-    url: string,
-  ): Promise<{
+  async function open(url: string): Promise<{
     page: LoginPage;
     element: HTMLElement;
     fixture: ReturnType<typeof TestBed.createComponent<Host>>;

@@ -327,9 +327,7 @@ describe('SubmitShelterPage (/submit)', () => {
 
   it('shows the loading state while the create request is in flight', async () => {
     let resolveCreate: (shelter: ShelterDto) => void = () => {};
-    gateway.create.mockReturnValue(
-      new Promise<ShelterDto>((resolve) => (resolveCreate = resolve)),
-    );
+    gateway.create.mockReturnValue(new Promise<ShelterDto>((resolve) => (resolveCreate = resolve)));
     const { element, fixture } = await open();
     fillValidForm(element);
     fixture.detectChanges();

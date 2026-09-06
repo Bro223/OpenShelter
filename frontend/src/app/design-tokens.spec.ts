@@ -174,6 +174,8 @@ describe('design tokens (M6)', () => {
     // focus styles. Icon-only controls (star input) carry aria-labels —
     // asserted in rating-stars.spec.ts.
     expect(stylesCss).toContain(':focus-visible');
-    expect(stylesCss).toMatch(/a:focus-visible,\s*button:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible/);
+    expect(stylesCss).toMatch(
+      /a:focus-visible,\s*button:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible/,
+    );
   });
 });

@@ -19,6 +19,7 @@ running API — `mvn spring-boot:run` at the repo root, port 8080, with the dev 
 repo. This doc pack (`docs/`) is the last piece of M0.
 
 **Acceptance (verified)**
+
 - `npm start` serves the default page on `http://localhost:5173`.
 - `src/environments/environment.development.ts` exists with `apiUrl: 'http://localhost:8080'`.
 - No `frontend/.git` nested repository.
@@ -43,6 +44,7 @@ Unit tests for `ApiClient` error mapping, `TokenStore`, `AuthStore` refresh sing
 interceptor; register ≠ login (no auto-session).
 
 **Acceptance**
+
 - `ApiClient` maps HTTP 400/401/403/404/409/429 + network errors to `ApiError` (tested).
 - `AuthStore.init()`: no refresh token → anonymous; valid token → silent refresh rotates pair
   (fake gateway); expired → cleared.
@@ -69,6 +71,7 @@ DTOs — approve before M2.
 screen directs to login then `/verify` (M3); reset confirm on success → `/login`.
 
 **Acceptance**
+
 - Register → 201 → success view (no session). Register duplicate email → 409 inline error.
 - Login wrong password → generic banner (never "wrong password"); correct → redirected to
   `returnUrl` or `/map`.
@@ -97,6 +100,7 @@ four-step change flows (idle → form → proof-with-named-channel → success).
 429 → cooldown hint, no auto-retry; SMART_ID hidden; duplicate/same-value handled inline.
 
 **Acceptance**
+
 - Register → log in → `/verify`: request EMAIL → (dev sender logs code to backend console) →
   confirm code → level shows verified, button disappears. Same for PHONE.
 - Re-requesting a verified level → handled as "already verified" (409 mapped, no error noise).
@@ -126,6 +130,7 @@ component (mock gateway).
 wrapper); divIcon markers (no asset-path pitfall); map instance destroyed on page leave.
 
 **Acceptance**
+
 - `/map` (and `/`) shows the live Estonia shelter set from the running backend.
 - Filter chips refetch per source; REGISTRY vs USER markers visually distinct with a legend.
 - Clicking a marker/list row navigates to `/shelters/:id` (M5 stub route returns "coming in M5"
@@ -154,6 +159,7 @@ yet"; author-only server-enforced (no delete UI for others); USER/REGISTRY rende
 after write → refetch shelter.
 
 **Acceptance**
+
 - Detail page shows registry AND user shelters with correct null handling.
 - Anonymous review attempt → login prompt with returnUrl; unverified → verify banner.
 - Verified user: submit review → appears; re-submit (same user+shelter) → updates, not duplicates
@@ -187,6 +193,7 @@ build, token-storage tradeoff, deferrals incl. `GET /me`, `GET /reviews/mine`, p
 MapLibre, httpOnly cookies); `environment.ts` prod values documented; final `ng build` green.
 
 **Acceptance**
+
 - `ng build` (production) succeeds; `dist/` output sane.
 - All routes have loading + error states; keyboard-usable nav; no console errors in devtools on
   the happy path.

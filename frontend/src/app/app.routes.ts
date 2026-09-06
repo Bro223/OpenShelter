@@ -43,7 +43,12 @@ export const routes: Routes = [
     data: { title: 'Reset password' },
     canActivate: [titleGuard, guestGuard],
   },
-  { path: 'verify', component: VerifyPage, data: { title: 'Verify account' }, canActivate: [titleGuard, authGuard] },
+  {
+    path: 'verify',
+    component: VerifyPage,
+    data: { title: 'Verify account' },
+    canActivate: [titleGuard, authGuard],
+  },
   {
     path: 'account',
     component: ContactChangePage,

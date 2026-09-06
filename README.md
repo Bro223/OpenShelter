@@ -275,6 +275,7 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 A code-review pass over the completed Steps 0–6 fixed the following (each with tests):
 
 **High**
+
 - **Duplicate registration → 409** — `users.email` / `users.phone` are now UNIQUE (V3 migration);
   the API pre-checks and answers `409 Conflict` with the uniform `ErrorResponse` (race-safe via
   the DB constraint as backstop).
@@ -282,6 +283,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   the base URL is now `app.frontend.base-url` (`FRONTEND_BASE_URL` env var).
 
 **Medium**
+
 - **Atomic password reset** — hash update, token mark-used and session revocation now run in
   ONE transaction (a mid-way failure can no longer leave the token replayable).
 - **Atomic registry import** — the apply/upsert/delist phase runs in one transaction; the
@@ -299,6 +301,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   callers (`show-details: when-authorized`); SMTP reachability no longer flips the app DOWN.
 
 **Low**
+
 - Review add is upsert-safe under concurrency (unique-constraint race → update, not 500).
 - Concurrent verification confirms can't produce duplicate active claims (unique
   `(user_id, level)` on non-revoked claims); failed attempts are persisted so the limit holds
@@ -322,6 +325,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 ## Current state & known gaps
 
 **Done and working (production-grade):**
+
 - Auth (register/login/refresh/logout/password-reset) with Argon2id + JWT + rate limiting
 - **Verification over HTTP** (`POST /verify/request` + `/verify/confirm`, email/phone) — the
   write path is now reachable: verified users can submit shelters and review
@@ -332,6 +336,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 - Persistence (Flyway V1–V5, JPA, `ddl-auto=validate`), uniform error handling
 
 **Known gaps / next steps:**
+
 1. **E-mail delivery is dev console by default** (`DevSmtpSender` logs messages). Real SMTP is
    implemented (`SmtpPulseSmtpSender`) — enable with `MAIL_PROVIDER=smtp-pulse`,
    `SMTP_USERNAME=…`, `SMTP_PASSWORD=…` (smtp-pulse.com:587). **SMS delivery** needs real
