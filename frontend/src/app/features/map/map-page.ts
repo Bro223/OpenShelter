@@ -9,12 +9,12 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
 import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
-import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService } from './leaflet-service';
+import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService, SHELTER_ZOOM } from './leaflet-service';
 
 /** The three source-filter chips (server-side `?source=` refetch, design 4). */
 const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
@@ -35,9 +35,12 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
  * ngOnDestroy so no map or listener leaks between visits (zoneless has no
  * safety net).
  *
- * Selection sync (design decision 5): a shared selectedShelterId signal — a
- * row click selects + flies the map (its RouterLink then opens the detail
- * stub), a marker click selects the row + navigates.
+ * Selection & zoom (design decision 5): a shared selectedId signal — a row
+ * click OR a marker click SELECTS the shelter and flies the map to it at
+ * street level (SHELTER_ZOOM). The user STAYS on /map: the zoom is the
+ * payoff of the click, not a navigation. Opening the full /shelters/{id}
+ * page is a separate explicit step — the selected row grows a "View
+ * details" link, the only sidebar element that navigates.
  */
 @Component({
   selector: 'app-map-page',
@@ -50,7 +53,6 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
 export class MapPage implements AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
   private readonly leaflet = inject(LeafletService);
-  private readonly router = inject(Router);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
@@ -100,19 +102,30 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Row click: select (highlight) + fly the map to the shelter. Navigation
-   * to /shelters/{id} is the row's RouterLink, which follows the selection.
-   * Public so specs can drive it (M2 page convention).
+   * Row click: select (highlight) + fly the map to the shelter at street
+   * level. Does NOT navigate — the selected row's "View details" link is
+   * the explicit step to /shelters/{id} (design decision 5). Public so
+   * specs can drive it (M2 page convention).
    */
   selectShelter(shelter: ShelterDto): void {
     this.selectedId.set(shelter.id);
-    this.leaflet.flyTo(shelter.latitude, shelter.longitude);
+    this.leaflet.flyTo(shelter.latitude, shelter.longitude, SHELTER_ZOOM);
   }
 
-  /** Marker click (LeafletService callback): select the row + navigate. */
+  /**
+   * Marker click (LeafletService callback): select + zoom exactly like a
+   * row click — the user stays on the map looking at the clicked point.
+   * Markers are rendered from `sorted()`, so the id lookup runs over the
+   * same list. A not-found id (a marker click racing a filter refetch) just
+   * selects without a fly — the map already shows that point.
+   */
   private onMarkerClick(id: number): void {
-    this.selectedId.set(id);
-    void this.router.navigate(['/shelters', id]);
+    const row = this.sorted().find((s) => s.id === id);
+    if (row) {
+      this.selectShelter(row);
+    } else {
+      this.selectedId.set(id);
+    }
   }
 
   protected sourceLabel(shelter: ShelterDto): string {

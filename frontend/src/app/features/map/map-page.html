@@ -50,10 +50,15 @@
         <ul class="shelter-list" aria-label="Shelters">
           @for (shelter of sorted(); track shelter.id) {
             <li>
-              <a
+              <!-- Row = button (a real action: select + zoom, keyboard
+                   operable). It does NOT navigate — the click flies the
+                   map to street level and the user stays on /map (design
+                   decision 5). The accessible name is the row's own
+                   text (name + address + meta). -->
+              <button
+                type="button"
                 class="shelter-row"
                 [class.shelter-row--selected]="selectedId() === shelter.id"
-                [routerLink]="['/shelters', shelter.id]"
                 (click)="selectShelter(shelter)"
               >
                 <span class="shelter-row__name">{{ shelter.name }}</span>
@@ -66,7 +71,20 @@
                   </span>
                   <span class="shelter-row__rating">{{ ratingText(shelter) }}</span>
                 </span>
-              </a>
+              </button>
+              <!-- The explicit details step: appears ONLY on the selected
+                   row and is the only sidebar element that opens
+                   /shelters/:id. The aria-label names the shelter so the
+                   navigation target is unambiguous to screen readers. -->
+              @if (selectedId() === shelter.id) {
+                <a
+                  class="shelter-row__details btn btn--ghost"
+                  [routerLink]="['/shelters', shelter.id]"
+                  [attr.aria-label]="'View details for ' + shelter.name"
+                >
+                  View details →
+                </a>
+              }
             </li>
           }
         </ul>

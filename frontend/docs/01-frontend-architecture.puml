@@ -224,6 +224,7 @@ MapPage --> LeafletService
 ShelterDetailPage --> ShelterGateway
 ShelterDetailPage --> ReviewGateway
 ShelterDetailPage --> AuthStore
+ShelterDetailPage --> LeafletService
 ShelterDetailPage --> ReviewForm
 ShelterDetailPage --> RatingStars
 ShelterDetailPage --> BannerComponent
@@ -241,8 +242,11 @@ end note
 
 note bottom of MapPage
   M4: real Leaflet map + source filter + sidebar
-  (04-map-browse-flow.puml). Marker/list rows navigate to
-  /shelters/:id - the M5 detail page.
+  (04-map-browse-flow.puml). Marker/list-row clicks
+  select + zoom to street level (SHELTER_ZOOM 16) and
+  stay on /map; the selected row's "View details" link
+  opens /shelters/:id - the M5 detail page (which
+  itself shows a static Location map).
 end note
 
 note top of LeafletService

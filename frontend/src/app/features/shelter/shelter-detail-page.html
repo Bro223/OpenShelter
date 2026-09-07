@@ -37,6 +37,18 @@
       <app-banner severity="success" [message]="n.text" />
     }
 
+    <!-- Location map: ALWAYS mounted in the non-not-found state (not inside
+         the shelter branch) so the container exists at view-init time while
+         the shelter — and its coordinates — are still in flight. Loading /
+         error show the placeholder background; on load success the page
+         flies here to street level and pins the shelter. The map is a
+         picture of WHERE the shelter is: static marker, no picking, no
+         marker navigation. -->
+    <section class="detail-section" aria-labelledby="location-heading">
+      <h2 class="section-title" id="location-heading">Location</h2>
+      <div #mapEl class="shelter-detail__map"></div>
+    </section>
+
     @if (loading()) {
       <p class="detail-state" role="status">Loading shelter…</p>
     } @else if (shelter(); as s) {

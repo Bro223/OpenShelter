@@ -1,12 +1,20 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { ShelterDto } from '../../core/models';
+import type { ShelterDto, ShelterSource } from '../../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).
  */
 export const ESTONIA_CENTER: [number, number] = [58.6, 25.0];
 export const ESTONIA_ZOOM = 7;
+
+/**
+ * Street-level zoom for a single shelter (map-page selection + the detail
+ * page's Location map). OSM's maxZoom is 19; 16 is where a building's
+ * street context is legible without being so deep that one tile load
+ * dominates the view.
+ */
+export const SHELTER_ZOOM = 16;
 
 /**
  * Estonia bounding box — the client-side mirror of the backend's
@@ -37,7 +45,8 @@ export function inEstonia(latitude: number, longitude: number): boolean {
  * Thin wrapper around the `leaflet` npm package (05-CONTEXT-MAP.md decision 3:
  * leaflet is called directly — no ngx-leaflet, which lags Angular majors).
  *
- * Page-scoped on purpose (design decision 3): one instance per MapPage visit,
+ * Page-scoped on purpose (design decision 3): one instance per page visit
+ * (MapPage, SubmitShelterPage and ShelterDetailPage each provide their own),
  * created in the page's ngAfterViewInit and destroyed in its ngOnDestroy, so
  * no map instance or DOM listener leaks between visits. The component never
  * touches the leaflet API — it calls `renderShelters` with typed rows and
@@ -112,9 +121,63 @@ export class LeafletService {
     }
   }
 
-  /** Centers the map on the shelter's coordinates, keeping the current zoom. */
-  flyTo(latitude: number, longitude: number): void {
-    this.map?.flyTo([latitude, longitude]);
+  /**
+   * Centers the map on the point. `zoom` is optional: when given, fly AND
+   * zoom to that level (the street-level shelter view, SHELTER_ZOOM); when
+   * omitted, keep the current zoom (the original M4 country-level behaviour).
+   */
+  flyTo(latitude: number, longitude: number, zoom?: number): void {
+    if (zoom !== undefined) {
+      this.map?.flyTo([latitude, longitude], zoom);
+    } else {
+      this.map?.flyTo([latitude, longitude]);
+    }
+  }
+
+  /**
+   * Shows ONE static shelter location (the /shelters/:id "Location" map):
+   * a single non-interactive divIcon pin, source-coloured exactly like
+   * `renderShelters`. Null clears the pin.
+   *
+   * Idempotent: the markers layer group is cleared first, so re-calls (e.g.
+   * the refetch after a review write) replace the pin instead of duplicating
+   * it. Deliberately does NOT wire `markerClick` or `setPick` — the detail
+   * page has no marker navigation and no location picking.
+   *
+   * /map and /shelters/:id never share an instance (the service is
+   * page-scoped, one per page visit), so a static pin can never leak into
+   * the browse map's markers — no cross-contamination guard needed.
+   */
+  showShelter(
+    shelter: {
+      latitude: number;
+      longitude: number;
+      source: ShelterSource;
+      name: string;
+    } | null,
+  ): void {
+    if (!this.map || !this.markers) {
+      return;
+    }
+    this.markers.clearLayers();
+    if (shelter === null) {
+      return;
+    }
+    const marker = L.marker([shelter.latitude, shelter.longitude], {
+      icon: L.divIcon({
+        className: `shelter-marker ${shelter.source === 'USER' ? 'shelter-marker--user' : 'shelter-marker--registry'}`,
+        iconSize: [14, 14],
+      }),
+      // interactive: false -> leaflet attaches NO click handler (and no
+      // drag): a pure location pin. keyboard: false keeps the pin out of
+      // the tab order (leaflet would otherwise add tabIndex/role=button to
+      // a marker that does nothing on activation). The title attribute
+      // still renders as a native browser tooltip (set in _initIcon).
+      interactive: false,
+      keyboard: false,
+      title: shelter.name,
+    });
+    marker.addTo(this.markers);
   }
 
   /**

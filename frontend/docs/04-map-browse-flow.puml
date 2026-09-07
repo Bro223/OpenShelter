@@ -53,8 +53,15 @@ else zero shelters
   MP --> Visitor : empty state "no shelters yet"
 end
 
-== Open detail ==
+== Select (zoom in, stay on /map) ==
 Visitor -> MP : click marker (or list row)
+' street level (SHELTER_ZOOM)
+MP -> LS : flyTo(lat, lng, 16)
+LS --> MP : map zoomed on the shelter
+MP --> Visitor : shelter selected + highlighted (sidebar row)
+
+== Open detail (explicit step) ==
+Visitor -> MP : click "View details" on the selected row
 MP -> R : navigate('/shelters', id)
 R --> : ShelterDetailPage (M5)
 

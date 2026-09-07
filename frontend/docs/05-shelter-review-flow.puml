@@ -23,6 +23,11 @@ RG -> AC : get<ShelterReviewDto[]>('/api/shelters/123/reviews')
 AC -> API : GET /api/shelters/123/reviews
 API --> AC : ShelterReviewDto[]
 DP --> Person : shelter info + rating summary + review list
+note over DP
+  Location section: a static Leaflet map (page-scoped LeafletService,
+  same service as /map) zoomed to the shelter (SHELTER_ZOOM 16) with one
+  non-interactive marker. No picking, no marker navigation.
+end note
 
 == My review: add / update (upsert semantics) ==
 note over DP, RF

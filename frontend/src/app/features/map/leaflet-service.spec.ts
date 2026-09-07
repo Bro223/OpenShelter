@@ -1,7 +1,9 @@
+import L from 'leaflet';
 import {
   LeafletService,
   ESTONIA_CENTER,
   ESTONIA_ZOOM,
+  SHELTER_ZOOM,
   ESTONIA_BOUNDS,
   inEstonia,
 } from './leaflet-service';
@@ -131,7 +133,84 @@ describe('LeafletService', () => {
     const uncreated = new LeafletService();
 
     expect(() => uncreated.flyTo(ESTONIA_CENTER[0], ESTONIA_CENTER[1])).not.toThrow();
+    expect(() => uncreated.flyTo(ESTONIA_CENTER[0], ESTONIA_CENTER[1], SHELTER_ZOOM)).not.toThrow();
     expect(() => uncreated.renderShelters([TALLINN])).not.toThrow();
+  });
+
+  it('flyTo keeps the current zoom without a zoom arg, flies at the given zoom with one', () => {
+    // Spy on the leaflet prototype: the service must pass the zoom through
+    // ONLY when the caller gave one (M4 country-level flies keep their zoom).
+    const flyToSpy = vi
+      .spyOn(L.Map.prototype, 'flyTo')
+      .mockImplementation(() => undefined as unknown as L.Map);
+
+    service.flyTo(59.437, 24.754);
+    expect(flyToSpy).toHaveBeenLastCalledWith([59.437, 24.754]);
+
+    service.flyTo(59.437, 24.754, SHELTER_ZOOM);
+    expect(flyToSpy).toHaveBeenLastCalledWith([59.437, 24.754], SHELTER_ZOOM);
+
+    flyToSpy.mockRestore();
+  });
+
+  it('showShelter pins ONE static marker (source-coloured), replaces on re-call, clears on null', () => {
+    service.showShelter({
+      latitude: TALLINN.latitude,
+      longitude: TALLINN.longitude,
+      source: 'PAASETEAMET',
+      name: TALLINN.name,
+    });
+    let markers = renderedMarkers(container);
+    expect(markers).toHaveLength(1);
+    expect(markers[0].classList.contains('shelter-marker--registry')).toBe(true);
+    // The name tooltip survives (set in leaflet's _initIcon, independent of
+    // interactivity).
+    expect(markers[0].title).toBe(TALLINN.name);
+
+    // A second call replaces the pin (idempotent — the post-write refetch
+    // must not duplicate it).
+    service.showShelter({
+      latitude: BASEMENT.latitude,
+      longitude: BASEMENT.longitude,
+      source: 'USER',
+      name: BASEMENT.name,
+    });
+    markers = renderedMarkers(container);
+    expect(markers).toHaveLength(1);
+    expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
+
+    // Null clears the pin.
+    service.showShelter(null);
+    expect(renderedMarkers(container)).toHaveLength(0);
+  });
+
+  it('a showShelter marker is static — clicking it never fires markerClick', () => {
+    const onMarkerClick = vi.fn();
+    service.markerClick = onMarkerClick;
+    service.showShelter({
+      latitude: TALLINN.latitude,
+      longitude: TALLINN.longitude,
+      source: 'PAASETEAMET',
+      name: TALLINN.name,
+    });
+
+    const marker = renderedMarkers(container)[0];
+    marker.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(onMarkerClick).not.toHaveBeenCalled();
+  });
+
+  it('showShelter is a safe no-op before create (null map guard)', () => {
+    const uncreated = new LeafletService();
+    expect(() =>
+      uncreated.showShelter({
+        latitude: 59.437,
+        longitude: 24.754,
+        source: 'USER',
+        name: 'Community Cellar',
+      }),
+    ).not.toThrow();
+    expect(() => uncreated.showShelter(null)).not.toThrow();
   });
 
   it('create is a null-container guard and a once-per-visit guard', () => {

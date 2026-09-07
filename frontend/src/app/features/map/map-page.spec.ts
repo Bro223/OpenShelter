@@ -6,7 +6,7 @@ import { ApiError } from '../../core/api-error';
 import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { PageShell } from '../../shared/page-shell';
-import { LeafletService } from './leaflet-service';
+import { LeafletService, SHELTER_ZOOM } from './leaflet-service';
 import { MapPage } from './map-page';
 
 /**
@@ -23,7 +23,8 @@ class FakeLeafletService {
   created = 0;
   destroyed = 0;
   lastRendered: ShelterDto[] = [];
-  flyToCalls: [number, number][] = [];
+  flyToCalls: [number, number, number | undefined][] = [];
+  showShelterCalls: unknown[] = [];
   markerClick: ((shelterId: number) => void) | null = null;
 
   create = vi.fn((el: HTMLElement | null): void => {
@@ -35,8 +36,11 @@ class FakeLeafletService {
   renderShelters = vi.fn((rows: ShelterDto[]): void => {
     this.lastRendered = rows;
   });
-  flyTo = vi.fn((latitude: number, longitude: number): void => {
-    this.flyToCalls.push([latitude, longitude]);
+  flyTo = vi.fn((latitude: number, longitude: number, zoom?: number): void => {
+    this.flyToCalls.push([latitude, longitude, zoom]);
+  });
+  showShelter = vi.fn((shelter: unknown): void => {
+    this.showShelterCalls.push(shelter);
   });
   destroy = vi.fn((): void => {
     this.destroyed++;
@@ -325,33 +329,61 @@ describe('MapPage', () => {
     });
   });
 
-  describe('selection sync & navigation', () => {
+  describe('selection & zoom-in (details is a separate step)', () => {
     beforeEach(() => {
       gateway.list.mockImplementation((source: ShelterSourceFilter) =>
         Promise.resolve(source === 'ALL' ? ALL_ROWS : []),
       );
     });
 
-    it('a row click selects + flies the map, then opens the detail route', async () => {
+    it('a row click selects + zooms the map to street level and STAYS on /map', async () => {
       const { element, fixture } = await open('/map');
-      const tallinnRow = [...element.querySelectorAll<HTMLElement>('.shelter-row')].find((r) =>
-        r.textContent?.includes('Tallinn Central Shelter'),
-      ) as HTMLElement;
+      // Nothing is selected yet — no details affordance anywhere.
+      expect(element.querySelector('.shelter-row__details')).toBeNull();
+
+      const tallinnRow = [...element.querySelectorAll<HTMLButtonElement>('.shelter-row')].find(
+        (r) => r.textContent?.includes('Tallinn Central Shelter'),
+      ) as HTMLButtonElement;
 
       tallinnRow.click();
       fixture.detectChanges();
 
       // Selection: the clicked row is highlighted.
       expect(tallinnRow.classList.contains('shelter-row--selected')).toBe(true);
-      // Sync: the map flew to the shelter's coordinates.
-      expect(leaflet.flyToCalls).toEqual([[TALLINN.latitude, TALLINN.longitude]]);
-      // Navigation: the row's RouterLink opens the detail stub.
+      // Sync: the map flew to the shelter's coordinates AT street level.
+      expect(leaflet.flyToCalls).toEqual([[TALLINN.latitude, TALLINN.longitude, SHELTER_ZOOM]]);
+      // The click is a zoom, not a navigation — the user stays on the map.
+      await settle(fixture);
+      expect(router.url).toBe('/map');
+      expect(text(fixture)).not.toContain('detail stub');
+    });
+
+    it('the selected row grows a "View details" link — the ONLY thing that opens the detail route', async () => {
+      const { element, fixture } = await open('/map');
+      const tallinnRow = [...element.querySelectorAll<HTMLButtonElement>('.shelter-row')].find(
+        (r) => r.textContent?.includes('Tallinn Central Shelter'),
+      ) as HTMLButtonElement;
+
+      tallinnRow.click();
+      fixture.detectChanges();
+
+      // Exactly one details link — on the selected row — labelled with the
+      // shelter's name for screen readers.
+      const details = [...element.querySelectorAll<HTMLAnchorElement>('.shelter-row__details')];
+      expect(details).toHaveLength(1);
+      expect(details[0].textContent).toContain('View details');
+      expect(details[0].getAttribute('aria-label')).toBe(
+        'View details for Tallinn Central Shelter',
+      );
+      expect(details[0].getAttribute('href')).toBe('/shelters/1');
+
+      details[0].click();
       await settle(fixture);
       expect(router.url).toBe('/shelters/1');
       expect(text(fixture)).toContain('detail stub');
     });
 
-    it('a marker click selects the matching row, then opens the detail route', async () => {
+    it('a marker click selects the matching row, zooms to street level, and stays on /map', async () => {
       const { element, fixture } = await open('/map');
       expect(leaflet.markerClick).not.toBeNull(); // the page wired the callback
 
@@ -361,11 +393,13 @@ describe('MapPage', () => {
       const selected = element.querySelector<HTMLElement>('.shelter-row--selected');
       expect(selected).not.toBeNull();
       expect(selected?.textContent).toContain('Community Cellar');
-      // Markers do NOT fly (the map already shows the clicked point); the row does.
-      expect(leaflet.flyToCalls).toEqual([]);
-
-      await settle(fixture);
-      expect(router.url).toBe('/shelters/7');
+      // The marker click ALSO zooms now (M4 kept the country zoom — the map
+      // already showed the point; the payoff of a click is the zoom-in).
+      expect(leaflet.flyToCalls).toEqual([[BASEMENT.latitude, BASEMENT.longitude, SHELTER_ZOOM]]);
+      // No navigation — the user stays on the map; the details action now
+      // exists on the selected row.
+      expect(router.url).toBe('/map');
+      expect(element.querySelector('.shelter-row__details')).not.toBeNull();
     });
 
     it('drops an out-of-order (stale) filter response in favour of the newer one', async () => {

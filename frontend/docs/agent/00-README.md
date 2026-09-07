@@ -66,8 +66,10 @@ what lets you check and build every file manually — exactly how the backend wa
 - **M3 (verification & account)** — DONE: cross-channel verify screen (EMAIL + PHONE,
   409/429/400/5xx handling) and cross-channel contact change (email ⇄ phone).
 - **M4 (map & browse)** — DONE: public Leaflet map (registry blue / user green / pick red),
-  list + source filter, detail navigation.
-- **M5 (shelter detail, reviews & submission)** — DONE: public detail + reviews (upsert,
+  list + source filter, click-to-zoom selection (street level, stays on /map) +
+  explicit "View details" link.
+- **M5 (shelter detail, reviews & submission)** — DONE: public detail (incl. static
+  Location map) + reviews (upsert,
   delete own), verified-only `/submit` (map point picking, in-Estonia pre-check) → 201 →
   detail.
 - **M6 (polish, hardening & prod build)** — DONE: design tokens (`styles.scss` + audit

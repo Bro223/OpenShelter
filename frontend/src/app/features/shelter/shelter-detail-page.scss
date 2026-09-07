@@ -94,6 +94,17 @@
   white-space: pre-line;
 }
 
+/* The static Location map (page-scoped LeafletService instance). The
+   placeholder background keeps the area unbroken while loading / on error,
+   before the first tiles paint. */
+.shelter-detail__map {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  height: 260px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-map-placeholder);
+}
+
 .detail-meta {
   margin: 0;
   color: var(--color-muted);

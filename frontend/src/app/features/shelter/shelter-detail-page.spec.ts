@@ -8,6 +8,7 @@ import type { ShelterDto, ShelterReviewDto, VerificationLevel } from '../../core
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { PageShell } from '../../shared/page-shell';
+import { LeafletService, SHELTER_ZOOM } from '../map/leaflet-service';
 import { ShelterDetailPage } from './shelter-detail-page';
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -70,8 +71,42 @@ class FakeReviewGateway {
   });
 }
 
-/** AuthStore-shaped fake — real signals so zoneless CD stays reactive. */
-function fakeAuthStore(
+/**
+ * The detail page's page-scoped Location map, faked the same way
+ * map-page.spec.ts fakes it: the page logic is tested against this fake;
+ * the real service's marker/lifecycle behaviour lives in
+ * leaflet-service.spec.ts.
+ */
+class FakeLeafletService {
+  created = 0;
+  destroyed = 0;
+  flyToCalls: [number, number, number | undefined][] = [];
+  showShelterCalls: (ShelterDto | null)[] = [];
+  markerClick: ((shelterId: number) => void) | null = null;
+  mapClick: ((latitude: number, longitude: number) => void) | null = null;
+
+  create = vi.fn((el: HTMLElement | null): void => {
+    // Mirrors the real service's null-container guard.
+    if (el) {
+      this.created++;
+    }
+  });
+  renderShelters = vi.fn((rows: ShelterDto[]): void => {
+    void rows;
+  });
+  flyTo = vi.fn((latitude: number, longitude: number, zoom?: number): void => {
+    this.flyToCalls.push([latitude, longitude, zoom]);
+  });
+  showShelter = vi.fn((shelter: ShelterDto | null): void => {
+    this.showShelterCalls.push(shelter);
+  });
+  setPick = vi.fn();
+  destroy = vi.fn((): void => {
+    this.destroyed++;
+  });
+}
+
+/** AuthStore-shaped fake — real signals so zoneless CD stays reactive. */ function fakeAuthStore(
   overrides: { authenticated?: boolean; levels?: VerificationLevel[] } = {},
 ): AuthStore {
   const authenticated = signal(overrides.authenticated ?? false);
@@ -143,12 +178,14 @@ class VerifyStub {}
 describe('ShelterDetailPage (/shelters/:id)', () => {
   let shelterGateway: FakeShelterGateway;
   let reviewGateway: FakeReviewGateway;
+  let leaflet: FakeLeafletService;
   let store: AuthStore;
 
   beforeEach(() => {
     localStorage.clear();
     shelterGateway = new FakeShelterGateway();
     reviewGateway = new FakeReviewGateway();
+    leaflet = new FakeLeafletService();
     store = fakeAuthStore();
     TestBed.configureTestingModule({
       // The real shell so "page chrome stays intact" is asserted against the
@@ -164,8 +201,12 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         { provide: ShelterGateway, useValue: shelterGateway as unknown as ShelterGateway },
         { provide: ReviewGateway, useValue: reviewGateway as unknown as ReviewGateway },
         { provide: AuthStore, useValue: store },
+        { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
       ],
     });
+    // ShelterDetailPage declares a page-scoped LeafletService provider; drop
+    // it so the root-level fake is the one the page injects.
+    TestBed.overrideComponent(ShelterDetailPage, { remove: { providers: [LeafletService] } });
   });
 
   async function open(path: string): Promise<{
@@ -539,6 +580,51 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(elText(element)).toContain('Rate this shelter');
       expect(element.querySelector('.btn--danger')).toBeNull();
       expect(reviewGateway.add).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('location map (static, zoomed to the shelter)', () => {
+    it('on load success the map is created, flies to the shelter at street level, and pins it', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { element } = await open('/shelters/1');
+
+      // The container is always mounted in the non-not-found state (next to
+      // the header, outside the shelter branch), so the page-scoped map is
+      // created before the async fetch settles.
+      expect(element.querySelector('.shelter-detail__map')).not.toBeNull();
+      expect(leaflet.created).toBe(1);
+      // Flown to the shelter's coordinates at street level (SHELTER_ZOOM).
+      expect(leaflet.flyToCalls).toEqual([[59.437, 24.754, SHELTER_ZOOM]]);
+      // Pinned with the shelter's row data (static marker, no picking).
+      expect(leaflet.showShelterCalls).toEqual([
+        expect.objectContaining({ id: 1, latitude: 59.437, longitude: 24.754 }),
+      ]);
+    });
+
+    it('a 404 never flies or pins (the not-found state renders no map at all)', async () => {
+      await open('/shelters/999');
+
+      expect(leaflet.flyToCalls).toEqual([]);
+      expect(leaflet.showShelterCalls).toEqual([]);
+    });
+
+    it('a backend error keeps the map container mounted (placeholder) without a pin', async () => {
+      shelterGateway.get = vi.fn(async () => {
+        throw ApiError.fromNetwork();
+      }) as never;
+      const { element } = await open('/shelters/1');
+
+      expect(element.querySelector('.shelter-detail__map')).not.toBeNull();
+      expect(leaflet.flyToCalls).toEqual([]);
+      expect(leaflet.showShelterCalls).toEqual([]);
+    });
+
+    it('destroys the map when the page is destroyed (no leak between visits)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { fixture } = await open('/shelters/1');
+
+      fixture.destroy();
+      expect(leaflet.destroyed).toBe(1);
     });
   });
 });

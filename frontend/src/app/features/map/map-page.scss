@@ -112,16 +112,23 @@
 }
 
 .shelter-row {
+  /* A <button> since the zoom-in-and-stay change: the row is an action
+     (select + zoom), not a link. The resets below (width/font/text-align/
+     cursor) undo the UA button defaults the anchor had none of. */
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  width: 100%;
   padding: var(--space-10) var(--space-12);
   margin-bottom: var(--space-8);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-bg-surface);
   color: inherit;
-  text-decoration: none;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
 
   &:hover {
     border-color: var(--color-primary);
@@ -149,6 +156,20 @@
     font-size: var(--text-sm);
     color: var(--color-muted);
   }
+}
+
+/* The selected row's explicit navigation step (design decision 5) — the
+   only sidebar element that leaves /map. Sits directly under its row: the
+   negative top margin cancels the row's margin-bottom so the pair reads as
+   one unit, and the horizontal padding aligns the link with the row's
+   content instead of its border. */
+.shelter-row__details {
+  display: block;
+  margin-top: calc(var(--space-8) * -1);
+  margin-bottom: var(--space-8);
+  padding-left: var(--space-12);
+  padding-right: var(--space-12);
+  text-align: left;
 }
 
 .badge {

@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, type OnInit, signal } from '@angular/core';
+import {
+  type AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  type ElementRef,
+  inject,
+  type OnDestroy,
+  type OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api-error';
@@ -8,6 +18,12 @@ import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import {
+  ESTONIA_CENTER,
+  ESTONIA_ZOOM,
+  LeafletService,
+  SHELTER_ZOOM,
+} from '../map/leaflet-service';
 import { RatingStars } from './rating-stars';
 import { ReviewForm } from './review-form';
 
@@ -28,19 +44,31 @@ import { ReviewForm } from './review-form';
  *   verified   -> ReviewForm (add mode, or edit mode once the user's review
  *                 is known this session — the v1 DTO has no author identity,
  *                 so "mine" is tracked locally per 06-CONTEXT decision 2).
+ *
+ * Location map: a small STATIC map under the header (page-scoped
+ * LeafletService, same pattern as the /submit mini-map). The container is
+ * always mounted in every non-not-found state, so the async shelter fetch
+ * never races it: create() runs in ngAfterViewInit at the Estonia default,
+ * and the load-success handler flies to the shelter at SHELTER_ZOOM + pins
+ * it with showShelter (one non-interactive marker — no picking, no marker
+ * navigation). Not-found renders no container at all.
  */
 @Component({
   selector: 'app-shelter-detail-page',
   imports: [RouterLink, DatePipe, BannerComponent, RatingStars, ReviewForm],
+  providers: [LeafletService],
   templateUrl: './shelter-detail-page.html',
   styleUrl: './shelter-detail-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ShelterDetailPage implements OnInit {
+export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
   private readonly reviews = inject(ReviewGateway);
   private readonly store = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
+  private readonly leaflet = inject(LeafletService);
+
+  private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
   /** The shelter id from /shelters/:id (null = invalid id -> not-found). */
   readonly id = signal<number | null>(null);
@@ -65,6 +93,25 @@ export class ShelterDetailPage implements OnInit {
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
+
+  /**
+   * The Location map container exists at view-init time in every non-
+   * not-found state (it is NOT inside the shelter branch), so the async
+   * fetch never races the map: we create at the Estonia default here and
+   * fly to the shelter in the load-success handler. A missing container
+   * (the not-found state renders no map) is a safe no-op via create's
+   * null guard.
+   */
+  ngAfterViewInit(): void {
+    this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
+  }
+
+  ngOnDestroy(): void {
+    // Drop the Location map instance + listeners (page-scoped, same
+    // discipline as MapPage / SubmitShelterPage — zoneless has no safety
+    // net).
+    this.leaflet.destroy();
+  }
 
   ngOnInit(): void {
     const raw = this.route.snapshot.paramMap.get('id');
@@ -97,6 +144,10 @@ export class ShelterDetailPage implements OnInit {
         this.shelter.set(shelter);
         this.reviewsList.set(reviews);
         this.loading.set(false);
+        // Location map: fly to the shelter at street level + pin it. Both
+        // calls are safe no-ops when create() was skipped (not-found
+        // renders no container), so no guard is needed here.
+        this.pinShelter(shelter);
       },
       (failure: unknown) => {
         if (seq !== this.fetchSeq) {
@@ -117,6 +168,21 @@ export class ShelterDetailPage implements OnInit {
   /** Source badge copy (06-CONTEXT decision 6: USER vs registry). */
   protected sourceLabel(shelter: ShelterDto): string {
     return shelter.source === 'USER' ? 'User-submitted' : 'Registry';
+  }
+
+  /**
+   * Pins the shelter on the Location map: fly to it at street level
+   * (SHELTER_ZOOM) + one static marker (showShelter is idempotent — the
+   * post-write refetch simply replaces the pin). Skips when the
+   * coordinates are missing/non-finite: the map then keeps its placeholder
+   * view instead of half-drawing a broken state.
+   */
+  private pinShelter(shelter: ShelterDto): void {
+    if (!Number.isFinite(shelter.latitude) || !Number.isFinite(shelter.longitude)) {
+      return;
+    }
+    this.leaflet.flyTo(shelter.latitude, shelter.longitude, SHELTER_ZOOM);
+    this.leaflet.showShelter(shelter);
   }
 
   /** "2 reviews" / "1 review" — null average renders "No ratings yet". */
