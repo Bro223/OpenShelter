@@ -18,12 +18,7 @@ import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
-import {
-  ESTONIA_CENTER,
-  ESTONIA_ZOOM,
-  LeafletService,
-  SHELTER_ZOOM,
-} from '../map/leaflet-service';
+import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService, SHELTER_ZOOM } from '../map/leaflet-service';
 import { RatingStars } from './rating-stars';
 import { ReviewForm } from './review-form';
 
