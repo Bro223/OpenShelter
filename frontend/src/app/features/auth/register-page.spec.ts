@@ -2,6 +2,7 @@ import { Component, type DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { AccountGateway } from '../../gateways/account-gateway';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
 import type { RegisterRequest } from '../../core/models';
@@ -17,6 +18,15 @@ class FakeAuthGateway {
   resetPassword = vi.fn();
 }
 
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
+}
+
 @Component({ template: '<p>login stub</p>' })
 class LoginStub {}
 
@@ -25,11 +35,20 @@ class Host {}
 
 describe('RegisterPage', () => {
   let gateway: FakeAuthGateway;
+  let account: FakeAccountGateway;
   let router: Router;
 
   beforeEach(() => {
     localStorage.clear();
     gateway = new FakeAuthGateway();
+    account = new FakeAccountGateway();
+    account.me.mockResolvedValue({
+      name: 'Test User',
+      email: 'test@example.ee',
+      phone: '+37250000001',
+      nationalIdCode: '49901019999',
+      levels: [],
+    });
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -38,6 +57,7 @@ describe('RegisterPage', () => {
           { path: 'register', component: RegisterPage },
         ]),
         { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
       ],
     });
     router = TestBed.inject(Router);

@@ -106,8 +106,9 @@ AG -> AC : post<void>('/auth/logout', body)
 AC -> API : POST /auth/logout  -> 204
 AS -> TS : clear()  ' local state cleared regardless of network
 note over AS
-  AuthStore also resets levels (verified claims) on logout /
-  cleared session - claims are session-lifetime only (no GET /me).
+  AuthStore also resets the profile (incl. verified claims) on logout /
+  cleared session - claims persist server-side and are re-fetched at boot
+  via GET /account/me.
 end note
 AS --> PG : redirect /map
 @enduml

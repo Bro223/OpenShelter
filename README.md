@@ -347,7 +347,8 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete); the honest
-   deferral list (`GET /me`, paging, i18n, MapLibre, httpOnly cookies, SSR) is in
+   deferral list (paging, i18n, MapLibre, httpOnly cookies, SSR, password-reset-OTP,
+   contributions — see the account-profile change) is in
    [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
 5. **`national_id_code` is stored plaintext** — privacy consideration for launch:
    the Estonian personal ID is treated as an account key, not encrypted at rest

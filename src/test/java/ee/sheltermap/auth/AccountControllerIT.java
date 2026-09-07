@@ -23,7 +23,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -299,5 +301,148 @@ class AccountControllerIT extends AbstractPersistenceIT {
         assertThat(user).isNotNull();
         assertThat(user.levels()).contains(ee.sheltermap.domain.VerificationLevel.EMAIL);
         assertThat(user.canWrite()).isTrue();
+    }
+
+    // ---- GET /account/me -------------------------------------------------
+
+    @Test
+    void meReturnsTheStoredProfileWithRealClaims() throws Exception {
+        String token = registerAndLogin();
+
+        // unauthenticated -> 401, no profile data leaks
+        mvc.perform(get("/account/me")).andExpect(status().isUnauthorized());
+
+        // before any verification: all four fields, empty claim set
+        mvc.perform(get("/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Kontakt Muutus"))
+                .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
+                .andExpect(jsonPath("$.phone").value("+37250004444"))
+                .andExpect(jsonPath("$.nationalIdCode").value("49001014444"))
+                .andExpect(jsonPath("$.levels").isEmpty());
+
+        // verify EMAIL via the dev sender: the real claim set comes back
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isAccepted());
+        Matcher tm = TOKEN.matcher(smtp.last().message());
+        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"" + tm.group(1) + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.levels.length()").value(1))
+                .andExpect(jsonPath("$.levels[0]").value("EMAIL"));
+    }
+
+    // ---- PUT /account/profile ---------------------------------------------
+
+    @Test
+    void profileUpdatePersistsNameAndIdAndReturnsTheFreshProfile() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Korrektitud Nimi\",\"nationalIdCode\":\"49001014445\","
+                                + "\"currentPassword\":\"s3cret\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Korrektitud Nimi"))
+                .andExpect(jsonPath("$.nationalIdCode").value("49001014445"))
+                // untouched fields come back unchanged
+                .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
+                .andExpect(jsonPath("$.phone").value("+37250004444"));
+
+        // persisted (the stored profile reflects the edit)
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored).isNotNull();
+        assertThat(stored.getData().name()).isEqualTo("Korrektitud Nimi");
+        assertThat(stored.getData().nationalIdCode()).isEqualTo("49001014445");
+    }
+
+    @Test
+    void profileUpdateWithWrongCurrentPasswordIs401AndChangesNothing() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Väline Isik\",\"nationalIdCode\":\"49001019999\","
+                                + "\"currentPassword\":\"not-the-password\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("current password is incorrect"));
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
+        assertThat(stored.getData().nationalIdCode()).isEqualTo("49001014444");
+    }
+
+    @Test
+    void profileUpdateRejectsBlankNameOrNationalIdWith400() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"   \",\"nationalIdCode\":\"49001014444\","
+                                + "\"currentPassword\":\"s3cret\"}"))
+                .andExpect(status().isBadRequest());
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Kontakt Muutus\",\"nationalIdCode\":\"\","
+                                + "\"currentPassword\":\"s3cret\"}"))
+                .andExpect(status().isBadRequest());
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
+    }
+
+    @Test
+    void profileUpdateWithoutTokenIs401() throws Exception {
+        registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Väline Isik\",\"nationalIdCode\":\"49001019999\","
+                                + "\"currentPassword\":\"s3cret\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void profileIdChangeDoesNotClearVerificationClaims() throws Exception {
+        // SMART-ID is a stub: today an ID edit must leave existing claims
+        // intact (the follow-up invalidates SMART-ID claims when it lands).
+        String token = registerAndLogin();
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isAccepted());
+        Matcher tm = TOKEN.matcher(smtp.last().message());
+        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"" + tm.group(1) + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Kontakt Muutus\",\"nationalIdCode\":\"49001014445\","
+                                + "\"currentPassword\":\"s3cret\"}"))
+                .andExpect(status().isOk());
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.levels()).contains(ee.sheltermap.domain.VerificationLevel.EMAIL);
+        assertThat(stored.canWrite()).isTrue();
     }
 }

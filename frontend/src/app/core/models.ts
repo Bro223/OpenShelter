@@ -76,6 +76,14 @@ export interface ConfirmChangeRequest {
   code: string;
 }
 
+/** Profile edit (PUT /account/profile): identity only, password-confirmed.
+ *  Email/phone are deliberately absent — they stay on the cross-channel flows. */
+export interface ProfileUpdateRequest {
+  name: string;
+  nationalIdCode: string;
+  currentPassword: string;
+}
+
 export interface CreateShelterRequest {
   name: string;
   latitude: number;
@@ -100,6 +108,19 @@ export interface TokenResponse {
   refreshToken: string;
   /** Access-token lifetime in seconds. */
   expiresIn: number;
+}
+
+/**
+ * The authenticated user's real profile (GET /account/me) plus the REAL
+ * verified claim set (EMAIL/PHONE actually verified, never optimistic).
+ * Also the response of PUT /account/profile (the fresh state to adopt).
+ */
+export interface MeResponse {
+  name: string;
+  email: string;
+  phone: string;
+  nationalIdCode: string;
+  levels: VerificationLevel[];
 }
 
 export interface ShelterDto {

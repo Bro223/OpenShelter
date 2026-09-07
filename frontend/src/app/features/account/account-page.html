@@ -1,0 +1,301 @@
+<section class="account-card">
+  <h1 class="page-title">Account</h1>
+  <p class="page-subtitle">
+    Your profile and verification. Name and national ID can be corrected with a password
+    confirmation; email and phone changes are proven cross-channel.
+  </p>
+
+  @if (success(); as text) {
+    <app-banner severity="success" [message]="text" />
+  }
+  <app-banner severity="error" [message]="error()" />
+
+  @if (auth.name() === null) {
+    <div class="profile-error">
+      <app-banner
+        severity="error"
+        message="We could not load your profile — the session is still active."
+      />
+      <div class="panel-actions">
+        <button type="button" class="btn btn--ghost" (click)="retryProfile()">Retry</button>
+      </div>
+    </div>
+  } @else {
+    <!-- ============================== Identity ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Identity</h2>
+
+      @if (!editing()) {
+        <dl class="identity-values">
+          <div class="identity-row">
+            <dt>Name</dt>
+            <dd>{{ auth.name() }}</dd>
+          </div>
+          <div class="identity-row">
+            <dt>National ID code</dt>
+            <dd>{{ auth.nationalIdCode() }}</dd>
+          </div>
+        </dl>
+        <p class="panel-copy">
+          A typo at registration never forces a new account — the edit is confirmed with your
+          current password.
+        </p>
+        <div class="panel-actions">
+          <button type="button" class="btn btn--ghost" (click)="startEdit()" [disabled]="busy()">
+            Edit
+          </button>
+        </div>
+      } @else {
+        <div class="field">
+          <label for="profile-name">Name</label>
+          <input id="profile-name" type="text" [formControl]="editName" autocomplete="name" />
+          @if (editName.touched && editName.invalid) {
+            <p class="field-error">A name is required.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="profile-national-id">National ID code</label>
+          <input
+            id="profile-national-id"
+            type="text"
+            [formControl]="editNationalIdCode"
+            inputmode="numeric"
+            autocomplete="off"
+          />
+          @if (editNationalIdCode.touched && editNationalIdCode.invalid) {
+            <p class="field-error">A national ID code is required.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="profile-password">Current password</label>
+          <input
+            id="profile-password"
+            type="password"
+            [formControl]="editPassword"
+            autocomplete="current-password"
+          />
+          @if (editPassword.touched && editPassword.invalid) {
+            <p class="field-error">Your current password is required.</p>
+          }
+        </div>
+
+        <div class="panel-actions">
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="saveProfile()"
+            [disabled]="busy()"
+          >
+            {{ busy() ? 'Saving…' : 'Save changes' }}
+          </button>
+          <button type="button" class="btn btn--ghost" (click)="cancelEdit()" [disabled]="busy()">
+            Cancel
+          </button>
+        </div>
+      }
+    </section>
+
+    <!-- ============================== Contacts ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Contacts</h2>
+
+      <div class="contact-row">
+        <div class="contact-row__info">
+          <span class="contact-row__label">Email address</span>
+          <span class="contact-row__value">{{ auth.email() }}</span>
+        </div>
+        @if (verified('EMAIL')) {
+          <span class="contact-chip contact-chip--verified">Verified</span>
+        } @else {
+          <a routerLink="/verify" class="btn btn--ghost contact-chip contact-chip--cta">
+            Complete verification
+          </a>
+        }
+      </div>
+
+      <div class="contact-row">
+        <div class="contact-row__info">
+          <span class="contact-row__label">Phone number</span>
+          <span class="contact-row__value">{{ auth.phone() }}</span>
+        </div>
+        @if (verified('PHONE')) {
+          <span class="contact-chip contact-chip--verified">Verified</span>
+        } @else {
+          <a routerLink="/verify" class="btn btn--ghost contact-chip contact-chip--cta">
+            Complete verification
+          </a>
+        }
+      </div>
+    </section>
+
+    <!-- ============================== Email change ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Change email address</h2>
+
+      @if (emailPhase() === 'done') {
+        <p class="panel-copy">
+          Your email is now <strong>{{ newEmail.value }}</strong
+          >. The next time you sign in, use the new address.
+        </p>
+        <button type="button" class="btn btn--ghost" (click)="emailStartOver()">
+          Change it again
+        </button>
+      } @else {
+        <div class="field">
+          <label for="change-email-new">New email</label>
+          <input
+            id="change-email-new"
+            type="email"
+            [formControl]="newEmail"
+            autocomplete="email"
+            placeholder="new@example.ee"
+          />
+          @if (newEmail.touched && newEmail.invalid) {
+            <p class="field-error">A valid email is required.</p>
+          }
+        </div>
+
+        <p class="proof-note">
+          For security, changing the email is confirmed by an
+          <strong>SMS code sent to the phone number on your account</strong> — never to the new
+          address.
+        </p>
+
+        @if (emailPhase() === 'code') {
+          <div class="field">
+            <label for="change-email-code">SMS code</label>
+            <input
+              id="change-email-code"
+              type="text"
+              [formControl]="emailCode"
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              placeholder="6-digit code"
+            />
+            @if (emailCode.touched && emailCode.invalid) {
+              <p class="field-error">Enter the 6-digit code from the SMS.</p>
+            }
+            <p class="field-note">We sent an SMS code to the phone number on your account.</p>
+          </div>
+
+          <div class="panel-actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              (click)="emailConfirm()"
+              [disabled]="busy()"
+            >
+              {{ busy() ? 'Working…' : 'Confirm new email' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="emailResend()"
+              [disabled]="busy()"
+            >
+              Resend code
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="emailStartOver()"
+              [disabled]="busy()"
+            >
+              Cancel
+            </button>
+          </div>
+        } @else {
+          <button type="button" class="btn btn--primary" (click)="emailSend()" [disabled]="busy()">
+            {{ busy() ? 'Sending…' : 'Send SMS code to my phone' }}
+          </button>
+        }
+      }
+    </section>
+
+    <!-- ============================== Phone change ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Change phone number</h2>
+
+      @if (phonePhase() === 'done') {
+        <p class="panel-copy">
+          Your phone is now <strong>{{ newPhone.value }}</strong
+          >.
+        </p>
+        <button type="button" class="btn btn--ghost" (click)="phoneStartOver()">
+          Change it again
+        </button>
+      } @else {
+        <div class="field">
+          <label for="change-phone-new">New phone</label>
+          <input
+            id="change-phone-new"
+            type="tel"
+            [formControl]="newPhone"
+            autocomplete="tel"
+            placeholder="+3725… or 5xxxxxxx"
+          />
+          @if (newPhone.touched && newPhone.invalid) {
+            <p class="field-error">A phone number is required.</p>
+          }
+        </div>
+
+        <p class="proof-note">
+          For security, changing the phone is confirmed by an
+          <strong>email code sent to the email address on your account</strong> — losing your SIM
+          alone cannot re-route verification.
+        </p>
+
+        @if (phonePhase() === 'code') {
+          <div class="field">
+            <label for="change-phone-code">Email code</label>
+            <input
+              id="change-phone-code"
+              type="text"
+              [formControl]="phoneCode"
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              placeholder="6-digit code"
+            />
+            @if (phoneCode.touched && phoneCode.invalid) {
+              <p class="field-error">Enter the 6-digit code from the email.</p>
+            }
+            <p class="field-note">We sent an email code to the email address on your account.</p>
+          </div>
+
+          <div class="panel-actions">
+            <button
+              type="button"
+              class="btn btn--primary"
+              (click)="phoneConfirm()"
+              [disabled]="busy()"
+            >
+              {{ busy() ? 'Working…' : 'Confirm new phone' }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="phoneResend()"
+              [disabled]="busy()"
+            >
+              Resend code
+            </button>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="phoneStartOver()"
+              [disabled]="busy()"
+            >
+              Cancel
+            </button>
+          </div>
+        } @else {
+          <button type="button" class="btn btn--primary" (click)="phoneSend()" [disabled]="busy()">
+            {{ busy() ? 'Sending…' : 'Send email code to my email' }}
+          </button>
+        }
+      }
+    </section>
+  }
+</section>

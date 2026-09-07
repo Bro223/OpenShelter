@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
 import type { TokenResponse } from '../core/models';
 import { AuthStore } from '../core/auth-store';
@@ -18,11 +19,21 @@ class FakeAuthGateway {
   resetPassword = vi.fn();
 }
 
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
+}
+
 @Component({ template: '<p>map stub</p>' })
 class MapStub {}
 
 describe('PageShell', () => {
   let gateway: FakeAuthGateway;
+  let account: FakeAccountGateway;
   let store: AuthStore;
   let router: Router;
   let fixture: ReturnType<typeof TestBed.createComponent<PageShell>>;
@@ -30,6 +41,14 @@ describe('PageShell', () => {
   beforeEach(() => {
     localStorage.clear();
     gateway = new FakeAuthGateway();
+    account = new FakeAccountGateway();
+    account.me.mockResolvedValue({
+      name: 'Test User',
+      email: 'user@example.ee',
+      phone: '+37250000001',
+      nationalIdCode: '49901019999',
+      levels: [],
+    });
     TestBed.configureTestingModule({
       imports: [PageShell],
       providers: [
@@ -41,6 +60,7 @@ describe('PageShell', () => {
           { path: 'account', component: MapStub },
         ]),
         { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
       ],
     });
     store = TestBed.inject(AuthStore);
@@ -81,7 +101,7 @@ describe('PageShell', () => {
     expect(element.textContent).not.toContain('Log in');
   });
 
-  it('an authenticated user gets Account + Verify links (Verify while no level is known)', async () => {
+  it('an authenticated user gets the Account link (Verify left the nav in M7)', async () => {
     await store.init();
     gateway.login.mockResolvedValue(PAIR);
     await store.login('user@example.ee', 'secret');
@@ -89,23 +109,29 @@ describe('PageShell', () => {
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('a[href="/account"]')).not.toBeNull();
-    // No GET /me -> a fresh session knows no verified level, so Verify shows.
-    expect(element.querySelector('a[href="/verify"]')).not.toBeNull();
-  });
-
-  it('hides the Verify link once a level is known verified in this session', async () => {
-    await store.init();
-    gateway.login.mockResolvedValue(PAIR);
-    await store.login('user@example.ee', 'secret');
-    store.addLevel('EMAIL');
-    fixture.detectChanges();
-
-    const element = fixture.nativeElement as HTMLElement;
+    // M7: the standalone Verify nav item is gone — verification is a
+    // per-contact label on /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
-    expect(element.querySelector('a[href="/account"]')).not.toBeNull();
   });
 
-  it('guests never see the Account/Verify links', async () => {
+  it('the nav stays link-stable whether or not a level is verified', async () => {
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    fixture.detectChanges();
+    expect(elementVerifyLinks()).toBe(0);
+
+    store.refreshProfile(); // no-op when the profile is already known
+    fixture.detectChanges();
+    expect(elementVerifyLinks()).toBe(0);
+  });
+
+  function elementVerifyLinks(): number {
+    const element = fixture.nativeElement as HTMLElement;
+    return element.querySelectorAll('a[href="/verify"]').length;
+  }
+
+  it('guests never see the Account link', async () => {
     await store.init();
     fixture.detectChanges();
 

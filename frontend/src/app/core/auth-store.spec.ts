@@ -2,14 +2,23 @@ import { TestBed } from '@angular/core/testing';
 import { AuthStore } from './auth-store';
 import { ApiError } from './api-error';
 import { TokenStore } from './token-store';
+import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
-import type { RegisterRequest, TokenResponse } from './models';
+import type { MeResponse, RegisterRequest, TokenResponse } from './models';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
 const ROTATED: TokenResponse = {
   accessToken: 'access-2',
   refreshToken: 'refresh-2',
   expiresIn: 900,
+};
+
+const PROFILE: MeResponse = {
+  name: 'Test User',
+  email: 'test@example.ee',
+  phone: '+37250000001',
+  nationalIdCode: '49901019999',
+  levels: [],
 };
 
 const REGISTER: RegisterRequest = {
@@ -44,16 +53,31 @@ class FakeAuthGateway {
   resetPassword = vi.fn();
 }
 
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
+}
+
 describe('AuthStore', () => {
   let store: AuthStore;
   let tokens: TokenStore;
   let gateway: FakeAuthGateway;
+  let account: FakeAccountGateway;
 
   beforeEach(() => {
     localStorage.clear();
     gateway = new FakeAuthGateway();
+    account = new FakeAccountGateway();
+    account.me.mockResolvedValue(PROFILE);
     TestBed.configureTestingModule({
-      providers: [{ provide: AuthGateway, useValue: gateway as unknown as AuthGateway }],
+      providers: [
+        { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
+      ],
     });
     store = TestBed.inject(AuthStore);
     tokens = TestBed.inject(TokenStore);
@@ -65,9 +89,10 @@ describe('AuthStore', () => {
       expect(store.initialized()).toBe(true);
       expect(store.authenticated()).toBe(false);
       expect(gateway.refresh).not.toHaveBeenCalled();
+      expect(account.me).not.toHaveBeenCalled();
     });
 
-    it('valid refresh token -> silent refresh rotates the pair and authenticates', async () => {
+    it('valid refresh token -> silent refresh rotates the pair, authenticates, fetches the profile', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockResolvedValue(ROTATED);
 
@@ -79,6 +104,26 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(true);
       expect(tokens.access()).toBe('access-2');
       expect(localStorage.getItem('os.refresh')).toBe('refresh-2');
+      // boot with a session loads the REAL profile + claims
+      expect(account.me).toHaveBeenCalledTimes(1);
+      expect(store.name()).toBe('Test User');
+      expect(store.email()).toBe('test@example.ee');
+      expect(store.phone()).toBe('+37250000001');
+      expect(store.nationalIdCode()).toBe('49901019999');
+    });
+
+    it('profile fetch failure at boot is non-fatal — the session survives', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      gateway.refresh.mockResolvedValue(ROTATED);
+      account.me.mockRejectedValue(ApiError.fromNetwork());
+
+      await store.init();
+
+      expect(store.authenticated()).toBe(true);
+      expect(store.initialized()).toBe(true);
+      expect(tokens.access()).toBe('access-2');
+      expect(store.name()).toBeNull();
+      expect(store.levels()).toEqual([]);
     });
 
     it('expired/revoked refresh token (401) -> cleared, anonymous', async () => {
@@ -91,6 +136,7 @@ describe('AuthStore', () => {
       expect(store.initialized()).toBe(true);
       expect(tokens.access()).toBeNull();
       expect(localStorage.getItem('os.refresh')).toBeNull();
+      expect(account.me).not.toHaveBeenCalled();
     });
 
     it('backend down on boot -> anonymous but keeps the refresh token for the next boot', async () => {
@@ -130,16 +176,18 @@ describe('AuthStore', () => {
       gateway.refresh.mockResolvedValue(ROTATED);
       await store.init();
       gateway.refresh.mockClear();
+      account.me.mockClear();
 
       await store.init();
 
       expect(gateway.refresh).not.toHaveBeenCalled();
+      expect(account.me).not.toHaveBeenCalled();
       expect(store.authenticated()).toBe(true);
     });
   });
 
   describe('login / register', () => {
-    it('login stores the pair and authenticates', async () => {
+    it('login stores the pair, authenticates, and fetches the profile', async () => {
       gateway.login.mockResolvedValue(PAIR);
 
       await store.login('test@example.ee', 's3cret!');
@@ -148,6 +196,20 @@ describe('AuthStore', () => {
       expect(store.authenticated()).toBe(true);
       expect(tokens.access()).toBe('access-1');
       expect(localStorage.getItem('os.refresh')).toBe('refresh-1');
+      expect(account.me).toHaveBeenCalledTimes(1);
+      expect(store.name()).toBe('Test User');
+      expect(store.email()).toBe('test@example.ee');
+    });
+
+    it('a failed profile fetch after login is non-fatal — the session is live', async () => {
+      gateway.login.mockResolvedValue(PAIR);
+      account.me.mockRejectedValue(ApiError.fromNetwork());
+
+      await store.login('test@example.ee', 's3cret!');
+
+      expect(store.authenticated()).toBe(true);
+      expect(tokens.access()).toBe('access-1');
+      expect(store.name()).toBeNull();
     });
 
     it('login failure propagates the ApiError and leaves the store anonymous', async () => {
@@ -164,6 +226,7 @@ describe('AuthStore', () => {
       await expect(store.login('test@example.ee', 'wrong')).rejects.toMatchObject({ status: 401 });
       expect(store.authenticated()).toBe(false);
       expect(tokens.access()).toBeNull();
+      expect(account.me).not.toHaveBeenCalled();
     });
 
     it('register forwards the request (no session is created)', async () => {
@@ -220,15 +283,19 @@ describe('AuthStore', () => {
       expect(gateway.refresh).not.toHaveBeenCalled();
     });
 
-    it('failed refresh -> false and the whole session is cleared', async () => {
+    it('failed refresh -> false and the whole session (incl. the profile) is cleared', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValue(expiredRefreshError());
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('test@example.ee', 's3cret!');
 
       await expect(store.refresh()).resolves.toBe(false);
 
       expect(store.authenticated()).toBe(false);
       expect(tokens.access()).toBeNull();
       expect(localStorage.getItem('os.refresh')).toBeNull();
+      expect(store.name()).toBeNull();
+      expect(store.levels()).toEqual([]);
     });
 
     it('is reusable after completion (a later 401 can refresh again)', async () => {
@@ -267,66 +334,117 @@ describe('AuthStore', () => {
     });
   });
 
-  describe('verification levels (M3)', () => {
-    it('starts empty and unverified', () => {
+  describe('real profile + levels (GET /account/me)', () => {
+    it('starts unknown and unverified', () => {
+      expect(store.name()).toBeNull();
+      expect(store.email()).toBeNull();
+      expect(store.phone()).toBeNull();
+      expect(store.nationalIdCode()).toBeNull();
       expect(store.levels()).toEqual([]);
       expect(store.isVerified()).toBe(false);
     });
 
-    it('addLevel(EMAIL) records the level and isVerified() turns true', () => {
-      store.addLevel('EMAIL');
+    it('refreshProfile() adopts the fetched profile and claims', async () => {
+      account.me.mockResolvedValue({
+        ...PROFILE,
+        levels: ['EMAIL', 'PHONE'],
+      });
 
-      expect(store.levels()).toEqual(['EMAIL']);
+      await store.refreshProfile();
+
+      expect(account.me).toHaveBeenCalledTimes(1);
+      expect(store.name()).toBe('Test User');
+      expect(store.email()).toBe('test@example.ee');
+      expect(store.phone()).toBe('+37250000001');
+      expect(store.nationalIdCode()).toBe('49901019999');
+      expect(store.levels()).toEqual(['EMAIL', 'PHONE']);
       expect(store.isVerified()).toBe(true);
     });
 
-    it('a single level (PHONE alone) is enough for isVerified()', () => {
-      store.addLevel('PHONE');
+    it('a single fetched level (PHONE alone) is enough for isVerified()', async () => {
+      account.me.mockResolvedValue({ ...PROFILE, levels: ['PHONE'] });
+
+      await store.refreshProfile();
 
       expect(store.isVerified()).toBe(true);
     });
 
-    it('addLevel dedupes — re-adding an existing level does not grow the list', () => {
-      store.addLevel('EMAIL');
-      store.addLevel('EMAIL');
+    it('refreshProfile() is single-flight — concurrent callers share one request', async () => {
+      let resolveMe!: (value: MeResponse) => void;
+      account.me.mockReturnValue(
+        new Promise<MeResponse>((resolve) => {
+          resolveMe = resolve;
+        }),
+      );
 
-      expect(store.levels()).toEqual(['EMAIL']);
+      const first = store.refreshProfile();
+      const second = store.refreshProfile();
+
+      expect(account.me).toHaveBeenCalledTimes(1);
+      resolveMe(PROFILE);
+      await first;
+      await second;
+
+      expect(store.name()).toBe('Test User');
     });
 
-    it('SMART_ID is never added (the backend rejects it as a stub)', () => {
-      store.addLevel('SMART_ID');
+    it('a failed refreshProfile() is non-fatal and leaves previous data in place', async () => {
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('test@example.ee', 's3cret!');
+      expect(store.name()).toBe('Test User');
 
-      expect(store.levels()).toEqual([]);
+      account.me.mockRejectedValue(ApiError.fromNetwork());
+      await store.refreshProfile();
+
+      expect(store.authenticated()).toBe(true);
+      expect(store.name()).toBe('Test User');
       expect(store.isVerified()).toBe(false);
     });
 
-    it('logout resets the optimistic levels', async () => {
-      store.addLevel('EMAIL');
+    it('logout resets the profile data', async () => {
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('test@example.ee', 's3cret!');
       gateway.logout.mockResolvedValue(undefined);
 
       await store.logout();
 
+      expect(store.name()).toBeNull();
+      expect(store.email()).toBeNull();
+      expect(store.phone()).toBeNull();
+      expect(store.nationalIdCode()).toBeNull();
       expect(store.levels()).toEqual([]);
       expect(store.isVerified()).toBe(false);
     });
 
-    it('a fresh login starts a fresh identity — levels do not carry over', async () => {
-      store.addLevel('EMAIL');
+    it('a fresh login adopts the NEW identity — previous profile does not carry over', async () => {
+      account.me.mockResolvedValueOnce(PROFILE).mockResolvedValueOnce({
+        name: 'Teine Kasutaja',
+        email: 'teine@example.ee',
+        phone: '+37250000002',
+        nationalIdCode: '49901019998',
+        levels: [],
+      });
       gateway.login.mockResolvedValue(PAIR);
+      await store.login('test@example.ee', 's3cret!');
+      expect(store.name()).toBe('Test User');
 
-      await store.login('other@example.ee', 's3cret!');
+      await store.login('teine@example.ee', 's3cret!');
 
+      expect(store.name()).toBe('Teine Kasutaja');
+      expect(store.email()).toBe('teine@example.ee');
       expect(store.levels()).toEqual([]);
       expect(store.isVerified()).toBe(false);
     });
 
-    it('a failed mid-session refresh (session cleared) also drops the levels', async () => {
-      store.addLevel('EMAIL');
+    it('a failed mid-session refresh (session cleared) drops the profile too', async () => {
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('test@example.ee', 's3cret!');
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValue(expiredRefreshError());
 
       await expect(store.refresh()).resolves.toBe(false);
 
+      expect(store.name()).toBeNull();
       expect(store.levels()).toEqual([]);
     });
   });

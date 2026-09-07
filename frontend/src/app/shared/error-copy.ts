@@ -24,7 +24,8 @@ export const COPY = {
   accountSameValue: 'That is already the value on your account — the new one must be different.',
 } as const;
 
-export type ErrorKind = 'login' | 'register' | 'reset' | 'verify' | 'account' | 'shelter';
+export type ErrorKind =
+  'login' | 'register' | 'reset' | 'verify' | 'account' | 'profile' | 'shelter';
 
 export function bannerMessage(error: unknown, kind: ErrorKind): string {
   const api = error instanceof ApiError ? error : toApiError(error);
@@ -41,12 +42,21 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       }
       return COPY.rateLimited;
     case 401:
+      // Profile edit: the backend's "current password is incorrect" IS the
+      // user-facing text (it is never the "wrong password" wording).
+      if (kind === 'profile') {
+        return api.message || COPY.unauthorized;
+      }
       return kind === 'login' ? COPY.invalidCredentials : api.message || COPY.unauthorized;
     case 400:
       // Password-reset confirm failures are always "bad link/token" — no
       // reason to echo backend internals.
       if (kind === 'reset') {
         return 'This reset link is invalid or has expired. Please request a new one.';
+      }
+      // Profile edit: echo the validation message (blank field, etc.).
+      if (kind === 'profile') {
+        return api.message || 'Please check your input and try again.';
       }
       // Verification confirm: wrong/expired code (or SMART_ID stub request).
       if (kind === 'verify') {

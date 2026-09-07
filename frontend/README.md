@@ -111,9 +111,6 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 
 ## Deferrals (v1, honest list)
 
-- **`GET /me`** — not in the API; a hard refresh restores the session by re-validating
-  the refresh token (`AuthStore.init()`), not by an account fetch. The account panel
-  therefore shows what the backend already returns (claims) and no profile edit.
 - **`GET /shelters/{id}/reviews/mine`** — no such endpoint; the detail page loads all
   reviews and finds "mine" client-side (fine at v1 review counts).
 - **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows

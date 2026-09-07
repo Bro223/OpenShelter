@@ -6,12 +6,15 @@ import { RegisterPage } from './features/auth/register-page';
 import { ResetPage } from './features/auth/reset-page';
 import { MapPage } from './features/map/map-page';
 import { VerifyPage } from './features/account/verify-page';
-import { ContactChangePage } from './features/account/contact-change-page';
+import { AccountPage } from './features/account/account-page';
 
 /**
  * Route map (01 puml). Built up per milestone:
  *  - M2: /login /register /reset (GuestGuard) + home (/map, public)
  *  - M3: /verify + /account (AuthGuard)
+ *  - M7: /account becomes the full AccountPage (real profile + per-contact
+ *        verification labels + password-confirmed identity edit); the Verify
+ *        top-nav item is removed — /verify stays for guard redirects + CTAs
  *  - M4: the real Leaflet map replaces the /map placeholder
  *        + /shelters/:id stub (public) — marker/row navigation lands here
  *  - M5: the real /shelters/:id detail page replaces the stub (still public —
@@ -51,7 +54,7 @@ export const routes: Routes = [
   },
   {
     path: 'account',
-    component: ContactChangePage,
+    component: AccountPage,
     data: { title: 'Account' },
     canActivate: [titleGuard, authGuard],
   },

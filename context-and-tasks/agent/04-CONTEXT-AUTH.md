@@ -32,7 +32,8 @@ Three concerns, three services — **never one blob**:
 | `RateLimiter` | interface | `tryAcquire(key: String): boolean`. |
 | `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). |
 | `AuthController` | class | Thin shell — `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`. |
-| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {token, newPassword}`. |
+| `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
+| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {token, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels}`, `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
 
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
 RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
@@ -96,6 +97,21 @@ Hibernate flushes INSERTs before DELETEs, re-saving a user who already had an ac
 violated the V3 unique index `uq_verification_claims_user_level_active`. It is now a bulk
 `@Modifying @Query` delete that runs immediately in SQL.
 
+## Account profile (GET /account/me + PUT /account/profile)
+
+`AccountController` also hosts the profile surface (JWT-gated, user resolved from the token):
+
+| Endpoint | Behavior |
+|---|---|
+| `GET /account/me` | 200 + `MeResponse {name, email, phone, nationalIdCode, levels}` — the REAL profile and the REAL verified claim set (levels in enum order). The frontend's single source of truth (replaces its session-only optimistic mirror). 401 unauthenticated. |
+| `PUT /account/profile` | Body `{name, nationalIdCode, currentPassword}` — verifies the current password against the stored Argon2 hash BEFORE any update (wrong → 401 `InvalidProfilePasswordException`, message "current password is incorrect", nothing written); validates name/nationalIdCode exactly like registration (`@NotBlank` — blank → 400, no checksum, values stored as given); persists via `RegisteredUser.changeName`/`changeNationalIdCode` + `JpaUserRepository.save`; returns the fresh `MeResponse`. 401 unauthenticated. |
+
+**Decisions:** identity fields have no cross-channel second factor, so current-password
+possession is the v1 gate for name/ID edits (email/phone stay on the cross-channel flows).
+Updating the national ID does NOT clear or add verification claims — SMART-ID is a stub; when it
+lands, a code change must invalidate any pending/active SMART-ID claim (documented follow-up in
+`AccountService`). Both endpoints are cheap (no code issuance) and need no rate bucket.
+
 ## Spring Security wiring (Step 4)
 
 - `SecurityFilterChain`: `permitAll` on `POST /auth/register`, `/auth/login`,
@@ -120,3 +136,9 @@ violated the V3 unique index `uq_verification_claims_user_level_active`. It is n
   deletes the pending row; wrong code increments attempts (5 → "too many attempts"); duplicate
   target → `DuplicateAccountException`; same-as-current → `InvalidContactChangeException`; resend
   within cooldown → `VerificationThrottledException`.
+
+- `AccountControllerIT` (profile surface): `GET /account/me` returns the stored profile + the REAL
+  claim set (seeded claims come back; none → empty list); unauthenticated → 401. `PUT
+  /account/profile`: happy path persists + returns the fresh profile; wrong current password → 401
+  "current password is incorrect" with nothing updated; blank name / nationalIdCode → 400;
+  unauthenticated → 401; an ID change leaves verification claims intact.

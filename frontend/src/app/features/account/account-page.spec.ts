@@ -1,0 +1,464 @@
+import { Component, type DebugElement } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { AccountGateway } from '../../gateways/account-gateway';
+import { ApiError } from '../../core/api-error';
+import { AuthGateway } from '../../gateways/auth-gateway';
+import { AuthStore } from '../../core/auth-store';
+import type { MeResponse, TokenResponse } from '../../core/models';
+import { AccountPage } from './account-page';
+
+const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
+
+const PROFILE: MeResponse = {
+  name: 'Kontakt Muutus',
+  email: 'kontakt@example.ee',
+  phone: '+37250004444',
+  nationalIdCode: '49001014444',
+  levels: [],
+};
+
+/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+class FakeAuthGateway {
+  register = vi.fn();
+  login = vi.fn();
+  refresh = vi.fn();
+  logout = vi.fn();
+  requestPasswordReset = vi.fn();
+  resetPassword = vi.fn();
+}
+
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
+}
+
+function apiError(status: number, message: string, path: string): ApiError {
+  return ApiError.fromHttp(status, { timestamp: 't', status, error: 'Error', message, path }, path);
+}
+
+@Component({ template: '<p>stub</p>' })
+class Stub {}
+
+@Component({ imports: [RouterOutlet], template: '<router-outlet />' })
+class Host {}
+
+describe('AccountPage', () => {
+  let account: FakeAccountGateway;
+  let auth: FakeAuthGateway;
+  let store: AuthStore;
+  let router: Router;
+
+  beforeEach(() => {
+    localStorage.clear();
+    account = new FakeAccountGateway();
+    auth = new FakeAuthGateway();
+    account.me.mockResolvedValue(PROFILE);
+    TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        provideRouter([
+          { path: 'map', component: Stub },
+          { path: 'account', component: AccountPage },
+        ]),
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
+        { provide: AuthGateway, useValue: auth as unknown as AuthGateway },
+      ],
+    });
+    store = TestBed.inject(AuthStore);
+    router = TestBed.inject(Router);
+  });
+
+  async function open(): Promise<{
+    page: AccountPage;
+    element: HTMLElement;
+    fixture: ReturnType<typeof TestBed.createComponent<Host>>;
+  }> {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    // The guard awaits init; with no refresh token init settles anonymous —
+    // the page renders because this harness routes without the guard.
+    await store.init();
+    await store.refreshProfile();
+    await router.navigateByUrl('/account');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const debug: DebugElement = fixture.debugElement.query(By.directive(AccountPage));
+    if (!debug) {
+      throw new Error('AccountPage not rendered');
+    }
+    return { page: debug.componentInstance, element: debug.nativeElement as HTMLElement, fixture };
+  }
+
+  function text(fixture: ReturnType<typeof TestBed.createComponent<Host>>): string {
+    return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  // ---- identity card -------------------------------------------------------
+
+  it('renders the fetched identity (name + national ID) in the identity card', async () => {
+    const { element } = await open();
+
+    expect(element.textContent).toContain('Identity');
+    expect(element.textContent).toContain('Kontakt Muutus');
+    expect(element.textContent).toContain('49001014444');
+    expect(element.querySelector('#profile-name')).toBeNull(); // closed form
+  });
+
+  it('renders the real contact values with per-contact verification labels', async () => {
+    const { element } = await open();
+
+    expect(element.textContent).toContain('kontakt@example.ee');
+    expect(element.textContent).toContain('+37250004444');
+    // Fresh account: both rows offer "Complete verification"
+    const ctas = element.querySelectorAll('a[href="/verify"]');
+    expect(ctas.length).toBe(2);
+    for (const cta of ctas) {
+      expect(cta.textContent).toContain('Complete verification');
+    }
+  });
+
+  it('verified email + unverified phone -> Verified label on the email row only', async () => {
+    account.me.mockResolvedValue({ ...PROFILE, levels: ['EMAIL'] });
+    const { element } = await open();
+
+    const rows = element.querySelectorAll('.contact-row');
+    expect(rows.length).toBe(2);
+    // email row: verified label, no CTA
+    expect(rows[0]?.textContent).toContain('Verified');
+    expect(rows[0]?.querySelector('a[href="/verify"]')).toBeNull();
+    // phone row: CTA
+    expect(rows[1]?.querySelector('a[href="/verify"]')).not.toBeNull();
+    expect(rows[1]?.textContent).toContain('Complete verification');
+  });
+
+  it('both contacts verified -> no "Complete verification" actions at all', async () => {
+    account.me.mockResolvedValue({ ...PROFILE, levels: ['EMAIL', 'PHONE'] });
+    const { element } = await open();
+
+    expect(element.querySelectorAll('a[href="/verify"]').length).toBe(0);
+    const rows = element.querySelectorAll('.contact-row');
+    expect(rows[0]?.textContent).toContain('Verified');
+    expect(rows[1]?.textContent).toContain('Verified');
+  });
+
+  it('a failed profile fetch shows the error state; Retry re-fetches', async () => {
+    account.me.mockRejectedValue(ApiError.fromNetwork());
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await store.init();
+    await store.refreshProfile();
+    await router.navigateByUrl('/account');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.textContent).toContain('could not load your profile');
+    expect(element.textContent).not.toContain('kontakt@example.ee');
+    expect(element.querySelector('#change-email-new')).toBeNull(); // chrome only
+
+    // Recovery: the backend is back — Retry fetches and the profile renders.
+    account.me.mockResolvedValue(PROFILE);
+    const page = fixture.debugElement.query(By.directive(AccountPage)).componentInstance;
+    await page.retryProfile();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Kontakt Muutus');
+    expect(element.textContent).toContain('kontakt@example.ee');
+  });
+
+  // ---- identity edit (password-confirmed) ----------------------------------
+
+  it('Edit opens the form pre-filled with the current values', async () => {
+    const { page, element, fixture } = await open();
+
+    page.startEdit();
+    fixture.detectChanges();
+
+    expect(element.querySelector('#profile-name')).not.toBeNull();
+    expect(element.querySelector('#profile-national-id')).not.toBeNull();
+    expect(element.querySelector('#profile-password')).not.toBeNull();
+    expect(page.editName.value).toBe('Kontakt Muutus');
+    expect(page.editNationalIdCode.value).toBe('49001014444');
+    expect(page.editPassword.value).toBe('');
+  });
+
+  it('does not submit an empty edit form and shows required errors', async () => {
+    const { page, fixture } = await open();
+    page.startEdit();
+    page.editName.setValue('');
+    page.editNationalIdCode.setValue('');
+    page.editPassword.setValue('');
+
+    await page.saveProfile();
+    fixture.detectChanges();
+
+    expect(account.updateProfile).not.toHaveBeenCalled();
+    expect(text(fixture)).toContain('A name is required.');
+    expect(text(fixture)).toContain('A national ID code is required.');
+    expect(text(fixture)).toContain('Your current password is required.');
+  });
+
+  it('successful edit persists via updateProfile, re-fetches, and shows the new values', async () => {
+    const { page, element, fixture } = await open();
+    page.startEdit();
+    page.editName.setValue('Korrektitud Nimi');
+    page.editNationalIdCode.setValue('49001014445');
+    page.editPassword.setValue('s3cret');
+
+    // The backend persists and the re-fetch reflects it.
+    const UPDATED: MeResponse = {
+      ...PROFILE,
+      name: 'Korrektitud Nimi',
+      nationalIdCode: '49001014445',
+    };
+    account.updateProfile.mockResolvedValue(UPDATED);
+    account.me.mockResolvedValue(UPDATED);
+
+    await page.saveProfile();
+    fixture.detectChanges();
+
+    expect(account.updateProfile).toHaveBeenCalledWith({
+      name: 'Korrektitud Nimi',
+      nationalIdCode: '49001014445',
+      currentPassword: 's3cret',
+    });
+    // the form closed, the card shows the server state
+    expect(element.querySelector('#profile-password')).toBeNull();
+    expect(element.textContent).toContain('Korrektitud Nimi');
+    expect(element.textContent).toContain('49001014445');
+    expect(element.textContent).toContain('Your profile has been updated.');
+    expect(page.editPassword.value).toBe('');
+  });
+
+  it('a wrong current password (401) surfaces the inline error and changes nothing', async () => {
+    const { page, element, fixture } = await open();
+    page.startEdit();
+    page.editPassword.setValue('not-the-password');
+
+    account.updateProfile.mockRejectedValue(
+      apiError(401, 'current password is incorrect', '/account/profile'),
+    );
+
+    await page.saveProfile();
+    fixture.detectChanges();
+
+    const banner = element.querySelector('.banner--error') as HTMLElement | null;
+    expect(banner?.textContent).toContain('current password is incorrect');
+    // still in the edit form — the password can be corrected
+    expect(element.querySelector('#profile-password')).not.toBeNull();
+    // the store is untouched
+    expect(store.name()).toBe('Kontakt Muutus');
+    expect(store.nationalIdCode()).toBe('49001014444');
+  });
+
+  it('a validation 400 (blank field) echoes the backend message', async () => {
+    const { page, element, fixture } = await open();
+    page.startEdit();
+    page.editPassword.setValue('s3cret');
+
+    account.updateProfile.mockRejectedValue(
+      apiError(400, 'nationalIdCode must not be blank', '/account/profile'),
+    );
+
+    await page.saveProfile();
+    fixture.detectChanges();
+
+    const banner = element.querySelector('.banner--error') as HTMLElement | null;
+    expect(banner?.textContent).toContain('nationalIdCode must not be blank');
+    expect(element.querySelector('#profile-password')).not.toBeNull();
+  });
+
+  it('Cancel closes the edit form without calling the gateway', async () => {
+    const { page, element, fixture } = await open();
+    page.startEdit();
+    fixture.detectChanges();
+
+    page.cancelEdit();
+    fixture.detectChanges();
+
+    expect(element.querySelector('#profile-name')).toBeNull();
+    expect(page.editPassword.value).toBe('');
+    expect(account.updateProfile).not.toHaveBeenCalled();
+  });
+
+  // ---- contact change panels (M3 behaviour preserved) ----------------------
+
+  it('renders both change panels with cross-channel proof copy naming the channel', async () => {
+    const { element } = await open();
+
+    expect(element.textContent).toContain('Change email address');
+    expect(element.textContent).toContain('Change phone number');
+    // Changing email is proven via the PHONE; changing phone via the EMAIL.
+    expect(element.textContent).toContain('SMS code sent to the phone');
+    expect(element.textContent).toContain('email code sent to the email');
+    expect(element.querySelector('#change-email-new')).not.toBeNull();
+    expect(element.querySelector('#change-phone-new')).not.toBeNull();
+  });
+
+  it('email send -> 202: normalises the address and moves to the code phase', async () => {
+    const { page, element, fixture } = await open();
+    // No surrounding whitespace: Validators.email rejects padded addresses
+    // (M2 finding) — the gateway must receive the lowercased form.
+    page.newEmail.setValue('New@Example.EE');
+    account.requestEmailChange.mockResolvedValue(undefined);
+
+    await page.emailSend();
+    fixture.detectChanges();
+
+    expect(account.requestEmailChange).toHaveBeenCalledWith('new@example.ee');
+    expect(element.querySelector('#change-email-code')).not.toBeNull();
+    expect(element.textContent).toContain(
+      'We sent an SMS code to the phone number on your account.',
+    );
+    expect(element.textContent).toContain('Confirm new email');
+    expect(element.textContent).toContain('Resend code');
+  });
+
+  it('email confirm success re-fetches the profile and shows the new value', async () => {
+    const { page, element, fixture } = await open();
+    // Session is live first (the page only renders for authenticated users).
+    auth.login.mockResolvedValue(PAIR);
+    await store.login('kontakt@example.ee', 's3cret');
+
+    page.newEmail.setValue('new@example.ee');
+    account.requestEmailChange.mockResolvedValue(undefined);
+    await page.emailSend();
+
+    page.emailCode.setValue('123456');
+    account.confirmEmailChange.mockResolvedValue(undefined);
+    // The re-fetch after the change reflects the new contact.
+    account.me.mockResolvedValue({ ...PROFILE, email: 'new@example.ee' });
+    await page.emailConfirm();
+    fixture.detectChanges();
+
+    expect(account.confirmEmailChange).toHaveBeenCalledWith('123456');
+    expect(element.textContent).toContain('Your email address has been changed.');
+    expect(element.textContent).toContain('new@example.ee');
+    // the REAL contact value moved with the re-fetch
+    expect(store.email()).toBe('new@example.ee');
+    // Contact change never logs anyone out (only a password reset does).
+    expect(store.authenticated()).toBe(true);
+    expect(auth.logout).not.toHaveBeenCalled();
+  });
+
+  it('a request 400 (same as current) gets the must-differ copy', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('same@example.ee');
+    account.requestEmailChange.mockRejectedValue(
+      apiError(400, 'new email equals the current email', '/account/email-change/request'),
+    );
+
+    await page.emailSend();
+    fixture.detectChanges();
+
+    expect(text(fixture)).toContain('the new one must be different');
+    // Still on the form — no code phase was entered.
+    expect(element.querySelector('#change-email-code')).toBeNull();
+  });
+
+  it('a request 409 (duplicate target) surfaces the backend message inline', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('taken@example.ee');
+    account.requestEmailChange.mockRejectedValue(
+      apiError(409, 'an account with this email already exists', '/account/email-change/request'),
+    );
+
+    await page.emailSend();
+    fixture.detectChanges();
+
+    const banner = element.querySelector('.banner--error') as HTMLElement | null;
+    expect(banner?.textContent).toContain('an account with this email already exists');
+    expect(text(fixture)).not.toContain('new email equals the current email');
+  });
+
+  it('a wrong/expired confirm code (400) shows generic copy, never the backend text', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('new@example.ee');
+    account.requestEmailChange.mockResolvedValue(undefined);
+    await page.emailSend();
+
+    page.emailCode.setValue('000000');
+    account.confirmEmailChange.mockRejectedValue(
+      apiError(400, 'invalid code', '/account/email-change/confirm'),
+    );
+    await page.emailConfirm();
+    fixture.detectChanges();
+
+    const banner = element.querySelector('.banner--error') as HTMLElement | null;
+    expect(banner?.textContent).toContain('That code is invalid or has expired');
+    expect(banner?.textContent).not.toContain('invalid code');
+    // Still in the code phase — the user can correct the code.
+    expect(element.querySelector('#change-email-code')).not.toBeNull();
+  });
+
+  it('blocks a malformed 6-digit code client-side before hitting the gateway', async () => {
+    const { page, fixture } = await open();
+    page.newEmail.setValue('new@example.ee');
+    account.requestEmailChange.mockResolvedValue(undefined);
+    await page.emailSend();
+
+    page.emailCode.setValue('12AB34'); // letters — not a 6-digit OTP
+    account.confirmEmailChange.mockResolvedValue(undefined);
+    await page.emailConfirm();
+    fixture.detectChanges();
+
+    expect(account.confirmEmailChange).not.toHaveBeenCalled();
+    expect(text(fixture)).toContain('Enter the 6-digit code from the SMS.');
+  });
+
+  it('phone flow: request by email code -> confirm updates the phone', async () => {
+    const { page, element, fixture } = await open();
+    page.newPhone.setValue('+37250000002');
+    account.requestPhoneChange.mockResolvedValue(undefined);
+    await page.phoneSend();
+    fixture.detectChanges();
+
+    expect(account.requestPhoneChange).toHaveBeenCalledWith('+37250000002');
+    expect(element.textContent).toContain(
+      'We sent an email code to the email address on your account.',
+    );
+
+    page.phoneCode.setValue('654321');
+    account.confirmPhoneChange.mockResolvedValue(undefined);
+    account.me.mockResolvedValue({ ...PROFILE, phone: '+37250000002' });
+    await page.phoneConfirm();
+    fixture.detectChanges();
+
+    expect(account.confirmPhoneChange).toHaveBeenCalledWith('654321');
+    expect(element.textContent).toContain('Your phone number has been changed.');
+    expect(element.textContent).toContain('+37250000002');
+    expect(store.phone()).toBe('+37250000002');
+  });
+
+  it('shows the loading state while a change request is in flight', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('new@example.ee');
+    let resolveRequest: () => void = () => {};
+    account.requestEmailChange.mockReturnValue(
+      new Promise<void>((resolve) => (resolveRequest = resolve)),
+    );
+
+    const inFlight = page.emailSend();
+    fixture.detectChanges();
+
+    // The email panel's button shows its loading copy and is disabled
+    // (busy() covers the whole page).
+    expect(element.textContent).toContain('Sending…');
+    for (const b of element.querySelectorAll<HTMLButtonElement>('button')) {
+      expect(b.disabled).toBe(true);
+    }
+    expect(element.querySelector('.banner')).toBeNull();
+
+    resolveRequest();
+    await inFlight;
+    fixture.detectChanges();
+    expect(element.textContent).not.toContain('Sending…');
+  });
+});

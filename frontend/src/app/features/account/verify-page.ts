@@ -62,13 +62,16 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
 /**
  * /verify (AuthGuard) — prove ownership of the email and phone on the account
  * (04-CONTEXT-ACCOUNT-VERIFY.md, 03 puml). Per channel: "send code" -> "enter
- * code" -> verified. Reads which levels are still open from AuthStore.levels()
- * and re-marks levels optimistically after a confirm (04-CONTEXT decision 3).
+ * code" -> verified. Reads which levels are still open from the REAL claim
+ * set in AuthStore.levels() (fetched from GET /account/me) and re-fetches the
+ * profile after a confirm (04-CONTEXT decision 3, reversed), so the newly
+ * verified channel disappears without any optimistic write.
  *
  * Error mapping: 409 on request means the level is ALREADY verified — no code
- * was sent (backend AlreadyVerifiedException) — shown as an informational
- * notice and the level is added, so the panel disappears. 429 (cooldown/daily
- * cap) and 400 (wrong/expired code) use generic copy; no auto-retry anywhere.
+ * was sent (backend AlreadyVerifiedException) — the profile is re-fetched
+ * (defensive net: the store can be stale after a failed fetch) and an
+ * informational notice is shown. 429 (cooldown/daily cap) and 400
+ * (wrong/expired code) use generic copy; no auto-retry anywhere.
  */
 @Component({
   selector: 'app-verify-page',
@@ -145,7 +148,8 @@ export class VerifyPage {
   /**
    * POST /verify/request. 202 -> the panel moves to the code-entry phase.
    * 409 -> the level is already verified (no code sent, no throttle consumed):
-   * reflect it in AuthStore and inform — never an error banner.
+   * re-fetch the profile so the store reflects the real claim, and inform —
+   * never an error banner.
    */
   async request(level: VerifyChannel): Promise<void> {
     if (this.sending() !== null || this.confirming() !== null) {
@@ -160,7 +164,7 @@ export class VerifyPage {
     } catch (error) {
       const api = error instanceof ApiError ? error : toApiError(error);
       if (api.status === 409) {
-        this.store.addLevel(level);
+        await this.store.refreshProfile();
         this.notice.set({
           severity: 'info',
           text: `Your ${this.channel(level).noun} is already verified.`,
@@ -174,7 +178,8 @@ export class VerifyPage {
   }
 
   /** POST /verify/confirm. On 200 the claim is persisted backend-side; the
-   *  level is added optimistically to AuthStore and the panel disappears. */
+   *  profile is re-fetched so the level appears verified and the panel
+   *  disappears (no optimistic write — the fetched state is the truth). */
   async confirm(level: VerifyChannel): Promise<void> {
     if (this.sending() !== null || this.confirming() !== null) {
       return;
@@ -189,7 +194,7 @@ export class VerifyPage {
     this.confirming.set(level);
     try {
       await this.verify.confirm(level, code.value.trim());
-      this.store.addLevel(level);
+      await this.store.refreshProfile();
       this.notice.set({
         severity: 'success',
         text: `Your ${this.channel(level).noun} is verified.`,

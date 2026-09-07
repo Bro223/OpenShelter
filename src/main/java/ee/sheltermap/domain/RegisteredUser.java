@@ -14,10 +14,10 @@ public class RegisteredUser extends User {
 
     private static final VerificationPolicy DEFAULT_POLICY = new VerificationPolicy(VerificationRules.ofDefaults());
 
-    private final String name;
+    private String name;
     private String email;
     private String phone;
-    private final String nationalIdCode;
+    private String nationalIdCode;
     private final Set<VerificationClaim> verifications = new LinkedHashSet<>();
 
     public RegisteredUser(String name, String email, String phone, String nationalIdCode) {
@@ -57,6 +57,28 @@ public class RegisteredUser extends User {
      */
     public void changePhone(String newPhone) {
         this.phone = Objects.requireNonNull(newPhone, "newPhone");
+    }
+
+    /**
+     * Replaces the display name (stored as given, exactly like registration).
+     * Caller must have proven possession of the account password — see
+     * {@code ee.sheltermap.auth.AccountService}.
+     */
+    public void changeName(String newName) {
+        this.name = Objects.requireNonNull(newName, "newName");
+    }
+
+    /**
+     * Replaces the national ID code (corrects a registration typo). Stored as
+     * given, exactly like registration — no checksum validation (registration
+     * has none, so editing must not be stricter).
+     *
+     * <p>Does NOT touch verification claims: SMART-ID is a stub in v1; when it
+     * lands, a code change must invalidate any pending/active SMART-ID claim
+     * (documented follow-up — see {@code ee.sheltermap.auth.AccountService}).
+     */
+    public void changeNationalIdCode(String newNationalIdCode) {
+        this.nationalIdCode = Objects.requireNonNull(newNationalIdCode, "newNationalIdCode");
     }
 
     /** Revokes the active claim for {@code level}, if any. No-op otherwise. */

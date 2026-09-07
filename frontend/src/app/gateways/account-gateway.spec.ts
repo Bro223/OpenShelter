@@ -58,4 +58,35 @@ describe('AccountGateway', () => {
 
     expect(api.post).toHaveBeenCalledWith('/account/phone-change/confirm', { code: '654321' });
   });
+
+  it('me GETs the real profile from /account/me', async () => {
+    const profile = {
+      name: 'Aino Test',
+      email: 'aino@example.ee',
+      phone: '+37250000002',
+      nationalIdCode: '50001020002',
+      levels: ['EMAIL'],
+    };
+    api.get.mockReturnValue(of(profile));
+
+    const result = await gateway.me();
+
+    expect(api.get).toHaveBeenCalledWith('/account/me');
+    expect(result).toEqual(profile);
+  });
+
+  it('updateProfile PUTs the profile request and returns the fresh MeResponse', async () => {
+    const request = {
+      name: 'Aino Test',
+      nationalIdCode: '50001020002',
+      currentPassword: 'correct-horse',
+    };
+    const fresh = { ...request, email: 'aino@example.ee', phone: '+37250000002', levels: [] };
+    api.put.mockReturnValue(of(fresh));
+
+    const result = await gateway.updateProfile(request);
+
+    expect(api.put).toHaveBeenCalledWith('/account/profile', request);
+    expect(result).toEqual(fresh);
+  });
 });

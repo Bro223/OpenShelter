@@ -2,11 +2,21 @@ import { Component, type DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { AccountGateway } from '../../gateways/account-gateway';
 import { ApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { VerifyGateway } from '../../gateways/verify-gateway';
 import { AuthStore } from '../../core/auth-store';
+import type { MeResponse } from '../../core/models';
 import { VerifyPage } from './verify-page';
+
+const PROFILE: MeResponse = {
+  name: 'Test User',
+  email: 'test@example.ee',
+  phone: '+37250000001',
+  nationalIdCode: '49901019999',
+  levels: [],
+};
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
 class FakeAuthGateway {
@@ -16,6 +26,15 @@ class FakeAuthGateway {
   logout = vi.fn();
   requestPasswordReset = vi.fn();
   resetPassword = vi.fn();
+}
+
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
 }
 
 class FakeVerifyGateway {
@@ -36,6 +55,7 @@ class Host {}
 describe('VerifyPage', () => {
   let verifyGateway: FakeVerifyGateway;
   let authGateway: FakeAuthGateway;
+  let account: FakeAccountGateway;
   let store: AuthStore;
   let router: Router;
 
@@ -43,6 +63,8 @@ describe('VerifyPage', () => {
     localStorage.clear();
     verifyGateway = new FakeVerifyGateway();
     authGateway = new FakeAuthGateway();
+    account = new FakeAccountGateway();
+    account.me.mockResolvedValue(PROFILE);
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -52,6 +74,7 @@ describe('VerifyPage', () => {
         ]),
         { provide: VerifyGateway, useValue: verifyGateway as unknown as VerifyGateway },
         { provide: AuthGateway, useValue: authGateway as unknown as AuthGateway },
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
       ],
     });
     store = TestBed.inject(AuthStore);
@@ -123,18 +146,21 @@ describe('VerifyPage', () => {
     expect(text(fixture)).toContain('Enter the 6-digit code from the SMS.');
   });
 
-  it('confirm success marks the level verified — the panel disappears', async () => {
+  it('confirm success re-fetches the profile — the panel disappears', async () => {
     const { page, element, fixture } = await open();
     verifyGateway.request.mockResolvedValue(undefined);
     verifyGateway.confirm.mockResolvedValue(undefined);
     await page.request('EMAIL');
     fixture.detectChanges();
+    // The backend now holds the claim — the re-fetched profile reflects it.
+    account.me.mockResolvedValue({ ...PROFILE, levels: ['EMAIL'] });
 
     page.codes.EMAIL.setValue('AB12CD34');
     await page.confirm('EMAIL');
     fixture.detectChanges();
 
     expect(verifyGateway.confirm).toHaveBeenCalledWith('EMAIL', 'AB12CD34');
+    expect(account.me).toHaveBeenCalledTimes(1); // refreshProfile after confirm
     expect(store.levels()).toContain('EMAIL');
     expect(store.isVerified()).toBe(true);
     expect(element.textContent).not.toContain('Send code to my email');
@@ -142,15 +168,18 @@ describe('VerifyPage', () => {
     expect(element.textContent).toContain('Your email is verified.');
   });
 
-  it('a 409 on request means already verified — informs, never errors, marks the level', async () => {
+  it('a 409 on request means already verified — re-fetches the profile, informs, never errors', async () => {
     const { page, element, fixture } = await open();
     verifyGateway.request.mockRejectedValue(
       apiError(409, 'already verified: PHONE', '/verify/request'),
     );
+    // The server says the claim exists — the re-fetched profile carries it.
+    account.me.mockResolvedValue({ ...PROFILE, levels: ['PHONE'] });
 
     await page.request('PHONE');
     fixture.detectChanges();
 
+    expect(account.me).toHaveBeenCalledTimes(1); // refreshProfile after 409
     expect(store.levels()).toContain('PHONE');
     expect(verifyGateway.confirm).not.toHaveBeenCalled();
     expect(element.textContent).toContain('already verified');
@@ -227,9 +256,9 @@ describe('VerifyPage', () => {
     expect(verifyGateway.request).toHaveBeenCalledWith('EMAIL');
   });
 
-  it('shows the fully-verified panel once both levels are known', async () => {
-    store.addLevel('EMAIL');
-    store.addLevel('PHONE');
+  it('shows the fully-verified panel once the fetched profile has both levels', async () => {
+    account.me.mockResolvedValue({ ...PROFILE, levels: ['EMAIL', 'PHONE'] });
+    await store.refreshProfile();
     const { element } = await open();
 
     expect(element.textContent).toContain("You're fully verified");

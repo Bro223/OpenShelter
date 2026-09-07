@@ -1,7 +1,8 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { ApiError } from './api-error';
+import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
-import type { RegisterRequest, VerificationLevel } from './models';
+import type { MeResponse, RegisterRequest, VerificationLevel } from './models';
 import { TokenStore } from './token-store';
 
 /**
@@ -9,17 +10,16 @@ import { TokenStore } from './token-store';
  * silent refresh at boot, login/logout, and the single-flight refresh used by
  * the interceptor on 401. Pages/guards read `authenticated`.
  *
- * Verification levels (M3): the backend has no GET /me and the JWT carries
- * only the user id — no endpoint returns the verified-claim set (04-CONTEXT
- * decision 3). So `levels` is an OPTIMISTIC, session-lifetime mirror: it
- * starts empty and grows only when this browser saw a confirm succeed, or a
- * request came back 409 "already verified". It is deliberately NOT persisted
- * and resets whenever the identity may change (login/logout/cleared session):
- * a stale cache could wrongly hide the verify buttons, and there is no way to
- * re-derive claims without the endpoint. Consequences are self-healing — after
- * a reload the buttons reappear and a request to an already-verified level
- * answers 409 without sending a code (backed by the backend's
- * AlreadyVerifiedException) and re-marks the level here.
+ * Profile (this milestone): the backend answers `GET /account/me` with the
+ * REAL profile — name, email, phone, nationalIdCode and the REAL verified
+ * claim set. The store fetches it once at boot (after a successful silent
+ * refresh) and after login, and keeps it in signals. `refreshProfile()`
+ * re-fetches it after every claims-changing event (verify-confirm, contact
+ * change, profile edit) so the account/verify pages read one truth. The old
+ * optimistic `levels` mirror (and its `addLevel` writer) is gone — the
+ * fetched `levels()` is server state, and a failed fetch is non-fatal: the
+ * session stays authenticated with a null profile (the account page shows a
+ * retry), and the next refresh or explicit `refreshProfile()` recovers it.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthStore {
@@ -32,16 +32,27 @@ export class AuthStore {
    */
   readonly initialized = signal<boolean>(false);
 
+  // ---- real profile (GET /account/me) --------------------------------------
   /**
-   * Verification levels THIS session has seen confirmed (EMAIL/PHONE). Read
-   * via `levels()` in templates; mutate ONLY through {@link addLevel}. Resets
-   * on login/logout/cleared session — see the class note for why it is not
-   * persisted. (SMART_ID is never added: the backend rejects it with 400.)
+   * The fetched profile, or null while unknown (never logged in yet, or a
+   * failed fetch). Read via `name()`/`email()`/… in templates.
+   */
+  readonly name = signal<string | null>(null);
+  readonly email = signal<string | null>(null);
+  readonly phone = signal<string | null>(null);
+  readonly nationalIdCode = signal<string | null>(null);
+
+  /**
+   * The REAL verified levels (EMAIL/PHONE) from the fetched profile. Read via
+   * `levels()` in templates and guards; written ONLY by {@link refreshProfile}
+   * / {@link clearSession}. SMART_ID can appear in a future response — the
+   * backend currently rejects it as a stub.
    */
   readonly levels = signal<VerificationLevel[]>([]);
 
   private readonly tokens = inject(TokenStore);
   private readonly authGateway = inject(AuthGateway);
+  private readonly accountGateway = inject(AccountGateway);
 
   /** In-flight single-flight refresh — concurrent callers share one promise. */
   private pendingRefresh: Promise<boolean> | null = null;
@@ -49,11 +60,15 @@ export class AuthStore {
   /** In-flight boot init — guards and the shell may race on the same init. */
   private bootInit: Promise<void> | null = null;
 
+  /** In-flight profile fetch — concurrent callers share one run. */
+  private pendingProfile: Promise<void> | null = null;
+
   /**
    * Boot-time silent refresh. No persisted refresh token -> anonymous.
-   * Valid token -> rotates the pair (auth/refresh); 401 -> expired, cleared.
-   * Any other failure (backend down) keeps the refresh token so the session
-   * can still be recovered on the next boot or by a mid-session 401 refresh.
+   * Valid token -> rotates the pair (auth/refresh) and fetches the real
+   * profile; 401 -> expired, cleared. Any other failure (backend down) keeps
+   * the refresh token so the session can still be recovered on the next boot
+   * or by a mid-session 401 refresh.
    *
    * Idempotent and single-flight: concurrent callers (App boot + a guard on
    * the first navigation) share one run so the refresh token is never raced.
@@ -82,6 +97,9 @@ export class AuthStore {
     try {
       await this.rotate(refreshToken);
       this.authenticated.set(true);
+      // Real profile for the restored session (non-fatal — the session is
+      // alive even when the profile fetch fails; the account page retries).
+      await this.refreshProfile();
     } catch (error) {
       this.authenticated.set(false);
       if (error instanceof ApiError && error.status === 401) {
@@ -104,17 +122,19 @@ export class AuthStore {
   }
 
   /**
-   * Log in with email-or-phone + password. Stores the returned pair and marks
-   * the session authenticated. Throws ApiError on failure (401/429).
-   *
-   * Starts with an empty level set: a fresh login is a fresh identity, and the
-   * backend never tells us this account's verified claims (no GET /me).
+   * Log in with email-or-phone + password. Stores the returned pair, marks
+   * the session authenticated, and fetches the real profile. Throws ApiError
+   * on a failed login (401/429) — a failed profile fetch is NON-fatal: the
+   * session is live, the profile stays null (the account page offers a retry).
    */
   async login(emailOrPhone: string, password: string): Promise<void> {
     const pair = await this.authGateway.login(emailOrPhone, password);
+    // A fresh login is a fresh identity — drop any previous identity's data
+    // before adopting the new one.
+    this.clearProfile();
     this.tokens.setTokens(pair.accessToken, pair.refreshToken, pair.expiresIn);
     this.authenticated.set(true);
-    this.levels.set([]);
+    await this.refreshProfile();
   }
 
   /**
@@ -165,6 +185,43 @@ export class AuthStore {
     }
   }
 
+  /**
+   * Re-fetch the real profile (GET /account/me) and adopt it. Single-flight:
+   * concurrent callers share one in-flight request. NON-fatal — any failure
+   * (including network) is swallowed: the session stays authenticated, the
+   * profile keeps its previous (or null) value, and the next mid-session
+   * refresh or an explicit call recovers it.
+   */
+  refreshProfile(): Promise<void> {
+    if (this.pendingProfile !== null) {
+      return this.pendingProfile;
+    }
+    const attempt = this.fetchProfile().finally(() => {
+      this.pendingProfile = null;
+    });
+    this.pendingProfile = attempt;
+    return attempt;
+  }
+
+  private async fetchProfile(): Promise<void> {
+    try {
+      const profile = await this.accountGateway.me();
+      this.adoptProfile(profile);
+    } catch {
+      // Non-fatal on purpose: a profile hiccup must not kill the session
+      // (the account page renders an error + retry for the null case).
+    }
+  }
+
+  /** Adopt a fetched profile into the signals (single writer for the fields). */
+  private adoptProfile(profile: MeResponse): void {
+    this.name.set(profile.name);
+    this.email.set(profile.email);
+    this.phone.set(profile.phone);
+    this.nationalIdCode.set(profile.nationalIdCode);
+    this.levels.set(profile.levels);
+  }
+
   /** Rotate via /auth/refresh and store the new pair. */
   private async rotate(refreshToken: string): Promise<void> {
     const pair = await this.authGateway.refresh(refreshToken);
@@ -175,6 +232,15 @@ export class AuthStore {
   private clearSession(): void {
     this.tokens.clear();
     this.authenticated.set(false);
+    this.clearProfile();
+  }
+
+  /** Reset the profile fields to "unknown" (login of another identity, logout). */
+  private clearProfile(): void {
+    this.name.set(null);
+    this.email.set(null);
+    this.phone.set(null);
+    this.nationalIdCode.set(null);
     this.levels.set([]);
   }
 
@@ -182,23 +248,10 @@ export class AuthStore {
    * True once at least one channel (EMAIL or PHONE) is verified. Mirrors the
    * backend VerificationRules: any single level grants SUBMIT_SHELTER.
    *
-   * Caveat: purely session-local knowledge — on a fresh reload this is false
-   * until a request 409 "already verified" re-marks the level (see class note).
+   * The levels are REAL (fetched from the profile) — on a fresh reload
+   * init() re-fetches them, so the state survives across sessions.
    */
   isVerified(): boolean {
     return this.levels().includes('EMAIL') || this.levels().includes('PHONE');
-  }
-
-  /**
-   * Optimistic claim add (04-CONTEXT decision 3). Called by the pages after a
-   * successful confirm AND after a request that answered 409 "already
-   * verified" — both mean the backend holds the claim. Dedupes; SMART_ID is
-   * ignored (the backend rejects it as a stub, so it can never be verified).
-   */
-  addLevel(level: VerificationLevel): void {
-    if (level === 'SMART_ID' || this.levels().includes(level)) {
-      return;
-    }
-    this.levels.set([...this.levels(), level]);
   }
 }

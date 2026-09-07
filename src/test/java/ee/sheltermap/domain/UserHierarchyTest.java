@@ -76,6 +76,20 @@ class UserHierarchyTest {
     }
 
     @Test
+    void nameAndNationalIdCodeAreEditableWithoutTouchingClaims() {
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+        user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
+
+        user.changeName("Uus Nimi");
+        user.changeNationalIdCode("00000000000");
+
+        assertThat(user.getData().name()).isEqualTo("Uus Nimi");
+        assertThat(user.getData().nationalIdCode()).isEqualTo("00000000000");
+        // an ID edit leaves the claim set untouched (SMART-ID invalidation is a follow-up)
+        assertThat(user.levels()).containsExactly(VerificationLevel.EMAIL);
+    }
+
+    @Test
     void deleteAccountClearsVerifications() {
         RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
         user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));

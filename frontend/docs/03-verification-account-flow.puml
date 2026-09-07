@@ -4,7 +4,7 @@ title Verification & Account Flow - Email/Phone Verify + Cross-Channel Contact C
 actor Person
 
 participant "VerifyPage" as VP
-participant "ContactChangePage" as CP
+participant "AccountPage" as CP
 participant "VerifyGateway" as VG
 participant "AccountGateway" as AG
 participant "ApiClient" as AC
@@ -21,7 +21,7 @@ note over Person, API
 end note
 
 == Verify a level (EMAIL first, then PHONE) ==
-Person -> VP : open /verify (AuthGuard) or the shell's Verify link
+Person -> VP : open /verify (AuthGuard) or the account page's CTA
 VP -> VG : request(level)
 VG -> AC : post<void>('/verify/request', {level})
 AC -> API : POST /verify/request
@@ -38,7 +38,10 @@ alt 202 Accepted
   AC -> API : POST /verify/confirm
   alt correct (200 empty)
     API --> AC : 200 (claim persisted backend-side)
-    VP -> AS : addLevel(level)   ' optimistic - no GET /me to re-read claims
+    VP -> AS : refreshProfile()   ' re-fetch, not an optimistic write
+    AS -> AC : get<MeResponse>('/account/me')
+    AC -> API : GET /account/me
+    API --> AS : MeResponse (levels now include the new level)
     VP --> Person : "your <channel> is verified" - the panel disappears
   else wrong/expired (400) or throttled (429)
     API --> AC : ErrorResponse (generic message)
@@ -46,7 +49,10 @@ alt 202 Accepted
   end
 else 409 AlreadyVerified
   API --> AC : conflict (no code is sent, no throttle consumed)
-  VP -> AS : addLevel(level)     ' the server says the claim exists
+  VP -> AS : refreshProfile()    ' the server says the claim exists
+  AS -> AC : get<MeResponse>('/account/me')
+  AC -> API : GET /account/me
+  API --> AS : MeResponse (the level is in the claim set)
   VP --> Person : info notice "already verified" - never an error banner
 else 429 throttled
   API --> AC : too many requests (cooldown OR daily cap)
@@ -55,9 +61,9 @@ end
 
 note over VP
   SMART_ID is never offered - the backend rejects it with 400 (stub in v1).
-  Level state is SESSION-LOCAL: after a reload the page shows both buttons
-  again (no GET /me in v1 - reported gap); the first request re-discovers a
-  verified level via the 409 above and re-hides the panel.
+  Level state is SERVER-TRUTH: AuthStore fetches it from GET /account/me at
+  boot/login, so a reload still shows the right panels; a 409 re-fetch is
+  only the defensive net after a failed profile fetch.
 end note
 
 == Contact change: email -> SMS proof to the current phone (cross-channel) ==
@@ -72,15 +78,20 @@ end note
 API --> AC : 202 Accepted (empty - the backend never echoes the destination)
 CP --> Person : "we sent an SMS code to the phone number on your account"
 note over CP
-  Copy names the CHANNEL only: without GET /me there is no masked
-  "+372..." to truthfully show (md examples were aspirational - gap).
+  The contact row above the panel shows the REAL current phone/email from
+  the fetched profile (GET /account/me) - the M3 "channel-only copy" gap
+  is gone.
 end note
 Person -> CP : 6-digit code
 CP -> AG : confirmEmailChange(code)
 AG -> AC : post<void>('/account/email-change/confirm', {code})
 AC -> API : POST /account/email-change/confirm
 API --> AC : 200 OK
-CP --> Person : success - shows the NEW email (known locally)
+CP -> AS : refreshProfile()   ' the contact changed - re-fetch the profile
+AS -> AC : get<MeResponse>('/account/me')
+AC -> API : GET /account/me
+API --> AS : MeResponse (the new email + current claims)
+CP --> Person : success - the contact row shows the NEW email (server state)
 note over CP
   request 400 "same as current" -> "the new one must be different" copy;
   duplicate target 409 -> backend message inline; wrong/expired/no-pending
@@ -104,12 +115,17 @@ CP -> AG : confirmPhoneChange(code)
 AG -> AC : post<void>('/account/phone-change/confirm', {code})
 AC -> API : POST /account/phone-change/confirm
 API --> AC : 200 OK
-CP --> Person : success - shows the NEW phone
+CP -> AS : refreshProfile()   ' the contact changed - re-fetch the profile
+AS -> AC : get<MeResponse>('/account/me')
+AC -> API : GET /account/me
+API --> AS : MeResponse (the new phone + current claims)
+CP --> Person : success - the contact row shows the NEW phone (server state)
 
 note over AS, CP
-  M3 as-built: AuthStore.levels() is an optimistic mirror (confirm success or
-  request-409 adds the level; login/logout/cleared session resets it). The
-  account page never shows a server-truthful "current email/phone" before a
-  change - candidate backend follow-up: GET /me (04-CONTEXT decision 3).
+  M7 as-built: AuthStore.levels() is the REAL claim set from GET /account/me
+  (fetched at boot/login + after every claims-changing event). The account
+  page shows the server-truthful current email/phone; per-contact rows show
+  a "Verified" label or a "Complete verification" CTA to /verify (which the
+  top nav no longer advertises).
 end note
 @enduml

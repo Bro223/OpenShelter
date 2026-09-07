@@ -56,21 +56,25 @@ package "core" {
   class AuthStore {
     - authenticated : signal<boolean>
     - initialized : signal<boolean>
-    - levels : signal<VerificationLevel[]>
-    ' M3 as-built: OPTIMISTIC verified claims (EMAIL/PHONE only; SMART_ID is a
-    ' backend stub and never added). No GET /me in v1, so nothing is
-    ' server-provided - levels grow on confirm success (addLevel) or when a
-    ' verify/request answers 409 "already verified"; they reset on
-    ' login/logout/cleared session and are NOT persisted (a stale cache could
-    ' wrongly hide the verify buttons). Consequence: a reload forgets claims;
-    ' the first send attempt re-discovers them via the 409 (no code is sent).
+    ' M7 as-built: REAL profile from GET /account/me (fetched at boot after
+    ' the silent refresh and after login); levels are the server's verified
+    ' claims, never an optimistic mirror. A failed fetch is non-fatal: the
+    ' session stays authenticated, the profile stays null (account page
+    ' shows an error + retry), the next refresh recovers it.
+    - name : signal<string|null>
+    - email : signal<string|null>
+    - phone : signal<string|null>
+    - nationalIdCode : signal<string|null>
+    - levels : signal<VerificationLevel[]>   ' REAL claims (EMAIL/PHONE)
     + init() : Promise<void>
     + register(request: RegisterRequest) : Promise<void>
     + login(emailOrPhone, password) : Promise<void>
     + logout() : Promise<void>
     ' single-flight: concurrent 401s share one refresh
     + refresh(): Promise<boolean>
-    + addLevel(level) : void        ' optimistic, dedupes; SMART_ID ignored
+    ' single-flight, non-fatal; re-fetches the profile after every
+    ' claims-changing event (verify-confirm, contact change, profile edit)
+    + refreshProfile() : Promise<void>
     + isVerified(): boolean         ' levels has EMAIL or PHONE (backend: any
                                     ' single level grants SUBMIT_SHELTER)
   }
@@ -141,6 +145,9 @@ package "gateways" {
   }
 
   class AccountGateway {
+    + me() : MeResponse             ' GET /account/me - real profile + claims
+    + updateProfile(request: ProfileUpdateRequest) : MeResponse
+                                    ' PUT /account/profile (password-confirmed)
     + requestEmailChange(newEmail) : void
     + confirmEmailChange(code) : void
     + requestPhoneChange(newPhone) : void
@@ -157,7 +164,7 @@ package "features" {
 
   package "account" {
     class VerifyPage
-    class ContactChangePage
+    class AccountPage
   }
 
   package "map" {
@@ -190,6 +197,7 @@ ShelterGateway ..> ApiClient
 ReviewGateway ..> ApiClient
 AccountGateway ..> ApiClient
 AuthStore ..> AuthGateway
+AuthStore ..> AccountGateway
 AuthStore ..> TokenStore
 ApiInterceptor ..> TokenStore
 ApiInterceptor ..> AuthStore
@@ -213,12 +221,12 @@ LoginPage --> BannerComponent
 RegisterPage --> BannerComponent
 ResetPage --> BannerComponent
 VerifyPage --> VerifyGateway
-ContactChangePage --> AccountGateway
-' M3 wiring: both account pages read AuthStore (levels / verify CTA)
+AccountPage --> AccountGateway
+' M3 wiring: both account pages read AuthStore (levels / profile / verify CTA)
 VerifyPage --> AuthStore
-ContactChangePage --> AuthStore
+AccountPage --> AuthStore
 VerifyPage --> BannerComponent
-ContactChangePage --> BannerComponent
+AccountPage --> BannerComponent
 MapPage --> ShelterGateway
 MapPage --> LeafletService
 ShelterDetailPage --> ShelterGateway
@@ -236,8 +244,10 @@ PageShell --> AuthStore
 PageShell --> Router
 
 note bottom of PageShell
-  M3: the shell adds authenticated nav links - "Account" (/account) always,
-  plus "Verify" (/verify) while AuthStore.isVerified() is false.
+  M3: the shell adds authenticated nav links - "Account" (/account).
+  M7: the standalone "Verify" link is REMOVED from the nav; /verify stays
+  reachable by route (guard redirects + the account page's per-contact
+  "Complete verification" CTAs).
 end note
 
 note bottom of MapPage
@@ -263,7 +273,7 @@ note as Routes
   /register          GuestGuard   -> RegisterPage   (M2)
   /reset             GuestGuard   -> ResetPage      (M2)
   /verify            AuthGuard    -> VerifyPage        (M3 DONE)
-  /account           AuthGuard    -> ContactChangePage (M3 DONE)
+  /account           AuthGuard    -> AccountPage       (M3 page; M7 full profile)
   /shelters/:id      public       -> ShelterDetailPage(M5, lazy M6)
   /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5, lazy M6)
   ' M6: all routes data.title + TitleGuard; /shelters/:id and /submit

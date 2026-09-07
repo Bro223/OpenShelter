@@ -5,6 +5,7 @@ import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidContactChangeException;
 import ee.sheltermap.auth.InvalidCredentialsException;
 import ee.sheltermap.auth.InvalidRefreshTokenException;
+import ee.sheltermap.auth.InvalidProfilePasswordException;
 import ee.sheltermap.auth.InvalidResetTokenException;
 import ee.sheltermap.auth.RateLimitExceededException;
 import ee.sheltermap.auth.VerificationFailedException;
@@ -90,7 +91,8 @@ public class ApiErrorHandler {
     @ExceptionHandler({
             InvalidCredentialsException.class,
             InvalidAccessTokenException.class,
-            InvalidRefreshTokenException.class})
+            InvalidRefreshTokenException.class,
+            InvalidProfilePasswordException.class})
     ResponseEntity<ErrorResponse> unauthorized(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
     }

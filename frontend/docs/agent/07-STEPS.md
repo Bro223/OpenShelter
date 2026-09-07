@@ -189,7 +189,7 @@ See `openspec/changes/frontend-m6-polish-prod/`.
 
 **Deliverables** — design tokens applied consistently; responsive layout; loading/empty/error
 audit across all routes; route titles + favicon; README (frontend section: stack, dev, prod
-build, token-storage tradeoff, deferrals incl. `GET /me`, `GET /reviews/mine`, paging, i18n,
+build, token-storage tradeoff, deferrals incl. `GET /reviews/mine`, paging, i18n,
 MapLibre, httpOnly cookies); `environment.ts` prod values documented; final `ng build` green.
 
 **Acceptance**

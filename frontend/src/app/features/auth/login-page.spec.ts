@@ -2,12 +2,21 @@ import { Component, type DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
+import { AccountGateway } from '../../gateways/account-gateway';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
-import type { TokenResponse } from '../../core/models';
+import type { MeResponse, TokenResponse } from '../../core/models';
 import { LoginPage } from './login-page';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
+
+const PROFILE: MeResponse = {
+  name: 'Test User',
+  email: 'user@example.ee',
+  phone: '+37250000001',
+  nationalIdCode: '49901019999',
+  levels: [],
+};
 
 /** Hand-written fake gateway — the pages never see HTTP. */
 class FakeAuthGateway {
@@ -17,6 +26,15 @@ class FakeAuthGateway {
   logout = vi.fn();
   requestPasswordReset = vi.fn();
   resetPassword = vi.fn();
+}
+
+class FakeAccountGateway {
+  me = vi.fn();
+  updateProfile = vi.fn();
+  requestEmailChange = vi.fn();
+  confirmEmailChange = vi.fn();
+  requestPhoneChange = vi.fn();
+  confirmPhoneChange = vi.fn();
 }
 
 @Component({ template: '<p>map stub</p>' })
@@ -30,11 +48,14 @@ class Host {}
 
 describe('LoginPage', () => {
   let gateway: FakeAuthGateway;
+  let account: FakeAccountGateway;
   let router: Router;
 
   beforeEach(() => {
     localStorage.clear();
     gateway = new FakeAuthGateway();
+    account = new FakeAccountGateway();
+    account.me.mockResolvedValue(PROFILE);
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -44,6 +65,7 @@ describe('LoginPage', () => {
           { path: 'login', component: LoginPage },
         ]),
         { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
+        { provide: AccountGateway, useValue: account as unknown as AccountGateway },
       ],
     });
     router = TestBed.inject(Router);

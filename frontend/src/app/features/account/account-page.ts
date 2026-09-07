@@ -6,6 +6,7 @@ import { AuthStore } from '../../core/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage, COPY } from '../../shared/error-copy';
+import type { VerificationLevel } from '../../core/models';
 
 type ChangePhase = 'form' | 'code' | 'done';
 
@@ -14,34 +15,59 @@ type ChangePhase = 'form' | 'code' | 'done';
 const CODE_SIX_DIGITS = /^\d{6}$/;
 
 /**
- * /account (AuthGuard) — cross-channel contact change (04-CONTEXT-ACCOUNT-VERIFY.md,
- * 03 puml). Changing the EMAIL is proven by an SMS code to the CURRENT phone;
- * changing the PHONE by an email code to the CURRENT email. Two independent
- * sections, each: form -> awaiting-proof (channel-named copy) -> success.
+ * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
+ * 03 puml):
+ *  - IDENTITY: name + national ID with a password-confirmed inline edit form
+ *    (so a registration typo in the ID code is fixable without re-registering)
+ *  - CONTACTS: email + phone rows showing the REAL value from the fetched
+ *    profile, a verified label when the level is in the real claim set, or a
+ *    "Complete verification" CTA deep-linking /verify
+ *  - CHANGE PANELS: the M3 cross-channel email/phone change flows, ported.
  *
- * The backend never echoes the current contact (no GET /me — reported gap),
- * so "current value" lines only render after THIS session changed the value,
- * and proof copy names the channel ("the phone on your account") instead of a
- * masked destination it cannot truthfully show.
+ * All values come from the REAL profile in AuthStore (GET /account/me,
+ * fetched at boot/login). After any claims-changing event (contact change) or
+ * a profile edit the page calls `refreshProfile()`, so labels and values are
+ * always server state — the old "session-only current value" caveat is gone.
+ *
+ * Cross-channel rule (backend-enforced, mirrored in the copy — never
+ * re-implemented): changing EMAIL is proven by an SMS code to the CURRENT
+ * phone; changing PHONE by an email code to the CURRENT email.
  *
  * Sessions survive a contact change (only a password reset revokes refresh
  * tokens) — nothing here logs the user out.
  */
 @Component({
-  selector: 'app-contact-change-page',
+  selector: 'app-account-page',
   imports: [ReactiveFormsModule, RouterLink, BannerComponent],
-  templateUrl: './contact-change-page.html',
-  styleUrl: './contact-change-page.scss',
+  templateUrl: './account-page.html',
+  styleUrl: './account-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ContactChangePage {
+export class AccountPage {
   private readonly account = inject(AccountGateway);
   protected readonly auth = inject(AuthStore);
 
+  // ---- identity section ----------------------------------------------------
+  /** True while the password-confirmed edit form is open. */
+  protected readonly editing = signal(false);
+
+  /** New-value controls are public so specs can drive them (page convention:
+   *  forms public, signals protected + asserted via the DOM). */
+  readonly editName = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required],
+  });
+  readonly editNationalIdCode = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required],
+  });
+  readonly editPassword = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required],
+  });
+
   // ---- email section ------------------------------------------------------
   protected readonly emailPhase = signal<ChangePhase>('form');
-  /** New-value + code controls are public so specs can drive them (M2 page
-   *  convention: forms public, signals protected + asserted via DOM). */
   readonly newEmail = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required, Validators.email],
@@ -50,8 +76,6 @@ export class ContactChangePage {
     nonNullable: true,
     validators: [Validators.required, Validators.pattern(CODE_SIX_DIGITS)],
   });
-  /** Last value THIS session confirmed for the account (or null = unknown). */
-  protected readonly emailLast = signal<string | null>(null);
 
   // ---- phone section ------------------------------------------------------
   protected readonly phonePhase = signal<ChangePhase>('form');
@@ -63,12 +87,75 @@ export class ContactChangePage {
     nonNullable: true,
     validators: [Validators.required, Validators.pattern(CODE_SIX_DIGITS)],
   });
-  protected readonly phoneLast = signal<string | null>(null);
 
   // ---- shared UI state ----------------------------------------------------
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
+
+  /** Verified for the level? Reads the REAL claim set from the fetched profile. */
+  protected verified(level: VerificationLevel): boolean {
+    return this.auth.levels().includes(level);
+  }
+
+  /** Retry the profile fetch (error state: the boot-time fetch failed). */
+  async retryProfile(): Promise<void> {
+    await this.auth.refreshProfile();
+  }
+
+  // -------------------------------------------------------------------------
+  // Identity: open the inline edit form pre-filled with the current values.
+  // -------------------------------------------------------------------------
+  startEdit(): void {
+    this.editName.setValue(this.auth.name() ?? '');
+    this.editNationalIdCode.setValue(this.auth.nationalIdCode() ?? '');
+    this.editPassword.setValue('');
+    this.editName.markAsUntouched();
+    this.editNationalIdCode.markAsUntouched();
+    this.editPassword.markAsUntouched();
+    this.editing.set(true);
+  }
+
+  cancelEdit(): void {
+    this.editing.set(false);
+    this.editPassword.setValue('');
+  }
+
+  /**
+   * PUT /account/profile {name, nationalIdCode, currentPassword}. The backend
+   * verifies the current password first (wrong -> 401, nothing updated) and
+   * validates the fields exactly like registration (blank -> 400). On success
+   * the real profile is re-fetched, so the card shows the server state.
+   */
+  async saveProfile(): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    if (this.editName.invalid || this.editNationalIdCode.invalid || this.editPassword.invalid) {
+      this.editName.markAsTouched();
+      this.editNationalIdCode.markAsTouched();
+      this.editPassword.markAsTouched();
+      return;
+    }
+    this.error.set(null);
+    this.success.set(null);
+    this.busy.set(true);
+    try {
+      await this.account.updateProfile({
+        name: this.editName.value,
+        nationalIdCode: this.editNationalIdCode.value,
+        currentPassword: this.editPassword.value,
+      });
+      await this.auth.refreshProfile();
+      this.editing.set(false);
+      this.editPassword.setValue('');
+      this.success.set('Your profile has been updated.');
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'profile'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
 
   // -------------------------------------------------------------------------
   // Email flow: request (code by SMS to the current phone) -> confirm.
@@ -107,8 +194,12 @@ export class ContactChangePage {
     this.success.set(null);
     this.busy.set(true);
     try {
+      // The backend stores the lowercased form — show exactly that.
+      const confirmed = this.newEmail.value.trim().toLowerCase();
       await this.account.confirmEmailChange(this.emailCode.value.trim());
-      this.emailLast.set(this.newEmail.value.trim().toLowerCase());
+      this.newEmail.setValue(confirmed);
+      // The contact changed -> re-fetch the real profile (value + labels).
+      await this.auth.refreshProfile();
       this.emailPhase.set('done');
       this.success.set('Your email address has been changed.');
     } catch (error) {
@@ -167,8 +258,11 @@ export class ContactChangePage {
     this.success.set(null);
     this.busy.set(true);
     try {
+      const confirmed = this.newPhone.value.trim();
       await this.account.confirmPhoneChange(this.phoneCode.value.trim());
-      this.phoneLast.set(this.newPhone.value.trim());
+      this.newPhone.setValue(confirmed);
+      // The contact changed -> re-fetch the real profile (value + labels).
+      await this.auth.refreshProfile();
       this.phonePhase.set('done');
       this.success.set('Your phone number has been changed.');
     } catch (error) {

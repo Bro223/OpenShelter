@@ -1,0 +1,124 @@
+:host {
+  display: block;
+}
+
+.account-card {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  max-width: 36rem;
+  margin: var(--space-16) auto 0;
+}
+
+.profile-error {
+  margin-bottom: var(--space-16);
+}
+
+.change-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-18) var(--space-20);
+  margin-bottom: var(--space-20);
+  background: var(--color-bg-surface);
+}
+
+.panel-title {
+  font-size: var(--text-xl);
+  margin: 0 0 var(--space-8);
+}
+
+.panel-copy {
+  margin: 0 0 var(--space-16);
+}
+
+.identity-values {
+  margin: 0 0 var(--space-12);
+}
+
+.identity-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.identity-row dt {
+  color: var(--color-muted);
+  font-size: var(--text-md);
+}
+
+.identity-row dd {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-16);
+  flex-wrap: wrap;
+  padding: var(--space-12) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.contact-row:last-child {
+  border-bottom: none;
+}
+
+.contact-row__label {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.contact-row__value {
+  display: block;
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.contact-chip {
+  white-space: nowrap;
+}
+
+.contact-chip--verified {
+  display: inline-block;
+  border: 1px solid var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-radius: var(--radius-full);
+  padding: var(--space-4) var(--space-10);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.contact-chip--cta {
+  font-size: var(--text-sm);
+  padding: var(--space-6) var(--space-12);
+}
+
+.proof-note {
+  font-size: var(--text-md);
+  color: var(--color-text);
+  background: var(--color-bg-subtle);
+  border-left: 3px solid var(--color-primary); /* line weight, not spacing */
+  padding: var(--space-8) var(--space-12);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin: 0 0 var(--space-16);
+}
+
+.field-note {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-6) 0 0;
+}
+
+.panel-actions {
+  display: flex;
+  gap: var(--space-10);
+  flex-wrap: wrap;
+}
