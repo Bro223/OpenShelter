@@ -2,6 +2,7 @@ package ee.sheltermap.verification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class TwilioSmsSender implements SmsSender {
     private final String messagingServiceSid;
     private final String fromNumber;
 
+    @Autowired
     public TwilioSmsSender(@Value("${TWILIO_ACCOUNT_SID:}") String accountSid,
                            @Value("${TWILIO_AUTH_TOKEN:}") String authToken,
                            @Value("${TWILIO_MESSAGING_SERVICE_SID:}") String messagingServiceSid,
