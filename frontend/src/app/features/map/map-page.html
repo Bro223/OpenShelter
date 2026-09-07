@@ -38,7 +38,9 @@
         }
       </div>
 
-      <app-banner severity="error" [message]="error()" />
+      @if (error(); as err) {
+        <app-banner severity="error" [message]="err" />
+      }
 
       @if (loading()) {
         <p class="sidebar-state" role="status">Loading shelters…</p>

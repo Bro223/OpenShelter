@@ -56,12 +56,25 @@
   flex-direction: column;
   gap: var(--space-12);
 
+  /* The banner is only in the DOM while an error is set (map-page.html wraps
+     it in @if (error(); as err)), so chips + list are the sole flex children
+     and stay exactly one gap apart — no phantom empty-host gap here. */
   .shelter-list {
     list-style: none;
     margin: 0;
     padding: 0;
     overflow-y: auto;
-    max-height: 560px; /* matches the map height at wide widths */
+    /* Flex-fill the row (its height is driven by the 560px map) instead of a
+       fixed 560px max-height: chips + gap overhead made a 560px list 54px
+       taller than the map, so the scroll area's bottom edge hung below the
+       map frame and cropped the last rows.
+       `flex: 1 1 0` — the unitless zero basis matters: the sidebar column
+       has an auto height, where a percentage basis (the `flex: 1` shorthand's
+       0%) resolves against content and the 300-row list would drive the
+       whole layout row to its full ~37kpx content height. min-height: 0
+       lets the column shrink the scroll area below its content size. */
+    flex: 1 1 0;
+    min-height: 0;
   }
 }
 
@@ -160,15 +173,23 @@
     flex-direction: column;
   }
 
-  .map-page__leaflet {
-    height: 420px;
+  /* Stacked map; selectors mirror the nested base rules' specificity — the
+     previous bare single-class overrides lost the cascade to `.map-page__map
+     .map-page__leaflet` / `.map-page__sidebar .shelter-list`, so the 420px
+     values never applied. */
+  .map-page__map .map-page__leaflet {
+    height: 420px; /* page-specific layout dimension (documented exception) */
   }
 
   .map-page__sidebar {
     width: auto;
   }
 
-  .shelter-list {
-    max-height: 420px;
+  .map-page__sidebar .shelter-list {
+    /* Stacked layout: the sidebar has no bounded height to flex-fill, so the
+       list is back to a bounded block scroll area matching the narrow map.
+       (flex: none = basis auto; flex: 1 would collapse it to 0px here.) */
+    flex: none;
+    max-height: 420px; /* matches the narrow map height above */
   }
 }
