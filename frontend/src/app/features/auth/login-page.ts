@@ -11,7 +11,8 @@ import { bannerMessage } from '../../shared/error-copy';
  *
  * 03-CONTEXT-CORE-AUTH.md: success -> returnUrl or home; failures show ONE
  * generic banner (401 is never revealed as "wrong password", 429 gets the
- * slow-down copy). ?session=expired (from the interceptor) -> info note.
+ * slow-down copy). ?session=expired (from the interceptor) -> info note;
+ * ?reset=ok (from the reset flow) -> success info note.
  */
 @Component({
   selector: 'app-login-page',
@@ -34,12 +35,15 @@ export class LoginPage implements OnInit {
   protected readonly error = signal<string | null>(null);
   /** True when the interceptor bounced us here with ?session=expired. */
   protected readonly sessionExpired = signal(false);
+  /** True when the password-reset flow landed us here with ?reset=ok. */
+  protected readonly resetOk = signal(false);
 
   private destination = '/map';
 
   ngOnInit(): void {
     const query = this.route.snapshot.queryParamMap;
     this.sessionExpired.set(query.get('session') === 'expired');
+    this.resetOk.set(query.get('reset') === 'ok');
     this.destination = safeReturnUrl(query.get('returnUrl'));
   }
 

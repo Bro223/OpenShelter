@@ -18,7 +18,7 @@ Three concerns, three services — **never one blob**:
 | Type | Kind | Key members / notes |
 |---|---|---|
 | `UserCredentials` | class | `userId: Long, passwordHash: String, createdAt, changedAt`; ctor `(userId, passwordHash)`. **Separate aggregate from `RegisteredUser`** — profile PII and secrets live apart. Argon2id embeds the salt in the hash string (no salt column). |
-| `PasswordResetToken` | class | `id, userId, tokenHash, expiresAt (15 min), usedAt`. Hashed + single-use. |
+| `PasswordResetToken` | class | `id, userId, tokenHash, expiresAt (15 min), usedAt, attempts (int, default 0, max 5)`. Stored 6-digit code is hashed (SHA-256) + single-use + attempt-limited (brute-force guard, V6). |
 | `PasswordHasher` | interface | `hash(plain: String): String`, `verify(plain: String, hash: String): boolean`. |
 | `Argon2PasswordHasher` | class | Impl using `Argon2PasswordEncoder` (spring-security-crypto). |
 | `TokenService` | interface | `issue(user: RegisteredUser): TokenResponse`, `refresh(refreshToken: String): TokenResponse`, `revoke(refreshToken: String): void`. |
@@ -26,14 +26,14 @@ Three concerns, three services — **never one blob**:
 | `RefreshTokenRepository` | interface | `save(tokenHash, userId, expiresAt): void`, `findByTokenHash(tokenHash): RefreshTokenRecord`, `revoke(tokenHash): void`, `revokeAllForUser(userId): void`. |
 | `RefreshTokenRecord` | record | `userId, tokenHash, expiresAt, revokedAt`. |
 | `UserCredentialsRepository` | interface | `save(credentials): void`, `findByUserId(userId): UserCredentials`, `updateHash(userId, newHash): void`. |
-| `PasswordResetTokenRepository` | interface | `save(token): void`, `findByTokenHash(tokenHash): PasswordResetToken`, `markUsed(id): void`. |
-| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(token, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (V3 unique indexes as race-safe backstop). |
-| `PasswordResetService` | class | `requestReset(email): void`, `reset(token, newPassword): boolean`. |
+| `PasswordResetTokenRepository` | interface | `save(token): void`, `findByTokenHash(tokenHash): PasswordResetToken`, `findActiveByUserId(userId, now): PasswordResetToken` (the user's single active code), `deleteActiveByUserId(userId, now): void` (one active code per user), `markUsed(id): void`. |
+| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(email, code, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (V3 unique indexes as race-safe backstop). |
+| `PasswordResetService` | class | `requestReset(email): void`, `reset(email, code, newPassword): boolean`. |
 | `RateLimiter` | interface | `tryAcquire(key: String): boolean`. |
 | `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). |
 | `AuthController` | class | Thin shell — `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`. |
 | `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
-| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {token, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels}`, `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
+| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels}`, `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
 
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
 RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
@@ -45,17 +45,23 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
    registered. Password is verified against `UserCredentials.passwordHash`.
 2. **Generic login errors.** "invalid credentials" for both unknown user and wrong password —
    never reveal which. Prevents user enumeration.
-3. **Reset flow:**
-   1. `requestReset(email)` → 32-char random token (in URL, not OTP) →
-   2. store `{tokenHash, expiresAt=15min, usedAt}` (hashed, single-use) →
-   3. send `{app.frontend.base-url}/reset?token=…` via `SmtpSender` (hardening: the link used to
-      be a hardcoded `https://app/…` that went nowhere; the base URL is configurable via
-      `FRONTEND_BASE_URL`) →
+3. **Reset flow (emailed 6-digit code — `password-reset-email-code`):**
+   1. `requestReset(email)` → 6-digit numeric code (same `sixDigitCode()` generator as
+      contact-change) →
+   2. delete any prior active code for the user (one active code per user — a second
+      request invalidates the first) →
+   3. store `{tokenHash = SHA-256(code), expiresAt=15min, usedAt, attempts=0}` (hashed,
+      single-use, 5-attempt brute-force limit — V6 `attempts` column) →
    4. **always respond success** ("if the account exists, we sent an email") →
-   5. `reset(token, newPwd)` → verify hash + expiry + unused → hash new password → update
-      `UserCredentials` → mark token used → revoke all refresh tokens — **all in ONE
-      transaction** (hardening: previously three separate transactions; a mid-way failure
-      could leave the token replayable).
+   5. send `"Shelter Map password reset code: NNNNNN (valid 15 min)"` via `SmtpSender`
+      (no URL link — no `app.frontend.base-url` / `FRONTEND_BASE_URL` anymore) →
+   6. `reset(email, code, newPwd)` → find the account's active code (lookup via the
+      request e-mail) → verify attempts < 5 + hash (constant-time) + expiry + unused →
+      hash new password → update `UserCredentials` → mark code used → revoke all
+      refresh tokens — **all in ONE transaction** (hardening: previously three separate
+      transactions; a mid-way failure could leave the code replayable). ANY failure
+      (unknown email / no active code / over-limit / wrong / expired / used) → 400 with
+      ONE generic message ("invalid or expired reset code") — never which check failed.
 4. **Two-token session model (SDI Ch 7 style):** access = JWT 15 min stateless; refresh = 30 days
    stored hashed → revocable (logout, reset, compromise). `JwtTokenService` owns signing/validation.
 5. **Rate limiting (SDI Ch 4, token bucket):** `AuthController` guards `/auth/login`,
@@ -127,8 +133,10 @@ lands, a code change must invalidate any pending/active SMART-ID claim (document
 - `AuthService.login`: wrong password → generic error; unknown user → generic error; success →
   `TokenResponse`; refresh rotates (old refresh revoked, new pair issued); logout revokes;
   `resetPassword` revokes all sessions.
-- `PasswordResetService`: request for unknown email still "succeeds" (no enumeration); token
-  single-use (second reset with same token fails); expired token fails; token is stored hashed.
+- `PasswordResetService`: request for unknown email still "succeeds" (no enumeration);
+  second request invalidates the first code (one active per user); a wrong code records
+  an attempt and 5 wrong codes lock the code out even when the right one follows later;
+  expired/used code fails; code is stored hashed; every failure mode is one generic 400.
 - `TokenBucketRateLimiter`: allows up to N, then denies until refill (injectable clock for tests).
 
 - `ContactChangeService`: email-change request sends an SMS to the current phone (cross-channel);

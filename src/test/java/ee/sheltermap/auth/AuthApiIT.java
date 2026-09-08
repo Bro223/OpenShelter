@@ -140,44 +140,130 @@ class AuthApiIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void passwordResetFlowAlwaysSucceedsAndRevokesSessions() throws Exception {
+    void passwordResetWithEmailedCodeChangesPasswordAndRevokesSessions() throws Exception {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         String refreshToken = loginAndGetRefreshToken();
 
-        // request reset for a KNOWN email -> 200, and the token lands in the captured mail
+        // request reset for a KNOWN email -> 200, and the 6-digit code lands in the captured mail
         mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"mari@example.ee\"}"))
                 .andExpect(status().isOk());
-        String token = TestTokens.fromResetUrl(smtp.last().message());
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        assertThat(code).matches("\\d{6}");
+        assertThat(smtp.last().message()).doesNotContain("http"); // no URL link in the mail
 
-        // confirm -> 200
+        // confirm with code + new password -> 200
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + token + "\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isOk());
 
-        // the pre-reset session is dead
+        // the pre-reset session is dead (all refresh tokens revoked)
         mvc.perform(post("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refreshToken\":\"" + refreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
 
-        // login with the new password works
+        // the old password no longer logs in; the new one does
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                .andExpect(status().isUnauthorized());
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"newpass\"}"))
                 .andExpect(status().isOk());
 
-        // the token is single-use -> second confirm is 400
+        // the code is single-use -> second confirm is 400
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + token + "\",\"newPassword\":\"again\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"again\"}"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void requestResetForUnknownEmailStillReturns200() throws Exception {
-        mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ghost@example.ee\"}"))
+    void passwordResetConfirmWithWrongCodeReturnsGeneric400AndCountsAttempt() throws Exception {
+        registerUser();
+        requestReset();
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+
+        // the password is unchanged
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
                 .andExpect(status().isOk());
-        assertThat(smtp.sent()).isEmpty();
+    }
+
+    @Test
+    void passwordResetConfirmForUnknownEmailIsIndistinguishableFromAWrongCode() throws Exception {
+        registerUser();
+        requestReset();
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        // same status + generic message whether the email was ever requested
+        // or the code is simply wrong — no account-existence oracle on confirm
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ghost@example.ee\",\"code\":\"000000\",\"newPassword\":\"newpass\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("invalid or expired reset code"))
+                .andExpect(jsonPath("$.error").value("Bad Request"));
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("invalid or expired reset code"))
+                .andExpect(jsonPath("$.error").value("Bad Request"));
+    }
+
+    @Test
+    void passwordResetCodeIsLockedOutAfterFiveWrongAttempts() throws Exception {
+        registerUser();
+        requestReset();
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+        }
+
+        // even the CORRECT code is now rejected with the same generic 400
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+    }
+
+    @Test
+    void requestResetForUnknownEmailReturnsTheSame200AsAKnownEmail() throws Exception {
+        registerUser();
+
+        MvcResult known = mvc.perform(post("/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult unknown = mvc.perform(post("/auth/password-reset/request")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"ghost@example.ee\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        // identical bodies — the endpoint never reveals account existence
+        assertThat(unknown.getResponse().getContentAsString())
+                .isEqualTo(known.getResponse().getContentAsString());
+        // and nothing was e-mailed for the unknown address
+        assertThat(smtp.sent()).hasSize(1);
+        assertThat(smtp.last().email()).isEqualTo("mari@example.ee");
+    }
+
+    private void requestReset() throws Exception {
+        mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

@@ -52,9 +52,14 @@ export class AuthGateway {
     return lastValueFrom(this.api.post<void>('/auth/password-reset/request', body));
   }
 
-  /** POST /auth/password-reset/confirm -> 200. */
-  resetPassword(token: string, newPassword: string): Promise<void> {
-    const body: PasswordResetConfirmRequest = { token, newPassword };
+  /**
+   * POST /auth/password-reset/confirm -> 200. The e-mail scopes the 6-digit
+   * code to the account it was sent to; ANY failure (unknown email / wrong /
+   * expired / used / over-limit) answers 400 with one generic message, so
+   * the page must not treat the 400 as account-existence information.
+   */
+  resetPassword(email: string, code: string, newPassword: string): Promise<void> {
+    const body: PasswordResetConfirmRequest = { email, code, newPassword };
     return lastValueFrom(this.api.post<void>('/auth/password-reset/confirm', body));
   }
 }

@@ -4,10 +4,12 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Single-use, expiring password-reset token (03-auth.puml).
+ * Single-use, expiring password-reset CODE (03-auth.puml).
  *
- * <p>Stored <strong>hashed</strong> (SHA-256); the plaintext token travels
- * only in the reset email URL. {@code usedAt} is {@code null} while unused.
+ * <p>Code discipline mirrors verification: the 6-digit code is stored
+ * <strong>hashed</strong> (SHA-256) — the plaintext code travels only in the
+ * reset e-mail; failed confirmations are attempts-limited (brute-force
+ * guard); {@code usedAt} is {@code null} while unused.
  */
 public class PasswordResetToken {
 
@@ -16,6 +18,7 @@ public class PasswordResetToken {
     private final String tokenHash;
     private final Instant expiresAt;
     private Instant usedAt;
+    private int attempts;
 
     public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt) {
         this.userId = Objects.requireNonNull(userId, "userId");
@@ -24,12 +27,14 @@ public class PasswordResetToken {
     }
 
     /**
-     * Full-state constructor used by the persistence layer (Step 3) to
-     * restore a used token from storage.
+     * Full-state constructor used by the persistence layer to restore a
+     * token (incl. used state and the failed-attempt count) from storage.
      */
-    public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt, Instant usedAt) {
+    public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt,
+                              Instant usedAt, int attempts) {
         this(userId, tokenHash, expiresAt);
         this.usedAt = usedAt;
+        this.attempts = attempts;
     }
 
     public Long getId() {
@@ -63,6 +68,16 @@ public class PasswordResetToken {
 
     public boolean isExpired(Instant now) {
         return now.isAfter(expiresAt);
+    }
+
+    /** Failed confirm attempts so far (brute-force guard). */
+    public int getAttempts() {
+        return attempts;
+    }
+
+    /** Registers a failed attempt; returns the new count. */
+    public int recordAttempt() {
+        return ++attempts;
     }
 
     public void markUsed() {

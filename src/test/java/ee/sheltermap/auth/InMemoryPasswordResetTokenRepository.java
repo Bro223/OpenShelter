@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,23 @@ public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
     @Override
     public PasswordResetToken findByTokenHash(String tokenHash) {
         return store.get(tokenHash);
+    }
+
+    @Override
+    public PasswordResetToken findActiveByUserId(Long userId, Instant now) {
+        return store.values().stream()
+                .filter(t -> userId.equals(t.getUserId()))
+                .filter(t -> !t.isUsed())
+                .filter(t -> !t.isExpired(now))
+                .findFirst()
+                .orElse(null);
+    }
+
+    @Override
+    public void deleteActiveByUserId(Long userId, Instant now) {
+        store.values().removeIf(t -> userId.equals(t.getUserId())
+                && !t.isUsed()
+                && !t.isExpired(now));
     }
 
     @Override

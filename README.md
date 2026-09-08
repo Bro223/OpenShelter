@@ -35,9 +35,9 @@ shelter submission, community reviews); run/build docs in
 ## Features
 
 - **Auth**: register, login (Argon2id hashing), JWT access (15 min) + refresh (30 days, hashed
-  at rest, rotated on refresh), logout revokes sessions, password reset (always "succeeds",
-  single-use token, revokes all sessions), rate limiting on login + reset + register
-  (per client IP, X-Forwarded-For aware).
+  at rest, rotated on refresh), logout revokes sessions, password reset (emailed 6-digit code
+  — always "succeeds", single-use code, 5-attempt limit, revokes all sessions), rate limiting
+  on login + reset + register (per client IP, X-Forwarded-For aware).
 - **Verification over HTTP**: `POST /verify/request` / `POST /verify/confirm` (JWT required)
   for email OTP and phone OTP; Smart-ID stub rejected up front; codes hashed, expiring,
   attempt-limited. Verified users gain `canWrite()` (submit shelters, review).
@@ -122,8 +122,8 @@ manually on boot (see below).
 | POST | `/auth/login` | — | Login → access + refresh tokens |
 | POST | `/auth/refresh` | refresh | Rotate refresh token → new token pair |
 | POST | `/auth/logout` | refresh | Revoke session |
-| POST | `/auth/password-reset/request` | — | Always 200 ("if the account exists, we sent an email") |
-| POST | `/auth/password-reset/confirm` | token | Set new password; revokes all sessions |
+| POST | `/auth/password-reset/request` | — | Always 200 ("if the account exists, we emailed a 6-digit code") |
+| POST | `/auth/password-reset/confirm` | — | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions |
 | POST | `/account/email-change/request` | JWT | Start email change → **SMS code to current phone** (202) |
 | POST | `/account/email-change/confirm` | JWT | Complete email change with the SMS code (200/400) |
 | POST | `/account/phone-change/request` | JWT | Start phone change → **email code to current email** (202) |
@@ -262,7 +262,6 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `DEV_EMAIL_TEST_ENABLED` | `false` | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required) |
 | `REGISTRY_BASE_URL` | Maa-amet WFS URL | Registry endpoint |
 | `REGISTRY_CLIENT` | `paasteamet` | `paasteamet` (real HTTP) or `dev` (local fixture) |
-| `FRONTEND_BASE_URL` | `http://localhost:5173` | Base URL for password-reset links in e-mails |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Browser origins allowed to call the API |
 | `RATELIMIT_TRUSTED_PROXIES` | — | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys) |
 | `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false` | E-mail-test recipient allowlist (spam-relay guard) |
@@ -279,8 +278,10 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 - **Duplicate registration → 409** — `users.email` / `users.phone` are now UNIQUE (V3 migration);
   the API pre-checks and answers `409 Conflict` with the uniform `ErrorResponse` (race-safe via
   the DB constraint as backstop).
-- **Password-reset links work** — the e-mail used to carry a hardcoded `https://app/…` link;
-  the base URL is now `app.frontend.base-url` (`FRONTEND_BASE_URL` env var).
+- **Password reset is an emailed 6-digit code** — the emailed URL link (base URL via
+  `app.frontend.base-url` / `FRONTEND_BASE_URL`) is gone (M2 `password-reset-email-code`):
+  confirm takes `{email, code, newPassword}`, the code is hashed, 15-min TTL, single-use,
+  5-attempt-limited, and a new request invalidates the previous code.
 
 **Medium**
 
@@ -347,7 +348,7 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete); the honest
-   deferral list (paging, i18n, MapLibre, httpOnly cookies, SSR, password-reset-OTP,
+   deferral list (paging, i18n, MapLibre, httpOnly cookies, SSR,
    contributions — see the account-profile change) is in
    [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
 5. **`national_id_code` is stored plaintext** — privacy consideration for launch:

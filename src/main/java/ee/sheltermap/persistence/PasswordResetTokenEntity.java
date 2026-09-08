@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/** JPA entity for {@code password_reset_tokens}. Tokens are stored HASHED. */
+/** JPA entity for {@code password_reset_tokens}. Codes are stored HASHED. */
 @Entity
 @Table(name = "password_reset_tokens")
 public class PasswordResetTokenEntity {
@@ -29,6 +29,9 @@ public class PasswordResetTokenEntity {
 
     @Column(name = "used_at")
     private Instant usedAt;
+
+    @Column(name = "attempts", nullable = false)
+    private int attempts;
 
     public Long getId() {
         return id;
@@ -68,5 +71,13 @@ public class PasswordResetTokenEntity {
 
     public void setUsedAt(Instant usedAt) {
         this.usedAt = usedAt;
+    }
+
+    public int getAttempts() {
+        return attempts;
+    }
+
+    public void setAttempts(int attempts) {
+        this.attempts = attempts;
     }
 }

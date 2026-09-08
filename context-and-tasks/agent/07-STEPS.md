@@ -212,7 +212,9 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
 - Duplicate registration → **409** — `users.email`/`users.phone` UNIQUE (V3 migration) +
   `DuplicateAccountException` pre-check; DB constraint as the race-safe backstop.
 - Password-reset e-mails no longer carry a hardcoded `https://app/…` link — the base URL is
-  `app.frontend.base-url` (`FRONTEND_BASE_URL`).
+  `app.frontend.base-url` (`FRONTEND_BASE_URL`). *(Superseded by M2
+  `password-reset-email-code`: the e-mail now carries a 6-digit CODE, not a link — the base URL
+  and `FRONTEND_BASE_URL` are gone.)*
 
 *Medium*
 - **Atomic password reset** — hash update + token mark-used + session revocation in ONE

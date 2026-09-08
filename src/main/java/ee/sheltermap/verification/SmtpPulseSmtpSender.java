@@ -17,8 +17,9 @@ import java.util.Objects;
  * {@code app.mail.provider=smtp-pulse} (default: dev console sender).
  *
  * <p>Logs metadata only, never the message body — the payload carries the
- * verification token / reset link (SmtpSender contract). Credentials come
- * exclusively from env vars (spring.mail.username/password), never from code.
+ * one-time codes (verification, contact change, password reset).
+ * Credentials come exclusively from env vars (spring.mail.username/password),
+ * never from code.
  *
  * <p>Delivery failures are logged, never thrown: password-reset and
  * verification requests must "always succeed" (no account enumeration,

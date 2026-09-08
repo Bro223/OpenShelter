@@ -22,8 +22,7 @@ class AuthServiceTest {
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService passwordReset = new PasswordResetService(
-            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock,
-            "http://localhost:5173");
+            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock);
     private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset);
 
     private void registerMari() {
@@ -83,9 +82,10 @@ class AuthServiceTest {
     }
 
     @Test
-    void resetPasswordWithInvalidTokenThrows() {
-        assertThatThrownBy(() -> auth.resetPassword("bogus", "newpass"))
-                .isInstanceOf(InvalidResetTokenException.class);
+    void resetPasswordWithInvalidCodeThrows() {
+        assertThatThrownBy(() -> auth.resetPassword("mari@example.ee", "bogus", "newpass"))
+                .isInstanceOf(InvalidResetTokenException.class)
+                .hasMessage("invalid or expired reset code");
     }
 
     @Test
@@ -94,8 +94,8 @@ class AuthServiceTest {
         refreshTokens.save(Hashes.sha256Hex("old-refresh"), mariId(), clock.instant().plus(Duration.ofDays(30)));
 
         auth.requestPasswordReset("mari@example.ee");
-        String token = TestTokens.fromResetUrl(smtp.last().message());
-        auth.resetPassword(token, "newpass");
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        auth.resetPassword("mari@example.ee", code, "newpass");
 
         assertThat(credentials.findByUserId(mariId()).getPasswordHash()).isEqualTo("h(newpass)");
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex("old-refresh")).revokedAt()).isNotNull();

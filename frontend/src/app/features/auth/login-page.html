@@ -6,6 +6,10 @@
     severity="info"
     [message]="sessionExpired() ? 'Your session has expired — please log in again.' : null"
   />
+  <app-banner
+    severity="info"
+    [message]="resetOk() ? 'Your password has been reset — log in with your new password.' : null"
+  />
 
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div class="field">

@@ -29,6 +29,7 @@ package "auth" {
     - tokenHash : String
     - expiresAt : Instant
     - usedAt : Instant
+    - attempts : int
   }
 
   interface PasswordHasher {
@@ -73,12 +74,12 @@ package "auth" {
     + refresh(request : RefreshRequest) : TokenResponse
     + logout(refreshToken : String) : void
     + requestPasswordReset(email : String) : void
-    + resetPassword(token : String, newPassword : String) : void
+    + resetPassword(email : String, code : String, newPassword : String) : void
   }
 
   class PasswordResetService {
     + requestReset(email : String) : void
-    + reset(token : String, newPassword : String) : boolean
+    + reset(email : String, code : String, newPassword : String) : boolean
   }
 
   interface UserCredentialsRepository {
@@ -90,6 +91,8 @@ package "auth" {
   interface PasswordResetTokenRepository {
     + save(token : PasswordResetToken) : void
     + findByTokenHash(tokenHash : String) : PasswordResetToken
+    + findActiveByUserId(userId : Long, now : Instant) : PasswordResetToken
+    + deleteActiveByUserId(userId : Long, now : Instant) : void
     + markUsed(id : Long) : void
   }
 
@@ -138,7 +141,8 @@ package "auth" {
   }
 
   class PasswordResetConfirmRequest <<record>> {
-    + token : String
+    + email : String
+    + code : String
     + newPassword : String
   }
 
@@ -244,8 +248,8 @@ ContactChangeService --> RegisteredUser : changeEmail() / changePhone()
 PendingContactChange --> ContactChangeType
 
 PasswordResetService --> UserService : findByEmail
-PasswordResetService --> PasswordResetTokenRepository : single-use token
-PasswordResetService --> SmtpSender : reset link email
+PasswordResetService --> PasswordResetTokenRepository : one active code per user
+PasswordResetService --> SmtpSender : reset code email (6-digit, no link)
 PasswordResetService --> UserCredentialsRepository : update hash
 PasswordResetService --> PasswordHasher : hash new password
 
@@ -273,16 +277,23 @@ note bottom of TokenService
 end note
 
 note bottom of PasswordResetService
-  Reset flow:
-    1. requestReset(email) -> 32-char random token (in URL, not OTP)
-    2. store {tokenHash, expiresAt=15min, usedAt} - hashed, single-use
-    3. send https://app/reset?token=... via SmtpSender
-    4. ALWAYS respond success ("if the account exists, we sent an
+  Reset flow (emailed 6-digit code - no URL link):
+    1. requestReset(email) -> 6-digit code (same generator as
+       contact-change); delete the user's prior active code
+       (one active code per user)
+    2. store {tokenHash = SHA-256(code), expiresAt=15min, usedAt,
+       attempts=0} - hashed, single-use, 5-attempt limit (V6)
+    3. ALWAYS respond success ("if the account exists, we sent an
        email") - never reveal whether an email is registered
-    5. reset(token, newPwd) -> verify hash + expiry + unused, hash
-       new password, update UserCredentials, mark token used
-    6. AuthService then revokes ALL refresh tokens for that user
-       (stolen-session protection - old sessions die on reset)
+    4. send "Shelter Map password reset code: NNNNNN (valid 15 min)"
+       via SmtpSender (no URL, no app.frontend.base-url)
+    5. reset(email, code, newPwd) -> find the account's active code,
+       verify attempts < 5 + hash (constant-time) + expiry + unused,
+       hash new password, update UserCredentials, mark code used
+    6. revoke ALL refresh tokens for that user (stolen-session
+       protection - old sessions die on reset)
+    7. ONE transaction for 5+6; ANY failure (unknown email / no code /
+       over-limit / wrong / expired / used) -> ONE generic 400
 end note
 
 note bottom of AuthController

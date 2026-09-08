@@ -16,6 +16,9 @@ export const COPY = {
   verifyRateLimited:
     'Too many codes have been requested. Please wait a while before requesting another (codes are limited per day).',
   verifyBadCode: 'That code is invalid or has expired. Check it and try again.',
+  // Password-reset confirm (M2, code flow): wrong/expired/used/over-limit are
+  // ONE generic 400 — never reveal which check failed (anti-enumeration).
+  resetBadCode: 'That code is invalid or has expired. Check the latest e-mail and try again.',
   // Contact change (/account, M3). Request 400 ≈ "same as current value"
   // (client validators already block blank/invalid input); the page special-
   // cases that copy before falling through here.
@@ -49,10 +52,11 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       }
       return kind === 'login' ? COPY.invalidCredentials : api.message || COPY.unauthorized;
     case 400:
-      // Password-reset confirm failures are always "bad link/token" — no
-      // reason to echo backend internals.
+      // Password-reset confirm failures are always "bad code" — no reason to
+      // echo backend internals (wrong/expired/used/over-limit are all one
+      // generic 400, and the e-mail carries a code, not a link).
       if (kind === 'reset') {
-        return 'This reset link is invalid or has expired. Please request a new one.';
+        return COPY.resetBadCode;
       }
       // Profile edit: echo the validation message (blank field, etc.).
       if (kind === 'profile') {

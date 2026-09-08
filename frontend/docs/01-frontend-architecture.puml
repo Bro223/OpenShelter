@@ -123,7 +123,7 @@ package "gateways" {
     + refresh(refreshToken) : TokenResponse
     + logout(refreshToken) : void
     + requestPasswordReset(email) : void
-    + resetPassword(token, newPassword) : void
+    + resetPassword(email, code, newPassword) : void
   }
 
   class VerifyGateway {

@@ -3,7 +3,7 @@
     @case ('request') {
       <h1 class="page-title">Reset password</h1>
       <p class="page-subtitle">
-        Enter the email of your account and we will send you a reset link.
+        Enter the email of your account and we'll email you a 6-digit code.
       </p>
 
       <form [formGroup]="requestForm" (ngSubmit)="requestReset()" novalidate>
@@ -24,7 +24,7 @@
         <app-banner severity="error" [message]="error()" />
 
         <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
-          {{ pending() ? 'Sending…' : 'Send reset link' }}
+          {{ pending() ? 'Sending…' : 'Email me a reset code' }}
         </button>
       </form>
     }
@@ -32,17 +32,26 @@
       <h1 class="page-title">Check your inbox</h1>
       <app-banner
         severity="info"
-        message="If an account exists for that email, a password-reset link has been sent. Follow the link to choose a new password."
+        message="If an account exists for that email, a 6-digit code has been sent to it."
       />
-      <p class="auth-links"><a routerLink="/login">Back to log in</a></p>
-    }
-    @case ('confirm') {
-      <h1 class="page-title">Choose a new password</h1>
-      <p class="page-subtitle">
-        This link is valid for 15 minutes and signs you out of all other sessions.
-      </p>
 
       <form [formGroup]="confirmForm" (ngSubmit)="confirmReset()" novalidate>
+        <div class="field">
+          <label for="reset-code">Reset code</label>
+          <input
+            id="reset-code"
+            type="text"
+            formControlName="code"
+            autocomplete="one-time-code"
+            inputmode="numeric"
+            placeholder="6-digit code"
+          />
+          @if (confirmForm.controls.code.touched && confirmForm.controls.code.invalid) {
+            <p class="field-error">Enter the 6-digit code from the email.</p>
+          }
+          <p class="field-note">The code is valid for 15 minutes.</p>
+        </div>
+
         <div class="field">
           <label for="reset-password">New password</label>
           <input
@@ -69,7 +78,7 @@
           ) {
             <p class="field-error">Please repeat the password.</p>
           }
-          @if (confirmMismatch) {
+          @if (confirmMismatch()) {
             <p class="field-error">The passwords do not match.</p>
           }
         </div>
@@ -79,7 +88,17 @@
         <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
           {{ pending() ? 'Updating…' : 'Set new password' }}
         </button>
+        <button
+          type="button"
+          class="btn btn--ghost btn--block"
+          (click)="resendCode()"
+          [disabled]="pending()"
+        >
+          Resend code
+        </button>
       </form>
+
+      <p class="auth-links"><a routerLink="/login">Back to log in</a></p>
     }
   }
 </section>

@@ -9,9 +9,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * JPA implementation of {@link PasswordResetTokenRepository} (approach B).
- * Tokens are stored hashed (SHA-256); single-use is enforced by
- * {@code usedAt} + the service logic in Step 4.
+ * JPA implementation of {@link PasswordResetTokenRepository}.
+ * Codes are stored hashed (SHA-256); single-use is enforced by
+ * {@code usedAt} + the service logic.
  */
 @Repository
 public class JpaPasswordResetTokenRepository implements PasswordResetTokenRepository {
@@ -37,6 +37,20 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PasswordResetToken findActiveByUserId(Long userId, Instant now) {
+        return tokens.findFirstByUserIdAndUsedAtIsNullAndExpiresAtGreaterThan(userId, now)
+                .map(JpaPasswordResetTokenRepository::toDomain)
+                .orElse(null);
+    }
+
+    @Override
+    @Transactional
+    public void deleteActiveByUserId(Long userId, Instant now) {
+        tokens.deleteActiveByUserId(userId, now);
+    }
+
+    @Override
     @Transactional
     public void markUsed(Long id) {
         tokens.markUsed(id, Instant.now());
@@ -49,12 +63,14 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
         entity.setTokenHash(token.getTokenHash());
         entity.setExpiresAt(token.getExpiresAt());
         entity.setUsedAt(token.getUsedAt());
+        entity.setAttempts(token.getAttempts());
         return entity;
     }
 
     private static PasswordResetToken toDomain(PasswordResetTokenEntity entity) {
         PasswordResetToken token = new PasswordResetToken(
-                entity.getUserId(), entity.getTokenHash(), entity.getExpiresAt(), entity.getUsedAt());
+                entity.getUserId(), entity.getTokenHash(), entity.getExpiresAt(),
+                entity.getUsedAt(), entity.getAttempts());
         token.setId(entity.getId());
         return token;
     }

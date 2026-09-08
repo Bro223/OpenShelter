@@ -1,5 +1,5 @@
 @startuml
-title Auth Flow - Register, Login, Silent Refresh, 401 Handling (M1-M2)
+title Auth Flow - Register, Login, Silent Refresh, 401 Handling, Reset (M1-M2)
 
 actor Person
 
@@ -111,4 +111,38 @@ note over AS
   via GET /account/me.
 end note
 AS --> PG : redirect /map
+
+== Password reset (emailed 6-digit code - no link) ==
+participant "ResetPage" as RP
+Person -> RP : e-mail
+RP -> AG : requestPasswordReset(email)
+AG -> AC : post<void>('/auth/password-reset/request', body)
+AC -> API : POST /auth/password-reset/request
+API --> AC : 200 (always - anti-enumeration)
+AC --> RP : ok
+note over RP
+  Same anti-enumeration copy for known and unknown
+  e-mails: "If an account exists for that email, a
+  6-digit code has been sent to it."
+end note
+note over API
+  The e-mail carries the 6-digit code (15-min TTL,
+  stored SHA-256-hashed, one active code per user,
+  5-attempt limit) - no URL link.
+end note
+Person -> RP : code + new password + repeat
+RP -> AG : resetPassword(email, code, newPassword)
+AG -> AC : post<void>('/auth/password-reset/confirm', body)
+AC -> API : POST /auth/password-reset/confirm
+alt 400 (wrong / expired / used / over-limit - one generic message)
+  API --> AC : ErrorResponse 400
+  AC --> RP : generic inline banner (form stays usable)
+else 200
+  note over API
+    Password changed, code marked used, ALL refresh
+    tokens revoked (every other session dies).
+  end note
+  API --> RP : ok
+  RP --> Person : redirect /login?reset=ok
+end
 @enduml

@@ -1,12 +1,13 @@
 package ee.sheltermap.auth;
 
-/** Extracts the reset token from the URL the {@link RecordingSmtpSender} captured. */
+/** Extracts the 6-digit reset code from the e-mail {@link RecordingSmtpSender} captured. */
 final class TestTokens {
 
     private TestTokens() {
     }
 
-    static String fromResetUrl(String message) {
-        return message.substring(message.indexOf("token=") + "token=".length());
+    static String fromResetEmail(String message) {
+        int start = message.indexOf("code: ") + "code: ".length();
+        return message.substring(start, start + 6);
     }
 }

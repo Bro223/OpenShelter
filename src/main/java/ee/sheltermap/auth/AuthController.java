@@ -79,7 +79,7 @@ public class AuthController {
 
     @PostMapping("/password-reset/confirm")
     public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request) {
-        authService.resetPassword(request.token(), request.newPassword());
+        authService.resetPassword(request.email(), request.code(), request.newPassword());
     }
 
     private static void requireRate(RateLimiter limiter, String key) {

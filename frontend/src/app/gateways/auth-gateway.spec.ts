@@ -81,13 +81,14 @@ describe('AuthGateway', () => {
     });
   });
 
-  it('resetPassword POSTs {token, newPassword} to /auth/password-reset/confirm', async () => {
+  it('resetPassword POSTs {email, code, newPassword} to /auth/password-reset/confirm', async () => {
     api.post.mockReturnValue(of(undefined));
 
-    await gateway.resetPassword('tok-123', 'new-secret');
+    await gateway.resetPassword('test@example.ee', '123456', 'new-secret');
 
     expect(api.post).toHaveBeenCalledWith('/auth/password-reset/confirm', {
-      token: 'tok-123',
+      email: 'test@example.ee',
+      code: '123456',
       newPassword: 'new-secret',
     });
   });

@@ -15,7 +15,8 @@ spring:
     enabled: true
     locations: classpath:db/migration
   mail:
-    # Real SMTP (smtp-pulse.com) — credentials ONLY via env vars, never committed.
+    # Real SMTP (smtp-pulse.com) — credentials ONLY via
+    # env vars, never committed.
     host: ${SMTP_HOST:smtp-pulse.com}
     port: ${SMTP_PORT:587}            # alt: 465 (SSL) or 2525
     username: ${SMTP_USERNAME:}
@@ -50,15 +51,13 @@ management:
       enabled: false
 
 app:
-  frontend:
-    # Base URL used to build password-reset links (hardening: the reset email
-    # used to carry a hardcoded https://app/... link that went nowhere).
-    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
   cors:
-    # Origins the browser frontend may call (preflight handled by Spring Security).
+    # Origins the browser frontend may call (preflight
+    # handled by Spring Security).
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   mail:
-    # Which SmtpSender impl: 'dev' (console logging, default) or 'smtp-pulse' (real SMTP).
+    # Which SmtpSender impl: 'dev' (console logging, default)
+    # or 'smtp-pulse' (real SMTP).
     provider: ${MAIL_PROVIDER:dev}
     # From-address for real mail. MUST be a sender verified in the smtp-pulse
     # dashboard (proton.me can't be verified there — that's why smtp-pulse
@@ -138,7 +137,8 @@ app:
     page-size: 100
     max-retries: 3
     politeness-delay: 250ms
-    # Which client impl to use: 'paasteamet' (real HTTP) or 'dev' (local fixture)
+    # Which client impl to use: 'paasteamet' (real HTTP) or
+    # 'dev' (local fixture)
     client: ${REGISTRY_CLIENT:paasteamet}
     # Set to true to run one import on startup (manual trigger, Step 5)
     run-on-startup: false

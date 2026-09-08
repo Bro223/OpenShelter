@@ -46,8 +46,8 @@
 | `POST /auth/login` | `LoginRequest` | 200 `TokenResponse` | 401 generic, 429 |
 | `POST /auth/refresh` | `{refreshToken}` | 200 `TokenResponse` (rotated pair) | 401 (revoked/expired) |
 | `POST /auth/logout` | `{refreshToken}` | 204 | 400 |
-| `POST /auth/password-reset/request` | `{email}` | 200 always (anti-enumeration) | 429 |
-| `POST /auth/password-reset/confirm` | `{token, newPassword}` | 200 | 400 |
+| `POST /auth/password-reset/request` | `{email}` | 200 always (anti-enumeration; a 6-digit code is e-mailed to a registered account) | 429 |
+| `POST /auth/password-reset/confirm` | `{email, code, newPassword}` | 200 | 400 generic (wrong/expired/used/over-limit/unknown email — indistinguishable) |
 
 > Refresh **rotates**: every refresh issues a new pair and invalidates the old refresh token.
 > Password reset revokes **all** refresh tokens for the user.
@@ -80,7 +80,7 @@ interface RegisterRequest { name: string; email: string; phone: string; national
 interface LoginRequest { emailOrPhone: string; password: string; }        // phone may be local or +372 form
 interface RefreshRequest { refreshToken: string; }
 interface PasswordResetRequest { email: string; }
-interface PasswordResetConfirmRequest { token: string; newPassword: string; }
+interface PasswordResetConfirmRequest { email: string; code: string; newPassword: string; }
 interface VerifyRequest { level: 'EMAIL' | 'PHONE' | 'SMART_ID'; }
 interface VerifyConfirmRequest { level: 'EMAIL' | 'PHONE' | 'SMART_ID'; code: string; }
 interface ChangeEmailRequest { newEmail: string; }

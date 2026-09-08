@@ -236,4 +236,10 @@ describe('LoginPage', () => {
     const banner = element.querySelector('.banner--info') as HTMLElement | null;
     expect(banner?.textContent).toContain('session has expired');
   });
+
+  it('shows an info note when the reset flow lands here with ?reset=ok', async () => {
+    const { element } = await open('/login?reset=ok');
+    const banner = element.querySelector('.banner--info') as HTMLElement | null;
+    expect(banner?.textContent).toContain('password has been reset');
+  });
 });

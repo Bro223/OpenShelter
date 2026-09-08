@@ -103,8 +103,8 @@ public class AuthService {
         passwordReset.requestReset(email);
     }
 
-    public void resetPassword(String token, String newPassword) {
-        if (!passwordReset.reset(token, newPassword)) {
+    public void resetPassword(String email, String code, String newPassword) {
+        if (!passwordReset.reset(email, code, newPassword)) {
             throw new InvalidResetTokenException();
         }
     }

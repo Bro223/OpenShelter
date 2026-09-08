@@ -51,7 +51,10 @@ export interface PasswordResetRequest {
 }
 
 export interface PasswordResetConfirmRequest {
-  token: string;
+  /** The e-mail from the request step — scopes the code to its account. */
+  email: string;
+  /** The 6-digit code from the e-mail (single-use, 15-min TTL, 5 attempts). */
+  code: string;
   newPassword: string;
 }
 

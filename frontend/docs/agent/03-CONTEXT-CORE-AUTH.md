@@ -30,7 +30,7 @@ backend's JWT + rotating-refresh design.
 
 | Type          | Kind    | Key members / notes                                                                                                                                                                                                                                                                              |
 | ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `AuthGateway` | service | `register(RegisterRequest)`, `login(emailOrPhone, password): TokenResponse`, `refresh(refreshToken): TokenResponse`, `logout(refreshToken)`, `requestPasswordReset(email)`, `resetPassword(token, newPassword)`. Maps to `ApiClient` calls — **no token logic here** (that's `AuthStore`'s job). |
+| `AuthGateway` | service | `register(RegisterRequest)`, `login(emailOrPhone, password): TokenResponse`, `refresh(refreshToken): TokenResponse`, `logout(refreshToken)`, `requestPasswordReset(email)`, `resetPassword(email, code, newPassword)`. Maps to `ApiClient` calls — **no token logic here** (that's `AuthStore`'s job). |
 
 ### `features/auth/` (M2)
 
@@ -38,7 +38,7 @@ backend's JWT + rotating-refresh design.
 | -------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `LoginPage`    | component | route `/login` (GuestGuard). Fields: emailOrPhone + password. Generic error banner on 401/429. Success → `returnUrl` or `/map`.                                                                                                                        |
 | `RegisterPage` | component | route `/register` (GuestGuard). Fields: name, email, phone, nationalIdCode, password. 409 → inline field error ("email already registered"). Success → success view: "account created — log in, then verify your email" (backend does not auto-login). |
-| `ResetPage`    | component | route `/reset` (GuestGuard). Two states: request (email → always "if the account exists, we sent a link") and confirm (token from email link `?token=…` → newPassword). On success → `/login`.                                                         |
+| `ResetPage`    | component | route `/reset` (GuestGuard). Two states: request (email → always "if the account exists, we sent a 6-digit code") and sent (code + new password + repeat IN the page — the e-mail carries a code, not a link; no `?token=`). On success → `/login?reset=ok`.   |
 
 ### `shared/` (first pieces)
 

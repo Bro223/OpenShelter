@@ -64,11 +64,12 @@ DTOs — approve before M2.
 **Inputs:** `02-auth-flow.puml`, `03-CONTEXT-CORE-AUTH.md` (features/auth + guards).
 
 **Deliverables** — `shared/PageShell` + `BannerComponent`; `AuthGuard`, `GuestGuard`; routes
-`/login`, `/register`, `/reset` with the three pages (LoginPage, RegisterPage, ResetPage incl.
-`?token=` confirm state); login/logout in the shell header. Component + store tests.
+`/login`, `/register`, `/reset` with the three pages (LoginPage, RegisterPage, ResetPage —
+reset = request → sent, the 6-digit code + new password entered IN the page, no emailed
+link); login/logout in the shell header. Component + store tests.
 
 **Key decisions:** returnUrl handling; generic login errors (no enumeration); register success
-screen directs to login then `/verify` (M3); reset confirm on success → `/login`.
+screen directs to login then `/verify` (M3); reset confirm on success → `/login?reset=ok`.
 
 **Acceptance**
 
