@@ -1,7 +1,9 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.ShelterRepository;
+import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -18,6 +20,9 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
 
     @Autowired
     ShelterRepository shelters;
+
+    @Autowired
+    UserRepository users;
 
     private static Shelter shelter(String name, ShelterStatus status, ShelterSource source, String externalId) {
         return new Shelter(name, new GeoPoint(59.437, 24.7536), status, externalId, source);
@@ -85,5 +90,53 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
 
         assertThat(deleted).isZero();
         assertThat(shelters.findAll()).hasSize(1);
+    }
+
+    private static Shelter userShelterWithAuthor(String name, long authorId) {
+        Shelter s = shelter(name, ShelterStatus.ACTIVE, ShelterSource.USER, null);
+        s.setCreatedBy(authorId);
+        return s;
+    }
+
+    @Test
+    void createdByRoundTripsAndFiltersByAuthor() {
+        // created_by is a real FK: author rows must exist in users
+        RegisteredUser authorA = saveUser(users, "contrib-a1@example.ee", "+37250011101");
+        RegisteredUser authorB = saveUser(users, "contrib-b1@example.ee", "+37250011102");
+        Shelter a1 = userShelterWithAuthor("A1", authorA.getId());
+        Shelter a2 = userShelterWithAuthor("A2", authorA.getId());
+        Shelter b1 = userShelterWithAuthor("B1", authorB.getId());
+        Shelter legacy = shelter("Legacy No Author", ShelterStatus.ACTIVE, ShelterSource.USER, null);
+        shelters.saveAll(List.of(a1, a2, b1, legacy));
+
+        assertThat(shelters.findByCreatedBy(authorA.getId()))
+                .extracting(Shelter::getName)
+                .containsExactlyInAnyOrder("A1", "A2");
+        assertThat(shelters.findByCreatedBy(authorB.getId())).extracting(Shelter::getName).containsExactly("B1");
+        // the legacy row (created_by NULL) belongs to nobody
+        assertThat(shelters.findByCreatedBy(999_999_999L)).isEmpty();
+    }
+
+    @Test
+    void findByIdsReturnsExactlyTheRequestedRows() {
+        Shelter a = shelter("A", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "a");
+        Shelter b = shelter("B", ShelterStatus.ACTIVE, ShelterSource.MUNICIPALITY, "b");
+        shelters.saveAll(List.of(a, b));
+
+        assertThat(shelters.findByIds(List.of(a.getId())))
+                .extracting(Shelter::getName)
+                .containsExactly("A");
+        assertThat(shelters.findByIds(List.of())).isEmpty();
+    }
+
+    @Test
+    void deleteByIdRemovesTheRowAndIsANoOpWhenAbsent() {
+        Shelter a = shelter("A", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "a");
+        shelters.save(a);
+
+        shelters.deleteById(a.getId());
+
+        assertThat(shelters.findById(a.getId())).isEmpty();
+        shelters.deleteById(999_999L); // no-op, no exception
     }
 }

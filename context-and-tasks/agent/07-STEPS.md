@@ -295,3 +295,28 @@ Follow-up code review findings, all fixed (dead-code removal was part of this pa
 - **Docs/hygiene** — stale `.gitkeep` files removed; README/puml/MD synced.
 
 **Acceptance:** `mvn test` green — **216 tests** (net −6: the removed dead-code tests).
+
+---
+
+## Post-step-7 additions (M8 — user contributions, OpenSpec `user-contributions`)
+
+Built as OpenSpec change `user-contributions` (M3 of 3 in its own plan — the third and final
+milestone of that change): submitting users can manage their own contributions — list/edit/
+delete their own USER-source shelters and list/edit/delete their own reviews, surfaced as a
+"My contributions" panel on the account page (`ContributionsPanel`, `features/contributions/`;
+not a new route). Backend: `V7__shelter_created_by.sql` (`shelters.created_by BIGINT NULL
+REFERENCES users(id) ON DELETE SET NULL` + `idx_shelters_created_by`; `addPlace` records the
+author), author-scoped `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (404 absent,
+403 not-the-author — registry and legacy `created_by`-NULL rows unmanageable by anyone; PUT
+shares POST's Estonia bbox gate via a small helper; only the five fields
+name/description/capacity/lat/lng are writable) and `GET /account/reviews/mine` (`MyReviewDto[]`,
+shelter names batched — no N+1); deleting a shelter cascades to its reviews (DB `ON DELETE
+CASCADE` — `JpaShelterRepository.deleteById` flushes so the cascade is visible to in-transaction
+reads). Frontend: `ShelterGateway.mine()/update()/remove()` + `AccountGateway.myReviews()` +
+models `UpdateShelterRequest`/`MyReviewDto`; inline-expanding edit forms (no modals),
+two-step delete confirms (no `window.confirm`), per-list loading/empty/error states. Docs/puml
+synced (`05-shelter-api.puml` + render, `06-CONTEXT-API.md`, `02-CONTEXT-DOMAIN.md`,
+frontend `06-CONTEXT-SHELTER.md` + `05-shelter-review-flow.puml`, both READMEs).
+**Acceptance:** `mvn test` + `ng test` green, live journey verified (submit → review → both
+appear in the panel → edit persists on the detail page → delete removes shelter + review;
+non-author and registry attempts → 403).

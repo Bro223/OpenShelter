@@ -6,9 +6,12 @@ title Shelter Map - Shelter API (read + write + community reviews)
 
 package "api" {
   class ShelterController {
-    + GET  /api/shelters?source=REGISTRY|USER|ALL
-    + GET  /api/shelters/{id}
-    + POST /api/shelters
+    + GET    /api/shelters?source=REGISTRY|USER|ALL
+    + GET    /api/shelters/{id}
+    + POST   /api/shelters
+    + GET    /api/shelters/mine
+    + PUT    /api/shelters/{id}
+    + DELETE /api/shelters/{id}
   }
 
   class ReviewController {
@@ -16,6 +19,11 @@ package "api" {
     + POST   /api/shelters/{id}/reviews
     + PUT    /api/shelters/{id}/reviews/mine
     + DELETE /api/shelters/{id}/reviews/mine
+  }
+
+  class AccountController {
+    ' /account group (M1) - the one shelter-related endpoint added in M8
+    + GET /account/reviews/mine
   }
 
   class ShelterQueryService {
@@ -57,6 +65,16 @@ package "api" {
     + capacity : Integer
   }
 
+  class UpdateShelterRequest <<record>> {
+    ' M8: constraints IDENTICAL to CreateShelterRequest (create/update cannot drift);
+    ' only these five fields are writable on an existing shelter
+    + name : String
+    + latitude : double
+    + longitude : double
+    + description : String
+    + capacity : Integer
+  }
+
   class ReviewRequest <<record>> {
     + rating : int
     + comment : String
@@ -68,6 +86,17 @@ package "api" {
     + rating : int
     + comment : String
     + createdAt : Instant
+  }
+
+  class MyReviewDto <<record>> {
+    ' M8: one row of GET /account/reviews/mine (the caller's review of a
+    ' shelter, carrying the shelter's id + name for navigation)
+    + shelterId : long
+    + shelterName : String
+    + rating : int
+    + comment : String
+    + createdAt : Instant
+    + updatedAt : Instant
   }
 
   class RatingSummaryDto <<record>> {
@@ -94,6 +123,10 @@ package "api" {
 ShelterController --> ShelterQueryService : GET
 ShelterController --> ShelterService : POST (app/01)
 ShelterController --> CreateShelterRequest : parses body
+ShelterController --> UpdateShelterRequest : parses PUT body
+AccountController --> ShelterReviewRepository : findByUserId (interface, 01)
+AccountController --> ShelterRepository : findByIds (batched names, 01)
+AccountController --> MyReviewDto : returns
 ShelterController --> ErrorResponse : 400/401/403/404/429
 ShelterQueryService --> ShelterRepository : reads (interface, 01)
 ShelterQueryService --> Shelter : maps to DTO
@@ -115,8 +148,21 @@ note bottom of ShelterController
   GET  /api/shelters?source=REGISTRY|USER|ALL  (public - VIEW_MAP baseline)
   GET  /api/shelters/{id}                      (public)
   POST /api/shelters                           (Bearer JWT, canWrite() check)
+  GET  /api/shelters/mine                      (Bearer JWT - the CALLER's shelters, NOT public)
+  PUT    /api/shelters/{id}                    (Bearer JWT, author-only USER rows)
+  DELETE /api/shelters/{id}                    (Bearer JWT, author-only; reviews cascade)
+  Author check (PUT/DELETE): 404 if absent, 403 if not the author - registry rows and
+  legacy created_by-NULL rows are unmanageable by anyone (ids are public, so
+  403-vs-404 leaks nothing). PUT re-checks the Estonia bbox - one shared gate with
+  POST, so create/update cannot drift.
   Deferred: nearest/bbox queries need GeoService + PostGIS GIST index.
   Paging deferred: Estonia-scale data is small; add limit/offset when it grows.
+end note
+
+note right of ShelterQueryService
+  shelters.created_by (V7): BIGINT NULL REFERENCES users(id) ON DELETE SET NULL +
+  idx_shelters_created_by. addPlace sets it (the submitting user); NULL for registry
+  rows and pre-V7 legacy USER rows. GET /mine queries it; PUT/DELETE gate on it.
 end note
 
 note bottom of ShelterReviewService
@@ -140,6 +186,7 @@ participant "ShelterRepository" as REPO
 participant "ShelterService" as SS
 participant "ShelterReviewService" as RVS
 participant "ShelterReviewRepository" as RREPO
+participant "AccountController" as ACC
 database "PostgreSQL" as DB
 
 == 1. GET /api/shelters?source=USER (public) ==
@@ -154,7 +201,7 @@ SC --> Client : 200 [ShelterDto]
 == 2. POST /api/shelters (Bearer JWT, verified user) ==
 Client -> SC : POST /api/shelters {name, lat, lng, ...}
 SC -> SS : addPlace(user, shelter)
-SS -> DB : save shelter (status = ACTIVE, source = USER)
+SS -> DB : save shelter (status = ACTIVE, source = USER, created_by = user)
 SS --> SC : Shelter
 SC --> Client : 201 + Location
 
@@ -173,4 +220,37 @@ Client -> RVS : GET reviews
 RVS -> RREPO : findByShelterId(shelterId)
 RREPO --> RVS : List<ShelterReview>
 RVS --> Client : 200 [ShelterReviewDto]
+
+== 5. GET /api/shelters/mine (Bearer JWT) ==
+Client -> SC : GET /api/shelters/mine
+SC -> REPO : findByCreatedBy(me)
+REPO -> DB : SELECT ... WHERE created_by = ?
+REPO --> SC : List<Shelter>
+SC --> Client : 200 [ShelterDto] (never other users' or registry rows)
+
+== 6. PUT /api/shelters/{id} (Bearer JWT, author-only) ==
+Client -> SC : PUT {name, lat, lng, description, capacity}
+SC -> REPO : findById(id)
+alt absent
+  SC --> Client : 404 (uniform ErrorResponse)
+else not the author (or a registry / legacy created_by-NULL row)
+  SC --> Client : 403
+else author
+  note right of SC: bbox re-check (shared gate with POST) -> 400 outside Estonia
+  SC -> SS : updatePlace(updated)  ' the five fields only
+  SS -> DB : UPDATE (status/source/createdBy/created_at untouched)
+  SC --> Client : 200 ShelterDto
+end
+
+== 7. DELETE /api/shelters/{id} (Bearer JWT, author-only) ==
+Client -> SC : DELETE
+SC -> REPO : findById(id) + author check (404 / 403 as above)
+SC -> DB : DELETE shelter (ON DELETE CASCADE -> shelter_reviews)
+SC --> Client : 204 No Content
+
+== 8. GET /account/reviews/mine (Bearer JWT) ==
+Client -> ACC : GET /account/reviews/mine
+ACC -> DB : reviews WHERE user_id = ? (one query)
+ACC -> DB : shelters WHERE id IN (...) (batched shelter names - no N+1)
+ACC --> Client : 200 [MyReviewDto]
 @enduml

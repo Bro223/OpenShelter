@@ -9,6 +9,10 @@ import java.util.Objects;
  * (source = REGISTRY) additionally carry the full published record
  * (address, county, municipality, data as-of, attribution) so the app owns
  * the complete dataset — the public API exposes only a lean projection.
+ *
+ * <p>{@code createdBy} links USER submissions to their author (V7) —
+ * registry rows and pre-V7 legacy USER rows have a {@code null} author and
+ * are unmanageable by anyone.
  */
 public class Shelter {
 
@@ -26,6 +30,8 @@ public class Shelter {
     private final String description;
     private final Integer capacity;
     private Instant createdAt;
+    /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
+    private Long createdBy;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -72,6 +78,15 @@ public class Shelter {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    /** Author user id ({@code null} for registry rows and pre-V7 legacy USER rows). */
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public String getName() {

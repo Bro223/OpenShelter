@@ -38,6 +38,11 @@ public class ShelterQueryService {
         return shelterRepository.findById(id).map(shelter -> toDtos(List.of(shelter)).get(0));
     }
 
+    /** The caller's own shelters, same lean DTO projection as the public list (no N+1). */
+    public List<ShelterDto> findByCreatedBy(long userId) {
+        return toDtos(shelterRepository.findByCreatedBy(userId));
+    }
+
     /** Maps a batch of shelters in ONE aggregate query (no N+1). */
     private List<ShelterDto> toDtos(List<Shelter> shelters) {
         if (shelters.isEmpty()) {

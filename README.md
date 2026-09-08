@@ -3,6 +3,8 @@
 Backend for an Estonia public-shelter map: verified user registration, password auth with
 JWT sessions, shelter data ingested automatically from the official registry, user-submitted
 shelters with community ratings (the rating system **is** the moderation — no moderator).
+Users manage their own contributions — list/edit/delete their own shelters and reviews from
+the account page (M8, `user-contributions`).
 
 **Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse, auth, verification,
 shelter submission, community reviews); run/build docs in
@@ -68,12 +70,18 @@ shelter submission, community reviews); run/build docs in
 - **Shelter API**: public read endpoints with source filter and rating aggregates; adding a
   shelter requires an authenticated, verified user; **community reviews** — one review per
   user per shelter (re-rating = update), author-only update/delete.
+- **User contributions (M8)**: submitting users can list, edit and delete their OWN
+  USER-source shelters (`GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}`) and list
+  their own reviews across all shelters (`GET /account/reviews/mine`). `shelters.created_by`
+  (V7, nullable — registry/legacy rows have no author) links a submission to its author;
+  404 if the shelter is absent, 403 if it exists but is not the caller's (registry and
+  legacy rows are unmanageable by anyone); deleting a shelter cascades to its reviews.
 - **Uniform error shape** (`ErrorResponse`) across the whole API; `@RestControllerAdvice`.
 
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -133,6 +141,10 @@ manually on boot (see below).
 | GET | `/api/shelters?source=ALL\|USER\|REGISTRY` | public | List shelters with `averageRating`/`reviewCount` |
 | GET | `/api/shelters/{id}` | public | Shelter detail |
 | POST | `/api/shelters` | JWT + verified | Submit a shelter → 201 + Location |
+| GET | `/api/shelters/mine` | JWT | The caller's own shelters (never other users' or registry rows) |
+| PUT | `/api/shelters/{id}` | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows) |
+| DELETE | `/api/shelters/{id}` | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author |
+| GET | `/account/reviews/mine` | JWT | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps) |
 | GET | `/api/shelters/{id}/reviews` | public | Reviews for a shelter |
 | POST | `/api/shelters/{id}/reviews` | JWT + verified | Review (upsert: re-rating updates) |
 | PUT | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Update own review |

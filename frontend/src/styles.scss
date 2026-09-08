@@ -249,6 +249,16 @@ textarea:focus-visible {
   display: block;
 }
 
+/* two-step delete: armed danger button (used by the contributions panel) */
+.btn--danger {
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
+
+  &:hover:not(:disabled) {
+    background: var(--color-danger-bg);
+  }
+}
+
 /* M4 shelter marker pins — global for the same reason as the leaflet import
    above: leaflet creates the marker DOM outside Angular templates, so
    component-scoped styles cannot reach it. The map legend swatches reuse

@@ -23,6 +23,9 @@ public interface ShelterReviewRepository {
 
     Optional<ShelterReview> findByShelterIdAndUserId(Long shelterId, Long userId);
 
+    /** All reviews written by {@code userId}, across all shelters (V7 "my reviews"). */
+    List<ShelterReview> findByUserId(Long userId);
+
     /**
      * Rating aggregates for all given shelter ids in ONE query.
      * Shelters without reviews are absent from the result (caller treats

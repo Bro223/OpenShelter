@@ -5,9 +5,11 @@ actor Person
 
 participant "ShelterDetailPage" as DP
 participant "SubmitShelterPage" as SP
+participant "ContributionsPanel" as CP
 participant "ReviewForm" as RF
 participant "ShelterGateway" as SHG
 participant "ReviewGateway" as RG
+participant "AccountGateway" as AG
 participant "ApiClient" as AC
 participant "AuthStore" as AS
 database "Spring Boot API" as API
@@ -104,6 +106,49 @@ end
 
 note over DP
   USER-submitted rows are sacred on the backend: the registry
-  importer never touches source=USER shelters.
+  importer never touches source=USER shelters. Author-scoped
+  management (M8) is the one exception - see below.
 end note
+
+== Manage my contributions (M8, account page) ==
+note over CP
+  The /account page's "My contributions" panel (ContributionsPanel,
+  embedded in AccountPage). Both lists load in parallel; each has its
+  own loading/empty/error states. Edits are inline-expanding forms
+  (no modals); deletes are two-step confirms (no window.confirm).
+end note
+Person -> CP : open /account
+== shelters list ==
+CP -> SHG : mine()
+SHG -> AC : get<ShelterDto[]>('/api/shelters/mine')
+AC -> API : GET /api/shelters/mine (Bearer JWT)
+API --> CP : ShelterDto[] (the caller's USER rows only)
+== reviews list ==
+CP -> AG : myReviews()
+AG -> AC : get<MyReviewDto[]>('/account/reviews/mine')
+AC -> API : GET /account/reviews/mine (Bearer JWT)
+API --> CP : MyReviewDto[] (shelterId + shelterName + rating + comment)
+Person -> CP : edit a shelter row (inline form)
+CP -> SHG : update(id, name/lat/lng/description/capacity)
+SHG -> AC : put<ShelterDto>('/api/shelters/{id}', body)
+alt 200 updated
+  API --> CP : ShelterDto -> row updated in place (no page reload)
+else 400 (bbox/fields) / 403 (not the author) / 404 (absent)
+  API --> CP : ErrorResponse -> banner via bannerMessage, row unchanged
+end
+Person -> CP : delete a shelter (two-step confirm: reviews go too)
+CP -> SHG : remove(id)
+SHG -> AC : delete('/api/shelters/{id}')
+AC -> API : DELETE /api/shelters/{id}
+API --> CP : 204 No Content -> row removed (reviews cascade)
+Person -> CP : edit a review row (rating 1..5 + comment)
+CP -> RG : updateMine(shelterId, rating, comment)
+RG -> AC : put<ShelterReviewDto>('/api/shelters/{id}/reviews/mine', body)
+AC -> API : PUT /api/shelters/{id}/reviews/mine
+API --> CP : ShelterReviewDto -> row updated in place
+Person -> CP : delete a review (two-step confirm)
+CP -> RG : deleteMine(shelterId)
+RG -> AC : delete('/api/shelters/{id}/reviews/mine')
+AC -> API : DELETE /api/shelters/{id}/reviews/mine
+API --> CP : 204 No Content -> row removed
 @enduml

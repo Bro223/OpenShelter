@@ -95,6 +95,21 @@ export interface CreateShelterRequest {
   capacity?: number;
 }
 
+/**
+ * PUT /api/shelters/{id} (user-contributions): the author's edit of their
+ * OWN USER-source shelter. Constraints are field-for-field identical to
+ * CreateShelterRequest — the backend keeps them in one shared validation
+ * path so create/update cannot drift. Only these five fields are writable;
+ * status/source/registry fields/createdAt/createdBy are never.
+ */
+export interface UpdateShelterRequest {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  capacity?: number;
+}
+
 export interface ReviewRequest {
   /** 1..5 */
   rating: number;
@@ -154,4 +169,24 @@ export interface ShelterReviewDto {
   comment: string | null;
   /** ISO-8601 instant. */
   createdAt: string;
+}
+
+/**
+ * One row of GET /account/reviews/mine (user-contributions): the caller's
+ * review of a shelter across ALL shelters, carrying the shelter's id + name
+ * for navigation plus the review's own fields. A review whose shelter was
+ * deleted cannot occur (shelter deletion cascades), so shelterName always
+ * resolves.
+ */
+export interface MyReviewDto {
+  shelterId: number;
+  shelterName: string;
+  /** 1..5 */
+  rating: number;
+  /** null = no comment. */
+  comment: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** ISO-8601 instant. */
+  updatedAt: string;
 }

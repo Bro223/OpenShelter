@@ -54,6 +54,12 @@ public class JpaShelterReviewRepository implements ShelterReviewRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ShelterReview> findByUserId(Long userId) {
+        return reviews.findByUserId(userId).stream().map(JpaShelterReviewRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<RatingAggregate> findRatingAggregates(List<Long> shelterIds) {
         if (shelterIds == null || shelterIds.isEmpty()) {
             return List.of();

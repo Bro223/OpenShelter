@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,4 +28,13 @@ public interface ShelterRepository {
     List<Shelter> findAll();
 
     List<Shelter> findAllBySourceIn(List<ShelterSource> sources);
+
+    /** All shelters created by {@code userId} — the author-scoped "my shelters" query (V7). */
+    List<Shelter> findByCreatedBy(Long userId);
+
+    /** Batched read by id (one query — name resolution without N+1). */
+    List<Shelter> findByIds(Collection<Long> ids);
+
+    /** Deletes the row with {@code id} (a no-op when absent); reviews cascade via the DB. */
+    void deleteById(Long id);
 }

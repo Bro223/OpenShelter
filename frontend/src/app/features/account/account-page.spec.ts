@@ -3,10 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AccountGateway } from '../../gateways/account-gateway';
+import { ReviewGateway } from '../../gateways/review-gateway';
+import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { AuthStore } from '../../core/auth-store';
-import type { MeResponse, TokenResponse } from '../../core/models';
+import type { MeResponse, MyReviewDto, ShelterDto, TokenResponse } from '../../core/models';
 import { AccountPage } from './account-page';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
@@ -17,6 +19,30 @@ const PROFILE: MeResponse = {
   phone: '+37250004444',
   nationalIdCode: '49001014444',
   levels: [],
+};
+
+const SHELTER_ROW: ShelterDto = {
+  id: 7,
+  address: null,
+  name: 'Kommunaali Varjend',
+  latitude: 59.437,
+  longitude: 24.754,
+  status: 'ACTIVE',
+  source: 'USER',
+  averageRating: 4.5,
+  reviewCount: 2,
+  createdAt: '2025-09-01T08:00:00Z',
+  description: 'Naabruskonna kelder',
+  capacity: 12,
+};
+
+const REVIEW_ROW: MyReviewDto = {
+  shelterId: 7,
+  shelterName: 'Kommunaali Varjend',
+  rating: 4,
+  comment: 'Hea varjend',
+  createdAt: '2025-09-02T09:00:00Z',
+  updatedAt: '2025-09-03T10:00:00Z',
 };
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -36,6 +62,31 @@ class FakeAccountGateway {
   confirmEmailChange = vi.fn();
   requestPhoneChange = vi.fn();
   confirmPhoneChange = vi.fn();
+  /** The embedded contributions panel loads on init — default to empty. */
+  myReviews = vi.fn();
+  constructor() {
+    this.myReviews.mockResolvedValue([]);
+  }
+}
+
+class FakeShelterGateway {
+  list = vi.fn();
+  get = vi.fn();
+  create = vi.fn();
+  /** The embedded contributions panel loads on init — default to empty. */
+  mine = vi.fn();
+  update = vi.fn();
+  remove = vi.fn();
+  constructor() {
+    this.mine.mockResolvedValue([]);
+  }
+}
+
+class FakeReviewGateway {
+  list = vi.fn();
+  add = vi.fn();
+  updateMine = vi.fn();
+  deleteMine = vi.fn();
 }
 
 function apiError(status: number, message: string, path: string): ApiError {
@@ -51,6 +102,8 @@ class Host {}
 describe('AccountPage', () => {
   let account: FakeAccountGateway;
   let auth: FakeAuthGateway;
+  let shelter: FakeShelterGateway;
+  let review: FakeReviewGateway;
   let store: AuthStore;
   let router: Router;
 
@@ -58,6 +111,8 @@ describe('AccountPage', () => {
     localStorage.clear();
     account = new FakeAccountGateway();
     auth = new FakeAuthGateway();
+    shelter = new FakeShelterGateway();
+    review = new FakeReviewGateway();
     account.me.mockResolvedValue(PROFILE);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -65,9 +120,12 @@ describe('AccountPage', () => {
         provideRouter([
           { path: 'map', component: Stub },
           { path: 'account', component: AccountPage },
+          { path: 'submit', component: Stub },
         ]),
         { provide: AccountGateway, useValue: account as unknown as AccountGateway },
         { provide: AuthGateway, useValue: auth as unknown as AuthGateway },
+        { provide: ShelterGateway, useValue: shelter as unknown as ShelterGateway },
+        { provide: ReviewGateway, useValue: review as unknown as ReviewGateway },
       ],
     });
     store = TestBed.inject(AuthStore);
@@ -460,5 +518,29 @@ describe('AccountPage', () => {
     await inFlight;
     fixture.detectChanges();
     expect(element.textContent).not.toContain('Sending…');
+  });
+
+  // ---- My contributions (user-contributions) --------------------------------
+
+  it('renders the My contributions panel with both lists', async () => {
+    shelter.mine.mockResolvedValue([SHELTER_ROW]);
+    account.myReviews.mockResolvedValue([REVIEW_ROW]);
+    const { element, fixture } = await open();
+    // let the embedded panel's fire-and-forget loads settle, then re-render
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('My contributions');
+    expect(element.textContent).toContain('Kommunaali Varjend');
+    expect(element.textContent).toContain('Hea varjend');
+  });
+
+  it('shows the empty contributions states when the user has nothing', async () => {
+    const { element } = await open();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(element.textContent).toContain('My contributions');
+    expect(element.textContent).toContain("You haven't submitted any shelters yet.");
+    expect(element.querySelector('a[href="/submit"]')).not.toBeNull();
+    expect(element.textContent).toContain("You haven't written any reviews yet.");
   });
 });

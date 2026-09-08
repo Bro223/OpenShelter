@@ -2,7 +2,9 @@
 
 Angular SPA for the OpenShelter public-shelter map (Estonia): browse the registry +
 user-submitted shelters on a map, register and verify an account, submit shelters,
-review them (the community rating **is** the moderation), and manage the account.
+review them (the community rating **is** the moderation), and manage the account —
+including one's own contributions (M8: list/edit/delete own shelters + reviews in
+the account page's "My contributions" panel).
 
 The Spring Boot backend lives in the repo root (`src/`); the backend task pack is in
 `context-and-tasks/agent/`. This frontend was built from the task pack in
@@ -51,7 +53,8 @@ src/
 │   │   ├── auth/      # login, register, reset (guestGuard)
 │   │   ├── account/   # verify (cross-channel), contact change
 │   │   ├── map/       # browse: Leaflet map + list + source filter (default route)
-│   │   └── shelter/   # detail + reviews (review-form, rating-stars), submit
+│   │   ├── shelter/   # detail + reviews (review-form, rating-stars), submit
+│   │   └── contributions/  # My contributions panel (M8) — embedded in the account page
 │   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent, error copy
 │   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
@@ -111,8 +114,10 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 
 ## Deferrals (v1, honest list)
 
-- **`GET /shelters/{id}/reviews/mine`** — no such endpoint; the detail page loads all
-  reviews and finds "mine" client-side (fine at v1 review counts).
+- **`GET /shelters/{id}/reviews/mine` (per-shelter)** — still no such endpoint; the detail
+  page loads all reviews and finds "mine" client-side (fine at v1 review counts). M8 built the
+  cross-shelter list instead — `GET /account/reviews/mine`, consumed by the account page's
+  "My contributions" panel.
 - **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
   (≈300). `GET /api/shelters/nearest` exists but is not wired.
 - **i18n** — English-only strings; `titleGuard` builds "<Page> — OpenShelter" in code.

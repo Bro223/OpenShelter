@@ -129,6 +129,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST,
                         "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
                         "/auth/password-reset/request", "/auth/password-reset/confirm").permitAll()
+                // Author-scoped (user-contributions): /mine lists the CALLER's shelters,
+                // so it is NOT part of the public shelter GETs below.
+                .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/shelters/**", "/api/reviews/**").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .anyRequest().authenticated())

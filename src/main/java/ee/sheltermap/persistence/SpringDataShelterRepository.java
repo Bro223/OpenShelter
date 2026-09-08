@@ -17,6 +17,10 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     List<ShelterEntity> findAllBySourceIn(Collection<ShelterSource> sources);
 
+    List<ShelterEntity> findByCreatedBy(Long createdBy);
+
+    List<ShelterEntity> findByIdIn(Collection<Long> ids);
+
     /**
      * Bulk-deletes rows of {@code source} whose {@code externalId} is NOT in
      * the keep-list. Rows with NULL {@code externalId} never match (SQL NULL

@@ -106,6 +106,23 @@ class ShelterQueryServiceTest {
     }
 
     @Test
+    void findByCreatedByReturnsOnlyThatAuthorsSheltersAsDtos() {
+        userShelter.setCreatedBy(1L);
+        Shelter other = save("Other User House", ShelterSource.USER);
+        other.setCreatedBy(2L);
+
+        List<ShelterDto> dtos = service.findByCreatedBy(1L);
+
+        assertThat(dtos).extracting(ShelterDto::name).containsExactly("User House");
+        assertThat(dtos).extracting(ShelterDto::source).containsOnly(ShelterSource.USER);
+    }
+
+    @Test
+    void findByCreatedByReturnsEmptyWhenTheUserHasNoShelters() {
+        assertThat(service.findByCreatedBy(99L)).isEmpty();
+    }
+
+    @Test
     void dtoNeverLeaksTheEntity() {
         List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL);
         // the returned objects are records (DTOs), not the domain Shelter

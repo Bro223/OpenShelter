@@ -48,6 +48,13 @@ public class InMemoryShelterReviewRepository implements ShelterReviewRepository 
     }
 
     @Override
+    public List<ShelterReview> findByUserId(Long userId) {
+        return store.values().stream()
+                .filter(r -> Objects.equals(r.getUserId(), userId))
+                .toList();
+    }
+
+    @Override
     public List<RatingAggregate> findRatingAggregates(List<Long> shelterIds) {
         return store.values().stream()
                 .filter(r -> shelterIds.contains(r.getShelterId()))

@@ -401,4 +401,296 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("not-json")), 400, "Bad Request");
     }
+
+    // ---------- author-scoped shelters (user-contributions, V7) ----------
+
+    private static String updateBody(String name, double latitude, double longitude) {
+        return "{\"name\":\"" + name + "\",\"latitude\":" + latitude
+                + ",\"longitude\":" + longitude + "}";
+    }
+
+    @Test
+    void mineIsAnonymous401AndListsOnlyOwnShelters() throws Exception {
+        String author = verifiedToken("Mari", "mari@example.ee");
+        String other = verifiedToken("Jaan", "jaan@example.ee");
+
+        expectErrorShape(mvc.perform(get("/api/shelters/mine")), 401, "Unauthorized");
+
+        mvc.perform(post("/api/shelters").header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Mari varjend")))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/shelters").header("Authorization", "Bearer " + other)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Jaan varjend")))
+                .andExpect(status().isCreated());
+        seedShelter("Päästeameti varjend", ShelterSource.PAASETEAMET);
+        seedShelter("Legacy varjend", ShelterSource.USER); // pre-V7 USER row, no author
+
+        mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + author))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(1)))
+                .andExpect(jsonPath("$[0].name").value("Mari varjend"))
+                .andExpect(jsonPath("$[0].source").value("USER"))
+                .andExpect(jsonPath("$[0].reviewCount").value(0));
+    }
+
+    @Test
+    void putByAuthorReplacesTheFiveFieldsAndKeepsTheRest() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Vana nimi")))
+                .andExpect(status().isCreated()).andReturn();
+        String body = created.getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
+        String createdAt = JsonPath.read(body, "$.createdAt");
+
+        mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Uus nimi\",\"latitude\":59.5,\"longitude\":24.8,"
+                                + "\"description\":\"uuendatud kirjeldus\",\"capacity\":40}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.name").value("Uus nimi"))
+                .andExpect(jsonPath("$.latitude").value(59.5))
+                .andExpect(jsonPath("$.longitude").value(24.8))
+                .andExpect(jsonPath("$.description").value("uuendatud kirjeldus"))
+                .andExpect(jsonPath("$.capacity").value(40))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.source").value("USER"))
+                .andExpect(jsonPath("$.createdAt").value(createdAt)); // never writable
+
+        // the public read reflects the edit (it persisted)
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Uus nimi"))
+                .andExpect(jsonPath("$.capacity").value(40));
+    }
+
+    @Test
+    void putOutsideEstoniaIs400AndChangesNothing() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Vana nimi")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        // Paris — same bbox gate as POST, shared so create/update cannot drift
+        expectErrorShape(mvc.perform(put("/api/shelters/" + id)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Vana nimi", 48.85, 2.35))), 400, "Bad Request");
+
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Vana nimi"))
+                .andExpect(jsonPath("$.latitude").value(59.4))
+                .andExpect(jsonPath("$.longitude").value(24.7));
+    }
+
+    @Test
+    void putWithInvalidBodyIs400AndChangesNothing() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Vana nimi")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        // blank name — same @NotBlank @Size(max=200) as POST (shared constraints)
+        expectErrorShape(mvc.perform(put("/api/shelters/" + id)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"  \",\"latitude\":59.4,\"longitude\":24.7}")), 400, "Bad Request");
+        // capacity out of 1..100_000
+        expectErrorShape(mvc.perform(put("/api/shelters/" + id)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Vana nimi\",\"latitude\":59.4,\"longitude\":24.7,\"capacity\":0}")), 400, "Bad Request");
+
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Vana nimi"));
+    }
+
+    @Test
+    void putByNonAuthorIs403AndChangesNothing() throws Exception {
+        String author = verifiedToken("Mari", "mari@example.ee");
+        String intruder = verifiedToken("Jaan", "jaan@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Mari varjend")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        expectErrorShape(mvc.perform(put("/api/shelters/" + id)
+                .header("Authorization", "Bearer " + intruder)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Röövitud", 59.4, 24.7))), 403, "Forbidden");
+
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Mari varjend"))
+                .andExpect(jsonPath("$.description").doesNotExist());
+    }
+
+    @Test
+    void putOnRegistryAndLegacyRowsIs403ForEveryoneAndMissingIs404() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        long registryId = seedShelter("Päästeameti varjend", ShelterSource.PAASETEAMET);
+        long legacyUserId = seedShelter("Legacy USER varjend", ShelterSource.USER);
+
+        // registry rows and pre-V7 legacy USER rows are unmanageable by ANYONE
+        expectErrorShape(mvc.perform(put("/api/shelters/" + registryId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Ründus", 59.4, 24.7))), 403, "Forbidden");
+        expectErrorShape(mvc.perform(put("/api/shelters/" + legacyUserId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Ründus", 59.4, 24.7))), 403, "Forbidden");
+
+        // absent shelter → 404 (ids are public, so 403-vs-404 leaks nothing)
+        expectErrorShape(mvc.perform(put("/api/shelters/999999")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Ründus", 59.4, 24.7))), 404, "Not Found");
+    }
+
+    @Test
+    void putAnonymousIs401AndUnverifiedIs403() throws Exception {
+        String unverified = unverifiedToken("Priit", "priit@example.ee");
+
+        expectErrorShape(mvc.perform(put("/api/shelters/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Ründus", 59.4, 24.7))), 401, "Unauthorized");
+        expectErrorShape(mvc.perform(put("/api/shelters/1")
+                .header("Authorization", "Bearer " + unverified)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updateBody("Ründus", 59.4, 24.7))), 403, "Forbidden");
+    }
+
+    @Test
+    void deleteByAuthorRemovesTheShelterAndItsReviewsCascade() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        String other = verifiedToken("Jaan", "jaan@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Kustutatav")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        // another user reviewed it — the DB cascade takes the review with the shelter
+        mvc.perform(post("/api/shelters/" + id + "/reviews")
+                        .header("Authorization", "Bearer " + other)
+                        .contentType(MediaType.APPLICATION_JSON).content(reviewBody(5, "kaasa kaduma")))
+                .andExpect(status().isCreated());
+
+        mvc.perform(delete("/api/shelters/" + id).header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        expectErrorShape(mvc.perform(get("/api/shelters/" + id)), 404, "Not Found");
+        long jaanId = users.findByEmail("jaan@example.ee").getId();
+        assertThat(reviews.findByShelterIdAndUserId(id, jaanId)).isEmpty();
+        mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(0)));
+    }
+
+    @Test
+    void deleteByNonAuthorIs403AndUntouchedAndMissingIs404() throws Exception {
+        String author = verifiedToken("Mari", "mari@example.ee");
+        String intruder = verifiedToken("Jaan", "jaan@example.ee");
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Jäänu varjend")))
+                .andExpect(status().isCreated()).andReturn();
+        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        expectErrorShape(mvc.perform(delete("/api/shelters/" + id)
+                .header("Authorization", "Bearer " + intruder)), 403, "Forbidden");
+        expectErrorShape(mvc.perform(delete("/api/shelters/999999")
+                .header("Authorization", "Bearer " + author)), 404, "Not Found");
+
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Jäänu varjend"));
+    }
+
+    @Test
+    void deleteOnRegistryAndLegacyRowsIs403ForEveryoneAndAnonymousIs401() throws Exception {
+        String token = verifiedToken("Mari", "mari@example.ee");
+        long registryId = seedShelter("Päästeameti varjend", ShelterSource.PAASETEAMET);
+        long legacyId = seedShelter("Legacy USER varjend", ShelterSource.USER);
+
+        // same author-check as PUT: registry rows and pre-V7 legacy rows are
+        // unmanageable by ANYONE
+        expectErrorShape(mvc.perform(delete("/api/shelters/" + registryId)
+                .header("Authorization", "Bearer " + token)), 403, "Forbidden");
+        expectErrorShape(mvc.perform(delete("/api/shelters/" + legacyId)
+                .header("Authorization", "Bearer " + token)), 403, "Forbidden");
+        // anonymous → 401 (auth rule before the author check)
+        expectErrorShape(mvc.perform(delete("/api/shelters/" + registryId)), 401, "Unauthorized");
+
+        // both rows untouched
+        mvc.perform(get("/api/shelters/" + registryId)).andExpect(status().isOk());
+        mvc.perform(get("/api/shelters/" + legacyId)).andExpect(status().isOk());
+    }
+
+    // ---------- my reviews (GET /account/reviews/mine, user-contributions) ----------
+
+    @Test
+    void myReviewsListsOnlyOwnReviewsAcrossSheltersWithNames() throws Exception {
+        long first = seedShelter("Esimese varjend", ShelterSource.USER);
+        long second = seedShelter("Teise varjend", ShelterSource.USER);
+        long third = seedShelter("Kolmas varjend", ShelterSource.USER);
+        String mari = verifiedToken("Mari", "mari@example.ee");
+        String jaan = verifiedToken("Jaan", "jaan@example.ee");
+
+        mvc.perform(post("/api/shelters/" + first + "/reviews")
+                        .header("Authorization", "Bearer " + mari)
+                        .contentType(MediaType.APPLICATION_JSON).content(reviewBody(4, "hea")))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/shelters/" + second + "/reviews")
+                        .header("Authorization", "Bearer " + mari)
+                        .contentType(MediaType.APPLICATION_JSON).content(reviewBody(5, "väga hea")))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/shelters/" + first + "/reviews")
+                        .header("Authorization", "Bearer " + jaan)
+                        .contentType(MediaType.APPLICATION_JSON).content(reviewBody(2, "mõõdukas")))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/shelters/" + third + "/reviews")
+                        .header("Authorization", "Bearer " + jaan)
+                        .contentType(MediaType.APPLICATION_JSON).content(reviewBody(1, "nah")))
+                .andExpect(status().isCreated());
+
+        // anonymous → 401 (account-scoped group, default authenticated rule)
+        expectErrorShape(mvc.perform(get("/account/reviews/mine")), 401, "Unauthorized");
+
+        // Mari sees exactly her two reviews, with the batched shelter names
+        mvc.perform(get("/account/reviews/mine").header("Authorization", "Bearer " + mari))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[*].shelterName",
+                        org.hamcrest.Matchers.containsInAnyOrder("Esimese varjend", "Teise varjend")))
+                .andExpect(jsonPath("$[*].rating", org.hamcrest.Matchers.containsInAnyOrder(4, 5)))
+                .andExpect(jsonPath("$[0].shelterId").isNumber())
+                .andExpect(jsonPath("$[0].comment").isNotEmpty())
+                .andExpect(jsonPath("$[0].createdAt").isNotEmpty())
+                .andExpect(jsonPath("$[0].updatedAt").isNotEmpty());
+
+        // Jaan sees his two — never Mari's
+        mvc.perform(get("/account/reviews/mine").header("Authorization", "Bearer " + jaan))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(2)))
+                .andExpect(jsonPath("$[*].shelterName",
+                        org.hamcrest.Matchers.containsInAnyOrder("Esimese varjend", "Kolmas varjend")));
+
+        // a user with no reviews gets []
+        String none = verifiedToken("Pille", "pille@example.ee");
+        mvc.perform(get("/account/reviews/mine").header("Authorization", "Bearer " + none))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(0)));
+    }
 }

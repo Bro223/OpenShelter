@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AuthStore } from '../../core/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
+import { ContributionsPanel } from '../contributions/contributions-panel';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage, COPY } from '../../shared/error-copy';
 import type { VerificationLevel } from '../../core/models';
@@ -23,6 +24,9 @@ const CODE_SIX_DIGITS = /^\d{6}$/;
  *    profile, a verified label when the level is in the real claim set, or a
  *    "Complete verification" CTA deep-linking /verify
  *  - CHANGE PANELS: the M3 cross-channel email/phone change flows, ported.
+ *  - MY CONTRIBUTIONS (user-contributions): the caller's own shelters and
+ *    reviews in one panel — inline edit + two-step delete (ContributionsPanel,
+ *    its own loading/empty/error state per list).
  *
  * All values come from the REAL profile in AuthStore (GET /account/me,
  * fetched at boot/login). After any claims-changing event (contact change) or
@@ -38,7 +42,7 @@ const CODE_SIX_DIGITS = /^\d{6}$/;
  */
 @Component({
   selector: 'app-account-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, ContributionsPanel],
   templateUrl: './account-page.html',
   styleUrl: './account-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

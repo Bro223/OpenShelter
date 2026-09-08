@@ -89,4 +89,41 @@ describe('AccountGateway', () => {
     expect(api.put).toHaveBeenCalledWith('/account/profile', request);
     expect(result).toEqual(fresh);
   });
+
+  it("myReviews GETs the caller's reviews across shelters from /account/reviews/mine", async () => {
+    const rows = [
+      {
+        shelterId: 7,
+        shelterName: 'Community Cellar',
+        rating: 5,
+        comment: 'Suurepärane',
+        createdAt: '2025-09-01T08:00:00Z',
+        updatedAt: '2025-09-02T09:30:00Z',
+      },
+      {
+        shelterId: 12,
+        shelterName: 'Teine varjend',
+        rating: 3,
+        comment: null,
+        createdAt: '2025-09-03T10:00:00Z',
+        updatedAt: '2025-09-03T10:00:00Z',
+      },
+    ];
+    api.get.mockReturnValue(of(rows));
+
+    const result = await gateway.myReviews();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/account/reviews/mine');
+    expect(result).toEqual(rows);
+  });
+
+  it('myReviews supports an empty result set (no reviews yet)', async () => {
+    api.get.mockReturnValue(of([]));
+
+    const result = await gateway.myReviews();
+
+    expect(api.get).toHaveBeenCalledWith('/account/reviews/mine');
+    expect(result).toEqual([]);
+  });
 });

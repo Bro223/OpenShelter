@@ -47,6 +47,13 @@ public abstract class AbstractPersistenceIT {
             registry.add("spring.datasource.username", () -> System.getProperty("it.db.username", "sheltermap"));
             registry.add("spring.datasource.password", () -> System.getProperty("it.db.password", "sheltermap"));
         }
+        // One Spring context per IT (property/config variants) keeps its own Hikari
+        // pool alive against the SAME single Testcontainers Postgres. With the
+        // default pool size (10) the IT suite crosses Postgres' 100-connection
+        // ceiling ("too many clients already") — tests are single-threaded and
+        // @Transactional, so a small pool is plenty and keeps the suite green.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "4");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
     }
 
     /**

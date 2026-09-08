@@ -7,6 +7,7 @@ import ee.sheltermap.domain.ShelterSource;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -73,6 +74,33 @@ public class JpaShelterRepository implements ShelterRepository {
         return shelters.findAllBySourceIn(sources).stream().map(JpaShelterRepository::toDomain).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Shelter> findByCreatedBy(Long userId) {
+        return shelters.findByCreatedBy(userId).stream().map(JpaShelterRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Shelter> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return shelters.findByIdIn(ids).stream().map(JpaShelterRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(Long id) {
+        shelters.deleteById(id);
+        // Force the SQL DELETE (and its ON DELETE CASCADE onto
+        // shelter_reviews) to run NOW, not at an arbitrary later auto-flush:
+        // a follow-up read of the reviews table in the same transaction must
+        // already see the cascade (the shelters delete alone would not
+        // trigger the auto-flush — the query does not read the shelters table).
+        shelters.flush();
+    }
+
     private static ShelterEntity toEntity(Shelter shelter) {
         ShelterEntity entity = new ShelterEntity();
         entity.setId(shelter.getId());
@@ -90,6 +118,7 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setDescription(shelter.getDescription());
         entity.setCapacity(shelter.getCapacity());
         entity.setCreatedAt(shelter.getCreatedAt());
+        entity.setCreatedBy(shelter.getCreatedBy());
         return entity;
     }
 
@@ -109,6 +138,7 @@ public class JpaShelterRepository implements ShelterRepository {
                 entity.getCapacity());
         shelter.setId(entity.getId());
         shelter.setCreatedAt(entity.getCreatedAt());
+        shelter.setCreatedBy(entity.getCreatedBy());
         return shelter;
     }
 }

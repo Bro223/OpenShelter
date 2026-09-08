@@ -6,6 +6,7 @@ import type {
   ChangePhoneRequest,
   ConfirmChangeRequest,
   MeResponse,
+  MyReviewDto,
   ProfileUpdateRequest,
 } from '../core/models';
 
@@ -57,5 +58,14 @@ export class AccountGateway {
   confirmPhoneChange(code: string): Promise<void> {
     const body: ConfirmChangeRequest = { code };
     return lastValueFrom(this.api.post<void>('/account/phone-change/confirm', body));
+  }
+
+  /**
+   * GET /account/reviews/mine -> the caller's reviews across ALL shelters
+   * (user-contributions): shelter id + name for navigation. Empty list when
+   * the user has no reviews.
+   */
+  myReviews(): Promise<MyReviewDto[]> {
+    return lastValueFrom(this.api.get<MyReviewDto[]>('/account/reviews/mine'));
   }
 }

@@ -6,6 +6,7 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -28,6 +29,10 @@ public class ShelterService {
     /**
      * Publishes {@code place} if the user may write.
      *
+     * <p>The author link is recorded here (V7): {@code place.createdBy}
+     * becomes {@code user.getId()} before the save, so every USER submission
+     * is attributable to its submitting account afterwards.
+     *
      * @throws IllegalStateException    if {@code user.canWrite()} is false
      *                                  (guest or unverified registered user)
      * @throws IllegalArgumentException if the place is not already
@@ -44,6 +49,28 @@ public class ShelterService {
             throw new IllegalArgumentException(
                     "user-submitted shelters must be ACTIVE with source USER");
         }
+        place.setCreatedBy(user.getId());
         shelterRepository.save(place);
+    }
+
+    /** The user's own shelters (the author-scoped "my shelters" list). */
+    public List<Shelter> findMine(long userId) {
+        return shelterRepository.findByCreatedBy(userId);
+    }
+
+    /**
+     * Replaces the editable fields of an existing shelter row — same id,
+     * status/source/registry fields, {@code createdAt} and author untouched.
+     * Callers own the authorization (author check) and validation (field
+     * bounds + the Estonia bbox) before calling this.
+     */
+    public void updatePlace(Shelter place) {
+        Objects.requireNonNull(place, "place");
+        shelterRepository.save(place);
+    }
+
+    /** Deletes a shelter row; its reviews cascade via the DB constraint. */
+    public void deletePlace(long shelterId) {
+        shelterRepository.deleteById(shelterId);
     }
 }

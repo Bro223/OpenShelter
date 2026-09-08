@@ -63,6 +63,10 @@ public class ShelterEntity {
 
     private Integer capacity;
 
+    /** Author user id (V7) — NULL for registry rows and pre-V7 legacy USER rows. */
+    @Column(name = "created_by")
+    private Long createdBy;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -177,6 +181,14 @@ public class ShelterEntity {
 
     public void setCapacity(Integer capacity) {
         this.capacity = capacity;
+    }
+
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 
     public Instant getCreatedAt() {

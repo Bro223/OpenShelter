@@ -149,4 +149,72 @@ describe('ShelterGateway', () => {
       gateway.create({ name: 'Open Water', latitude: 54.5, longitude: 25.0 }),
     ).rejects.toBe(failure);
   });
+
+  it("mine GETs /api/shelters/mine and returns the caller's typed rows", async () => {
+    api.get.mockReturnValue(of([USER_ROW]));
+
+    const rows = await gateway.mine();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/api/shelters/mine');
+    expect(rows).toEqual([USER_ROW]);
+  });
+
+  it('mine supports an empty result set (no shelters submitted yet)', async () => {
+    api.get.mockReturnValue(of([]));
+
+    const rows = await gateway.mine();
+
+    expect(api.get).toHaveBeenCalledWith('/api/shelters/mine');
+    expect(rows).toEqual([]);
+  });
+
+  it('update PUTs the typed body to /api/shelters/{id} and returns the fresh row', async () => {
+    api.put.mockReturnValue(of({ ...USER_ROW, name: 'Renamed Cellar', capacity: 20 }));
+
+    const row = await gateway.update(7, {
+      name: 'Renamed Cellar',
+      latitude: 59.44,
+      longitude: 24.76,
+      description: 'Renovated',
+      capacity: 20,
+    });
+
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith('/api/shelters/7', {
+      name: 'Renamed Cellar',
+      latitude: 59.44,
+      longitude: 24.76,
+      description: 'Renovated',
+      capacity: 20,
+    });
+    expect(row).toEqual({ ...USER_ROW, name: 'Renamed Cellar', capacity: 20 });
+  });
+
+  it('update rejects with ApiError when not the author (403)', async () => {
+    const failure = ApiError.fromHttp(
+      403,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 403,
+        error: 'Forbidden',
+        message: 'only the author may modify this shelter',
+        path: '/api/shelters/7',
+      },
+      '/api/shelters/7',
+    );
+    api.put.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.update(7, { name: 'X', latitude: 59.44, longitude: 24.76 })).rejects.toBe(
+      failure,
+    );
+  });
+
+  it('remove DELETEs /api/shelters/{id} and resolves void (204)', async () => {
+    api.delete.mockReturnValue(of(undefined));
+
+    await expect(gateway.remove(7)).resolves.toBeUndefined();
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith('/api/shelters/7');
+  });
 });

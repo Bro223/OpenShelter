@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +38,9 @@ import java.util.stream.Collectors;
  *   <li>{@code POST /account/phone-change/request} — email code to the current
  *       email (a lost/stolen phone alone cannot change the phone)</li>
  *   <li>confirm endpoints complete the change once the code is verified</li>
+ *   <li>{@code GET /account/reviews/mine} — the user's reviews across ALL
+ *       shelters with shelter id + name (user-contributions; a cross-shelter
+ *       list has no per-shelter parent, so it sits on this group)</li>
  * </ul>
  *
  * <p>All endpoints require a Bearer JWT (default security rule). The user is
@@ -110,6 +114,17 @@ public class AccountController {
     @ResponseStatus(HttpStatus.OK)
     public void confirmPhoneChange(@Valid @RequestBody ConfirmChangeRequest body) {
         contactChangeService.confirmPhoneChange(currentUser(), body.code());
+    }
+
+    /**
+     * GET /account/reviews/mine — the caller's reviews across all shelters,
+     * each with the shelter's id + name (user-contributions). Shelter names
+     * resolve in one batched query (no N+1); empty list when the user has
+     * no reviews.
+     */
+    @GetMapping("/reviews/mine")
+    public List<MyReviewDto> myReviews() {
+        return accountService.myReviews(currentUser());
     }
 
     private void requireRate(HttpServletRequest http) {

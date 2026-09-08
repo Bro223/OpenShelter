@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -64,5 +65,28 @@ public class InMemoryShelterRepository implements ShelterRepository {
         return store.values().stream()
                 .filter(s -> sources.contains(s.getSource()))
                 .toList();
+    }
+
+    @Override
+    public List<Shelter> findByCreatedBy(Long userId) {
+        return store.values().stream()
+                .filter(s -> Objects.equals(s.getCreatedBy(), userId))
+                .toList();
+    }
+
+    @Override
+    public List<Shelter> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .map(store::get)
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        store.remove(id);
     }
 }
