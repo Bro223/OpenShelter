@@ -3,10 +3,7 @@
 
   <header>
     <h1 class="page-title">Submit a shelter</h1>
-    <p class="page-subtitle">
-      Add a community bomb shelter to the map. It appears immediately (no moderator — the rating
-      system is the moderation).
-    </p>
+    <p class="page-subtitle">Add a community bomb shelter to the map.</p>
   </header>
 
   <app-banner severity="error" [message]="error()" />
@@ -72,35 +69,53 @@
     <fieldset class="field location-field">
       <legend>Location *</legend>
       <p class="field-note">
-        Click the map — or type coordinates — to place the shelter. It must be inside Estonia.
+        Paste coordinates (59.4370, 24.7535) or a map link, use "Use my location", or click the map.
+        It must be inside Estonia.
       </p>
       <div #mapEl class="submit-map"></div>
-      <div class="location-inputs">
-        <div class="location-input">
-          <label for="shelter-latitude">Latitude</label>
+
+      <div class="location-smart">
+        <label class="location-label" for="shelter-location-input">Coordinates or map link</label>
+        <div class="location-smart-row">
           <input
-            id="shelter-latitude"
-            type="number"
-            step="any"
-            formControlName="latitude"
-            placeholder="58.6"
-            (input)="onLocationInput()"
+            id="shelter-location-input"
+            type="text"
+            (input)="onLocationTextChange($event)"
+            (keydown.enter)="onLocationSubmitKey($event)"
+            placeholder="59.4370, 24.7535 — or paste a Google Maps link"
+            autocomplete="off"
+            [disabled]="resolvingLink()"
           />
-        </div>
-        <div class="location-input">
-          <label for="shelter-longitude">Longitude</label>
-          <input
-            id="shelter-longitude"
-            type="number"
-            step="any"
-            formControlName="longitude"
-            placeholder="25.0"
-            (input)="onLocationInput()"
-          />
+          <button
+            type="button"
+            class="btn"
+            (click)="applyLocationInput()"
+            [disabled]="resolvingLink() || locating()"
+          >
+            {{ resolvingLink() ? 'Resolving…' : 'Set location' }}
+          </button>
         </div>
       </div>
-      @if (locationError(); as locationMsg) {
-        <p class="field-error" role="alert">{{ locationMsg }}</p>
+
+      <div class="location-actions">
+        <button
+          type="button"
+          class="btn"
+          (click)="useMyLocation()"
+          [disabled]="locating() || resolvingLink()"
+        >
+          {{ locating() ? 'Locating…' : 'Use my location' }}
+        </button>
+      </div>
+
+      <p class="location-readout" [class.location-readout--empty]="location() === null">
+        {{ locationReadout() }}
+      </p>
+      @if (locationHint(); as locationHintText) {
+        <p class="location-hint">{{ locationHintText }}</p>
+      }
+      @if (locationErrorText(); as locationErrorMsg) {
+        <p class="field-error" role="alert">{{ locationErrorMsg }}</p>
       }
     </fieldset>
 

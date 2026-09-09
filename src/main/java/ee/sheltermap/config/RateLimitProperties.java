@@ -28,6 +28,8 @@ public record RateLimitProperties(
         double verifyRefillPerSecond,
         int changeCapacity,
         double changeRefillPerSecond,
+        int geoResolveCapacity,
+        double geoResolveRefillPerSecond,
         int resetConfirmCapacity,
         double resetConfirmRefillPerSecond,
         int loginIpCapacity,

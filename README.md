@@ -100,16 +100,16 @@ shelter submission, community reviews); run/build docs in
 
 ## Package layout (root package `ee.sheltermap`)
 
-| Package | Contents |
-|---|---|
-| `domain` | `User` hierarchy, `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring |
-| `app` | `UserService`, `ShelterService`, repository **interfaces**, `NotVerifiedException` |
-| `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties` |
-| `auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, DTOs |
-| `ingestion` | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties` |
-| `api` | `ShelterController`, `ReviewController`, query/review services, DTOs, `ErrorResponse`, global advice |
-| `persistence` | JPA entities + Spring Data implementations of the repository interfaces |
-| `config` | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig` |
+| Package        | Contents                                                                                                                                                                                                                                                                     |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `domain`       | `User` hierarchy, `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring                                                                                                                                              |
+| `app`          | `UserService`, `ShelterService`, repository **interfaces**, `NotVerifiedException`                                                                                                                                                                                           |
+| `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties`                                                                                                                                   |
+| `auth`         | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, DTOs |
+| `ingestion`    | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                                            |
+| `api`          | `ShelterController`, `ReviewController`, query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                                         |
+| `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                      |
+| `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
 
 Dependency rule: `api`/`auth`/`ingestion` → `app`/`verification` → `domain`. `domain` depends
 on nothing. Cross-package access goes through interfaces only.
@@ -137,36 +137,38 @@ manually on boot (see below).
 
 ## API
 
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| POST | `/auth/register` | — | Register (name, email, phone, national ID, password) |
-| POST | `/auth/login` | — | Login → access + refresh tokens |
-| POST | `/auth/refresh` | refresh | Rotate refresh token → new token pair |
-| POST | `/auth/logout` | refresh | Revoke session |
-| POST | `/auth/password-reset/request` | — | Always 200 ("if the account exists, we emailed a 6-digit code") |
-| POST | `/auth/password-reset/confirm` | — | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions |
-| GET | `/account/me` | JWT | The caller's real profile + real verified claims (`MeResponse` — the frontend's single source of truth) |
-| PUT | `/account/profile` | JWT | Update name + national ID with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated) |
-| POST | `/account/email-change/request` | JWT | Start email change → **SMS code to current phone** (202) |
-| POST | `/account/email-change/confirm` | JWT | Complete email change with the SMS code (200/400) |
-| POST | `/account/phone-change/request` | JWT | Start phone change → **email code to current email** (202) |
-| POST | `/account/phone-change/confirm` | JWT | Complete phone change with the email code (200/400) |
-| POST | `/verify/request` | JWT | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap) |
-| POST | `/verify/confirm` | JWT | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200) |
-| GET | `/api/shelters?source=ALL\|USER\|REGISTRY` | public | List shelters with `averageRating`/`reviewCount` |
-| GET | `/api/shelters/{id}` | public | Shelter detail |
-| POST | `/api/shelters` | JWT + verified | Submit a shelter → 201 + Location |
-| GET | `/api/shelters/mine` | JWT | The caller's own shelters (never other users' or registry rows) |
-| PUT | `/api/shelters/{id}` | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows) |
-| DELETE | `/api/shelters/{id}` | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author |
-| GET | `/account/reviews/mine` | JWT | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps) |
-| GET | `/api/shelters/{id}/reviews` | public | Reviews for a shelter |
-| POST | `/api/shelters/{id}/reviews` | JWT + verified | Review (upsert: re-rating updates) |
-| PUT | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Update own review |
-| DELETE | `/api/shelters/{id}/reviews/mine` | JWT + verified + author | Delete own review |
-| POST | `/dev/email-test` | JWT + opt-in | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below) |
-| POST | `/dev/sms-test` | JWT + opt-in | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below) |
-| GET | `/actuator/health` | public | Health check |
+| Method | Path                                       | Auth                    | Description                                                                                                                                                                                                 |
+| ------ | ------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/register`                           | —                       | Register (name, email, phone, national ID, password)                                                                                                                                                        |
+| POST   | `/auth/login`                              | —                       | Login → access + refresh tokens                                                                                                                                                                             |
+| POST   | `/auth/refresh`                            | refresh                 | Rotate refresh token → new token pair                                                                                                                                                                       |
+| POST   | `/auth/logout`                             | refresh                 | Revoke session                                                                                                                                                                                              |
+| POST   | `/auth/password-reset/request`             | —                       | Always 200 ("if the account exists, we emailed a 6-digit code")                                                                                                                                             |
+| POST   | `/auth/password-reset/confirm`             | —                       | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions                                                                                                                 |
+| GET    | `/account/me`                              | JWT                     | The caller's real profile + real verified claims (`MeResponse` — the frontend's single source of truth)                                                                                                     |
+| PUT    | `/account/profile`                         | JWT                     | Update name + national ID with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                                                   |
+| POST   | `/account/email-change/request`            | JWT                     | Start email change → **SMS code to current phone** (202)                                                                                                                                                    |
+| POST   | `/account/email-change/confirm`            | JWT                     | Complete email change with the SMS code (200/400)                                                                                                                                                           |
+| POST   | `/account/phone-change/request`            | JWT                     | Start phone change → **email code to current email** (202)                                                                                                                                                  |
+| POST   | `/account/phone-change/confirm`            | JWT                     | Complete phone change with the email code (200/400)                                                                                                                                                         |
+| POST   | `/verify/request`                          | JWT                     | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap)                                                                                                                    |
+| POST   | `/verify/confirm`                          | JWT                     | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200)                                                                                        |
+| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount`                                                                                                                                                            |
+| GET    | `/api/shelters/{id}`                       | public                  | Shelter detail                                                                                                                                                                                              |
+| POST   | `/api/shelters`                            | JWT + verified          | Submit a shelter → 201 + Location                                                                                                                                                                           |
+| GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows)                                                                                                                                             |
+| PUT    | `/api/shelters/{id}`                       | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows)                                                          |
+| DELETE | `/api/shelters/{id}`                       | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author                                                                                                                                 |
+| POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link to `{latitude, longitude}` (submit page's smart location input); 400 no pair / outside Estonia (one generic message), 429 5/min per IP, 502 upstream failure         |
+| POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link → `{latitude, longitude}` (per-IP 5/min → 429; 400 one generic message when no pair / outside Estonia / other host; 502 one generic retry-later on upstream failure) |
+| GET    | `/account/reviews/mine`                    | JWT                     | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps)                                                                                                          |
+| GET    | `/api/shelters/{id}/reviews`               | public                  | Reviews for a shelter                                                                                                                                                                                       |
+| POST   | `/api/shelters/{id}/reviews`               | JWT + verified          | Review (upsert: re-rating updates)                                                                                                                                                                          |
+| PUT    | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Update own review                                                                                                                                                                                           |
+| DELETE | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Delete own review                                                                                                                                                                                           |
+| POST   | `/dev/email-test`                          | JWT + opt-in            | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below)                                                                                               |
+| POST   | `/dev/sms-test`                            | JWT + opt-in            | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below)                                                                         |
+| GET    | `/actuator/health`                         | public                  | Health check                                                                                                                                                                                                |
 
 Every error path returns the uniform `ErrorResponse` shape.
 
@@ -235,25 +237,33 @@ mvn -q compile
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
-mvn spring-boot:run
+#    dev-start.sh pins SPRING_PROFILES_ACTIVE=dev (see note below) — a bare
+#    `mvn spring-boot:run` now refuses to boot (fail-closed guards).
+./dev-start.sh
 
 # 5. Health check — expect {"status":"UP"}
 curl http://localhost:8080/actuator/health
 ```
 
-> **Dev profile required for a bare local run.** Since the 2026-09-08 review the JWT secret
-> guard is **fail-closed**: the app refuses to boot on the published dev-default `JWT_SECRET`
-> unless the active profile is exactly `dev` or `test`. A plain `mvn spring-boot:run` with no
-> profile set therefore needs either `SPRING_PROFILES_ACTIVE=dev` or a strong `JWT_SECRET`
-> (≥ 32 bytes, non-default) in the environment / `.env` — otherwise it exits at startup with
-> the guard's message. The test suite runs under profile `test` (its own classpath
-> `application.yml`).
+> **Use `./dev-start.sh` to run the app locally.** Since the 2026-09-08 review the app is
+> **fail-closed at boot** via two guards: `ProdJwtGuard` (refuses the published dev-default /
+> < 32-byte `JWT_SECRET`) and `DevEndpointsGuard` (refuses the `/dev/email-test` +
+> `/dev/sms-test` diagnostic endpoints — which the local `.env` turns on). Both refuse to boot
+> **unless the active profile is exactly `dev` or `test`** (dev parity). A plain
+> `mvn spring-boot:run` with no profile set therefore exits at startup with
+> `PRODUCTION REFUSED TO START`. `./dev-start.sh` pins `SPRING_PROFILES_ACTIVE=dev` for you;
+> the equivalent one-liner is `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`. (A strong
+> non-default `JWT_SECRET` clears the JWT guard but NOT the dev-endpoint guard while
+> `DEV_EMAIL_TEST_ENABLED` / `DEV_SMS_TEST_ENABLED` are on — the dev profile is the intended
+> local path.) The test suite runs under profile `test` (its own classpath `application.yml`)
+> and is unaffected by the script.
 
 ### One-off import of the real registry data
 
 ```bash
 # Fetches all ~300 shelters from the live WFS, transforms to WGS84, stores them
-mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.run-on-startup=true"
+./dev-start.sh --run-registry
+# (equivalent: SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.run-on-startup=true")
 ```
 
 Then the data is served by `GET /api/shelters`:
@@ -265,7 +275,7 @@ curl http://localhost:8080/api/shelters | python3 -m json.tool | head -50
 ### Dev fixture instead of the live WFS
 
 ```bash
-mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.client=dev --app.registry.run-on-startup=true"
+SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.client=dev --app.registry.run-on-startup=true"
 ```
 
 ## Configuration (environment variables)
@@ -275,34 +285,34 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.client=dev --app
 exporting them each launch — `.env` is gitignored and never committed. A `*.env.example`
 naming convention is reserved; shell-exported env vars take precedence over `.env` values.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | `jdbc:postgresql://localhost:5432/sheltermap` / `sheltermap` / `sheltermap` | Datasource (dev-only defaults) |
-| `SERVER_PORT` | `8080` | HTTP port |
-| `JWT_SECRET` | dev-only placeholder | **Must be overridden in any real environment** (≥ 32 bytes) |
-| `MAIL_PROVIDER` | `dev` | `dev` (console) or `smtp-pulse` (real SMTP) |
-| `SMTP_HOST` / `SMTP_PORT` | `smtp-pulse.com` / `587` | SMTP relay (alt: 465 SSL, 2525) |
-| `SMTP_USERNAME` / `SMTP_PASSWORD` | — | SMTP login (real credentials → `.env`, never git) |
-| `SMTP_FROM` | falls back to `SMTP_USERNAME` | From-address — **must be verified in the smtp-pulse dashboard** |
-| `SMS_PROVIDER` | `dev` | `dev` (console) or `twilio` (real SMS) |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` | — | Twilio credentials (real → `.env`, never git) |
-| `TWILIO_MESSAGING_SERVICE_SID` | — | Twilio Messaging Service (preferred over `TWILIO_FROM`) |
-| `TWILIO_FROM` | — | Fallback sender number (only if no Messaging Service) |
-| `VERIFICATION_COOLDOWN_SECONDS` | `60` | Min seconds between two codes for the same (user, level); `0` disables |
-| `VERIFICATION_MAX_PER_DAY` | `5` | Max codes per (user, level) per UTC day; `0` disables |
-| `VERIFICATION_SEND_LOG_PATH` | `data/verification-send.log` | File-backed send log (survives restarts; never commit `data/`) |
-| `CONTACT_CHANGE_COOLDOWN_SECONDS` | `60` | Min seconds between two change requests for the same (user, type) |
-| `CONTACT_CHANGE_CODE_TTL_SECONDS` | `900` | Contact-change code validity window (15 min) |
-| `CONTACT_CHANGE_MAX_ATTEMPTS` | `5` | Max wrong contact-change codes before the request is rejected |
-| `DEV_EMAIL_TEST_ENABLED` | `false` | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required) |
-| `REGISTRY_BASE_URL` | Maa-amet WFS URL | Registry endpoint |
-| `REGISTRY_CLIENT` | `paasteamet` | `paasteamet` (real HTTP) or `dev` (local fixture) |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Browser origins allowed to call the API |
-| `RATELIMIT_TRUSTED_PROXIES` | — | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys) |
-| `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false` | E-mail-test recipient allowlist (spam-relay guard) |
-| `DEV_SMS_TEST_ENABLED` | `false` | Enables `POST /dev/sms-test` (SMS diagnostic, JWT required) |
-| `DEV_SMS_TEST_ALLOWED_RECIPIENTS` / `DEV_SMS_TEST_ALLOW_ANY` | — / `false` | SMS-test recipient allowlist (spam-relay guard; numbers matched in E.164) |
-| — scheduler — | see `application.yml` | `app.registry.*`: page-size, retries, politeness, cron, zone, `schedule-enabled` |
+| Variable                                                         | Default                                                                     | Purpose                                                                          |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`                         | `jdbc:postgresql://localhost:5432/sheltermap` / `sheltermap` / `sheltermap` | Datasource (dev-only defaults)                                                   |
+| `SERVER_PORT`                                                    | `8080`                                                                      | HTTP port                                                                        |
+| `JWT_SECRET`                                                     | dev-only placeholder                                                        | **Must be overridden in any real environment** (≥ 32 bytes)                      |
+| `MAIL_PROVIDER`                                                  | `dev`                                                                       | `dev` (console) or `smtp-pulse` (real SMTP)                                      |
+| `SMTP_HOST` / `SMTP_PORT`                                        | `smtp-pulse.com` / `587`                                                    | SMTP relay (alt: 465 SSL, 2525)                                                  |
+| `SMTP_USERNAME` / `SMTP_PASSWORD`                                | —                                                                           | SMTP login (real credentials → `.env`, never git)                                |
+| `SMTP_FROM`                                                      | falls back to `SMTP_USERNAME`                                               | From-address — **must be verified in the smtp-pulse dashboard**                  |
+| `SMS_PROVIDER`                                                   | `dev`                                                                       | `dev` (console) or `twilio` (real SMS)                                           |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN`                       | —                                                                           | Twilio credentials (real → `.env`, never git)                                    |
+| `TWILIO_MESSAGING_SERVICE_SID`                                   | —                                                                           | Twilio Messaging Service (preferred over `TWILIO_FROM`)                          |
+| `TWILIO_FROM`                                                    | —                                                                           | Fallback sender number (only if no Messaging Service)                            |
+| `VERIFICATION_COOLDOWN_SECONDS`                                  | `60`                                                                        | Min seconds between two codes for the same (user, level); `0` disables           |
+| `VERIFICATION_MAX_PER_DAY`                                       | `5`                                                                         | Max codes per (user, level) per UTC day; `0` disables                            |
+| `VERIFICATION_SEND_LOG_PATH`                                     | `data/verification-send.log`                                                | File-backed send log (survives restarts; never commit `data/`)                   |
+| `CONTACT_CHANGE_COOLDOWN_SECONDS`                                | `60`                                                                        | Min seconds between two change requests for the same (user, type)                |
+| `CONTACT_CHANGE_CODE_TTL_SECONDS`                                | `900`                                                                       | Contact-change code validity window (15 min)                                     |
+| `CONTACT_CHANGE_MAX_ATTEMPTS`                                    | `5`                                                                         | Max wrong contact-change codes before the request is rejected                    |
+| `DEV_EMAIL_TEST_ENABLED`                                         | `false`                                                                     | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required)                   |
+| `REGISTRY_BASE_URL`                                              | Maa-amet WFS URL                                                            | Registry endpoint                                                                |
+| `REGISTRY_CLIENT`                                                | `paasteamet`                                                                | `paasteamet` (real HTTP) or `dev` (local fixture)                                |
+| `CORS_ALLOWED_ORIGINS`                                           | `http://localhost:5173,http://localhost:3000`                               | Browser origins allowed to call the API                                          |
+| `RATELIMIT_TRUSTED_PROXIES`                                      | —                                                                           | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys)           |
+| `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false`                                                                 | E-mail-test recipient allowlist (spam-relay guard)                               |
+| `DEV_SMS_TEST_ENABLED`                                           | `false`                                                                     | Enables `POST /dev/sms-test` (SMS diagnostic, JWT required)                      |
+| `DEV_SMS_TEST_ALLOWED_RECIPIENTS` / `DEV_SMS_TEST_ALLOW_ANY`     | — / `false`                                                                 | SMS-test recipient allowlist (spam-relay guard; numbers matched in E.164)        |
+| — scheduler —                                                    | see `application.yml`                                                       | `app.registry.*`: page-size, retries, politeness, cron, zone, `schedule-enabled` |
 
 ## Hardening pass
 
@@ -365,9 +375,9 @@ over three waves — full per-issue record with test evidence in
 
 - **P0 security** — reset-confirm anti-guess rate limit; per-user reset re-issue cooldown (60 s)
   - 5/UTC-day cap; `ClientIps` XFF resolution made unspoofable (untrusted peer → header
-  ignored; trusted chain peeled right-to-left); JWT secret guard made **fail-closed**
-  (refuses the dev-default or < 32-byte secret on any profile except `dev`/`test`);
-  refresh rotation race fixed (transactional, `int` claim).
+    ignored; trusted chain peeled right-to-left); JWT secret guard made **fail-closed**
+    (refuses the dev-default or < 32-byte secret on any profile except `dev`/`test`);
+    refresh rotation race fixed (transactional, `int` claim).
 - **Backend** — user-submission write path: `@Version` optimistic locking + 409 mapping
   (incl. commit-time `TransactionSystemException(StaleStateException)` form), author-scoped
   queries ordered, per-source delisting (see below), dev-endpoint guard (`DevEndpointsGuard`

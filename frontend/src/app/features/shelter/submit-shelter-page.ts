@@ -8,52 +8,85 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import {
-  type AbstractControl,
-  type ValidationErrors,
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
 import type { CreateShelterRequest } from '../../core/models';
+import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
+import { capacityValidator, nameBlankValidator } from '../../shared/form-helpers';
 import {
-  ESTONIA_CENTER,
-  ESTONIA_ZOOM,
-  inEstonia,
-  LeafletService,
-} from '../../shared/leaflet-service';
+  isGooShortLink,
+  normalizeShortLinkUrl,
+  parseLocationInput,
+} from '../../shared/location-input';
+import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService } from '../../shared/leaflet-service';
 import { BannerComponent } from '../../shared/banner.component';
 
-/**
- * Group validator for the location pick: both coordinates must be present
- * and inside the Estonia bounding box. The backend re-checks and answers
- * 400 for out-of-bounds points — this is the instant-feedback layer
- * (06-CONTEXT decision 1), never a replacement for the server check.
- */
-function locationValidator(control: AbstractControl): ValidationErrors | null {
-  if (!(control instanceof FormGroup)) {
-    return null;
-  }
-  const lat = readCoordinate(control.get('latitude')?.value);
-  const lng = readCoordinate(control.get('longitude')?.value);
-  if (lat === null || lng === null) {
-    return { location: 'missing' };
-  }
-  return inEstonia(lat, lng) ? null : { location: 'outside' };
+/** Which capture mode last wrote the shared location state (design decision 1). */
+type LocationSource = 'typed' | 'link' | 'geolocation' | 'map-pick';
+
+/** The ONE shared location state: every capture mode writes it, the map marker + read-only readout read it. */
+interface PickedLocation {
+  latitude: number;
+  longitude: number;
+  source: LocationSource;
+  /** The parser detected (lng, lat) and auto-swapped to (lat, lng). */
+  swapped: boolean;
+  /** Geolocation accuracy in meters (geolocation source only). */
+  accuracyM: number | null;
 }
+
+/** The per-reason inline errors of the location section (design decision 5 + spec). */
+type LocationErrorKind =
+  | 'missing'
+  | 'no-pair'
+  | 'out-of-bounds'
+  | 'invalid'
+  | 'geo-denied'
+  | 'geo-unavailable'
+  | 'geo-timeout'
+  | 'geo-insecure'
+  | 'short-link-failed'
+  | 'short-link-rate-limited';
+
+/** One copy per failure reason — rendered inline in the location fieldset. */
+const LOCATION_ERROR_COPY: Record<LocationErrorKind, string> = {
+  missing: 'Pick a location on the map, paste coordinates or a link, or use "Use my location".',
+  'no-pair':
+    'No recognizable coordinates in that text. Paste a pair like 59.4370, 24.7535 or a map link — or use "Use my location" / the map.',
+  'out-of-bounds': 'The location is outside Estonia.',
+  invalid:
+    'That does not look like coordinates. Use a pair like 59.4370, 24.7535, a DMS string, or a map link.',
+  'geo-denied':
+    'Location permission is off. Allow location access in your browser — or pick the spot on the map / paste a link.',
+  'geo-unavailable':
+    'Your location could not be determined right now. Pick the spot on the map or paste a link.',
+  'geo-timeout': 'Finding your location timed out. Pick the spot on the map or paste a link.',
+  'geo-insecure':
+    'Location access needs a secure (https) connection. Pick the spot on the map or paste a link.',
+  'short-link-failed':
+    'Could not find coordinates in that link. Use a full Google Maps link or pick the spot on the map.',
+  'short-link-rate-limited': 'Too many link lookups — please wait a minute and then try again.',
+};
+
+const SOURCE_LABEL: Record<LocationSource, string> = {
+  typed: 'typed coordinates',
+  link: 'the map link',
+  geolocation: 'your device location',
+  'map-pick': 'the map',
+};
 
 /**
  * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
- * (05-shelter-review-flow.puml, M5). Name (≤200), optional description
- * (≤2000), optional capacity (1–100 000), and a location picked by clicking
- * the mini-map (LeafletService, page-scoped — design decision 6) or typed
- * into the numeric inputs, kept in sync both ways.
+ * (05-shelter-review-flow.puml, M5 + shelter-location-input). Name (≤200),
+ * optional description (≤2000), optional capacity (1–100 000), and a
+ * location captured four ways — smart text input (coordinate string /
+ * long-form map URL, parsed by shared/location-input.ts), "Use my location"
+ * (browser geolocation), maps.app.goo.gl short links (POST /api/geo/resolve),
+ * and the mini-map click/drag — all writing ONE shared location signal
+ * (design decision 1). Resolved coordinates are displayed read-only.
  *
  * On 201 the page navigates to the new shelter's detail. On 401/403/400 the
  * backend message shows through the banner (403 adds a /verify link — the
@@ -69,38 +102,49 @@ function locationValidator(control: AbstractControl): ValidationErrors | null {
 })
 export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
+  private readonly geo = inject(GeoGateway);
   private readonly leaflet = inject(LeafletService);
   private readonly router = inject(Router);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
-  readonly form = new FormGroup(
-    {
-      name: new FormControl('', {
-        nonNullable: true,
-        validators: [
-          Validators.required,
-          Validators.maxLength(200),
-          // Whitespace-only names pass Validators.required — mirror the
-          // backend @NotBlank (reviewer N3) so we never POST "   ".
-          nameBlankValidator,
-        ],
-      }),
-      description: new FormControl('', {
-        nonNullable: true,
-        validators: [Validators.maxLength(2000)],
-      }),
-      capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
-      latitude: new FormControl<number | null>(null),
-      longitude: new FormControl<number | null>(null),
-    },
-    { validators: [locationValidator] },
-  );
+  readonly form = new FormGroup({
+    name: new FormControl('', {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.maxLength(200),
+        // Whitespace-only names pass Validators.required — mirror the
+        // backend @NotBlank (reviewer N3) so we never POST "   ".
+        nameBlankValidator,
+      ],
+    }),
+    description: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(2000)],
+    }),
+    capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
+  });
 
   protected readonly pending = signal(false);
   protected readonly error = signal<string | null>(null);
   /** True when the last failure was a 403 — offer the /verify path. */
   protected readonly verifyLink = signal(false);
+
+  /** The ONE shared location state (null = nothing picked yet). */
+  protected readonly location = signal<PickedLocation | null>(null);
+  /** Per-reason inline error of the location section (null = none). */
+  protected readonly locationError = signal<LocationErrorKind | null>(null);
+  /** True while a maps.app.goo.gl short link is being resolved by the backend. */
+  protected readonly resolvingLink = signal(false);
+  /** True while the browser geolocation request is in flight. */
+  protected readonly locating = signal(false);
+  /**
+   * The smart text input's content. Deliberately a plain input (not a form
+   * control): it is a capture AFFORDANCE, not a submitted field — the
+   * submitted coordinates always come from the shared location state.
+   */
+  protected readonly locationText = signal('');
 
   protected name(): FormControl<string> {
     return this.form.get('name') as FormControl<string>;
@@ -114,35 +158,46 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     return this.form.get('capacity') as FormControl<number | null>;
   }
 
-  protected latitude(): FormControl<number | null> {
-    return this.form.get('latitude') as FormControl<number | null>;
+  /** The read-only coordinate readout under the map. */
+  protected locationReadout(): string {
+    const picked = this.location();
+    return picked === null
+      ? 'No location yet'
+      : `${picked.latitude.toFixed(5)}, ${picked.longitude.toFixed(5)}`;
   }
 
-  protected longitude(): FormControl<number | null> {
-    return this.form.get('longitude') as FormControl<number | null>;
-  }
-
-  /** The location fieldset's inline error (missing / outside Estonia). */
-  protected locationError(): string | null {
-    const error = this.form.errors;
-    if (!error || !('location' in error)) {
+  /** Source hint (incl. the swapped-order + geolocation-accuracy hints). */
+  protected locationHint(): string | null {
+    const picked = this.location();
+    if (picked === null) {
       return null;
     }
-    return error['location'] === 'outside'
-      ? 'The location must be inside Estonia.'
-      : 'Pick a location on the map or enter both coordinates.';
+    let hint = `Location from ${SOURCE_LABEL[picked.source]}`;
+    if (picked.swapped) {
+      hint +=
+        ' — detected as longitude, latitude, so the values were swapped to place them inside Estonia';
+    }
+    if (picked.accuracyM !== null) {
+      hint += ` (accuracy about ${Math.round(picked.accuracyM)} m — drag the pin if needed)`;
+    }
+    return hint;
+  }
+
+  protected locationErrorText(): string | null {
+    const kind = this.locationError();
+    return kind === null ? null : LOCATION_ERROR_COPY[kind];
   }
 
   /**
    * The map container only exists once the view is rendered; a null
    * container (should never happen) skips map creation but never breaks
-   * the page. Map click -> coordinate inputs + the pick marker stay in sync.
+   * the page. Map click AND pick-marker drag -> the shared location state.
    */
   ngAfterViewInit(): void {
     this.leaflet.mapClick = (latitude, longitude) => {
-      this.latitude().setValue(latitude);
-      this.longitude().setValue(longitude);
-      this.leaflet.setPick(latitude, longitude);
+      // No flyTo: the user is already looking at the point (a re-center
+      // during a pin drag would fight the gesture).
+      this.setLocation(latitude, longitude, 'map-pick', false, false);
     };
     this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
   }
@@ -152,26 +207,160 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     this.leaflet.destroy();
   }
 
-  /** Typed coordinate input -> move (or clear) the pick marker on the map. */
-  protected onLocationInput(): void {
-    const lat = readCoordinate(this.latitude().value);
-    const lng = readCoordinate(this.longitude().value);
-    this.leaflet.setPick(lat, lng);
+  // ---------------------------------------------------------------------
+  // Capture modes — every one writes the single shared location state
+  // ---------------------------------------------------------------------
+
+  protected onLocationTextChange(event: Event): void {
+    this.locationText.set((event.target as HTMLInputElement).value);
   }
 
-  async submit(): Promise<void> {
-    if (this.form.invalid || this.pending()) {
-      this.form.markAllAsTouched();
+  /** Enter in the smart input parses instead of submitting the form. */
+  protected onLocationSubmitKey(event: Event): void {
+    if (!(event instanceof KeyboardEvent) || event.key !== 'Enter') {
       return;
     }
+    event.preventDefault();
+    this.applyLocationInput();
+  }
+
+  /** The "Set location" button (and Enter): smart-input capture. */
+  protected applyLocationInput(): void {
+    const text = this.locationText().trim();
+    if (text === '') {
+      return;
+    }
+    // Short links are opaque redirects — only the backend can read them.
+    if (isGooShortLink(text)) {
+      void this.resolveShortLink(normalizeShortLinkUrl(text));
+      return;
+    }
+    const result = parseLocationInput(text);
+    if ('latitude' in result) {
+      this.setLocation(
+        result.latitude,
+        result.longitude,
+        /^https?:\/\//i.test(text) ? 'link' : 'typed',
+        result.swapped === true,
+      );
+    } else {
+      this.failLocation(result.reason);
+    }
+  }
+
+  /**
+   * "Use my location" — high-accuracy geolocation, 10 s timeout, no cached
+   * positions (design decision 5). Each failure maps 1:1 to an inline
+   * message; the insecure-context guard has its own copy.
+   */
+  protected useMyLocation(): void {
+    if (window.isSecureContext === false) {
+      this.failLocation('geo-insecure');
+      return;
+    }
+    const geolocation = navigator.geolocation;
+    // jsdom leaves navigator.geolocation undefined — `!` covers null AND undefined.
+    if (!geolocation || typeof geolocation.getCurrentPosition !== 'function') {
+      this.failLocation('geo-unavailable');
+      return;
+    }
+    this.locating.set(true);
+    this.locationError.set(null);
+    geolocation.getCurrentPosition(
+      (position) => {
+        this.setLocation(
+          position.coords.latitude,
+          position.coords.longitude,
+          'geolocation',
+          false,
+          true,
+          position.coords.accuracy,
+        );
+        this.locating.set(false);
+      },
+      (err) => {
+        // Duck-typed code read: jsdom does not define GeolocationPositionError.
+        const code = typeof err?.code === 'number' ? err.code : 2;
+        this.failLocation(
+          code === 1 ? 'geo-denied' : code === 3 ? 'geo-timeout' : 'geo-unavailable',
+        );
+        this.locating.set(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
+  }
+
+  /** maps.app.goo.gl -> POST /api/geo/resolve (JWT, per-IP 5/min). */
+  private async resolveShortLink(url: string): Promise<void> {
+    this.resolvingLink.set(true);
+    this.locationError.set(null);
+    try {
+      const resolved = await this.geo.resolve(url);
+      this.setLocation(resolved.latitude, resolved.longitude, 'link');
+    } catch (failure: unknown) {
+      const api = toApiError(failure);
+      this.failLocation(api.status === 429 ? 'short-link-rate-limited' : 'short-link-failed');
+    } finally {
+      this.resolvingLink.set(false);
+    }
+  }
+
+  /**
+   * A FAILED capture removes the previous pin (spec: "the marker is not
+   * placed") — the safest state: an error is showing AND the form cannot
+   * silently submit a stale, now-untrusted pin (design risk: never a
+   * silent wrong pin). 'missing' is the one exception — it is set at
+   * submit time when there is nothing to clear.
+   */
+  private failLocation(kind: LocationErrorKind): void {
+    this.location.set(null);
+    this.locationError.set(kind);
+    this.leaflet.setPick(null, null);
+  }
+
+  /** The single writer of the shared location state (all capture modes). */
+  private setLocation(
+    latitude: number,
+    longitude: number,
+    source: LocationSource,
+    swapped = false,
+    fly = true,
+    accuracyM: number | null = null,
+  ): void {
+    this.location.set({ latitude, longitude, source, swapped, accuracyM });
+    this.locationError.set(null);
+    this.leaflet.setPick(latitude, longitude);
+    if (fly) {
+      this.leaflet.flyTo(latitude, longitude);
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Submit — payload shape unchanged (name + latitude/longitude numbers,
+  // optional description/capacity)
+  // ---------------------------------------------------------------------
+
+  async submit(): Promise<void> {
+    if (this.pending()) {
+      return;
+    }
+    this.form.markAllAsTouched();
+    if (this.location() === null) {
+      this.locationError.set('missing');
+    }
+    if (this.form.invalid || this.location() === null) {
+      return;
+    }
+
     this.pending.set(true);
     this.error.set(null);
     this.verifyLink.set(false);
 
+    const picked = this.location() as PickedLocation;
     const request: CreateShelterRequest = {
       name: this.name().value.trim(),
-      latitude: readCoordinate(this.latitude().value) as number,
-      longitude: readCoordinate(this.longitude().value) as number,
+      latitude: picked.latitude,
+      longitude: picked.longitude,
     };
     const description = this.description().value.trim();
     if (description !== '') {

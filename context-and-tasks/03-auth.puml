@@ -394,6 +394,10 @@ note bottom of AuthController
         request
     - /auth/password-reset/   per (IP, email) anti-guess bucket - a 6-digit
         confirm                       code must not be brute-forceable
+    - /api/geo/resolve        per client IP (5/min) - short-link resolver;
+                              LocationController is defined in the shelter
+                              context (05), listed here because it shares
+                              this RateLimiter bucket set
 end note
 
 note bottom of ContactChangeService

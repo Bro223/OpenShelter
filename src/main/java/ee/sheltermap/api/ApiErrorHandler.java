@@ -1,5 +1,7 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.LocationResolveException;
+import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
@@ -81,6 +83,16 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(InvalidShelterException.class)
     ResponseEntity<ErrorResponse> invalidShelter(InvalidShelterException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    /**
+     * Short-link resolver not-found (shelter-location-input): ONE generic
+     * 400 for invalid input / non-whitelisted host / no extractable pair /
+     * outside Estonia — the service never enumerates the reason.
+     */
+    @ExceptionHandler(LocationResolveException.class)
+    ResponseEntity<ErrorResponse> locationResolve(LocationResolveException ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
@@ -181,6 +193,16 @@ public class ApiErrorHandler {
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ErrorResponse> rateLimit(RateLimitExceededException ex, HttpServletRequest request) {
         return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+    }
+
+    /**
+     * Short-link resolver upstream failure (shelter-location-input):
+     * connect/read timeout, network failure or a 5xx from the short-link
+     * service → ONE generic 502 retry-later message, no upstream detail.
+     */
+    @ExceptionHandler(LocationUpstreamException.class)
+    ResponseEntity<ErrorResponse> locationUpstream(LocationUpstreamException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
     }
 
     @ExceptionHandler(VerificationThrottledException.class)

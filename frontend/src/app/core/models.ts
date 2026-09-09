@@ -87,6 +87,16 @@ export interface ProfileUpdateRequest {
   currentPassword: string;
 }
 
+/**
+ * POST /api/geo/resolve (shelter-location-input): the backend-resolved pair
+ * of a maps.app.goo.gl short link. Field names match the backend
+ * LocationResolvedDto exactly (the parallel backend child owns the record).
+ */
+export interface LocationResolved {
+  latitude: number;
+  longitude: number;
+}
+
 export interface CreateShelterRequest {
   name: string;
   latitude: number;

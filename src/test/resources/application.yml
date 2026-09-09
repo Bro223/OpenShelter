@@ -155,6 +155,12 @@ app:
     # blocks one IP spraying change requests across accounts.
     change-capacity: 5
     change-refill-per-second: 0.084
+    # POST /api/geo/resolve is rate-limited per client IP (short-link
+    # resolver, shelter-location-input): every call is a server-side
+    # HTTP fetch, so the bucket is the abuse valve — 5 requests,
+    # refill ~1/min.
+    geo-resolve-capacity: 5
+    geo-resolve-refill-per-second: 0.084
     # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
     # keys (hardening: without this, everyone behind nginx shares one bucket).
     # Loopback is trusted by default (local nginx setups) — see ClientIps;

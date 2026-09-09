@@ -14,15 +14,16 @@
 `ErrorResponse`: `timestamp` (ISO-8601), `status` (int), `error` (reason phrase), `message`,
 `path`. The frontend `ApiError` mirrors it exactly.
 
-| Status | Meaning                                                                 | Frontend UX                                                 |
-| ------ | ----------------------------------------------------------------------- | ----------------------------------------------------------- |
-| 400    | validation / invalid code / invalid token / bad request                 | show `message`                                              |
-| 401    | unauthenticated or bad/expired access token                             | interceptor: single-flight refresh, retry once, else logout |
-| 403    | verified account required / not the author                              | banner + link to `/verify` or "author only"                 |
-| 404    | shelter/review not found                                                | show "not found" state                                      |
-| 409    | duplicate email/phone, already-verified level, duplicate target contact | informational banner                                        |
-| 429    | rate limited (login/register/verify/contact-change)                     | "slow down" message + retry hint                            |
-| 500    | internal (never expected)                                               | generic error                                               |
+| Status | Meaning                                                                                  | Frontend UX                                                 |
+| ------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| 400    | validation / invalid code / invalid token / bad request                                  | show `message`                                              |
+| 401    | unauthenticated or bad/expired access token                                              | interceptor: single-flight refresh, retry once, else logout |
+| 403    | verified account required / not the author                                               | banner + link to `/verify` or "author only"                 |
+| 404    | shelter/review not found                                                                 | show "not found" state                                      |
+| 409    | duplicate email/phone, already-verified level, duplicate target contact                  | informational banner                                        |
+| 429    | rate limited (login/register/verify/contact-change, geo resolve)                         | "slow down" message + retry hint                            |
+| 500    | internal (never expected)                                                                | generic error                                               |
+| 502    | geo resolve: upstream short-link chain timed out / failed (generic — no upstream detail) | generic "try again later" error                             |
 
 > Anti-enumeration: login always says generic "invalid credentials"; password-reset request
 > always returns success even for unknown emails; verify/confirm never reveals whether a code was
@@ -37,6 +38,20 @@
 | `GET /api/shelters`                     | `source` = `ALL` (default) \| `REGISTRY` \| `USER` | `ShelterDto[]`       |
 | `GET /api/shelters/{id}`                | —                                                  | `ShelterDto` or 404  |
 | `GET /api/shelters/{shelterId}/reviews` | —                                                  | `ShelterReviewDto[]` |
+
+### Location resolution (`/api/geo`) — JWT required, per-IP rate-limited (5/min)
+
+| Method + path           | Body    | Success                                                                                                                                 | Errors                                                                                                                                                                        |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/geo/resolve` | `{url}` | 200 `{latitude, longitude}` (`LocationResolved`) — 200 only for `maps.app.goo.gl` links whose redirect chain ends in an in-Estonia pair | 400 (ONE generic "could not find coordinates" — no pair / outside Estonia / non-whitelisted host, never enumerated), 401, 429 (per-IP 5/60 s), 502 (generic upstream failure) |
+
+> Only `maps.app.goo.gl` is ever sent (long-form map URLs are parsed client-side
+> by `shared/location-input.ts` and NEVER reach this endpoint). The backend follows
+> ≤3 redirects and extracts the pair with the same Estonia-bbox rule + auto-swap as
+> the frontend parser — the two parsers share one fixture table (their test suites
+> must stay in sync).
+> Frontend mirror: `GeoGateway.resolve(url)` in `gateways/geo-gateway.ts` (its own
+> gateway for its own controller group — kept separate from `ShelterGateway`).
 
 ### Shelter writes & author-scoped (`/api/shelters`) — JWT required
 
@@ -150,6 +165,12 @@ interface CreateShelterRequest {
   longitude: number;
   description?: string;
   capacity?: number;
+}
+
+interface LocationResolved {
+  // POST /api/geo/resolve response — a maps.app.goo.gl short link's resolved pair
+  latitude: number;
+  longitude: number;
 }
 interface UpdateShelterRequest {
   name: string;

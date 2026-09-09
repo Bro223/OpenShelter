@@ -114,6 +114,16 @@ public class SecurityConfig {
     }
 
     /**
+     * Per-IP bucket on {@code POST /api/geo/resolve} (short-link resolver,
+     * shelter-location-input): every call is a server-side HTTP fetch, so the
+     * bucket is the abuse valve — 5 requests, refill ~1/min (5/min effective).
+     */
+    @Bean
+    public RateLimiter geoResolveRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.geoResolveCapacity(), properties.geoResolveRefillPerSecond());
+    }
+
+    /**
      * CORS for the browser frontend (hardening pass). Allowed origins are
      * configurable via {@code app.cors.allowed-origins} (default local dev
      * origins). Preflight (OPTIONS) is handled by Spring Security's CORS

@@ -8,6 +8,7 @@ participant "SubmitShelterPage" as SP
 participant "ContributionsPanel" as CP
 participant "ReviewForm" as RF
 participant "ShelterGateway" as SHG
+participant "GeoGateway" as GG
 participant "ReviewGateway" as RG
 participant "AccountGateway" as AG
 participant "ApiClient" as AC
@@ -87,12 +88,47 @@ DP --> Person : review removed, summary refetched
 
 == Submit a shelter (verified users) ==
 note over SP
-  Route /submit guarded by AuthGuard + VerifiedGuard. Location must
-  be inside Estonia: the page pre-checks the bbox client-side (inline
-  error, nothing is sent) and the backend re-checks (400 otherwise).
-  capacity 1..100_000, description <= 2000 chars.
+  Route /submit guarded by AuthGuard + VerifiedGuard. The location
+  section keeps ONE shared location signal written by four capture
+  modes: (1) smart text input - coordinate strings (incl. DMS, auto
+  lng/lat swap), long-form map URLs parsed client-side by the pure
+  parseLocationInput (shared/location-input.ts); (2) "Use my location"
+  geolocation; (3) mini-map click/drag; (4) maps.app.goo.gl short links
+  resolved by the backend (POST /api/geo/resolve). A FAILED capture
+  clears the pin (never a silent stale pin). The page pre-checks the
+  Estonia bbox client-side (inline error, nothing is sent) and the
+  backend re-checks (400 otherwise). capacity 1..100_000,
+  description <= 2000 chars.
 end note
-Person -> SP : fill name, description, capacity, pick map point
+Person -> SP : fill name, description, capacity
+group capture the location (any order, repeats allowed)
+  alt typed coordinates / DMS / long-form map URL
+    Person -> SP : type text + Enter (or "Set location")
+    SP --> Person : shared location set - marker + read-only readout
+    note right of SP
+      parseLocationInput: bbox gate, (lng,lat) auto-swap,
+      inline error on no-pair / out-of-bounds / invalid
+    end note
+  else "Use my location"
+    Person -> SP : click geolocation
+    SP --> Person : marker at device position + accuracy hint
+  else mini-map pick
+    Person -> SP : click / drag the pin
+    SP --> Person : shared location set (marker follows)
+  else maps.app.goo.gl short link
+    Person -> SP : paste short link + "Set location"
+    SP -> GG : resolve(url)   ' "Resolving..." pending state
+    GG -> AC : post<LocationResolved>('/api/geo/resolve', {url})
+    AC -> API : POST /api/geo/resolve
+    alt 200
+      API --> AC : LocationResolved {latitude, longitude}
+      SP --> Person : shared location set (same as a pick)
+    else 400 / 429 / 502
+      API --> AC : ErrorResponse
+      SP --> Person : inline error (pin cleared; 429 = "try again in a minute")
+    end
+  end
+end
 SP -> SHG : create(request)
 SHG -> AC : post<ShelterDto>('/api/shelters', body)
 AC -> API : POST /api/shelters
