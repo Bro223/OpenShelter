@@ -143,11 +143,11 @@ public class AccountController {
             // if it ever fires, it is an authentication failure (401), not a
             // contact-change validation error (400). Matches the Shelter/
             // Review controller fallback convention.
-            throw new InvalidAccessTokenException("authentication required");
+            throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);
         if (!(user instanceof RegisteredUser registered)) {
-            throw new InvalidContactChangeException("account not found");
+            throw new InvalidContactChangeException("Account not found");
         }
         return registered;
     }

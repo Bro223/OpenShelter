@@ -10,6 +10,6 @@ package ee.sheltermap.auth;
 public class InvalidProfilePasswordException extends RuntimeException {
 
     public InvalidProfilePasswordException() {
-        super("current password is incorrect");
+        super("Current password is incorrect");
     }
 }

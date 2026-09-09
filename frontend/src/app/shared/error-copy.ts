@@ -25,6 +25,9 @@ export const COPY = {
   accountRateLimited: 'Too many requests. Please wait a moment and then try again.',
   accountBadCode: 'That code is invalid or has expired. Please request a new one.',
   accountSameValue: 'That is already the value on your account — the new one must be different.',
+  // Generic 400 fallback for the profile + shelter branches when the backend
+  // sent no validation message (named once — it used to be duplicated inline).
+  checkInput: 'Please check your input and try again.',
   // 5xx + other unhandled server statuses: fixed generic copy. A non-JSON
   // body (e.g. a reverse-proxy HTML error page) must never be echoed into
   // the banner verbatim (N6).
@@ -64,7 +67,7 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       }
       // Profile edit: echo the validation message (blank field, etc.).
       if (kind === 'profile') {
-        return api.message || 'Please check your input and try again.';
+        return api.message || COPY.checkInput;
       }
       // Verification confirm: wrong/expired code (or SMART_ID stub request).
       if (kind === 'verify') {
@@ -77,7 +80,7 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       }
       // Shelter detail/reviews/submit: echo the backend message (it is the
       // honest user-facing text for 400/403/409 there).
-      return api.message || 'Please check your input and try again.';
+      return api.message || COPY.checkInput;
     case 409:
       return api.message || 'That value is already in use.';
     default:

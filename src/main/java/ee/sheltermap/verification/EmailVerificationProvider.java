@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,8 @@ public class EmailVerificationProvider implements VerificationProvider {
 
     static final int MAX_ATTEMPTS = 5;
     private static final Duration TTL = Duration.ofMinutes(15);
+    // The e-mail code length the user is asked to type — mirrors frontend
+    // verify-page EMAIL_CODE_LENGTH — do not drift.
     private static final int TOKEN_LENGTH = 8;
     private static final String TOKEN_ALPHABET =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -49,7 +52,7 @@ public class EmailVerificationProvider implements VerificationProvider {
     public PendingVerification request(RegisteredUser user) {
         String email = user.getData().email();
         String token = randomToken();
-        sender.send(email, "Shelter Map verification token: " + token);
+        sender.send(email, AppInfo.APP_DISPLAY_NAME + " verification code: " + token);
         return new PendingVerification(
                 user.getId(),
                 VerificationLevel.EMAIL,

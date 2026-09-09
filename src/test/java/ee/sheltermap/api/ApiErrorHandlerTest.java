@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ApiErrorHandlerTest {
 
-    private static final String CONFLICT_MESSAGE = "the resource changed under you; reload and retry";
+    private static final String CONFLICT_MESSAGE = "The resource changed under you; reload and retry";
 
     private final ApiErrorHandler handler = new ApiErrorHandler();
     private final MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/shelters/42");
@@ -81,6 +81,6 @@ class ApiErrorHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.transactionSystem(ex, request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(500);
-        assertThat(response.getBody().message()).isEqualTo("internal server error");
+        assertThat(response.getBody().message()).isEqualTo("Internal server error");
     }
 }

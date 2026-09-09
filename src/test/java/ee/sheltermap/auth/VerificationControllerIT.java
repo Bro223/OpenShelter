@@ -102,7 +102,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                 .andExpect(status().isAccepted());
 
         String message = smtp.last().message();
-        assertThat(message).contains("verification token: ");
+        assertThat(message).contains("verification code: ");
         String code = message.substring(message.lastIndexOf(' ') + 1);
 
         // resend within the cooldown window (default 60s) -> 429, uniform shape
@@ -135,12 +135,14 @@ class VerificationControllerIT extends AbstractPersistenceIT {
         assertThat(user.levels()).contains(VerificationLevel.EMAIL);
         assertThat(user.canWrite()).isTrue();
 
-        // SMART_ID is rejected up front (stub in v1)
+        // SMART_ID is rejected up front with plain user language (the stub
+        // fact stays in the controller comment, not in the 400 message)
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"SMART_ID\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("eID verification is not available yet."));
 
         // the write path now works over HTTP
         mvc.perform(post("/api/shelters")

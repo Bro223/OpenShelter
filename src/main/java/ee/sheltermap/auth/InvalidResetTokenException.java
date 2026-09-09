@@ -8,6 +8,6 @@ package ee.sheltermap.auth;
 public class InvalidResetTokenException extends RuntimeException {
 
     public InvalidResetTokenException() {
-        super("invalid or expired reset code");
+        super("Invalid or expired reset code");
     }
 }

@@ -12,6 +12,7 @@ export const NO_RATINGS_YET = 'No ratings yet';
 
 /** Source badge label: a USER-submitted row vs a registry row (the map
  *  legend uses the same wording). */
+// The map filter chip "User" is the short form of "User-submitted" (deliberate — chip space).
 export function sourceLabel(source: ShelterSource): string {
   return source === 'USER' ? 'User-submitted' : 'Registry';
 }

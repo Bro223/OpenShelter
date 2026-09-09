@@ -74,10 +74,10 @@ public class LocationController {
             case LocationResolveService.Outcome.Resolved resolved ->
                     new LocationResolvedDto(resolved.latitude(), resolved.longitude());
             case LocationResolveService.Outcome.NotFound ignored ->
-                    throw new LocationResolveException("could not find coordinates in the provided link");
+                    throw new LocationResolveException("Could not find coordinates in the provided link");
             case LocationResolveService.Outcome.UpstreamFailure ignored ->
                     throw new LocationUpstreamException(
-                            "location resolution is temporarily unavailable, please retry later");
+                            "Location resolution is temporarily unavailable, please retry later");
         };
     }
 }

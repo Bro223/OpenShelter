@@ -72,7 +72,10 @@ public class VerificationController {
         }
         RegisteredUser user = currentUser();
         if (body.level() == VerificationLevel.SMART_ID) {
-            throw new VerificationFailedException("SMART_ID verification is not available yet (stub in v1)");
+            // The SMART_ID provider is a stub in v1 (no e-ID integration yet):
+            // the stub fact stays in this comment, the 400 message is plain
+            // user language (no enum token, no process note).
+            throw new VerificationFailedException("eID verification is not available yet.");
         }
         verificationService.requestVerification(user, body.level());
     }
@@ -83,7 +86,7 @@ public class VerificationController {
         RegisteredUser user = currentUser();
         boolean ok = verificationService.confirmVerification(user, body.level(), body.code());
         if (!ok) {
-            throw new VerificationFailedException("invalid or expired verification code");
+            throw new VerificationFailedException("Invalid or expired verification code");
         }
         // Persist the new claim (JpaUserRepository.save rewrites the claim set).
         try {
@@ -110,11 +113,11 @@ public class VerificationController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             // unreachable in practice: /verify/** requires a valid JWT
-            throw new VerificationFailedException("authentication required");
+            throw new VerificationFailedException("Authentication required");
         }
         User user = userRepository.findById(userId);
         if (!(user instanceof RegisteredUser registered)) {
-            throw new VerificationFailedException("account not found");
+            throw new VerificationFailedException("Account not found");
         }
         return registered;
     }

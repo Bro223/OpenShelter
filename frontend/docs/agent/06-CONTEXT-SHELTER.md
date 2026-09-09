@@ -54,7 +54,8 @@
 5. **Submission is verified-gated in the UI AND the backend.** `VerifiedGuard` on `/submit`
    mirrors the 403. If a 403 still arrives (claim expired), banner → `/verify`.
 6. **USER vs REGISTRY rendering.** Registry rows: address + (eventually) county metadata; USER
-   rows: description/capacity + "added by the community". _(M8 supersedes the "never show a
+   rows: description/capacity + "added by the community". (The map filter chip "User" is the
+   short form of "User-submitted" — deliberate, chip space.) _(M8 supersedes the "never show a
    delete/flag UI on shelters in v1" caveat for the AUTHOR: their own USER-source shelters get
    edit/delete in the account page's contributions panel — registry rows stay read-only for
    everyone.)_

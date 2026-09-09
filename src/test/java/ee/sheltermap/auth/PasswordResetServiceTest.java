@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,7 @@ class PasswordResetServiceTest {
         String message = smtp.last().message();
         String code = TestTokens.fromResetEmail(message);
         assertThat(message)
-                .isEqualTo("Shelter Map password reset code: " + code + " (valid 15 min)")
+                .isEqualTo(AppInfo.APP_DISPLAY_NAME + " password reset code: " + code + " (valid 15 min)")
                 .doesNotContain("http"); // no URL link — the code is the whole message
         assertThat(stored.getTokenHash()).isNotEqualTo(code); // hashed at rest
         assertThat(stored.getTokenHash()).isEqualTo(Hashes.sha256Hex(code));

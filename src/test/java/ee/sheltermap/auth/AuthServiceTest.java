@@ -47,7 +47,7 @@ class AuthServiceTest {
     void loginUnknownUserThrowsGenericError() {
         assertThatThrownBy(() -> auth.login(new LoginRequest("ghost@example.ee", "x")))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("invalid credentials");
+                .hasMessage("Invalid credentials");
     }
 
     @Test
@@ -55,7 +55,7 @@ class AuthServiceTest {
         registerMari();
         assertThatThrownBy(() -> auth.login(new LoginRequest("mari@example.ee", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("invalid credentials");
+                .hasMessage("Invalid credentials");
     }
 
     @Test
@@ -85,7 +85,7 @@ class AuthServiceTest {
     void resetPasswordWithInvalidCodeThrows() {
         assertThatThrownBy(() -> auth.resetPassword("mari@example.ee", "bogus", "newpass"))
                 .isInstanceOf(InvalidResetTokenException.class)
-                .hasMessage("invalid or expired reset code");
+                .hasMessage("Invalid or expired reset code");
     }
 
     @Test

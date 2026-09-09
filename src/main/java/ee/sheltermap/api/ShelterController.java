@@ -52,6 +52,14 @@ import java.util.List;
 @RequestMapping("/api/shelters")
 public class ShelterController {
 
+    /**
+     * 403 message for author-scoped shelter mutations (update/delete) —
+     * duplicated here because both branches of
+     * {@link #requireVerifiedRegisteredUser()} reject with it (de-slop K5).
+     */
+    private static final String MODIFY_SHELTERS_MESSAGE =
+            "A verified account is required to modify shelters";
+
     private final ShelterQueryService queryService;
     private final ShelterService shelterService;
     private final UserRepository userRepository;
@@ -81,7 +89,7 @@ public class ShelterController {
     public ResponseEntity<ShelterDto> create(@Valid @RequestBody CreateShelterRequest request) {
         User user = currentUser();
         if (!user.canWrite()) {
-            throw new NotVerifiedException("a verified account is required to submit shelters");
+            throw new NotVerifiedException("A verified account is required to submit shelters");
         }
         // P2 fix: user-submitted shelters get the same Estonia bounding-box
         // sanity check the registry parser applies — no ocean shelters.
@@ -155,7 +163,7 @@ public class ShelterController {
         if (shelter.getSource() != ShelterSource.USER
                 || shelter.getCreatedBy() == null
                 || !shelter.getCreatedBy().equals(user.getId())) {
-            throw new NotAuthorException("only the author may modify this shelter");
+            throw new NotAuthorException("Only the author may modify this shelter");
         }
         return shelter;
     }
@@ -163,7 +171,7 @@ public class ShelterController {
     /** The Estonia bbox gate, shared by POST and PUT so create/update cannot drift. */
     private static void requireInsideEstonia(double latitude, double longitude) {
         if (!GeoPoint.inEstonia(latitude, longitude)) {
-            throw new InvalidShelterException("shelter location must be inside Estonia");
+            throw new InvalidShelterException("Shelter location must be inside Estonia");
         }
     }
 
@@ -171,10 +179,10 @@ public class ShelterController {
     private RegisteredUser requireVerifiedRegisteredUser() {
         User user = currentUser();
         if (!(user instanceof RegisteredUser registered)) {
-            throw new NotVerifiedException("a verified account is required to modify shelters");
+            throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
         }
         if (!registered.canWrite()) {
-            throw new NotVerifiedException("a verified account is required to modify shelters");
+            throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
         }
         return registered;
     }
@@ -182,11 +190,11 @@ public class ShelterController {
     private User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("authentication required");
+            throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);
         if (user == null) {
-            throw new InvalidAccessTokenException("unknown user");
+            throw new InvalidAccessTokenException("Unknown user");
         }
         return user;
     }

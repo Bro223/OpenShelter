@@ -26,7 +26,7 @@
     <section class="verify-panel">
       <h2 class="panel-title">{{ ch.title }}</h2>
       <p class="panel-copy">
-        We'll send a code to your {{ ch.destination }} — you enter it here to prove it's yours.
+        We'll send a code to your {{ ch.destination }}. You enter it here to prove it's yours.
       </p>
 
       @if (phases[level]() === 'code') {
@@ -98,7 +98,7 @@
          redirected here by verifiedGuard (e.g. from /submit) can continue
          once any channel is verified instead of being forced to do both. -->
     <section class="verify-panel verify-panel--done">
-      <p class="panel-copy">You're verified — you can submit shelters and write reviews.</p>
+      <p class="panel-copy">You're verified. You can submit shelters and write reviews.</p>
       <div class="panel-actions">
         <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
       </div>

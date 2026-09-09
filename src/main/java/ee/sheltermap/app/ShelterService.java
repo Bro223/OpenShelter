@@ -45,7 +45,7 @@ public class ShelterService {
         Objects.requireNonNull(user, "user");
         Objects.requireNonNull(place, "place");
         if (!user.canWrite()) {
-            throw new NotVerifiedException("a verified account is required to submit shelters");
+            throw new NotVerifiedException("A verified account is required to submit shelters");
         }
         if (place.getStatus() != ShelterStatus.ACTIVE || place.getSource() != ShelterSource.USER) {
             throw new IllegalArgumentException(

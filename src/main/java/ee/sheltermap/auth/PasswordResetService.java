@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.SmtpSender;
@@ -114,7 +115,7 @@ public class PasswordResetService {
         String code = Codes.sixDigitCode();
         tokens.save(new PasswordResetToken(user.getId(), Hashes.sha256Hex(code), now.plus(CODE_TTL)));
         smtpSender.send(user.getData().email(),
-                "Shelter Map password reset code: " + code + " (valid 15 min)");
+                AppInfo.APP_DISPLAY_NAME + " password reset code: " + code + " (valid 15 min)");
     }
 
     /**

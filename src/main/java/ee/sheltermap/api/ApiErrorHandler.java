@@ -53,7 +53,7 @@ public class ApiErrorHandler {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(fe -> fe.getField() + " " + fe.getDefaultMessage())
-                .orElse("validation failed");
+                .orElse("Validation failed");
         return error(HttpStatus.BAD_REQUEST, message, request);
     }
 
@@ -63,7 +63,7 @@ public class ApiErrorHandler {
             MissingServletRequestParameterException.class,
             MethodArgumentTypeMismatchException.class})
     ResponseEntity<ErrorResponse> malformed(Exception ex, HttpServletRequest request) {
-        return error(HttpStatus.BAD_REQUEST, "malformed request", request);
+        return error(HttpStatus.BAD_REQUEST, "Malformed request", request);
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)
@@ -128,7 +128,7 @@ public class ApiErrorHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ErrorResponse> dataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
         log.warn("Data integrity violation on {} {}", request.getMethod(), request.getRequestURI(), ex);
-        return error(HttpStatus.BAD_REQUEST, "request failed due to invalid input", request);
+        return error(HttpStatus.BAD_REQUEST, "Request failed due to invalid input", request);
     }
 
     /**
@@ -141,7 +141,7 @@ public class ApiErrorHandler {
             OptimisticLockException.class,
             OptimisticLockingFailureException.class})
     ResponseEntity<ErrorResponse> optimisticLock(Exception ex, HttpServletRequest request) {
-        return error(HttpStatus.CONFLICT, "the resource changed under you; reload and retry", request);
+        return error(HttpStatus.CONFLICT, "The resource changed under you; reload and retry", request);
     }
 
     /**
@@ -160,7 +160,7 @@ public class ApiErrorHandler {
     @ExceptionHandler(TransactionSystemException.class)
     ResponseEntity<ErrorResponse> transactionSystem(TransactionSystemException ex, HttpServletRequest request) {
         if (containsStaleStateException(ex)) {
-            return error(HttpStatus.CONFLICT, "the resource changed under you; reload and retry", request);
+            return error(HttpStatus.CONFLICT, "The resource changed under you; reload and retry", request);
         }
         return internal(ex, request);
     }
@@ -213,7 +213,7 @@ public class ApiErrorHandler {
     @ExceptionHandler(Exception.class)
     ResponseEntity<ErrorResponse> internal(Exception ex, HttpServletRequest request) {
         log.error("Unhandled exception on {} ({})", request.getMethod(), request.getRequestURI(), ex);
-        return error(HttpStatus.INTERNAL_SERVER_ERROR, "internal server error", request);
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request);
     }
 
     private static ResponseEntity<ErrorResponse> error(HttpStatus status, String message, HttpServletRequest request) {

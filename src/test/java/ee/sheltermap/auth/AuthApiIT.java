@@ -159,7 +159,7 @@ class AuthApiIT extends AbstractPersistenceIT {
                         .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"wrong\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
-                .andExpect(jsonPath("$.message").value("invalid credentials"))
+                .andExpect(jsonPath("$.message").value("Invalid credentials"))
                 .andExpect(jsonPath("$.error").value("Unauthorized"));
 
         // right password -> TokenResponse
@@ -252,7 +252,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+                .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
 
         // the failed attempt is persisted (brute-force guard)
         RegisteredUser mari = users.findByEmail("mari@example.ee");
@@ -278,12 +278,12 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"ghost@example.ee\",\"code\":\"000000\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("invalid or expired reset code"))
+                .andExpect(jsonPath("$.message").value("Invalid or expired reset code"))
                 .andExpect(jsonPath("$.error").value("Bad Request"));
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("invalid or expired reset code"))
+                .andExpect(jsonPath("$.message").value("Invalid or expired reset code"))
                 .andExpect(jsonPath("$.error").value("Bad Request"));
     }
 
@@ -298,14 +298,14 @@ class AuthApiIT extends AbstractPersistenceIT {
             mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+                    .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
         }
 
         // even the CORRECT code is now rejected with the same generic 400
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+                .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
     }
 
     @Test

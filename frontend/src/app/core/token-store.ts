@@ -32,11 +32,10 @@ export class TokenStore {
   }
 
   /**
-   * Store a token pair. `expiresIn` (seconds) is accepted for contract
-   * fidelity with the backend TokenResponse; expiry is enforced server-side
-   * via 401s, so the value is not stored.
+   * Store a token pair. The backend's `expiresIn` is intentionally not
+   * stored: expiry is enforced server-side via 401s.
    */
-  setTokens(accessToken: string, refreshToken: string, _expiresIn?: number): void {
+  setTokens(accessToken: string, refreshToken: string): void {
     this.accessToken.set(accessToken);
     try {
       localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);

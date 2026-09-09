@@ -85,7 +85,7 @@ public class ShelterReviewService {
                 .findByShelterIdAndUserId(shelterId, user.getId())
                 .orElseThrow(() -> new ShelterReviewNotFoundException(shelterId));
         if (!review.getUserId().equals(user.getId())) {
-            throw new NotAuthorException("only the author may update this review");
+            throw new NotAuthorException("Only the author may update this review");
         }
         review.update(rating, comment);
         reviewRepository.save(review);
@@ -99,7 +99,7 @@ public class ShelterReviewService {
                 .findByShelterIdAndUserId(shelterId, user.getId())
                 .orElseThrow(() -> new ShelterReviewNotFoundException(shelterId));
         if (!review.getUserId().equals(user.getId())) {
-            throw new NotAuthorException("only the author may delete this review");
+            throw new NotAuthorException("Only the author may delete this review");
         }
         reviewRepository.delete(review);
     }
@@ -136,7 +136,7 @@ public class ShelterReviewService {
 
     private void requireVerified(RegisteredUser user) {
         if (!user.canWrite()) {
-            throw new NotVerifiedException("reviews require a verified account");
+            throw new NotVerifiedException("Reviews require a verified account");
         }
     }
 

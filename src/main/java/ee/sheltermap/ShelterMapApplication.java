@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
- * Shelter Map backend — application entry point.
+ * OpenShelter backend — application entry point.
  *
  * <p>Step 0: project skeleton only. No endpoints, no business logic yet;
  * the packages {@code domain}, {@code app}, {@code verification}, {@code auth},

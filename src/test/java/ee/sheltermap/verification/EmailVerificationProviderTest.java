@@ -42,7 +42,7 @@ class EmailVerificationProviderTest {
         assertThat(pending.getExpiresAt()).isAfter(clock.instant());
 
         assertThat(sender.getLastEmail()).isEqualTo("aleks@example.com");
-        assertThat(sender.getLastMessage()).contains("token");
+        assertThat(sender.getLastMessage()).contains("code");
         String token = extractToken(sender.getLastMessage());
         assertThat(token).matches("[A-Za-z0-9]{8}");
 

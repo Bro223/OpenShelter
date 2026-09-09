@@ -156,9 +156,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((request, response, ex) ->
-                        writeError(objectMapper, response, request, HttpStatus.UNAUTHORIZED, "authentication required"))
+                        writeError(objectMapper, response, request, HttpStatus.UNAUTHORIZED, "Authentication required"))
                 .accessDeniedHandler((request, response, ex) ->
-                        writeError(objectMapper, response, request, HttpStatus.FORBIDDEN, "access denied")))
+                        writeError(objectMapper, response, request, HttpStatus.FORBIDDEN, "Access denied")))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST,
                         "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",

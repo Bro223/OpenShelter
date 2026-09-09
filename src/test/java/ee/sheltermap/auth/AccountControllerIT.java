@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AccountControllerIT extends AbstractPersistenceIT {
 
     private static final Pattern CODE = Pattern.compile("code: (\\d{6})");
-    private static final Pattern TOKEN = Pattern.compile("token: (\\S+)");
+    private static final Pattern TOKEN = Pattern.compile("verification code: (\\S+)");
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Kontakt Muutus\",\"email\":\"kontakt@example.ee\",\"phone\":\"+37250004444\","
@@ -277,7 +277,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isAccepted());
         Matcher tm = TOKEN.matcher(smtp.last().message());
-        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
         String verifyCode = tm.group(1);
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
@@ -328,7 +328,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isAccepted());
         Matcher tm = TOKEN.matcher(smtp.last().message());
-        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -376,7 +376,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content("{\"name\":\"Väline Isik\",\"nationalIdCode\":\"49001019999\","
                                 + "\"currentPassword\":\"not-the-password\"}"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("current password is incorrect"));
+                .andExpect(jsonPath("$.message").value("Current password is incorrect"));
 
         RegisteredUser stored = users.findByEmail("kontakt@example.ee");
         assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
@@ -427,7 +427,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isAccepted());
         Matcher tm = TOKEN.matcher(smtp.last().message());
-        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

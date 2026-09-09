@@ -72,20 +72,20 @@ public class AuthService {
         // case-insensitive) and login would later hit IncorrectResultSize.
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (users.findByEmail(email) != null) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         // Canonical phone identity (hardening): normalize to E.164 BEFORE the
         // uniqueness check so "+37250000000" and "50000000" collide → 409.
         String phone = PhoneNumbers.normalizeE164(request.phone());
         if (users.findByPhone(phone) != null) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         try {
             RegisteredUser user = users.register(request.name(), email, phone, request.nationalIdCode());
             credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
         } catch (DataIntegrityViolationException e) {
             // concurrent duplicate slipped past the pre-check — same 409
-            throw new DuplicateAccountException("an account with this email or phone already exists");
+            throw new DuplicateAccountException("An account with this email or phone already exists");
         }
     }
 

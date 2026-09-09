@@ -31,6 +31,11 @@ interface ChannelMeta {
  *  token is 8 chars from [A-Za-z0-9], the PHONE code is a 6-digit OTP. Input
  *  patterns are no stricter than the generator; comparison is case-sensitive,
  *  so input is never case-folded — only trimmed. */
+/** Mirrors the backend EmailVerificationProvider code length — do not drift. */
+const EMAIL_CODE_LENGTH = 8;
+
+const EMAIL_CODE_PATTERN = new RegExp(`^[A-Za-z0-9]{${EMAIL_CODE_LENGTH}}$`);
+
 const CHANNELS: ChannelMeta[] = [
   {
     level: 'EMAIL',
@@ -40,8 +45,8 @@ const CHANNELS: ChannelMeta[] = [
     sendLabel: 'Send code to my email',
     sentHint: 'A verification code has been sent to your email address.',
     codeLabel: 'Verification code',
-    codeHint: 'Enter the 8-character code from the email.',
-    placeholder: '8-character code',
+    codeHint: `Enter the ${EMAIL_CODE_LENGTH}-character code from the email.`,
+    placeholder: `${EMAIL_CODE_LENGTH}-character code`,
   },
   {
     level: 'PHONE',
@@ -57,7 +62,7 @@ const CHANNELS: ChannelMeta[] = [
 ];
 
 const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
-  EMAIL: /^[A-Za-z0-9]{8}$/,
+  EMAIL: EMAIL_CODE_PATTERN,
   PHONE: CODE_SIX_DIGITS,
 };
 

@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
@@ -72,10 +73,10 @@ public class ContactChangeService {
     public void requestEmailChange(RegisteredUser user, String newEmail) {
         String target = newEmail.trim().toLowerCase(Locale.ROOT);
         if (target.equalsIgnoreCase(user.getData().email())) {
-            throw new InvalidContactChangeException("new email equals the current email");
+            throw new InvalidContactChangeException("New email equals the current email");
         }
         if (userRepository.findByEmail(target) != null) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         enforceCooldown(user.getId(), ContactChangeType.EMAIL_CHANGE);
 
@@ -84,7 +85,7 @@ public class ContactChangeService {
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
                 target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smsSender.send(user.getData().phone(),
-                "Shelter Map change-email code: " + code + " (valid " + codeTtlMinutes() + " min)");
+                AppInfo.APP_DISPLAY_NAME + " change-email code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
@@ -102,13 +103,13 @@ public class ContactChangeService {
         // and confirm (it was checked at request time only) — re-check, and
         // convert a DB-level race into the same 409 (P2 fix).
         if (userRepository.findByEmail(target) != null) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         user.changeEmail(target);
         try {
             userRepository.save(user);
         } catch (DataIntegrityViolationException race) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         changes.delete(change);
     }
@@ -124,10 +125,10 @@ public class ContactChangeService {
     public void requestPhoneChange(RegisteredUser user, String newPhone) {
         String target = PhoneNumbers.normalizeE164(newPhone);
         if (target.equals(user.getData().phone())) {
-            throw new InvalidContactChangeException("new phone equals the current phone");
+            throw new InvalidContactChangeException("New phone equals the current phone");
         }
         if (userRepository.findByPhone(target) != null) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         enforceCooldown(user.getId(), ContactChangeType.PHONE_CHANGE);
 
@@ -136,7 +137,7 @@ public class ContactChangeService {
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
                 target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smtpSender.send(user.getData().email(),
-                "Shelter Map change-phone code: " + code + " (valid " + codeTtlMinutes() + " min)");
+                AppInfo.APP_DISPLAY_NAME + " change-phone code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
@@ -150,13 +151,13 @@ public class ContactChangeService {
         // P2 fix: re-check the target (claimed between request and confirm?)
         // and convert a DB-level race into the same 409.
         if (userRepository.findByPhone(target) != null) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         user.changePhone(target);
         try {
             userRepository.save(user);
         } catch (DataIntegrityViolationException race) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         changes.delete(change);
     }
@@ -186,21 +187,21 @@ public class ContactChangeService {
 
     private PendingContactChange requirePending(Long userId, ContactChangeType type) {
         return changes.findByUserIdAndType(userId, type)
-                .orElseThrow(() -> new InvalidContactChangeException("no pending " + type + " request"));
+                .orElseThrow(() -> new InvalidContactChangeException("No pending " + type + " request"));
     }
 
     private void verifyCode(PendingContactChange change, String code) {
         Instant now = clock.instant();
         if (change.isExpired(now)) {
-            throw new InvalidContactChangeException("code expired, request a new one");
+            throw new InvalidContactChangeException("Code expired, request a new one");
         }
         if (change.isAttemptExhausted(properties.maxAttempts())) {
-            throw new InvalidContactChangeException("too many attempts, request a new code");
+            throw new InvalidContactChangeException("Too many attempts, request a new code");
         }
         if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
             change.registerFailedAttempt();
             changes.save(change);
-            throw new InvalidContactChangeException("invalid code");
+            throw new InvalidContactChangeException("Invalid code");
         }
     }
 

@@ -137,7 +137,7 @@ class ContactChangeServiceTest {
 
         assertThatThrownBy(() -> service.confirmEmailChange(user, codeFrom(sms.last().message())))
                 .isInstanceOf(InvalidContactChangeException.class)
-                .hasMessageContaining("too many attempts");
+                .hasMessageContaining("Too many attempts");
         // email unchanged
         assertThat(user.getData().email()).isEqualTo("mari@example.ee");
     }
@@ -219,7 +219,7 @@ class ContactChangeServiceTest {
 
         assertThatThrownBy(() -> service.confirmPhoneChange(user, codeFrom(smtp.last().message())))
                 .isInstanceOf(InvalidContactChangeException.class)
-                .hasMessageContaining("too many attempts");
+                .hasMessageContaining("Too many attempts");
         // phone unchanged
         assertThat(user.getData().phone()).isEqualTo("+37250000001");
     }

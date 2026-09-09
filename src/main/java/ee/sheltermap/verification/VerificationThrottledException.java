@@ -12,6 +12,6 @@ package ee.sheltermap.verification;
 public class VerificationThrottledException extends RuntimeException {
 
     public VerificationThrottledException() {
-        super("too many verification requests");
+        super("Too many verification requests");
     }
 }

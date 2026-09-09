@@ -292,6 +292,11 @@ SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--ap
 exporting them each launch — `.env` is gitignored and never committed. A `*.env.example`
 naming convention is reserved; shell-exported env vars take precedence over `.env` values.
 
+> **Secret-scan note (2026-09-09 de-slop pass):** a secret-pattern scan of the FULL git
+> history found zero committed credentials. The `a5e83db` commit message ("tested with
+> live twilio credentials") is historical wording only — its diff contains no secrets.
+> Live credentials live exclusively in the gitignored `.env`.
+
 | Variable                                                         | Default                                                                     | Purpose                                                                          |
 | ---------------------------------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`                         | `jdbc:postgresql://localhost:5432/sheltermap` / `sheltermap` / `sheltermap` | Datasource (dev-only defaults)                                                   |

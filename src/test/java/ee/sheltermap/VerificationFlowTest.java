@@ -90,10 +90,10 @@ class VerificationFlowTest {
         assertThat(verificationService.confirmVerification(user, VerificationLevel.PHONE, otp)).isTrue();
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
 
-        // == 4-5. Email verification: request token -> confirm ==
+        // == 4-5. Email verification: request code -> confirm ==
         verificationService.requestVerification(user, VerificationLevel.EMAIL);
         assertThat(smtp.getLastEmail()).isEqualTo("aleks@example.com");
-        assertThat(smtp.getLastMessage()).contains("token");
+        assertThat(smtp.getLastMessage()).contains("code");
         String token = smtp.getLastMessage().substring(smtp.getLastMessage().lastIndexOf(' ') + 1);
         assertThat(verificationService.confirmVerification(user, VerificationLevel.EMAIL, token)).isTrue();
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE, VerificationLevel.EMAIL);

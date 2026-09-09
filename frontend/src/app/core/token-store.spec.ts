@@ -16,7 +16,7 @@ describe('TokenStore', () => {
   });
 
   it('setTokens keeps the access token in memory and the refresh token in localStorage', () => {
-    store.setTokens('access-1', 'refresh-1', 900);
+    store.setTokens('access-1', 'refresh-1');
     expect(store.access()).toBe('access-1');
     expect(store.refresh()).toBe('refresh-1');
     expect(localStorage.getItem('os.refresh')).toBe('refresh-1');

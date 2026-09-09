@@ -25,31 +25,31 @@
 
 ## Frontend (one child, parallel with backend child)
 
-- [ ] K3: remove `_expiresIn` from `core/token-store.ts setTokens` +
+- [x] K3: remove `_expiresIn` from `core/token-store.ts setTokens` +
       update call sites (session/auth-store login/rotate) + specs
-- [ ] K4: `EMAIL_CODE_LENGTH = 8` in verify-page.ts with mirror comment;
+- [x] K4: `EMAIL_CODE_LENGTH = 8` in verify-page.ts with mirror comment;
       build the regex and both strings from it
-- [ ] C5: shelter-detail-page.html:4 → "No shelter with this ID exists
+- [x] C5: shelter-detail-page.html:4 → "No shelter with this ID exists
       — it may have been removed."
-- [ ] C7: map-page.html subtitle → identical to index.html meta
+- [x] C7: map-page.html subtitle → identical to index.html meta
       description (drop "every", match plural)
-- [ ] C6: pick ~6 of the 12 user-visible em-dash clauses (audit list:
+- [x] C6: pick ~6 of the 12 user-visible em-dash clauses (audit list:
       login-page.html:7,11; register-page.html:5,14;
       verify-page.html:4,29,85,101; account-page.html:17,47,172,257,316;
       contributions-panel.html:140; shelter-detail-page.html:4) and
       reword into two sentences/commas — meaning 1:1, no creative
       rewriting; leave ≥6 em-dashes in place (natural ones)
-- [ ] K5: dedup the 2 repeated strings in shared/error-copy.ts
+- [x] K5: dedup the 2 repeated strings in shared/error-copy.ts
       ("Please check your input and try again." ×2) + spec
-- [ ] accepted-items docs: one-line comment in shared/shelter-copy.ts
+- [x] accepted-items docs: one-line comment in shared/shelter-copy.ts
       documenting chip "User" as the short form of "User-submitted"
 
 ## Docs (either child may do — no overlap: assign to FE child)
 
-- [ ] K1: README security section note — `a5e83db` commit message is
+- [x] K1: README security section note — `a5e83db` commit message is
       historical; secret-pattern scan of full history found zero
       credentials; live credentials live in gitignored `.env`
-- [ ] `frontend/docs/agent/06-CONTEXT-SHELTER.md` term table: add the
+- [x] `frontend/docs/agent/06-CONTEXT-SHELTER.md` term table: add the
       chip short-form note (one line)
 
 ## Gates (orchestrator runs, not children)

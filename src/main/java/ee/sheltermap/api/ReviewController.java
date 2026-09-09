@@ -75,15 +75,15 @@ public class ReviewController {
     private RegisteredUser requireVerifiedRegisteredUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("authentication required");
+            throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);
         if (!(user instanceof RegisteredUser registered)) {
             // guests never reach here (401 first); admins are not "verified accounts"
-            throw new NotVerifiedException("reviews require a verified account");
+            throw new NotVerifiedException("Reviews require a verified account");
         }
         if (!registered.canWrite()) {
-            throw new NotVerifiedException("reviews require a verified account");
+            throw new NotVerifiedException("Reviews require a verified account");
         }
         return registered;
     }

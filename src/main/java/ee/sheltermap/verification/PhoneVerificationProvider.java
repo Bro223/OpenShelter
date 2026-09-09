@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
@@ -51,7 +52,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
         // as-registered. Lenient normalization never throws.
         String phone = PhoneNumbers.normalizeE164(user.getData().phone());
         String otp = String.format("%0" + OTP_DIGITS + "d", random.nextInt(1_000_000));
-        sender.send(phone, "Shelter Map OTP: " + otp);
+        sender.send(phone, AppInfo.APP_DISPLAY_NAME + " OTP: " + otp);
         return new PendingVerification(
                 user.getId(),
                 VerificationLevel.PHONE,

@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,10 +47,10 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setFrom(from);
             mail.setTo(email);
-            mail.setSubject("Shelter Map");
+            mail.setSubject(AppInfo.APP_DISPLAY_NAME);
             mail.setText(message);
             mailSender.send(mail);
-            log.info("SMTP e-mail sent to {} (subject 'Shelter Map')", maskEmail(email));
+            log.info("SMTP e-mail sent to {} (subject '{}')", maskEmail(email), AppInfo.APP_DISPLAY_NAME);
         } catch (MailException ex) {
             // Never surface delivery problems to callers: the API contract is
             // "reset/verify always succeeds" (anti-enumeration, no 500s).

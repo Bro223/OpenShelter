@@ -177,7 +177,7 @@ export class AuthStore {
     this.epoch += 1;
     this.pendingProfile = null; // discard any in-flight stale profile fetch
     this.clearProfile();
-    this.tokens.setTokens(pair.accessToken, pair.refreshToken, pair.expiresIn);
+    this.tokens.setTokens(pair.accessToken, pair.refreshToken);
     this.authenticated.set(true);
     await this.refreshProfile();
   }
@@ -325,7 +325,7 @@ export class AuthStore {
   /** Rotate via /auth/refresh and store the new pair. */
   private async rotate(refreshToken: string): Promise<void> {
     const pair = await this.authGateway.refresh(refreshToken);
-    this.tokens.setTokens(pair.accessToken, pair.refreshToken, pair.expiresIn);
+    this.tokens.setTokens(pair.accessToken, pair.refreshToken);
   }
 
   /**

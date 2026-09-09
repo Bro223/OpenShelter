@@ -124,14 +124,14 @@ const rows: Row[] = [
     message: 'name may not be blank',
     expected: 'name may not be blank',
   },
-  { status: 400, kind: 'profile', message: '', expected: 'Please check your input and try again.' },
+  { status: 400, kind: 'profile', message: '', expected: COPY.checkInput },
   {
     status: 400,
     kind: 'shelter',
     message: 'name may not be blank',
     expected: 'name may not be blank',
   },
-  { status: 400, kind: 'shelter', message: '', expected: 'Please check your input and try again.' },
+  { status: 400, kind: 'shelter', message: '', expected: COPY.checkInput },
 
   // ---- 409: every kind echoes the backend message, with a fixed fallback.
   ...KINDS.map((kind): Row => ({

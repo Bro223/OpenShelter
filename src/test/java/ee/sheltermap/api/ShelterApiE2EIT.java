@@ -95,7 +95,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
         verification.requestVerification(user, VerificationLevel.EMAIL);
 
         String message = smtp.last().message();
-        assertThat(message).contains("verification token: ");
+        assertThat(message).contains("verification code: ");
         String token = message.substring(message.lastIndexOf(' ') + 1);
 
         assertThat(verification.confirmVerification(user, VerificationLevel.EMAIL, token)).isTrue();
