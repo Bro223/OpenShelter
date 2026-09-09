@@ -17,7 +17,14 @@
         message="We could not load your profile — the session is still active."
       />
       <div class="panel-actions">
-        <button type="button" class="btn btn--ghost" (click)="retryProfile()">Retry</button>
+        <button
+          type="button"
+          class="btn btn--ghost"
+          (click)="retryProfile()"
+          [disabled]="retrying()"
+        >
+          {{ retrying() ? 'Retrying…' : 'Retry' }}
+        </button>
       </div>
     </div>
   } @else {
@@ -136,7 +143,7 @@
 
       @if (emailPhase() === 'done') {
         <p class="panel-copy">
-          Your email is now <strong>{{ newEmail.value }}</strong
+          Your email is now <strong>{{ auth.email() }}</strong
           >. The next time you sign in, use the new address.
         </p>
         <button type="button" class="btn btn--ghost" (click)="emailStartOver()">
@@ -145,6 +152,9 @@
       } @else {
         <div class="field">
           <label for="change-email-new">New email</label>
+          <!-- F5: the target locks in the code phase via the control's own
+               disabled state (emailSend) — FormControlDirective swallows a
+               [disabled] property binding, so the control state IS the DOM. -->
           <input
             id="change-email-new"
             type="email"
@@ -220,7 +230,7 @@
 
       @if (phonePhase() === 'done') {
         <p class="panel-copy">
-          Your phone is now <strong>{{ newPhone.value }}</strong
+          Your phone is now <strong>{{ auth.phone() }}</strong
           >.
         </p>
         <button type="button" class="btn btn--ghost" (click)="phoneStartOver()">
@@ -229,6 +239,7 @@
       } @else {
         <div class="field">
           <label for="change-phone-new">New phone</label>
+          <!-- F5: locked in the code phase via the control's disabled state (phoneSend). -->
           <input
             id="change-phone-new"
             type="tel"

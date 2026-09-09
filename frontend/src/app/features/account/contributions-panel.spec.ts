@@ -120,9 +120,9 @@ describe('ContributionsPanel', () => {
     account.myReviews.mockResolvedValue([REVIEW_ROW]);
     const { element } = await open();
 
-    // shelter row: name + rating/count
+    // shelter row: name + shared rating summary (W24)
     expect(element.textContent).toContain('Community Cellar');
-    expect(element.textContent).toContain('4.5 ★ (2 reviews)');
+    expect(element.textContent).toContain('★ 4.5 · 2 reviews');
     // review row: shelter link + comment
     const links = Array.from(element.querySelectorAll<HTMLAnchorElement>('a'));
     expect(links.some((a) => a.getAttribute('href') === '/shelters/7')).toBe(true);

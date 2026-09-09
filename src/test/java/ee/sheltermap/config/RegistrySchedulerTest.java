@@ -1,8 +1,11 @@
 package ee.sheltermap.config;
 
 import ee.sheltermap.app.InMemoryShelterRepository;
+import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.ingestion.ImportResult;
 import ee.sheltermap.ingestion.ShelterImportService;
+import ee.sheltermap.ingestion.ShelterRegistryClient;
+import ee.sheltermap.ingestion.RegistryShelterDto;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -32,7 +35,17 @@ class RegistrySchedulerTest {
 
         FakeImporter(ImportResult result) {
             super(
-                    () -> List.of(),                       // ShelterRegistryClient
+                    new ShelterRegistryClient() {        // ShelterRegistryClient
+                        @Override
+                        public ShelterSource source() {
+                            return ShelterSource.PAASETEAMET;
+                        }
+
+                        @Override
+                        public List<RegistryShelterDto> fetchAll() {
+                            return List.of();
+                        }
+                    },
                     dtos -> List.of(),                     // ShelterParser
                     new InMemoryShelterRepository(),       // ShelterRepository
                     Clock.fixed(NOW, ZoneOffset.UTC));     // Clock

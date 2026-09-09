@@ -1,4 +1,4 @@
-package ee.sheltermap.config;
+package ee.sheltermap.verification;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

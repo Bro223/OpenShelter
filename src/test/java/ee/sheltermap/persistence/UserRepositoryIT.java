@@ -60,6 +60,21 @@ class UserRepositoryIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void unchangedClaimsKeepTheirIdsAcrossASave() {
+        RegisteredUser user = saveUser(users);
+        VerificationClaim emailClaim = new VerificationClaim(
+                VerificationLevel.EMAIL, "dev", "mari@example.ee", Instant.now());
+        user.addVerification(emailClaim);
+        users.save(user);
+        long firstId = emailClaim.getId();
+
+        users.save(user); // nothing changed
+
+        assertThat(user.getId()).isNotNull();
+        assertThat(emailClaim.getId()).isEqualTo(firstId); // N10: no id churn
+    }
+
+    @Test
     void missingUserReturnsNull() {
         assertThat(users.findById(999_999L)).isNull();
     }

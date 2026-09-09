@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
-import ee.sheltermap.config.JwtProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import org.junit.jupiter.api.Test;
 

@@ -3,7 +3,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { AuthStore } from './auth-store';
+import { AuthStore } from '../session/auth-store';
 import { TokenStore } from './token-store';
 import { apiInterceptor } from './api-interceptor';
 
@@ -130,7 +130,7 @@ describe('apiInterceptor', () => {
     expect(body).toEqual({ ok: true });
   });
 
-  it('two parallel 401s share one refresh through the single-flight AuthStore', async () => {
+  it("two parallel 401s each trigger one refresh call, and both requests retry with the new token (dedup is AuthStore's job, proven in auth-store.spec)", async () => {
     fakeTokens.access.mockReturnValue('access-1');
     fakeAuth.refresh.mockResolvedValue(true);
     // access() is called twice per request (attach + retry) — keep returning a token.
@@ -150,7 +150,9 @@ describe('apiInterceptor', () => {
     httpMock.expectOne((r) => r.url.endsWith('/a')).flush({ a: 1 });
     httpMock.expectOne((r) => r.url.endsWith('/b')).flush({ b: 1 });
 
-    expect(fakeAuth.refresh).toHaveBeenCalledTimes(2); // single-flight dedupes in AuthStore
+    // The fake store does NOT dedupe — the interceptor calls refresh once
+    // per 401. Single-flight dedup itself is proven in auth-store.spec.ts.
+    expect(fakeAuth.refresh).toHaveBeenCalledTimes(2);
     expect(results).toEqual([{ a: 1 }, { b: 1 }]);
   });
 
@@ -183,5 +185,65 @@ describe('apiInterceptor', () => {
     expect(fakeAuth.refresh).not.toHaveBeenCalled();
     expect(error).toBeInstanceOf(HttpErrorResponse);
     expect((error as HttpErrorResponse).status).toBe(0);
+  });
+
+  it('a 401 from /account/profile is a BUSINESS error (wrong current password) — no refresh dance, propagates to the page (F2)', async () => {
+    fakeTokens.access.mockReturnValue('access-1');
+
+    let error: unknown;
+    http
+      .put('/account/profile', { name: 'N', nationalIdCode: 'x', currentPassword: 'typo' })
+      .subscribe({ error: (e) => (error = e) });
+
+    const req = httpMock.expectOne((r) => r.url.endsWith('/account/profile'));
+    // /account/profile is an authenticated endpoint — it DOES get the Bearer.
+    expect(req.request.headers.get('Authorization')).toBe('Bearer access-1');
+    req.flush(
+      {
+        timestamp: 't',
+        status: 401,
+        error: 'Unauthorized',
+        message: 'current password is incorrect',
+        path: '/account/profile',
+      },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+
+    // No wasted token rotation, no /login bounce — the account page renders
+    // the backend message (bannerMessage kind 'profile' echoes it).
+    expect(fakeAuth.refresh).not.toHaveBeenCalled();
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect((error as HttpErrorResponse).status).toBe(401);
+  });
+
+  it('a 401 on the POST-REFRESH RETRY redirects to /login?session=expired, rethrows, and does NOT loop (N3)', async () => {
+    fakeTokens.access.mockReturnValueOnce('access-1').mockReturnValue('access-2');
+    fakeAuth.refresh.mockResolvedValue(true);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+
+    let error: unknown;
+    http.get('/api/me').subscribe({ error: (e) => (error = e) });
+
+    const first = httpMock.expectOne((r) => r.url.endsWith('/api/me'));
+    expect(first.request.headers.get('Authorization')).toBe('Bearer access-1');
+    first.flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    await tick();
+    const retried = httpMock.expectOne((r) => r.url.endsWith('/api/me'));
+    expect(retried.request.headers.get('Authorization')).toBe('Bearer access-2');
+    // The freshly rotated token is ALSO rejected — the session is dead.
+    retried.flush({}, { status: 401, statusText: 'Unauthorized' });
+
+    await tick();
+
+    // The page gets its error state (the 401 is rethrown)…
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+    expect((error as HttpErrorResponse).status).toBe(401);
+    // …and the user is told why they land on login.
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { session: 'expired' } });
+    // No infinite loop: the retry bypasses this interceptor, so the
+    // post-refresh 401 never triggers a second refresh.
+    expect(fakeAuth.refresh).toHaveBeenCalledTimes(1);
   });
 });

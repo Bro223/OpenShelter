@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { toApiError } from '../../core/api-error';
 import type { RegisterRequest } from '../../core/models';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
 
@@ -41,6 +42,12 @@ export class RegisterPage {
   protected readonly error = signal<string | null>(null);
   /** 201 — account created, no session yet. */
   protected readonly registered = signal(false);
+  /**
+   * Reviewer N16: the 409 body names the duplicated field ("an account with
+   * this email/phone already exists") — surface it INLINE on that field.
+   * A 409 without a recognizable field keeps the banner fallback.
+   */
+  protected readonly duplicate = signal<{ field: 'email' | 'phone'; message: string } | null>(null);
 
   async submit(): Promise<void> {
     if (this.form.invalid) {
@@ -49,6 +56,7 @@ export class RegisterPage {
     }
     this.pending.set(true);
     this.error.set(null);
+    this.duplicate.set(null);
     const values = this.form.getRawValue();
     const request: RegisterRequest = {
       name: values.name.trim(),
@@ -61,7 +69,18 @@ export class RegisterPage {
       await this.store.register(request);
       this.registered.set(true);
     } catch (error) {
-      this.error.set(bannerMessage(error, 'register'));
+      const api = toApiError(error);
+      const field =
+        api.status === 409 && /email/i.test(api.message)
+          ? ('email' as const)
+          : api.status === 409 && /phone/i.test(api.message)
+            ? ('phone' as const)
+            : null;
+      if (field) {
+        this.duplicate.set({ field, message: api.message });
+      } else {
+        this.error.set(bannerMessage(error, 'register'));
+      }
     } finally {
       this.pending.set(false);
     }

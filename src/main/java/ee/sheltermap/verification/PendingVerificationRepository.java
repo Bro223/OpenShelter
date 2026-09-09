@@ -2,6 +2,7 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.VerificationLevel;
 
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -12,8 +13,13 @@ public interface PendingVerificationRepository {
 
     void save(PendingVerification pending);
 
-    /** The still-valid (not expired) pending verification for user+level, if any. */
-    Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level);
+    /**
+     * The still-valid (not expired) pending verification for user+level, if any.
+     *
+     * @param now the reference "now" (W17: callers pass their injected clock,
+     *            never a wall-clock read inside the repository)
+     */
+    Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level, Instant now);
 
     void delete(PendingVerification pending);
 }

@@ -15,7 +15,7 @@
  */
 import { inject } from '@angular/core';
 import { Router, type CanActivateFn, type UrlTree } from '@angular/router';
-import { AuthStore } from './auth-store';
+import { AuthStore } from '../session/auth-store';
 
 /** Where an authenticated guest is sent (the map; real page lands in M4). */
 export const HOME_PATH = '/map';

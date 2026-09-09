@@ -46,24 +46,27 @@ milestone manual reviews used (backend `:8080` + frontend `:5173`).
 ```
 src/
 ├── app/
-│   ├── core/          # ApiClient, ApiError, TokenStore, AuthStore, guards (auth/guest/verified),
-│   │                  #   titleGuard (route titles), models
+│   ├── core/          # ApiClient, ApiError, TokenStore, guards (auth/guest/verified),
+│   │                  #   ApiInterceptor, titleGuard (route titles), models
+│   ├── session/       # AuthStore (session state + REAL profile from /account/me)
 │   ├── gateways/      # auth / verify / account / shelter / review — HTTP, no UI
 │   ├── features/
 │   │   ├── auth/      # login, register, reset (guestGuard)
-│   │   ├── account/   # verify (cross-channel), contact change
+│   │   ├── account/   # verify (cross-channel), contact change, ContributionsPanel (M8)
 │   │   ├── map/       # browse: Leaflet map + list + source filter (default route)
-│   │   ├── shelter/   # detail + reviews (review-form, rating-stars), submit
-│   │   └── contributions/  # My contributions panel (M8) — embedded in the account page
-│   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent, error copy
+│   │   └── shelter/   # detail + reviews (review-form), submit
+│   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent,
+│   │                  #   LoadingIndicator (real component, role=status), RatingStars,
+│   │                  #   LeafletService, error-copy, form-helpers, shelter-copy
 │   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
 └── styles.scss        # design tokens (the single source of truth) + global rules
 ```
 
-Dependency rule (enforced by review, not tooling): `features → gateways → core`;
-`shared` is UI-only; no `features ↔ features` imports.
+Dependency rule (enforced by review, not tooling): `features` → `gateways` → `core`; `features`
+also reach `shared/` and `session/` directly; `shared` is UI + cross-feature helpers; no
+`features ↔ features` imports (verified: zero cross-feature imports).
 
 ## Design tokens (M6)
 
@@ -119,7 +122,9 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   cross-shelter list instead — `GET /account/reviews/mine`, consumed by the account page's
   "My contributions" panel.
 - **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
-  (≈300). `GET /api/shelters/nearest` exists but is not wired.
+  (≈300). Nearest-neighbor/bbox search (`GET /api/shelters/nearest`-style, would need a
+  GeoService + PostGIS GIST index) is documented as deferred on the backend — **no such
+  endpoint exists**; the UI has no nearest feature either.
 - **i18n** — English-only strings; `titleGuard` builds "<Page> — OpenShelter" in code.
 - **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
 - **httpOnly refresh cookie** — see [token storage](#token-storage-tradeoff).

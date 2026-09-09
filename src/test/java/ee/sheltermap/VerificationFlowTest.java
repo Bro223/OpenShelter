@@ -4,7 +4,7 @@ import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserService;
-import ee.sheltermap.config.VerificationProperties;
+import ee.sheltermap.verification.VerificationProperties;
 import ee.sheltermap.domain.Capability;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.VerificationPolicy;
@@ -59,8 +59,7 @@ class VerificationFlowTest {
         shelters = new InMemoryShelterRepository();
 
         userService = new UserService(users);
-        // anchored at real now (the in-memory pending repo checks Instant.now() for expiry)
-        Clock clock = Clock.systemUTC();
+        Clock clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));

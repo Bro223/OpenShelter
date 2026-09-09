@@ -27,7 +27,7 @@ This task pack covers the **backend only**.
 ## 3. Source of truth
 
 1. **The UML files are the contract.** Before writing any code, read the puml files listed in the
-   step (`docs/uml/01-user-verification.puml` … `05-shelter-api.puml`). They define the classes,
+   step (`../01-user-verification.puml` … `../05-shelter-api.puml`). They define the classes,
    method signatures, package layout, and relationships.
 2. The **context files** (`02-…CONTEXT-*.md`) add decisions and rationale from the design sessions.
 3. If a context file and a puml file disagree, **the puml wins** — and report the discrepancy in
@@ -38,13 +38,13 @@ This task pack covers the **backend only**.
 | Package | Contents | Source diagram |
 |---|---|---|
 | `ee.sheltermap.domain` | `User` hierarchy, `VerificationClaim`, `VerificationPolicy`/`Rules`/`Capability`, `Shelter`, `ShelterReview`, enums, value records | `01` |
-| `ee.sheltermap.app` | `UserService`, `ShelterService`, repository **interfaces** (`UserRepository`, `ShelterRepository`, `ShelterReviewRepository`) | `01` |
-| `ee.sheltermap.verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification` | `01` |
-| `ee.sheltermap.auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `AuthController`, DTOs, repo interfaces, `RateLimiter` | `03` |
-| `ee.sheltermap.ingestion` | `ShelterRegistryClient` + impls, `ShelterParser`, `ShelterImportService`, `ImportResult` | `04` |
+| `ee.sheltermap.app` | `UserService`, `ShelterService`, repository **interfaces** (`UserRepository`, `ShelterRepository`, `ShelterReviewRepository`), `NotVerifiedException` (moved here from `api/` in the 2026-09-08 arch pass — thrown by the write paths for unverified users) | `01` |
+| `ee.sheltermap.verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties` | `01` |
+| `ee.sheltermap.auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `JwtProperties`, `ContactChangeProperties`, DTOs, repo interfaces, `RateLimiter` | `03` |
+| `ee.sheltermap.ingestion` | `ShelterRegistryClient` + impls, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties` | `04` |
 | `ee.sheltermap.api` | `ShelterController`, `ReviewController`, `ShelterQueryService`, `ShelterReviewService`, DTOs, `ErrorResponse` | `05` |
 | `ee.sheltermap.persistence` | Spring Data JPA implementations of the repository interfaces (added in Step 3) | — |
-| `ee.sheltermap.config` | Spring configuration, security filter chain | — |
+| `ee.sheltermap.config` | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler`, `RegistryRunConfig`. It no longer holds the context `*Properties` records — those moved with their contexts (`JwtProperties`/`ContactChangeProperties` → `auth`, `RegistryProperties` → `ingestion`, `VerificationProperties` → `verification`) in the 2026-09-08 arch pass | — |
 
 **Dependency rule (never break it):** `api`/`auth`/`ingestion` → `app`/`verification` → `domain`.
 `domain` depends on nothing. No package may create a cycle. Cross-package access goes through

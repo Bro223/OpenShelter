@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.UserRepository;
@@ -59,9 +60,15 @@ public class ShelterReviewService {
             reviewRepository.save(created);
             return new SaveResult(created, true);
         } catch (DataIntegrityViolationException race) {
-            // Two concurrent adds raced: the other request's insert won the
-            // unique (shelter_id, user_id) constraint. Re-read and update
-            // instead of failing with a 500 (hardening pass).
+            // Two different DIVEs can reach here (W20b):
+            //  (1) the unique (shelter_id, user_id) index — a concurrent add
+            //      raced; re-read and update in place instead of failing 500.
+            //  (2) the shelters foreign key — the shelter was deleted between
+            //      requireShelter() and the insert; that is a 404, not a race.
+            // Distinguished by observable state, not by parsing the SQL error.
+            if (shelterRepository.findById(shelterId).isEmpty()) {
+                throw new ShelterNotFoundException(shelterId);
+            }
             ShelterReview loser = reviewRepository
                     .findByShelterIdAndUserId(shelterId, user.getId())
                     .orElseThrow(() -> new IllegalStateException("concurrent review insert vanished", race));

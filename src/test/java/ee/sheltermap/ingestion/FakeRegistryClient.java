@@ -1,5 +1,7 @@
 package ee.sheltermap.ingestion;
 
+import ee.sheltermap.domain.ShelterSource;
+
 import java.util.List;
 
 /** Configurable {@link ShelterRegistryClient} for import-service tests. */
@@ -24,6 +26,11 @@ class FakeRegistryClient implements ShelterRegistryClient {
     /** A client whose registry is unreachable. */
     static FakeRegistryClient down() {
         return new FakeRegistryClient(List.of(), true);
+    }
+
+    @Override
+    public ShelterSource source() {
+        return ShelterSource.PAASETEAMET;
     }
 
     @Override

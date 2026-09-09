@@ -38,16 +38,33 @@
 | `GET /api/shelters/{id}` | — | `ShelterDto` or 404 |
 | `GET /api/shelters/{shelterId}/reviews` | — | `ShelterReviewDto[]` |
 
-### Auth (`/auth`) — rate-limited per IP (and per contact for login/reset)
+### Shelter writes & author-scoped (`/api/shelters`) — JWT required
 
 | Method + path | Body | Success | Errors |
 |---|---|---|---|
-| `POST /auth/register` | `RegisterRequest` | 201, empty body | 400, 409 (dup email/phone) |
-| `POST /auth/login` | `LoginRequest` | 200 `TokenResponse` | 401 generic, 429 |
+| `POST /api/shelters` | `CreateShelterRequest` | 201 + `Location` + `ShelterDto` (stored `ACTIVE`/`USER`, `created_by` = caller) | 400 (bbox/fields), 403 (not verified) |
+| `GET /api/shelters/mine` | — | 200 `ShelterDto[]` (the caller's USER rows only — NOT part of the public GETs) | 401 |
+| `PUT /api/shelters/{id}` | `UpdateShelterRequest` (five writable fields, same constraints as create; bbox re-checked) | 200 updated `ShelterDto` | 400 (bbox/fields), 401, 403 (not the author — registry/legacy rows unmanageable by anyone), 404 |
+| `DELETE /api/shelters/{id}` | — | 204 (the shelter's reviews cascade) | 401, 403, 404 |
+
+### Review writes — JWT + verified account
+
+| Method + path | Body | Success | Errors |
+|---|---|---|---|
+| `POST /api/shelters/{shelterId}/reviews` | `ReviewRequest` | 201 (created) or 200 (upsert adopted an existing review) + `ShelterReviewDto` | 400 (bounds), 403 (not verified), 404 |
+| `PUT /api/shelters/{shelterId}/reviews/mine` | `ReviewRequest` | 200 `ShelterReviewDto` | 400, 403 (not the author), 404 |
+| `DELETE /api/shelters/{shelterId}/reviews/mine` | — | 204 | 403, 404 |
+
+### Auth (`/auth`) — all six public (permitAll); five token buckets
+
+| Method + path | Body | Success | Errors |
+|---|---|---|---|
+| `POST /auth/register` | `RegisterRequest` | 201, empty body | 400, 409 (dup email/phone), 429 (per-IP bucket) |
+| `POST /auth/login` | `LoginRequest` | 200 `TokenResponse` | 401 generic, 429 (per-(IP, contact) **and** per-IP aggregate buckets — both must pass) |
 | `POST /auth/refresh` | `{refreshToken}` | 200 `TokenResponse` (rotated pair) | 401 (revoked/expired) |
 | `POST /auth/logout` | `{refreshToken}` | 204 | 400 |
-| `POST /auth/password-reset/request` | `{email}` | 200 always (anti-enumeration; a 6-digit code is e-mailed to a registered account) | 429 |
-| `POST /auth/password-reset/confirm` | `{email, code, newPassword}` | 200 | 400 generic (wrong/expired/used/over-limit/unknown email — indistinguishable) |
+| `POST /auth/password-reset/request` | `{email}` | 200 always (anti-enumeration; a 6-digit code is e-mailed to a registered account; re-issues throttled per user: 60 s cooldown + 5/UTC-day cap, silent no-op) | 429 (per-(IP, email) bucket) |
+| `POST /auth/password-reset/confirm` | `{email, code, newPassword}` | 200 | 400 generic (wrong/expired/used/over-limit/unknown email — indistinguishable), 429 (own per-(IP, email) anti-guess bucket — a 6-digit code must not be brute-forceable) |
 
 > Refresh **rotates**: every refresh issues a new pair and invalidates the old refresh token.
 > Password reset revokes **all** refresh tokens for the user.
@@ -73,6 +90,14 @@
 
 > Contact change does **not** revoke sessions (only password reset does).
 
+### Account profile & my data (`/account`) — JWT required, user resolved from the token
+
+| Method + path | Body | Success | Errors |
+|---|---|---|---|
+| `GET /account/me` | — | 200 `MeResponse` — the REAL profile + REAL verified claims (the frontend's single source of truth for name/email/phone/nationalId/levels) | 401 |
+| `PUT /account/profile` | `ProfileUpdateRequest` | 200 fresh `MeResponse` (current password verified against the stored hash BEFORE any write) | 400 (blank name/ID), 401 (wrong current password — nothing updated), 401 unauthenticated |
+| `GET /account/reviews/mine` | — | 200 `MyReviewDto[]` — the caller's reviews across ALL shelters (shelterId + shelterName for navigation; empty list when none) | 401 |
+
 ## Request models (TS mirrors)
 
 ```ts
@@ -86,7 +111,9 @@ interface VerifyConfirmRequest { level: 'EMAIL' | 'PHONE' | 'SMART_ID'; code: st
 interface ChangeEmailRequest { newEmail: string; }
 interface ChangePhoneRequest { newPhone: string; }
 interface ConfirmChangeRequest { code: string; }
+interface ProfileUpdateRequest { name: string; nationalIdCode: string; currentPassword: string; }
 interface CreateShelterRequest { name: string; latitude: number; longitude: number; description?: string; capacity?: number; }
+interface UpdateShelterRequest { name: string; latitude: number; longitude: number; description?: string; capacity?: number; }
 interface ReviewRequest { rating: number; comment?: string; }             // 1..5, ≤500 chars
 ```
 
@@ -94,6 +121,11 @@ interface ReviewRequest { rating: number; comment?: string; }             // 1..
 
 ```ts
 interface TokenResponse { accessToken: string; refreshToken: string; expiresIn: number; }
+
+interface MeResponse {
+  name: string; email: string; phone: string; nationalIdCode: string;
+  levels: VerificationLevel[];          // REAL verified claims, enum order (empty = none)
+}
 
 interface ShelterDto {
   id: number; name: string; address: string;
@@ -110,6 +142,13 @@ interface ShelterDto {
 interface ShelterReviewDto {
   id: number; authorName: string; rating: number;  // 1..5
   comment: string | null; createdAt: string;
+}
+
+interface MyReviewDto {                   // one row of GET /account/reviews/mine
+  shelterId: number; shelterName: string;
+  rating: number;                          // 1..5
+  comment: string | null;
+  createdAt: string; updatedAt: string;    // ISO-8601
 }
 
 interface ApiError { timestamp: string; status: number; error: string; message: string; path: string; }

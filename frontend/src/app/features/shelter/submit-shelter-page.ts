@@ -21,28 +21,14 @@ import { toApiError } from '../../core/api-error';
 import type { CreateShelterRequest } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { ESTONIA_CENTER, ESTONIA_ZOOM, inEstonia, LeafletService } from '../map/leaflet-service';
+import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
+import {
+  ESTONIA_CENTER,
+  ESTONIA_ZOOM,
+  inEstonia,
+  LeafletService,
+} from '../../shared/leaflet-service';
 import { BannerComponent } from '../../shared/banner.component';
-
-/** The capacity bounds (backend CreateShelterRequest: 1..100_000). */
-const CAPACITY_MIN = 1;
-const CAPACITY_MAX = 100_000;
-
-/**
- * Read a coordinate out of the location controls. The controls are typed
- * number|null because Angular's NumberValueAccessor (input[type=number])
- * stores a number for a filled input and null for an empty one.
- */
-function readCoordinate(value: number | string | null): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value !== 'string' || value.trim() === '') {
-    return null;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
 
 /**
  * Group validator for the location pick: both coordinates must be present
@@ -60,22 +46,6 @@ function locationValidator(control: AbstractControl): ValidationErrors | null {
     return { location: 'missing' };
   }
   return inEstonia(lat, lng) ? null : { location: 'outside' };
-}
-
-/** Capacity is optional (null); when present it must be an integer in 1..100_000. */
-function capacityValidator(control: AbstractControl): ValidationErrors | null {
-  const value = control.value;
-  if (value === null || value === undefined) {
-    return null; // optional — empty input
-  }
-  if (typeof value === 'string' && value.trim() === '') {
-    return null;
-  }
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isInteger(numeric) || numeric < CAPACITY_MIN || numeric > CAPACITY_MAX) {
-    return { capacity: true };
-  }
-  return null;
 }
 
 /**
@@ -113,7 +83,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
           Validators.maxLength(200),
           // Whitespace-only names pass Validators.required — mirror the
           // backend @NotBlank (reviewer N3) so we never POST "   ".
-          (c) => (String(c.value ?? '').trim() === '' ? { blank: true } : null),
+          nameBlankValidator,
         ],
       }),
       description: new FormControl('', {

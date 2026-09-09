@@ -1,6 +1,6 @@
 # Context — Domain Core
 
-**Source diagram:** `docs/uml/01-user-verification.puml` (package `domain`)
+**Source diagram:** `../01-user-verification.puml` (package `domain`)
 **Used by steps:** 1 (create), 3 (persist). Referenced by: verification, auth, ingestion, api.
 
 ## Purpose

@@ -3,13 +3,9 @@ package ee.sheltermap.api;
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.RecordingSmtpSender;
-import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
-import ee.sheltermap.verification.EmailVerificationProvider;
-import ee.sheltermap.verification.InMemoryVerificationSendLog;
-import ee.sheltermap.verification.PendingVerificationRepository;
 import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,9 +21,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Clock;
-import java.util.Map;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -40,9 +33,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>The whole flow runs over real HTTP (MockMvc) with the real security
  * chain, JWT filter, services and Postgres. Verification is driven through
- * {@link VerificationService} — the same service-level path the app uses —
- * with the e-mail channel stubbed to the capturing dev sender so the token
- * can be read out of the "sent" message.
+ * the REAL {@link VerificationService} bean (W18: the hand-built service with
+ * a throwaway in-memory send log is gone) — the e-mail channel is still
+ * stubbed to the capturing dev sender via the {@code @Primary} bean below,
+ * so the token can be read out of the "sent" message. The durable send log
+ * is isolated per JVM run by {@link AbstractPersistenceIT}.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -63,7 +58,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
     UserRepository users;
 
     @Autowired
-    PendingVerificationRepository pendingVerifications;
+    VerificationService verification;
 
     @Autowired
     RecordingSmtpSender smtp;
@@ -91,16 +86,12 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isCreated());
 
-        // 2. verify via the dev (capturing) e-mail sender
+        // 2. verify via the dev (capturing) e-mail sender — real service bean,
+        // real JPA pending repository, real file send log (temp path per run)
         RegisteredUser user = users.findByEmail("e2e@example.ee");
         assertThat(user).isNotNull();
         assertThat(user.canWrite()).isFalse(); // not verified yet
 
-        VerificationService verification = new VerificationService(
-                Map.of(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, Clock.systemUTC())),
-                pendingVerifications,
-                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"),
-                Clock.systemUTC());
         verification.requestVerification(user, VerificationLevel.EMAIL);
 
         String message = smtp.last().message();

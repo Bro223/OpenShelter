@@ -1,10 +1,14 @@
 package ee.sheltermap.ingestion;
 
-import ee.sheltermap.config.RegistryProperties;
+import ee.sheltermap.domain.ShelterSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -35,6 +39,8 @@ import java.util.List;
 @ConditionalOnProperty(name = "app.registry.client", havingValue = "paasteamet", matchIfMissing = true)
 public class PaasteametRegistryClient implements ShelterRegistryClient {
 
+    private static final Logger log = LoggerFactory.getLogger(PaasteametRegistryClient.class);
+
     /** Backoff base: 100 ms, doubling per attempt (100, 200, 400 …). */
     private static final long BACKOFF_BASE_MILLIS = 100;
     private static final int MAX_PAGES = 10_000;
@@ -64,9 +70,15 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
     }
 
     @Override
+    public ShelterSource source() {
+        return ShelterSource.PAASETEAMET;
+    }
+
+    @Override
     public List<RegistryShelterDto> fetchAll() {
         int startIndex = 0;
         List<RegistryShelterDto> all = new ArrayList<>();
+        int dropped = 0;
         while (true) {
             WfsFeatureCollection page = fetchPage(startIndex);
             List<WfsFeature> features = page.features() == null ? List.of() : page.features();
@@ -74,6 +86,8 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                 RegistryShelterDto dto = toDto(feature);
                 if (dto != null) {
                     all.add(dto);
+                } else {
+                    dropped++; // client-level drop — counted, never silent (B7d)
                 }
             }
             if (features.size() < pageSize) {
@@ -84,6 +98,12 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
             }
             sleep(politenessDelay); // politeness between pages
             startIndex += pageSize;
+        }
+        if (dropped > 0) {
+            // Not visible in the import's skipped count (the parser never saw
+            // these rows) — the log is the only record of the loss.
+            log.warn("Paasteamet registry returned {} unusable feature(s) this run (missing "
+                    + "geometry/properties or non-finite coordinates) — dropped", dropped);
         }
         return all;
     }
@@ -105,15 +125,39 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                         .retrieve()
                         .body(WfsFeatureCollection.class);
             } catch (RestClientException e) {
-                if (attempt >= maxRetries) {
+                // B7d: retry ONLY transient failures — network problems and
+                // 5xx responses. A deterministic 4xx (bad request, auth,
+                // gone…) will never succeed on retry, so fail fast instead
+                // of burning the whole retry budget and reporting
+                // "registry unreachable".
+                if (!isTransient(e) || attempt >= maxRetries) {
                     throw new RegistryUnavailableException(
-                            "Päästeamet registry unreachable after " + (maxRetries + 1)
-                                    + " attempts (startIndex " + startIndex + ")", e);
+                            isTransient(e)
+                                    ? "Päästeamet registry unreachable after " + (maxRetries + 1)
+                                            + " attempts (startIndex " + startIndex + ")"
+                                    : "Päästeamet registry failed deterministically, no retry "
+                                            + "(startIndex " + startIndex + "): " + e.getMessage(),
+                            e);
                 }
                 sleep(Duration.ofMillis(BACKOFF_BASE_MILLIS << attempt)); // exponential backoff
                 attempt++;
             }
         }
+    }
+
+    /**
+     * Transient = worth a retry: network-level failures
+     * ({@link ResourceAccessException}) and server-side errors (5xx).
+     * Everything else (4xx, unparseable 200 bodies…) is deterministic.
+     */
+    private static boolean isTransient(RestClientException e) {
+        if (e instanceof ResourceAccessException) {
+            return true;
+        }
+        if (e instanceof RestClientResponseException response) {
+            return response.getStatusCode().is5xxServerError();
+        }
+        return false;
     }
 
     /** Maps one WFS feature to the neutral DTO; {@code null} when unusable. */

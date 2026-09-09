@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidContactChangeException;
@@ -11,13 +12,18 @@ import ee.sheltermap.auth.RateLimitExceededException;
 import ee.sheltermap.auth.VerificationFailedException;
 import ee.sheltermap.verification.AlreadyVerifiedException;
 import ee.sheltermap.verification.VerificationThrottledException;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.hibernate.StaleStateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -95,6 +101,68 @@ public class ApiErrorHandler {
             InvalidProfilePasswordException.class})
     ResponseEntity<ErrorResponse> unauthorized(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+    }
+
+    /**
+     * A value that slipped past bean validation and hit a DB integrity
+     * constraint (oversized column, uniqueness, null, ...) is a client input
+     * problem → 400. The message is deliberately field-neutral: echoing the
+     * column/constraint back to the client leaks schema. NOTE: duplicate
+     * <em>registration</em> is pre-converted to 409 inside
+     * {@code AuthService.register} (its {@code DataIntegrityViolationException}
+     * is caught service-side and becomes a {@code DuplicateAccountException}),
+     * so it never reaches this handler — 409 stays 409.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ErrorResponse> dataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Data integrity violation on {} {}", request.getMethod(), request.getRequestURI(), ex);
+        return error(HttpStatus.BAD_REQUEST, "request failed due to invalid input", request);
+    }
+
+    /**
+     * Optimistic-lock conflict on a concurrent update (@Version, V8
+     * {@code shelters.version}) → 409 so the client can re-read and retry.
+     * Both the raw JPA exception (thrown at commit) and the Spring
+     * DataAccessException form (thrown inside a repository call) are mapped.
+     */
+    @ExceptionHandler({
+            OptimisticLockException.class,
+            OptimisticLockingFailureException.class})
+    ResponseEntity<ErrorResponse> optimisticLock(Exception ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "the resource changed under you; reload and retry", request);
+    }
+
+    /**
+     * Commit-time optimistic-lock failure (in-place mutation nuance): with
+     * {@code JpaShelterRepository.save} updating a managed entity in place,
+     * a version-mismatched UPDATE can fail at the FLUSH during transaction
+     * commit — outside the repository call path where Spring would already
+     * translate it — and surfaces as a {@link TransactionSystemException}
+     * wrapping Hibernate's {@link StaleStateException}. Same client-visible
+     * outcome as the direct OLE shapes above → 409. Any OTHER commit-time
+     * system failure is not a client conflict and falls back to the 500
+     * handler. (TransactionSystemException is a sibling of
+     * DataIntegrityViolationException, so this handler cannot shadow the
+     * 400 mapping.)
+     */
+    @ExceptionHandler(TransactionSystemException.class)
+    ResponseEntity<ErrorResponse> transactionSystem(TransactionSystemException ex, HttpServletRequest request) {
+        if (containsStaleStateException(ex)) {
+            return error(HttpStatus.CONFLICT, "the resource changed under you; reload and retry", request);
+        }
+        return internal(ex, request);
+    }
+
+    /** Cycle-safe cause-chain walk for Hibernate's stale-state failures. */
+    private static boolean containsStaleStateException(Throwable throwable) {
+        for (Throwable t = throwable; t != null; ) {
+            if (t instanceof StaleStateException) {
+                return true;
+            }
+            Throwable cause = t.getCause();
+            t = (cause != null && cause != t) ? cause : null;
+        }
+        return false;
     }
 
     @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class})

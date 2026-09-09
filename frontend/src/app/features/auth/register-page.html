@@ -32,7 +32,9 @@
           autocomplete="email"
           placeholder="you@example.ee"
         />
-        @if (form.controls.email.touched && form.controls.email.invalid) {
+        @if (duplicate()?.field === 'email') {
+          <p class="field-error">{{ duplicate()?.message }}</p>
+        } @else if (form.controls.email.touched && form.controls.email.invalid) {
           <p class="field-error">A valid email is required.</p>
         }
       </div>
@@ -46,7 +48,9 @@
           autocomplete="tel"
           placeholder="+3725… or 5xxxxxxx"
         />
-        @if (form.controls.phone.touched && form.controls.phone.invalid) {
+        @if (duplicate()?.field === 'phone') {
+          <p class="field-error">{{ duplicate()?.message }}</p>
+        } @else if (form.controls.phone.touched && form.controls.phone.invalid) {
           <p class="field-error">Phone is required.</p>
         }
       </div>

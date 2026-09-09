@@ -27,11 +27,15 @@ public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     @Override
-    public void revoke(String tokenHash) {
+    public int revoke(String tokenHash) {
+        // Mirrors the conditional UPDATE semantics (S4): claims revocation of
+        // an UNKNOWN or ALREADY-REVOKED token claim 0 rows.
         RefreshTokenRecord record = store.get(tokenHash);
-        if (record != null) {
-            store.put(tokenHash, new RefreshTokenRecord(record.userId(), record.tokenHash(), record.expiresAt(), clock.instant()));
+        if (record == null || record.revokedAt() != null) {
+            return 0;
         }
+        store.put(tokenHash, new RefreshTokenRecord(record.userId(), record.tokenHash(), record.expiresAt(), clock.instant()));
+        return 1;
     }
 
     @Override
@@ -40,6 +44,14 @@ public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
                 record.userId().equals(userId) && record.revokedAt() == null
                         ? new RefreshTokenRecord(record.userId(), record.tokenHash(), record.expiresAt(), clock.instant())
                         : record);
+    }
+
+    @Override
+    public int countActiveByUserId(Long userId) {
+        return (int) store.values().stream()
+                .filter(record -> record.userId().equals(userId))
+                .filter(record -> record.revokedAt() == null)
+                .count();
     }
 
     public List<RefreshTokenRecord> all() {

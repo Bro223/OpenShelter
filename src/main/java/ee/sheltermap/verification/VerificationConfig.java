@@ -1,6 +1,5 @@
 package ee.sheltermap.verification;
 
-import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

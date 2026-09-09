@@ -173,4 +173,42 @@ class ShelterImportServiceTest {
         assertThat(result.removed()).isZero();
         assertThat(repo.findAll()).hasSize(1);
     }
+
+    @Test
+    void oversizedRowsAreSkippedAndCountedWithoutAbortingTheImport() {
+        // a row that fits + rows over the column limits (address 513 > 512,
+        // name 256 > 255) + one valid row that must still be imported
+        ImportResult result = service(FakeRegistryClient.returning(
+                dto("PK-1", "A", 59.4, 24.7),
+                oversizedDto("PK-2", "A", "x".repeat(513)),
+                oversizedDto("PK-3", "y".repeat(256), null),
+                dto("PK-4", "B", 58.3, 26.7))).importFromRegistry();
+
+        assertThat(result.created()).isEqualTo(2);
+        assertThat(result.skipped()).isEqualTo(2);
+        assertThat(result.failed()).isZero();
+        assertThat(repo.findAll()).extracting(Shelter::getExternalId)
+                .containsExactlyInAnyOrder("PK-1", "PK-4");
+    }
+
+    @Test
+    void oversizedRowKeepsItsLocalRowFromDelisting() {
+        // the registry still serves PK-1 (with an oversized address) — the
+        // local row must stay in the keep-list and NOT be delisted
+        repo.save(registryShelter("PK-1", "A"));
+
+        ImportResult result = service(FakeRegistryClient.returning(
+                oversizedDto("PK-1", "A", "x".repeat(513)))).importFromRegistry();
+
+        assertThat(result.updated()).isZero();
+        assertThat(result.created()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.removed()).isZero();
+        assertThat(repo.findAll()).hasSize(1);
+    }
+
+    private static RegistryShelterDto oversizedDto(String id, String name, String address) {
+        return new RegistryShelterDto(id, name, address, 59.4, 24.7, 100, true,
+                "Harju maakond", "Tallinn", "02.07.2026", "SMIT. Päästeameti avaandmed");
+    }
 }

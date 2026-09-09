@@ -21,11 +21,18 @@ public class PasswordResetTokenEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "token_hash", nullable = false, unique = true, length = 64)
+    // Not unique since V8: at most one ACTIVE code per user is enforced by
+    // the service (delete-then-insert); used/expired history rows may share
+    // a hash with other users' rows (6-digit codes, hashed at rest).
+    @Column(name = "token_hash", nullable = false, length = 64)
     private String tokenHash;
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
+
+    /** V8: creation time — anchors the rotation cooldown + daily cap (S1b). */
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
 
     @Column(name = "used_at")
     private Instant usedAt;
@@ -63,6 +70,14 @@ public class PasswordResetTokenEntity {
 
     public void setExpiresAt(Instant expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 
     public Instant getUsedAt() {

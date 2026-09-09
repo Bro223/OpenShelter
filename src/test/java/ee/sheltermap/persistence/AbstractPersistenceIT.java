@@ -2,7 +2,9 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -98,5 +100,21 @@ public abstract class AbstractPersistenceIT {
         RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
         users.save(user);
         return user;
+    }
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * Wipes every table — for the ITs that are DELIBERATELY not
+     * {@code @Transactional} (race tests: the workers run in their own
+     * committed transactions, so their rows would otherwise leak into other
+     * ITs' row counts on the shared container). Call from @AfterEach.
+     */
+    protected final void wipeAllTables() {
+        jdbcTemplate.execute(
+                "TRUNCATE shelter_reviews, password_reset_tokens, refresh_tokens, "
+                        + "pending_contact_changes, pending_verifications, user_credentials, "
+                        + "verification_claims, shelters, users RESTART IDENTITY CASCADE");
     }
 }

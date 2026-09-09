@@ -8,31 +8,15 @@ import {
   Validators,
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import type { MyReviewDto, ShelterDto } from '../../core/models';
+import type { MyReviewDto, ShelterDto, UpdateShelterRequest } from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import { RatingStars } from '../shelter/rating-stars';
-
-/** The capacity bounds (backend UpdateShelterRequest: 1..100_000, same as POST). */
-const CAPACITY_MIN = 1;
-const CAPACITY_MAX = 100_000;
-
-/**
- * Read a coordinate out of a number control (Angular's NumberValueAccessor
- * stores a number for a filled input and null for an empty one).
- */
-function readCoordinate(value: number | string | null): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value !== 'string' || value.trim() === '') {
-    return null;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
+import { LoadingIndicator } from '../../shared/loading-indicator';
+import { ratingText as ratingTextShared } from '../../shared/shelter-copy';
+import { RatingStars } from '../../shared/rating-stars';
 
 /** Coordinate controls are required and within the geographic bounds (backend
  *  re-checks the same @DecimalMin/@DecimalMax). Estonia-ness is NOT checked
@@ -48,22 +32,6 @@ function coordinateValidator(min: number, max: number) {
     }
     return null;
   };
-}
-
-/** Capacity is optional (null); when present it must be an integer in 1..100_000. */
-function capacityValidator(control: AbstractControl): ValidationErrors | null {
-  const value = control.value;
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value === 'string' && value.trim() === '') {
-    return null;
-  }
-  const numeric = typeof value === 'number' ? value : Number(value);
-  if (!Number.isInteger(numeric) || numeric < CAPACITY_MIN || numeric > CAPACITY_MAX) {
-    return { capacity: true };
-  }
-  return null;
 }
 
 /**
@@ -84,7 +52,7 @@ function capacityValidator(control: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-contributions-panel',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, RatingStars],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, RatingStars, LoadingIndicator],
   templateUrl: './contributions-panel.html',
   styleUrl: './contributions-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -121,6 +89,9 @@ export class ContributionsPanel implements OnInit {
 
   protected readonly busy = signal(false);
 
+  /** W24: the shared rating summary copy, exposed to the template. */
+  protected readonly ratingText = ratingTextShared;
+
   // ---- shelter edit form (pre-filled on Edit; public so specs can drive it)
   readonly editName = new FormControl('', {
     nonNullable: true,
@@ -128,8 +99,8 @@ export class ContributionsPanel implements OnInit {
       Validators.required,
       Validators.maxLength(200),
       // Whitespace-only names pass Validators.required — mirror the backend
-      // @NotBlank so we never PUT "   ".
-      (c: AbstractControl) => (String(c.value ?? '').trim() === '' ? { blank: true } : null),
+      // @NotBlank so we never PUT "   " (shared with /submit, A3).
+      nameBlankValidator,
     ],
   });
   readonly editDescription = new FormControl('', {
@@ -228,13 +199,7 @@ export class ContributionsPanel implements OnInit {
       this.editLongitude.markAsTouched();
       return;
     }
-    const request: {
-      name: string;
-      latitude: number;
-      longitude: number;
-      description?: string;
-      capacity?: number;
-    } = {
+    const request: UpdateShelterRequest = {
       name: this.editName.value.trim(),
       latitude: readCoordinate(this.editLatitude.value) as number,
       longitude: readCoordinate(this.editLongitude.value) as number,

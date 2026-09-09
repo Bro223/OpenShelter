@@ -3,6 +3,7 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
@@ -13,9 +14,12 @@ import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -182,6 +186,74 @@ class ShelterReviewServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.addReview(verified, shelter.getId(), 4, "a".repeat(501)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void insertFkViolationOnDeletedShelterMapsToNotFound() {
+        // W20b: the shelter is deleted between requireShelter() and the
+        // insert → the DIVE is an FK violation, not a race → 404, never 500.
+        InMemoryShelterReviewRepository fkFailing = new InMemoryShelterReviewRepository() {
+            @Override
+            public void save(ShelterReview review) {
+                throw new DataIntegrityViolationException(
+                        "insert into shelter_reviews failed (shelter_id FK violation)");
+            }
+        };
+        AtomicInteger looks = new AtomicInteger();
+        InMemoryShelterRepository deletedMidFlight = new InMemoryShelterRepository() {
+            @Override
+            public Optional<Shelter> findById(Long id) {
+                // requireShelter still sees the row; by the post-DIVE re-read
+                // the concurrent delete has committed.
+                return looks.incrementAndGet() <= 1 ? shelters.findById(id) : Optional.empty();
+            }
+        };
+        ShelterReviewService guarded = new ShelterReviewService(fkFailing, deletedMidFlight, users);
+
+        assertThatThrownBy(() -> guarded.addReview(verified, shelter.getId(), 4, "x"))
+                .isInstanceOf(ShelterNotFoundException.class);
+    }
+
+    @Test
+    void uniqueConstraintRaceReReadsAndUpdatesInPlace() {
+        // W20b: initial find empty (the race), insert hits the unique
+        // (shelter_id, user_id) index, the re-read finds the winner's row →
+        // update in place, created=false, no exception.
+        ShelterReview winnerRow = new ShelterReview(shelter.getId(), verified.getId(), 5, "winner");
+        AtomicBoolean firstFindDone = new AtomicBoolean(false);
+        InMemoryShelterReviewRepository racing = new InMemoryShelterReviewRepository() {
+            {
+                // The competing thread's row is already committed (id
+                // assigned) — our insert hits the unique index against it.
+                super.save(winnerRow);
+            }
+
+            @Override
+            public Optional<ShelterReview> findByShelterIdAndUserId(Long shelterId, Long userId) {
+                if (!firstFindDone.compareAndSet(false, true)) {
+                    return Optional.of(winnerRow); // re-read after the DIVE
+                }
+                return Optional.empty(); // the racing initial read
+            }
+
+            @Override
+            public void save(ShelterReview review) {
+                if (review.getId() == null) {
+                    throw new DataIntegrityViolationException(
+                            "duplicate key uq_shelter_reviews_shelter_user (concurrent insert)");
+                }
+                super.save(review);
+            }
+        };
+        ShelterReviewService guarded = new ShelterReviewService(racing, shelters, users);
+
+        ShelterReviewService.SaveResult result =
+                guarded.addReview(verified, shelter.getId(), 2, "loser update");
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.review()).isSameAs(winnerRow);
+        assertThat(winnerRow.getRating()).isEqualTo(2);
+        assertThat(winnerRow.getComment()).isEqualTo("loser update");
     }
 
     /** Returns the pre-seeded review for EVERY (shelterId, userId) lookup. */

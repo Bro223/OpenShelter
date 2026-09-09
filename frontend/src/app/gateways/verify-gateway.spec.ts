@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { ApiClient } from '../core/api-client';
+import { ApiError } from '../core/api-error';
 import { VerifyGateway } from './verify-gateway';
 
 /** Hand-written fake ApiClient — the gateway must only pick paths + bodies. */
@@ -49,9 +50,20 @@ describe('VerifyGateway', () => {
   });
 
   it('propagates errors as-is (mapping lives in ApiClient)', async () => {
-    api.post.mockReturnValue(of(undefined));
+    const failure = ApiError.fromHttp(
+      400,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 400,
+        error: 'Bad Request',
+        message: 'Invalid code',
+        path: '/api/verify/confirm',
+      },
+      '/api/verify/confirm',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
 
-    await expect(gateway.confirm('PHONE', '123456')).resolves.toBeUndefined();
+    await expect(gateway.confirm('PHONE', '123456')).rejects.toBe(failure);
     expect(api.post).toHaveBeenCalledWith('/verify/confirm', { level: 'PHONE', code: '123456' });
   });
 });

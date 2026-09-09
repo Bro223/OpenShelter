@@ -25,6 +25,10 @@ export const COPY = {
   accountRateLimited: 'Too many requests. Please wait a moment and then try again.',
   accountBadCode: 'That code is invalid or has expired. Please request a new one.',
   accountSameValue: 'That is already the value on your account — the new one must be different.',
+  // 5xx + other unhandled server statuses: fixed generic copy. A non-JSON
+  // body (e.g. a reverse-proxy HTML error page) must never be echoed into
+  // the banner verbatim (N6).
+  serverError: 'Something went wrong. Please try again.',
 } as const;
 
 export type ErrorKind =
@@ -77,6 +81,13 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
     case 409:
       return api.message || 'That value is already in use.';
     default:
-      return api.message || 'Something went wrong. Please try again.';
+      // 5xx (and any other status >= 500): always the fixed generic copy —
+      // never echo the body. A non-JSON body (reverse-proxy HTML such as
+      // "<html>...502 Bad Gateway...</html>") must not surface verbatim
+      // (N6). Lower unhandled statuses keep the echo fallback.
+      if (api.status >= 500) {
+        return COPY.serverError;
+      }
+      return api.message || COPY.serverError;
   }
 }

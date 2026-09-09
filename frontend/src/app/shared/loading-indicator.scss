@@ -1,0 +1,11 @@
+/* The host element carries the consuming page's state class (sidebar-state
+   / detail-state / contributions-state) — colour/padding live there. The
+   inner paragraph must reset its UA margin so the host padding does exactly
+   what the old <p class="…-state"> margin/padding did. */
+:host {
+  display: block;
+}
+
+.loading-indicator {
+  margin: 0;
+}

@@ -9,6 +9,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * Token-bucket rate limiter (SDI Ch 4), keyed per caller. A bucket starts
  * full ({@code capacity}) and refills continuously at {@code refillPerSecond}.
  * Idle buckets are swept after an hour once the map grows past a threshold.
+ *
+ * <p><strong>Single-instance constraint (W16):</strong> buckets live in process
+ * memory, so this limiter is correct for a single application instance only.
+ * Running N replicas multiplies the effective capacity per key by N (each
+ * replica keeps its own full bucket), and every restart resets all buckets
+ * to full. Rate-limiting across a scaled deployment needs a shared backend.
  */
 public class TokenBucketRateLimiter implements RateLimiter {
 

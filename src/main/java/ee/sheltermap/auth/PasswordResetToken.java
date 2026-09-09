@@ -19,6 +19,7 @@ public class PasswordResetToken {
     private final Instant expiresAt;
     private Instant usedAt;
     private int attempts;
+    private Instant createdAt;
 
     public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt) {
         this.userId = Objects.requireNonNull(userId, "userId");
@@ -28,13 +29,15 @@ public class PasswordResetToken {
 
     /**
      * Full-state constructor used by the persistence layer to restore a
-     * token (incl. used state and the failed-attempt count) from storage.
+     * token (incl. used state, the failed-attempt count and the V8
+     * creation time) from storage.
      */
     public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt,
-                              Instant usedAt, int attempts) {
+                              Instant usedAt, int attempts, Instant createdAt) {
         this(userId, tokenHash, expiresAt);
         this.usedAt = usedAt;
         this.attempts = attempts;
+        this.createdAt = createdAt;
     }
 
     public Long getId() {
@@ -56,6 +59,18 @@ public class PasswordResetToken {
 
     public Instant getExpiresAt() {
         return expiresAt;
+    }
+
+    /**
+     * V8: when the row was created (rotation cooldown + daily cap anchor);
+     * {@code null} until persisted.
+     */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
     }
 
     public Instant getUsedAt() {

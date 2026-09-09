@@ -54,7 +54,8 @@ app:
   cors:
     # Origins the browser frontend may call (preflight
     # handled by Spring Security).
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-origins: >-
+      ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
   mail:
     # Which SmtpSender impl: 'dev' (console logging, default)
     # or 'smtp-pulse' (real SMTP).
@@ -113,8 +114,21 @@ app:
   ratelimit:
     login-capacity: 5
     login-refill-per-second: 0.084
+    # Aggregate per-IP bucket on /auth/login (2026-09-08 review W5) — a
+    # SECOND bucket in addition to the per-(IP, contact) one above: one IP
+    # hammering MANY different accounts (credential stuffing) stays under
+    # each per-contact limit but shares this 20-request bucket. Refill ~20/min.
+    login-ip-capacity: 20
+    login-ip-refill-per-second: 0.334
     reset-capacity: 3
     reset-refill-per-second: 0.05
+    # /auth/password-reset/confirm is rate-limited per (IP, email)
+    # (2026-09-08 review W1): a 6-digit code is guessable, so the confirm
+    # path gets its own anti-guess bucket — 5 attempts, refill ~1/min
+    # (a legitimate user retries a mistyped code a few times inside the
+    # 15-minute code window).
+    reset-confirm-capacity: 5
+    reset-confirm-refill-per-second: 0.084
     # Registration is rate-limited per client IP (account-spam vector).
     register-capacity: 10
     register-refill-per-second: 0.01
@@ -128,8 +142,10 @@ app:
     change-refill-per-second: 0.084
     # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
     # keys (hardening: without this, everyone behind nginx shares one bucket).
-    # Loopback is always trusted (local nginx setups).
+    # Loopback is trusted by default (local nginx setups) — see ClientIps;
+    # disable behind a real load balancer if loopback is not your proxy.
     trusted-proxies: ${RATELIMIT_TRUSTED_PROXIES:}
+    trust-loopback: ${RATELIMIT_TRUST_LOOPBACK:true}
   registry:
     # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
     # Override with REGISTRY_BASE_URL if the service endpoint moves.

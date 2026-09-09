@@ -41,13 +41,14 @@ covers the **frontend only**.
 
 | Folder | Contents | Source diagram |
 |---|---|---|
-| `core/` | `ApiClient`, `ApiError`, `TokenStore`, `AuthStore`, `ApiInterceptor`, guards, typed models | `01` |
-| `gateways/` | `AuthGateway`, `VerifyGateway`, `ShelterGateway`, `ReviewGateway`, `AccountGateway` — one per backend controller group | `01` |
+| `core/` | `ApiClient`, `ApiError`, `TokenStore`, guards, `ApiInterceptor`, typed models (NO session state — that moved to `session/`) | `01` |
+| `session/` | `AuthStore` — session state (profile + real verified claims). Moved out of `core/` in the 2026-09-08 arch pass; `core/` keeps the guards + interceptor, which import it — the core→session edge is intentional | `01` |
+| `gateways/` | `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`) — one per backend controller group | `01` |
 | `features/auth/` | `LoginPage`, `RegisterPage`, `ResetPage` | `01`+`02` |
-| `features/account/` | `VerifyPage`, `ContactChangePage` | `01`+`03` |
-| `features/map/` | `MapPage`, `LeafletService` | `01`+`04` |
-| `features/shelter/` | `ShelterDetailPage`, `SubmitShelterPage`, `ReviewForm`, `RatingStars` | `01`+`05` |
-| `shared/` | `PageShell`, `BannerComponent`, `LoadingIndicator` | `01` |
+| `features/account/` | `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted) | `01`+`03`+`05` |
+| `features/map/` | `MapPage` (the Leaflet wrapper lives in `shared/` now) | `01`+`04` |
+| `features/shelter/` | `ShelterDetailPage`, `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`) | `01`+`05` |
+| `shared/` | `PageShell`, `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`) and `shelter-copy.ts` (canonical source/rating copy) | `01` |
 
 **Dependency rule (never break it):** `features` → `gateways` → `core`. Components never call
 `HttpClient` or touch `TokenStore` internals; gateways are the only door to the API. No cycles.

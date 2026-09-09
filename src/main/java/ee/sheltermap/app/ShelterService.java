@@ -33,8 +33,10 @@ public class ShelterService {
      * becomes {@code user.getId()} before the save, so every USER submission
      * is attributable to its submitting account afterwards.
      *
-     * @throws IllegalStateException    if {@code user.canWrite()} is false
-     *                                  (guest or unverified registered user)
+     * @throws NotVerifiedException   if {@code user.canWrite()} is false
+     *                                (guest or unverified registered user)
+     *                                — the 403-mapped exception, mirroring
+     *                                the API layer (B7c; was a generic 500)
      * @throws IllegalArgumentException if the place is not already
      *                                  {@code ACTIVE}/{@code USER} — user submissions must be
      *                                  created ACTIVE immediately, never imported as USER
@@ -43,7 +45,7 @@ public class ShelterService {
         Objects.requireNonNull(user, "user");
         Objects.requireNonNull(place, "place");
         if (!user.canWrite()) {
-            throw new IllegalStateException("user is not allowed to submit shelters");
+            throw new NotVerifiedException("a verified account is required to submit shelters");
         }
         if (place.getStatus() != ShelterStatus.ACTIVE || place.getSource() != ShelterSource.USER) {
             throw new IllegalArgumentException(

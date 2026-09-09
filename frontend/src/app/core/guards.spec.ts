@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import { AuthStore } from './auth-store';
+import { AuthStore } from '../session/auth-store';
 import { authGuard, guestGuard, safeReturnUrl, verifiedGuard } from './guards';
 
 @Component({ template: 'map stub' })

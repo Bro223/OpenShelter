@@ -1,5 +1,7 @@
 package ee.sheltermap.ingestion;
 
+import ee.sheltermap.domain.ShelterSource;
+
 import java.util.List;
 
 /**
@@ -8,6 +10,14 @@ import java.util.List;
  * future registry).
  */
 public interface ShelterRegistryClient {
+
+    /**
+     * The {@link ShelterSource} the rows this client fetches belong to.
+     * Delisting is scoped to the source of the fetch that actually ran —
+     * a source with no fetcher in this run keeps its rows (a blind delist
+     * over an empty fetched set would wipe them).
+     */
+    ShelterSource source();
 
     /**
      * Fetches every currently-published shelter from the registry.

@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.verification.PhoneNumbers;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,7 +21,9 @@ import java.util.stream.Collectors;
  * Thin shell (01-TASK.md §7) — parse, validate, rate-limit, delegate.
  * Login, reset-request and registration are guarded by token buckets keyed
  * per real client IP (X-Forwarded-For aware — see {@link ClientIps}) and,
- * for login/reset, per contact.
+ * for login/reset, per contact. Login additionally passes a per-IP aggregate
+ * bucket (anti credential-stuffing, W5) and reset-confirm a per-(IP, email)
+ * anti-guess bucket (W1).
  */
 @RestController
 @RequestMapping("/auth")
@@ -28,19 +31,28 @@ public class AuthController {
 
     private final AuthService authService;
     private final RateLimiter loginRateLimiter;
+    private final RateLimiter loginIpRateLimiter;
     private final RateLimiter resetRateLimiter;
+    private final RateLimiter resetConfirmRateLimiter;
     private final RateLimiter registerRateLimiter;
     private final Set<String> trustedProxies;
+    private final boolean trustLoopback;
 
     public AuthController(AuthService authService,
                           @Qualifier("loginRateLimiter") RateLimiter loginRateLimiter,
+                          @Qualifier("loginIpRateLimiter") RateLimiter loginIpRateLimiter,
                           @Qualifier("resetRateLimiter") RateLimiter resetRateLimiter,
+                          @Qualifier("resetConfirmRateLimiter") RateLimiter resetConfirmRateLimiter,
                           @Qualifier("registerRateLimiter") RateLimiter registerRateLimiter,
-                          @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies) {
+                          @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
+                          @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.authService = authService;
         this.loginRateLimiter = loginRateLimiter;
+        this.loginIpRateLimiter = loginIpRateLimiter;
         this.resetRateLimiter = resetRateLimiter;
+        this.resetConfirmRateLimiter = resetConfirmRateLimiter;
         this.registerRateLimiter = registerRateLimiter;
+        this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -50,13 +62,17 @@ public class AuthController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public void register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
-        requireRate(registerRateLimiter, ClientIps.resolve(http, trustedProxies));
+        requireRate(registerRateLimiter, clientIp(http));
         authService.register(request);
     }
 
     @PostMapping("/login")
     public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
-        requireRate(loginRateLimiter, key(http, trustedProxies, request.emailOrPhone()));
+        String ip = clientIp(http);
+        // W5: BOTH buckets must pass — the per-IP aggregate (one IP hammering
+        // many accounts) and the per-(IP, contact) bucket below.
+        requireRate(loginIpRateLimiter, ip);
+        requireRate(loginRateLimiter, ip + "|" + normalizedContact(request.emailOrPhone()));
         return authService.login(request);
     }
 
@@ -73,13 +89,20 @@ public class AuthController {
 
     @PostMapping("/password-reset/request")
     public void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
-        requireRate(resetRateLimiter, key(http, trustedProxies, request.email()));
+        requireRate(resetRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
         authService.requestPasswordReset(request.email());
     }
 
     @PostMapping("/password-reset/confirm")
-    public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request) {
+    public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest http) {
+        // W1: per-(IP, email) anti-guess bucket — a 6-digit code must not be
+        // brute-forceable through the confirm endpoint.
+        requireRate(resetConfirmRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
         authService.resetPassword(request.email(), request.code(), request.newPassword());
+    }
+
+    private String clientIp(HttpServletRequest http) {
+        return ClientIps.resolve(http, trustedProxies, trustLoopback);
     }
 
     private static void requireRate(RateLimiter limiter, String key) {
@@ -88,7 +111,21 @@ public class AuthController {
         }
     }
 
-    private static String key(HttpServletRequest http, Set<String> trustedProxies, String identifier) {
-        return ClientIps.resolve(http, trustedProxies) + "|" + identifier.trim().toLowerCase(Locale.ROOT);
+    /**
+     * Normalizes a login contact for rate-limit keying (W5): e-mail → trim +
+     * lowercase; a phone-like value (no {@code @}) → E.164 (lenient, never
+     * throws) then lowercase — so {@code 50000001} and {@code +37250000001}
+     * share one bucket (same canonical identity as the lookup).
+     */
+    private static String normalizedContact(String emailOrPhone) {
+        String contact = emailOrPhone.trim();
+        if (contact.contains("@")) {
+            return contact.toLowerCase(Locale.ROOT);
+        }
+        return PhoneNumbers.normalizeE164(contact).toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizedEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }

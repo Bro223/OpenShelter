@@ -38,13 +38,19 @@ public class JpaRefreshTokenRepository implements RefreshTokenRepository {
 
     @Override
     @Transactional
-    public void revoke(String tokenHash) {
-        tokens.revokeByTokenHash(tokenHash, Instant.now());
+    public int revoke(String tokenHash) {
+        return tokens.revokeByTokenHash(tokenHash, Instant.now());
     }
 
     @Override
     @Transactional
     public void revokeAllForUser(Long userId) {
         tokens.revokeAllByUserId(userId, Instant.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int countActiveByUserId(Long userId) {
+        return (int) tokens.countByUserIdAndRevokedAtIsNull(userId);
     }
 }

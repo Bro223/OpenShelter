@@ -78,4 +78,31 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value("too many requests"));
     }
+
+    @Test
+    void spoofedXffFromTrustedLoopbackYieldsSeparateBuckets() throws Exception {
+        // The IT's direct peer is 127.0.0.1 — trusted loopback by default
+        // (app.ratelimit.trust-loopback), so X-Forwarded-For is honored and
+        // each spoofed client IP gets its own (IP, contact) bucket: exhaust
+        // one, the other must be unaffected (S2 — an untrusted peer would
+        // ignore XFF entirely and everything would share the peer bucket).
+        String body = "{\"emailOrPhone\":\"xff@example.ee\",\"password\":\"x\"}";
+
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.1")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnauthorized()); // passes limiter, generic 401
+        }
+
+        // 10.66.0.1's (IP, contact) bucket (capacity 3, refill 0) is exhausted
+        mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429));
+
+        // a DIFFERENT spoofed client is unaffected
+        mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.2")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
+    }
 }

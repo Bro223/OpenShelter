@@ -1,5 +1,5 @@
 import { Component, inject, type OnInit } from '@angular/core';
-import { AuthStore } from './core/auth-store';
+import { AuthStore } from './session/auth-store';
 import { PageShell } from './shared/page-shell';
 
 /**

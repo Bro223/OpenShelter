@@ -33,7 +33,9 @@
   .field-counter {
     align-self: flex-end;
     font-size: var(--text-xs);
-    color: var(--color-text-muted);
+    color: var(
+      --color-muted
+    ); /* N18: collapsed --color-text-muted into the app-wide secondary text token */
     font-variant-numeric: tabular-nums;
 
     &--over {

@@ -6,7 +6,7 @@ import { AccountGateway } from '../../gateways/account-gateway';
 import { ApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { VerifyGateway } from '../../gateways/verify-gateway';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import type { MeResponse } from '../../core/models';
 import { VerifyPage } from './verify-page';
 

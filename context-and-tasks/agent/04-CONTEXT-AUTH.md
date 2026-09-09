@@ -1,6 +1,6 @@
 # Context — Auth (password login + JWT + password reset)
 
-**Source diagram:** `docs/uml/03-auth.puml`
+**Source diagram:** `../03-auth.puml`
 **Used by steps:** 4 (create), with Spring Security wiring.
 **Depends on contracts from:** `app.UserService`, `domain.RegisteredUser`, `verification.SmtpSender`
 (shown in the puml as "referenced from 01 — contracts only").
@@ -28,9 +28,12 @@ Three concerns, three services — **never one blob**:
 | `UserCredentialsRepository` | interface | `save(credentials): void`, `findByUserId(userId): UserCredentials`, `updateHash(userId, newHash): void`. |
 | `PasswordResetTokenRepository` | interface | `save(token): void`, `findByTokenHash(tokenHash): PasswordResetToken`, `findActiveByUserId(userId, now): PasswordResetToken` (the user's single active code), `deleteActiveByUserId(userId, now): void` (one active code per user), `markUsed(id): void`. |
 | `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(email, code, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (V3 unique indexes as race-safe backstop). |
-| `PasswordResetService` | class | `requestReset(email): void`, `reset(email, code, newPassword): boolean`. |
+| `PasswordResetService` | class | `requestReset(email): void`, `reset(email, code, newPassword): boolean`. **2026-09-08 hardening:** re-issues are throttled per user — 60 s rotation cooldown and a per-UTC-day cap of 5 (`REISSUE_COOLDOWN` / `MAX_REISSUES_PER_UTC_DAY`); a skipped re-issue is a silent no-op (still 200 — anti-enumeration preserved). |
 | `RateLimiter` | interface | `tryAcquire(key: String): boolean`. |
-| `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). |
+| `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). **Single-instance per bucket set** (in-memory `Map` of buckets) — the app is a single instance; do not run the limiter across instances without a shared store. |
+| `ClientIps` | class | Static helper resolving the real client IP for rate-limit keys. Trust is explicit and hop-by-hop: if the direct peer is not a configured trusted proxy (and not a trusted loopback), `X-Forwarded-For` is **ignored entirely** (an untrusted client can set it freely) and the peer address is the key; if the peer is trusted, XFF is walked **right-to-left**, peeling trusted hops until the first non-trusted entry — the real client (fully-trusted chain → leftmost non-empty entry). `trustLoopback` (default `true`, `app.ratelimit.trust-loopback`) covers a local nginx. | 
+| `Codes` | class | Package-private shared generator for the auth code flows: `sixDigitCode()` (leading zeros preserved) + `randomToken(length, alphabet)`, one `SecureRandom`. Used by the password-reset and contact-change services and by `Tokens`. The verification package keeps its own channel-specific generators on purpose (dependency rule: verification must not import auth). | 
+| `Hashes` | class | Package-private SHA-256 helpers for tokens-at-rest: `sha256Hex` + `constantTimeEquals` (W9 — `MessageDigest.isEqual`, no early exit) used for **every** stored-vs-presented code/token hash compare (reset code, refresh token, contact-change code). |
 | `AuthController` | class | Thin shell — `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`. |
 | `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
 | DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels}`, `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
@@ -46,8 +49,10 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
 2. **Generic login errors.** "invalid credentials" for both unknown user and wrong password —
    never reveal which. Prevents user enumeration.
 3. **Reset flow (emailed 6-digit code — `password-reset-email-code`):**
-   1. `requestReset(email)` → 6-digit numeric code (same `sixDigitCode()` generator as
-      contact-change) →
+   1. `requestReset(email)` → 6-digit numeric code (the shared `Codes.sixDigitCode()` helper —
+      literally the same generator contact-change uses; verification keeps its own channel-specific
+      codes per the dependency rule) → **per-user re-issue throttle** (60 s cooldown since the
+      latest issue, max 5 per UTC day — either hit → silent no-op, still 200) →
    2. delete any prior active code for the user (one active code per user — a second
       request invalidates the first) →
    3. store `{tokenHash = SHA-256(code), expiresAt=15min, usedAt, attempts=0}` (hashed,
@@ -56,7 +61,7 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
    5. send `"Shelter Map password reset code: NNNNNN (valid 15 min)"` via `SmtpSender`
       (no URL link — no `app.frontend.base-url` / `FRONTEND_BASE_URL` anymore) →
    6. `reset(email, code, newPwd)` → find the account's active code (lookup via the
-      request e-mail) → verify attempts < 5 + hash (constant-time) + expiry + unused →
+      request e-mail) → verify attempts < 5 + hash (`Hashes.constantTimeEquals`) + expiry + unused →
       hash new password → update `UserCredentials` → mark code used → revoke all
       refresh tokens — **all in ONE transaction** (hardening: previously three separate
       transactions; a mid-way failure could leave the code replayable). ANY failure
@@ -64,11 +69,20 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
       ONE generic message ("invalid or expired reset code") — never which check failed.
 4. **Two-token session model (SDI Ch 7 style):** access = JWT 15 min stateless; refresh = 30 days
    stored hashed → revocable (logout, reset, compromise). `JwtTokenService` owns signing/validation.
-5. **Rate limiting (SDI Ch 4, token bucket):** `AuthController` guards `/auth/login`,
-   `/auth/password-reset/request` **and `/auth/register`** (account-spam vector). Keys are
-   per real client IP + contact: `X-Forwarded-For` is honored ONLY from configured trusted
-   proxies (`app.ratelimit.trusted-proxies`) — otherwise every user behind a reverse proxy
-   would share one bucket (hardening).
+5. **Rate limiting (SDI Ch 4, token bucket, 2026-09-08 hardened):** five buckets, all keyed on
+   the real client IP resolved by `ClientIps` (XFF honored only from trusted proxies, peeled
+   right-to-left — a spoofed XFF from an untrusted peer is ignored):
+   - `/auth/login` — **two** buckets, both must pass: per-(IP, contact) with a **normalized
+     contact key** (e-mail trimmed+lowercased; phone-like value E.164-normalized via
+     `PhoneNumbers` then lowercased, so `50000001` and `+37250000001` share a bucket — same
+     canonical identity as the lookup) **plus** a per-IP aggregate bucket (anti
+     credential-stuffing: one IP hammering many accounts). 5/0.084 per contact, 20/0.334 per IP.
+   - `/auth/password-reset/request` — per-(IP, normalized e-mail) bucket (3/0.05) **plus** the
+     per-user 60 s cooldown / 5-per-UTC-day cap inside `PasswordResetService`.
+   - `/auth/password-reset/confirm` — its own per-(IP, e-mail) anti-guess bucket (5/0.084) —
+     a 6-digit code must not be brute-forceable through confirm.
+   - `/auth/register` — per client IP (account-spam vector), 10/0.01.
+   All capacities/refills configurable under `app.ratelimit.*`.
 6. **Controllers are thin shells.** No logic in `AuthController`.
 
 ## Cross-channel contact change (email <-> phone)
@@ -120,9 +134,12 @@ lands, a code change must invalidate any pending/active SMART-ID claim (document
 
 ## Spring Security wiring (Step 4)
 
-- `SecurityFilterChain`: `permitAll` on `POST /auth/register`, `/auth/login`,
-  `/auth/password-reset/**`, and the public shelter/review GET endpoints; everything else
-  authenticated via a JWT filter that parses the access token and sets the `Authentication`.
+- `SecurityFilterChain` — the exact `permitAll` set (nothing else is open): `POST
+  /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`,
+  `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm`, plus
+  `GET /api/shelters/**` **except** `GET /api/shelters/mine` (author-scoped, authenticated)
+  and `GET /actuator/health` + `/actuator/info`. Everything else (all `/account/**`,
+  `/verify/**`, shelter/review writes, review `/mine` routes) requires the JWT.
 - The JWT filter is the Spring-side implementation of `JwtTokenService` validation.
 - `PasswordEncoder` bean = `Argon2PasswordEncoder` (used by `Argon2PasswordHasher`).
 

@@ -155,7 +155,7 @@ describe('RegisterPage', () => {
     expect(gateway.login).not.toHaveBeenCalled();
   });
 
-  it('surfaces a 409 duplicate-email as an inline error with the backend message', async () => {
+  it('surfaces a 409 duplicate-email as an INLINE field error with the backend message (N16)', async () => {
     const { page, fixture } = await open();
     fillValid(page);
     gateway.register.mockRejectedValue(
@@ -171,11 +171,65 @@ describe('RegisterPage', () => {
     await page.submit();
     fixture.detectChanges();
 
-    const banner = (fixture.nativeElement as HTMLElement).querySelector(
-      '.banner',
-    ) as HTMLElement | null;
-    expect(banner?.textContent).toContain('an account with this email already exists');
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Account created');
+    const element = fixture.nativeElement as HTMLElement;
+    // Inline on the email field, not the generic banner.
+    const emailLabel = element.querySelector('label[for="register-email"]');
+    expect(emailLabel).not.toBeNull();
+    const emailField = emailLabel?.parentElement;
+    expect(emailField?.querySelector('.field-error')?.textContent).toContain(
+      'an account with this email already exists',
+    );
+    expect(element.querySelector('.banner')).toBeNull();
+    expect(element.textContent).not.toContain('Account created');
+  });
+
+  it('surfaces a 409 duplicate-phone inline on the phone field (N16)', async () => {
+    const { page, fixture } = await open();
+    fillValid(page);
+    gateway.register.mockRejectedValue(
+      ApiError.fromHttp(409, {
+        timestamp: 't',
+        status: 409,
+        error: 'Conflict',
+        message: 'an account with this phone already exists',
+        path: '/auth/register',
+      }),
+    );
+
+    await page.submit();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const phoneLabel = element.querySelector('label[for="register-phone"]');
+    expect(phoneLabel).not.toBeNull();
+    const phoneField = phoneLabel?.parentElement;
+    expect(phoneField?.querySelector('.field-error')?.textContent).toContain(
+      'an account with this phone already exists',
+    );
+    expect(element.querySelector('.banner')).toBeNull();
+  });
+
+  it('an unrecognizable 409 falls back to the banner (N16)', async () => {
+    const { page, fixture } = await open();
+    fillValid(page);
+    gateway.register.mockRejectedValue(
+      ApiError.fromHttp(409, {
+        timestamp: 't',
+        status: 409,
+        error: 'Conflict',
+        message: 'conflict',
+        path: '/auth/register',
+      }),
+    );
+
+    await page.submit();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    // No inline field error... the banner carries the backend message.
+    const banner = element.querySelector('.banner') as HTMLElement | null;
+    expect(banner?.textContent).toContain('conflict');
+    expect(element.querySelector('.field-error')).toBeNull();
   });
 
   it('maps a 429 to the slow-down copy', async () => {

@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { AuthStore } from './auth-store';
-import { ApiError } from './api-error';
-import { TokenStore } from './token-store';
+import { ApiError } from '../core/api-error';
+import { TokenStore } from '../core/token-store';
 import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
-import type { MeResponse, RegisterRequest, TokenResponse } from './models';
+import type { MeResponse, RegisterRequest, TokenResponse } from '../core/models';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
 const ROTATED: TokenResponse = {
@@ -19,6 +19,14 @@ const PROFILE: MeResponse = {
   phone: '+37250000001',
   nationalIdCode: '49901019999',
   levels: [],
+};
+
+const TEINE_PROFILE: MeResponse = {
+  name: 'Teine Kasutaja',
+  email: 'teine@example.ee',
+  phone: '+37250000002',
+  nationalIdCode: '49901019998',
+  levels: ['EMAIL'],
 };
 
 const REGISTER: RegisterRequest = {
@@ -139,15 +147,36 @@ describe('AuthStore', () => {
       expect(account.me).not.toHaveBeenCalled();
     });
 
-    it('backend down on boot -> anonymous but keeps the refresh token for the next boot', async () => {
+    it('backend down on boot -> anonymous, keeps the refresh token AND stays retryable (N2)', async () => {
       localStorage.setItem('os.refresh', PAIR.refreshToken);
       gateway.refresh.mockRejectedValue(ApiError.fromNetwork());
 
       await store.init();
 
       expect(store.authenticated()).toBe(false);
-      expect(store.initialized()).toBe(true);
+      // N2: a non-401 boot failure must NOT latch initialized — a later
+      // guard call retries performInit (the stored token may still be valid).
+      expect(store.initialized()).toBe(false);
       expect(localStorage.getItem('os.refresh')).toBe('refresh-1');
+    });
+
+    it('a failed boot is retryable — a later init() re-attempts the refresh (N2)', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      gateway.refresh.mockRejectedValueOnce(ApiError.fromNetwork());
+
+      await store.init();
+      expect(store.initialized()).toBe(false);
+      expect(store.authenticated()).toBe(false);
+      expect(gateway.refresh).toHaveBeenCalledTimes(1);
+
+      // Network recovered — the guard's next init() call retries and
+      // restores the session from the still-stored token.
+      gateway.refresh.mockResolvedValue(ROTATED);
+      await store.init();
+
+      expect(store.initialized()).toBe(true);
+      expect(store.authenticated()).toBe(true);
+      expect(gateway.refresh).toHaveBeenCalledTimes(2);
     });
 
     it('is single-flight — concurrent init() callers share one boot refresh', async () => {
@@ -183,6 +212,34 @@ describe('AuthStore', () => {
       expect(gateway.refresh).not.toHaveBeenCalled();
       expect(account.me).not.toHaveBeenCalled();
       expect(store.authenticated()).toBe(true);
+    });
+
+    it('boot rotation goes through the single-flight refresh() — a concurrent caller shares the run (W13)', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      let resolveRefresh!: (value: TokenResponse) => void;
+      gateway.refresh.mockReturnValue(
+        new Promise<TokenResponse>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      // init() starts the boot rotation synchronously (performInit awaits
+      // refresh(), which starts doRefresh before returning).
+      const boot = store.init();
+      expect(gateway.refresh).toHaveBeenCalledTimes(1);
+
+      // A concurrent caller (e.g. a guard's 401 refresh racing the boot)
+      // must share the SAME in-flight rotation, not start a second one.
+      const concurrent = store.refresh();
+      expect(gateway.refresh).toHaveBeenCalledTimes(1);
+
+      resolveRefresh(ROTATED);
+      await boot;
+      await expect(concurrent).resolves.toBe(true);
+
+      expect(store.initialized()).toBe(true);
+      expect(store.authenticated()).toBe(true);
+      expect(localStorage.getItem('os.refresh')).toBe('refresh-2');
     });
   });
 
@@ -305,6 +362,66 @@ describe('AuthStore', () => {
       await expect(store.refresh()).resolves.toBe(true);
       await expect(store.refresh()).resolves.toBe(true);
       expect(gateway.refresh).toHaveBeenCalledTimes(2);
+    });
+
+    it('a network AND a 5xx refresh failure keep the stored token — only a 401 clears (F3)', async () => {
+      localStorage.setItem('os.refresh', PAIR.refreshToken);
+      gateway.refresh.mockRejectedValueOnce(ApiError.fromNetwork()).mockRejectedValueOnce(
+        ApiError.fromHttp(500, {
+          timestamp: 't',
+          status: 500,
+          error: 'Internal Server Error',
+          message: 'boom',
+          path: '/auth/refresh',
+        }),
+      );
+
+      await expect(store.refresh()).resolves.toBe(false);
+      expect(localStorage.getItem('os.refresh')).toBe('refresh-1'); // kept
+      await expect(store.refresh()).resolves.toBe(false);
+      expect(localStorage.getItem('os.refresh')).toBe('refresh-1'); // still kept
+      // The access token really did 401 — the session is not "live", but the
+      // stored refresh token survives so a retry can recover it.
+      expect(store.authenticated()).toBe(false);
+    });
+
+    it('retries ONCE with the token another tab rotated in flight, before clearing (F4)', async () => {
+      localStorage.setItem('os.refresh', 'refresh-1');
+      gateway.refresh.mockImplementation(async (token: string) => {
+        if (token === 'refresh-1') {
+          // Another tab rotated the SHARED refresh token while our POST was
+          // in flight — our presented token now 401s.
+          localStorage.setItem('os.refresh', 'refresh-2');
+          throw expiredRefreshError();
+        }
+        return { accessToken: 'access-9', refreshToken: 'refresh-9', expiresIn: 900 };
+      });
+
+      await expect(store.refresh()).resolves.toBe(true);
+
+      expect(gateway.refresh).toHaveBeenCalledTimes(2);
+      expect(gateway.refresh).toHaveBeenNthCalledWith(1, 'refresh-1');
+      expect(gateway.refresh).toHaveBeenNthCalledWith(2, 'refresh-2');
+      expect(localStorage.getItem('os.refresh')).toBe('refresh-9');
+      expect(store.authenticated()).toBe(true);
+    });
+
+    it('clears the session only on the FINAL 401 after a cross-tab retry (F4)', async () => {
+      localStorage.setItem('os.refresh', 'refresh-1');
+      gateway.refresh.mockImplementation(async (token: string) => {
+        if (token === 'refresh-1') {
+          localStorage.setItem('os.refresh', 'refresh-2'); // other tab rotated
+          throw expiredRefreshError();
+        }
+        throw expiredRefreshError(); // even the fresh token is dead
+      });
+
+      await expect(store.refresh()).resolves.toBe(false);
+
+      expect(gateway.refresh).toHaveBeenCalledTimes(2); // exactly one retry — no loop
+      expect(store.authenticated()).toBe(false);
+      expect(tokens.access()).toBeNull();
+      expect(localStorage.getItem('os.refresh')).toBeNull();
     });
   });
 
@@ -446,6 +563,76 @@ describe('AuthStore', () => {
 
       expect(store.name()).toBeNull();
       expect(store.levels()).toEqual([]);
+    });
+  });
+
+  describe('session epoch (identity generation)', () => {
+    it('an in-flight me() from a previous identity is NOT adopted after logout + login as another user (F1)', async () => {
+      let resolveMe!: (value: MeResponse) => void;
+      account.me
+        .mockReturnValueOnce(
+          new Promise<MeResponse>((resolve) => {
+            resolveMe = resolve;
+          }),
+        )
+        .mockResolvedValueOnce(TEINE_PROFILE);
+      gateway.login.mockResolvedValue(PAIR);
+      gateway.logout.mockResolvedValue(undefined);
+
+      // Log in as A — its profile fetch starts and HANGS (still in flight).
+      const loginA = store.login('a@example.ee', 's3cret!');
+      await vi.waitFor(() => expect(account.me).toHaveBeenCalledTimes(1));
+
+      // Log out (clears the session, bumps the epoch), then log in as B.
+      await store.logout();
+      await store.login('b@example.ee', 's3cret!');
+
+      // B's profile (the second me() call) was adopted.
+      expect(account.me).toHaveBeenCalledTimes(2);
+      expect(store.name()).toBe(TEINE_PROFILE.name);
+      expect(store.email()).toBe(TEINE_PROFILE.email);
+
+      // NOW A's stale fetch lands — it must be dropped, not painted onto B's
+      // fresh session.
+      resolveMe(PROFILE);
+      await loginA;
+
+      expect(store.name()).toBe(TEINE_PROFILE.name);
+      expect(store.email()).toBe(TEINE_PROFILE.email);
+      expect(store.levels()).toEqual(['EMAIL']);
+      expect(store.authenticated()).toBe(true);
+    });
+
+    it('an in-flight refresh that LANDS after logout does not resurrect the session (N1)', async () => {
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('a@example.ee', 's3cret!');
+      expect(store.authenticated()).toBe(true);
+      expect(localStorage.getItem('os.refresh')).toBe('refresh-1');
+
+      let resolveRefresh!: (value: TokenResponse) => void;
+      gateway.refresh.mockReturnValue(
+        new Promise<TokenResponse>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      );
+
+      // A 401-driven refresh starts and hangs.
+      const refreshing = store.refresh();
+      await vi.waitFor(() => expect(gateway.refresh).toHaveBeenCalledTimes(1));
+
+      // The user logs out while the rotate is in flight.
+      gateway.logout.mockResolvedValue(undefined);
+      await store.logout();
+      expect(store.authenticated()).toBe(false);
+      expect(localStorage.getItem('os.refresh')).toBeNull();
+
+      // The in-flight rotate lands — its fresh pair must be discarded.
+      resolveRefresh(ROTATED);
+      await expect(refreshing).resolves.toBe(false);
+
+      expect(store.authenticated()).toBe(false);
+      expect(tokens.access()).toBeNull();
+      expect(localStorage.getItem('os.refresh')).toBeNull();
     });
   });
 });

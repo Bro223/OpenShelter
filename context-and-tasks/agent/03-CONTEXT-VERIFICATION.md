@@ -1,6 +1,6 @@
 # Context — Verification
 
-**Source diagram:** `docs/uml/01-user-verification.puml` (packages `verification` + `app`)
+**Source diagram:** `../01-user-verification.puml` (packages `verification` + `app`)
 **Used by steps:** 2 (create). Referenced by: auth (login relies on claims), api (review requires
 verified user).
 

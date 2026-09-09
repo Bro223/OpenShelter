@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { ShelterDto, ShelterSource } from '../../core/models';
+import type { ShelterDto, ShelterSource } from '../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).

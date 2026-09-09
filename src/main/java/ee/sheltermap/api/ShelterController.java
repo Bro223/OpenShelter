@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;

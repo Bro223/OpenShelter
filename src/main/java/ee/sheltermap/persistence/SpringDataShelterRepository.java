@@ -15,9 +15,11 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     Optional<ShelterEntity> findByExternalId(String externalId);
 
-    List<ShelterEntity> findAllBySourceIn(Collection<ShelterSource> sources);
+    /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
+    List<ShelterEntity> findAllBySourceInOrderByIdAsc(Collection<ShelterSource> sources);
 
-    List<ShelterEntity> findByCreatedBy(Long createdBy);
+    /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
+    List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);
 
     List<ShelterEntity> findByIdIn(Collection<Long> ids);
 

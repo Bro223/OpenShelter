@@ -30,7 +30,9 @@
 
     .rating-value {
       font-size: var(--text-md);
-      color: var(--color-text-muted);
+      color: var(
+        --color-muted
+      ); /* N18: collapsed --color-text-muted into the app-wide secondary text token */
       font-variant-numeric: tabular-nums;
     }
   }
@@ -60,7 +62,7 @@
   }
 
   &:focus {
-    outline: 2px solid var(--color-focus); /* line weight, not spacing */
+    outline: 2px solid var(--color-primary); /* line weight, not spacing; N19: one focus-ring blue (brand primary) across the app */
     outline-offset: 1px;
   }
 }

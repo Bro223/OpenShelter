@@ -18,6 +18,23 @@ import java.util.Objects;
 @Service
 public class AuthService {
 
+    /**
+     * Argon2id hash of the fixed plaintext {@code "dummy"}, generated with
+     * {@code Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()} — the
+     * same config as the app's {@code passwordEncoder} bean. The constant
+     * is re-verified by {@code Argon2PasswordHasherTest}; if the encoder
+     * config ever changes, that test fails and this constant must be
+     * regenerated.
+     *
+     * <p>Login timing equalizer (2026-09-08 review): unknown users (and
+     * users with a missing hash) are verified against THIS hash, so every
+     * login runs exactly one Argon2 verification — response time no longer
+     * leaks whether the account exists. The answer stays the same generic
+     * {@link InvalidCredentialsException} either way.
+     */
+    static final String DUMMY_PASSWORD_HASH =
+            "$argon2id$v=19$m=16384,t=2,p=1$e7D/r1hOA/hQFc198sFJfQ$sS1d14zenhxnTRcGVxLQ4fRFwi8RWaKt3u1eFpAAKwU";
+
     private final UserService users;
     private final PasswordHasher passwordHasher;
     private final UserCredentialsRepository credentials;
@@ -85,7 +102,13 @@ public class AuthService {
         }
         RegisteredUser user = users.findByEmailOrPhone(contact);
         UserCredentials stored = user == null ? null : credentials.findByUserId(user.getId());
-        if (stored == null || !passwordHasher.verify(request.password(), stored.getPasswordHash())) {
+        // Timing equalizer: absent user OR absent hash verifies against the
+        // dummy hash — same Argon2 cost and the same generic error as a
+        // wrong password.
+        String hashToVerify = (stored == null || stored.getPasswordHash() == null)
+                ? DUMMY_PASSWORD_HASH
+                : stored.getPasswordHash();
+        if (stored == null || !passwordHasher.verify(request.password(), hashToVerify)) {
             throw new InvalidCredentialsException();
         }
         return tokens.issue(user);

@@ -22,8 +22,7 @@
 
   /* Text & surfaces */
   --color-text: #1c1c1e; /* primary text */
-  --color-muted: #5f5f66; /* secondary text (shell, map, global .field) */
-  --color-text-muted: #5b6472; /* secondary text (M5 shelter components) */
+  --color-muted: #5f5f66; /* secondary text (the whole app) */
   --color-bg: #fafafa; /* page background */
   --color-bg-surface: #fff; /* cards, rows, list items, text on primary */
   --color-bg-subtle: #f6f7f8; /* inset note background (proof-note) */
@@ -38,8 +37,20 @@
   --color-border: #d8d8dd; /* inputs, cards, list rows */
   --color-border-subtle: #e3e3e3; /* shell header divider */
 
-  /* Status palette (BannerComponent + verification level chips) */
-  --color-danger: #8c1d18; /* error text (banners, field errors) */
+  /* Status palette (BannerComponent + verification level chips)
+   *
+   * NOTE (N20, two reds on purpose — documented, not a defect):
+   *   --color-danger  #8c1d18  — the DARK red for page-level error surfaces:
+   *       banners, field errors, the two-step delete confirm, danger
+   *       buttons. Highest-contrast red in the app.
+   *   --color-error   #c0392b  — the BRIGHTER red used ONLY by the M5
+   *       review form (its .field-error + the over-limit counter). Inline
+   *       form feedback on the detail page is intentionally more vivid so
+   *       it reads as "fix this field" against the page-level banners.
+   *       Collapsing it onto --color-danger would change visible contrast
+   *       of the form errors (5.4:1 vs 9.1:1) — kept as two tokens.
+   */
+  --color-danger: #8c1d18; /* page-level error text (banners, field errors) */
   --color-danger-bg: #fdecea;
   --color-danger-border: #f5c6c3;
   --color-error: #c0392b; /* M5 review-form error text (slightly brighter red) */
@@ -69,7 +80,8 @@
   /* Rating stars */
   --color-star-empty: #c9ced6;
   --color-star-filled: #e8a33d;
-  --color-focus: #2563eb; /* star-input focus ring */
+  /* Focus rings use --color-primary everywhere, including the star picker
+     (N19: the separate --color-focus blue was collapsed onto it). */
 
   /* ============ Typography ============================================ */
   --font-sans:

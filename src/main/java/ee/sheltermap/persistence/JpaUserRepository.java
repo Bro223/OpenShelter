@@ -4,9 +4,12 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationClaim;
+import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -14,9 +17,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * JPA implementation of {@link UserRepository} (approach B). The user
- * aggregate is saved with a replace-all claim strategy: claims are owned by
- * the user, so each save rewrites them (adds new, keeps revoked history rows).
+ * JPA implementation of {@link UserRepository} (approach B). Claims are
+ * owned by the user and mapped diff-based (N10): unchanged rows keep their
+ * ids across saves, only missing claims are inserted and only removed ones
+ * deleted — so claim ids are stable for the lifetime of the claim.
  */
 @Repository
 public class JpaUserRepository implements UserRepository {
@@ -37,13 +41,53 @@ public class JpaUserRepository implements UserRepository {
         UserEntity saved = users.save(entity);
         user.setId(saved.getId());
         if (user instanceof RegisteredUser registered) {
-            claims.deleteByUserId(saved.getId());
-            for (VerificationClaim claim : registered.claims()) {
-                VerificationClaimEntity claimEntity = UserMapper.claimToEntity(saved.getId(), claim);
-                VerificationClaimEntity savedClaim = claims.save(claimEntity);
-                claim.setId(savedClaim.getId());
+            saveClaims(saved.getId(), registered);
+        }
+    }
+
+    /**
+     * Diff-based claim mapping (N10 — the old replace-all strategy churned
+     * every claim id on every user save). A claim row is matched to the
+     * domain claim on (level, externalRef, revokedAt): unchanged rows are
+     * kept as-is with their id copied back onto the domain claim, only
+     * MISSING claims are inserted and only REMOVED ones are bulk-deleted.
+     *
+     * <p>The delete runs BEFORE the re-inserts and is a BULK delete (see
+     * {@link SpringDataVerificationClaimRepository#deleteByIds}): Hibernate
+     * flushes INSERTs before entity DELETEs, so a queued removal would race
+     * the insert against the V3 partial unique index. The id copy-back
+     * happens before the delete's persistence-context clear, so kept ids
+     * survive it.
+     */
+    private void saveClaims(Long userId, RegisteredUser registered) {
+        Map<ClaimKey, VerificationClaimEntity> existingByKey = claims.findByUserId(userId).stream()
+                .collect(Collectors.toMap(
+                        e -> new ClaimKey(e.getLevel(), e.getExternalRef(), e.getRevokedAt()),
+                        e -> e,
+                        (first, second) -> first)); // defensive: a duplicate key keeps the older row
+        List<VerificationClaim> toInsert = new ArrayList<>();
+        for (VerificationClaim claim : registered.claims()) {
+            VerificationClaimEntity kept = existingByKey.remove(
+                    new ClaimKey(claim.getLevel(), claim.getExternalRef(), claim.getRevokedAt()));
+            if (kept != null) {
+                claim.setId(kept.getId()); // row survives — its id must too
+            } else {
+                toInsert.add(claim);
             }
         }
+        if (!existingByKey.isEmpty()) {
+            claims.deleteByIds(existingByKey.values().stream()
+                    .map(VerificationClaimEntity::getId)
+                    .toList());
+        }
+        for (VerificationClaim claim : toInsert) {
+            VerificationClaimEntity savedClaim = claims.save(UserMapper.claimToEntity(userId, claim));
+            claim.setId(savedClaim.getId());
+        }
+    }
+
+    /** Claim identity for the save diff (N10): level + contact + revocation state. */
+    private record ClaimKey(VerificationLevel level, String externalRef, Instant revokedAt) {
     }
 
     @Override

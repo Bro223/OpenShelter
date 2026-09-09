@@ -2,18 +2,15 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
-import { ContributionsPanel } from '../contributions/contributions-panel';
+import { ContributionsPanel } from './contributions-panel';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage, COPY } from '../../shared/error-copy';
+import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
 import type { VerificationLevel } from '../../core/models';
 
 type ChangePhase = 'form' | 'code' | 'done';
-
-/** Change-proof codes are 6-digit OTPs (backend sixDigitCode()) regardless of
- *  delivery channel — the pattern only mirrors the generator. */
-const CODE_SIX_DIGITS = /^\d{6}$/;
 
 /**
  * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
@@ -102,9 +99,21 @@ export class AccountPage {
     return this.auth.levels().includes(level);
   }
 
+  /** True while the profile Retry fetch is in flight (button feedback; the
+   *  store's single-flight already guards the request itself). */
+  protected readonly retrying = signal(false);
+
   /** Retry the profile fetch (error state: the boot-time fetch failed). */
   async retryProfile(): Promise<void> {
-    await this.auth.refreshProfile();
+    if (this.retrying()) {
+      return;
+    }
+    this.retrying.set(true);
+    try {
+      await this.auth.refreshProfile();
+    } finally {
+      this.retrying.set(false);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -179,6 +188,10 @@ export class AccountPage {
       const target = this.newEmail.value.trim().toLowerCase();
       await this.account.requestEmailChange(target);
       this.emailPhase.set('code');
+      // Reviewer F5: the backend pins the target at request time — lock the
+      // target input for the rest of the flow via the control's disabled
+      // state (FormControlDirective swallows a [disabled] property binding).
+      this.newEmail.disable();
     } catch (error) {
       this.setChangeError(error);
     } finally {
@@ -221,6 +234,10 @@ export class AccountPage {
 
   emailStartOver(): void {
     this.emailPhase.set('form');
+    // Reviewer N14: a stale confirm error (e.g. the 400 banner from a wrong
+    // code) must not linger in the fresh form phase.
+    this.error.set(null);
+    this.newEmail.enable();
     this.emailCode.setValue('');
     this.emailCode.markAsUntouched();
   }
@@ -243,6 +260,9 @@ export class AccountPage {
       const target = this.newPhone.value.trim();
       await this.account.requestPhoneChange(target);
       this.phonePhase.set('code');
+      // Reviewer F5: same as the email flow — the target is pinned server-
+      // side at request time and locked client-side for the rest of the flow.
+      this.newPhone.disable();
     } catch (error) {
       this.setChangeError(error);
     } finally {
@@ -282,6 +302,9 @@ export class AccountPage {
 
   phoneStartOver(): void {
     this.phonePhase.set('form');
+    // Reviewer N14: same as emailStartOver — clear the stale error banner.
+    this.error.set(null);
+    this.newPhone.enable();
     this.phoneCode.setValue('');
     this.phoneCode.markAsUntouched();
   }

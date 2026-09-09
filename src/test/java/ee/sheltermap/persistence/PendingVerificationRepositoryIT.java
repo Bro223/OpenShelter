@@ -32,7 +32,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
         pendings.save(pending);
         assertThat(pending.getId()).isNotNull();
 
-        PendingVerification loaded = pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE)
+        PendingVerification loaded = pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE, Instant.now())
                 .orElseThrow();
         assertThat(loaded.getUserId()).isEqualTo(userId);
         assertThat(loaded.getLevel()).isEqualTo(VerificationLevel.PHONE);
@@ -41,7 +41,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
         assertThat(loaded.isExpired(Instant.now())).isFalse();
 
         // wrong level -> not found
-        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.EMAIL)).isEmpty();
+        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.EMAIL, Instant.now())).isEmpty();
     }
 
     @Test
@@ -53,7 +53,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
                 PendingVerification.sha256("123456"), Instant.now().minus(1, MINUTES));
         pendings.save(pending);
 
-        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE)).isEmpty();
+        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE, Instant.now())).isEmpty();
     }
 
     @Test
@@ -66,6 +66,6 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
 
         pendings.delete(pending);
 
-        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE)).isEmpty();
+        assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE, Instant.now())).isEmpty();
     }
 }

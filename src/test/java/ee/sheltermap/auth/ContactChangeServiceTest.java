@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
-import ee.sheltermap.config.ContactChangeProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.junit.jupiter.api.BeforeEach;
@@ -201,6 +200,28 @@ class ContactChangeServiceTest {
         assertThat(user.getData().phone()).isEqualTo("+37255509999");
         assertThat(changes.findByUserIdAndType(user.getId(),
                 ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE)).isEmpty();
+    }
+
+    @Test
+    void confirmPhoneChangeWithWrongCodeIncrementsAttemptsThenLocks() {
+        // mirror of the e-mail lockout for the phone-change path
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        service.requestPhoneChange(user, "+37250009998");
+
+        for (int i = 0; i < 5; i++) {
+            int attempt = i + 1;
+            assertThatThrownBy(() -> service.confirmPhoneChange(user, "000000"))
+                    .isInstanceOf(InvalidContactChangeException.class);
+            PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
+                    ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE).orElseThrow();
+            assertThat(pending.getAttempts()).isEqualTo(attempt);
+        }
+
+        assertThatThrownBy(() -> service.confirmPhoneChange(user, codeFrom(smtp.last().message())))
+                .isInstanceOf(InvalidContactChangeException.class)
+                .hasMessageContaining("too many attempts");
+        // phone unchanged
+        assertThat(user.getData().phone()).isEqualTo("+37250000001");
     }
 
     @Test

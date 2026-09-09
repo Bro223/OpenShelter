@@ -47,14 +47,17 @@ public class VerificationController {
     private final UserRepository userRepository;
     private final RateLimiter verifyRateLimiter;
     private final Set<String> trustedProxies;
+    private final boolean trustLoopback;
 
     public VerificationController(VerificationService verificationService,
                                   UserRepository userRepository,
                                   @Qualifier("verifyRateLimiter") RateLimiter verifyRateLimiter,
-                                  @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies) {
+                                  @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
+                                  @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.verificationService = Objects.requireNonNull(verificationService, "verificationService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
+        this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -64,7 +67,7 @@ public class VerificationController {
     @PostMapping("/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
-        if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies))) {
+        if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
             throw new RateLimitExceededException();
         }
         RegisteredUser user = currentUser();
@@ -88,9 +91,15 @@ public class VerificationController {
         } catch (DataIntegrityViolationException race) {
             // P2 fix: two concurrent confirms of the same level+code both pass
             // the already-verified guard, and the losing insert violates the V3
-            // partial unique index. The claim is already active (the other
-            // request persisted it) — treat as an idempotent success, never a 500.
-            if (user.levels().contains(body.level())) {
+            // partial unique index. B6 fix: the in-memory claim set was ALREADY
+            // mutated by confirmVerification, so `user.levels()` can never prove
+            // persistence here — re-read the claim set from the DB and treat the
+            // race as an idempotent success ONLY if this user's claim for the
+            // confirmed level is actually persisted; otherwise rethrow.
+            User persisted = userRepository.findById(user.getId());
+            boolean claimPersisted = persisted instanceof RegisteredUser registered
+                    && registered.levels().contains(body.level());
+            if (claimPersisted) {
                 return;
             }
             throw race;

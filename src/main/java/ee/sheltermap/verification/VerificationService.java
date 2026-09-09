@@ -1,6 +1,5 @@
 package ee.sheltermap.verification;
 
-import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
@@ -87,7 +86,7 @@ public class VerificationService {
         }
 
         PendingVerification pending = provider.request(user);
-        pendingRepository.findActiveByUserAndLevel(userId, level)
+        pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
         sendLog.record(userId, level, pending.getContact(), now);
@@ -108,7 +107,7 @@ public class VerificationService {
         }
         VerificationProvider provider = providerFor(level);
         PendingVerification pending = pendingRepository
-                .findActiveByUserAndLevel(user.getId(), level)
+                .findActiveByUserAndLevel(user.getId(), level, clock.instant())
                 .orElse(null);
         if (pending == null) {
             return false;

@@ -10,11 +10,21 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { toApiError } from '../../core/api-error';
 import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
-import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService, SHELTER_ZOOM } from './leaflet-service';
+import { LoadingIndicator } from '../../shared/loading-indicator';
+import {
+  ratingText as ratingTextShared,
+  sourceLabel as sourceLabelShared,
+} from '../../shared/shelter-copy';
+import { bannerMessage } from '../../shared/error-copy';
+import {
+  ESTONIA_CENTER,
+  ESTONIA_ZOOM,
+  LeafletService,
+  SHELTER_ZOOM,
+} from '../../shared/leaflet-service';
 
 /** The three source-filter chips (server-side `?source=` refetch, design 4). */
 const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
@@ -44,7 +54,7 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
  */
 @Component({
   selector: 'app-map-page',
-  imports: [RouterLink, BannerComponent],
+  imports: [RouterLink, BannerComponent, LoadingIndicator],
   providers: [LeafletService],
   templateUrl: './map-page.html',
   styleUrl: './map-page.scss',
@@ -57,6 +67,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
   protected readonly sourceFilters = SOURCE_FILTERS;
+  /** W24: the shared source/rating copy, exposed to the template (Angular's
+   *  template scope is the component class). */
+  protected readonly sourceLabel = sourceLabelShared;
+  protected readonly ratingText = ratingTextShared;
   protected readonly filter = signal<ShelterSourceFilter>('ALL');
   protected readonly shelters = signal<ShelterDto[]>([]);
   protected readonly loading = signal(false);
@@ -93,9 +107,11 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /** Chip click — refetch with the server-side source param (no client filter).
-   *  Public so specs can drive it (M2 page convention). */
+   *  Public so specs can drive it (M2 page convention). Re-selecting the
+   *  ACTIVE chip retries the last failed refetch — the equality guard must
+   *  not swallow that click while an error banner is up (reviewer N8). */
   setFilter(source: ShelterSourceFilter): void {
-    if (source === this.filter()) {
+    if (source === this.filter() && this.error() === null) {
       return;
     }
     this.load(source);
@@ -128,20 +144,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
     }
   }
 
-  protected sourceLabel(shelter: ShelterDto): string {
-    return shelter.source === 'USER' ? 'User' : 'Registry';
-  }
-
-  /** null = no reviews yet — never render an invented zero (spec). */
-  protected ratingText(shelter: ShelterDto): string {
-    if (shelter.averageRating === null) {
-      return 'No ratings yet';
-    }
-    return `★ ${shelter.averageRating.toFixed(1)} · ${shelter.reviewCount} review${
-      shelter.reviewCount === 1 ? '' : 's'
-    }`;
-  }
-
   private load(source: ShelterSourceFilter): void {
     const seq = ++this.fetchSeq;
     this.filter.set(source);
@@ -164,7 +166,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.shelters.set([]);
         this.selectedId.set(null);
         this.leaflet.renderShelters([]);
-        this.error.set(toApiError(failure).message);
+        // Same banner/error-copy path as every other page (reviewer N9):
+        // e.g. a 429 gets the rate-limited copy, not the raw backend text.
+        this.error.set(bannerMessage(failure, 'shelter'));
         this.loading.set(false);
       },
     );

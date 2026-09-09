@@ -12,14 +12,25 @@ import {
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import type { ShelterDto, ShelterReviewDto } from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
-import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService, SHELTER_ZOOM } from '../map/leaflet-service';
-import { RatingStars } from './rating-stars';
+import { LoadingIndicator } from '../../shared/loading-indicator';
+import {
+  NO_RATINGS_YET,
+  reviewCountText as reviewCountTextShared,
+  sourceLabel as sourceLabelShared,
+} from '../../shared/shelter-copy';
+import {
+  ESTONIA_CENTER,
+  ESTONIA_ZOOM,
+  LeafletService,
+  SHELTER_ZOOM,
+} from '../../shared/leaflet-service';
+import { RatingStars } from '../../shared/rating-stars';
 import { ReviewForm } from './review-form';
 
 /**
@@ -50,7 +61,7 @@ import { ReviewForm } from './review-form';
  */
 @Component({
   selector: 'app-shelter-detail-page',
-  imports: [RouterLink, DatePipe, BannerComponent, RatingStars, ReviewForm],
+  imports: [RouterLink, DatePipe, BannerComponent, RatingStars, ReviewForm, LoadingIndicator],
   providers: [LeafletService],
   templateUrl: './shelter-detail-page.html',
   styleUrl: './shelter-detail-page.scss',
@@ -69,6 +80,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   readonly id = signal<number | null>(null);
   readonly shelter = signal<ShelterDto | null>(null);
   readonly reviewsList = signal<ShelterReviewDto[]>([]);
+  /** The reviews half of load() failed — the section shows its own error.
+   *  (Promise.allSettled: a reviews 5xx never hides a loaded shelter, N11.) */
+  readonly reviewsError = signal<string | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly notFound = signal(false);
@@ -85,6 +99,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   readonly myReview = signal<ShelterReviewDto | null>(null);
 
   protected readonly auth = this.store;
+
+  /** W24: the shared source/rating copy, exposed to the template (Angular's
+   *  template scope is the component class). */
+  protected readonly sourceLabel = sourceLabelShared;
+  protected readonly reviewCountText = reviewCountTextShared;
+  protected readonly noRatingsYet = NO_RATINGS_YET;
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
@@ -109,19 +129,44 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const raw = this.route.snapshot.paramMap.get('id');
+    // Reviewer N7: re-read the :id on EVERY navigation to this route — a
+    // manual URL edit (/shelters/1 -> /shelters/2) must swap the data, not
+    // keep the old shelter (a review POST would otherwise land on the wrong
+    // shelter). paramMap replays the current params on subscribe, replacing
+    // the old snapshot read; it completes when the route deactivates, so
+    // the subscription needs no manual teardown. The fetchSeq guard in
+    // load() drops the superseded in-flight response.
+    this.route.paramMap.subscribe((params) => this.readShelterId(params.get('id')));
+  }
+
+  /** Parse + adopt the :id param (invalid id -> not-found state). */
+  private readShelterId(raw: string | null): void {
     const parsed = Number(raw);
     if (raw === null || !Number.isInteger(parsed) || parsed <= 0) {
       this.notFound.set(true);
       return;
     }
+    if (parsed === this.id()) {
+      return; // the same shelter — nothing changed
+    }
+    // A different shelter: drop the previous one's state before the new
+    // load resolves (the fetchSeq guard drops the superseded response).
     this.id.set(parsed);
+    this.notFound.set(false);
+    this.shelter.set(null);
+    this.reviewsList.set([]);
+    this.reviewsError.set(null);
+    this.myReview.set(null);
+    this.notice.set(null);
     this.load();
   }
 
   /**
-   * Fetch shelter + reviews in parallel. 404 -> not-found state; any other
-   * failure -> error banner with the page chrome intact (shared convention).
+   * Fetch shelter + reviews in parallel. 404 on the shelter -> not-found
+   * state; any other shelter failure -> error banner with the page chrome
+   * intact (shared convention). A failed REVIEWS half never hides a
+   * successfully loaded shelter (reviewer N11) — the reviews section shows
+   * its own error state instead.
    */
   load(): Promise<void> {
     const id = this.id();
@@ -130,43 +175,49 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     }
     const seq = ++this.fetchSeq;
     this.error.set(null);
+    this.reviewsError.set(null);
     this.loading.set(true);
-    return Promise.all([this.gateway.get(id), this.reviews.list(id)]).then(
-      ([shelter, reviews]) => {
+    return Promise.allSettled([this.gateway.get(id), this.reviews.list(id)]).then(
+      ([shelterResult, reviewsResult]) => {
         if (seq !== this.fetchSeq) {
           return; // page left or a newer write superseded this response
         }
-        this.shelter.set(shelter);
-        this.reviewsList.set(reviews);
-        this.loading.set(false);
-        // Location map: fly to the shelter at street level + pin it. Both
-        // calls are safe no-ops when create() was skipped (not-found
-        // renders no container), so no guard is needed here.
-        this.pinShelter(shelter);
-      },
-      (failure: unknown) => {
-        if (seq !== this.fetchSeq) {
-          return;
+        const shelterFailed = shelterResult.status === 'rejected';
+        const reviewsFailed = reviewsResult.status === 'rejected';
+        // Reviewer N12: a failed post-write refetch must not leave the stale
+        // success notice stacked above the error banner.
+        if (shelterFailed || reviewsFailed) {
+          this.notice.set(null);
         }
-        this.loading.set(false);
-        if (failure instanceof ApiError && failure.status === 404) {
-          this.shelter.set(null);
+        if (shelterFailed) {
+          const failure = shelterResult.reason;
+          if (failure instanceof ApiError && failure.status === 404) {
+            this.shelter.set(null);
+            this.reviewsList.set([]);
+            this.notFound.set(true);
+            this.loading.set(false);
+            return;
+          }
+          this.error.set(bannerMessage(failure, 'shelter'));
+        } else {
+          this.shelter.set(shelterResult.value);
+          // Location map: fly to the shelter at street level + pin it. Both
+          // calls are safe no-ops when create() was skipped (not-found
+          // renders no container), so no guard is needed here.
+          this.pinShelter(shelterResult.value);
+        }
+        if (reviewsFailed) {
           this.reviewsList.set([]);
-          this.notFound.set(true);
-          return;
+          this.reviewsError.set(bannerMessage(reviewsResult.reason, 'shelter'));
+        } else {
+          this.reviewsList.set(reviewsResult.value);
         }
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.loading.set(false);
       },
     );
   }
 
-  /** Source badge copy (06-CONTEXT decision 6: USER vs registry). */
-  protected sourceLabel(shelter: ShelterDto): string {
-    return shelter.source === 'USER' ? 'User-submitted' : 'Registry';
-  }
-
-  /**
-   * Pins the shelter on the Location map: fly to it at street level
+  /** Pins the shelter on the Location map: fly to it at street level
    * (SHELTER_ZOOM) + one static marker (showShelter is idempotent — the
    * post-write refetch simply replaces the pin). Skips when the
    * coordinates are missing/non-finite: the map then keeps its placeholder
@@ -178,12 +229,6 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     }
     this.leaflet.flyTo(shelter.latitude, shelter.longitude, SHELTER_ZOOM);
     this.leaflet.showShelter(shelter);
-  }
-
-  /** "2 reviews" / "1 review" — null average renders "No ratings yet". */
-  protected reviewCountText(): string {
-    const count = this.shelter()?.reviewCount ?? 0;
-    return `${count} review${count === 1 ? '' : 's'}`;
   }
 
   protected hasUserDetails(): boolean {

@@ -3,7 +3,7 @@
   <h3 class="contributions-subtitle">Shelters</h3>
 
   @if (shelterRows() === null && shelterLoadError() === null) {
-    <p class="contributions-state" role="status">Loading your shelters…</p>
+    <app-loading-indicator class="contributions-state" message="Loading your shelters…" />
   } @else if (shelterLoadError(); as shelterErr) {
     <p class="contributions-state contributions-state--error">{{ shelterErr }}</p>
     <div class="contrib-actions">
@@ -22,12 +22,7 @@
             <span class="contrib-row__title">{{ row.name }}</span>
             <span class="contrib-row__meta">
               {{ row.createdAt | date: 'medium' }} ·
-              @if (row.averageRating === null) {
-                No ratings yet
-              } @else {
-                {{ row.averageRating.toFixed(1) }} ★ ({{ row.reviewCount }}
-                {{ row.reviewCount === 1 ? 'review' : 'reviews' }})
-              }
+              {{ ratingText(row.averageRating, row.reviewCount) }}
             </span>
           </div>
           <div class="contrib-row__actions">
@@ -174,7 +169,7 @@
   <h3 class="contributions-subtitle">Reviews</h3>
 
   @if (reviewRows() === null && reviewLoadError() === null) {
-    <p class="contributions-state" role="status">Loading your reviews…</p>
+    <app-loading-indicator class="contributions-state" message="Loading your reviews…" />
   } @else if (reviewLoadError(); as reviewErr) {
     <p class="contributions-state contributions-state--error">{{ reviewErr }}</p>
     <div class="contrib-actions">

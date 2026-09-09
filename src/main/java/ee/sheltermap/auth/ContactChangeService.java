@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.config.ContactChangeProperties;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.PhoneNumbers;
@@ -10,14 +9,10 @@ import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -41,8 +36,6 @@ import java.util.Objects;
  */
 @Service
 public class ContactChangeService {
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final PendingContactChangeRepository changes;
@@ -75,6 +68,7 @@ public class ContactChangeService {
      * @throws InvalidContactChangeException  the new email equals the current one (400)
      * @throws VerificationThrottledException resend too soon (429)
      */
+    @Transactional
     public void requestEmailChange(RegisteredUser user, String newEmail) {
         String target = newEmail.trim().toLowerCase(Locale.ROOT);
         if (target.equalsIgnoreCase(user.getData().email())) {
@@ -85,12 +79,12 @@ public class ContactChangeService {
         }
         enforceCooldown(user.getId(), ContactChangeType.EMAIL_CHANGE);
 
-        String code = sixDigitCode();
+        String code = Codes.sixDigitCode();
         Instant now = clock.instant();
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
-                target, hash(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smsSender.send(user.getData().phone(),
-                "Shelter Map change-email code: " + code + " (valid 15 min)");
+                "Shelter Map change-email code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
@@ -99,6 +93,7 @@ public class ContactChangeService {
      * @throws InvalidContactChangeException no pending request, or wrong/
      *                                       expired/exhausted code (400)
      */
+    @Transactional
     public void confirmEmailChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.EMAIL_CHANGE);
         verifyCode(change, code);
@@ -125,6 +120,7 @@ public class ContactChangeService {
      * cooldown, then sends an email code to the current email and persists the
      * pending change.
      */
+    @Transactional
     public void requestPhoneChange(RegisteredUser user, String newPhone) {
         String target = PhoneNumbers.normalizeE164(newPhone);
         if (target.equals(user.getData().phone())) {
@@ -135,17 +131,18 @@ public class ContactChangeService {
         }
         enforceCooldown(user.getId(), ContactChangeType.PHONE_CHANGE);
 
-        String code = sixDigitCode();
+        String code = Codes.sixDigitCode();
         Instant now = clock.instant();
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
-                target, hash(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smtpSender.send(user.getData().email(),
-                "Shelter Map change-phone code: " + code + " (valid 15 min)");
+                "Shelter Map change-phone code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
      * Completes a phone change once the email code is verified.
      */
+    @Transactional
     public void confirmPhoneChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.PHONE_CHANGE);
         verifyCode(change, code);
@@ -200,24 +197,18 @@ public class ContactChangeService {
         if (change.isAttemptExhausted(properties.maxAttempts())) {
             throw new InvalidContactChangeException("too many attempts, request a new code");
         }
-        if (!MessageDigest.isEqual(change.getCodeHash().getBytes(StandardCharsets.UTF_8),
-                hash(code).getBytes(StandardCharsets.UTF_8))) {
+        if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
             change.registerFailedAttempt();
             changes.save(change);
             throw new InvalidContactChangeException("invalid code");
         }
     }
 
-    private static String sixDigitCode() {
-        return String.format("%06d", RANDOM.nextInt(1_000_000));
-    }
-
-    private static String hash(String code) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(code.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+    /**
+     * The user-facing validity window, derived from the configured code TTL
+     * (hardening: the copy must not hardcode a TTL that is configurable).
+     */
+    private long codeTtlMinutes() {
+        return properties.codeTtlSeconds() / 60;
     }
 }

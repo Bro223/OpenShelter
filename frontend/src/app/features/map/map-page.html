@@ -43,7 +43,7 @@
       }
 
       @if (loading()) {
-        <p class="sidebar-state" role="status">Loading shelters…</p>
+        <app-loading-indicator class="sidebar-state" message="Loading shelters…" />
       } @else if (showEmpty()) {
         <p class="sidebar-state">No shelters match this filter.</p>
       } @else if (sorted().length) {
@@ -67,9 +67,11 @@
                 }
                 <span class="shelter-row__meta">
                   <span class="badge" [class.badge--user]="shelter.source === 'USER'">
-                    {{ sourceLabel(shelter) }}
+                    {{ sourceLabel(shelter.source) }}
                   </span>
-                  <span class="shelter-row__rating">{{ ratingText(shelter) }}</span>
+                  <span class="shelter-row__rating">{{
+                    ratingText(shelter.averageRating, shelter.reviewCount)
+                  }}</span>
                 </span>
               </button>
               <!-- The explicit details step: appears ONLY on the selected

@@ -5,10 +5,14 @@ title Shelter Map - Registry Ingestion (classes)
 
 package "ingestion" {
   interface ShelterRegistryClient {
+    + source() : ShelterSource
     + fetchAll() : List<RegistryShelterDto>
+    ' source() declares which ShelterSource the fetched rows belong to;
+    ' delisting is scoped to it (see the import note below).
   }
 
   class PaasteametRegistryClient {
+    + source() : ShelterSource   ' PAASETEAMET
     + fetchAll() : List<RegistryShelterDto>
     ' WFS GetFeature client: typeName=VARJEKOHT, outputFormat=geojson,
     ' startIndex pagination. Retries with backoff, politeness (SDI Ch 9).
@@ -21,6 +25,7 @@ package "ingestion" {
   }
 
   class DevRegistryClient {
+    + source() : ShelterSource   ' PAASETEAMET (the fixture mirrors the WFS dataset)
     + fetchAll() : List<RegistryShelterDto>
     ' Reads a local JSON fixture - dev/CI runs without network.
   }
@@ -99,9 +104,10 @@ package "ingestion" {
 
 package "config" {
   class RegistryScheduler {
-    + runImport() : void
+    + runScheduledImport() : void
     ' @Scheduled cron (default Mon 03:00 Europe/Tallinn; app.registry.cron/zone),
-    ' AtomicBoolean overlap guard, failure-tolerant logging, schedule-enabled toggle.
+    ' AtomicBoolean overlap guard (lives in ShelterImportService), failure-
+    ' tolerant logging, schedule-enabled toggle.
   }
 }
 
@@ -159,8 +165,16 @@ ShelterImportService ..> RegistryUnavailableException : catches
 ShelterRepository ..> Shelter
 
 note right of ShelterImportService
-  Re-import: existing externalId = UPDATE, new = CREATE,
-  registry rows missing from the latest fetch = DELETE.
+  Re-import: existing externalId = UPDATE, new = CREATE.
+  Delisting is PER SOURCE (2026-09-08 B7e): only the source this run
+  actually fetched is delisted -
+  deleteBySourceAndExternalIdNotIn(client.source(), fetchedIds).
+  client.source() is one of PAASETEAMET / MUNICIPALITY; today only
+  Päästeamet has a fetcher, so MUNICIPALITY rows are retained until a
+  municipality client ships (its own run delists its own source).
+  A zero-row fetch skips delisting entirely (rows retained, log.warn).
+  Keep-list = EVERY externalId the registry served this run, including
+  rows that failed the length pre-check or parsing.
   User-added shelters (source USER) are never touched.
   API filter GET /api/shelters?source=REGISTRY|USER|ALL arrives with the read side.
 end note
@@ -178,6 +192,8 @@ database "PostgreSQL" as DB
 RegistryScheduler -> SIS : importFromRegistry()
 SIS -> RC : fetchAll()
 RC --> SIS : List<RegistryShelterDto>
+SIS -> RC : source()
+RC --> SIS : fetchedSource (PAASETEAMET today)
 SIS -> P : parse(dtos)
 P --> SIS : List<Shelter>
 loop each shelter
@@ -189,7 +205,11 @@ loop each shelter
     SIS -> REPO : saveAll(created)
   end
 end
-SIS -> REPO : deleteBySourceAndExternalIdNotIn(REGISTRY, fetchedIds)
-REPO -> DB : DELETE registry rows missing from the latest fetch
+alt fetchedIds empty (zero-row fetch)
+  note right of SIS: delisting SKIPPED - existing rows retained (log.warn)
+else
+  SIS -> REPO : deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds)
+  REPO -> DB : DELETE fetchedSource rows missing from the latest fetch (USER + other sources untouched)
+end
 SIS --> RegistryScheduler : ImportResult
 @enduml

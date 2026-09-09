@@ -16,7 +16,7 @@ class PasswordResetServiceTest {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
     private final InMemoryUserRepository users = new InMemoryUserRepository();
     private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
-    private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository();
+    private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService service = new PasswordResetService(
@@ -69,15 +69,56 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void secondRequestInvalidatesThePreviousCode() {
+    void reissueWithinCooldownKeepsTheOriginalCodeValid() {
         savedUser();
         String first = requestCode();
+
+        clock.advance(Duration.ofSeconds(30)); // inside the 60 s cooldown (S1b)
+        service.requestReset(EMAIL);
+
+        // silent no-op: no new row, no new e-mail — the original code is
+        // still the single active one (rotation brute-force stays closed)
+        assertThat(tokens.all()).hasSize(1);
+        assertThat(smtp.sent()).hasSize(1);
+        assertThat(service.reset(EMAIL, first, "newpass")).isTrue();
+    }
+
+    @Test
+    void reissueAfterCooldownInvalidatesThePreviousCode() {
+        savedUser();
+        String first = requestCode();
+
+        clock.advance(Duration.ofSeconds(61)); // past the 60 s cooldown
         String second = requestCode();
 
-        assertThat(first).isNotEqualTo(second);
+        assertThat(second).isNotEqualTo(first);
         assertThat(tokens.all()).hasSize(1); // the first code was invalidated
         assertThat(service.reset(EMAIL, first, "newpass")).isFalse();
         assertThat(service.reset(EMAIL, second, "newpass")).isTrue();
+    }
+
+    @Test
+    void sixthReissueOnTheSameUtcDayIsSkippedButStillSucceeds() {
+        savedUser();
+        // Five request+confirm cycles: each confirmed code leaves a USED row
+        // behind (the cap counts rows created today, incl. used ones).
+        for (int i = 0; i < 5; i++) {
+            if (i > 0) {
+                clock.advance(Duration.ofSeconds(61));
+            }
+            service.requestReset(EMAIL);
+            String code = TestTokens.fromResetEmail(smtp.last().message());
+            assertThat(service.reset(EMAIL, code, "newpass" + i)).isTrue();
+        }
+        assertThat(smtp.sent()).hasSize(5);
+        assertThat(tokens.all()).hasSize(5);
+
+        clock.advance(Duration.ofSeconds(61));
+        service.requestReset(EMAIL); // 6th reissue today -> silent skip (S1b)
+
+        // still the identical silent success — no 6th e-mail, no 6th row
+        assertThat(smtp.sent()).hasSize(5);
+        assertThat(tokens.all()).hasSize(5);
     }
 
     @Test
@@ -128,6 +169,7 @@ class PasswordResetServiceTest {
             service.reset(EMAIL, wrong, "newpass");
         }
 
+        clock.advance(Duration.ofSeconds(61)); // past the reissue cooldown
         String fresh = requestCode(); // a new request resets the attempts
         assertThat(service.reset(EMAIL, fresh, "newpass")).isTrue();
     }

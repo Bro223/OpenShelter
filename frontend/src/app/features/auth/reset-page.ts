@@ -4,10 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
-
-/** The reset code is a 6-digit OTP (backend sixDigitCode()) — the pattern
- *  only mirrors the generator (same as the account-page change-proof codes). */
-const CODE_SIX_DIGITS = /^\d{6}$/;
+import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
 
 export type ResetMode = 'request' | 'sent';
 

@@ -2,10 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
+import { safeReturnUrl } from '../../core/guards';
 import { VerifyGateway } from '../../gateways/verify-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
 
 /** The two channels this page offers. SMART_ID is deliberately NOT offered —
  *  the backend rejects it with 400 (stub in v1), see 04-CONTEXT decision 1. */
@@ -56,7 +58,7 @@ const CHANNELS: ChannelMeta[] = [
 
 const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
   EMAIL: /^[A-Za-z0-9]{8}$/,
-  PHONE: /^\d{6}$/,
+  PHONE: CODE_SIX_DIGITS,
 };
 
 /**
@@ -98,10 +100,12 @@ export class VerifyPage {
    */
   protected readonly returnUrl = (() => {
     const raw = this.route.snapshot.queryParamMap.get('returnUrl');
-    if (raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\')) {
-      return raw;
-    }
-    return null;
+    // Reuse the canonical guard sanitizer (core/guards, reviewer N4/W23) —
+    // it accepts string | null and returns the value only for a safe
+    // internal absolute path, so the identity check IS the safety test.
+    // An absent (or unsafe) param stays null: the page keeps its default
+    // post-verify actions instead of linking somewhere.
+    return raw !== null && safeReturnUrl(raw) === raw ? raw : null;
   })();
 
   /** Panels still open — a level drops off once AuthStore knows it is verified. */

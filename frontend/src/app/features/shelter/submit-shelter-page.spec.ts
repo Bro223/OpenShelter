@@ -3,10 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import type { ShelterDto } from '../../core/models';
 import { authGuard, verifiedGuard } from '../../core/guards';
-import { LeafletService } from '../map/leaflet-service';
+import { LeafletService } from '../../shared/leaflet-service';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { SubmitShelterPage } from './submit-shelter-page';
 
@@ -42,7 +42,6 @@ function fakeAuthStore(): AuthStore {
     levels: () => ['EMAIL' as const],
     init: vi.fn(async () => undefined),
     isVerified: () => true,
-    addLevel: vi.fn(),
   } as unknown as AuthStore;
 }
 
@@ -282,6 +281,22 @@ describe('SubmitShelterPage (/submit)', () => {
     fixture.detectChanges();
 
     expect(element.textContent).toContain('A name is required.');
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(fixture);
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it('a whitespace-only name is rejected as blank, not as too-long (N10)', async () => {
+    const { element, fixture } = await open();
+    fillLocation(element, '59.437', '24.754');
+    const name = input(element, 'shelter-name');
+    name.value = '   ';
+    name.dispatchEvent(new Event('input'));
+    name.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('A name is required.');
+    expect(element.textContent).not.toContain('Name must be 200 characters or fewer.');
     (element.querySelector('form') as HTMLFormElement).requestSubmit();
     await settle(fixture);
     expect(gateway.create).not.toHaveBeenCalled();

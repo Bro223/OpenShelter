@@ -1,4 +1,4 @@
-package ee.sheltermap.config;
+package ee.sheltermap.auth;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

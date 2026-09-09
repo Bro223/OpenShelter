@@ -13,7 +13,7 @@
         <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
         @if (shelter(); as s) {
           <span class="badge" [class.badge--user]="s.source === 'USER'">
-            {{ sourceLabel(s) }}
+            {{ sourceLabel(s.source) }}
           </span>
         }
       </div>
@@ -24,9 +24,9 @@
         <div class="shelter-detail__rating">
           @if (s.averageRating !== null) {
             <app-rating-stars [rating]="s.averageRating" />
-            <span class="review-count">{{ reviewCountText() }}</span>
+            <span class="review-count">{{ reviewCountText(s.reviewCount) }}</span>
           } @else {
-            <span class="no-ratings">No ratings yet</span>
+            <span class="no-ratings">{{ noRatingsYet }}</span>
           }
         </div>
       }
@@ -50,7 +50,7 @@
     </section>
 
     @if (loading()) {
-      <p class="detail-state" role="status">Loading shelter…</p>
+      <app-loading-indicator class="detail-state" message="Loading shelter…" />
     } @else if (shelter(); as s) {
       @if (hasUserDetails()) {
         <section class="detail-section">
@@ -66,7 +66,9 @@
 
       <section class="detail-section" aria-labelledby="reviews-heading">
         <h2 class="section-title" id="reviews-heading">Reviews</h2>
-        @if (reviewsList().length === 0) {
+        @if (reviewsError(); as reviewError) {
+          <p class="detail-state detail-state--error" role="alert">{{ reviewError }}</p>
+        } @else if (reviewsList().length === 0) {
           <p class="detail-state">No reviews yet.</p>
         } @else {
           <ul class="review-list">

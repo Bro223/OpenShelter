@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.RegisteredUser;

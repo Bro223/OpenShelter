@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, type OnInit, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import { safeReturnUrl } from '../../core/guards';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';

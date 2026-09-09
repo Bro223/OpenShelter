@@ -3,15 +3,16 @@ package ee.sheltermap.auth;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.SmtpSender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Objects;
 
 /**
@@ -29,6 +30,13 @@ import java.util.Objects;
  * contact-change codes: a wrong code is counted as a failed attempt and
  * five failures lock the code out, so a 6-digit code cannot be
  * brute-forced. Every failure mode is indistinguishable to the caller.
+ *
+ * <p>Rotation protection (S1b, V8 {@code created_at}): re-issuing a code is
+ * throttled per user — a 60-second cooldown and a per-UTC-day cap of 5
+ * reissues. Both skip paths are silent no-ops that leave the current
+ * active code valid, so the endpoint still answers the identical empty
+ * 200 (no enumeration, no rotation oracle). The confirm path is
+ * additionally rate-limited per (IP, e-mail) at the controller (S1a).
  */
 @Service
 public class PasswordResetService {
@@ -36,7 +44,12 @@ public class PasswordResetService {
     static final Duration CODE_TTL = Duration.ofMinutes(15);
     static final int MAX_ATTEMPTS = 5;
 
-    private static final SecureRandom RANDOM = new SecureRandom();
+    /** Min gap between two reissues for the same user (S1b). */
+    static final Duration REISSUE_COOLDOWN = Duration.ofSeconds(60);
+    /** Max reissues per user per UTC day (S1b). */
+    static final int MAX_REISSUES_PER_UTC_DAY = 5;
+
+    private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
 
     private final UserRepository users;
     private final UserCredentialsRepository credentials;
@@ -68,7 +81,14 @@ public class PasswordResetService {
      * active code for the same user (one active code per user). For
      * unknown emails this is a silent no-op — callers cannot distinguish
      * it from success.
+     *
+     * <p>Rotation protection (S1b): a re-request inside the {@link
+     * #REISSUE_COOLDOWN}, or beyond the {@link #MAX_REISSUES_PER_UTC_DAY}
+     * per-UTC-day cap, is a silent no-op that leaves the current active
+     * code valid — the answer is the identical empty success, and a
+     * rotation brute-force window never opens.
      */
+    @Transactional
     public void requestReset(String email) {
         Objects.requireNonNull(email, "email");
         RegisteredUser user = users.findByEmail(email);
@@ -76,8 +96,22 @@ public class PasswordResetService {
             return;
         }
         Instant now = clock.instant();
+        // Prune this user's rows past expiry first (S1c — bounds table
+        // growth for active users; a global prune of dormant users' old
+        // rows is a scheduler job, not per-request work).
+        tokens.deleteExpiredByUserId(user.getId(), now);
+        Instant latest = tokens.findLatestCreatedAtByUserId(user.getId());
+        if (latest != null && Duration.between(latest, now).compareTo(REISSUE_COOLDOWN) < 0) {
+            log.debug("Reset re-issue skipped (cooldown): userId={}, latest={}", user.getId(), latest);
+            return;
+        }
+        LocalDate utcDay = now.atZone(ZoneOffset.UTC).toLocalDate();
+        if (tokens.countCreatedOnUtcDayByUserId(user.getId(), utcDay) >= MAX_REISSUES_PER_UTC_DAY) {
+            log.info("Reset re-issue skipped (per-UTC-day cap): userId={}, day={}", user.getId(), utcDay);
+            return;
+        }
         tokens.deleteActiveByUserId(user.getId(), now);
-        String code = sixDigitCode();
+        String code = Codes.sixDigitCode();
         tokens.save(new PasswordResetToken(user.getId(), Hashes.sha256Hex(code), now.plus(CODE_TTL)));
         smtpSender.send(user.getData().email(),
                 "Shelter Map password reset code: " + code + " (valid 15 min)");
@@ -112,8 +146,7 @@ public class PasswordResetService {
         if (stored.getAttempts() >= MAX_ATTEMPTS) {
             return false; // locked out — no further attempt churn
         }
-        if (!MessageDigest.isEqual(stored.getTokenHash().getBytes(StandardCharsets.UTF_8),
-                Hashes.sha256Hex(code).getBytes(StandardCharsets.UTF_8))) {
+        if (!Hashes.constantTimeEquals(stored.getTokenHash(), Hashes.sha256Hex(code))) {
             stored.recordAttempt();
             tokens.save(stored);
             return false;
@@ -122,9 +155,5 @@ public class PasswordResetService {
         tokens.markUsed(stored.getId());
         refreshTokens.revokeAllForUser(user.getId());
         return true;
-    }
-
-    private static String sixDigitCode() {
-        return String.format("%06d", RANDOM.nextInt(1_000_000));
     }
 }

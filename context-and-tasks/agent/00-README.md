@@ -5,7 +5,7 @@
 Step-by-step build instructions + context files for an AI coding agent that will implement the
 **Shelter Map** backend (Spring Boot), one reviewable step at a time.
 
-The **UML diagrams** (`docs/uml/`) are the source of truth for structure (classes, method
+The **UML diagrams** (the `context-and-tasks/` folder — `../` relative to this file) are the source of truth for structure (classes, method
 signatures, relationships, packages). The files in this folder add the **decisions, rationale,
 conventions, and build order** that the diagrams don't carry.
 
@@ -23,8 +23,8 @@ conventions, and build order** that the diagrams don't carry.
 
 ## Source-of-truth UML
 
-`docs/uml/01-user-verification.puml` … `05-shelter-api.puml`
-(render with `./render.sh`; PNGs land in `docs/uml/out/`).
+`../01-user-verification.puml` … `../05-shelter-api.puml` (i.e. `context-and-tasks/`)
+(render with `../render.sh`; PNGs land in `../out/`).
 
 ## How to run the agent (one step at a time)
 

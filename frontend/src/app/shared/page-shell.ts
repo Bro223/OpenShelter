@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
-import { AuthStore } from '../core/auth-store';
+import { AuthStore } from '../session/auth-store';
 
 /**
  * The app frame (01 puml, shared/): brand + nav header on top of the routed

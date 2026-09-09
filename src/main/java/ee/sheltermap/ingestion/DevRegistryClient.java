@@ -1,6 +1,7 @@
 package ee.sheltermap.ingestion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ee.sheltermap.domain.ShelterSource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,12 @@ public class DevRegistryClient implements ShelterRegistryClient {
 
     public DevRegistryClient(ObjectMapper mapper) {
         this.mapper = mapper;
+    }
+
+    @Override
+    public ShelterSource source() {
+        // The fixture mirrors the Päästeamet (Maa-amet WFS) dataset.
+        return ShelterSource.PAASETEAMET;
     }
 
     @Override

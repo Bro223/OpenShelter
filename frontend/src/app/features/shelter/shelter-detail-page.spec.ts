@@ -3,12 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import type { ShelterDto, ShelterReviewDto, VerificationLevel } from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { PageShell } from '../../shared/page-shell';
-import { LeafletService, SHELTER_ZOOM } from '../map/leaflet-service';
+import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { ShelterDetailPage } from './shelter-detail-page';
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -44,15 +44,22 @@ class FakeReviewGateway {
     return this.rows.get(shelterId) ?? [];
   });
   add = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
+    // The backend keeps ONE review per (shelter, user): a POST by the same
+    // author upserts in place (200 update after the 201) — same id, new
+    // rating/comment. Reviewer F6: the old append diverged from that.
+    const existing = this.rows.get(shelterId) ?? [];
+    const mine = existing.find((r) => r.authorName === 'Marek T.');
     const row: ShelterReviewDto = {
-      id: this.nextId++,
+      id: mine?.id ?? this.nextId++,
       authorName: 'Marek T.',
       rating,
       comment,
-      createdAt: '2025-09-10T09:30:00Z',
+      createdAt: mine?.createdAt ?? '2025-09-10T09:30:00Z',
     };
-    const existing = this.rows.get(shelterId) ?? [];
-    this.rows.set(shelterId, [...existing, row]);
+    this.rows.set(
+      shelterId,
+      mine ? existing.map((r) => (r.authorName === 'Marek T.' ? row : r)) : [...existing, row],
+    );
     return row;
   });
   updateMine = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
@@ -117,10 +124,6 @@ class FakeLeafletService {
     levels,
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
-    addLevel: (level: VerificationLevel) =>
-      level !== 'SMART_ID' && !levels().includes(level)
-        ? levels.update((l) => [...l, level])
-        : undefined,
   } as unknown as AuthStore;
 }
 
@@ -342,6 +345,51 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).not.toContain('Loading shelter…');
     });
 
+    it('a manual URL edit to another shelter re-loads the new id (N7)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      shelterGateway.rows.set(7, userShelter());
+      const { element, fixture, router } = await open('/shelters/1');
+      expect(shelterGateway.get).toHaveBeenCalledWith(1);
+      expect(text(fixture)).toContain('Tallinn Central Shelter');
+
+      // Manual navigation within the same route (no page re-creation).
+      await router.navigateByUrl('/shelters/7');
+      await settle(fixture);
+
+      expect(shelterGateway.get).toHaveBeenCalledWith(7);
+      expect(text(fixture)).toContain('Community Cellar');
+      expect(text(fixture)).not.toContain('Tallinn Central Shelter');
+      // The anonymous prompt (no form) is now about the NEW shelter: its
+      // returnUrl must point at /shelters/7, not the previous id.
+      expect(text(fixture)).toContain('Log in to rate this shelter.');
+      const link = element.querySelector('a[href*="returnUrl"]') as HTMLAnchorElement;
+      expect(link?.getAttribute('href')).toBe('/login?returnUrl=%2Fshelters%2F7');
+    });
+
+    it('a failed REVIEWS half keeps the loaded shelter and shows the reviews error (N11)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const failure = ApiError.fromHttp(
+        500,
+        { timestamp: 't', status: 500, error: 'Server Error', message: 'boom', path: '/x' },
+        '/api/shelters/1/reviews',
+      );
+      reviewGateway.list = vi.fn(async () => {
+        throw failure;
+      }) as never;
+      const { element, fixture } = await open('/shelters/1');
+
+      // The shelter half succeeded — it renders, no page-level error banner.
+      expect(text(fixture)).toContain('Tallinn Central Shelter');
+      expect(element.querySelector('.banner--error')).toBeNull();
+      // The reviews half failed — its own error state, no list. 5xx uses the
+      // fixed generic server-error copy (shared error-copy, N6).
+      expect(element.querySelector('.detail-state--error')?.textContent).toContain(
+        'Something went wrong. Please try again.',
+      );
+      expect(element.querySelector('.review-list')).toBeNull();
+      void fixture;
+    });
+
     it('shows the error banner with page chrome intact when the backend is down', async () => {
       shelterGateway.get = vi.fn(async () => {
         throw ApiError.fromNetwork();
@@ -551,6 +599,44 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // Back to add mode — delete button gone again.
       expect(element.querySelector('.btn--danger')).toBeNull();
       expect(elText(element)).toContain('Rate this shelter');
+    });
+
+    it('FakeReviewGateway mirrors the backend upsert: one row per (shelter, user) (F6)', async () => {
+      const first = await reviewGateway.add(1, 4, 'take one');
+      const second = await reviewGateway.add(1, 2, 'take two');
+
+      // Upsert keeps the row id (in-place update, not a new row).
+      expect(second.id).toBe(first.id);
+      const rows = await reviewGateway.list(1);
+      // Same author: exactly one row, with the new values...
+      const mine = rows.filter((r) => r.authorName === 'Marek T.');
+      expect(mine).toHaveLength(1);
+      expect(mine[0]).toMatchObject({ rating: 2, comment: 'take two' });
+      // ...and other authors' rows are untouched.
+      expect(rows).toContain(OLD_REVIEW);
+    });
+
+    it('a failed post-write refetch clears the success notice (N12)', async () => {
+      const { element, fixture } = await open('/shelters/1');
+
+      submitReview(element, 4, 'Solid spot');
+      await settle(fixture);
+      expect(text(fixture)).toContain('Your review was saved.');
+
+      // The second (post-write) refetch fails: the notice must not stack
+      // above the error banner.
+      shelterGateway.get = vi.fn(async () => {
+        throw ApiError.fromNetwork();
+      }) as never;
+      // Trigger another write -> its refetch now fails.
+      submitReview(element, 2, 'Changed my mind');
+      await settle(fixture);
+
+      expect(element.querySelector('.banner--error')?.textContent).toContain(
+        'Cannot reach the backend',
+      );
+      expect(text(fixture)).not.toContain('Your review was updated.');
+      expect(text(fixture)).not.toContain('Your review was saved.');
     });
 
     it('a failed save shows the error banner and keeps the form in add mode', async () => {

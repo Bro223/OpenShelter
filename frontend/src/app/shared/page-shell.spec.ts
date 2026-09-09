@@ -4,7 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
 import type { TokenResponse } from '../core/models';
-import { AuthStore } from '../core/auth-store';
+import { AuthStore } from '../session/auth-store';
 import { PageShell } from './page-shell';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };

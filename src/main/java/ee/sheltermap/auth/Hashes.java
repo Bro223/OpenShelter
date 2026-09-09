@@ -19,4 +19,16 @@ final class Hashes {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
+
+    /**
+     * Constant-time string comparison (W9) — no early exit on the first
+     * differing byte, so hash comparisons leak no prefix-length timing
+     * channel. Use for every stored-vs-presented code/token hash compare.
+     */
+    static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
+    }
 }

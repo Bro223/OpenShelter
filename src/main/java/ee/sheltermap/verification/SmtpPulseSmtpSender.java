@@ -49,11 +49,28 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             mail.setSubject("Shelter Map");
             mail.setText(message);
             mailSender.send(mail);
-            log.info("SMTP e-mail sent to {} (subject 'Shelter Map')", email);
+            log.info("SMTP e-mail sent to {} (subject 'Shelter Map')", maskEmail(email));
         } catch (MailException ex) {
             // Never surface delivery problems to callers: the API contract is
             // "reset/verify always succeeds" (anti-enumeration, no 500s).
-            log.error("SMTP delivery to {} failed: {}", email, ex.getMessage());
+            log.error("SMTP delivery to {} failed: {}", maskEmail(email), ex.getMessage());
         }
+    }
+
+    /**
+     * Log-safe e-mail mask (B5 — PII): first character + {@code ***} + the
+     * full domain, e.g. {@code janes.doe@example.com} → {@code j***@example.com}.
+     * Logs must not carry the full address (it is a login contact +
+     * account-recovery channel).
+     */
+    private static String maskEmail(String email) {
+        if (email == null) {
+            return "?";
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 }

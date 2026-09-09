@@ -1,6 +1,7 @@
 package ee.sheltermap.auth;
 
 import com.jayway.jsonpath.JsonPath;
+import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import ee.sheltermap.verification.SmtpSender;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,6 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.reset-capacity=1000",
         "app.ratelimit.reset-refill-per-second=0",
+        "app.ratelimit.reset-confirm-capacity=1000",
+        "app.ratelimit.reset-confirm-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0"
 })
@@ -48,6 +53,12 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     @Autowired
     RecordingSmtpSender smtp;
+
+    @Autowired
+    ee.sheltermap.app.UserRepository users;
+
+    @Autowired
+    PasswordResetTokenRepository resetTokens;
 
     @TestConfiguration
     static class Config {
@@ -82,6 +93,60 @@ class AuthApiIT extends AbstractPersistenceIT {
                                 + "\"phone\":\"+37250000001\",\"nationalIdCode\":\"49001010002\","
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void registerCaseVariantEmailOrPhoneReturns409() throws Exception {
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
+                .andExpect(status().isCreated());
+
+        // case-variant e-mail of an existing account -> 409 (the service
+        // pre-check lower-cases; the V8 case-insensitive index is the
+        // race-safe backstop)
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Mari\",\"email\":\"MARI@EXAMPLE.EE\",\"phone\":\"+37250000002\","
+                                + "\"nationalIdCode\":\"49001010002\",\"password\":\"s3cret\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+
+        // phone-variant twin: national format of the registered E.164 -> 409
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Mari\",\"email\":\"mari3@example.ee\",\"phone\":\"50000001\","
+                                + "\"nationalIdCode\":\"49001010003\",\"password\":\"s3cret\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void loginWithLocalFormatPhoneNormalizesAndSucceeds() throws Exception {
+        registerUser();
+        // 50000001 -> +37250000001 (E.164 normalization at the login boundary)
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"50000001\",\"password\":\"s3cret\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void oversizedRegisterFieldReturns400WhileDuplicateReturns409() throws Exception {
+        // oversized name (> 255, the column size) is rejected at the
+        // validation boundary with 400 — not a DB error
+        String longName = "x".repeat(300);
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"" + longName + "\",\"email\":\"big@example.ee\","
+                                + "\"phone\":\"+37250000010\",\"nationalIdCode\":\"49001010010\","
+                                + "\"password\":\"s3cret\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        // ...while a duplicate registration stays a 409 (the service-side
+        // DIVE catch converts it before the global handler could 400 it)
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
     }
 
     @Test
@@ -188,6 +253,12 @@ class AuthApiIT extends AbstractPersistenceIT {
                         .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("invalid or expired reset code"));
+
+        // the failed attempt is persisted (brute-force guard)
+        RegisteredUser mari = users.findByEmail("mari@example.ee");
+        PasswordResetToken active = resetTokens.findActiveByUserId(mari.getId(), Instant.now());
+        assertThat(active).isNotNull();
+        assertThat(active.getAttempts()).isEqualTo(1);
 
         // the password is unchanged
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)

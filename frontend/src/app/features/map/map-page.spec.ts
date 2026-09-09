@@ -6,7 +6,7 @@ import { ApiError } from '../../core/api-error';
 import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { PageShell } from '../../shared/page-shell';
-import { LeafletService, SHELTER_ZOOM } from './leaflet-service';
+import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { MapPage } from './map-page';
 
 /**
@@ -294,6 +294,47 @@ describe('MapPage', () => {
       await settle(fixture);
 
       expect(gateway.list).toHaveBeenCalledTimes(1); // only the initial ALL fetch
+    });
+
+    it('a failed filter refetch can be retried by re-selecting the active chip (N8)', async () => {
+      let calls = 0;
+      gateway.list.mockImplementation(() => {
+        calls++;
+        return calls === 1 ? Promise.reject(ApiError.fromNetwork()) : Promise.resolve(ALL_ROWS);
+      });
+      const { element, fixture } = await open('/map');
+      // The initial ALL fetch failed — the banner is up.
+      expect(element.querySelector('.banner--error')).not.toBeNull();
+
+      const allChip = element.querySelector<HTMLButtonElement>('.chip');
+      allChip?.click(); // same (active) filter — must retry, not no-op
+      await settle(fixture);
+
+      expect(gateway.list).toHaveBeenCalledTimes(2);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+      expect(leaflet.lastRendered).toEqual([BASEMENT, PARNU, TALLINN]);
+      expect(element.querySelector('.banner--error')).toBeNull();
+    });
+
+    it('a 429 filter refetch shows the shared rate-limited copy, not raw backend text (N9)', async () => {
+      gateway.list.mockRejectedValue(
+        ApiError.fromHttp(
+          429,
+          {
+            timestamp: 't',
+            status: 429,
+            error: 'Too Many Requests',
+            message: 'rate limited',
+            path: '/api/shelters',
+          },
+          '/api/shelters',
+        ),
+      );
+      const { element } = await open('/map');
+
+      const banner = element.querySelector('.banner--error') as HTMLElement | null;
+      expect(banner?.textContent).toContain('Too many attempts — please wait a moment');
+      expect(banner?.textContent).not.toContain('rate limited');
     });
 
     it('shows an empty state (map stays usable) when no shelters match the filter', async () => {

@@ -1,13 +1,13 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.config.JwtProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -63,14 +63,23 @@ public class JwtTokenService implements TokenService {
     }
 
     @Override
+    @Transactional
     public TokenResponse refresh(String refreshToken) {
         Objects.requireNonNull(refreshToken, "refreshToken");
-        RefreshTokenRecord record = refreshTokens.findByTokenHash(Hashes.sha256Hex(refreshToken));
         Instant now = clock.instant();
+        String tokenHash = Hashes.sha256Hex(refreshToken);
+        RefreshTokenRecord record = refreshTokens.findByTokenHash(tokenHash);
         if (record == null || record.revokedAt() != null || record.expiresAt().isBefore(now)) {
             throw new InvalidRefreshTokenException();
         }
-        refreshTokens.revoke(record.tokenHash()); // rotation: the presented token dies
+        // Atomic claim (S4): the conditional UPDATE (revoked_at IS NULL)
+        // takes the row lock, so concurrent double-refreshes serialize —
+        // exactly one racer claims the token (1 row), the losers see 0
+        // rows and get the same generic 401. One transaction keeps the
+        // claim + issue atomic.
+        if (refreshTokens.revoke(tokenHash) == 0) {
+            throw new InvalidRefreshTokenException();
+        }
         User user = users.findById(record.userId());
         if (!(user instanceof RegisteredUser registered)) {
             throw new InvalidRefreshTokenException();

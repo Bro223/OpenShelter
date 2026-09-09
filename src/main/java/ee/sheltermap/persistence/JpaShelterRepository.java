@@ -27,9 +27,43 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional
     public void save(Shelter shelter) {
-        ShelterEntity entity = toEntity(shelter);
+        ShelterEntity entity;
+        if (shelter.getId() != null) {
+            // UPDATE path: mutate the MANAGED row in place. The domain has no
+            // version field (B7b), so merging a fresh entity would carry a
+            // null @Version and the optimistic-lock UPDATE would match zero
+            // rows. In-place mutation keeps the row's current version, which
+            // is exactly what makes concurrent writes fail with an
+            // OptimisticLockException instead of clobbering each other.
+            entity = shelters.findById(shelter.getId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "cannot save shelter with unknown id " + shelter.getId()));
+        } else {
+            // INSERT path: fresh entity (Hibernate initialises @Version to 0).
+            entity = new ShelterEntity();
+        }
+        applyFields(entity, shelter);
         ShelterEntity saved = shelters.save(entity);
         shelter.setId(saved.getId());
+    }
+
+    /** Copies every writable domain field onto the entity (insert or update). */
+    private static void applyFields(ShelterEntity entity, Shelter shelter) {
+        entity.setName(shelter.getName());
+        entity.setLatitude(shelter.getLocation().lat());
+        entity.setLongitude(shelter.getLocation().lng());
+        entity.setStatus(shelter.getStatus());
+        entity.setSource(shelter.getSource());
+        entity.setExternalId(shelter.getExternalId());
+        entity.setAddress(shelter.getAddress());
+        entity.setCounty(shelter.getCounty());
+        entity.setMunicipality(shelter.getMunicipality());
+        entity.setDataAsOf(shelter.getDataAsOf());
+        entity.setSourceAttribution(shelter.getSourceAttribution());
+        entity.setDescription(shelter.getDescription());
+        entity.setCapacity(shelter.getCapacity());
+        entity.setCreatedAt(shelter.getCreatedAt());
+        entity.setCreatedBy(shelter.getCreatedBy());
     }
 
     @Override
@@ -71,13 +105,13 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional(readOnly = true)
     public List<Shelter> findAllBySourceIn(List<ShelterSource> sources) {
-        return shelters.findAllBySourceIn(sources).stream().map(JpaShelterRepository::toDomain).toList();
+        return shelters.findAllBySourceInOrderByIdAsc(sources).stream().map(JpaShelterRepository::toDomain).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Shelter> findByCreatedBy(Long userId) {
-        return shelters.findByCreatedBy(userId).stream().map(JpaShelterRepository::toDomain).toList();
+        return shelters.findByCreatedByOrderByIdAsc(userId).stream().map(JpaShelterRepository::toDomain).toList();
     }
 
     @Override
@@ -104,21 +138,7 @@ public class JpaShelterRepository implements ShelterRepository {
     private static ShelterEntity toEntity(Shelter shelter) {
         ShelterEntity entity = new ShelterEntity();
         entity.setId(shelter.getId());
-        entity.setName(shelter.getName());
-        entity.setLatitude(shelter.getLocation().lat());
-        entity.setLongitude(shelter.getLocation().lng());
-        entity.setStatus(shelter.getStatus());
-        entity.setSource(shelter.getSource());
-        entity.setExternalId(shelter.getExternalId());
-        entity.setAddress(shelter.getAddress());
-        entity.setCounty(shelter.getCounty());
-        entity.setMunicipality(shelter.getMunicipality());
-        entity.setDataAsOf(shelter.getDataAsOf());
-        entity.setSourceAttribution(shelter.getSourceAttribution());
-        entity.setDescription(shelter.getDescription());
-        entity.setCapacity(shelter.getCapacity());
-        entity.setCreatedAt(shelter.getCreatedAt());
-        entity.setCreatedBy(shelter.getCreatedBy());
+        applyFields(entity, shelter);
         return entity;
     }
 

@@ -18,7 +18,7 @@ class AuthServiceTest {
     private final StubPasswordHasher hasher = new StubPasswordHasher();
     private final StubTokenService tokens = new StubTokenService();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
-    private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository();
+    private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService passwordReset = new PasswordResetService(

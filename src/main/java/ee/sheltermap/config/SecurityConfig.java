@@ -1,10 +1,13 @@
 package ee.sheltermap.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ee.sheltermap.api.ErrorResponse;
+import ee.sheltermap.auth.ContactChangeProperties;
+import ee.sheltermap.auth.JwtProperties;
 import ee.sheltermap.auth.JwtTokenService;
 import ee.sheltermap.auth.RateLimiter;
 import ee.sheltermap.auth.TokenBucketRateLimiter;
-import ee.sheltermap.api.ErrorResponse;
+import ee.sheltermap.verification.VerificationProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,9 +63,30 @@ public class SecurityConfig {
         return new TokenBucketRateLimiter(properties.loginCapacity(), properties.loginRefillPerSecond());
     }
 
+    /**
+     * Aggregate per-IP bucket on {@code POST /auth/login} (2026-09-08 review
+     * W5): blocks one IP hammering many accounts (credential stuffing) even
+     * though each per-contact bucket stays under its own limit. Both this
+     * and {@link #loginRateLimiter} must pass for a login to proceed.
+     */
+    @Bean
+    public RateLimiter loginIpRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.loginIpCapacity(), properties.loginIpRefillPerSecond());
+    }
+
     @Bean
     public RateLimiter resetRateLimiter(RateLimitProperties properties) {
         return new TokenBucketRateLimiter(properties.resetCapacity(), properties.resetRefillPerSecond());
+    }
+
+    /**
+     * Per-(IP, e-mail) bucket on {@code POST /auth/password-reset/confirm}
+     * (2026-09-08 review W1): a 6-digit code is guessable, so the confirm
+     * path is rate-limited independently of the reset-request bucket.
+     */
+    @Bean
+    public RateLimiter resetConfirmRateLimiter(RateLimitProperties properties) {
+        return new TokenBucketRateLimiter(properties.resetConfirmCapacity(), properties.resetConfirmRefillPerSecond());
     }
 
     @Bean
@@ -132,7 +156,7 @@ public class SecurityConfig {
                 // Author-scoped (user-contributions): /mine lists the CALLER's shelters,
                 // so it is NOT part of the public shelter GETs below.
                 .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/shelters/**", "/api/reviews/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

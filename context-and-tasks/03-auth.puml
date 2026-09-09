@@ -102,6 +102,33 @@ package "auth" {
 
   class TokenBucketRateLimiter {
     + tryAcquire(key : String) : boolean
+    ' Single instance per bucket set (in-memory map) - the app is a
+    ' single instance; no cross-instance sharing.
+  }
+
+  class ClientIps {
+    + {static} resolve(request, trustedProxies, trustLoopback) : String
+    ' Real client IP for rate-limit keys: XFF is honored ONLY when the
+    ' direct peer is a configured trusted proxy (or trusted loopback), and
+    ' then walked RIGHT-TO-LEFT - peel trusted hops until the first
+    ' non-trusted entry (a spoofed XFF from an untrusted peer is ignored
+    ' entirely).
+  }
+
+  class Codes {
+    + {static} sixDigitCode() : String
+    + {static} randomToken(length : int, alphabet : String) : String
+    ' Shared generator for the auth code flows (2026-09-08 W15): reset +
+    ' contact change + Tokens draw from ONE SecureRandom; leading zeros
+    ' preserved. Verification keeps its own channel-specific generators
+    ' (dependency rule: verification must not import auth).
+  }
+
+  class Hashes {
+    + {static} sha256Hex(raw : String) : String
+    + {static} constantTimeEquals(a : String, b : String) : boolean
+    ' Tokens at rest are SHA-256 hashed; EVERY stored-vs-presented compare
+    ' is constant-time (MessageDigest.isEqual - no early exit, W9).
   }
 
   class AuthController {
@@ -147,12 +174,27 @@ package "auth" {
   }
 
   class AccountController {
+    + me() : MeResponse
+    + updateProfile(request : ProfileUpdateRequest) : MeResponse
     + requestEmailChange(request : ChangeEmailRequest) : void
     + confirmEmailChange(request : ConfirmChangeRequest) : void
     + requestPhoneChange(request : ChangePhoneRequest) : void
     + confirmPhoneChange(request : ConfirmChangeRequest) : void
-    ' All 4 endpoints require JWT; request endpoints additionally
-    ' per-IP rate-limited (changeRequestRateLimiter).
+    + myReviews() : List<MyReviewDto>
+    ' All 7 endpoints require JWT (user resolved from the token, never the
+    ' body); the two change-request endpoints are additionally per-IP
+    ' rate-limited (changeRequestRateLimiter).
+  }
+
+  class AccountService {
+    + profile(user : RegisteredUser) : MeResponse
+    + updateProfile(user : RegisteredUser, request : ProfileUpdateRequest) : MeResponse
+    + myReviews(user : RegisteredUser) : List<MyReviewDto>
+    ' profile = real profile + REAL verified claims (frontend single source
+    ' of truth); updateProfile verifies currentPassword against the Argon2
+    ' hash BEFORE any write (wrong -> 401, nothing updated); myReviews =
+    ' the caller's reviews across ALL shelters, shelter names batched
+    ' (ShelterRepository.findByIds - no N+1).
   }
 
   class ContactChangeService {
@@ -181,6 +223,31 @@ package "auth" {
     + findByUserIdAndType(userId : Long, type : ContactChangeType) : Optional<PendingContactChange>
     + save(change : PendingContactChange) : PendingContactChange
     + delete(change : PendingContactChange) : void
+  }
+
+  class ProfileUpdateRequest <<record>> {
+    + name : String
+    + nationalIdCode : String
+    + currentPassword : String
+  }
+
+  class MeResponse <<record>> {
+    + name : String
+    + email : String
+    + phone : String
+    + nationalIdCode : String
+    + levels : List<VerificationLevel>
+  }
+
+  class MyReviewDto <<record>> {
+    ' One row of GET /account/reviews/mine - the caller's review of a
+    ' shelter, carrying the shelter's id + name for navigation.
+    + shelterId : long
+    + shelterName : String
+    + rating : int
+    + comment : String
+    + createdAt : Instant
+    + updatedAt : Instant
   }
 
   class ChangeEmailRequest <<record>> {
@@ -217,6 +284,12 @@ package "referenced from 01 (contracts only)" {
     + send(phone : String, message : String) : void
   }
 
+  enum "VerificationLevel" as VL {
+    EMAIL
+    PHONE
+    SMART_ID
+  }
+
   enum "ContactChangeType" as CCT {
     EMAIL_CHANGE
     PHONE_CHANGE
@@ -230,7 +303,9 @@ TokenBucketRateLimiter ..|> RateLimiter
 
 ' ==================== SERVICE WIRING ====================
 AuthController --> AuthService : all auth endpoints
-AuthController ..> RateLimiter : guards login + reset-request
+AuthController ..> RateLimiter : 5 buckets - register per IP; login per (IP, normalized contact) + per-IP aggregate; reset-request + reset-confirm per (IP, email)
+AuthController ..> ClientIps : resolves the rate-limit key IP
+AuthController ..> Codes : normalizes the login contact for the key (email lowercased; phone E.164 then lowercased)
 
 AuthService --> UserService : profile lookup (register/login/reset)
 AuthService --> PasswordHasher : hash / verify
@@ -239,8 +314,10 @@ AuthService --> TokenService : issue / refresh / revoke sessions
 AuthService --> PasswordResetService : delegates reset flow
 AuthService --> RefreshTokenRepository : revokeAll on password reset
 
+AccountController --> AccountService : me / profile / myReviews
 AccountController --> ContactChangeService : all contact-change endpoints
 AccountController ..> RateLimiter : guards change-request endpoints (per IP)
+AccountService --> UserCredentialsRepository : current-password check + write
 ContactChangeService --> PendingContactChangeRepository : pending change (cooldown anchor)
 ContactChangeService --> SmsSender : email-change code -> current phone
 ContactChangeService --> SmtpSender : phone-change code -> current email
@@ -252,6 +329,8 @@ PasswordResetService --> PasswordResetTokenRepository : one active code per user
 PasswordResetService --> SmtpSender : reset code email (6-digit, no link)
 PasswordResetService --> UserCredentialsRepository : update hash
 PasswordResetService --> PasswordHasher : hash new password
+PasswordResetService ..> Codes : sixDigitCode()
+MeResponse --> VerificationLevel : real verified claims (enum order)
 
 TokenService --> RefreshTokenRepository : persists refresh tokens
 JwtTokenService ..> RefreshTokenRepository
@@ -278,9 +357,12 @@ end note
 
 note bottom of PasswordResetService
   Reset flow (emailed 6-digit code - no URL link):
-    1. requestReset(email) -> 6-digit code (same generator as
-       contact-change); delete the user's prior active code
-       (one active code per user)
+    1. requestReset(email) -> 6-digit code (shared Codes.sixDigitCode(),
+       same generator as contact-change); per-user re-issue throttle
+       (2026-09-08 W1/S1b): 60 s rotation cooldown + max 5 per UTC day -
+       either hit is a SILENT no-op (still 200, anti-enumeration kept);
+       otherwise delete the user's prior active code (one active code per
+       user)
     2. store {tokenHash = SHA-256(code), expiresAt=15min, usedAt,
        attempts=0} - hashed, single-use, 5-attempt limit (V6)
     3. ALWAYS respond success ("if the account exists, we sent an
@@ -288,8 +370,8 @@ note bottom of PasswordResetService
     4. send "Shelter Map password reset code: NNNNNN (valid 15 min)"
        via SmtpSender (no URL, no app.frontend.base-url)
     5. reset(email, code, newPwd) -> find the account's active code,
-       verify attempts < 5 + hash (constant-time) + expiry + unused,
-       hash new password, update UserCredentials, mark code used
+       verify attempts < 5 + hash (Hashes.constantTimeEquals) + expiry +
+       unused, hash new password, update UserCredentials, mark code used
     6. revoke ALL refresh tokens for that user (stolen-session
        protection - old sessions die on reset)
     7. ONE transaction for 5+6; ANY failure (unknown email / no code /
@@ -297,9 +379,21 @@ note bottom of PasswordResetService
 end note
 
 note bottom of AuthController
-  Thin HTTP shell - zero logic, just wiring (Ch 1). Rate limiting
-  on /auth/login and /auth/password-reset/request guards brute
-  force and email bombing (SDI Ch 4 token bucket).
+  Thin HTTP shell - zero logic, just wiring (Ch 1). permitAll = exactly
+  these 6 POST /auth/* endpoints (register, login, refresh, logout,
+  password-reset request + confirm); GET /api/shelters/** (except /mine)
+  + actuator health/info are the only other open routes - everything else
+  is JWT (see 04-CONTEXT-AUTH wiring). Rate limiting (2026-09-08
+  hardened, SDI Ch 4 token bucket, keys via ClientIps):
+    - /auth/register          per client IP (account spam)
+    - /auth/login             per (IP, normalized contact) AND a per-IP
+                              aggregate bucket (credential stuffing);
+                              contact key = email lowercased or phone
+                              E.164-lowered
+    - /auth/password-reset/   per (IP, email)
+        request
+    - /auth/password-reset/   per (IP, email) anti-guess bucket - a 6-digit
+        confirm                       code must not be brute-forceable
 end note
 
 note bottom of ContactChangeService

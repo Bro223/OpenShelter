@@ -53,7 +53,7 @@ class ShelterServiceTest {
     @Test
     void guestCannotAddPlace() {
         assertThatThrownBy(() -> service.addPlace(new GuestUser(), userPlace()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(NotVerifiedException.class); // 403-mapped (B7c)
 
         assertThat(repo.findAll()).isEmpty();
     }
@@ -65,7 +65,7 @@ class ShelterServiceTest {
         user.setId(1L);
 
         assertThatThrownBy(() -> service.addPlace(user, userPlace()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(NotVerifiedException.class); // 403-mapped (B7c)
 
         assertThat(repo.findAll()).isEmpty();
     }

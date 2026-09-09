@@ -57,15 +57,17 @@
 ## M8 — My contributions (account page, `user-contributions`)
 
 One new **panel on the account page** (`/account`), not a new route — the account stays the
-single place for "what's mine" (M8 design decision 6). A dedicated `features/contributions/`
-component (`ContributionsPanel`) is embedded in the account page template after the existing
-change panels; `AccountPage` stays lean.
+single place for "what's mine" (M8 design decision 6). A dedicated `ContributionsPanel`
+component is embedded in the account page template after the existing change panels;
+`AccountPage` stays lean. *(2026-09-08 arch pass: the panel's files now live in
+`features/account/` — the original `features/contributions/` folder was deleted to kill all
+cross-feature imports.)*
 
 | Type                  | Kind                            | Key members / notes                                                                                                                                                                                                                                                                                                                                                              |
 | --------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ShelterGateway`      | service (`gateways/`, extended) | M8 adds `mine()` (GET `/api/shelters/mine`), `update(id, request)` (PUT `/api/shelters/{id}`), `remove(id)` (DELETE `/api/shelters/{id}` → 204) alongside `list`/`get`/`create`.                                                                                                                                              |
 | `AccountGateway`      | service (`gateways/`, extended) | M8 adds `myReviews()` (GET `/account/reviews/mine` → `MyReviewDto[]`) alongside the M1 profile/verification methods.                                                                                                                                                                                                                   |
-| `ContributionsPanel`  | component (`features/contributions/`) | Two lists, loaded in parallel, each with its own loading/empty/error states: **shelters** (name, created date, rating/review count, View → `/shelters/{id}`, inline-expanding edit form — name/description/capacity/lat/lng with client-side required + bounds mirroring the backend → `update`, two-step delete whose copy notes the reviews are removed too → `remove`) and **reviews** (shelter name link, read-only `RatingStars`, comment, updated date, inline rating 1–5 + comment edit → `ReviewGateway.updateMine`, two-step delete → `deleteMine`). Empty shelter list: "You haven't submitted any shelters yet" + link to `/submit`. Success updates the row in place from the response; 400/403/404 surface via the existing `bannerMessage` pattern with the row unchanged. OnPush + signals, design tokens only. |
+| `ContributionsPanel`  | component (`features/account/` — see note above) | Two lists, loaded in parallel, each with its own loading/empty/error states: **shelters** (name, created date, rating/review count, View → `/shelters/{id}`, inline-expanding edit form — name/description/capacity/lat/lng with client-side required + bounds mirroring the backend → `update`, two-step delete whose copy notes the reviews are removed too → `remove`) and **reviews** (shelter name link, read-only `RatingStars`, comment, updated date, inline rating 1–5 + comment edit → `ReviewGateway.updateMine`, two-step delete → `deleteMine`). Empty shelter list: "You haven't submitted any shelters yet" + link to `/submit`. Success updates the row in place from the response; 400/403/404 surface via the existing `bannerMessage` pattern with the row unchanged. OnPush + signals, design tokens only. |
 
 ## M6 polish notes (expanded in 07-STEPS)
 

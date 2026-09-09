@@ -7,7 +7,7 @@ import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
-import { AuthStore } from '../../core/auth-store';
+import { AuthStore } from '../../session/auth-store';
 import type { MeResponse, MyReviewDto, ShelterDto, TokenResponse } from '../../core/models';
 import { AccountPage } from './account-page';
 
@@ -231,6 +231,37 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain('kontakt@example.ee');
   });
 
+  it('Retry shows a pending state while the profile fetch is in flight (N15)', async () => {
+    account.me.mockRejectedValue(ApiError.fromNetwork());
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await store.init();
+    await store.refreshProfile();
+    await router.navigateByUrl('/account');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const page = fixture.debugElement.query(By.directive(AccountPage)).componentInstance;
+    const retry = element.querySelector('button') as HTMLButtonElement;
+    expect(retry.textContent).toContain('Retry');
+    expect(retry.disabled).toBe(false);
+
+    account.me.mockImplementation(
+      () => new Promise<MeResponse>(() => {}), // never settles
+    );
+    const inFlight = page.retryProfile();
+    fixture.detectChanges();
+
+    expect(retry.textContent).toContain('Retrying…');
+    expect(retry.disabled).toBe(true);
+    // Double-click gives no feedback and no second request (single-flight).
+    retry.click();
+    await fixture.whenStable();
+    expect(account.me).toHaveBeenCalledTimes(2); // the initial + this retry only
+    void inFlight;
+  });
+
   // ---- identity edit (password-confirmed) ----------------------------------
 
   it('Edit opens the form pre-filled with the current values', async () => {
@@ -372,11 +403,68 @@ describe('AccountPage', () => {
 
     expect(account.requestEmailChange).toHaveBeenCalledWith('new@example.ee');
     expect(element.querySelector('#change-email-code')).not.toBeNull();
+    // N5: the backend pins the target at request time — the target input
+    // is locked for the rest of the flow.
+    expect((element.querySelector('#change-email-new') as HTMLInputElement).disabled).toBe(true);
     expect(element.textContent).toContain(
       'We sent an SMS code to the phone number on your account.',
     );
     expect(element.textContent).toContain('Confirm new email');
     expect(element.textContent).toContain('Resend code');
+  });
+
+  it('the code phase locks the phone target input too (F5)', async () => {
+    const { page, element, fixture } = await open();
+    page.newPhone.setValue('+37250000002');
+    account.requestPhoneChange.mockResolvedValue(undefined);
+
+    await page.phoneSend();
+    fixture.detectChanges();
+
+    expect((element.querySelector('#change-phone-new') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('the done state renders the server truth, not the form value (F5)', async () => {
+    const { page, element, fixture } = await open();
+    // The user types a local phone form; the backend stores E.164.
+    page.newPhone.setValue('50000003');
+    account.requestPhoneChange.mockResolvedValue(undefined);
+    await page.phoneSend();
+
+    page.phoneCode.setValue('654321');
+    account.confirmPhoneChange.mockResolvedValue(undefined);
+    account.me.mockResolvedValue({ ...PROFILE, phone: '+37250000003' });
+    await page.phoneConfirm();
+    fixture.detectChanges();
+
+    // The done copy shows the server's E.164, not the raw local form value.
+    expect(text(fixture)).toContain('Your phone is now');
+    const doneCopy = [...element.querySelectorAll('.panel-copy')].find((p) =>
+      p.textContent?.includes('Your phone is now'),
+    );
+    expect(doneCopy?.querySelector('strong')?.textContent?.trim()).toBe('+37250000003');
+  });
+
+  it('startOver clears a stale confirm error (N14)', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('new@example.ee');
+    account.requestEmailChange.mockResolvedValue(undefined);
+    await page.emailSend();
+
+    page.emailCode.setValue('000000');
+    account.confirmEmailChange.mockRejectedValue(
+      apiError(400, 'invalid code', '/account/email-change/confirm'),
+    );
+    await page.emailConfirm();
+    fixture.detectChanges();
+    expect(element.querySelector('.banner--error')).not.toBeNull();
+
+    page.emailStartOver();
+    fixture.detectChanges();
+
+    // Back in the form phase with the stale 400 banner gone.
+    expect(element.querySelector('.banner--error')).toBeNull();
+    expect(element.querySelector('#change-email-code')).toBeNull();
   });
 
   it('email confirm success re-fetches the profile and shows the new value', async () => {

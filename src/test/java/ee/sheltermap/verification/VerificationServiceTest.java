@@ -1,6 +1,5 @@
 package ee.sheltermap.verification;
 
-import ee.sheltermap.config.VerificationProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,9 +32,7 @@ class VerificationServiceTest {
         smtp = new CapturingSmtpSender();
         pendingRepo = new InMemoryPendingVerificationRepository();
         sendLog = new InMemoryVerificationSendLog();
-        // anchored at real now: the in-memory pending repo filters "active" by
-        // Instant.now(), so a fixed past date would make fresh pendings look expired
-        clock = new MutableClock(Instant.now());
+        clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
@@ -186,12 +183,21 @@ class VerificationServiceTest {
         VerificationService throttled = newService(new VerificationProperties(60, 5, "unused"));
 
         throttled.requestVerification(user, VerificationLevel.PHONE);
+        // A second send within the cooldown is throttled (429) and leaves no
+        // second entry in the durable send log (2026-09-08 review fix — the
+        // old test only asserted that the NEXT line didn't throw).
+        assertThatThrownBy(() -> throttled.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class);
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(1);
+
         // A different level for the same user is not throttled by the PHONE cooldown.
         throttled.requestVerification(user, VerificationLevel.EMAIL);
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.EMAIL)).isEqualTo(1);
 
         RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111", "49001011111");
         other.setId(2L);
         throttled.requestVerification(other, VerificationLevel.PHONE); // different user, not throttled
+        assertThat(sendLog.countToday(other.getId(), VerificationLevel.PHONE)).isEqualTo(1);
     }
 
     private static String extractOtp(String message) {

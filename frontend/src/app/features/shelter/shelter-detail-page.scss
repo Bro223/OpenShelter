@@ -73,6 +73,10 @@
 .detail-state {
   color: var(--color-muted);
   margin: 0;
+
+  &--error {
+    color: var(--color-danger);
+  }
 }
 
 .detail-section {

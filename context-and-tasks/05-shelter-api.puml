@@ -29,13 +29,17 @@ package "api" {
   class ShelterQueryService {
     + findAll(filter : ShelterSourceFilter) : List<ShelterDto>
     + findById(id : Long) : Optional<ShelterDto>
+    + findByCreatedBy(userId : Long) : List<ShelterDto>
+    ' M8 author-scoped list - same lean DTO projection (no N+1).
   }
 
   class ShelterReviewService {
-    + addReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : void
-    + updateReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : void
+    + addReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : SaveResult
+    + updateReview(user : RegisteredUser, shelterId : Long, rating : int, comment : String) : ShelterReview
     + deleteReview(user : RegisteredUser, shelterId : Long) : void
     + getReviews(shelterId : Long) : List<ShelterReviewDto>
+    ' SaveResult = (review, created) - the upsert outcome the controller
+    ' maps to 201 (created) / 200 (updated).
     ' getRatingSummary was removed in the review-fix pass (dead code -
     ' no HTTP endpoint consumed it; rating aggregates are served via
     ' ShelterDto / the batched findRatingAggregates query).
@@ -52,9 +56,13 @@ package "api" {
     + averageRating : Double
     + reviewCount : int
     + createdAt : Instant
+    + description : String
+    + capacity : Integer
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
     ' the UI gets only what the map needs.
+    ' description/capacity: USER-submission details (stored since V3;
+    ' null for registry rows).
   }
 
   class CreateShelterRequest <<record>> {
@@ -99,11 +107,6 @@ package "api" {
     + updatedAt : Instant
   }
 
-  class RatingSummaryDto <<record>> {
-    + average : double
-    + count : int
-  }
-
   class ErrorResponse <<record>> {
     + timestamp : Instant
     + status : int
@@ -120,8 +123,8 @@ package "api" {
 }
 
 ' ============ CONTRACT WITH OTHER CONTEXTS (interfaces only) ============
-ShelterController --> ShelterQueryService : GET
-ShelterController --> ShelterService : POST (app/01)
+ShelterController --> ShelterQueryService : GET + GET /mine
+ShelterController --> ShelterService : POST / PUT / DELETE (app/01)
 ShelterController --> CreateShelterRequest : parses body
 ShelterController --> UpdateShelterRequest : parses PUT body
 AccountController --> ShelterReviewRepository : findByUserId (interface, 01)
@@ -137,7 +140,6 @@ ShelterReviewService --> ShelterReviewRepository : interface (01)
 ShelterReviewService --> RegisteredUser : requires verified account
 ShelterReviewService ..> ShelterReview : upserts
 ShelterReviewService --> ShelterReviewDto
-ShelterReviewService --> RatingSummaryDto
 ReviewController --> ReviewRequest
 ShelterReviewService ..> ErrorResponse : 403 if not verified / not author
 
@@ -223,10 +225,12 @@ RVS --> Client : 200 [ShelterReviewDto]
 
 == 5. GET /api/shelters/mine (Bearer JWT) ==
 Client -> SC : GET /api/shelters/mine
-SC -> REPO : findByCreatedBy(me)
+SC -> SQS : findByCreatedBy(me)
+SQS -> REPO : findByCreatedBy(userId)
 REPO -> DB : SELECT ... WHERE created_by = ?
-REPO --> SC : List<Shelter>
-SC --> Client : 200 [ShelterDto] (never other users' or registry rows)
+REPO --> SQS : List<Shelter>
+SQS --> SC : List<ShelterDto> (never other users' or registry rows)
+SC --> Client : 200 [ShelterDto]
 
 == 6. PUT /api/shelters/{id} (Bearer JWT, author-only) ==
 Client -> SC : PUT {name, lat, lng, description, capacity}

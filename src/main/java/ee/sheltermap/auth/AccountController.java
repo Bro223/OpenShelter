@@ -59,16 +59,19 @@ public class AccountController {
     private final UserRepository userRepository;
     private final RateLimiter changeRequestRateLimiter;
     private final Set<String> trustedProxies;
+    private final boolean trustLoopback;
 
     public AccountController(ContactChangeService contactChangeService,
                              AccountService accountService,
                              UserRepository userRepository,
                              @Qualifier("changeRequestRateLimiter") RateLimiter changeRequestRateLimiter,
-                             @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies) {
+                             @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
+                             @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.contactChangeService = Objects.requireNonNull(contactChangeService, "contactChangeService");
         this.accountService = Objects.requireNonNull(accountService, "accountService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.changeRequestRateLimiter = Objects.requireNonNull(changeRequestRateLimiter, "changeRequestRateLimiter");
+        this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -128,7 +131,7 @@ public class AccountController {
     }
 
     private void requireRate(HttpServletRequest http) {
-        if (!changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies))) {
+        if (!changeRequestRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
             throw new RateLimitExceededException();
         }
     }
@@ -136,7 +139,11 @@ public class AccountController {
     private RegisteredUser currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
-            throw new InvalidContactChangeException("authentication required");
+            // Unreachable in practice: /account/** requires a valid JWT — but
+            // if it ever fires, it is an authentication failure (401), not a
+            // contact-change validation error (400). Matches the Shelter/
+            // Review controller fallback convention.
+            throw new InvalidAccessTokenException("authentication required");
         }
         User user = userRepository.findById(userId);
         if (!(user instanceof RegisteredUser registered)) {

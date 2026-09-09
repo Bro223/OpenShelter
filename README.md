@@ -17,7 +17,12 @@ shelter submission, community reviews); run/build docs in
 ## Status
 
 - ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
-  backend functional end-to-end, **216 tests green**.
+  backend functional end-to-end, **302 tests green** (counted 2026-09-09, wave-3 gate).
+- ✅ **2026-09-08 code-review fix campaign** — a 4-lead/13-child review found P0 security
+  issues (reset-code brute force, XFF rate-limit spoofing, fail-open dev JWT secret) plus
+  backend/frontend/architecture findings; all in-scope findings were fixed over 3 waves with
+  tests (see [2026-09-08 code review — fix log](docs/code-review/2026-09-08-fix-log.md)).
+  Frontend: **423 tests green across 30 spec files**.
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
@@ -38,8 +43,12 @@ shelter submission, community reviews); run/build docs in
 
 - **Auth**: register, login (Argon2id hashing), JWT access (15 min) + refresh (30 days, hashed
   at rest, rotated on refresh), logout revokes sessions, password reset (emailed 6-digit code
-  — always "succeeds", single-use code, 5-attempt limit, revokes all sessions), rate limiting
-  on login + reset + register (per client IP, X-Forwarded-For aware).
+  — always "succeeds", single-use code, 5-attempt limit, 60 s re-issue cooldown + 5/UTC-day cap
+  per user, revokes all sessions). Rate limiting (token buckets, keys resolved via
+  `ClientIps` — `X-Forwarded-For` honored only from trusted proxies, peeled right-to-left):
+  login per (IP, normalized contact) **and** a per-IP aggregate bucket (credential-stuffing
+  guard), register per IP, reset-request per (IP, email), and reset-**confirm** its own
+  per-(IP, email) anti-guess bucket.
 - **Verification over HTTP**: `POST /verify/request` / `POST /verify/confirm` (JWT required)
   for email OTP and phone OTP; Smart-ID stub rejected up front; codes hashed, expiring,
   attempt-limited. Verified users gain `canWrite()` (submit shelters, review).
@@ -49,6 +58,9 @@ shelter submission, community reviews); run/build docs in
   current email — stealing only one channel is not enough to hijack an account. One pending
   change per (user, type), 60 s resend cooldown, 15-min code TTL, 5-attempt limit, duplicate
   target → 409, per-IP rate limit on the request endpoints.
+- **Account profile**: `GET /account/me` (the user's REAL profile + REAL verified claims — the
+  frontend's single source of truth) and `PUT /account/profile` (password-confirmed edit of
+  name + national ID; wrong current password → 401, nothing updated).
 - **Anti-spam throttle (verification)**: resend cooldown (`app.verification.cooldown-seconds`),
   per-user daily cap (`app.verification.max-per-day`) backed by a file-based send log
   (`app.verification.send-log-path`, survives restarts), and a per-IP token bucket on
@@ -81,7 +93,7 @@ shelter submission, community reviews); run/build docs in
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -91,13 +103,13 @@ shelter submission, community reviews); run/build docs in
 | Package | Contents |
 |---|---|
 | `domain` | `User` hierarchy, `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring |
-| `app` | `UserService`, `ShelterService`, repository **interfaces** |
-| `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification` |
-| `auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `AuthController`, `RateLimiter`, DTOs |
-| `ingestion` | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult` |
+| `app` | `UserService`, `ShelterService`, repository **interfaces**, `NotVerifiedException` |
+| `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties` |
+| `auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, DTOs |
+| `ingestion` | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties` |
 | `api` | `ShelterController`, `ReviewController`, query/review services, DTOs, `ErrorResponse`, global advice |
 | `persistence` | JPA entities + Spring Data implementations of the repository interfaces |
-| `config` | `SecurityConfig`, `JwtAuthenticationFilter`, properties, `RegistryScheduler` (weekly sync) |
+| `config` | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig` |
 
 Dependency rule: `api`/`auth`/`ingestion` → `app`/`verification` → `domain`. `domain` depends
 on nothing. Cross-package access goes through interfaces only.
@@ -110,7 +122,8 @@ Maa-amet WFS (VARJEKOHT, EPSG:3301)
       ▼
 LEst97Transformer  ── EPSG:3301 → WGS84 (proj4j)
       ▼
-ShelterImportService ── upsert by externalId, delist missing (REGISTRY rows only)
+ShelterImportService ── upsert by externalId, delist missing (the fetched registry
+           source only — PAASETEAMET today; USER rows + other sources never touched)
       ▼
 PostgreSQL (all registry fields stored: name, address, county, municipality,
            coordinates, data-as-of, source attribution)
@@ -132,6 +145,8 @@ manually on boot (see below).
 | POST | `/auth/logout` | refresh | Revoke session |
 | POST | `/auth/password-reset/request` | — | Always 200 ("if the account exists, we emailed a 6-digit code") |
 | POST | `/auth/password-reset/confirm` | — | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions |
+| GET | `/account/me` | JWT | The caller's real profile + real verified claims (`MeResponse` — the frontend's single source of truth) |
+| PUT | `/account/profile` | JWT | Update name + national ID with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated) |
 | POST | `/account/email-change/request` | JWT | Start email change → **SMS code to current phone** (202) |
 | POST | `/account/email-change/confirm` | JWT | Complete email change with the SMS code (200/400) |
 | POST | `/account/phone-change/request` | JWT | Start phone change → **email code to current email** (202) |
@@ -216,7 +231,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 216 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 302 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
@@ -225,6 +240,14 @@ mvn spring-boot:run
 # 5. Health check — expect {"status":"UP"}
 curl http://localhost:8080/actuator/health
 ```
+
+> **Dev profile required for a bare local run.** Since the 2026-09-08 review the JWT secret
+> guard is **fail-closed**: the app refuses to boot on the published dev-default `JWT_SECRET`
+> unless the active profile is exactly `dev` or `test`. A plain `mvn spring-boot:run` with no
+> profile set therefore needs either `SPRING_PROFILES_ACTIVE=dev` or a strong `JWT_SECRET`
+> (≥ 32 bytes, non-default) in the environment / `.env` — otherwise it exits at startup with
+> the guard's message. The test suite runs under profile `test` (its own classpath
+> `application.yml`).
 
 ### One-off import of the real registry data
 
@@ -323,7 +346,6 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   `ShelterImportService`).
 - Intra-fetch duplicate `externalId`s are counted as skipped, never silently dropped.
 - The registry client sends a `User-Agent` identifying the app (politeness).
-- `RatingSummaryDto.average` is `null` for no reviews — consistent with `ShelterDto.averageRating`.
 - CORS configured (`app.cors.allowed-origins`) for the browser frontend.
 - `/dev/email-test` has a recipient allowlist (never an open relay); `DevSmtpSender`/`DevSmsSender`/
   `TwilioSmsSender` are conditional beans — exactly one active per channel.
@@ -334,6 +356,72 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   The remaining hierarchy is `User` → `GuestUser`/`RegisteredUser` only; `revoke(level)`
   survives on `RegisteredUser` because the Step-1 contract ("levels() reflects add/revoke")
   requires it.
+
+## 2026-09-08 code-review fix campaign
+
+A 4-lead / 13-child review (reports: `docs/code-review/2026-09-08-review-output.md`) was fixed
+over three waves — full per-issue record with test evidence in
+[docs/code-review/2026-09-08-fix-log.md](docs/code-review/2026-09-08-fix-log.md). Highlights:
+
+- **P0 security** — reset-confirm anti-guess rate limit; per-user reset re-issue cooldown (60 s)
+  + 5/UTC-day cap; `ClientIps` XFF resolution made unspoofable (untrusted peer → header
+  ignored; trusted chain peeled right-to-left); JWT secret guard made **fail-closed**
+  (refuses the dev-default or < 32-byte secret on any profile except `dev`/`test`);
+  refresh rotation race fixed (transactional, `int` claim).
+- **Backend** — user-submission write path: `@Version` optimistic locking + 409 mapping
+  (incl. commit-time `TransactionSystemException(StaleStateException)` form), author-scoped
+  queries ordered, per-source delisting (see below), dev-endpoint guard (`DevEndpointsGuard`
+  refuses to boot with dev diagnostics enabled on a non-dev/test profile), case-insensitive
+  unique email, login contact-key normalization + per-IP aggregate bucket.
+- **Frontend** — session state consolidated (`session/` package), 401/refresh edge cases
+  (epoch-guarded profile, single-flight refresh, network-error handling), unified error copy,
+  shared loading/rating/leaflet/form-helper layer, contributions panel folded into
+  `features/account/` (zero cross-feature imports).
+- **Schema** — `V8__review_hardening.sql` (reset-token hash uniqueness + `created_at`;
+  case-insensitive email index; `shelters.version`).
+- **Delisting is per source** — the importer now delists only `client.source()`
+  (today `PAASETEAMET`); a zero-row fetch skips delisting entirely; `MUNICIPALITY` rows are
+  retained until a municipality client ships.
+
+Deliberately deferred (recorded in the fix log): reset-token global prune scheduler
+(product/ops decision), the review's long tail of low-severity nits (in-memory TokenBucket
+sweep race, send-log UTC-midnight assumption, 403-vs-401 deleted-user inconsistency,
+unreachable `NotAuthor` guards, first-validation-field-only messages, test nits; frontend
+prod `apiUrl ''`, banner warning variant, `--bp-narrow` token, copy-pasted fakes,
+map-page.scss size budget; dev-endpoint CRLF/`@Size`; national-ID-at-rest doc).
+
+## Production deployment
+
+Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these server-side):
+
+1. **JWT secret (fail-closed).** Run with a real profile (e.g. `SPRING_PROFILES_ACTIVE=prod`)
+   **and** a `JWT_SECRET` that is not the published dev default and is **≥ 32 bytes** (HS256).
+   `ProdJwtGuard` refuses to boot otherwise — a misconfigured deploy cannot start with a
+   weak secret. `dev`/`test` profiles are the only exemptions.
+2. **Dev diagnostics off.** `POST /dev/email-test` and `POST /dev/sms-test` are disabled by
+   default; `DevEndpointsGuard` additionally refuses to boot if either is enabled on a
+   non-dev/test profile.
+3. **CORS.** Set `CORS_ALLOWED_ORIGINS` to the exact public origin(s) of the frontend
+   (default `http://localhost:5173,http://localhost:3000` is dev-only).
+4. **Mail / SMS providers.** `MAIL_PROVIDER=smtp-pulse` + `SMTP_USERNAME`/`SMTP_PASSWORD`
+   (`SMTP_FROM` verified in the dashboard); `SMS_PROVIDER=twilio` + `TWILIO_*` credentials
+   (the sender fail-fasts at boot with missing credentials). All credentials via env vars / a
+   secret store — never committed.
+5. **Registry sync.** `REGISTRY_CLIENT=paasteamet` (default) fetches the live Maa-amet WFS;
+   `REGISTRY_CLIENT=dev` uses the local fixture (dev only). Weekly cron `0 0 3 * * MON`
+   Europe/Tallinn (`app.registry.cron`/`zone`), disable with `app.registry.schedule-enabled=false`.
+6. **Single instance — in-memory rate limits.** The token-bucket limiter and the reset
+   re-issue counter are **in-memory, per process**. This app must run as ONE instance; behind
+   multiple replicas each has its own buckets (limits weaken by the replica count) and the
+   reset daily cap is per-instance. Run one, or move to a shared store first.
+7. **Content-Security-Policy at the proxy (review N1 — the app does not send one).** Add the
+   CSP `Content-Security-Policy` header in the reverse proxy in front of the SPA
+   (the backend sets no CSP; the frontend's prod build is same-origin by default, so a
+   `default-src 'self'`-style policy at the proxy is the intended enforcement point).
+8. **Trusted proxies for rate-limit keys.** If the app sits behind a reverse proxy/LB, set
+   `RATELIMIT_TRUSTED_PROXIES` to the proxy IP(s) — otherwise every user behind it shares one
+   bucket, and without it the `X-Forwarded-For` header is ignored entirely (safe default).
+   Set `RATELIMIT_TRUST_LOOPBACK=false` behind a real load balancer.
 
 ## Current state & known gaps
 
@@ -346,7 +434,8 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   change verified by SMS, phone change by email
 - Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
 - Public read API with rating aggregates, verified-write API for shelters and reviews
-- Persistence (Flyway V1–V5, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway V1–V8, JPA, `ddl-auto=validate`), uniform error handling
+- Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
 **Known gaps / next steps:**
 
@@ -359,14 +448,20 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
    up front).
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
-4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete); the honest
-   deferral list (paging, i18n, MapLibre, httpOnly cookies, SSR,
-   contributions — see the account-profile change) is in
+4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete + M7/M8 additions);
+   the honest deferral list (per-shelter `reviews/mine` endpoint, paging/nearest-bbox search,
+   i18n, MapLibre, httpOnly cookies, SSR, e2e framework) is in
    [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
-5. **`national_id_code` is stored plaintext** — privacy consideration for launch:
+5. **2026-09-08 review deferrals** — the low-severity tail (reset-token global prune
+   scheduler, TokenBucket sweep race, send-log UTC-midnight assumption, 403-vs-401
+   deleted-user inconsistency, unreachable `NotAuthor` guards, first-validation-field-only
+   messages, test nits; frontend prod `apiUrl ''`, banner warning variant, `--bp-narrow`
+   token, copy-pasted fakes, map-page.scss size budget; dev-endpoint CRLF/`@Size`;
+   national-ID-at-rest) is recorded per-issue in the fix log's deferred list.
+6. **`national_id_code` is stored plaintext** — privacy consideration for launch:
    the Estonian personal ID is treated as an account key, not encrypted at rest
    (documented decision; encrypting it is a schema + service change, deferred).
-6. **Live Twilio send is not yet proven end-to-end** — the sender, E.164
+7. **Live Twilio send is not yet proven end-to-end** — the sender, E.164
    normalization and fail-fast are tested with fakes/fixtures; a real SMS from a
    production Twilio account is the one thing only a live run confirms (use
    `POST /dev/sms-test` once `DEV_SMS_TEST_ENABLED=true`).

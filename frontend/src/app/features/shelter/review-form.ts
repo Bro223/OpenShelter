@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, effect, input, output, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RatingStars } from './rating-stars';
+import { RatingStars } from '../../shared/rating-stars';
 
 /**
  * The signed-in user's own review form (01 puml, M5 design decision 2 —

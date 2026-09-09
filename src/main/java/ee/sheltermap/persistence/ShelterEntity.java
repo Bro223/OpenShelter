@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.Instant;
@@ -70,6 +71,19 @@ public class ShelterEntity {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /**
+     * Optimistic-lock counter (B7b, column added by the V8 migration).
+     * A concurrent writer bumps it between a reader's SELECT and UPDATE,
+     * the UPDATE matches zero rows and the flush raises an
+     * {@code OptimisticLockException} instead of silently clobbering.
+     * The domain {@code Shelter} carries no version, so persistence
+     * preserves it by mutating the managed row in place (see
+     * {@code JpaShelterRepository#save}) — never a fresh-entity merge.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     public Long getId() {
         return id;
@@ -197,5 +211,13 @@ public class ShelterEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }
