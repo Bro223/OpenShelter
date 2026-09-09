@@ -97,6 +97,22 @@ export interface LocationResolved {
   longitude: number;
 }
 
+/**
+ * One row of an OSM Nominatim address search (shelter-address-search).
+ * NOT a backend DTO: Nominatim is a client-side external service called
+ * directly by `GeocodeGateway` (Estonia-restricted). Nominatim jsonv2
+ * returns lat/lon as STRINGS — the gateway parses them, so this type is
+ * what crosses the gateway boundary (numbers only).
+ */
+export interface GeocodeResult {
+  /** e.g. "Lossi 2, 81001 Tartu, Tartumaa, Estonia" — what the UI shows. */
+  displayName: string;
+  latitude: number;
+  longitude: number;
+  /** Nominatim's place type, e.g. "house" / "residential" (shown next to the name). */
+  type: string;
+}
+
 export interface CreateShelterRequest {
   name: string;
   latitude: number;

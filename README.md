@@ -131,9 +131,16 @@ PostgreSQL (all registry fields stored: name, address, county, municipality,
 GET /api/shelters  ── lean projection (id, name, address, lat/lng, rating) for the UI
 ```
 
-The UI only ever talks to the local API — never to the external WFS. The DB is refreshed
-**weekly** by `RegistryScheduler` (`@Scheduled`, cron `0 0 3 * * MON`, Europe/Tallinn) or
-manually on boot (see below).
+The UI only ever talks to the local API for app data — never to the external
+WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
+`0 0 3 * * MON`, Europe/Tallinn) or manually on boot (see below).
+
+### External services
+
+| Service       | Who talks to it                                                                               | Purpose / policy                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maa-amet WFS  | backend only (weekly import + manual trigger)                                                 | registry shelters (EPSG:3301 → WGS84)                                                                                                                                                                                                                                                                                                                                                         |
+| OSM Nominatim | **frontend only** — `/submit` address search (`frontend/src/app/gateways/geocode-gateway.ts`) | Estonia-restricted geocoding (`countrycodes=ee`, limit 5, jsonv2), no API key. Client-side **≥1000 ms request spacing** (1 req/s usage policy; the browser sends the expected `Referer`/`Accept-Language`). The UI always renders the required attribution "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to the search box, and a search failure never blocks submission. |
 
 ## API
 

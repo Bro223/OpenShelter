@@ -69,8 +69,8 @@
     <fieldset class="field location-field">
       <legend>Location *</legend>
       <p class="field-note">
-        Paste coordinates (59.4370, 24.7535) or a map link, use "Use my location", or click the map.
-        It must be inside Estonia.
+        Paste coordinates (59.4370, 24.7535) or a map link, search an Estonian address, use "Use my
+        location", or click the map. It must be inside Estonia.
       </p>
       <div #mapEl class="submit-map"></div>
 
@@ -80,6 +80,7 @@
           <input
             id="shelter-location-input"
             type="text"
+            [value]="locationText()"
             (input)="onLocationTextChange($event)"
             (keydown.enter)="onLocationSubmitKey($event)"
             placeholder="59.4370, 24.7535 — or paste a Google Maps link"
@@ -95,6 +96,55 @@
             {{ resolvingLink() ? 'Resolving…' : 'Set location' }}
           </button>
         </div>
+        <p class="location-note">
+          An address from the search below fills this field only while it is empty.
+        </p>
+      </div>
+
+      <div class="location-search">
+        <label class="location-label" for="shelter-address-search"
+          >Search an Estonian address</label
+        >
+        <div class="location-search-row">
+          <input
+            id="shelter-address-search"
+            type="text"
+            [value]="addressQuery()"
+            (input)="onAddressQueryChange($event)"
+            (keydown.enter)="onAddressSearchKey($event)"
+            placeholder="e.g. Lossi 2, Tartu"
+            autocomplete="off"
+            [disabled]="searching()"
+          />
+          <button type="button" class="btn" (click)="startAddressSearch()" [disabled]="searching()">
+            {{ searching() ? 'Searching…' : 'Search' }}
+          </button>
+        </div>
+        <p class="location-attribution">
+          Address data
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
+            >© OpenStreetMap contributors</a
+          >
+        </p>
+        @if (addressResults().length !== 0) {
+          <ul class="address-results">
+            @for (result of addressResults(); track result.displayName) {
+              <li>
+                <button type="button" class="address-result" (click)="selectAddressResult(result)">
+                  <span class="address-result__name">{{ result.displayName }}</span>
+                  <span class="address-result__type">{{ result.type }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+        @if (addressErrorText(); as addressErrorMsg) {
+          @if (addressError() === 'no-results') {
+            <p class="location-note">{{ addressErrorMsg }}</p>
+          } @else {
+            <p class="field-error" role="alert">{{ addressErrorMsg }}</p>
+          }
+        }
       </div>
 
       <div class="location-actions">

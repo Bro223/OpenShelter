@@ -53,6 +53,23 @@
 > Frontend mirror: `GeoGateway.resolve(url)` in `gateways/geo-gateway.ts` (its own
 > gateway for its own controller group — kept separate from `ShelterGateway`).
 
+### External: OSM Nominatim (client-side only — shelter-address-search)
+
+NOT a backend endpoint: the `/submit` location section's address search calls OSM
+Nominatim DIRECTLY from the browser (no JWT, no backend hop, no API key).
+
+| Method + URL                                     | Query                                               | Success                                                               | Errors                                                                         |
+| ------------------------------------------------ | --------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `GET https://nominatim.openstreetmap.org/search` | `format=jsonv2&limit=5&countrycodes=ee&q=<encoded>` | 200 `[{ display_name, lat, lon, type, … }]` (lat/lon are **strings**) | 429 (1 req/s usage policy — the client spaces requests ≥1000 ms), network/CORS |
+
+> The ONLY module that knows this URL is `gateways/geocode-gateway.ts` — it returns
+> `GeocodeResult[]` (`core/models.ts`: `{ displayName, latitude, longitude, type }`,
+> numbers) and throws `ApiError` (429 / network) the page maps to inline copy.
+> The browser sends `Referer`/`Accept-Language` with every fetch (Nominatim's
+> app-identification expectation); the UI always renders the required attribution
+> "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to the search
+> box, success or failure. A search failure never blocks form submission.
+
 ### Shelter writes & author-scoped (`/api/shelters`) — JWT required
 
 | Method + path               | Body                                                                                       | Success                                                                         | Errors                                                                                          |

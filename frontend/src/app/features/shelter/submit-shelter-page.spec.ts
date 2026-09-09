@@ -4,8 +4,9 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
-import type { ShelterDto } from '../../core/models';
+import type { GeocodeResult, ShelterDto } from '../../core/models';
 import { authGuard, verifiedGuard } from '../../core/guards';
+import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { LeafletService } from '../../shared/leaflet-service';
@@ -18,6 +19,10 @@ class FakeShelterGateway {
 
 class FakeGeoGateway {
   resolve = vi.fn();
+}
+
+class FakeGeocodeGateway {
+  search = vi.fn();
 }
 
 class FakeLeafletService {
@@ -67,6 +72,14 @@ const CREATED: ShelterDto = {
   capacity: 40,
 };
 
+/** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */
+const GEO_RESULT: GeocodeResult = {
+  displayName: 'Lossi 2, 81001 Tartu, Tartumaa, Estonia',
+  latitude: 59.43703,
+  longitude: 24.75353,
+  type: 'house',
+};
+
 @Component({ template: '<p>map stub</p>' })
 class MapStub {}
 
@@ -112,6 +125,7 @@ function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): v
 describe('SubmitShelterPage (/submit)', () => {
   let gateway: FakeShelterGateway;
   let geo: FakeGeoGateway;
+  let geocode: FakeGeocodeGateway;
   let leaflet: FakeLeafletService;
   let router: Router;
 
@@ -123,6 +137,7 @@ describe('SubmitShelterPage (/submit)', () => {
     setGeolocation(undefined);
     gateway = new FakeShelterGateway();
     geo = new FakeGeoGateway();
+    geocode = new FakeGeocodeGateway();
     leaflet = new FakeLeafletService();
     TestBed.configureTestingModule({
       providers: [
@@ -138,6 +153,7 @@ describe('SubmitShelterPage (/submit)', () => {
         ]),
         { provide: ShelterGateway, useValue: gateway as unknown as ShelterGateway },
         { provide: GeoGateway, useValue: geo as unknown as GeoGateway },
+        { provide: GeocodeGateway, useValue: geocode as unknown as GeocodeGateway },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
         { provide: AuthStore, useValue: fakeAuthStore() },
       ],
@@ -195,6 +211,20 @@ describe('SubmitShelterPage (/submit)', () => {
     const field = input(el, 'shelter-location-input');
     field.value = text;
     field.dispatchEvent(new Event('input'));
+  }
+
+  function typeAddressSearch(el: HTMLElement, text: string): void {
+    const field = input(el, 'shelter-address-search');
+    field.value = text;
+    field.dispatchEvent(new Event('input'));
+  }
+
+  function resultButton(el: HTMLElement): HTMLButtonElement {
+    const found = el.querySelector<HTMLButtonElement>('.address-results li button');
+    if (!found) {
+      throw new Error('address result button not found');
+    }
+    return found;
   }
 
   function pressEnterIn(el: HTMLElement, id: string): void {
@@ -453,6 +483,174 @@ describe('SubmitShelterPage (/submit)', () => {
     }
 
     expect(element.textContent).toContain('Too many link lookups');
+  });
+
+  // ---------------------------------------------------------------------
+  // Address search (shelter-address-search) — the fifth capture mode
+  // ---------------------------------------------------------------------
+
+  it('an address search (Enter) lists results and selecting one places the pin (source: address search)', async () => {
+    geocode.search.mockResolvedValue([GEO_RESULT]);
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(geocode.search).toHaveBeenCalledTimes(1);
+    expect(geocode.search).toHaveBeenCalledWith('lossi 2, tartu');
+    // The results are a <ul> of buttons, each carrying display name + type.
+    const resultButtons = element.querySelectorAll<HTMLButtonElement>('.address-results li button');
+    expect(resultButtons).toHaveLength(1);
+    expect(resultButtons[0].textContent).toContain('Lossi 2, 81001 Tartu, Tartumaa, Estonia');
+    expect(resultButtons[0].textContent).toContain('house');
+
+    resultButtons[0].click();
+    fixture.detectChanges();
+
+    // Pin placed through the shared location path + source label + flyTo.
+    expect(leaflet.pickCalls.at(-1)).toEqual([59.43703, 24.75353]);
+    expect(leaflet.flyToCalls.at(-1)).toEqual([59.43703, 24.75353]);
+    expect(element.textContent).toContain('59.43703, 24.75353');
+    expect(element.textContent).toContain('Location from the address search');
+  });
+
+  it('selecting a result prefills the address field when it is empty', async () => {
+    geocode.search.mockResolvedValue([GEO_RESULT]);
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    expect(input(element, 'shelter-location-input').value).toBe('');
+
+    resultButton(element).click();
+    fixture.detectChanges();
+
+    expect(input(element, 'shelter-location-input').value).toBe(GEO_RESULT.displayName);
+  });
+
+  it('selecting a result leaves a non-empty address field untouched (pin still placed)', async () => {
+    geocode.search.mockResolvedValue([GEO_RESULT]);
+    const { element, fixture } = await open();
+    fillValidForm(element); // smart input carries user-typed coordinates + pin
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    resultButton(element).click();
+    fixture.detectChanges();
+
+    // Prefill, never overwrite (design decision 4).
+    expect(input(element, 'shelter-location-input').value).toBe('59.437, 24.754');
+    expect(leaflet.pickCalls.at(-1)).toEqual([59.43703, 24.75353]);
+    expect(element.textContent).toContain('Location from the address search');
+  });
+
+  it('a search with no Estonian matches shows the no-results message (link/map/geo suggested)', async () => {
+    geocode.search.mockResolvedValue([]);
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'big ben, london');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('No Estonian address found');
+    expect(element.textContent).toContain('try the map, a link, or "Use my location"');
+    expect(element.querySelector('.address-results')).toBeNull();
+  });
+
+  it('a 429 from the geocoder shows the wait-a-moment message and does not touch the pin', async () => {
+    geocode.search.mockRejectedValue(
+      ApiError.fromHttp(
+        429,
+        {
+          timestamp: 't',
+          status: 429,
+          error: 'Too Many Requests',
+          message: 'too many requests',
+          path: '',
+        },
+        'https://nominatim.openstreetmap.org/search',
+      ),
+    );
+    const { element, fixture } = await open();
+    fillValidForm(element); // pin placed first — it must survive the 429
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('please wait a moment');
+    expect(element.textContent).toContain('Location from typed coordinates');
+    expect(element.querySelector('.address-results')).toBeNull();
+  });
+
+  it('a network failure shows the generic copy and never blocks submission', async () => {
+    geocode.search.mockRejectedValue(ApiError.fromNetwork());
+    gateway.create.mockResolvedValue(CREATED);
+    const { element, fixture } = await open();
+    fillValidForm(element);
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('Address search is unreachable right now');
+    // The search failure does not gate the form — a valid submit still goes out.
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(fixture);
+    expect(gateway.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('a pending search shows "Searching…" on the button and ignores extra presses (no stacking)', async () => {
+    let resolveSearch: (results: GeocodeResult[]) => void = () => {};
+    geocode.search.mockReturnValue(
+      new Promise<GeocodeResult[]>((resolve) => {
+        resolveSearch = resolve;
+      }),
+    );
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    button(element, 'Search').click();
+    fixture.detectChanges();
+
+    expect(geocode.search).toHaveBeenCalledTimes(1);
+    expect(button(element, 'Searching…').disabled).toBe(true);
+    // A second trigger while pending is ignored, not stacked.
+    pressEnterIn(element, 'shelter-address-search');
+    expect(geocode.search).toHaveBeenCalledTimes(1);
+
+    resolveSearch([GEO_RESULT]);
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    expect(button(element, 'Search').disabled).toBe(false);
+    expect(element.querySelector('.address-results')).not.toBeNull();
+  });
+
+  it('always renders the OSM attribution next to the search (before any search)', async () => {
+    const { element } = await open();
+
+    const link = element.querySelector<HTMLAnchorElement>('.location-attribution a');
+    if (!link) {
+      throw new Error('.location-attribution a not found');
+    }
+    expect(link.textContent).toContain('© OpenStreetMap contributors');
+    expect(link.getAttribute('href')).toBe('https://www.openstreetmap.org/copyright');
   });
 
   it('"Use my location" places the marker with an accuracy hint (high accuracy, 10 s, no cache)', async () => {

@@ -11,7 +11,8 @@ import {
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
-import type { CreateShelterRequest } from '../../core/models';
+import type { CreateShelterRequest, GeocodeResult } from '../../core/models';
+import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { bannerMessage } from '../../shared/error-copy';
@@ -25,7 +26,7 @@ import { ESTONIA_CENTER, ESTONIA_ZOOM, LeafletService } from '../../shared/leafl
 import { BannerComponent } from '../../shared/banner.component';
 
 /** Which capture mode last wrote the shared location state (design decision 1). */
-type LocationSource = 'typed' | 'link' | 'geolocation' | 'map-pick';
+type LocationSource = 'typed' | 'link' | 'geolocation' | 'map-pick' | 'address-search';
 
 /** The ONE shared location state: every capture mode writes it, the map marker + read-only readout read it. */
 interface PickedLocation {
@@ -76,15 +77,29 @@ const SOURCE_LABEL: Record<LocationSource, string> = {
   link: 'the map link',
   geolocation: 'your device location',
   'map-pick': 'the map',
+  'address-search': 'the address search',
+};
+
+/** The inline states of the address search (shelter-address-search). A search
+ * failure NEVER touches the location state (no pin change) and never blocks
+ * form submission — search is an optional capture mode, not a gate. */
+type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
+
+const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
+  'no-results': 'No Estonian address found — try the map, a link, or "Use my location".',
+  'rate-limited': 'The address search is busy — please wait a moment and try again.',
+  network: 'Address search is unreachable right now. Use the map or a link instead.',
 };
 
 /**
  * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
  * (05-shelter-review-flow.puml, M5 + shelter-location-input). Name (≤200),
  * optional description (≤2000), optional capacity (1–100 000), and a
- * location captured four ways — smart text input (coordinate string /
+ * location captured five ways — smart text input (coordinate string /
  * long-form map URL, parsed by shared/location-input.ts), "Use my location"
  * (browser geolocation), maps.app.goo.gl short links (POST /api/geo/resolve),
+ * an Estonia address search (client-side OSM Nominatim via GeocodeGateway —
+ * button/Enter submit, no autosuggest; the only client-side external call),
  * and the mini-map click/drag — all writing ONE shared location signal
  * (design decision 1). Resolved coordinates are displayed read-only.
  *
@@ -103,6 +118,7 @@ const SOURCE_LABEL: Record<LocationSource, string> = {
 export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
   private readonly geo = inject(GeoGateway);
+  private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
   private readonly router = inject(Router);
 
@@ -143,8 +159,19 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    * The smart text input's content. Deliberately a plain input (not a form
    * control): it is a capture AFFORDANCE, not a submitted field — the
    * submitted coordinates always come from the shared location state.
+   * Doubles as the form's address field for address-search prefill
+   * (only-if-empty, stated in the help line near it — design decision 4).
    */
   protected readonly locationText = signal('');
+
+  /** The address search input's content (a capture affordance, not a field). */
+  protected readonly addressQuery = signal('');
+  /** True while a search is in flight OR waiting out the 1000 ms spacing window. */
+  protected readonly searching = signal(false);
+  /** The current results (max 5) — stay listed until the next search. */
+  protected readonly addressResults = signal<GeocodeResult[]>([]);
+  /** The inline state of the search (null = none). */
+  protected readonly addressError = signal<GeocodeErrorKind | null>(null);
 
   protected name(): FormControl<string> {
     return this.form.get('name') as FormControl<string>;
@@ -303,6 +330,77 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     } finally {
       this.resolvingLink.set(false);
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Capture mode 5: Estonia address search (client-side OSM Nominatim)
+  // ---------------------------------------------------------------------
+
+  protected onAddressQueryChange(event: Event): void {
+    this.addressQuery.set((event.target as HTMLInputElement).value);
+  }
+
+  /** Enter in the search input searches instead of submitting the form. */
+  protected onAddressSearchKey(event: Event): void {
+    if (!(event instanceof KeyboardEvent) || event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    this.startAddressSearch();
+  }
+
+  /**
+   * The "Search" button (and Enter): ONE deliberate Nominatim request per
+   * press — no autosuggest (Nominatim usage policy, design decision 2).
+   * A press while a search is pending is IGNORED, never stacked; if the
+   * press lands inside the 1000 ms spacing window the gateway waits it
+   * out and the button stays pending the whole time (design decision 3).
+   */
+  protected startAddressSearch(): void {
+    if (this.searching()) {
+      return;
+    }
+    const query = this.addressQuery().trim();
+    if (query === '') {
+      return;
+    }
+    this.searching.set(true);
+    this.addressError.set(null);
+    this.addressResults.set([]);
+    void this.geocode
+      .search(query)
+      .then((results) => {
+        if (results.length === 0) {
+          this.addressError.set('no-results');
+          return;
+        }
+        this.addressResults.set(results);
+      })
+      .catch((failure: unknown) => {
+        // 429 = the service throttles ("please wait a moment"); anything
+        // else (network/CORS/5xx) gets the generic unavailable copy.
+        const api = toApiError(failure);
+        this.addressError.set(api.status === 429 ? 'rate-limited' : 'network');
+      })
+      .finally(() => this.searching.set(false));
+  }
+
+  /**
+   * Selecting a result: place the pin (source 'address-search', the same
+   * shared path as every other capture mode) and prefill the address field
+   * — the smart text input above — ONLY IF it is currently empty (design
+   * decision 4: prefill, never overwrite; the help line states this).
+   */
+  protected selectAddressResult(result: GeocodeResult): void {
+    this.setLocation(result.latitude, result.longitude, 'address-search');
+    if (this.locationText().trim() === '') {
+      this.locationText.set(result.displayName);
+    }
+  }
+
+  protected addressErrorText(): string | null {
+    const kind = this.addressError();
+    return kind === null ? null : GEOCODE_ERROR_COPY[kind];
   }
 
   /**
