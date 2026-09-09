@@ -35,11 +35,11 @@
    UI shows the editable form to every verified user; PUT/DELETE /mine on a nonexistent review →
    backend 404. Handle by: show the form in "add" mode after a user's first review (if the POST
    returns 200 "updated", it was an edit), and offer "delete my review" only when the user has
-   actually submitted one (track locally per session). *(M8 — RESOLVED: the deferred*
-   `GET /reviews/mine` *endpoint is now BUILT as*
-   `GET /account/reviews/mine` *(backend, `/account` group) — the account page's
+   actually submitted one (track locally per session). _(M8 — RESOLVED: the deferred_
+   `GET /reviews/mine` _endpoint is now BUILT as_
+   `GET /account/reviews/mine` _(backend, `/account` group) — the account page's
    "My contributions" panel lists the user's reviews across ALL shelters with shelter id + name,
-   so cross-shelter management no longer needs per-session tracking.)*
+   so cross-shelter management no longer needs per-session tracking.)_
 3. **Rating average is null, not 0** — display "no ratings yet" instead of 0 stars.
 4. **Author-only, server-enforced.** Never render delete buttons for other people's reviews —
    there is no author identity in the DTO (v1), so the safest UI is: reviews are read-only lists
@@ -47,10 +47,10 @@
 5. **Submission is verified-gated in the UI AND the backend.** `VerifiedGuard` on `/submit`
    mirrors the 403. If a 403 still arrives (claim expired), banner → `/verify`.
 6. **USER vs REGISTRY rendering.** Registry rows: address + (eventually) county metadata; USER
-   rows: description/capacity + "added by the community". *(M8 supersedes the "never show a
+   rows: description/capacity + "added by the community". _(M8 supersedes the "never show a
    delete/flag UI on shelters in v1" caveat for the AUTHOR: their own USER-source shelters get
    edit/delete in the account page's contributions panel — registry rows stay read-only for
-   everyone.)*
+   everyone.)_
 7. **After review/submit success, refetch** the shelter (rating summary changed) — cheap at this
    scale and always consistent.
 
@@ -59,15 +59,15 @@
 One new **panel on the account page** (`/account`), not a new route — the account stays the
 single place for "what's mine" (M8 design decision 6). A dedicated `ContributionsPanel`
 component is embedded in the account page template after the existing change panels;
-`AccountPage` stays lean. *(2026-09-08 arch pass: the panel's files now live in
+`AccountPage` stays lean. _(2026-09-08 arch pass: the panel's files now live in
 `features/account/` — the original `features/contributions/` folder was deleted to kill all
-cross-feature imports.)*
+cross-feature imports.)_
 
-| Type                  | Kind                            | Key members / notes                                                                                                                                                                                                                                                                                                                                                              |
-| --------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ShelterGateway`      | service (`gateways/`, extended) | M8 adds `mine()` (GET `/api/shelters/mine`), `update(id, request)` (PUT `/api/shelters/{id}`), `remove(id)` (DELETE `/api/shelters/{id}` → 204) alongside `list`/`get`/`create`.                                                                                                                                              |
-| `AccountGateway`      | service (`gateways/`, extended) | M8 adds `myReviews()` (GET `/account/reviews/mine` → `MyReviewDto[]`) alongside the M1 profile/verification methods.                                                                                                                                                                                                                   |
-| `ContributionsPanel`  | component (`features/account/` — see note above) | Two lists, loaded in parallel, each with its own loading/empty/error states: **shelters** (name, created date, rating/review count, View → `/shelters/{id}`, inline-expanding edit form — name/description/capacity/lat/lng with client-side required + bounds mirroring the backend → `update`, two-step delete whose copy notes the reviews are removed too → `remove`) and **reviews** (shelter name link, read-only `RatingStars`, comment, updated date, inline rating 1–5 + comment edit → `ReviewGateway.updateMine`, two-step delete → `deleteMine`). Empty shelter list: "You haven't submitted any shelters yet" + link to `/submit`. Success updates the row in place from the response; 400/403/404 surface via the existing `bannerMessage` pattern with the row unchanged. OnPush + signals, design tokens only. |
+| Type                 | Kind                                             | Key members / notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ShelterGateway`     | service (`gateways/`, extended)                  | M8 adds `mine()` (GET `/api/shelters/mine`), `update(id, request)` (PUT `/api/shelters/{id}`), `remove(id)` (DELETE `/api/shelters/{id}` → 204) alongside `list`/`get`/`create`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `AccountGateway`     | service (`gateways/`, extended)                  | M8 adds `myReviews()` (GET `/account/reviews/mine` → `MyReviewDto[]`) alongside the M1 profile/verification methods.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `ContributionsPanel` | component (`features/account/` — see note above) | Two lists, loaded in parallel, each with its own loading/empty/error states: **shelters** (name, created date, rating/review count, View → `/shelters/{id}`, inline-expanding edit form — name/description/capacity/lat/lng with client-side required + bounds mirroring the backend → `update`, two-step delete whose copy notes the reviews are removed too → `remove`) and **reviews** (shelter name link, read-only `RatingStars`, comment, updated date, inline rating 1–5 + comment edit → `ReviewGateway.updateMine`, two-step delete → `deleteMine`). Empty shelter list: "You haven't submitted any shelters yet" + link to `/submit`. Success updates the row in place from the response; 400/403/404 surface via the existing `bannerMessage` pattern with the row unchanged. OnPush + signals, design tokens only. |
 
 ## M6 polish notes (expanded in 07-STEPS)
 

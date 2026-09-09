@@ -39,16 +39,16 @@ covers the **frontend only**.
 
 ## 4. Source layout (under `src/app/`)
 
-| Folder | Contents | Source diagram |
-|---|---|---|
-| `core/` | `ApiClient`, `ApiError`, `TokenStore`, guards, `ApiInterceptor`, typed models (NO session state — that moved to `session/`) | `01` |
-| `session/` | `AuthStore` — session state (profile + real verified claims). Moved out of `core/` in the 2026-09-08 arch pass; `core/` keeps the guards + interceptor, which import it — the core→session edge is intentional | `01` |
-| `gateways/` | `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`) — one per backend controller group | `01` |
-| `features/auth/` | `LoginPage`, `RegisterPage`, `ResetPage` | `01`+`02` |
-| `features/account/` | `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted) | `01`+`03`+`05` |
-| `features/map/` | `MapPage` (the Leaflet wrapper lives in `shared/` now) | `01`+`04` |
-| `features/shelter/` | `ShelterDetailPage`, `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`) | `01`+`05` |
-| `shared/` | `PageShell`, `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`) and `shelter-copy.ts` (canonical source/rating copy) | `01` |
+| Folder              | Contents                                                                                                                                                                                                                                                                                                 | Source diagram |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `core/`             | `ApiClient`, `ApiError`, `TokenStore`, guards, `ApiInterceptor`, typed models (NO session state — that moved to `session/`)                                                                                                                                                                              | `01`           |
+| `session/`          | `AuthStore` — session state (profile + real verified claims). Moved out of `core/` in the 2026-09-08 arch pass; `core/` keeps the guards + interceptor, which import it — the core→session edge is intentional                                                                                           | `01`           |
+| `gateways/`         | `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`) — one per backend controller group                                       | `01`           |
+| `features/auth/`    | `LoginPage`, `RegisterPage`, `ResetPage`                                                                                                                                                                                                                                                                 | `01`+`02`      |
+| `features/account/` | `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted)                                                                                                                                                                   | `01`+`03`+`05` |
+| `features/map/`     | `MapPage` (the Leaflet wrapper lives in `shared/` now)                                                                                                                                                                                                                                                   | `01`+`04`      |
+| `features/shelter/` | `ShelterDetailPage`, `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`)                                                                                                                                                                                                                | `01`+`05`      |
+| `shared/`           | `PageShell`, `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`) and `shelter-copy.ts` (canonical source/rating copy) | `01`           |
 
 **Dependency rule (never break it):** `features` → `gateways` → `core`. Components never call
 `HttpClient` or touch `TokenStore` internals; gateways are the only door to the API. No cycles.
@@ -60,7 +60,7 @@ covers the **frontend only**.
    verify manually, and **stop**.
 2. **Components are thin shells** (backend rule §7 mirrored): parse events, delegate to gateways/
    stores, bind signals. Zero business logic in templates/components. Tests must cover the logic
-   that *is* in services.
+   that _is_ in services.
 3. **Typed models, field-for-field.** Every backend DTO has an exact TypeScript model
    (`02-CONTEXT-API.md`). Never use `any` for API payloads. JSON is camelCase already — map 1:1.
 4. **One uniform error path.** `ApiClient` converts every failure (HTTP + network) into an

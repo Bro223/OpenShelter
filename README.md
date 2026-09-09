@@ -364,7 +364,7 @@ over three waves — full per-issue record with test evidence in
 [docs/code-review/2026-09-08-fix-log.md](docs/code-review/2026-09-08-fix-log.md). Highlights:
 
 - **P0 security** — reset-confirm anti-guess rate limit; per-user reset re-issue cooldown (60 s)
-  + 5/UTC-day cap; `ClientIps` XFF resolution made unspoofable (untrusted peer → header
+  - 5/UTC-day cap; `ClientIps` XFF resolution made unspoofable (untrusted peer → header
   ignored; trusted chain peeled right-to-left); JWT secret guard made **fail-closed**
   (refuses the dev-default or < 32-byte secret on any profile except `dev`/`test`);
   refresh rotation race fixed (transactional, `int` claim).
