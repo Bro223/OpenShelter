@@ -415,7 +415,16 @@ textarea {
 
 .btn--block {
   width: 100%;
-  display: block;
+  /* Both-axis centering for the block variant — and it MATTERS for the
+     <a> buttons (Add shelter, Submit a shelter, …): <button> elements are
+     self-centred by the UA button face, but an <a> with display: block is
+     a plain box, so its label lands LEFT- and TOP-aligned (the reported
+     "Add shelter looks off" bug). Flex centers both axes for both element
+     types. (align/justify also come from the .btn base rule; restated here
+     so the rule is self-contained and survives base-rule refactors.) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* two-step delete: armed danger button (used by the contributions panel) */

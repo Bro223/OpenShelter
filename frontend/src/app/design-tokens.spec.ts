@@ -440,6 +440,10 @@ describe('design tokens (M6)', () => {
     expect(stylesCss).toMatch(/\.btn \{[^}]*display: inline-flex/);
     expect(stylesCss).toMatch(/align-items: center/);
     expect(stylesCss).toMatch(/justify-content: center/);
+    // The block variant must NOT fall back to display: block (the M2 rule)
+    // — that leaves <a> buttons' labels left/top-aligned, because only
+    // <button> elements get the UA button face's self-centring.
+    expect(stylesCss).toMatch(/\.btn--block \{[^}]*display: flex/s);
   });
 
   it('form controls and links carry explicit token colours (UA defaults do not follow [data-theme])', () => {
