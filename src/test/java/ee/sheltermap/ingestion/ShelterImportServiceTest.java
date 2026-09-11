@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -171,6 +172,7 @@ class ShelterImportServiceTest {
 
         // the keep-list guard refuses a blind wipe on an empty fetch
         assertThat(result.removed()).isZero();
+        assertThat(result.overlapSkipped()).isFalse(); // a real (empty) run, not an overlap-skip
         assertThat(repo.findAll()).hasSize(1);
     }
 
@@ -210,5 +212,49 @@ class ShelterImportServiceTest {
     private static RegistryShelterDto oversizedDto(String id, String name, String address) {
         return new RegistryShelterDto(id, name, address, 59.4, 24.7, 100, true,
                 "Harju maakond", "Tallinn", "02.07.2026", "SMIT. Päästeameti avaandmed");
+    }
+
+    @Test
+    void overlappingRunIsFlaggedSoCallersCanTellItFromAnEmptyRun() throws InterruptedException {
+        // A second run that lands while the first is still fetching hits
+        // the overlap guard. Its result must carry the overlap flag — a
+        // plain (0,0,0,0,0) would be indistinguishable from a legitimate
+        // empty registry run.
+        CountDownLatch firstEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        ShelterRegistryClient blocking = new ShelterRegistryClient() {
+            @Override
+            public ShelterSource source() {
+                return ShelterSource.PAASETEAMET;
+            }
+
+            @Override
+            public List<RegistryShelterDto> fetchAll() {
+                firstEntered.countDown();
+                try {
+                    releaseFirst.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                return List.of();
+            }
+        };
+        ShelterImportService service = new ShelterImportService(blocking, parser, repo, CLOCK);
+
+        Thread first = new Thread(() -> service.importFromRegistry());
+        first.start();
+        firstEntered.await();
+
+        ImportResult overlapping = service.importFromRegistry();
+
+        releaseFirst.countDown();
+        first.join();
+
+        assertThat(overlapping.overlapSkipped()).isTrue();
+        assertThat(overlapping.created()).isZero();
+        assertThat(overlapping.updated()).isZero();
+        assertThat(overlapping.removed()).isZero();
+        assertThat(overlapping.skipped()).isZero();
+        assertThat(overlapping.failed()).isZero();
     }
 }

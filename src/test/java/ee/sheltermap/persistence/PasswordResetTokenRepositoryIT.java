@@ -61,7 +61,7 @@ class PasswordResetTokenRepositoryIT extends AbstractPersistenceIT {
                 userId, "reset-hash-1", Instant.now().plus(15, MINUTES));
         tokens.save(token);
 
-        tokens.markUsed(token.getId());
+        tokens.markUsed(token.getId(), Instant.now());
 
         PasswordResetToken loaded = tokens.findByTokenHash("reset-hash-1");
         assertThat(loaded.isUsed()).isTrue();
@@ -89,7 +89,7 @@ class PasswordResetTokenRepositoryIT extends AbstractPersistenceIT {
         for (PasswordResetToken t : new PasswordResetToken[]{activeA, expiredA, usedA, activeB}) {
             tokens.save(t);
         }
-        tokens.markUsed(usedA.getId());
+        tokens.markUsed(usedA.getId(), Instant.now());
 
         PasswordResetToken activeOfA = tokens.findActiveByUserId(userA, now);
         assertThat(activeOfA).isNotNull();
@@ -114,7 +114,7 @@ class PasswordResetTokenRepositoryIT extends AbstractPersistenceIT {
         for (PasswordResetToken t : new PasswordResetToken[]{activeA, expiredA, usedA, activeB}) {
             tokens.save(t);
         }
-        tokens.markUsed(usedA.getId());
+        tokens.markUsed(usedA.getId(), Instant.now());
 
         tokens.deleteActiveByUserId(userA, now);
 

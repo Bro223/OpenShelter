@@ -4,7 +4,7 @@
 
 CREATE TABLE users (
     id                BIGSERIAL PRIMARY KEY,
-    kind              VARCHAR(16)  NOT NULL,          -- GUEST | REGISTERED | ADMIN
+    kind              VARCHAR(16)  NOT NULL,          -- GUEST | REGISTERED
     name              VARCHAR(255),
     email             VARCHAR(255),
     phone             VARCHAR(64),

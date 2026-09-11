@@ -135,13 +135,6 @@ public class JpaShelterRepository implements ShelterRepository {
         shelters.flush();
     }
 
-    private static ShelterEntity toEntity(Shelter shelter) {
-        ShelterEntity entity = new ShelterEntity();
-        entity.setId(shelter.getId());
-        applyFields(entity, shelter);
-        return entity;
-    }
-
     private static Shelter toDomain(ShelterEntity entity) {
         Shelter shelter = new Shelter(
                 entity.getName(),

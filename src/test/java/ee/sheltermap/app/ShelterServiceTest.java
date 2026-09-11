@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.api.ShelterNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
@@ -132,6 +133,74 @@ class ShelterServiceTest {
         assertThat(saved.getCreatedBy()).isEqualTo(1L);
         assertThat(saved.getSource()).isEqualTo(ShelterSource.USER);
         assertThat(saved.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+    }
+
+    /**
+     * In-memory repo that mimics {@code JpaShelterRepository}'s internal
+     * guard: a save for a known id whose row is gone throws
+     * {@code IllegalStateException} (the guard stays in the repository —
+     * n12 only maps it at the service boundary).
+     */
+    private static final class GuardedShelterRepository extends InMemoryShelterRepository {
+        @Override
+        public void save(Shelter shelter) {
+            if (shelter.getId() != null && findById(shelter.getId()).isEmpty()) {
+                throw new IllegalStateException("cannot save shelter with unknown id " + shelter.getId());
+            }
+            super.save(shelter);
+        }
+    }
+
+    @Test
+    void updatePlaceOnAConcurrentlyDeletedShelterMapsToNotFound() {
+        // n12 (2026-09-10 review): a concurrent DELETE commits between the
+        // caller's read and the save — the repository's unknown-id guard must
+        // surface as the same 404 as a plain not-found, never a 500.
+        GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
+        ShelterService guarded = new ShelterService(guardedRepo);
+        Shelter place = userPlace("Original");
+        guarded.addPlace(verifiedUser(), place);
+        Long id = place.getId();
+        // the concurrent DELETE commits after the caller read the row
+        guardedRepo.deleteById(id);
+
+        Shelter stale = new Shelter(
+                "Renamed", new GeoPoint(58.95, 25.55), ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, "New description", 40);
+        stale.setId(id);
+
+        assertThatThrownBy(() -> guarded.updatePlace(stale))
+                .isInstanceOf(ShelterNotFoundException.class)
+                .hasMessageContaining(String.valueOf(id));
+        // nothing was written
+        assertThat(guardedRepo.findById(id)).isEmpty();
+    }
+
+    @Test
+    void updatePlaceRethrowsIllegalStateUnrelatedToAVanishedRow() {
+        // the mapping is state-checked (row re-read), not message-parsed: an
+        // IllegalStateException while the row still EXISTS propagates.
+        InMemoryShelterRepository alwaysFailing = new InMemoryShelterRepository() {
+            @Override
+            public void save(Shelter shelter) {
+                if (shelter.getId() != null) {
+                    throw new IllegalStateException("boom (unrelated)");
+                }
+                super.save(shelter);
+            }
+        };
+        ShelterService failing = new ShelterService(alwaysFailing);
+        Shelter place = userPlace("Original");
+        failing.addPlace(verifiedUser(), place);
+
+        Shelter update = new Shelter(
+                "Renamed", new GeoPoint(58.95, 25.55), ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, "New description", 40);
+        update.setId(place.getId());
+
+        assertThatThrownBy(() -> failing.updatePlace(update))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("boom");
     }
 
     @Test

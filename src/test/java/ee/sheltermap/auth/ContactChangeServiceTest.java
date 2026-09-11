@@ -125,19 +125,25 @@ class ContactChangeServiceTest {
     void confirmEmailChangeWithWrongCodeIncrementsAttemptsThenLocks() {
         RegisteredUser user = user("mari@example.ee", "+37250000001");
         service.requestEmailChange(user, "mari@new.ee");
+        String code = codeFrom(sms.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
 
         for (int i = 0; i < 5; i++) {
             int attempt = i + 1;
-            assertThatThrownBy(() -> service.confirmEmailChange(user, "000000"))
-                    .isInstanceOf(InvalidContactChangeException.class);
+            // H2: a code failure is RETURNED, not thrown (the 400 is raised
+            // at the controller boundary) — the attempts increment persists
+            // either way, which is what the InMemory repo already showed.
+            ContactChangeResult result = service.confirmEmailChange(user, wrong);
+            assertThat(result.ok()).isFalse();
+            assertThat(result.failureMessage()).isEqualTo("Invalid code");
             PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
                     ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE).orElseThrow();
             assertThat(pending.getAttempts()).isEqualTo(attempt);
         }
 
-        assertThatThrownBy(() -> service.confirmEmailChange(user, codeFrom(sms.last().message())))
-                .isInstanceOf(InvalidContactChangeException.class)
-                .hasMessageContaining("Too many attempts");
+        ContactChangeResult locked = service.confirmEmailChange(user, code);
+        assertThat(locked.ok()).isFalse();
+        assertThat(locked.failureMessage()).contains("Too many attempts");
         // email unchanged
         assertThat(user.getData().email()).isEqualTo("mari@example.ee");
     }
@@ -207,19 +213,22 @@ class ContactChangeServiceTest {
         // mirror of the e-mail lockout for the phone-change path
         RegisteredUser user = user("mari@example.ee", "+37250000001");
         service.requestPhoneChange(user, "+37250009998");
+        String code = codeFrom(smtp.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
 
         for (int i = 0; i < 5; i++) {
             int attempt = i + 1;
-            assertThatThrownBy(() -> service.confirmPhoneChange(user, "000000"))
-                    .isInstanceOf(InvalidContactChangeException.class);
+            ContactChangeResult result = service.confirmPhoneChange(user, wrong);
+            assertThat(result.ok()).isFalse();
+            assertThat(result.failureMessage()).isEqualTo("Invalid code");
             PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
                     ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE).orElseThrow();
             assertThat(pending.getAttempts()).isEqualTo(attempt);
         }
 
-        assertThatThrownBy(() -> service.confirmPhoneChange(user, codeFrom(smtp.last().message())))
-                .isInstanceOf(InvalidContactChangeException.class)
-                .hasMessageContaining("Too many attempts");
+        ContactChangeResult locked = service.confirmPhoneChange(user, code);
+        assertThat(locked.ok()).isFalse();
+        assertThat(locked.failureMessage()).contains("Too many attempts");
         // phone unchanged
         assertThat(user.getData().phone()).isEqualTo("+37250000001");
     }

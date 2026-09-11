@@ -22,8 +22,21 @@ class ProdJwtGuardTest {
         assertThatCode(() -> new ProdJwtGuard("dev", DEV_DEFAULT)).doesNotThrowAnyException();
         assertThatCode(() -> new ProdJwtGuard("test", DEV_DEFAULT)).doesNotThrowAnyException();
         assertThatCode(() -> new ProdJwtGuard("dev, test", DEV_DEFAULT)).doesNotThrowAnyException();
-        // trimmed + comma-listed entries
-        assertThatCode(() -> new ProdJwtGuard(" prod , dev", DEV_DEFAULT)).doesNotThrowAnyException();
+        // trimmed + comma-listed entries — the WHOLE set is dev/test (M2)
+        assertThatCode(() -> new ProdJwtGuard(" dev , test ", DEV_DEFAULT)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void mixedProfileWithAProductionEntryIsChecked() {
+        // M2 (2026-09-10 review): "production,dev" is NOT a dev deploy — the
+        // exemption needs the entire active set to be a subset of {dev, test}.
+        assertThatThrownBy(() -> new ProdJwtGuard("production,dev", DEV_DEFAULT))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("JWT_SECRET");
+        assertThatThrownBy(() -> new ProdJwtGuard("dev,prod", DEV_DEFAULT))
+                .isInstanceOf(IllegalStateException.class);
+        // the check itself still only refuses weak secrets — strong passes
+        assertThatCode(() -> new ProdJwtGuard("production,dev", STRONG)).doesNotThrowAnyException();
     }
 
     @Test

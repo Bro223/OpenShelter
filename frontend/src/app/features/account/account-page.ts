@@ -71,7 +71,10 @@ export class AccountPage {
   protected readonly emailPhase = signal<ChangePhase>('form');
   readonly newEmail = new FormControl('', {
     nonNullable: true,
-    validators: [Validators.required, Validators.email],
+    // required + email + the backend's @Size(max=255) cap: with these in
+    // place, the ONLY 400 the backend can still answer at the request
+    // phase is "same as current value" (mirrors the register/submit forms).
+    validators: [Validators.required, Validators.email, Validators.maxLength(255)],
   });
   readonly emailCode = new FormControl('', {
     nonNullable: true,
@@ -82,7 +85,8 @@ export class AccountPage {
   protected readonly phonePhase = signal<ChangePhase>('form');
   readonly newPhone = new FormControl('', {
     nonNullable: true,
-    validators: [Validators.required],
+    // required + the backend's @Size(max=64) cap (same convention as above).
+    validators: [Validators.required, Validators.maxLength(64)],
   });
   readonly phoneCode = new FormControl('', {
     nonNullable: true,
@@ -310,11 +314,12 @@ export class AccountPage {
   }
 
   /**
-   * Request-phase failures: the client validators (email format / non-blank)
-   * already block everything the backend rejects with 400 except the
-   * "same as current value" case — give it dedicated copy so the user
-   * understands the value must differ. Everything else goes through the
-   * standard banner mapping (409 duplicate passes the backend message).
+   * Request-phase failures: the client validators (required + email format
+   * + the backend-mirrored length caps, 255/64) already block everything
+   * the backend rejects with 400 EXCEPT the "same as current value" case —
+   * give that case dedicated copy so the user understands the value must
+   * differ. Everything else goes through the standard banner mapping
+   * (409 duplicate passes the backend message).
    */
   private setChangeError(error: unknown): void {
     const api = error instanceof ApiError ? error : toApiError(error);

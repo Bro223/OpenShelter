@@ -45,12 +45,14 @@ type LocationErrorKind =
   | 'no-pair'
   | 'out-of-bounds'
   | 'invalid'
+  | 'decimal-comma'
   | 'geo-denied'
   | 'geo-unavailable'
   | 'geo-timeout'
   | 'geo-insecure'
   | 'short-link-failed'
-  | 'short-link-rate-limited';
+  | 'short-link-rate-limited'
+  | 'short-link-unavailable';
 
 /** One copy per failure reason — rendered inline in the location fieldset. */
 const LOCATION_ERROR_COPY: Record<LocationErrorKind, string> = {
@@ -60,6 +62,7 @@ const LOCATION_ERROR_COPY: Record<LocationErrorKind, string> = {
   'out-of-bounds': 'The location is outside Estonia.',
   invalid:
     'That does not look like coordinates. Use a pair like 59.4370, 24.7535, a DMS string, or a map link.',
+  'decimal-comma': 'Use a decimal point: 59.4370, 24.7535 (Estonian decimal-comma detected).',
   'geo-denied':
     'Location permission is off. Allow location access in your browser — or pick the spot on the map / paste a link.',
   'geo-unavailable':
@@ -70,6 +73,8 @@ const LOCATION_ERROR_COPY: Record<LocationErrorKind, string> = {
   'short-link-failed':
     'Could not find coordinates in that link. Use a full Google Maps link or pick the spot on the map.',
   'short-link-rate-limited': 'Too many link lookups — please wait a minute and then try again.',
+  'short-link-unavailable':
+    'Location lookup is temporarily unavailable. Try again in a moment, or pick the spot on the map.',
 };
 
 const SOURCE_LABEL: Record<LocationSource, string> = {
@@ -164,6 +169,17 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    */
   protected readonly locationText = signal('');
 
+  /**
+   * The monotonic capture generation (M3 — cross-mode capture race): every
+   * capture start — geolocation, short-link resolve, smart-input parse, map
+   * pick, address select — bumps this counter. Async callbacks capture
+   * their generation at start and NO-OP once a newer capture has superseded
+   * them: a late geolocation settle (up to 10 s) can neither overwrite a
+   * typed/map pin nor clear it with its error, and a late resolve 400 can
+   * neither overwrite nor clear a pick made while it was in flight.
+   */
+  private captureGeneration = 0;
+
   /** The address search input's content (a capture affordance, not a field). */
   protected readonly addressQuery = signal('');
   /** True while a search is in flight OR waiting out the 1000 ms spacing window. */
@@ -222,6 +238,8 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    */
   ngAfterViewInit(): void {
     this.leaflet.mapClick = (latitude, longitude) => {
+      // A pick is a capture — it supersedes any pending capture (M3).
+      this.captureGeneration++;
       // No flyTo: the user is already looking at the point (a re-center
       // during a pin drag would fight the gesture).
       this.setLocation(latitude, longitude, 'map-pick', false, false);
@@ -257,6 +275,10 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     if (text === '') {
       return;
     }
+    // This capture is current by definition — the bump matters for the
+    // ASYNC captures: a pending geolocation/resolve must no-op once the
+    // user typed (M3).
+    this.captureGeneration++;
     // Short links are opaque redirects — only the backend can read them.
     if (isGooShortLink(text)) {
       void this.resolveShortLink(normalizeShortLinkUrl(text));
@@ -293,8 +315,15 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     }
     this.locating.set(true);
     this.locationError.set(null);
+    const gen = ++this.captureGeneration;
     geolocation.getCurrentPosition(
       (position) => {
+        this.locating.set(false);
+        if (gen !== this.captureGeneration) {
+          // Superseded by a newer capture (typed/picked/… while this was in
+          // flight) — the late settle must not overwrite the pin (M3).
+          return;
+        }
         this.setLocation(
           position.coords.latitude,
           position.coords.longitude,
@@ -303,15 +332,19 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
           true,
           position.coords.accuracy,
         );
-        this.locating.set(false);
       },
       (err) => {
+        this.locating.set(false);
+        if (gen !== this.captureGeneration) {
+          // Superseded — the late error must not run failLocation and clear
+          // the pin the user set in the meantime (M3).
+          return;
+        }
         // Duck-typed code read: jsdom does not define GeolocationPositionError.
         const code = typeof err?.code === 'number' ? err.code : 2;
         this.failLocation(
           code === 1 ? 'geo-denied' : code === 3 ? 'geo-timeout' : 'geo-unavailable',
         );
-        this.locating.set(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
@@ -321,12 +354,33 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private async resolveShortLink(url: string): Promise<void> {
     this.resolvingLink.set(true);
     this.locationError.set(null);
+    const gen = ++this.captureGeneration;
     try {
       const resolved = await this.geo.resolve(url);
+      if (gen !== this.captureGeneration) {
+        // Superseded by a newer capture while the resolve was in flight —
+        // the late success must not overwrite the pin (M3).
+        return;
+      }
       this.setLocation(resolved.latitude, resolved.longitude, 'link');
     } catch (failure: unknown) {
+      if (gen !== this.captureGeneration) {
+        // Superseded — the late failure must not run failLocation and clear
+        // a pick made while the resolve was in flight (M3).
+        return;
+      }
+      // M5: 5xx = the backend's UPSTREAM resolution is temporarily
+      // unavailable (its own message says retry later); a network failure
+      // = the API is unreachable. Neither is the user's link — retry-
+      // oriented copy, not the not-found copy.
       const api = toApiError(failure);
-      this.failLocation(api.status === 429 ? 'short-link-rate-limited' : 'short-link-failed');
+      if (api.status >= 500 || api.isNetworkError) {
+        this.failLocation('short-link-unavailable');
+      } else if (api.status === 429) {
+        this.failLocation('short-link-rate-limited');
+      } else {
+        this.failLocation('short-link-failed');
+      }
     } finally {
       this.resolvingLink.set(false);
     }
@@ -392,6 +446,8 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    * decision 4: prefill, never overwrite; the help line states this).
    */
   protected selectAddressResult(result: GeocodeResult): void {
+    // A selection is a capture — it supersedes any pending capture (M3).
+    this.captureGeneration++;
     this.setLocation(result.latitude, result.longitude, 'address-search');
     if (this.locationText().trim() === '') {
       this.locationText.set(result.displayName);

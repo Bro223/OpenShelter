@@ -153,7 +153,10 @@ public class PasswordResetService {
             return false;
         }
         credentials.updateHash(user.getId(), passwordHasher.hash(newPassword));
-        tokens.markUsed(stored.getId());
+        // n9: the usedAt stamp comes from the injected Clock, not the
+        // wall clock inside the domain object.
+        stored.markUsed(clock.instant());
+        tokens.save(stored);
         refreshTokens.revokeAllForUser(user.getId());
         return true;
     }

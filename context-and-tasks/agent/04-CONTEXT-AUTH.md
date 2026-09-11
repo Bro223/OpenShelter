@@ -58,8 +58,9 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
    3. store `{tokenHash = SHA-256(code), expiresAt=15min, usedAt, attempts=0}` (hashed,
       single-use, 5-attempt brute-force limit — V6 `attempts` column) →
    4. **always respond success** ("if the account exists, we sent an email") →
-   5. send `"Shelter Map password reset code: NNNNNN (valid 15 min)"` via `SmtpSender`
-      (no URL link — no `app.frontend.base-url` / `FRONTEND_BASE_URL` anymore) →
+   5. send `"OpenShelter password reset code: NNNNNN (valid 15 min)"` via `SmtpSender`
+      (`AppInfo.APP_DISPLAY_NAME + " password reset code: ..."` — no URL link — no
+      `app.frontend.base-url` / `FRONTEND_BASE_URL` anymore) →
    6. `reset(email, code, newPwd)` → find the account's active code (lookup via the
       request e-mail) → verify attempts < 5 + hash (`Hashes.constantTimeEquals`) + expiry + unused →
       hash new password → update `UserCredentials` → mark code used → revoke all

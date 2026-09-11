@@ -94,6 +94,7 @@
                 <textarea
                   id="contrib-description"
                   rows="2"
+                  maxlength="2000"
                   [formControl]="editDescription"
                 ></textarea>
                 @if (editDescription.touched && editDescription.invalid) {
@@ -263,6 +264,7 @@
                 <textarea
                   id="contrib-review-comment"
                   rows="2"
+                  maxlength="500"
                   [formControl]="editComment"
                 ></textarea>
                 @if (editComment.touched && editComment.invalid) {

@@ -12,8 +12,8 @@ anyone can:
 - **contribute**: verified users submit shelters and rate/review shelters (the rating system IS
   the moderation — there is no moderator).
 
-The backend (Spring Boot, same repo, `src/`) is **complete and green (216 tests)**. This task pack
-covers the **frontend only**.
+The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests, counted
+2026-09-11 pre-fix-wave)**. This task pack covers the **frontend only**.
 
 ## 2. Tech stack (fixed — do not change without asking)
 
@@ -43,12 +43,12 @@ covers the **frontend only**.
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `core/`             | `ApiClient`, `ApiError`, `TokenStore`, guards, `ApiInterceptor`, typed models (NO session state — that moved to `session/`)                                                                                                                                                                              | `01`           |
 | `session/`          | `AuthStore` — session state (profile + real verified claims). Moved out of `core/` in the 2026-09-08 arch pass; `core/` keeps the guards + interceptor, which import it — the core→session edge is intentional                                                                                           | `01`           |
-| `gateways/`         | `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`) — one per backend controller group                                       | `01`           |
+| `gateways/`         | `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`), `GeoGateway` (`resolve` — POST /api/geo/resolve, short links), `GeocodeGateway` (`search` — client-side OSM Nominatim; the ONE documented raw-fetch exception to the ApiClient rule) — one per backend controller group + the one external-service door                     | `01`           |
 | `features/auth/`    | `LoginPage`, `RegisterPage`, `ResetPage`                                                                                                                                                                                                                                                                 | `01`+`02`      |
 | `features/account/` | `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted)                                                                                                                                                                   | `01`+`03`+`05` |
 | `features/map/`     | `MapPage` (the Leaflet wrapper lives in `shared/` now)                                                                                                                                                                                                                                                   | `01`+`04`      |
 | `features/shelter/` | `ShelterDetailPage`, `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`)                                                                                                                                                                                                                | `01`+`05`      |
-| `shared/`           | `PageShell`, `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`) and `shelter-copy.ts` (canonical source/rating copy) | `01`           |
+| `shared/`           | `PageShell`, `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`), `shelter-copy.ts` (canonical source/rating copy) and `location-input.ts` (pure location-string parser: `parseLocationInput`, `isGooShortLink`, `normalizeShortLinkUrl` — fixture-table-tested, no Angular imports) | `01`           |
 
 **Dependency rule (never break it):** `features` → `gateways` → `core`. Components never call
 `HttpClient` or touch `TokenStore` internals; gateways are the only door to the API. No cycles.

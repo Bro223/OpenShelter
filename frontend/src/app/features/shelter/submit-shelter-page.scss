@@ -80,6 +80,7 @@
     gap: var(--space-10);
 
     input {
+      /* page-specific layout dimension (documented exception, not spacing) */
       flex: 1 1 200px;
       padding: var(--space-8) var(--space-12);
       border: 1px solid var(--color-border);
@@ -111,6 +112,7 @@
     gap: var(--space-10);
 
     input {
+      /* page-specific layout dimension (documented exception, not spacing) */
       flex: 1 1 200px;
       padding: var(--space-8) var(--space-12);
       border: 1px solid var(--color-border);

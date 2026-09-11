@@ -95,7 +95,12 @@ public class PasswordResetToken {
         return ++attempts;
     }
 
-    public void markUsed() {
-        this.usedAt = Instant.now();
+    /**
+     * Marks the token used with the given stamp (2026-09-10 review n9):
+     * the caller — the Clock-injected {@code PasswordResetService} — owns
+     * the time source, so the domain never reaches for the wall clock.
+     */
+    public void markUsed(Instant usedAt) {
+        this.usedAt = Objects.requireNonNull(usedAt, "usedAt");
     }
 }

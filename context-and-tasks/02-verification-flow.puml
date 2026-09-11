@@ -58,7 +58,7 @@ VC -> VS : requestVerification(user, PHONE)
 VS -> SL : lastSentAt / countToday(userId, PHONE)  (cooldown + daily cap)
 alt within limits
 VS -> PP : request(user)
-PP -> TW : sendSms(phone, "OTP: 123456")
+PP -> TW : sendSms(phone, "OpenShelter OTP: 123456")   ' AppInfo.APP_DISPLAY_NAME + " OTP: " + otp
 TW --> PP : sent
 PP --> VS : PendingVerification(PHONE, codeHash, expiry)
 VS -> DB : save pending
@@ -82,7 +82,7 @@ VC --> Person : 200 | 400
 Person -> VC : POST /verify/request {level=EMAIL}
 VC -> VS : requestVerification(user, EMAIL)
 VS -> EP : request(user)
-EP -> SM : send(email, "token: abc123")
+EP -> SM : send(email, "OpenShelter verification code: abcdef12")   ' AppInfo.APP_DISPLAY_NAME + " verification code: " + 8-char token
 SM --> EP : sent
 EP --> VS : PendingVerification(EMAIL, tokenHash, expiry)
 VS -> DB : save pending

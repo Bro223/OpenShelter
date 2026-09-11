@@ -70,11 +70,11 @@ public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
     }
 
     @Override
-    public void markUsed(Long id) {
+    public void markUsed(Long id, Instant now) {
         store.values().stream()
                 .filter(t -> id.equals(t.getId()))
                 .findFirst()
-                .ifPresent(PasswordResetToken::markUsed);
+                .ifPresent(t -> t.markUsed(now));
     }
 
     @Override

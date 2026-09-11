@@ -15,11 +15,27 @@ class DevEndpointsGuardTest {
 
     @Test
     void devAndTestProfilesBootWithEitherFlagEnabled() {
-        for (String profiles : new String[]{"dev", "test", "dev, test", " prod , dev"}) {
+        for (String profiles : new String[]{"dev", "test", "dev, test", "dev,test"}) {
             assertThatCode(() -> new DevEndpointsGuard(profiles, true, true)).doesNotThrowAnyException();
             assertThatCode(() -> new DevEndpointsGuard(profiles, true, false)).doesNotThrowAnyException();
             assertThatCode(() -> new DevEndpointsGuard(profiles, false, true)).doesNotThrowAnyException();
         }
+    }
+
+    @Test
+    void mixedProfileWithAProductionEntryIsChecked() {
+        // M2 (2026-09-10 review): "production,dev" is NOT a dev deploy — the
+        // exemption needs the entire active set to be a subset of {dev, test}.
+        for (String profiles : new String[]{"production,dev", "dev,prod"}) {
+            assertThatThrownBy(() -> new DevEndpointsGuard(profiles, true, false))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("app.dev-email-test.enabled");
+            assertThatThrownBy(() -> new DevEndpointsGuard(profiles, false, true))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("app.dev-sms-test.enabled");
+        }
+        // a fully dev/test set stays exempt
+        assertThatCode(() -> new DevEndpointsGuard("dev,test", true, true)).doesNotThrowAnyException();
     }
 
     @Test

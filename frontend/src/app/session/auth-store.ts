@@ -14,8 +14,10 @@ import { TokenStore } from '../core/token-store';
  * that depends on `gateways` (AuthGateway/AccountGateway), and a core →
  * gateways edge would invert the documented `features → gateways → core`
  * dependency rule. `session/` sits between them: it may import core and
- * gateways; core may import `session/auth-store` ONLY for the guard type
- * (core/guards.ts — a deliberate, documented core→session edge).
+ * gateways; core may import `session/auth-store` ONLY from two named files
+ * (a deliberate, documented core→session edge — 01-TASK.md names both):
+ * core/guards.ts (the guard type) and core/api-interceptor.ts (the
+ * mid-session 401 single-flight refresh).
  *
  * Profile: the backend answers `GET /account/me` with the REAL profile —
  * name, email, phone, nationalIdCode and the REAL verified claim set. The

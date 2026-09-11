@@ -509,6 +509,33 @@ describe('AccountPage', () => {
     expect(element.querySelector('#change-email-code')).toBeNull();
   });
 
+  it('an over-length new email is rejected by the inline validator, no 400 shown (M6)', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('a'.repeat(250) + '@example.ee'); // 261 > 255
+
+    await page.emailSend();
+    fixture.detectChanges();
+
+    // The request never went out — the maxLength validator blocked it.
+    expect(account.requestEmailChange).not.toHaveBeenCalled();
+    expect(element.querySelector('.banner--error')).toBeNull();
+    const field = element.querySelector('#change-email-new')!.closest('.field') as HTMLElement;
+    expect(field?.textContent).toContain('Email must be 255 characters or fewer.');
+  });
+
+  it('an over-length new phone is rejected by the inline validator, no 400 shown (M6)', async () => {
+    const { page, element, fixture } = await open();
+    page.newPhone.setValue('+3725' + '0'.repeat(70)); // 74 > 64
+
+    await page.phoneSend();
+    fixture.detectChanges();
+
+    expect(account.requestPhoneChange).not.toHaveBeenCalled();
+    expect(element.querySelector('.banner--error')).toBeNull();
+    const field = element.querySelector('#change-phone-new')!.closest('.field') as HTMLElement;
+    expect(field?.textContent).toContain('Phone must be 64 characters or fewer.');
+  });
+
   it('a request 409 (duplicate target) surfaces the backend message inline', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('taken@example.ee');

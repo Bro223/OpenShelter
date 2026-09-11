@@ -367,8 +367,9 @@ note bottom of PasswordResetService
        attempts=0} - hashed, single-use, 5-attempt limit (V6)
     3. ALWAYS respond success ("if the account exists, we sent an
        email") - never reveal whether an email is registered
-    4. send "Shelter Map password reset code: NNNNNN (valid 15 min)"
+    4. send "OpenShelter password reset code: NNNNNN (valid 15 min)"
        via SmtpSender (no URL, no app.frontend.base-url)
+       (AppInfo.APP_DISPLAY_NAME + " password reset code: ...")
     5. reset(email, code, newPwd) -> find the account's active code,
        verify attempts < 5 + hash (Hashes.constantTimeEquals) + expiry +
        unused, hash new password, update UserCredentials, mark code used

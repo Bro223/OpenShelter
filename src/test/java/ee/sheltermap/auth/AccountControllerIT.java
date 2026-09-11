@@ -67,6 +67,9 @@ class AccountControllerIT extends AbstractPersistenceIT {
     UserRepository users;
 
     @Autowired
+    PendingContactChangeRepository changes;
+
+    @Autowired
     RecordingSmsSender sms;
 
     @Autowired
@@ -131,10 +134,11 @@ class AccountControllerIT extends AbstractPersistenceIT {
         String code = codeFrom(sms.last().message());
 
         // wrong code -> 400, uniform error shape
+        String wrong = code.equals("000000") ? "000001" : "000000";
         mvc.perform(post("/account/email-change/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"000000\"}"))
+                        .content("{\"code\":\"" + wrong + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Bad Request"));
 
@@ -163,6 +167,49 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"teine@example.ee\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void wrongCodesLockOutTheConfirmEndpointAndPersistAttempts() throws Exception {
+        // H2 (2026-09-10 review): the confirm endpoint is NOT rate-bucketed,
+        // so the 5-attempt lockout on the pending row is the only
+        // brute-force guard. Every failed attempt must PERSIST across calls
+        // — the old throw-inside-@Transactional rolled the increment back on
+        // each wrong code and the lockout was unreachable over HTTP.
+        String token = registerAndLogin();
+        mvc.perform(post("/account/email-change/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"uus@example.ee\"}"))
+                .andExpect(status().isAccepted());
+        String code = codeFrom(sms.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        for (int i = 1; i <= 5; i++) {
+            mvc.perform(post("/account/email-change/confirm")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"code\":\"" + wrong + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Invalid code"));
+        }
+
+        // the 6th: locked out — the right code is rejected by the same guard
+        mvc.perform(post("/account/email-change/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + code + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Too many attempts, request a new code"));
+
+        // the five increments survived all the failed calls (visible via
+        // the repository) and the email is unchanged
+        RegisteredUser user = users.findByEmail("kontakt@example.ee");
+        PendingContactChange pending = changes
+                .findByUserIdAndType(user.getId(), ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE)
+                .orElseThrow();
+        assertThat(pending.getAttempts()).isEqualTo(5);
+        assertThat(users.findByEmail("uus@example.ee")).isNull();
     }
 
     @Test

@@ -167,7 +167,7 @@ public class ShelterImportService {
         } else {
             removed = shelters.deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds);
         }
-        return new ImportResult(created, updated, removed, skipped, 0, at);
+        return new ImportResult(created, updated, removed, skipped, 0, at, false);
     }
 
     /**

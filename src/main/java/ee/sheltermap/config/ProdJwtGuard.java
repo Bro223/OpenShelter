@@ -19,9 +19,12 @@ import java.util.List;
  * and silently sign forgeable tokens. The rule now is inverted:
  *
  * <ul>
- *   <li>When at least one active profile entry (comma list, trimmed) is
- *       exactly {@code dev} or {@code test} → no check (dev parity — the
- *       published default secret is the point there).</li>
+ *   <li>When the ENTIRE active profile set (comma list, trimmed) is a
+ *       subset of exactly {@code dev} and {@code test} (and non-blank) →
+ *       no check (dev parity — the published default secret is the point
+ *       there). A mixed list like {@code production,dev} is NOT exempt
+ *       (2026-09-10 review M2: the old any-match let one stray entry
+ *       disable the guard).</li>
  *   <li>Otherwise (blank profile, {@code production}, {@code prod-*},
  *       anything else) → refuse to boot when {@code app.jwt.secret} equals
  *       the published dev default ({@link #DEV_DEFAULT_SECRET}) <em>or</em>
@@ -48,7 +51,10 @@ public class ProdJwtGuard {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        boolean devLike = active.stream().anyMatch(p -> p.equals("dev") || p.equals("test"));
+        // M2: exempt only when the WHOLE active set is a subset of
+        // {dev, test} — "production,dev" is not a dev deploy.
+        boolean devLike = !active.isEmpty()
+                && active.stream().allMatch(p -> p.equals("dev") || p.equals("test"));
         if (devLike) {
             return; // dev/test parity: the published default secret is expected here
         }

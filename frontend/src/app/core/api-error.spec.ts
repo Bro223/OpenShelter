@@ -31,9 +31,16 @@ describe('ApiError', () => {
     it('synthesizes a readable error when the body is not an ErrorResponse', () => {
       const err = ApiError.fromHttp(502, '<html>Bad Gateway</html>', 'http://localhost:8080/proxy');
       expect(err.status).toBe(502);
-      expect(err.error).toBe('HTTP 502');
+      expect(err.error).toBe('Bad Gateway');
       expect(err.message).toContain('Bad Gateway');
       expect(err.path).toBe('http://localhost:8080/proxy');
+    });
+
+    it('uses the standard reason phrases for 502/503/504 in the synthesized error field', () => {
+      expect(ApiError.fromHttp(502, null, '/x').error).toBe('Bad Gateway');
+      expect(ApiError.fromHttp(503, null, '/x').error).toBe('Service Unavailable');
+      expect(ApiError.fromHttp(504, null, '/x').error).toBe('Gateway Timeout');
+      expect(ApiError.fromHttp(599, null, '/x').error).toBe('HTTP 599');
     });
 
     it('falls back to a generic message for an empty unknown body', () => {

@@ -20,7 +20,12 @@ import java.net.URL;
  *   <li>no cookies — {@code HttpURLConnection} does not manage cookies unless
  *       a global {@code CookieHandler} is installed, and this app never
  *       installs one;</li>
- *   <li>a fixed User-Agent identifies the resolver upstream.</li>
+ *   <li>a fixed User-Agent identifies the resolver upstream;</li>
+ *   <li>only {@code http} / {@code https} URLs are fetched — any other
+ *       scheme ({@code file:}, {@code ftp:}, …) would not even open an
+ *       {@code HttpURLConnection} (the cast would throw
+ *       {@code ClassCastException}); it is rejected as an {@code IOException}
+ *       so the service maps it to the generic 502 instead of a 500.</li>
  * </ul>
  */
 @Component
@@ -37,6 +42,10 @@ public class HttpUrlRedirectClient implements RedirectClient {
             target = new URI(url).toURL();
         } catch (URISyntaxException e) {
             throw new IOException("unfetchable redirect target: " + url, e);
+        }
+        String protocol = target.getProtocol();
+        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
+            throw new IOException("unfetchable redirect target: " + url);
         }
         HttpURLConnection connection = (HttpURLConnection) target.openConnection();
         connection.setInstanceFollowRedirects(false);

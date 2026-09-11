@@ -30,7 +30,8 @@ public interface PasswordResetTokenRepository {
     /** Deletes the user's active (unused, unexpired) token, if any. */
     void deleteActiveByUserId(Long userId, Instant now);
 
-    void markUsed(Long id);
+    /** Marks the token used at {@code now} (caller-supplied for uniform clock injection). */
+    void markUsed(Long id, Instant now);
 
     /**
      * Rotation protection (S1b, V8 {@code created_at}): the user's most

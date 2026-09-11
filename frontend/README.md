@@ -49,7 +49,8 @@ src/
 │   ├── core/          # ApiClient, ApiError, TokenStore, guards (auth/guest/verified),
 │   │                  #   ApiInterceptor, titleGuard (route titles), models
 │   ├── session/       # AuthStore (session state + REAL profile from /account/me)
-│   ├── gateways/      # auth / verify / account / shelter / review — HTTP, no UI
+│   ├── gateways/      # auth / verify / account / shelter / review / geo-gateway.ts /
+│   │                  #   geocode-gateway.ts — HTTP, no UI (geocode = raw fetch to Nominatim)
 │   ├── features/
 │   │   ├── auth/      # login, register, reset (guestGuard)
 │   │   ├── account/   # verify (cross-channel), contact change, ContributionsPanel (M8)
@@ -57,7 +58,8 @@ src/
 │   │   └── shelter/   # detail + reviews (review-form), submit
 │   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent,
 │   │                  #   LoadingIndicator (real component, role=status), RatingStars,
-│   │                  #   LeafletService, error-copy, form-helpers, shelter-copy
+│   │                  #   LeafletService, error-copy, form-helpers, shelter-copy,
+│   │                  #   location-input.ts (pure location-string parser)
 │   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)

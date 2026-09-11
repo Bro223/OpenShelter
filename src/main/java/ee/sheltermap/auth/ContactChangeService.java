@@ -91,13 +91,22 @@ public class ContactChangeService {
     /**
      * Completes an email change once the SMS code is verified.
      *
-     * @throws InvalidContactChangeException no pending request, or wrong/
-     *                                       expired/exhausted code (400)
+     * <p>Mirrors {@code AuthService.resetPassword} (2026-09-10 review H2):
+     * the code failure is returned, not thrown — this transaction then
+     * COMMITS the failed-attempt increment instead of rolling it back, so
+     * the 5-attempt lockout actually holds across HTTP calls. The
+     * controller turns a failed result into the 400.
+     *
+     * @throws InvalidContactChangeException no pending request (400)
+     * @throws DuplicateAccountException     the new email is already in use (409)
      */
     @Transactional
-    public void confirmEmailChange(RegisteredUser user, String code) {
+    public ContactChangeResult confirmEmailChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.EMAIL_CHANGE);
-        verifyCode(change, code);
+        String failure = verifyCode(change, code);
+        if (failure != null) {
+            return ContactChangeResult.failure(failure);
+        }
         String target = change.getTarget();
         // The target may have been claimed by another account between request
         // and confirm (it was checked at request time only) — re-check, and
@@ -112,6 +121,7 @@ public class ContactChangeService {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         changes.delete(change);
+        return ContactChangeResult.success();
     }
 
     // ---- Phone change (verified by email to the current email) ----
@@ -141,12 +151,16 @@ public class ContactChangeService {
     }
 
     /**
-     * Completes a phone change once the email code is verified.
+     * Completes a phone change once the email code is verified (same
+     * return-the-failure shape as {@link #confirmEmailChange} — H2).
      */
     @Transactional
-    public void confirmPhoneChange(RegisteredUser user, String code) {
+    public ContactChangeResult confirmPhoneChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.PHONE_CHANGE);
-        verifyCode(change, code);
+        String failure = verifyCode(change, code);
+        if (failure != null) {
+            return ContactChangeResult.failure(failure);
+        }
         String target = change.getTarget();
         // P2 fix: re-check the target (claimed between request and confirm?)
         // and convert a DB-level race into the same 409.
@@ -160,6 +174,7 @@ public class ContactChangeService {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         changes.delete(change);
+        return ContactChangeResult.success();
     }
 
     // ---- Internals ----
@@ -187,22 +202,35 @@ public class ContactChangeService {
 
     private PendingContactChange requirePending(Long userId, ContactChangeType type) {
         return changes.findByUserIdAndType(userId, type)
-                .orElseThrow(() -> new InvalidContactChangeException("No pending " + type + " request"));
+                .orElseThrow(() -> new InvalidContactChangeException("No pending contact-change request"));
     }
 
-    private void verifyCode(PendingContactChange change, String code) {
+    /**
+     * Checks the code against the pending change. A WRONG code increments
+     * the attempts and returns the user-facing message — the increment is
+     * then committed by the enclosing transaction (the method returns, it
+     * never throws for it), which is what makes the lockout persist across
+     * HTTP calls (2026-09-10 review H2: the old throw-inside-transaction
+     * rolled the increment back on every wrong code).
+     *
+     * @return {@code null} when the code verifies; otherwise the 400 message
+     *         ("Invalid code" / "Code expired, request a new one" /
+     *         "Too many attempts, request a new code")
+     */
+    private String verifyCode(PendingContactChange change, String code) {
         Instant now = clock.instant();
         if (change.isExpired(now)) {
-            throw new InvalidContactChangeException("Code expired, request a new one");
+            return "Code expired, request a new one";
         }
         if (change.isAttemptExhausted(properties.maxAttempts())) {
-            throw new InvalidContactChangeException("Too many attempts, request a new code");
+            return "Too many attempts, request a new code";
         }
         if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
             change.registerFailedAttempt();
             changes.save(change);
-            throw new InvalidContactChangeException("Invalid code");
+            return "Invalid code";
         }
+        return null;
     }
 
     /**

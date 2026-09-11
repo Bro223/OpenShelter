@@ -19,7 +19,11 @@ import {
 } from './location-input';
 
 type ExpectedPair = { lat: number; lng: number; swapped?: boolean };
-type ExpectedFailure = { reason: 'no-pair' | 'out-of-bounds' | 'invalid' };
+type ExpectedFailure = {
+  reason: 'no-pair' | 'out-of-bounds' | 'invalid' | 'decimal-comma';
+  /** When set, the parser's internal detail must match EXACTLY (n2/H4). */
+  detail?: string;
+};
 
 type Expected = (ExpectedPair & { detail?: string }) | ExpectedFailure;
 
@@ -65,6 +69,28 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { lat: 59.437, lng: 24.7535 },
   },
   { name: 'plain-integer-coords', input: '59 24', expected: { lat: 59, lng: 24 } },
+  // --- Estonian decimal-comma (H4): the comma is the decimal mark, never a
+  //     separator. Refused with its own reason — the value is never
+  //     guessed/converted (the page renders the "use a decimal point" copy).
+  {
+    name: 'decimal-comma-pair',
+    input: '58,25 24,9',
+    expected: { reason: 'decimal-comma' },
+  },
+  {
+    name: 'decimal-comma-full-precision',
+    input: '59,4370 24,7535',
+    expected: { reason: 'decimal-comma' },
+  },
+  {
+    // Mixed comma-decimal + point-decimal: the point wins — the decimal-
+    // comma guard does NOT fire, the plain scan takes the (59, 4370)
+    // separator pair, and the bbox gate rejects it. (The comma-as-separator
+    // SUCCESS regression pin is 'plain-comma-space' above.)
+    name: 'decimal-comma-mixed-with-point',
+    input: '59,4370 24.75',
+    expected: { reason: 'out-of-bounds' },
+  },
   {
     name: 'plain-bbox-min-edge-inclusive',
     input: '57.5, 21.5',
@@ -148,9 +174,22 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
   {
     name: 'dms-lone-latitude-invalid',
     input: `59°26'13"N`,
-    expected: { reason: 'invalid' },
+    expected: {
+      reason: 'invalid',
+      detail: 'a single DMS value is not a coordinate pair',
+    },
   },
   { name: 'dms-bare-degree-invalid', input: '59°', expected: { reason: 'invalid' } },
+  {
+    // n2: a DMS value + a plain decimal is a TWO-value input — "a single DMS
+    // value" misdescribes it; the mix gets its own message. Rejection stays.
+    name: 'dms-plus-decimal-mix',
+    input: `59°26'13"N 24.7535`,
+    expected: {
+      reason: 'invalid',
+      detail: 'mix of DMS and decimal — use one format for both values',
+    },
+  },
 
   // --- map URLs (long-form; never fetched client-side) -------------------------
   {
@@ -209,6 +248,14 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { lat: 59.437, lng: 24.7535 },
   },
   {
+    // H4 URL guard: comma-decimals in the coordinate-carrying part of the
+    // URL (path + query; the scheme+host is always dotted) with no
+    // point-decimal -> decimal-comma, not a silent (58, 25) pin.
+    name: 'url-generic-decimal-comma',
+    input: 'https://example.com/place/58,25/24,9',
+    expected: { reason: 'decimal-comma' },
+  },
+  {
     name: 'url-out-of-bounds-paris',
     input: 'https://www.google.com/maps/@48.85,2.35/',
     expected: { reason: 'out-of-bounds' },
@@ -224,7 +271,6 @@ describe('parseLocationInput (shared fixture table)', () => {
   it.each(CASES.map((c) => [c.name, c.input, c.expected] as const))(
     '%s',
     (name: string, input: string, expected: Expected) => {
-      expect(name).toBeTruthy();
       const result = parseLocationInput(input);
       if ('lat' in expected) {
         expect(result, name).toEqual({
@@ -234,6 +280,9 @@ describe('parseLocationInput (shared fixture table)', () => {
         });
       } else {
         expect(result, name).toMatchObject({ reason: expected.reason });
+        if (expected.detail !== undefined) {
+          expect((result as { detail?: string }).detail, name).toBe(expected.detail);
+        }
         expect('latitude' in result, name).toBe(false);
       }
     },

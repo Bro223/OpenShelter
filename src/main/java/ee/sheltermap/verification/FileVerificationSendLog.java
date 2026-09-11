@@ -81,6 +81,23 @@ public class FileVerificationSendLog implements VerificationSendLog {
         }
     }
 
+    @Override
+    public synchronized SendDecision tryRecord(long userId, VerificationLevel level, String contact,
+                                               Instant now, long cooldownSeconds, int maxPerDay) {
+        // M16: check + record under ONE lock hold. The helper calls re-enter
+        // the (reentrant) monitor, so a burst cannot pass both reads before
+        // either records.
+        Instant lastSentAt = lastSentAt(userId, level);
+        if (cooldownSeconds > 0 && lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
+            return SendDecision.COOLDOWN;
+        }
+        if (maxPerDay > 0 && countToday(userId, level) >= maxPerDay) {
+            return SendDecision.DAILY_CAP;
+        }
+        record(userId, level, contact, now);
+        return SendDecision.OK;
+    }
+
     private void appendToFile(long userId, VerificationLevel level, String contact, long epochMillis) {
         try {
             Path parent = path.getParent();

@@ -24,7 +24,11 @@ import java.util.regex.Pattern;
  */
 public final class MapsUrlCoordinates {
 
-    /** Query params that may carry a {@code lat,lng} value. */
+    /** Query params that may carry a {@code lat,lng} value.
+     *  NOTE: query values are NOT URL-decoded — a percent-encoded comma
+     *  ({@code ?ll=59.437%2C24.753}) does not parse as a pair (the raw
+     *  value never contains a literal comma). Pinned by
+     *  {@code MapsUrlCoordinatesTest}. */
     private static final Pattern PARAM_PAIR = Pattern.compile(
             "[?&](?:daddr|saddr|q|ll)=([^&#\\s]+)", Pattern.CASE_INSENSITIVE);
 

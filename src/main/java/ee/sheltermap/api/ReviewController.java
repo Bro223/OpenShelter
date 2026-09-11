@@ -80,10 +80,10 @@ public class ReviewController {
         User user = userRepository.findById(userId);
         if (!(user instanceof RegisteredUser registered)) {
             // guests never reach here (401 first); admins are not "verified accounts"
-            throw new NotVerifiedException("Reviews require a verified account");
+            throw new NotVerifiedException(ShelterReviewService.VERIFIED_ACCOUNT_MESSAGE);
         }
         if (!registered.canWrite()) {
-            throw new NotVerifiedException("Reviews require a verified account");
+            throw new NotVerifiedException(ShelterReviewService.VERIFIED_ACCOUNT_MESSAGE);
         }
         return registered;
     }

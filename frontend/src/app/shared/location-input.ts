@@ -31,7 +31,7 @@ export type ParseLocationResult =
       swapped?: boolean;
     }
   | {
-      reason: 'no-pair' | 'out-of-bounds' | 'invalid';
+      reason: 'no-pair' | 'out-of-bounds' | 'invalid' | 'decimal-comma';
       /** Short diagnostic (not user-facing — the page renders reason-based copy). */
       detail?: string;
     };
@@ -70,6 +70,51 @@ const GOO_SHORT_LINK_PATTERN = /^(?:https?:\/\/)?maps\.app\.goo\.gl\/\S+$/i;
 /** One decimal pair separated by comma, semicolon, whitespace or '+' (URL-encoded space). */
 const PAIR_PATTERN = /(-?\d+(?:\.\d+)?)[,\s+;]+(-?\d+(?:\.\d+)?)/;
 const DECIMAL_PATTERN = /-?\d+(?:\.\d+)?/g;
+
+/** A comma used as the DECIMAL mark (the Estonian locale writes 58,25). */
+const DECIMAL_COMMA_PATTERN = /\d+,\d+/;
+/** A point used as the decimal mark (58.25) — or a host/version like 212.50 / v1.2. */
+const POINT_DECIMAL_PATTERN = /\d+\.\d+/;
+
+/**
+ * The Estonian decimal-comma guard (H4 — data integrity): the app's target
+ * locale writes the decimal mark as a comma, but the pair grammar only
+ * understands `.` decimals and treats `,` as a SEPARATOR. Without this guard
+ * `58,25 24,9` would parse as the integer pair (58, 25) — a plausible-but-
+ * wrong pin about 27 km off, stored ACTIVE. Never guess/convert the value:
+ * the input is refused with its own reason and the page tells the user to
+ * type a point.
+ *
+ * The rule: a comma-decimal token is present AND no point-decimal anywhere
+ * in the text. `59.4370, 24.7535` (comma as separator) carries a point ->
+ * parses normally. `59,4370 24.75` (mixed) carries a point -> NOT flagged;
+ * the plain scan takes the (59, 4370) separator pair, which the bbox gate
+ * rejects as out-of-bounds. For URLs the host always carries dots, so the
+ * caller passes the part of the URL that can carry coordinates (see
+ * `urlPair`) and the same "no point at all" rule applies to that part.
+ */
+function decimalCommaFailure(text: string): ParseLocationResult | null {
+  if (DECIMAL_COMMA_PATTERN.test(text) && !POINT_DECIMAL_PATTERN.test(text)) {
+    return {
+      reason: 'decimal-comma',
+      detail:
+        'Estonian decimal-comma detected — the comma is the decimal mark, a point is required',
+    };
+  }
+  return null;
+}
+
+/**
+ * True when the text carries a plain decimal value OUTSIDE the DMS tokens —
+ * a DMS + decimal mix such as `59°26'13"N 24.7535` (n2: the mix needs its
+ * own message, "a single DMS value" misdescribes a two-value input). The
+ * tokens' raw spans are masked first so their degree/minute/second digits
+ * do not count.
+ */
+function hasNonDmsDecimal(text: string): boolean {
+  const masked = text.replace(DMS_TOKEN_PATTERN, ' ');
+  return /\d/.test(masked);
+}
 
 /** Google share format: !3d59.437!4d24.753 (case-insensitive d-marker). */
 const GOO_SHARE_PATTERN = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i;
@@ -187,6 +232,14 @@ function urlPair(url: string): ParseLocationResult {
   if (at !== null) {
     return gateWithSwap(Number(at[1]), Number(at[2]));
   }
+  // Estonian decimal-comma in the generic fallback (H4): the scheme+host is
+  // always dotted, so the plain path's "no point at all" rule applies to the
+  // coordinate-carrying part (path + query) instead of the whole URL.
+  const urlBody = url.replace(/^https?:\/\/[^/?#]+/i, '');
+  const commaFailure = decimalCommaFailure(urlBody);
+  if (commaFailure !== null) {
+    return commaFailure;
+  }
   const generic = toDecimalPair(url);
   if (generic !== null) {
     return gateWithSwap(generic[0], generic[1]);
@@ -207,7 +260,9 @@ function urlPair(url: string): ParseLocationResult {
  *
  * Failures are specific: 'no-pair' (nothing numeric at all), 'invalid'
  * (coordinate-shaped markers present but no usable pair), 'out-of-bounds'
- * (a pair, but outside Estonia in both orders).
+ * (a pair, but outside Estonia in both orders), 'decimal-comma' (an
+ * Estonian comma-decimal without a point — the value is never guessed or
+ * converted; the page tells the user to type a point).
  */
 export function parseLocationInput(text: string): ParseLocationResult {
   const trimmed = text.trim();
@@ -230,10 +285,23 @@ export function parseLocationInput(text: string): ParseLocationResult {
       // One DMS value is a lone latitude or longitude — never guess the other
       // (design risk: no silent wrong pin). Do NOT fall back to the decimal
       // scan: its first two decimals would be the degree+minute parts of the
-      // same token, which would place a plausible-but-wrong pin.
+      // same token, which would place a plausible-but-wrong pin. A plain
+      // decimal alongside the token is a MIX of formats (n2) — its own
+      // message; "a single DMS value" would misdescribe a two-value input.
+      if (hasNonDmsDecimal(trimmed)) {
+        return {
+          reason: 'invalid',
+          detail: 'mix of DMS and decimal — use one format for both values',
+        };
+      }
       return { reason: 'invalid', detail: 'a single DMS value is not a coordinate pair' };
     }
-    // Markers present but no DMS token (e.g. "59.44N 24.75E") -> decimal fallback.
+    // Markers present but no DMS token (e.g. "59.44N 24.75E") -> decimal
+    // fallback — with the decimal-comma guard first (H4).
+    const commaFailure = decimalCommaFailure(trimmed);
+    if (commaFailure !== null) {
+      return commaFailure;
+    }
     const pair = plainPair(trimmed);
     if (pair !== null) {
       return gateWithSwap(pair[0], pair[1]);
@@ -241,6 +309,12 @@ export function parseLocationInput(text: string): ParseLocationResult {
     return { reason: 'invalid', detail: 'coordinate markers without a parseable pair' };
   }
 
+  // Estonian decimal-comma (H4): refuse BEFORE the separator grammar can
+  // read comma-decimals as an integer pair (no silent wrong pin).
+  const commaFailure = decimalCommaFailure(trimmed);
+  if (commaFailure !== null) {
+    return commaFailure;
+  }
   const pair = plainPair(trimmed);
   if (pair !== null) {
     return gateWithSwap(pair[0], pair[1]);

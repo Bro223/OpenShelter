@@ -26,6 +26,24 @@ package "api" {
     + GET /account/reviews/mine
   }
 
+  class LocationController {
+    ' shelter-location-input (8686b99) - thin shell for the short-link
+    ' resolver: parse, validate, delegate, map (Ch 1). JWT-protected
+    ' (inside the authenticated set, NOT permitAll) + per-IP 5/min
+    ' token bucket (geoResolveRateLimiter, keys via ClientIps - auth/03).
+    + POST /api/geo/resolve (body : LocationResolveRequest) : LocationResolvedDto
+  }
+
+  class LocationResolveRequest <<record>> {
+    + url : String   ' @NotBlank @Size(max = 2048)
+  }
+
+  class LocationResolvedDto <<record>> {
+    + latitude : double
+    + longitude : double
+    ' Field names are the frontend contract (LocationResolved) - do not rename.
+  }
+
   class ShelterQueryService {
     + findAll(filter : ShelterSourceFilter) : List<ShelterDto>
     + findById(id : Long) : Optional<ShelterDto>
@@ -122,6 +140,50 @@ package "api" {
   }
 }
 
+' ============ LOCATION RESOLUTION (shelter-location-input, 8686b99) ============
+' app/ classes shown as contracts - defined in 01 (app context).
+package "app - location resolution (contracts only)" {
+  class LocationResolveService {
+    + {static} WHITELISTED_HOST = "maps.app.goo.gl"
+    + resolve(url : String) : Outcome   ' Resolved / NotFound / UpstreamFailure
+  }
+
+  note bottom of LocationResolveService
+    Deliberately narrow (shelter-location-input): host whitelist
+    (maps.app.goo.gl is the only host the client sends) + a manual
+    <=3-hop redirect walk (every hop re-validated - auto-follow stays
+    OFF) under a 10 s budget (3 s connect / 5 s read per hop).
+    One generic 400 for every not-found variant (invalid input /
+    non-whitelisted host / no extractable pair / outside Estonia -
+    no enumeration); one generic 502 for every upstream failure
+    (timeout / network / upstream 5xx - no upstream detail).
+  end note
+
+  interface RedirectClient {
+    + fetch(url : String) : RedirectHop   ' one hop, status + Location header
+    ' The seam that keeps LocationResolveService unit-testable.
+  }
+
+  class HttpUrlRedirectClient {
+  }
+
+  note bottom of HttpUrlRedirectClient
+    Real hop fetcher: 3 s connect / 5 s read per hop, redirects NOT
+    auto-followed, no cookies, fixed User-Agent; the status line +
+    Location header only - never the body.
+  end note
+
+  class MapsUrlCoordinates {
+    + {static} extract(url : String) : GeoPoint
+  }
+
+  note bottom of MapsUrlCoordinates
+    The shared long-form map-URL pattern list, with the Estonia-bbox
+    gate + (lng,lat) auto-swap - the same rules the frontend parser
+    uses; both sides tested against the same fixture table.
+  end note
+}
+
 ' ============ CONTRACT WITH OTHER CONTEXTS (interfaces only) ============
 ShelterController --> ShelterQueryService : GET + GET /mine
 ShelterController --> ShelterService : POST / PUT / DELETE (app/01)
@@ -143,6 +205,16 @@ ShelterReviewService --> ShelterReviewDto
 ReviewController --> ReviewRequest
 ShelterReviewService ..> ErrorResponse : 403 if not verified / not author
 
+' ---- location resolution (POST /api/geo/resolve) ----
+LocationController --> LocationResolveService : resolve(url)
+LocationController --> LocationResolveRequest : parses body
+LocationController --> LocationResolvedDto : returns
+LocationController ..> RateLimiter : per-IP 5/min bucket (geoResolveRateLimiter, auth/03)
+LocationController ..> ErrorResponse : 400 / 429 / 502
+LocationResolveService ..> RedirectClient : hop walk (seam)
+HttpUrlRedirectClient ..|> RedirectClient : real hop fetcher
+LocationResolveService --> MapsUrlCoordinates : pair extraction on the final URL
+
 ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()
 ShelterSourceFilter --> ShelterSource : REGISTRY={PAASETEAMET,MUNICIPALITY}, USER={USER}, ALL={all}
 
@@ -153,6 +225,10 @@ note bottom of ShelterController
   GET  /api/shelters/mine                      (Bearer JWT - the CALLER's shelters, NOT public)
   PUT    /api/shelters/{id}                    (Bearer JWT, author-only USER rows)
   DELETE /api/shelters/{id}                    (Bearer JWT, author-only; reviews cascade)
+  POST /api/geo/resolve                        (Bearer JWT, per-IP 5/min -> 429;
+       LocationController - 400 ONE generic message when no pair / outside
+       Estonia / non-whitelisted host; 502 ONE generic retry-later message on
+       upstream failure - no enumeration, no upstream detail)
   Author check (PUT/DELETE): 404 if absent, 403 if not the author - registry rows and
   legacy created_by-NULL rows are unmanageable by anyone (ids are public, so
   403-vs-404 leaks nothing). PUT re-checks the Estonia bbox - one shared gate with
@@ -189,6 +265,9 @@ participant "ShelterService" as SS
 participant "ShelterReviewService" as RVS
 participant "ShelterReviewRepository" as RREPO
 participant "AccountController" as ACC
+participant "LocationController" as LC
+participant "LocationResolveService" as LRS
+participant "HttpUrlRedirectClient" as HRC
 database "PostgreSQL" as DB
 
 == 1. GET /api/shelters?source=USER (public) ==
@@ -257,4 +336,28 @@ Client -> ACC : GET /account/reviews/mine
 ACC -> DB : reviews WHERE user_id = ? (one query)
 ACC -> DB : shelters WHERE id IN (...) (batched shelter names - no N+1)
 ACC --> Client : 200 [MyReviewDto]
+
+== 9. POST /api/geo/resolve (Bearer JWT, per-IP 5/min) ==
+Client -> LC : POST /api/geo/resolve {url}
+alt per-IP bucket empty (5/min)
+  LC --> Client : 429 (uniform ErrorResponse)
+else
+  LC -> LRS : resolve(url)   ' host whitelist: maps.app.goo.gl only
+  LRS -> HRC : fetch(url)  (one hop, NO auto-follow; 3 s connect / 5 s read, 10 s budget)
+  alt 3xx with Location (re-validated hop, <= 3 total)
+    HRC --> LRS : RedirectHop(3xx, Location) - walk continues
+  else terminal response
+    HRC --> LRS : RedirectHop(status, Location?)
+  end
+  alt pair extracted on the final URL (bbox gate + auto-swap)
+    LRS --> LC : Outcome.Resolved(latitude, longitude)
+    LC --> Client : 200 {latitude, longitude}
+  else invalid input / other host / no pair / outside Estonia
+    LRS --> LC : Outcome.NotFound
+    LC --> Client : 400 ONE generic message (no enumeration)
+  else timeout / network failure / upstream 5xx
+    LRS --> LC : Outcome.UpstreamFailure
+    LC --> Client : 502 ONE generic retry-later message (no upstream detail)
+  end
+end
 @enduml

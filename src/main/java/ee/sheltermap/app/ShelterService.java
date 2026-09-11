@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.api.ShelterNotFoundException;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -19,6 +20,14 @@ import java.util.Objects;
  */
 @Service
 public class ShelterService {
+
+    /**
+     * 403 message for unverified shelter submissions — one public constant
+     * shared with {@code api.ShelterController} (de-slop K5, 2026-09-10
+     * review): the API layer pre-checks the same {@code canWrite()} rule.
+     */
+    public static final String SUBMIT_SHELTERS_MESSAGE =
+            "A verified account is required to submit shelters";
 
     private final ShelterRepository shelterRepository;
 
@@ -45,7 +54,7 @@ public class ShelterService {
         Objects.requireNonNull(user, "user");
         Objects.requireNonNull(place, "place");
         if (!user.canWrite()) {
-            throw new NotVerifiedException("A verified account is required to submit shelters");
+            throw new NotVerifiedException(SUBMIT_SHELTERS_MESSAGE);
         }
         if (place.getStatus() != ShelterStatus.ACTIVE || place.getSource() != ShelterSource.USER) {
             throw new IllegalArgumentException(
@@ -65,10 +74,24 @@ public class ShelterService {
      * status/source/registry fields, {@code createdAt} and author untouched.
      * Callers own the authorization (author check) and validation (field
      * bounds + the Estonia bbox) before calling this.
+     *
+     * <p>Concurrent-DELETE race (2026-09-10 review n12): if the row was
+     * deleted between the caller's read and this save, the repository's
+     * unknown-id guard surfaces as {@link IllegalStateException} — mapped
+     * HERE (the service boundary) to the same 404 as a plain not-found,
+     * never a 500. Mapped by re-reading the row (observable state, not
+     * message parsing); the repository keeps its internal guard.
      */
     public void updatePlace(Shelter place) {
         Objects.requireNonNull(place, "place");
-        shelterRepository.save(place);
+        try {
+            shelterRepository.save(place);
+        } catch (IllegalStateException unknownId) {
+            if (place.getId() != null && shelterRepository.findById(place.getId()).isEmpty()) {
+                throw new ShelterNotFoundException(place.getId());
+            }
+            throw unknownId;
+        }
     }
 
     /** Deletes a shelter row; its reviews cascade via the DB constraint. */

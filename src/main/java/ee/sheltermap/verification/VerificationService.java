@@ -73,15 +73,15 @@ public class VerificationService {
         long userId = Objects.requireNonNull(user, "user").getId();
         Instant now = clock.instant();
 
-        long cooldownSeconds = properties.cooldownSeconds();
-        if (cooldownSeconds > 0) {
-            Instant lastSentAt = sendLog.lastSentAt(userId, level);
-            if (lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
-                throw new VerificationThrottledException();
-            }
-        }
-        int maxPerDay = properties.maxPerDay();
-        if (maxPerDay > 0 && sendLog.countToday(userId, level) >= maxPerDay) {
+        // M16 (2026-09-10 review): ONE atomic check-and-record on the send
+        // log — the old read-read-record across separately-synchronized
+        // methods let a burst pass both reads before either recorded. A
+        // throttled decision records nothing; an OK decision has ALREADY
+        // recorded the send (so there is no trailing record() call).
+        VerificationSendLog.SendDecision decision = sendLog.tryRecord(
+                userId, level, contactFor(user, level), now,
+                properties.cooldownSeconds(), properties.maxPerDay());
+        if (decision != VerificationSendLog.SendDecision.OK) {
             throw new VerificationThrottledException();
         }
 
@@ -89,7 +89,19 @@ public class VerificationService {
         pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
-        sendLog.record(userId, level, pending.getContact(), now);
+    }
+
+    /**
+     * The channel contact the send log records for a level — the same value
+     * the provider sends the code to (E.164 phone for PHONE, the e-mail for
+     * EMAIL). SMART_ID has no stored-code channel in v1 (stub); the e-mail
+     * stands in, and the controller rejects SMART_ID before any send.
+     */
+    private static String contactFor(RegisteredUser user, VerificationLevel level) {
+        if (level == VerificationLevel.PHONE) {
+            return PhoneNumbers.normalizeE164(user.getData().phone());
+        }
+        return user.getData().email();
     }
 
     /**

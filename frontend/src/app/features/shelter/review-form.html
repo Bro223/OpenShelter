@@ -7,7 +7,12 @@
 
   <div class="field">
     <span class="field-label" id="review-rating-label">Rating (1–5 stars)</span>
-    <app-rating-stars mode="input" [selected]="ratingValue()" (selectionChange)="onStars($event)" />
+    <app-rating-stars
+      mode="input"
+      [labelledby]="'review-rating-label'"
+      [selected]="ratingValue()"
+      (selectionChange)="onStars($event)"
+    />
     @if (ratingMissing()) {
       <p class="field-error">Please pick a rating from 1 to 5 stars.</p>
     }

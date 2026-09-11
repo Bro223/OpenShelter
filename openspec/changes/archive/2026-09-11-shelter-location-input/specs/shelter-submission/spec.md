@@ -4,10 +4,14 @@
 
 The shelter submission form SHALL provide a location section with four
 capture modes that all write to one shared location state: (1) a smart
-text input accepting coordinate strings and map URLs, (2) a "Use my
-location" geolocation button, (3) the existing map click/drag picking,
-(4) a read-only display of the resolved coordinates. Submitting without a
-resolved location SHALL keep the existing inline validation error.
+text input accepting coordinate strings (incl. DMS, with reversed lng/lat
+auto-swap) and long-form map URLs, (2) a `maps.app.goo.gl` short link
+resolved by the backend, (3) a "Use my location" geolocation button,
+(4) the existing map click/drag picking. The resolved coordinates are
+shown in a read-only readout — a display of the shared state, NOT a
+capture mode. Manual numeric latitude/longitude entry is removed (the
+smart text input replaces it). Submitting without a resolved location
+SHALL keep the existing inline validation error.
 
 #### Scenario: Coordinate string
 
@@ -110,6 +114,36 @@ to a specific inline message that suggests the other capture modes.
 - **WHEN** the user denies the permission prompt
 - **THEN** an inline message explains the permission is off and points
   to map picking / pasting a link
+
+## MODIFIED Requirements
+
+### Requirement: Submission form with location pick
+
+The submission form SHALL collect a shelter name (required, ≤ 200 chars), an optional description
+(≤ 2000 chars), an optional capacity (1–100 000), and a location captured by one of five
+capture modes that all write to a single shared location state: a smart text input (coordinate
+strings, DMS, long-form map URLs, with reversed lng/lat auto-swap), a maps.app.goo.gl short link
+resolved by POST /api/geo/resolve, a "Use my location" geolocation button, map click/drag
+picking, and an Estonia address search (client-side Nominatim geocoding). The manual numeric
+latitude/longitude entry is REMOVED — the smart text input replaces it, and the resolved
+coordinates are shown read-only (a display of the shared state, not a capture mode). The location
+SHALL be pre-checked client-side against the Estonia bounding box for instant feedback; the
+backend re-checks and rejects out-of-bounds points.
+
+#### Scenario: Form fields and bounds
+
+- **WHEN** a verified user fills the form with valid values inside Estonia
+- **THEN** submission is enabled and no validation errors are shown
+
+#### Scenario: Client-side Estonia pre-check
+
+- **WHEN** a user picks a location outside Estonia
+- **THEN** an immediate inline validation error is shown before the request is sent
+
+#### Scenario: Out-of-range capacity
+
+- **WHEN** capacity is outside 1–100 000 or negative
+- **THEN** the form shows an inline validation error and does not submit
 
 ## ADDED Requirements (capability: location-resolution)
 

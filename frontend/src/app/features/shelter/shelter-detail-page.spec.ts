@@ -87,14 +87,18 @@ class FakeReviewGateway {
 class FakeLeafletService {
   created = 0;
   destroyed = 0;
+  /** Mirrors the real service: only a LIVE map answers flyTo/showShelter
+   *  (the real calls are `this.map?.…` no-ops otherwise). */
+  private alive = false;
   flyToCalls: [number, number, number | undefined][] = [];
   showShelterCalls: (ShelterDto | null)[] = [];
   markerClick: ((shelterId: number) => void) | null = null;
   mapClick: ((latitude: number, longitude: number) => void) | null = null;
 
   create = vi.fn((el: HTMLElement | null): void => {
-    // Mirrors the real service's null-container guard.
-    if (el) {
+    // Mirrors the real service's null-container + one-per-instance guards.
+    if (el && !this.alive) {
+      this.alive = true;
       this.created++;
     }
   });
@@ -102,13 +106,18 @@ class FakeLeafletService {
     void rows;
   });
   flyTo = vi.fn((latitude: number, longitude: number, zoom?: number): void => {
-    this.flyToCalls.push([latitude, longitude, zoom]);
+    if (this.alive) {
+      this.flyToCalls.push([latitude, longitude, zoom]);
+    }
   });
   showShelter = vi.fn((shelter: ShelterDto | null): void => {
-    this.showShelterCalls.push(shelter);
+    if (this.alive) {
+      this.showShelterCalls.push(shelter);
+    }
   });
   setPick = vi.fn();
   destroy = vi.fn((): void => {
+    this.alive = false;
     this.destroyed++;
   });
 }
@@ -692,6 +701,55 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       expect(leaflet.flyToCalls).toEqual([]);
       expect(leaflet.showShelterCalls).toEqual([]);
+    });
+
+    it('a 404 after create destroys the map (the not-found branch unmounts the container) (M4)', async () => {
+      // /shelters/999 is a VALID id the gateway 404s: the container is
+      // mounted at view-init (map created), then the 404 flip to the
+      // not-found branch unmounts it — the live map must be destroyed.
+      await open('/shelters/999');
+
+      expect(leaflet.created).toBe(1);
+      expect(leaflet.destroyed).toBe(1);
+    });
+
+    it('a 404 -> valid-id re-navigation shows a working (re-created) map (M4)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { element, fixture, router } = await open('/shelters/999');
+      expect(leaflet.created).toBe(1);
+      expect(leaflet.destroyed).toBe(1);
+      expect(text(fixture)).toContain('Shelter not found');
+
+      // Manual navigation back to a real shelter: the @else branch renders
+      // a FRESH container — the map must be re-created on it and pinned.
+      await router.navigateByUrl('/shelters/1');
+      for (let i = 0; i < 5; i++) {
+        await settle(fixture);
+      }
+
+      expect(text(fixture)).toContain('Tallinn Central Shelter');
+      expect(element.querySelector('.shelter-detail__map')).not.toBeNull();
+      expect(leaflet.created).toBe(2);
+      expect(leaflet.flyToCalls).toEqual([[59.437, 24.754, SHELTER_ZOOM]]);
+      expect(leaflet.showShelterCalls).toEqual([
+        expect.objectContaining({ id: 1, latitude: 59.437, longitude: 24.754 }),
+      ]);
+    });
+
+    it('an invalid id after a loaded page destroys the map (M4)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { fixture, router } = await open('/shelters/1');
+      expect(leaflet.created).toBe(1);
+      expect(leaflet.destroyed).toBe(0);
+
+      await router.navigateByUrl('/shelters/abc');
+      for (let i = 0; i < 5; i++) {
+        await settle(fixture);
+      }
+
+      expect(text(fixture)).toContain('Shelter not found');
+      expect(leaflet.destroyed).toBe(1);
+      expect(leaflet.created).toBe(1); // nothing was re-created
     });
 
     it('a backend error keeps the map container mounted (placeholder) without a pin', async () => {

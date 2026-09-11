@@ -3,17 +3,22 @@ package ee.sheltermap.app;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Resolver behaviour against a scripted {@link RedirectClient} fake —
- * no network (shelter-location-input, design decision 4): host whitelist,
- * the ≤3-hop cap (read off the {@code Location} header, one fetch per
- * hop), timeout/network → upstream failure, no pair / outside Estonia
- * → not-found, and the auto-swap rule on the final URL.
+ * no network (shelter-location-input, design decision 4): host whitelist
+ * (entry pinned to a default-port {@code maps.app.goo.gl}), the ≤3-hop cap
+ * (read off the {@code Location} header, one fetch per hop), hop-target
+ * re-validation (non-Google hosts, scheme changes, protocol-relative and
+ * malformed {@code Location}s are rejected BEFORE any fetch), the ~10 s
+ * walk budget, timeout/network → upstream failure, no pair / outside
+ * Estonia → not-found, and the auto-swap rule on the final URL.
  */
 class LocationResolveServiceTest {
 
@@ -73,6 +78,14 @@ class LocationResolveServiceTest {
     @Test
     void nonHttpSchemeIsNotFoundAndNeverFetched() {
         assertThatNotFound(service.resolve("ftp://maps.app.goo.gl/abc"));
+        assertThat(client.fetches).isZero();
+    }
+
+    @Test
+    void entryWithNonDefaultPortIsNotFoundAndNeverFetched() {
+        // n1: http://maps.app.goo.gl:8080/ must fail the entry check — the
+        // whitelist is host AND default port, not just host
+        assertThatNotFound(service.resolve("http://maps.app.goo.gl:8080/abc"));
         assertThat(client.fetches).isZero();
     }
 
@@ -137,6 +150,97 @@ class LocationResolveServiceTest {
         assertThatNotFound(service.resolve(START));
     }
 
+    // ---------- hop re-validation (M1) — violations are rejected BEFORE any fetch ----------
+
+    @Test
+    void hopToCloudMetadataIpIsUpstreamFailureAndNeverFetched() {
+        client.hop(redirect("http://169.254.169.254/latest/meta-data/"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1); // only the entry was fetched
+        assertThat(client.lastFetched).isEqualTo(START);
+    }
+
+    @Test
+    void hopToLoopbackPortIsUpstreamFailureAndNeverFetched() {
+        client.hop(redirect("http://127.0.0.1:8080/maps?q=59.437,24.753"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1);
+        assertThat(client.lastFetched).isEqualTo(START);
+    }
+
+    @Test
+    void hopSchemeChangeToHttpIsUpstreamFailureAndNeverFetched() {
+        // entry is https — an http target (even on a Google host) is a
+        // mid-walk scheme change and must not be followed
+        client.hop(redirect("http://www.google.com/maps?q=59.437,24.753"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1);
+        assertThat(client.lastFetched).isEqualTo(START);
+    }
+
+    @Test
+    void protocolRelativeHopToForeignHostIsUpstreamFailureAndNeverFetched() {
+        // resolves (against the https base) to a non-Google host
+        client.hop(redirect("//evil.example.com/maps?q=59.437,24.753"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1);
+        assertThat(client.lastFetched).isEqualTo(START);
+    }
+
+    @Test
+    void malformedLocationIsUpstreamFailureNotFiveHundred() {
+        // URI resolution throws IllegalArgumentException — it must map to the
+        // generic 502 outcome, never escape as a 500
+        client.hop(redirect("://bad"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1);
+    }
+
+    @Test
+    void nonHttpSchemeHopIsUpstreamFailureAndNeverFetched() {
+        client.hop(redirect("file:///etc/passwd"));
+
+        assertThatUpstreamFailure(service.resolve(START));
+        assertThat(client.fetches).isEqualTo(1);
+        assertThat(client.lastFetched).isEqualTo(START);
+    }
+
+    @Test
+    void walkExceedingTheBudgetIsUpstreamFailureAndStopsTheWalk() {
+        // fake monotonic clock: each fetch "stalls" 11 s, well over the 10 s
+        // budget — the deadline check before hop 2 must stop the walk
+        AtomicLong clock = new AtomicLong(0);
+        ScriptedClient inner = new ScriptedClient();
+        inner.hop(redirect("https://www.google.com/maps?q=59.437,24.753"));
+        RedirectClient stalled = url -> {
+            RedirectClient.RedirectHop hop = inner.fetch(url);
+            clock.addAndGet(11_000_000_000L);
+            return hop;
+        };
+        LocationResolveService budgeted =
+                new LocationResolveService(stalled, Duration.ofSeconds(10), clock::get);
+
+        assertThatUpstreamFailure(budgeted.resolve(START));
+        assertThat(inner.fetches).isEqualTo(1); // the 2nd hop is never fetched
+    }
+
+    @Test
+    void fetchThatEscapesACastExceptionIsUpstreamFailure() {
+        // a client-side cast oddity (non-HTTP URL slipped past validation)
+        // must map to the generic 502 outcome, never a 500
+        LocationResolveService service = new LocationResolveService(
+                url -> {
+                    throw new ClassCastException("no HttpURLConnection for " + url);
+                });
+
+        assertThatUpstreamFailure(service.resolve(START));
+    }
+
     // ---------- helpers ----------
 
     private static RedirectClient.RedirectHop redirect(String location) {
@@ -155,6 +259,11 @@ class LocationResolveServiceTest {
 
     private static void assertThatNotFound(LocationResolveService.Outcome outcome) {
         assertThat(outcome).isInstanceOf(LocationResolveService.Outcome.NotFound.class);
+    }
+
+    private static void assertThatUpstreamFailure(LocationResolveService.Outcome outcome) {
+        assertThat(outcome).isInstanceOf(
+                LocationResolveService.Outcome.UpstreamFailure.class);
     }
 
     /** A scripted RedirectClient fake — hops and failures in call order. */

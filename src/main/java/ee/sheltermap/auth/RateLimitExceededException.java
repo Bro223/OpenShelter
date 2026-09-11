@@ -4,6 +4,6 @@ package ee.sheltermap.auth;
 public class RateLimitExceededException extends RuntimeException {
 
     public RateLimitExceededException() {
-        super("too many requests");
+        super("Too many requests");
     }
 }

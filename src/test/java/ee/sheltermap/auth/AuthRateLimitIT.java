@@ -41,9 +41,9 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
                     .andExpect(status().isUnauthorized()); // passes the limiter, generic 401
         }
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isTooManyRequests())
+                    .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
     }
 
     @Test
@@ -63,7 +63,7 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
     }
 
     @Test
@@ -76,7 +76,7 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
     }
 
     @Test

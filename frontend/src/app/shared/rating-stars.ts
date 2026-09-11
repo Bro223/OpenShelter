@@ -6,6 +6,7 @@ import {
   output,
   viewChildren,
 } from '@angular/core';
+import { NO_RATINGS_YET } from './shelter-copy';
 
 /** The five selectable rating values (backend domain: 1..5). */
 const STAR_VALUES = [1, 2, 3, 4, 5] as const;
@@ -42,6 +43,11 @@ export class RatingStars {
   /** Input mode: the current selection (null = nothing picked yet). */
   readonly selected = input<number | null>(null);
 
+  /** Input mode: optional id of an external label element — the radiogroup
+   *  is announced as `aria-labelledby` (the parent's caption, e.g. the
+   *  review form's "Rating (1–5 stars)") instead of the bare "Rating" aria-label. */
+  readonly labelledby = input<string | null>(null);
+
   /** Input mode: emitted with the picked value (1–5). */
   readonly selectionChange = output<number>();
 
@@ -63,7 +69,8 @@ export class RatingStars {
   /** Display-mode accessible name: "4.2 out of 5", or the no-ratings notice. */
   protected ariaLabel(): string {
     const rating = this.rating();
-    return rating === null ? 'No ratings yet' : `${rating.toFixed(1)} out of 5`;
+    // NO_RATINGS_YET is single-sourced in shared/shelter-copy.ts (n9).
+    return rating === null ? NO_RATINGS_YET : `${rating.toFixed(1)} out of 5`;
   }
 
   /** Display-mode numeric value ("4.2"); null renders nothing. */

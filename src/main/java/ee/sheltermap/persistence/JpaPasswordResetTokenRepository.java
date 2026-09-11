@@ -53,8 +53,8 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
 
     @Override
     @Transactional
-    public void markUsed(Long id) {
-        tokens.markUsed(id, Instant.now());
+    public void markUsed(Long id, Instant now) {
+        tokens.markUsed(id, now);
     }
 
     @Override

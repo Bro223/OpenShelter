@@ -10,7 +10,10 @@ title OpenShelter Frontend - App Architecture (Angular 22, standalone, zoneless)
 '    delegate to services, bind signals. Zero business logic.
 ' 3. One gateway per backend resource group, mirroring the
 '    backend controllers 1:1 (auth, shelter, review, verify,
-'    account). Field-for-field typed models (02-CONTEXT-API.md).
+'    account, geo) + ONE documented exception: GeocodeGateway
+'    talks to an EXTERNAL service (OSM Nominatim) client-side
+'    via raw fetch (no JWT, no backend hop, never ApiClient).
+'    Field-for-field typed models (02-CONTEXT-API.md).
 ' 4. State: signals (Angular 22, zoneless - no zone.js in the
 '    scaffold). AuthStore owns session state; feature pages own
 '    local UI state; no NgRx in v1.
@@ -164,6 +167,28 @@ package "gateways" {
     + confirmPhoneChange(code) : void
     + myReviews() : MyReviewDto[]    ' M8: GET /account/reviews/mine
   }
+
+  class GeoGateway {
+    + resolve(url: string) : LocationResolved
+  }
+
+  note bottom of GeoGateway
+    POST /api/geo/resolve (JWT, per-IP 5/min) - maps.app.goo.gl short
+    links only; the ONLY network call the /submit short-link mode makes
+    (long-form URLs never hit the backend - parsed client-side).
+  end note
+
+  class GeocodeGateway {
+    + search(query: string) : GeocodeResult[]
+  }
+
+  note bottom of GeocodeGateway
+    DOCUMENTED EXCEPTION - client-side OSM Nominatim via RAW fetch()
+    (external service: no JWT, no backend hop, never through ApiClient).
+    The only module that knows the Nominatim URL (jsonv2, limit 5,
+    countrycodes=ee - Estonia-restricted); hard 1000 ms request spacing
+    (1 req/s usage policy); attribution always rendered by the caller.
+  end note
 }
 
 package "features" {
@@ -209,8 +234,18 @@ package "shared" {
   class LeafletService
   ' + non-component helpers: form-helpers.ts (readCoordinate,
   '   capacityValidator, nameBlankValidator, CAPACITY_MIN/MAX,
-  '   CODE_SIX_DIGITS) and shelter-copy.ts (canonical "User-submitted" / "★ x.x · N" copy)
+  '   CODE_SIX_DIGITS), shelter-copy.ts (canonical "User-submitted" / "★ x.x · N" copy),
+  '   location-input.ts (pure parseLocationInput + isGooShortLink /
+  '   normalizeShortLinkUrl - fixture-table-tested, no Angular imports)
 }
+
+note bottom of shared
+  Non-component helpers: form-helpers.ts (readCoordinate, capacity /
+  name validators, CODE_SIX_DIGITS), shelter-copy.ts (canonical
+  "User-submitted" / rating copy) and location-input.ts (pure
+  parseLocationInput + isGooShortLink / normalizeShortLinkUrl -
+  fixture-table-tested, zero Angular imports).
+end note
 
 ' --- wiring ---------------------------------------------------
 PageShell --> RouterOutlet
@@ -219,6 +254,9 @@ VerifyGateway ..> ApiClient
 ShelterGateway ..> ApiClient
 ReviewGateway ..> ApiClient
 AccountGateway ..> ApiClient
+GeoGateway ..> ApiClient
+' GeocodeGateway has NO ApiClient edge - it is the documented raw-fetch
+' exception (external Nominatim, client-side).
 AuthStore ..> AuthGateway
 AuthStore ..> AccountGateway
 AuthStore ..> TokenStore
@@ -265,6 +303,8 @@ ShelterDetailPage --> ReviewForm
 ShelterDetailPage --> RatingStars
 ShelterDetailPage --> BannerComponent
 SubmitShelterPage --> ShelterGateway
+SubmitShelterPage --> GeoGateway
+SubmitShelterPage --> GeocodeGateway
 SubmitShelterPage --> LeafletService
 SubmitShelterPage --> BannerComponent
 ReviewForm --> RatingStars

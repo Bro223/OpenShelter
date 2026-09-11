@@ -16,7 +16,7 @@ import ee.sheltermap.domain.VerificationLevel;
  */
 public interface VerificationProvider {
 
-    /** Stable code recorded on claims produced by this provider (e.g. "twilio"). */
+    /** Stable code recorded on claims produced by this provider (e.g. "sms", "smtp"). */
     String providerCode();
 
     /** The verification level this provider proves. */

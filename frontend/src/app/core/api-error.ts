@@ -31,6 +31,12 @@ function reasonPhrase(status: number): string {
       return 'Too Many Requests';
     case 500:
       return 'Internal Server Error';
+    case 502:
+      return 'Bad Gateway';
+    case 503:
+      return 'Service Unavailable';
+    case 504:
+      return 'Gateway Timeout';
     default:
       return `HTTP ${status}`;
   }

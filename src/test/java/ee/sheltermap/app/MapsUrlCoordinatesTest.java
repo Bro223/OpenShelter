@@ -30,6 +30,11 @@ class MapsUrlCoordinatesTest {
                     "https://www.google.com/maps?q=59.437,24.7535", 59.437, 24.7535),
             new Case("google ?ll=lat,lng",
                     "https://www.google.com/maps?ll=59.437,24.7535", 59.437, 24.7535),
+            Case.none("encoded comma is not decoded — query values are not URL-decoded",
+                    "https://www.google.com/maps?ll=59.437%2C24.753"),
+            Case.none("generic fallback takes the FIRST positional pair — a foreign pair "
+                    + "shadows a valid one later in the URL (documented limitation)",
+                    "https://x/geo?foo=1,2&c=59.437,24.753"),
             new Case("google ?daddr= (directions destination)",
                     "https://www.google.com/maps/dir/?api=1&daddr=59.437,24.7535", 59.437, 24.7535),
             new Case("google ?saddr= (directions start)",

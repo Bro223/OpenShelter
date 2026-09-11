@@ -61,8 +61,11 @@ public class SmsTestController {
         String toE164 = PhoneNumbers.normalizeE164(request.to());
         String key = toE164 == null ? request.to().toLowerCase(Locale.ROOT) : toE164.toLowerCase(Locale.ROOT);
         if (!allowAny && !allowedRecipients.contains(key)) {
-            return new SmsTestResult(provider, request.to(), toE164, false,
-                    "recipient not in app.dev-sms-test.allowed-recipients");
+            // 403 — same deny semantics as the mail mirror
+            // (EmailTestController): an authenticated user must not turn the
+            // diagnostic endpoint into an open SMS relay
+            log.warn("[sms-test] rejected recipient {} (not in the allowlist)", request.to());
+            throw new NotAuthorException("recipient is not in the sms-test allowlist");
         }
         log.info("[sms-test] provider={} to={} toE164={}", provider, request.to(), toE164);
         try {

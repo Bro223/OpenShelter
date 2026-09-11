@@ -89,7 +89,7 @@ public class ShelterController {
     public ResponseEntity<ShelterDto> create(@Valid @RequestBody CreateShelterRequest request) {
         User user = currentUser();
         if (!user.canWrite()) {
-            throw new NotVerifiedException("A verified account is required to submit shelters");
+            throw new NotVerifiedException(ShelterService.SUBMIT_SHELTERS_MESSAGE);
         }
         // P2 fix: user-submitted shelters get the same Estonia bounding-box
         // sanity check the registry parser applies — no ocean shelters.

@@ -159,11 +159,18 @@
             id="change-email-new"
             type="email"
             [formControl]="newEmail"
+            maxlength="255"
             autocomplete="email"
             placeholder="new@example.ee"
           />
           @if (newEmail.touched && newEmail.invalid) {
-            <p class="field-error">A valid email is required.</p>
+            <p class="field-error">
+              {{
+                newEmail.errors?.['maxlength']
+                  ? 'Email must be 255 characters or fewer.'
+                  : 'A valid email is required.'
+              }}
+            </p>
           }
         </div>
 
@@ -244,11 +251,18 @@
             id="change-phone-new"
             type="tel"
             [formControl]="newPhone"
+            maxlength="64"
             autocomplete="tel"
             placeholder="+3725… or 5xxxxxxx"
           />
           @if (newPhone.touched && newPhone.invalid) {
-            <p class="field-error">A phone number is required.</p>
+            <p class="field-error">
+              {{
+                newPhone.errors?.['maxlength']
+                  ? 'Phone must be 64 characters or fewer.'
+                  : 'A phone number is required.'
+              }}
+            </p>
           }
         </div>
 

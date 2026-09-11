@@ -9,6 +9,8 @@ participant "ContributionsPanel" as CP
 participant "ReviewForm" as RF
 participant "ShelterGateway" as SHG
 participant "GeoGateway" as GG
+participant "GeocodeGateway" as GCG
+participant "OSM Nominatim (external, client-side)" as NOM
 participant "ReviewGateway" as RG
 participant "AccountGateway" as AG
 participant "ApiClient" as AC
@@ -89,13 +91,19 @@ DP --> Person : review removed, summary refetched
 == Submit a shelter (verified users) ==
 note over SP
   Route /submit guarded by AuthGuard + VerifiedGuard. The location
-  section keeps ONE shared location signal written by four capture
+  section keeps ONE shared location signal written by FIVE capture
   modes: (1) smart text input - coordinate strings (incl. DMS, auto
   lng/lat swap), long-form map URLs parsed client-side by the pure
   parseLocationInput (shared/location-input.ts); (2) "Use my location"
   geolocation; (3) mini-map click/drag; (4) maps.app.goo.gl short links
-  resolved by the backend (POST /api/geo/resolve). A FAILED capture
-  clears the pin (never a silent stale pin). The page pre-checks the
+  resolved by the backend (POST /api/geo/resolve); (5) Estonia address
+  search - client-side Nominatim geocoding via GeocodeGateway (one
+  deliberate request per press, hard 1 req/s spacing, always-rendered
+  "(c) OpenStreetMap contributors" attribution). The read-only
+  coordinate readout (+ source/swapped/accuracy hints) is a DISPLAY of
+  the shared signal, not a capture mode. A FAILED capture clears the pin
+  (never a silent stale pin) - a failed address SEARCH never touches the
+  pin (inline state only, never blocks submit). The page pre-checks the
   Estonia bbox client-side (inline error, nothing is sent) and the
   backend re-checks (400 otherwise). capacity 1..100_000,
   description <= 2000 chars.
@@ -127,6 +135,18 @@ group capture the location (any order, repeats allowed)
       API --> AC : ErrorResponse
       SP --> Person : inline error (pin cleared; 429 = "try again in a minute")
     end
+  else Estonia address search (client-side Nominatim)
+    Person -> SP : type address + "Search" (or Enter)   ' no autosuggest
+    SP -> GCG : search(query)   ' "Searching..." pending; hard 1 req/s spacing
+    GCG -> NOM : GET /search?format=jsonv2&limit=5&countrycodes=ee
+    NOM --> GCG : <= 5 results (display name + string lat/lon)
+    GCG --> SP : results (429 -> "please wait a moment"; network -> generic copy)
+    Person -> SP : pick a result
+    SP --> Person : shared location set + address field prefilled ONLY IF empty
+    note right of SP
+      A failed SEARCH (no results / 429 / network) never touches the pin -
+      inline state only, never blocks submit.
+    end note
   end
 end
 SP -> SHG : create(request)

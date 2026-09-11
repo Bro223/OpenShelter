@@ -2,26 +2,43 @@
 
 ## Backend (one child)
 
-- [ ] C1: `APP_DISPLAY_NAME = "OpenShelter"` constant (small home, e.g.
+- [x] C1: `APP_DISPLAY_NAME = "OpenShelter"` constant (small home, e.g.
       `app/AppInfo.java`); replace "Shelter Map" in
       EmailVerificationProvider:52, PhoneVerificationProvider:54,
       PasswordResetService:117, ContactChangeService:87,139,
       SmtpPulseSmtpSender:49 (+:52 log). Keep `spring.application.name`.
-- [ ] C2: VerificationController:75 → "eID verification is not
+      — verified: `app/AppInfo.java` holds `APP_DISPLAY_NAME =
+      "OpenShelter"`; all 6 user-received strings + SMTP subject use it;
+      `spring.application.name` untouched (application.yml)
+- [x] C2: VerificationController:75 → "eID verification is not
       available yet." (stub fact stays in the comment)
-- [ ] C3: capitalize the ~12 lowercase backend user-facing messages
+      — verified at VerificationController:78
+- [x] C3: capitalize the ~12 lowercase backend user-facing messages
       (ShelterController:84,166,174,177; ShelterReviewService:88,102,139;
       ApiErrorHandler:125; VerificationThrottledException:15 + any others
       the audit lists); update every test asserting those strings
-- [ ] C4: "verification token" → "verification code" in the e-mail line
-- [ ] K4: named 8-char constant in EmailVerificationProvider
+      — verified: "A verified account is required to submit shelters",
+      "A verified account is required to modify shelters", "An account
+      with this email or phone already exists", etc.; commit: "~15
+      backend user-facing messages capitalized (verified live: 401 now
+      reads 'Authentication required')"
+- [x] C4: "verification token" → "verification code" in the e-mail line
+      — verified at EmailVerificationProvider:55
+- [x] K4: named 8-char constant in EmailVerificationProvider
       (verification-internal, per dependency rule) + "mirrors frontend
       verify-page EMAIL_CODE_LENGTH — do not drift" comment
-- [ ] K5: promote duplicated backend strings to constants
+      — verified: `TOKEN_LENGTH = 8` + do-not-drift mirror comment
+- [x] K5: promote duplicated backend strings to constants
       ("an account with this email already exists" ×3 / phone variants,
       "a verified account is required to modify shelters" ×2)
-- [ ] tests: update message assertions; add 1 assertion that a
+      — verified: `DUPLICATE_EMAIL_MESSAGE` / `DUPLICATE_PHONE_MESSAGE`
+      (DuplicateAccountException, used from AuthService +
+      ContactChangeService) and `MODIFY_SHELTERS_MESSAGE`
+      (ShelterController:60, used ×2)
+- [x] tests: update message assertions; add 1 assertion that a
       user-received message contains the APP_DISPLAY_NAME constant
+      — verified: SmtpPulseSmtpSenderTest + PasswordResetServiceTest
+      assert on `APP_DISPLAY_NAME`
 
 ## Frontend (one child, parallel with backend child)
 
@@ -54,8 +71,15 @@
 
 ## Gates (orchestrator runs, not children)
 
-- [ ] `mvn -q test` · `npx ng test --watch=false` · both tsc configs ·
+- [x] `mvn -q test` · `npx ng test --watch=false` · both tsc configs ·
       prettier on touched files
-- [ ] live E2E spot check: trigger a dev e-mail (dev endpoint) to see
+      — GATE PASSED (commit 1aaf143: "321 backend, 513 frontend, tsc
+      clean (app+spec), prettier clean"); backend re-counted 2026-09-11
+      pre-fix-wave from a surefire run: 321 green, 0 failures
+- [x] live E2E spot check: trigger a dev e-mail (dev endpoint) to see
       the new brand line + subject; banner shows a capitalized backend
       message (e.g. unverified submit attempt)
+      — commit 1aaf143 records the live banner check ("verified live: 401
+      now reads 'Authentication required'"); the brand line + subject
+      (all 6 user-received strings + SMTP subject via
+      `AppInfo.APP_DISPLAY_NAME`) are verified in code

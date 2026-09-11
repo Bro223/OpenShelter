@@ -104,11 +104,14 @@ public class AuthService {
         UserCredentials stored = user == null ? null : credentials.findByUserId(user.getId());
         // Timing equalizer: absent user OR absent hash verifies against the
         // dummy hash — same Argon2 cost and the same generic error as a
-        // wrong password.
+        // wrong password. The guard must NOT short-circuit on
+        // `stored == null`: skipping verify() for unknown contacts would
+        // leave an Argon2-time difference the API would otherwise hide
+        // (account-existence oracle via latency).
         String hashToVerify = (stored == null || stored.getPasswordHash() == null)
                 ? DUMMY_PASSWORD_HASH
                 : stored.getPasswordHash();
-        if (stored == null || !passwordHasher.verify(request.password(), hashToVerify)) {
+        if (!passwordHasher.verify(request.password(), hashToVerify)) {
             throw new InvalidCredentialsException();
         }
         return tokens.issue(user);

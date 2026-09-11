@@ -1,4 +1,5 @@
 import {
+  afterEveryRender,
   type AfterViewInit,
   ChangeDetectionStrategy,
   Component,
@@ -53,11 +54,18 @@ import { ReviewForm } from './review-form';
  *
  * Location map: a small STATIC map under the header (page-scoped
  * LeafletService, same pattern as the /submit mini-map). The container is
- * always mounted in every non-not-found state, so the async shelter fetch
- * never races it: create() runs in ngAfterViewInit at the Estonia default,
- * and the load-success handler flies to the shelter at SHELTER_ZOOM + pins
- * it with showShelter (one non-interactive marker — no picking, no marker
- * navigation). Not-found renders no container at all.
+ * mounted in every FOUND state — loading, error and shelter, all inside the
+ * not-found @else branch (it is NOT inside the shelter branch, so the async
+ * fetch never races the map). The not-found state renders no container at
+ * all, so the map lifetime is tracked explicitly (M4): create() runs in
+ * ngAfterViewInit at the Estonia default (null-guarded when the container is
+ * absent, e.g. an invalid :id on first load); a flip to the not-found state
+ * (load 404 / invalid id) destroys the live map, otherwise the unmounted
+ * container would leak the instance; a not-found -> found flip re-creates
+ * the map on the FRESH div when the load settles (see ensureLocationMap()).
+ * On load success the page flies to the shelter at SHELTER_ZOOM + pins it
+ * with showShelter (one non-interactive marker — no picking, no marker
+ * navigation).
  */
 @Component({
   selector: 'app-shelter-detail-page',
@@ -109,22 +117,82 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
 
+  /** True while the Location map instance is alive (M4 — see the afterRender
+   *  hook: the found branch re-mounts a fresh #mapEl after any not-found
+   *  flip, so the page must know when the container outlived the map). */
+  private locationMapAlive = false;
+
+  constructor() {
+    /**
+     * M4: fires after EVERY render of this component. The found branch
+     * RE-MOUNTS a fresh #mapEl after any not-found flip (which destroyed
+     * the map) — this re-creates the instance the moment the fresh
+     * container is in the DOM (create is a no-op while an instance is
+     * alive or the container is absent), and re-pins when the shelter is
+     * already loaded (its pin ran on the dead map and no-oped). The
+     * load-success path pins the other way (fetch in flight at re-render).
+     */
+    afterEveryRender(() => {
+      const recreated = this.ensureLocationMap();
+      if (recreated) {
+        // The fresh map has no pin yet — the pre-recreation pin no-oped on
+        // the dead instance. (No re-pin on ordinary renders: the live map
+        // already carries the pin and re-flying would restart the
+        // animation on every render.)
+        const shelter = this.shelter();
+        if (shelter !== null) {
+          this.pinShelter(shelter);
+        }
+      }
+    });
+  }
+
   /**
-   * The Location map container exists at view-init time in every non-
-   * not-found state (it is NOT inside the shelter branch), so the async
-   * fetch never races the map: we create at the Estonia default here and
-   * fly to the shelter in the load-success handler. A missing container
-   * (the not-found state renders no map) is a safe no-op via create's
-   * null guard.
+   * The Location map container exists at view-init time in every found
+   * state (it is NOT inside the shelter branch), so the async fetch never
+   * races the map: we create at the Estonia default here. A missing
+   * container (an invalid :id on first load renders the not-found branch)
+   * is a safe no-op via create's null guard. The not-found flip destroys
+   * the map — see load() / readShelterId(); a found re-render re-creates
+   * it — see the afterRender hook.
    */
   ngAfterViewInit(): void {
-    this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
+    this.ensureLocationMap();
+  }
+
+  /**
+   * Ensures the Location map instance matches the rendered container (M4):
+   * creates it when the found branch's #mapEl is mounted and no instance is
+   * alive (first load, or the re-mount after a not-found flip). No-op
+   * otherwise — safe to call from every found render and load outcome.
+   * @returns true when a fresh instance was created on this call.
+   */
+  private ensureLocationMap(): boolean {
+    const el = this.mapEl()?.nativeElement ?? null;
+    if (el === null || this.locationMapAlive) {
+      return false;
+    }
+    this.leaflet.create(el, ESTONIA_CENTER, ESTONIA_ZOOM);
+    this.locationMapAlive = true;
+    return true;
+  }
+
+  /**
+   * Drops the live Location map with the unmounting container (M4):
+   * the not-found branch renders no #mapEl, so a live instance would leak with
+   * its listeners. Null-safe when create was a no-op; the afterRender hook
+   * re-arms on the next found render.
+   */
+  private destroyLocationMap(): void {
+    this.locationMapAlive = false;
+    this.leaflet.destroy();
   }
 
   ngOnDestroy(): void {
     // Drop the Location map instance + listeners (page-scoped, same
     // discipline as MapPage / SubmitShelterPage — zoneless has no safety
     // net).
+    this.locationMapAlive = false;
     this.leaflet.destroy();
   }
 
@@ -143,6 +211,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readShelterId(raw: string | null): void {
     const parsed = Number(raw);
     if (raw === null || !Number.isInteger(parsed) || parsed <= 0) {
+      // The not-found branch unmounts the map container — drop the live map
+      // with it (null-safe when create was a no-op), else the instance and
+      // its listeners leak (M4).
+      this.destroyLocationMap();
       this.notFound.set(true);
       return;
     }
@@ -194,16 +266,26 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
           if (failure instanceof ApiError && failure.status === 404) {
             this.shelter.set(null);
             this.reviewsList.set([]);
+            // The not-found branch unmounts the map container — destroy the
+            // live map with it (null-safe when create was a no-op) (M4).
+            this.destroyLocationMap();
             this.notFound.set(true);
             this.loading.set(false);
             return;
           }
           this.error.set(bannerMessage(failure, 'shelter'));
+          // The error state keeps the container mounted (placeholder) — if
+          // a prior not-found flip destroyed the map, re-create it here
+          // (M4); a no-op when the instance is still alive.
+          this.ensureLocationMap();
         } else {
           this.shelter.set(shelterResult.value);
-          // Location map: fly to the shelter at street level + pin it. Both
-          // calls are safe no-ops when create() was skipped (not-found
-          // renders no container), so no guard is needed here.
+          // Location map: ensure the container holds a live instance (the
+          // not-found flip destroyed it and the found re-render mounted a
+          // fresh div — M4), then fly to the shelter at street level + pin
+          // it. Both calls are safe no-ops when create() was skipped, so no
+          // guard is needed here.
+          this.ensureLocationMap();
           this.pinShelter(shelterResult.value);
         }
         if (reviewsFailed) {

@@ -115,6 +115,30 @@ function stubGeolocation(behavior: {
   return getCurrentPosition;
 }
 
+/**
+ * A geolocation fake the test settles BY HAND — the deferred settle is the
+ * M3 race (an in-flight request answering after a newer capture).
+ */
+function deferredGeolocation(): {
+  fake: ReturnType<typeof vi.fn>;
+  settle: (position: { latitude: number; longitude: number; accuracy: number }) => void;
+  fail: (code?: number) => void;
+} {
+  let success: (p: GeolocationPosition) => void = () => {};
+  let failure: (e: { code: number }) => void = () => {};
+  const fake = vi.fn(
+    (s: (p: GeolocationPosition) => void, f: (e: { code: number }) => void): void => {
+      success = s;
+      failure = f;
+    },
+  );
+  return {
+    fake,
+    settle: (p) => success({ coords: p } as unknown as GeolocationPosition),
+    fail: (code = 2) => failure({ code }),
+  };
+}
+
 function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): void {
   Object.defineProperty(navigator, 'geolocation', {
     value: fake === undefined ? undefined : { getCurrentPosition: fake },
@@ -374,6 +398,144 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(gateway.create).not.toHaveBeenCalled();
   });
 
+  it('an Estonian decimal-comma paste gets the decimal-point message and no silent pin (H4)', async () => {
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    typeLocation(element, '59,4370 24,7535');
+    pressEnterIn(element, 'shelter-location-input');
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Use a decimal point: 59.4370, 24.7535');
+    expect(element.textContent).toContain('Estonian decimal-comma detected');
+    // No silent wrong pin: the failed capture clears the pre-filled pin.
+    expect(element.textContent).toContain('No location yet');
+    expect(leaflet.pickCalls.at(-1)).toEqual([null, null]);
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(fixture);
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it('a successful capture clears a prior location error (n3d)', async () => {
+    const { element, fixture } = await open();
+    typeLocation(element, 'somewhere in a basement');
+    pressEnterIn(element, 'shelter-location-input');
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No recognizable coordinates in that text');
+
+    typeLocation(element, '59.1, 25.5');
+    pressEnterIn(element, 'shelter-location-input');
+    fixture.detectChanges();
+
+    expect(element.querySelector('.location-field .field-error')).toBeNull();
+    expect(element.textContent).toContain('59.10000, 25.50000');
+    expect(element.textContent).toContain('Location from typed coordinates');
+  });
+
+  // ---------------------------------------------------------------------
+  // Cross-mode capture race (M3): a stale async settle must no-op
+  // ---------------------------------------------------------------------
+
+  it('a late geolocation success (stale generation) never overwrites a typed pin (M3)', async () => {
+    const pending = deferredGeolocation();
+    setGeolocation(pending.fake);
+    const { element, fixture } = await open();
+
+    button(element, 'Use my location').click();
+    fixture.detectChanges();
+    // The smart input is disabled while the geolocation is in flight.
+    expect(input(element, 'shelter-location-input').disabled).toBe(true);
+
+    // A newer capture happens while the geolocation is still in flight.
+    typeLocation(element, '59.1, 25.5');
+    pressEnterIn(element, 'shelter-location-input');
+    fixture.detectChanges();
+    expect(element.textContent).toContain('59.10000, 25.50000');
+    expect(element.textContent).toContain('Location from typed coordinates');
+
+    // The geolocation settles LATE — its generation is stale: no-op.
+    pending.settle({ latitude: 59.442, longitude: 24.748, accuracy: 40 });
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('59.10000, 25.50000');
+    expect(element.textContent).toContain('Location from typed coordinates');
+    expect(element.textContent).not.toContain('Location from your device location');
+    // The settle did end the pending state (button + input back to normal).
+    expect(input(element, 'shelter-location-input').disabled).toBe(false);
+    expect(button(element, 'Use my location').disabled).toBe(false);
+  });
+
+  it('a late geolocation ERROR (stale generation) never clears a set pin (M3)', async () => {
+    const pending = deferredGeolocation();
+    setGeolocation(pending.fake);
+    const { element, fixture } = await open();
+    fillValidForm(element); // typed pin set first
+
+    button(element, 'Use my location').click();
+    fixture.detectChanges();
+
+    // A map pick supersedes the in-flight geolocation…
+    leaflet.mapClick!(58.8, 25.1);
+    fixture.detectChanges();
+    expect(element.textContent).toContain('58.80000, 25.10000');
+    expect(element.textContent).toContain('Location from the map');
+
+    // …then the geolocation errors out LATE — stale: no failLocation, no clear.
+    pending.fail(1);
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('58.80000, 25.10000');
+    expect(element.textContent).toContain('Location from the map');
+    expect(element.textContent).not.toContain('Location permission is off');
+    expect(element.querySelector('.location-field .field-error')).toBeNull();
+  });
+
+  it('a late short-link 400 (stale generation) never clears a map pick (M3)', async () => {
+    let rejectResolve!: (e: unknown) => void;
+    geo.resolve.mockReturnValue(
+      new Promise<{ latitude: number; longitude: number }>((_, reject) => {
+        rejectResolve = reject;
+      }),
+    );
+    const { element, fixture } = await open();
+
+    typeLocation(element, 'https://maps.app.goo.gl/AbC123');
+    button(element, 'Set location').click();
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Resolving…');
+
+    // The user picks on the map while the resolve is in flight.
+    leaflet.mapClick!(58.8, 25.1);
+    fixture.detectChanges();
+    expect(element.textContent).toContain('58.80000, 25.10000');
+
+    // The resolve answers LATE with a 400 — stale: no failLocation, no clear.
+    rejectResolve(
+      ApiError.fromHttp(
+        400,
+        {
+          timestamp: 't',
+          status: 400,
+          error: 'Bad Request',
+          message: 'could not find coordinates in the provided link',
+          path: '/api/geo/resolve',
+        },
+        '/api/geo/resolve',
+      ),
+    );
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('58.80000, 25.10000');
+    expect(element.textContent).toContain('Location from the map');
+    expect(element.textContent).not.toContain('Could not find coordinates in that link');
+    expect(element.querySelector('.location-field .field-error')).toBeNull();
+  });
+
   it('an out-of-Estonia point shows the inline error, clears the pin, and does not send', async () => {
     const { element, fixture } = await open();
     fillValidForm(element);
@@ -483,6 +645,76 @@ describe('SubmitShelterPage (/submit)', () => {
     }
 
     expect(element.textContent).toContain('Too many link lookups');
+  });
+
+  it('a 401 short-link resolve keeps the not-found-in-link copy (n3b)', async () => {
+    geo.resolve.mockRejectedValue(
+      ApiError.fromHttp(
+        401,
+        {
+          timestamp: 't',
+          status: 401,
+          error: 'Unauthorized',
+          message: 'authentication required',
+          path: '/api/geo/resolve',
+        },
+        '/api/geo/resolve',
+      ),
+    );
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    typeLocation(element, 'https://maps.app.goo.gl/AbC123');
+    button(element, 'Set location').click();
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('Could not find coordinates in that link');
+    expect(element.textContent).not.toContain('temporarily unavailable');
+  });
+
+  it('a 502 short-link resolve shows the temporarily-unavailable copy (M5)', async () => {
+    geo.resolve.mockRejectedValue(
+      ApiError.fromHttp(
+        502,
+        {
+          timestamp: 't',
+          status: 502,
+          error: 'Bad Gateway',
+          message: 'upstream resolution unavailable',
+          path: '/api/geo/resolve',
+        },
+        '/api/geo/resolve',
+      ),
+    );
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    typeLocation(element, 'https://maps.app.goo.gl/AbC123');
+    button(element, 'Set location').click();
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    // 502 = the backend's upstream resolution is down — NOT the user's link.
+    expect(element.textContent).toContain('Location lookup is temporarily unavailable');
+    expect(element.textContent).toContain('pick the spot on the map');
+    expect(element.textContent).not.toContain('Could not find coordinates in that link');
+    // The failed resolve clears the pre-filled pin (no stale pin on submit).
+    expect(element.textContent).toContain('No location yet');
+  });
+
+  it('a network-failure short-link resolve shows the temporarily-unavailable copy (M5)', async () => {
+    geo.resolve.mockRejectedValue(ApiError.fromNetwork());
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    typeLocation(element, 'https://maps.app.goo.gl/AbC123');
+    button(element, 'Set location').click();
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.textContent).toContain('Location lookup is temporarily unavailable');
+    expect(element.textContent).toContain('pick the spot on the map');
   });
 
   // ---------------------------------------------------------------------
@@ -613,6 +845,31 @@ describe('SubmitShelterPage (/submit)', () => {
     (element.querySelector('form') as HTMLFormElement).requestSubmit();
     await settle(fixture);
     expect(gateway.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('a successful search after a previous search error replaces the error with results (n3c)', async () => {
+    geocode.search
+      .mockRejectedValueOnce(ApiError.fromNetwork())
+      .mockResolvedValueOnce([GEO_RESULT]);
+    const { element, fixture } = await open();
+
+    typeAddressSearch(element, 'lossi 2, tartu');
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    expect(element.textContent).toContain('Address search is unreachable right now');
+    expect(element.querySelector('.address-results')).toBeNull();
+
+    // The retry succeeds — the error is cleared, the results are listed.
+    pressEnterIn(element, 'shelter-address-search');
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    expect(geocode.search).toHaveBeenCalledTimes(2);
+    expect(element.textContent).toContain('Lossi 2, 81001 Tartu, Tartumaa, Estonia');
+    expect(element.querySelector('.address-results')).not.toBeNull();
+    expect(element.textContent).not.toContain('Address search is unreachable right now');
   });
 
   it('a pending search shows "Searching…" on the button and ignores extra presses (no stacking)', async () => {
@@ -784,6 +1041,22 @@ describe('SubmitShelterPage (/submit)', () => {
 
     expect(element.textContent).toContain('A name is required.');
     expect(element.textContent).not.toContain('Name must be 200 characters or fewer.');
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(fixture);
+    expect(gateway.create).not.toHaveBeenCalled();
+  });
+
+  it('an over-length name is rejected as too-long, not as missing (the maxlength error key)', async () => {
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    const name = input(element, 'shelter-name');
+    name.value = 'a'.repeat(201);
+    name.dispatchEvent(new Event('input'));
+    name.dispatchEvent(new Event('blur'));
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Name must be 200 characters or fewer.');
+    expect(element.textContent).not.toContain('A name is required.');
     (element.querySelector('form') as HTMLFormElement).requestSubmit();
     await settle(fixture);
     expect(gateway.create).not.toHaveBeenCalled();

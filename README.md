@@ -1,4 +1,4 @@
-# Shelter Map (OpenShelter)
+# OpenShelter
 
 Backend for an Estonia public-shelter map: verified user registration, password auth with
 JWT sessions, shelter data ingested automatically from the official registry, user-submitted
@@ -17,12 +17,12 @@ shelter submission, community reviews); run/build docs in
 ## Status
 
 - ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
-  backend functional end-to-end, **302 tests green** (counted 2026-09-09, wave-3 gate).
+  backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave).
 - ✅ **2026-09-08 code-review fix campaign** — a 4-lead/13-child review found P0 security
   issues (reset-code brute force, XFF rate-limit spoofing, fail-open dev JWT secret) plus
   backend/frontend/architecture findings; all in-scope findings were fixed over 3 waves with
   tests (see [2026-09-08 code review — fix log](docs/code-review/2026-09-08-fix-log.md)).
-  Frontend: **423 tests green across 30 spec files**.
+  Frontend: **513 tests green across 33 spec files** (counted 2026-09-10, pre-fix-wave).
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
@@ -103,11 +103,11 @@ shelter submission, community reviews); run/build docs in
 | Package        | Contents                                                                                                                                                                                                                                                                     |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `domain`       | `User` hierarchy, `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring                                                                                                                                              |
-| `app`          | `UserService`, `ShelterService`, repository **interfaces**, `NotVerifiedException`                                                                                                                                                                                           |
+| `app`          | `UserService`, `ShelterService`, `LocationResolveService`, `MapsUrlCoordinates`, `RedirectClient` + `HttpUrlRedirectClient`, `AppInfo`, repository **interfaces**, `NotVerifiedException`                                                                                                                                                   |
 | `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties`                                                                                                                                   |
 | `auth`         | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, DTOs |
 | `ingestion`    | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                                            |
-| `api`          | `ShelterController`, `ReviewController`, query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                                         |
+| `api`          | `ShelterController`, `ReviewController`, `LocationController`, query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
 | `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                      |
 | `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
 
@@ -166,7 +166,6 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows)                                                                                                                                             |
 | PUT    | `/api/shelters/{id}`                       | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows)                                                          |
 | DELETE | `/api/shelters/{id}`                       | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author                                                                                                                                 |
-| POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link to `{latitude, longitude}` (submit page's smart location input); 400 no pair / outside Estonia (one generic message), 429 5/min per IP, 502 upstream failure         |
 | POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link → `{latitude, longitude}` (per-IP 5/min → 429; 400 one generic message when no pair / outside Estonia / other host; 502 one generic retry-later on upstream failure) |
 | GET    | `/account/reviews/mine`                    | JWT                     | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps)                                                                                                          |
 | GET    | `/api/shelters/{id}/reviews`               | public                  | Reviews for a shelter                                                                                                                                                                                       |
@@ -240,7 +239,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 302 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 321 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)

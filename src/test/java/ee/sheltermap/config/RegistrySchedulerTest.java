@@ -65,7 +65,7 @@ class RegistrySchedulerTest {
 
     @Test
     void scheduledRunInvokesTheImport() {
-        FakeImporter importer = new FakeImporter(new ImportResult(3, 0, 1, 2, 0, NOW));
+        FakeImporter importer = new FakeImporter(new ImportResult(3, 0, 1, 2, 0, NOW, false));
         RegistryScheduler scheduler = new RegistryScheduler(importer);
 
         scheduler.runScheduledImport();

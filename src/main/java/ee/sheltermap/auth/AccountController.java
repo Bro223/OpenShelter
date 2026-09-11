@@ -103,7 +103,13 @@ public class AccountController {
     @PostMapping("/email-change/confirm")
     @ResponseStatus(HttpStatus.OK)
     public void confirmEmailChange(@Valid @RequestBody ConfirmChangeRequest body) {
-        contactChangeService.confirmEmailChange(currentUser(), body.code());
+        ContactChangeResult result = contactChangeService.confirmEmailChange(currentUser(), body.code());
+        // H2: the service RETURNS a code failure (its transaction has already
+        // committed the failed-attempt increment); the 400 is thrown HERE,
+        // after that commit.
+        if (!result.ok()) {
+            throw new InvalidContactChangeException(result.failureMessage());
+        }
     }
 
     @PostMapping("/phone-change/request")
@@ -116,7 +122,10 @@ public class AccountController {
     @PostMapping("/phone-change/confirm")
     @ResponseStatus(HttpStatus.OK)
     public void confirmPhoneChange(@Valid @RequestBody ConfirmChangeRequest body) {
-        contactChangeService.confirmPhoneChange(currentUser(), body.code());
+        ContactChangeResult result = contactChangeService.confirmPhoneChange(currentUser(), body.code());
+        if (!result.ok()) {
+            throw new InvalidContactChangeException(result.failureMessage());
+        }
     }
 
     /**

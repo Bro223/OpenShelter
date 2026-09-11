@@ -27,6 +27,14 @@ import java.util.stream.Collectors;
 @Service
 public class ShelterReviewService {
 
+    /**
+     * 403 message for unverified review mutations — one public constant
+     * shared with {@code ReviewController} (de-slop K5, 2026-09-10 review):
+     * the controller pre-checks the same {@code canWrite()} rule on the same
+     * user it passes down.
+     */
+    public static final String VERIFIED_ACCOUNT_MESSAGE = "Reviews require a verified account";
+
     /** Result of an add: the persisted review and whether it was a create (vs an update). */
     public record SaveResult(ShelterReview review, boolean created) {
     }
@@ -136,7 +144,7 @@ public class ShelterReviewService {
 
     private void requireVerified(RegisteredUser user) {
         if (!user.canWrite()) {
-            throw new NotVerifiedException("Reviews require a verified account");
+            throw new NotVerifiedException(VERIFIED_ACCOUNT_MESSAGE);
         }
     }
 

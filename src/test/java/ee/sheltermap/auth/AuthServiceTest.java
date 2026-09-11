@@ -59,6 +59,40 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginRunsExactlyOneHashVerificationForUnknownAndKnownContacts() {
+        // Timing equalizer (2026-09-10 review H1): every login — unknown
+        // contact, known contact with a wrong password, known contact with
+        // the right one — must run verify() EXACTLY ONCE, so response time
+        // never reveals whether the account exists.
+        CountingHasher counting = new CountingHasher();
+        AuthService countingAuth =
+                new AuthService(userService, counting, credentials, tokens, passwordReset);
+
+        assertThatThrownBy(() -> countingAuth.login(new LoginRequest("ghost@example.ee", "x")))
+                .isInstanceOf(InvalidCredentialsException.class);
+        assertThat(counting.verifyCalls).isEqualTo(1);
+
+        registerMari();
+        assertThatThrownBy(() -> countingAuth.login(new LoginRequest("mari@example.ee", "wrong")))
+                .isInstanceOf(InvalidCredentialsException.class);
+        assertThat(counting.verifyCalls).isEqualTo(2);
+
+        countingAuth.login(new LoginRequest("mari@example.ee", "s3cret"));
+        assertThat(counting.verifyCalls).isEqualTo(3);
+    }
+
+    /** {@link StubPasswordHasher} that counts verify() calls. */
+    private static final class CountingHasher extends StubPasswordHasher {
+        int verifyCalls;
+
+        @Override
+        public boolean verify(String plain, String hash) {
+            verifyCalls++;
+            return super.verify(plain, hash);
+        }
+    }
+
+    @Test
     void loginSuccessReturnsTokenResponse() {
         registerMari();
         TokenResponse response = auth.login(new LoginRequest("mari@example.ee", "s3cret"));

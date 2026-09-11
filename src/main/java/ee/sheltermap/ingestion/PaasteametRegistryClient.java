@@ -80,6 +80,10 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
         List<RegistryShelterDto> all = new ArrayList<>();
         int dropped = 0;
         while (true) {
+            if (hasReachedPageCap(startIndex, pageSize)) {
+                break; // runaway guard — checked BEFORE the fetch, so the
+                       // walk is capped at exactly MAX_PAGES pages
+            }
             WfsFeatureCollection page = fetchPage(startIndex);
             List<WfsFeature> features = page.features() == null ? List.of() : page.features();
             for (WfsFeature feature : features) {
@@ -93,9 +97,6 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
             if (features.size() < pageSize) {
                 break; // short page ends the walk
             }
-            if (startIndex / pageSize >= MAX_PAGES) {
-                break; // runaway guard — never loop forever on a misbehaving registry
-            }
             sleep(politenessDelay); // politeness between pages
             startIndex += pageSize;
         }
@@ -106,6 +107,14 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                     + "geometry/properties or non-finite coordinates) — dropped", dropped);
         }
         return all;
+    }
+
+    /**
+     * Runaway guard: true once the walk would serve its MAX_PAGES-th page
+     * (i.e. exactly MAX_PAGES pages may be fetched, never MAX_PAGES + 1).
+     */
+    static boolean hasReachedPageCap(int startIndex, int pageSize) {
+        return startIndex / pageSize >= MAX_PAGES;
     }
 
     private WfsFeatureCollection fetchPage(int startIndex) {
