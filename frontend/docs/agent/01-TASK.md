@@ -33,8 +33,11 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
   mandatory per milestone
 - **Leaflet** (npm `leaflet`, used directly behind a thin service) for the map — MapLibre GL is a
   documented future swap, not v1
-- Dev server on **port 5173** (backend CORS already allows `http://localhost:5173`), API base URL
-  from `environment.development.ts` (`http://localhost:8080`)
+- Dev server on **port 5173**; API base URL from `environment.development.ts` —
+  same-origin (`''`) in dev: the dev server runs with `--proxy-config proxy.conf.json`
+  and forwards `/api`, `/auth`, `/account`, `/verify` to `http://localhost:8080`
+  (backend CORS still allows `http://localhost:5173` for direct testing;
+  `npm run start:host` adds `--host 0.0.0.0` for access from other machines/containers)
 
 ## 3. Source of truth
 

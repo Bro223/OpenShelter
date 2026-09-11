@@ -6,8 +6,10 @@
 
 ## Base URL & CORS
 
-- Base URL from `environment.development.ts` → `http://localhost:8080` (never hardcode).
-- Backend CORS allows `http://localhost:5173` (dev). No auth header needed on public GETs.
+- Base URL from `environment.development.ts` → `''` (same-origin) in dev; the dev
+  server proxies `/api`, `/auth`, `/account`, `/verify` to `http://localhost:8080`
+  (`proxy.conf.json`) — never hardcode a URL anywhere else.
+- Backend CORS allows `http://localhost:5173` (dev, direct testing only). No auth header needed on public GETs.
 
 ## Error shape (uniform — every non-2xx is this)
 

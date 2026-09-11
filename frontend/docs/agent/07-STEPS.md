@@ -15,13 +15,13 @@ running API — `mvn spring-boot:run` at the repo root, port 8080, with the dev 
 ## M0 — Project skeleton
 
 **Status: DONE.** Angular 22 scaffold (`frontend/`), standalone + zoneless + SCSS + Vitest,
-`npm start` → port 5173, `environment.development.ts` → `http://localhost:8080`, no nested git
+`npm start` → port 5173 (same-origin API; dev proxy → `http://localhost:8080`), no nested git
 repo. This doc pack (`docs/`) is the last piece of M0.
 
 **Acceptance (verified)**
 
 - `npm start` serves the default page on `http://localhost:5173`.
-- `src/environments/environment.development.ts` exists with `apiUrl: 'http://localhost:8080'`.
+- `src/environments/environment.development.ts` exists with `apiUrl: ''` (same-origin; dev proxy → `:8080`).
 - No `frontend/.git` nested repository.
 - CORS: `http://localhost:5173` is in the backend allowlist.
 

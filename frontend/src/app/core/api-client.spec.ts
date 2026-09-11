@@ -5,6 +5,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { throwError } from 'rxjs';
 import { ApiClient } from './api-client';
 import { ApiError } from './api-error';
+import { environment } from '../../environments/environment';
 
 describe('ApiClient', () => {
   describe('against the HTTP backend', () => {
@@ -26,7 +27,7 @@ describe('ApiClient', () => {
     it('hits environment.apiUrl + path and delivers the parsed body', () => {
       let body: unknown;
       client.get<{ ok: boolean }>('/api/shelters').subscribe((value) => (body = value));
-      const req = httpMock.expectOne('http://localhost:8080/api/shelters');
+      const req = httpMock.expectOne(`${environment.apiUrl}/api/shelters`);
       expect(req.request.method).toBe('GET');
       req.flush({ ok: true });
       expect(body).toEqual({ ok: true });
@@ -45,7 +46,7 @@ describe('ApiClient', () => {
       (status, reason) => {
         let error: unknown;
         client.get<void>('/boom').subscribe({ error: (e) => (error = e) });
-        const req = httpMock.expectOne('http://localhost:8080/boom');
+        const req = httpMock.expectOne(`${environment.apiUrl}/boom`);
         req.flush(
           {
             timestamp: '2025-09-05T10:00:00Z',
@@ -71,7 +72,7 @@ describe('ApiClient', () => {
       client
         .post<void>('/auth/register', { name: 'x' })
         .subscribe({ complete: () => (completed = true) });
-      httpMock.expectOne('http://localhost:8080/auth/register').flush(null, {
+      httpMock.expectOne(`${environment.apiUrl}/auth/register`).flush(null, {
         status: 201,
         statusText: 'Created',
       });
@@ -80,12 +81,12 @@ describe('ApiClient', () => {
 
     it('sends the body on POST and none on DELETE', () => {
       client.post<void>('/auth/login', { emailOrPhone: 'a@b.ee', password: 'x' }).subscribe();
-      const postReq = httpMock.expectOne('http://localhost:8080/auth/login');
+      const postReq = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
       expect(postReq.request.body).toEqual({ emailOrPhone: 'a@b.ee', password: 'x' });
       postReq.flush({ accessToken: 'a', refreshToken: 'r', expiresIn: 900 });
 
       client.delete('/auth/refresh-token').subscribe();
-      const deleteReq = httpMock.expectOne('http://localhost:8080/auth/refresh-token');
+      const deleteReq = httpMock.expectOne(`${environment.apiUrl}/auth/refresh-token`);
       expect(deleteReq.request.method).toBe('DELETE');
       deleteReq.flush(null);
     });

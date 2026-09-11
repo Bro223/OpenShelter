@@ -32,14 +32,30 @@ Prereqs: a running backend on `http://localhost:8080` (repo root: Docker Postgre
 cd frontend
 npm install
 
-npm start          # ng serve → http://localhost:5173 (environment.development.ts → :8080)
-npm test           # Vitest suite (ng test, watch mode)
+npm start              # ng serve → http://localhost:5173 (same-origin API via dev proxy)
+npm run start:host     # same, but bound to 0.0.0.0 — reachable from other machines/containers
+npm test               # Vitest suite (ng test, watch mode)
 npm test -- --watch=false   # single run (CI style)
-npm run build      # production build → dist/frontend/
+npm run build          # production build → dist/frontend/
 ```
 
 Every page works against the live backend — no mocks. The dev server is what the
 milestone manual reviews used (backend `:8080` + frontend `:5173`).
+
+**API base in dev.** The SPA calls the API same-origin (`apiUrl: ''` in
+`environment.development.ts`); `npm start` / `npm run start:host` run the dev
+server with `--proxy-config proxy.conf.json`, which forwards `/api`, `/auth`,
+`/account` and `/verify` to `http://localhost:8080` on the host. This is what
+makes the app work when the page is loaded from _another_ machine — the API
+calls ride the same connection to the dev server instead of pointing at the
+viewer's own localhost.
+
+**Accessing the dev server from a Docker container** (e.g. an Odysseus browser
+container on the default bridge network): start with `npm run start:host`,
+then open `http://172.18.0.1:5173` from inside the container (`172.18.0.1`
+is the host's bridge gateway). The backend (`:8080`) already binds all
+interfaces, and the proxy above keeps all API traffic on the host — no
+container-side configuration needed.
 
 ## Project layout
 

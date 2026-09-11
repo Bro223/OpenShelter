@@ -57,8 +57,8 @@ what lets you check and build every file manually — exactly how the backend wa
 ## Status
 
 - **M0 (skeleton)** — DONE: Angular 22 scaffold in `frontend/` (standalone, zoneless, SCSS,
-  Vitest), `npm start` → port 5173, `environment.development.ts` → `http://localhost:8080`,
-  no nested git repo. This doc pack is part of M0.
+  Vitest), `npm start` → port 5173 (same-origin API; dev proxy forwards to
+  `http://localhost:8080` via `proxy.conf.json`), no nested git repo. This doc pack is part of M0.
 - **M1 (core plumbing)** — DONE: ApiClient/ApiError, TokenStore + AuthStore (silent refresh,
   401 → session-expired), guest/auth guards, models mirroring the API contract.
 - **M2 (auth UI)** — DONE: login / register / reset pages, `returnUrl` + `session=expired`
