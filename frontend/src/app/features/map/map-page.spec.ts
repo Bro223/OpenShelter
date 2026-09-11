@@ -1001,17 +1001,22 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Scroll snap (list CSS): jsdom cannot verify layout, so the acceptance is
-  // the mechanism in the stylesheet (the design-tokens.spec.ts pattern).
+  // Carousel scroll (list CSS): jsdom cannot verify layout, so the acceptance
+  // is the mechanism in the stylesheet (the design-tokens.spec.ts pattern).
   // ---------------------------------------------------------------------------
-  describe('scroll snap (list CSS)', () => {
-    it('snaps rows to the container edge with proximity, not mandatory (variable-height rows)', () => {
+  describe('carousel scroll (list CSS)', () => {
+    it('advances one equal row step per gesture (mandatory snap + stop: always + uniform row height)', () => {
       const scss = readFileSync(`${process.cwd()}/src/app/features/map/map-page.scss`, 'utf8');
-      expect(scss).toMatch(/scroll-snap-type:\s*y proximity/);
+      // Mandatory snap: the list always rests on a row edge (no free scroll).
+      expect(scss).toMatch(/scroll-snap-type:\s*y mandatory/);
       expect(scss).toMatch(/scroll-snap-align:\s*start/);
-      // mandatory would FIGHT the row height when the "View details" link
-      // grows the selected row — proximity settles instead.
-      expect(scss).not.toMatch(/scroll-snap-type:\s*y mandatory/);
+      // One row per wheel notch / flick: the container may never skip a row.
+      expect(scss).toMatch(/scroll-snap-stop:\s*always/);
+      // Equal steps require a uniform collapsed row height…
+      expect(scss).toMatch(/\.shelter-row \{[\s\S]*?height:\s*120px/);
+      // …bounded by a one-line name and a two-line address clamp.
+      expect(scss).toMatch(/text-overflow:\s*ellipsis/);
+      expect(scss).toMatch(/-webkit-line-clamp:\s*2/);
     });
   });
 });
