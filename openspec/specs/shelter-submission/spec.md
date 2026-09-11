@@ -250,3 +250,35 @@ independent of search success or failure.
 
 - **WHEN** the form is rendered
 - **THEN** the attribution line is visible next to the search input
+
+### Requirement: Submission entry points
+
+The application SHALL make shelter submission reachable from the map page
+sidebar (authenticated users) and from the account contributions panel for
+all authenticated users, not only when the user has no shelters yet. The
+route guards on /submit (authentication, then verification redirect) remain
+the single enforcement point.
+
+#### Scenario: contributions panel always offers the action
+
+- **WHEN** an authenticated user with existing shelters opens the
+  contributions panel
+- **THEN** a "Submit a shelter" action is visible
+
+### Requirement: Shelter provenance display
+
+ShelterDto SHALL expose `submitterVerified` — true when the shelter's
+creator exists and has a completed verification, false otherwise (registry
+shelters are false). List rows and the detail page SHALL display the
+provenance plainly: "Paasteamet registry", "Municipal registry",
+"Verified user", or "User-submitted".
+
+#### Scenario: verified user shelter
+
+- **WHEN** a shelter was submitted by a user with completed verification
+- **THEN** its row and detail page show "Verified user"
+
+#### Scenario: registry shelter
+
+- **WHEN** a shelter came from the Paasteamet registry
+- **THEN** its row and detail page show "Paasteamet registry"

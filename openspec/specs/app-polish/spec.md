@@ -203,3 +203,34 @@ code comments untouched).
 - **WHEN** a shelter ID does not exist
 - **THEN** the detail text refers to "this ID" (the route key), not
   "this address"
+
+### Requirement: Touch target and numeric legibility
+
+Primary/secondary (`.btn`) buttons and list-row buttons SHALL have a
+minimum height of 48px. Coordinate and count readouts SHALL use tabular
+numerals (`font-variant-numeric: tabular-nums`) so digits do not shift
+while they update.
+
+#### Scenario: small-screen target size
+
+- **WHEN** the app is rendered on a 360px-wide viewport
+- **THEN** every primary/secondary (`.btn`) button and list-row button is
+  at least 48px tall
+
+### Requirement: High-contrast theme
+
+The application SHALL offer a high-contrast theme toggled from the app
+shell, persisted across sessions, and applied before first paint. The
+theme SHALL override the existing design tokens (same token names) rather
+than introducing parallel styles; the default theme SHALL remain the
+existing light theme.
+
+#### Scenario: toggle persists
+
+- **WHEN** the user enables high contrast and reloads the app
+- **THEN** the high-contrast theme is active before the first paint
+
+#### Scenario: default is light
+
+- **WHEN** a user with no stored preference opens the app
+- **THEN** the light theme is shown
