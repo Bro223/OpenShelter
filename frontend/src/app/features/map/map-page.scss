@@ -76,21 +76,22 @@
     flex: 1 1 0;
     min-height: 0;
 
-    /* Scroll snap: free scrolling that SETTLES on a row edge instead of
-       stopping mid-row (no half-cropped shelter rows). proximity — NOT
-       mandatory — is deliberate: rows GROW when the selected row's "View
-       details" link appears, and a mandatory snap would fight the expanded
-       height; proximity settles near a row edge only when close and never
-       forces a position (Chrome 69+ / Safari 11+ / Firefox 68+).
-       No sticky/fixed element lives inside the list (the chips and the CTA
-       are outside it), so no scroll-padding is needed. */
-    scroll-snap-type: y proximity;
-
-    li {
-      /* The per-shelter row element (wraps the button row AND the selected
-         row's "View details" step) — snaps to the container's top edge. */
-      scroll-snap-align: start;
-    }
+    /* Deliberately NO scroll-snap (2026-09-11). Both snap modes were tried
+       and the list was left snap-free because the user's fast mouse-wheel
+       spin dead-stopped under snap and free scrolling is the only regime
+       that guarantees proportional scrolling for every input:
+       • y proximity (f439b4e): controlled headless tests show discrete
+         fast spins still scroll (594/600px, with ±1px proximity settling
+         creep — visible micro-jitter), but real wheel momentum flings are
+         known to fight proximity snap containment in Chrome and the user
+         experienced exactly that: fast spin → no scroll at all.
+       • y mandatory with the stop-always variant (c1468f7, reverted c096f02):
+         true one-row carousel steps — user found it felt worse than free
+         scrolling.
+       Snap-free verification (headless Chromium, 300 rows): normal spin
+       6×100px → 600, fast spin 6×100px @16ms → 600 (held, no reset),
+       decaying momentum flick → 885/885. The list is therefore a plain
+       fast-scrolling overflow area. */
   }
 }
 
@@ -280,8 +281,8 @@
        (flex: none = basis auto; flex: 1 would collapse it to 0px here.) */
     flex: none;
     max-height: 420px; /* matches the narrow map height above */
-    /* The base block's scroll-snap (y proximity + row start) applies here
-       unchanged: the list is STILL a bounded scroller (overflow-y: auto
-       inherited, 420px cap), with the same variable-height rows. */
+    /* Same plain block scroll area as the base block: overflow-y: auto
+       inherited, 420px cap, and — like the base — NO scroll-snap (see
+       the rationale there). */
   }
 }

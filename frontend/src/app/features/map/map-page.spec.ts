@@ -1001,17 +1001,22 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Scroll snap (list CSS): jsdom cannot verify layout, so the acceptance is
-  // the mechanism in the stylesheet (the design-tokens.spec.ts pattern).
+  // List scrolling (no scroll-snap): jsdom cannot verify layout, so the
+  // acceptance is the mechanism in the stylesheet (the design-tokens.spec.ts
+  // pattern).
   // ---------------------------------------------------------------------------
-  describe('scroll snap (list CSS)', () => {
-    it('snaps rows to the container edge with proximity, not mandatory (variable-height rows)', () => {
+  describe('list scrolling (deliberately no scroll-snap)', () => {
+    it('the shelter list carries no scroll-snap declarations (both modes tried and rejected)', () => {
       const scss = readFileSync(`${process.cwd()}/src/app/features/map/map-page.scss`, 'utf8');
-      expect(scss).toMatch(/scroll-snap-type:\s*y proximity/);
-      expect(scss).toMatch(/scroll-snap-align:\s*start/);
-      // mandatory would FIGHT the row height when the "View details" link
-      // grows the selected row — proximity settles instead.
-      expect(scss).not.toMatch(/scroll-snap-type:\s*y mandatory/);
+      // The user's fast wheel spin dead-stopped under proximity snap
+      // (real wheel momentum fling vs snap containment — known Chrome
+      // interaction; see the scss rationale), and the mandatory one-row
+      // carousel (c1468f7) was rejected as feeling worse. Free scrolling
+      // is the only regime verified proportional for every input speed
+      // (fast spin 6×100px@16ms → full 600px, held, no reset).
+      expect(scss).not.toMatch(/scroll-snap-type\s*:/);
+      expect(scss).not.toMatch(/scroll-snap-align\s*:/);
+      expect(scss).not.toMatch(/scroll-snap-stop\s*:/);
     });
   });
 });
