@@ -133,6 +133,7 @@ describe('design tokens (M6)', () => {
       '--radius-md',
       '--radius-full',
       '--color-primary',
+      '--color-cta',
       '--color-border',
       '--color-danger',
       '--color-info',
@@ -177,5 +178,18 @@ describe('design tokens (M6)', () => {
     expect(stylesCss).toMatch(
       /a:focus-visible,\s*button:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible/,
     );
+  });
+
+  /*
+   * Touch targets + numeric legibility (map-crisis-actions D5/D6). jsdom
+   * cannot measure computed style, so — same mechanism-assertion pattern as
+   * the responsive tests above — the CSS content is the acceptance.
+   */
+  it('48px touch targets: .btn carries the min-height (D5)', () => {
+    expect(stylesCss).toMatch(/\.btn \{[^}]*min-height: var\(--space-48\)/);
+  });
+
+  it('the .num-tabular utility exists for coordinate readouts (D6)', () => {
+    expect(stylesCss).toMatch(/\.num-tabular \{\s*font-variant-numeric: tabular-nums;\s*\}/);
   });
 });

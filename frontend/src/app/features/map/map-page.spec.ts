@@ -1,10 +1,11 @@
-import { Component, type DebugElement } from '@angular/core';
+import { Component, signal, type DebugElement } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
+import type { ShelterDto, ShelterSourceFilter, VerificationLevel } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { AuthStore } from '../../session/auth-store';
 import { PageShell } from '../../shared/page-shell';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { MapPage } from './map-page';
@@ -77,6 +78,83 @@ const BASEMENT = shelter({
 });
 const ALL_ROWS = [TALLINN, PARNU, BASEMENT];
 
+/* Distinct coordinates (ALL_ROWS share the default point) so the nearest
+   computation is unambiguous: the user sits ~250 m from NEAR, ~7 km from FAR. */
+const NEAR = shelter({
+  id: 11,
+  name: 'Kalamaja Shelter',
+  address: 'Sadama 2, Tallinn',
+  latitude: 59.439,
+  longitude: 24.757,
+});
+const FAR = shelter({
+  id: 12,
+  name: 'Nõmme Shelter',
+  address: 'Pikaliiva 5, Tallinn',
+  source: 'MUNICIPALITY',
+  latitude: 59.385,
+  longitude: 24.802,
+});
+const USER_POSITION = { latitude: 59.438, longitude: 24.756, accuracy: 20 };
+
+/** Geolocation seam (the submit page spec's pattern): stub
+ *  navigator.geolocation with a hand-written fake. */
+function stubGeolocation(behavior: {
+  position?: { latitude: number; longitude: number; accuracy: number };
+  errorCode?: number;
+}): ReturnType<typeof vi.fn> {
+  const getCurrentPosition = vi.fn(
+    (success: (p: GeolocationPosition) => void, failure: (e: { code: number }) => void): void => {
+      if (behavior.position === undefined) {
+        failure({ code: behavior.errorCode ?? 2 });
+      } else {
+        success({
+          coords: {
+            latitude: behavior.position.latitude,
+            longitude: behavior.position.longitude,
+            accuracy: behavior.position.accuracy,
+          },
+        } as unknown as GeolocationPosition);
+      }
+    },
+  );
+  return getCurrentPosition;
+}
+
+/** A geolocation fake the test settles BY HAND (locating-state assertions). */
+function deferredGeolocation(): {
+  fake: ReturnType<typeof vi.fn>;
+  settle: (position: { latitude: number; longitude: number; accuracy: number }) => void;
+} {
+  let success: (p: GeolocationPosition) => void = () => {};
+  const fake = vi.fn((s: (p: GeolocationPosition) => void): void => {
+    success = s;
+  });
+  return {
+    fake,
+    settle: (p) => success({ coords: p } as unknown as GeolocationPosition),
+  };
+}
+
+function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): void {
+  Object.defineProperty(navigator, 'geolocation', {
+    value: fake === undefined ? undefined : { getCurrentPosition: fake },
+    configurable: true,
+  });
+}
+
+/** AuthStore-shaped fake — real signals so zoneless CD stays reactive
+ *  (the detail page spec's pattern). */
+function fakeAuthStore(overrides: { authenticated?: boolean } = {}): AuthStore {
+  return {
+    authenticated: signal(overrides.authenticated ?? false),
+    initialized: signal(true),
+    levels: signal<VerificationLevel[]>([]),
+    init: vi.fn(async (): Promise<void> => undefined),
+    isVerified: () => false,
+  } as unknown as AuthStore;
+}
+
 /** /shelters/:id target for RouterLink navigation (M5 lands the real page). */
 @Component({ template: '<p>detail stub</p>' })
 class ShelterDetailStub {}
@@ -89,11 +167,17 @@ describe('MapPage', () => {
   let gateway: FakeShelterGateway;
   let leaflet: FakeLeafletService;
   let router: Router;
+  let store: AuthStore;
 
   beforeEach(() => {
     localStorage.clear();
+    // Secure context by default (dev runs on localhost); individual tests
+    // override it for the geo-insecure path (submit page spec's pattern).
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+    setGeolocation(undefined);
     gateway = new FakeShelterGateway();
     leaflet = new FakeLeafletService();
+    store = fakeAuthStore();
     TestBed.configureTestingModule({
       // The real shell so "page chrome stays intact" is asserted against the
       // actual header/nav, not a stand-in.
@@ -103,10 +187,12 @@ describe('MapPage', () => {
           { path: '', pathMatch: 'full', redirectTo: 'map' },
           { path: 'map', component: MapPage },
           { path: 'login', component: LoginStub },
+          { path: 'submit', component: LoginStub },
           { path: 'shelters/:id', component: ShelterDetailStub },
         ]),
         { provide: ShelterGateway, useValue: gateway as unknown as ShelterGateway },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
+        { provide: AuthStore, useValue: store },
       ],
     });
     // MapPage declares a page-scoped LeafletService provider; drop it so the
@@ -472,6 +558,213 @@ describe('MapPage', () => {
       expect(leaflet.lastRendered).toEqual([BASEMENT]);
       expect(text(fixture)).toContain('Community Cellar');
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Nearest shelter (map-crisis-actions D1/D2): the safety-orange CTA,
+  // geolocation -> Haversine nearest over the loaded list -> fly + emphasize.
+  // ---------------------------------------------------------------------------
+  describe('nearest shelter (crisis CTA)', () => {
+    beforeEach(() => {
+      gateway.list.mockResolvedValue([NEAR, FAR]);
+    });
+
+    function cta(element: HTMLElement): HTMLButtonElement {
+      const button = element.querySelector<HTMLButtonElement>('.map-cta');
+      expect(button).not.toBeNull();
+      return button as HTMLButtonElement;
+    }
+
+    it('the CTA renders for anonymous users too (the page is public)', async () => {
+      const { element } = await open('/map');
+      expect(cta(element).textContent?.trim()).toBe('Nearest shelter');
+      // Anonymous: no "Add shelter" entry (login lives in the header).
+      expect(
+        [...element.querySelectorAll<HTMLAnchorElement>('a')].some((a) =>
+          (a.textContent ?? '').includes('Add shelter'),
+        ),
+      ).toBe(false);
+    });
+
+    it('nearest found: flies to the closest shelter at street level and emphasizes its row', async () => {
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      // The map flew to the CLOSEST shelter (NEAR, ~250 m — not FAR, ~7 km)
+      // at the street-level SHELTER_ZOOM convention.
+      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+      // The one-line state with the found shelter's name + address.
+      expect(text(fixture)).toContain('Nearest: Kalamaja Shelter');
+      expect(text(fixture)).toContain('Sadama 2, Tallinn');
+      // The matching row (and only it) carries the temporary emphasis.
+      const emphasized = element.querySelectorAll('.shelter-row--nearest');
+      expect(emphasized).toHaveLength(1);
+      expect(emphasized[0].textContent).toContain('Kalamaja Shelter');
+      // The CTA is usable again.
+      expect(cta(element).disabled).toBe(false);
+    });
+
+    it('permission denied: the denied copy shows and list + map are untouched', async () => {
+      setGeolocation(stubGeolocation({ errorCode: 1 }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      // Nothing moved, nothing emphasized.
+      expect(leaflet.flyToCalls).toEqual([]);
+      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      expect(leaflet.lastRendered).toEqual([NEAR, FAR]); // markers untouched (name sort)
+      // The message explains the permission is off + where to enable it.
+      const state = element.querySelector('.nearest-line--error') as HTMLElement;
+      expect(state.textContent).toContain(
+        'Location permission is off. Allow location access in your browser',
+      );
+      expect(state.getAttribute('role')).toBe('alert');
+    });
+
+    it.each([
+      [3, 'Finding your location timed out'],
+      [2, 'Your location could not be determined right now'],
+    ])('geolocation error code %i shows its specific copy', async (code: number, copy: string) => {
+      setGeolocation(stubGeolocation({ errorCode: code }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(element.querySelector('.nearest-line--error')?.textContent).toContain(copy);
+      expect(leaflet.flyToCalls).toEqual([]);
+    });
+
+    it('a missing geolocation API shows the unsupported copy', async () => {
+      setGeolocation(undefined);
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(element.querySelector('.nearest-line--error')?.textContent).toContain(
+        'does not support location access',
+      );
+      expect(leaflet.flyToCalls).toEqual([]);
+    });
+
+    it('a non-secure context shows the https copy and never calls geolocation', async () => {
+      Object.defineProperty(window, 'isSecureContext', { value: false, configurable: true });
+      const fake = stubGeolocation({ position: USER_POSITION });
+      setGeolocation(fake);
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(fake).not.toHaveBeenCalled();
+      expect(element.querySelector('.nearest-line--error')?.textContent).toContain(
+        'secure (https) connection',
+      );
+    });
+
+    it('empty list: offers the copy, and the /submit link only when authenticated', async () => {
+      gateway.list.mockResolvedValue([]);
+      store.authenticated.set(true);
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(text(fixture)).toContain('No shelters near you yet.');
+      expect(element.querySelector('.nearest-line a[href="/submit"]')).not.toBeNull();
+      expect(leaflet.flyToCalls).toEqual([]);
+
+      // The same anonymous visitor sees the copy WITHOUT the link.
+      store.authenticated.set(false);
+      await settle(fixture);
+      expect(element.querySelector('.nearest-line a[href="/submit"]')).toBeNull();
+      expect(text(fixture)).toContain('No shelters near you yet.');
+    });
+
+    it('the "Add shelter" CTA renders for authenticated users and links to /submit', async () => {
+      store.authenticated.set(true);
+      const { element, fixture } = await open('/map');
+
+      const add = [...element.querySelectorAll<HTMLAnchorElement>('a')].find(
+        (a) => (a.textContent ?? '').trim() === 'Add shelter',
+      );
+      expect(add).toBeDefined();
+      expect(add?.getAttribute('href')).toBe('/submit');
+      expect(add?.classList.contains('btn--ghost')).toBe(true);
+
+      // Anonymous: the entry is absent (D4 — nothing here for signed-out users).
+      store.authenticated.set(false);
+      await settle(fixture);
+      expect(
+        [...element.querySelectorAll<HTMLAnchorElement>('a')].some(
+          (a) => (a.textContent ?? '').trim() === 'Add shelter',
+        ),
+      ).toBe(false);
+    });
+
+    it('locating: the button reads "Finding your location…" and is disabled until the settle', async () => {
+      const geo = deferredGeolocation();
+      setGeolocation(geo.fake);
+      const { element, fixture } = await open('/map');
+      const button = cta(element);
+
+      button.click();
+      fixture.detectChanges();
+
+      expect(button.disabled).toBe(true);
+      expect(button.textContent).toContain('Finding your location…');
+
+      geo.settle(USER_POSITION);
+      await settle(fixture);
+
+      expect(button.disabled).toBe(false);
+      expect(button.textContent).toContain('Nearest shelter');
+      // The locate settled on the nearest row.
+      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+    });
+
+    it('a row click clears the Nearest emphasis (temporary, D2)', async () => {
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+
+      const farRow = [...element.querySelectorAll<HTMLButtonElement>('.shelter-row')].find((r) =>
+        r.textContent?.includes('Nõmme Shelter'),
+      ) as HTMLButtonElement;
+      farRow.click();
+      fixture.detectChanges();
+
+      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      // The manual selection won the map (and the "Nearest: …" line is gone).
+      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+    });
+
+    it('a filter change clears the Nearest emphasis (D2)', async () => {
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? [NEAR, FAR] : [FAR]),
+      );
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry
+      await settle(fixture);
+
+      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
     });
   });
 });

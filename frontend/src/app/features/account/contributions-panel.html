@@ -15,6 +15,13 @@
       <a routerLink="/submit" class="btn btn--ghost">Submit your first shelter</a>
     </div>
   } @else {
+    <!-- map-crisis-actions: the submission entry renders for EVERY
+         authenticated user, not only the empty state (the panel is already
+         auth-gated by the /account route — the guards stay the single
+         enforcement point). -->
+    <div class="contrib-actions">
+      <a routerLink="/submit" class="btn btn--ghost">Submit a shelter</a>
+    </div>
     <ul class="contrib-list">
       @for (row of shelterRows() ?? []; track row.id) {
         <li class="contrib-row">

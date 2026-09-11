@@ -23,6 +23,43 @@
     </div>
 
     <aside class="map-page__sidebar">
+      <!-- Crisis actions (map-crisis-actions D1/D4): the single safety-
+           orange CTA (the ONLY consumer of --color-cta) and the
+           authenticated-only "Add shelter" entry — the /submit route guards
+           handle the verified redirect. Above the chips: this is "the"
+           action of the page. -->
+      <div class="map-page__actions">
+        <button
+          type="button"
+          class="btn btn--block map-cta"
+          (click)="findNearest()"
+          [disabled]="locating() || loading() || error() !== null"
+        >
+          {{ locating() ? 'Finding your location…' : 'Nearest shelter' }}
+        </button>
+        @if (auth.authenticated()) {
+          <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
+        }
+      </div>
+
+      @if (nearest(); as n) {
+        <p class="nearest-line">
+          Nearest: {{ n.name }}
+          @if (n.address) {
+            <span class="nearest-line__address"> · {{ n.address }}</span>
+          }
+        </p>
+      } @else if (nearestEmpty()) {
+        <p class="nearest-line">
+          No shelters near you yet.
+          @if (auth.authenticated()) {
+            <a routerLink="/submit">You can add the first one.</a>
+          }
+        </p>
+      } @else if (nearestError(); as nearestMsg) {
+        <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg }}</p>
+      }
+
       <div class="filter-chips" role="group" aria-label="Filter shelters by source">
         @for (chip of sourceFilters; track chip.value) {
           <button
@@ -57,6 +94,7 @@
                 type="button"
                 class="shelter-row"
                 [class.shelter-row--selected]="selectedId() === shelter.id"
+                [class.shelter-row--nearest]="nearest()?.id === shelter.id"
                 (click)="selectShelter(shelter)"
               >
                 <span class="shelter-row__name">{{ shelter.name }}</span>

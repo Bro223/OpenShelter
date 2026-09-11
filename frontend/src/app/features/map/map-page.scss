@@ -78,6 +78,46 @@
   }
 }
 
+/* Crisis actions (map-crisis-actions D1): the safety-orange "Nearest
+   shelter" CTA is the ONLY consumer of --color-cta — the orange is the
+   crisis affordance and must not become a general accent. The ghost
+   "Add shelter" (authenticated only, D4) stays on the functional palette.
+   Both reuse the global .btn (incl. its 48px min-height, D5). */
+.map-page__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.map-cta {
+  background: var(--color-cta);
+  color: var(--color-bg-surface);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
+}
+
+/* The one-line state under the CTA: the found shelter ("Nearest: …"), the
+   empty-list offer, or the per-error copy (the submit page's vocabulary). */
+.nearest-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  a {
+    color: var(--color-primary);
+  }
+
+  .nearest-line__address {
+    color: var(--color-muted);
+  }
+
+  &--error {
+    color: var(--color-danger);
+  }
+}
+
 .filter-chips {
   display: flex;
   gap: var(--space-6);
@@ -137,6 +177,14 @@
   &.shelter-row--selected {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
+  }
+
+  /* The "Nearest shelter" emphasis (map-crisis-actions D2) — a TEMPORARY
+     highlight: same ring pattern as the selection, in the CTA orange.
+     Cleared on the next interaction or filter change (no new badge). */
+  &.shelter-row--nearest {
+    border-color: var(--color-cta);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-cta) 25%, transparent);
   }
 
   .shelter-row__name {

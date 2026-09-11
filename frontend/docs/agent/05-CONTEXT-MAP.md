@@ -39,7 +39,18 @@ and submission come in M5 — this milestone keeps the map read-only.
 ## UI details
 
 - Sidebar: name + address + source badge + rating (averageRating null → "no ratings yet").
-  Sorting: by name (stable) — nearest-by-location is a documented deferral.
+  Sorting: by name (stable). Nearest-by-location is available as the **"Nearest shelter" CTA**
+  (map-crisis-actions): high-accuracy geolocation (the submit page's options, 10 s timeout),
+  Haversine nearest computed client-side over the loaded list (no backend call), fly to
+  `SHELTER_ZOOM` + a TEMPORARY row-emphasis class (badge-less for now; cleared on the next
+  interaction or filter change), the one-line "Nearest: {name}" state, and per-error copy in the
+  submit page's vocabulary (denied / timeout / unsupported / unavailable). Empty loaded list →
+  "No shelters near you yet." with a /submit link for authenticated users. While locating the
+  button reads "Finding your location…" and is disabled. The legend stays untouched.
+- Crisis entry points (map-crisis-actions D4): the sidebar CTA block (Nearest shelter + the
+  authenticated-only ghost "Add shelter" → /submit) sits at the TOP of the sidebar, above the
+  filter chips; there is NO top-nav item for submission (the /submit route guards — AuthGuard +
+  VerifiedGuard — remain the single enforcement point).
 - Map bounds: Estonia (~lat 57.5–59.7, lng 21.5–28.2 — `GeoPoint` bbox constants; default view centered ~(58.6, 25.0) zoom 7).
 - Selection sync: clicking a list row OR a marker selects the shelter, zooms the
   map to street level (`SHELTER_ZOOM` = 16) and stays on /map — the zoom is the
@@ -54,7 +65,8 @@ and submission come in M5 — this milestone keeps the map read-only.
 - M5 adds the detail route (`/shelters/:id`) — reached via the selected row's
   "View details" link (the detail page shows a static Location map of the
   shelter) — plus the
-  "+ Add shelter" entry (visible to verified users only) — M4 can leave a disabled tooltip stub
-  or hide it.
+  "+ Add shelter" entry. _(BUILT, map-crisis-actions: the ghost "Add shelter"
+  CTA in the map sidebar, visible to AUTHENTICATED users — the /submit route
+  guards handle the verified redirect, so unverified users land on /verify.)_
 - Models: `ShelterDto` from `02-CONTEXT-API.md` — `averageRating: number | null`, `source`,
   `status`, `description`/`capacity` nullable.

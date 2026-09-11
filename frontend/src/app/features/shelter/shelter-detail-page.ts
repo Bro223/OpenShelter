@@ -318,6 +318,39 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     return s !== null && (s.description !== null || s.capacity !== null);
   }
 
+  // ---- navigate actions (map-crisis-actions D3) ----------------------------
+  /**
+   * Google Maps walking-directions deep link — a hand-rolled href (no
+   * navigation library): the phone opens its own app choice. Coordinates at
+   * 5 decimals (the app-wide coordinate format).
+   */
+  protected navigateUrl(shelter: ShelterDto): string {
+    return (
+      'https://www.google.com/maps/dir/?api=1' +
+      `&destination=${shelter.latitude.toFixed(5)},${shelter.longitude.toFixed(5)}` +
+      '&travelmode=walking'
+    );
+  }
+
+  /** Apple Maps fallback (iOS): the same point, the shelter name as query. */
+  protected appleMapsUrl(shelter: ShelterDto): string {
+    return (
+      `https://maps.apple.com/?daddr=${shelter.latitude.toFixed(5)},${shelter.longitude.toFixed(5)}` +
+      `&q=${encodeURIComponent(shelter.name)}`
+    );
+  }
+
+  /** The header's coordinate line (D6 — tabular figures via .num-tabular). */
+  protected coordinateLine(shelter: ShelterDto): string {
+    return `${shelter.latitude.toFixed(5)}, ${shelter.longitude.toFixed(5)}`;
+  }
+
+  /** Coordinates are required on the DTO; the finite guard mirrors
+   *  pinShelter — a non-finite point must not render a broken link or line. */
+  protected hasCoordinates(shelter: ShelterDto): boolean {
+    return Number.isFinite(shelter.latitude) && Number.isFinite(shelter.longitude);
+  }
+
   /**
    * ReviewForm save (upsert): the backend POSTs-or-updates via /reviews,
    * PUT via /reviews/mine. We use POST when this session has no known

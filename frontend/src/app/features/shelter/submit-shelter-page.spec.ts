@@ -338,6 +338,11 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(leaflet.pickCalls.at(-1)).toEqual([59, 26]);
     expect(leaflet.flyToCalls.at(-1)).toEqual([59, 26]);
     expect(element.textContent).toContain('59.00000, 26.00000');
+    // D6 (map-crisis-actions): the coordinate readout uses the shared
+    // tabular-figures class so digits do not shift while they update.
+    expect(element.querySelector('.location-readout')?.classList.contains('num-tabular')).toBe(
+      true,
+    );
     expect(element.textContent).toContain('Location from typed coordinates');
     expect(element.querySelector('.location-field .field-error')).toBeNull();
   });

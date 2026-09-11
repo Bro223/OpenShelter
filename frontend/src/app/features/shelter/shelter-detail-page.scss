@@ -53,6 +53,32 @@
   color: var(--color-muted);
 }
 
+/* Navigate actions (map-crisis-actions D3): small secondary text links
+   deliberately quieter than the back link — they open the phone's own
+   navigation app (Google Maps walking / Apple Maps), never in-app routes. */
+.shelter-detail__navigate {
+  display: flex;
+  gap: var(--space-16);
+
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--text-sm);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* The coordinate line (D6) — .num-tabular (styles.scss) keeps the figures
+   tabular so digits do not shift. */
+.shelter-detail__coords {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
 .shelter-detail__rating {
   display: flex;
   align-items: center;

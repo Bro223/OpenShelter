@@ -159,7 +159,9 @@
         </button>
       </div>
 
-      <p class="location-readout" [class.location-readout--empty]="location() === null">
+      <!-- D6 (map-crisis-actions): the shared .num-tabular class keeps the
+           coordinate figures from shifting while they update. -->
+      <p class="location-readout num-tabular" [class.location-readout--empty]="location() === null">
         {{ locationReadout() }}
       </p>
       @if (locationHint(); as locationHintText) {

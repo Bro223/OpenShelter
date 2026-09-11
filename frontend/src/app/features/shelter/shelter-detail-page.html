@@ -17,8 +17,27 @@
           </span>
         }
       </div>
+      @if (shelter(); as s) {
+        @if (hasCoordinates(s)) {
+          <!-- Navigate actions (map-crisis-actions D3): small secondary
+               links near the name — they leave the app to the phone's own
+               navigation app, they do not navigate within it, and they do
+               not compete with the back link. -->
+          <div class="shelter-detail__navigate">
+            <a [href]="navigateUrl(s)" target="_blank" rel="noopener">Navigate</a>
+            <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">Open in Apple Maps</a>
+          </div>
+        }
+      }
       @if (shelter()?.address; as address) {
         <p class="shelter-detail__address">{{ address }}</p>
+      }
+      @if (shelter(); as s) {
+        @if (hasCoordinates(s)) {
+          <!-- The coordinate line (D6): .num-tabular keeps the figures from
+               shifting (the submit page's readout uses the same class). -->
+          <p class="shelter-detail__coords num-tabular">{{ coordinateLine(s) }}</p>
+        }
       }
       @if (shelter(); as s) {
         <div class="shelter-detail__rating">

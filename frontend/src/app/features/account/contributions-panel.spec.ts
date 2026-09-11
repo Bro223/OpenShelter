@@ -129,6 +129,19 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain('Hea varjend');
   });
 
+  it('offers "Submit a shelter" while shelters are present (map-crisis-actions regression pin)', async () => {
+    shelters.mine.mockResolvedValue([SHELTER_ROW]);
+    const { element } = await open();
+
+    // The action renders for every authenticated user — not only the empty state.
+    const submitLinks = Array.from(
+      element.querySelectorAll<HTMLAnchorElement>('a[href="/submit"]'),
+    );
+    expect(submitLinks.some((a) => (a.textContent ?? '').trim() === 'Submit a shelter')).toBe(true);
+    // The row itself still renders next to the action.
+    expect(element.textContent).toContain('Community Cellar');
+  });
+
   it('shows the empty shelter state with a /submit link and the plain empty review state', async () => {
     const { element } = await open();
 

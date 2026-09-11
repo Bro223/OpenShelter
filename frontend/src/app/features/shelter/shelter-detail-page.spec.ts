@@ -678,6 +678,70 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     });
   });
 
+  describe('navigate actions (Google Maps walking + Apple Maps, D3)', () => {
+    beforeEach(() => {
+      shelterGateway.rows.set(1, registryShelter());
+    });
+
+    /** jsdom/css-select cannot match a full attribute VALUE containing `&`
+     *  (css-select quirk), so the links are looked up by their text and the
+     *  exact href is asserted on the attribute. */
+    function linkByText(element: HTMLElement, label: string): HTMLAnchorElement | undefined {
+      return [...element.querySelectorAll<HTMLAnchorElement>('.shelter-detail__navigate a')].find(
+        (a) => (a.textContent ?? '').trim() === label,
+      );
+    }
+
+    it('renders both deep links in the header with 5-decimal coordinates and the encoded name', async () => {
+      const { element } = await open('/shelters/1');
+
+      const navigate = linkByText(element, 'Navigate');
+      expect(navigate).toBeDefined();
+      expect(navigate?.getAttribute('href')).toBe(
+        'https://www.google.com/maps/dir/?api=1&destination=59.43700,24.75400&travelmode=walking',
+      );
+      expect(navigate?.getAttribute('target')).toBe('_blank');
+      expect(navigate?.getAttribute('rel')).toBe('noopener');
+
+      const apple = linkByText(element, 'Open in Apple Maps');
+      expect(apple).toBeDefined();
+      expect(apple?.getAttribute('href')).toBe(
+        'https://maps.apple.com/?daddr=59.43700,24.75400&q=Tallinn%20Central%20Shelter',
+      );
+      expect(apple?.getAttribute('target')).toBe('_blank');
+      expect(apple?.getAttribute('rel')).toBe('noopener');
+
+      // Both sit in the header, near the name.
+      expect(
+        element.querySelector('.shelter-detail__header .shelter-detail__navigate'),
+      ).not.toBeNull();
+    });
+
+    it('renders the coordinate line with tabular numerals (D6)', async () => {
+      const { element } = await open('/shelters/1');
+
+      const coords = element.querySelector('.shelter-detail__coords');
+      expect(coords).not.toBeNull();
+      expect(coords?.classList.contains('num-tabular')).toBe(true);
+      expect(coords?.textContent?.trim()).toBe('59.43700, 24.75400');
+    });
+
+    it('a USER row (null address) still gets both links and the coordinate line', async () => {
+      shelterGateway.rows.set(7, userShelter());
+      const { element } = await open('/shelters/7');
+
+      expect(linkByText(element, 'Navigate')?.getAttribute('href')).toBe(
+        'https://www.google.com/maps/dir/?api=1&destination=59.43700,24.75400&travelmode=walking',
+      );
+      expect(linkByText(element, 'Open in Apple Maps')?.getAttribute('href')).toBe(
+        'https://maps.apple.com/?daddr=59.43700,24.75400&q=Community%20Cellar',
+      );
+      expect(element.querySelector('.shelter-detail__coords')?.textContent).toContain(
+        '59.43700, 24.75400',
+      );
+    });
+  });
+
   describe('location map (static, zoomed to the shelter)', () => {
     it('on load success the map is created, flies to the shelter at street level, and pins it', async () => {
       shelterGateway.rows.set(1, registryShelter());

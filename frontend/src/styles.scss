@@ -33,6 +33,12 @@
   --color-primary: #0b5cad;
   --color-primary-hover: #094e99;
 
+  /* Crisis CTA (map-crisis-actions D1) — the "Nearest shelter" button on
+     /map is the ONLY consumer of this token; the orange is the crisis
+     affordance and must not become a general accent. White text on
+     #bf360c = 5.6:1 (WCAG AA ≥ 4.5; #e8590c and #d9480f fail at 3.6/4.3). */
+  --color-cta: #bf360c;
+
   /* Borders */
   --color-border: #d8d8dd; /* inputs, cards, list rows */
   --color-border-subtle: #e3e3e3; /* shell header divider */
@@ -222,6 +228,10 @@ textarea:focus-visible {
 /* Buttons */
 .btn {
   display: inline-block;
+  /* D5 (map-crisis-actions) touch target: content + 8px vertical padding
+     lands at ~41px, short of 48 — the explicit min-height makes every .btn
+     (and the row buttons that reuse the class) at least a 48px target. */
+  min-height: var(--space-48);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: var(--space-8) var(--space-16);
@@ -269,6 +279,13 @@ textarea:focus-visible {
   &:hover:not(:disabled) {
     background: var(--color-danger-bg);
   }
+}
+
+/* D6 (map-crisis-actions): coordinate/count readouts use tabular figures so
+   digits do not shift while they update (submit-page coordinate readout,
+   detail-page coordinate line). */
+.num-tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 /* M4 shelter marker pins — global for the same reason as the leaflet import
