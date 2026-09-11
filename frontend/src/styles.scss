@@ -153,6 +153,107 @@
   --content-max-width: 1080px; /* shell-body page width cap */
 }
 
+/* High-contrast theme (accessibility-and-provenance D1/D2): a token
+   OVERRIDE, not a parallel stylesheet — same token names as :root, values
+   re-tuned for low-vision + direct-sunlight use. Component .scss files are
+   untouched (D1). Default: NO attribute on <html> = the light theme above.
+   The pre-paint script in index.html + ThemeStore (core/) own the attribute
+   + the 'openshelter-theme' localStorage key (absent key = light). */
+[data-theme='high-contrast'] {
+  /* Contrast (WCAG 2.1, verified for this palette — text ≥ 4.5:1, large text
+     + UI component boundaries ≥ 3:1):
+     text #ffffff          on bg/surface/subtle/hover  19.8 / 18.4 / 16.5 / 15.1
+     muted #cfcfcf         on bg/surface/subtle/hover  12.7 / 11.8 / 10.6 /  9.7
+     primary #7db8f0       on bg/surface/subtle        9.4 /  8.8 /  7.8 (focus ring too)
+     primary-hover #a8d0f5 on bg/surface               12.3 / 11.4
+     surface #141414 text  on primary/primary-hover    8.8 / 11.4 (btn--primary)
+     surface #141414 text  on cta #ff9f1c              9.0 (.map-cta)
+     danger #ff8a7a        on bg / surface / danger-bg 8.6 /  8.0 /  7.5
+     error #ff9d8f         on surface                  9.2
+     warning #f0b429       on warning-bg / surface     8.6 /  9.9
+     info #8ac6f5          on info-bg / surface         8.9 / 10.1
+     success #7fd49a       on success-bg / soft / srf  8.6 /  9.1 / 10.3
+     badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
+     badge green #7ac98a   on badge-user #11301d       7.2
+     same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
+     border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
+     star-filled/empty     vs surface 8.5 / 3.2 (decorative, aria-label carries value)
+     Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
+     the surface (2.67:1) → raised to #666666 (3.21:1 vs surface, 3.45:1 vs bg);
+     every other D1 starting value passes as-is.
+     Deliberately below 3:1 (documented): --color-border-subtle #4a4a4a (2.23:1
+     vs bg) — the shell header divider is decorative, not a UI-component
+     boundary (the header is identified by its content); the banner
+     -border tokens are the light theme's soft-border language (fill + border
+     + text carry the banner, mirroring the light values' ratios).
+     Status colors stay distinguishable on #0a0a0a by hue AND value: danger
+     8.6:1, warning 10.6:1, info 10.8:1, success 11.1:1, error 9.9:1.
+
+     Map context (D1): the MAP is not themed — OSM tiles stay light, so the
+     marker tokens keep their SOURCE coding (blue=registry, green=user,
+     red=pick). --color-shelter-registry/user are brightened from #0b5cad/
+     #2e7d32 because the SAME tokens double as provenance-badge TEXT in the
+     component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
+     untouched per D1) and dark blue/green text fails 4.5:1 on the dark
+     surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
+     --color-bg-surface border (#141414 here) plus the hue carry the marker —
+     the documented trade-off of one token serving map + UI. --color-map-
+     placeholder stays light: it IS the map surface (tiles about to paint).
+     Leaflet's own core literals (attribution rgba(255,255,255,0.8), zoom
+     buttons #fff, container #ddd) sit ON the light tiles — or are overridden
+     by the component container backgrounds — so they stay readable in both
+     themes and need no .leaflet-... override here. */
+  /* Text & surfaces */
+  --color-text: #ffffff;
+  --color-muted: #cfcfcf;
+  --color-bg: #0a0a0a;
+  --color-bg-surface: #141414; /* also the 'text on primary/cta' colour */
+  --color-bg-subtle: #1f1f1f;
+  --color-surface-hover: #262626;
+  --color-surface-overlay: rgba(20, 20, 20, 0.92); /* dark twin of the white legend card */
+
+  /* Brand */
+  --color-primary: #7db8f0; /* link/focus colour AND btn--primary fill (text flips to #141414) */
+  --color-primary-hover: #a8d0f5;
+
+  /* Crisis CTA — the CTA button's text is --color-bg-surface (dark on orange). */
+  --color-cta: #ff9f1c;
+
+  /* Borders */
+  --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
+  --color-border-subtle: #4a4a4a;
+
+  /* Status palette (banners + verification level chips) */
+  --color-danger: #ff8a7a;
+  --color-danger-bg: #2b1512;
+  --color-danger-border: #6e3a34;
+  --color-error: #ff9d8f;
+  --color-warning: #f0b429;
+  --color-warning-bg: #292008;
+  --color-warning-border: #6e5a1e;
+  --color-info: #8ac6f5;
+  --color-info-bg: #10222f;
+  --color-info-border: #2f5a7a;
+  --color-success: #7fd49a;
+  --color-success-bg: #0f2a18;
+  --color-success-border: #2f6e45;
+  --color-success-bg-soft: #122417;
+
+  /* Source badges (dark tints; text = the brightened marker tokens below) */
+  --color-badge-registry: #14263a;
+  --color-badge-user: #11301d;
+
+  /* Map + markers — map context, see the note above. */
+  --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
+  --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
+  --color-shelter-pick: #d32f2f; /* unchanged — map context */
+  --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
+
+  /* Rating stars */
+  --color-star-empty: #666666; /* visible on dark, 3.2:1 vs surface */
+  --color-star-filled: #e8a33d; /* unchanged — 8.5:1 on the dark surface */
+}
+
 * {
   box-sizing: border-box;
 }

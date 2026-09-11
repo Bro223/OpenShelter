@@ -76,6 +76,9 @@ package "api" {
     + createdAt : Instant
     + description : String
     + capacity : Integer
+    + submitterVerified : boolean  ' accessibility-and-provenance D3: creator
+                                   ' exists + verification COMPLETED; false for
+                                   ' registry rows (no author)
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
     ' the UI gets only what the map needs.

@@ -12,8 +12,10 @@
       <div class="shelter-detail__title-row">
         <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
         @if (shelter(); as s) {
+          <!-- Provenance (accessibility-and-provenance D4): small muted chip
+               next to the name — four-valued shared copy (D4). -->
           <span class="badge" [class.badge--user]="s.source === 'USER'">
-            {{ sourceLabel(s.source) }}
+            {{ provenanceLabel(s) }}
           </span>
         }
       </div>

@@ -185,6 +185,13 @@ export interface ShelterDto {
   description: string | null;
   /** USER submissions only. */
   capacity: number | null;
+  /**
+   * True when the shelter's creator exists and has a completed verification;
+   * false for registry shelters (no author) and for creators whose account
+   * no longer exists (accessibility-and-provenance D3, backend-computed —
+   * the UI never re-derives it).
+   */
+  submitterVerified: boolean;
 }
 
 export interface ShelterReviewDto {

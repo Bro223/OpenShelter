@@ -22,8 +22,8 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   NO_RATINGS_YET,
+  provenanceLabel as provenanceLabelShared,
   reviewCountText as reviewCountTextShared,
-  sourceLabel as sourceLabelShared,
 } from '../../shared/shelter-copy';
 import {
   ESTONIA_CENTER,
@@ -109,8 +109,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly auth = this.store;
 
   /** W24: the shared source/rating copy, exposed to the template (Angular's
-   *  template scope is the component class). */
-  protected readonly sourceLabel = sourceLabelShared;
+   *  template scope is the component class). The header badge shows the
+   *  four-valued provenance (accessibility-and-provenance D4). */
+  protected readonly provenanceLabel = provenanceLabelShared;
   protected readonly reviewCountText = reviewCountTextShared;
   protected readonly noRatingsYet = NO_RATINGS_YET;
 

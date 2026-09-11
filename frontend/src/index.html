@@ -11,6 +11,18 @@
     />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <script>
+      // Pre-paint theme (accessibility-and-provenance D2): apply the persisted
+      // high-contrast preference BEFORE the app bundle paints — no flash/FOUC.
+      // Only 'high-contrast' is ever stored; absent key = the light default.
+      try {
+        if (localStorage.getItem('openshelter-theme') === 'high-contrast') {
+          document.documentElement.setAttribute('data-theme', 'high-contrast');
+        }
+      } catch (error) {
+        /* storage unavailable (private mode) — default to light */
+      }
+    </script>
   </head>
   <body>
     <app-root></app-root>

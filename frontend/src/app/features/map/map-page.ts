@@ -16,8 +16,8 @@ import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
+  provenanceLabel as provenanceLabelShared,
   ratingText as ratingTextShared,
-  sourceLabel as sourceLabelShared,
 } from '../../shared/shelter-copy';
 import { bannerMessage } from '../../shared/error-copy';
 import {
@@ -97,8 +97,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   protected readonly sourceFilters = SOURCE_FILTERS;
   /** W24: the shared source/rating copy, exposed to the template (Angular's
-   *  template scope is the component class). */
-  protected readonly sourceLabel = sourceLabelShared;
+   *  template scope is the component class). The row badge shows the
+   *  four-valued provenance (accessibility-and-provenance D4). */
+  protected readonly provenanceLabel = provenanceLabelShared;
   protected readonly ratingText = ratingTextShared;
   protected readonly filter = signal<ShelterSourceFilter>('ALL');
   protected readonly shelters = signal<ShelterDto[]>([]);

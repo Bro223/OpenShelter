@@ -12,6 +12,10 @@ import java.time.Instant;
  * data-as-of, attribution) is stored locally but not dumped here — the UI
  * gets only what the map needs. {@code description}/{@code capacity} are
  * USER-submission details (stored since the V3 hardening pass).
+ * {@code submitterVerified} is {@code true} when the shelter's creator exists
+ * and has a completed verification, {@code false} for registry shelters (no
+ * author) and for creators whose account no longer exists
+ * (accessibility-and-provenance D3).
  */
 public record ShelterDto(
         Long id,
@@ -25,5 +29,6 @@ public record ShelterDto(
         int reviewCount,
         Instant createdAt,
         String description,
-        Integer capacity) {
+        Integer capacity,
+        boolean submitterVerified) {
 }

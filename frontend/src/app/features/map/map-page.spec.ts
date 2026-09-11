@@ -60,6 +60,7 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
+    submitterVerified: false,
     ...overrides,
   };
 }
@@ -75,6 +76,17 @@ const BASEMENT = shelter({
   reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
+});
+const VERIFIED_BASEMENT = shelter({
+  id: 8,
+  name: 'Verified Cellar',
+  address: null,
+  source: 'USER',
+  averageRating: null,
+  reviewCount: 0,
+  description: 'Verified submitter',
+  capacity: 12,
+  submitterVerified: true,
 });
 const ALL_ROWS = [TALLINN, PARNU, BASEMENT];
 
@@ -308,15 +320,34 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Source badges.
-      expect(basementRow.textContent).toContain('User');
-      expect(rows[1].textContent).toContain('Registry');
+      // Source badges — the four-valued provenance copy (D4): the legend/
+      // filter chips keep their own short wording, the rows say it plainly.
+      expect(basementRow.textContent).toContain('User-submitted');
+      expect(rows[1].textContent).toContain('Municipal registry');
+      expect(rows[2].textContent).toContain('Paasteamet registry');
       // Rating summary: real rating shown, null rating says "No ratings yet" (no invented zero).
       expect(basementRow.textContent).toContain('No ratings yet');
       expect(basementRow.textContent).not.toContain('0.0');
       expect(rows[2].textContent).toContain('★ 4.5 · 2 reviews');
       // Loading indicator gone once settled.
       expect(text(fixture)).not.toContain('Loading shelters…');
+    });
+
+    it('sidebar rows show the four-valued provenance badge (D4)', async () => {
+      gateway.list.mockResolvedValue([TALLINN, PARNU, BASEMENT, VERIFIED_BASEMENT]);
+      const { element } = await open('/map');
+
+      // One badge per row, in the name-sorted order — every D4 value lands
+      // on the row of the shelter that produces it.
+      const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
+        b.textContent?.trim(),
+      );
+      expect(badges).toEqual([
+        'User-submitted', // Community Cellar (USER, unverified creator)
+        'Municipal registry', // Pärnu Municipal Shelter (MUNICIPALITY)
+        'Paasteamet registry', // Tallinn Central Shelter (PAASETEAMET)
+        'Verified user', // Verified Cellar (USER, verified creator)
+      ]);
     });
 
     it('renders a legend tied to the marker CSS classes (registry vs user)', async () => {

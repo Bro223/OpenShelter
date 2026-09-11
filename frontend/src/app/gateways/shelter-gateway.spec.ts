@@ -18,6 +18,7 @@ const REGISTRY_ROW: ShelterDto = {
   createdAt: '2025-09-01T08:00:00Z',
   description: null,
   capacity: null,
+  submitterVerified: false, // registry rows have no creator (D3)
 };
 
 const USER_ROW: ShelterDto = {
@@ -30,6 +31,7 @@ const USER_ROW: ShelterDto = {
   reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
+  submitterVerified: true, // creator has a completed verification
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */

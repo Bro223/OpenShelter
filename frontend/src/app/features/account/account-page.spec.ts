@@ -34,6 +34,7 @@ const SHELTER_ROW: ShelterDto = {
   createdAt: '2025-09-01T08:00:00Z',
   description: 'Naabruskonna kelder',
   capacity: 12,
+  submitterVerified: true, // own shelters: the author is a verified user
 };
 
 const REVIEW_ROW: MyReviewDto = {

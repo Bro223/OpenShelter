@@ -70,6 +70,9 @@ const CREATED: ShelterDto = {
   createdAt: '2025-09-10T09:00:00Z',
   description: 'Basement with two exits',
   capacity: 40,
+  // The submitter is verified (creation is verified-gated) — the created
+  // row comes back already proven (D3/D4).
+  submitterVerified: true,
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */

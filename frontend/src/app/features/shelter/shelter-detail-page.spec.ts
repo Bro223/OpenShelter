@@ -150,6 +150,7 @@ function registryShelter(overrides: Partial<ShelterDto> = {}): ShelterDto {
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
+    submitterVerified: false, // registry rows have no creator (D3)
     ...overrides,
   };
 }
@@ -295,7 +296,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(reviewGateway.list).toHaveBeenCalledWith(1);
 
       expect(text(fixture)).toContain('Tallinn Central Shelter');
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Registry');
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Paasteamet registry');
       expect(text(fixture)).toContain('Tornimäe 1, Tallinn');
       // Rating summary: stars + numeric + count.
       expect(element.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
@@ -319,6 +320,22 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('User-submitted');
+    });
+
+    it('header badge shows the other D4 values: MUNICIPALITY and verified USER', async () => {
+      shelterGateway.rows.set(
+        2,
+        registryShelter({ id: 2, name: 'Pärnu Municipal Shelter', source: 'MUNICIPALITY' }),
+      );
+      const { element } = await open('/shelters/2');
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Municipal registry');
+
+      shelterGateway.rows.set(
+        8,
+        userShelter({ id: 8, name: 'Verified Cellar', submitterVerified: true }),
+      );
+      const { element: el8 } = await open('/shelters/8');
+      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Verified user');
     });
 
     it('shows a not-found state for an unknown id (404) — no error storm', async () => {

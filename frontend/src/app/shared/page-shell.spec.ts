@@ -147,7 +147,10 @@ describe('PageShell', () => {
     gateway.logout.mockResolvedValue(undefined);
     fixture.detectChanges();
 
-    const button = (fixture.nativeElement as HTMLElement).querySelector('button');
+    const element = fixture.nativeElement as HTMLElement;
+    const button = [...element.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Log out',
+    );
     expect(button?.textContent?.trim()).toBe('Log out');
     button?.dispatchEvent(new MouseEvent('click'));
     await fixture.whenStable();
@@ -157,5 +160,45 @@ describe('PageShell', () => {
     expect(store.authenticated()).toBe(false);
     expect(router.url).toBe('/map');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Log in');
+  });
+
+  /* High-contrast toggle (accessibility-and-provenance D2). The toggle is
+     independent of auth — it renders from the first paint, before init(). */
+  describe('high-contrast toggle', () => {
+    function toggleButton(): HTMLButtonElement | null {
+      const buttons = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')];
+      return buttons.find((b) => b.textContent?.trim() === 'High contrast') ?? null;
+    }
+
+    it('renders for guests from the first paint, aria-pressed mirrors the light default', () => {
+      fixture.detectChanges();
+      const toggle = toggleButton();
+      expect(toggle).not.toBeNull();
+      expect(toggle!.getAttribute('aria-pressed')).toBe('false');
+      expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+    });
+
+    it('clicking enables high contrast: aria-pressed, attribute and persistence all flip', () => {
+      fixture.detectChanges();
+      toggleButton()!.dispatchEvent(new MouseEvent('click'));
+      fixture.detectChanges();
+
+      expect(toggleButton()!.getAttribute('aria-pressed')).toBe('true');
+      expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
+      expect(localStorage.getItem('openshelter-theme')).toBe('high-contrast');
+    });
+
+    it('clicking again returns to light: attribute and stored key both removed', async () => {
+      await store.init();
+      fixture.detectChanges();
+      toggleButton()!.dispatchEvent(new MouseEvent('click'));
+      fixture.detectChanges();
+      toggleButton()!.dispatchEvent(new MouseEvent('click'));
+      fixture.detectChanges();
+
+      expect(toggleButton()!.getAttribute('aria-pressed')).toBe('false');
+      expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+      expect(localStorage.getItem('openshelter-theme')).toBeNull();
+    });
   });
 });

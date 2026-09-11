@@ -185,6 +185,58 @@ class ShelterApiIT extends AbstractPersistenceIT {
         expectErrorShape(mvc.perform(get("/api/shelters/999999")), 404, "Not Found");
     }
 
+    @Test
+    void dtoCarriesSubmitterVerifiedPerCreatorVerificationState() throws Exception {
+        String mari = verifiedToken("Mari", "mari@example.ee");
+        long unverifiedId = seedUser("Priit", "priit@example.ee");
+
+        // verified user submits through the API — the author link is recorded on save
+        MvcResult created = mvc.perform(post("/api/shelters")
+                        .header("Authorization", "Bearer " + mari)
+                        .contentType(MediaType.APPLICATION_JSON).content(shelterBody("Kinnitatud varjend")))
+                .andExpect(status().isCreated()).andReturn();
+        long verifiedShelterId = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+
+        // unverified author: the API would 403 a submission, so seed the USER row with the link
+        Shelter unverifiedShelter = new Shelter("Kinnitamata varjend", new GeoPoint(59.4, 24.7),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+        unverifiedShelter.setCreatedBy(unverifiedId);
+        shelters.save(unverifiedShelter);
+
+        long registryShelterId = seedShelter("Päästeameti varjend", ShelterSource.PAASETEAMET);
+
+        // list: the field on each row — one batched creator lookup per listing
+        // (no query-count assertion precedent in this repo; the batchedness is
+        // pinned by the unit test's two-creators case). Filter paths must not
+        // chain [0] after a root-level filter (Jayway 2.9 returns [] there),
+        // so the property is read directly off the filter result.
+        mvc.perform(get("/api/shelters"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(3)))
+                .andExpect(jsonPath("$[?(@.name == 'Kinnitatud varjend')].submitterVerified")
+                        .value(org.hamcrest.Matchers.contains(true)))
+                .andExpect(jsonPath("$[?(@.name == 'Kinnitamata varjend')].submitterVerified")
+                        .value(org.hamcrest.Matchers.contains(false)))
+                .andExpect(jsonPath("$[?(@.name == 'Päästeameti varjend')].submitterVerified")
+                        .value(org.hamcrest.Matchers.contains(false)));
+
+        // detail: the same field on the single read
+        mvc.perform(get("/api/shelters/" + verifiedShelterId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submitterVerified").value(true));
+        mvc.perform(get("/api/shelters/" + unverifiedShelter.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submitterVerified").value(false));
+        mvc.perform(get("/api/shelters/" + registryShelterId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.submitterVerified").value(false));
+
+        // the contributions path (/mine) carries the field too
+        mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + mari))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].submitterVerified").value(true));
+    }
+
     // ---------- write side: POST /api/shelters ----------
 
     @Test

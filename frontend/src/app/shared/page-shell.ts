@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
+import { ThemeStore } from '../core/theme-store';
 import { AuthStore } from '../session/auth-store';
 
 /**
@@ -18,9 +19,11 @@ import { AuthStore } from '../session/auth-store';
 })
 export class PageShell {
   private readonly store = inject(AuthStore);
+  private readonly themeStore = inject(ThemeStore);
   private readonly router = inject(Router);
 
   protected readonly auth = this.store;
+  protected readonly theme = this.themeStore;
 
   async logout(): Promise<void> {
     await this.auth.logout();

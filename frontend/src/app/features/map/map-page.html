@@ -102,8 +102,11 @@
                   <span class="shelter-row__address">{{ shelter.address }}</span>
                 }
                 <span class="shelter-row__meta">
+                  <!-- Provenance (accessibility-and-provenance D4): the four-valued
+                       label from the shared helper — the legend/filter chips keep
+                       their own (untouched) wording. -->
                   <span class="badge" [class.badge--user]="shelter.source === 'USER'">
-                    {{ sourceLabel(shelter.source) }}
+                    {{ provenanceLabel(shelter) }}
                   </span>
                   <span class="shelter-row__rating">{{
                     ratingText(shelter.averageRating, shelter.reviewCount)

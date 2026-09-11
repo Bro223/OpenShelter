@@ -7,6 +7,18 @@
     }
   </nav>
   <div class="shell-actions">
+    <!-- High-contrast toggle (accessibility-and-provenance D2): always
+         visible (independent of auth), aria-pressed mirrors the theme
+         signal; the preference persists in localStorage and is applied
+         before first paint by the inline index.html script. -->
+    <button
+      type="button"
+      class="btn btn--ghost"
+      [attr.aria-pressed]="theme.highContrast()"
+      (click)="theme.toggle()"
+    >
+      High contrast
+    </button>
     @if (auth.initialized()) {
       @if (auth.authenticated()) {
         <button type="button" class="btn btn--ghost" (click)="logout()">Log out</button>

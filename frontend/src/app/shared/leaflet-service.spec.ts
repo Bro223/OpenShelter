@@ -21,6 +21,7 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
+    submitterVerified: false,
     ...overrides,
   };
 }

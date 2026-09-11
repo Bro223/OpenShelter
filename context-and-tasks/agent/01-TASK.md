@@ -42,7 +42,7 @@ This task pack covers the **backend only**.
 | `ee.sheltermap.verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties` | `01` |
 | `ee.sheltermap.auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `JwtProperties`, `ContactChangeProperties`, DTOs, repo interfaces, `RateLimiter` | `03` |
 | `ee.sheltermap.ingestion` | `ShelterRegistryClient` + impls, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties` | `04` |
-| `ee.sheltermap.api` | `ShelterController`, `ReviewController`, `LocationController`, `ShelterQueryService`, `ShelterReviewService`, DTOs, `ErrorResponse` | `05` |
+| `ee.sheltermap.api` | `ShelterController`, `ReviewController`, `LocationController`, `ShelterQueryService`, `ShelterReviewService`, DTOs (`ShelterDto` carries `submitterVerified` — true when the shelter's creator exists and has a completed verification, false for registry rows; accessibility-and-provenance D3), `ErrorResponse` | `05` |
 | `ee.sheltermap.persistence` | Spring Data JPA implementations of the repository interfaces (added in Step 3) | — |
 | `ee.sheltermap.config` | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler`, `RegistryRunConfig`. It no longer holds the context `*Properties` records — those moved with their contexts (`JwtProperties`/`ContactChangeProperties` → `auth`, `RegistryProperties` → `ingestion`, `VerificationProperties` → `verification`) in the 2026-09-08 arch pass | — |
 

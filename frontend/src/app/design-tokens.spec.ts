@@ -11,8 +11,10 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
  *
  * Rules:
  *  1. Hex colours and rgb()/rgba() may only appear inside the styles.scss
- *     :root token block (documented exceptions there are the token values
- *     themselves; the marker shadow token carries its rgba()).
+ *     :root token block OR the [data-theme='high-contrast'] override block
+ *     (accessibility-and-provenance D1: the theme overrides the SAME token
+ *     names — values differ by theme, names are stable — so it is a token
+ *     block too; its literals are the documented, contrast-verified values).
  *  2. Stylesheets outside styles.scss may not use literal font-size /
  *     font-weight — the type tokens must be used instead.
  *  3. @media queries must use the documented narrow breakpoint (720px,
@@ -56,21 +58,21 @@ function violations(css: string, pattern: RegExp): string[] {
   return out;
 }
 
-/** Line indexes (0-based) inside the :root { ... } block of styles.scss. */
-function rootBlockLines(css: string): Set<number> {
+/** Line indexes (0-based) inside one flat `{ selector } { ... }` block. */
+function blockLines(css: string, selector: RegExp): Set<number> {
   const inside = new Set<number>();
-  let inRoot = false;
+  let inBlock = false;
   let depth = 0;
   css.split('\n').forEach((line, i) => {
-    if (!inRoot && /^\s*:root\s*\{/.test(line)) {
-      inRoot = true;
+    if (!inBlock && selector.test(line)) {
+      inBlock = true;
       depth = 0;
     }
-    if (inRoot) {
+    if (inBlock) {
       inside.add(i);
       depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
       if (depth <= 0) {
-        inRoot = false;
+        inBlock = false;
       }
     }
   });
@@ -79,7 +81,11 @@ function rootBlockLines(css: string): Set<number> {
 
 describe('design tokens (M6)', () => {
   const stylesCss = readFileSync(STYLES_FILE ?? '', 'utf8');
-  const rootLines = rootBlockLines(stylesCss);
+  const rootLines = blockLines(stylesCss, /^\s*:root\s*\{/);
+  // D1: the high-contrast theme overrides the SAME token names with theme
+  // values — its hex/rgba literals are the token block's second home.
+  const themeLines = blockLines(stylesCss, /^\s*\[data-theme='high-contrast'\]\s*\{/);
+  const tokenLines = new Set([...rootLines, ...themeLines]);
   const audited = STYLE_FILES.map((f) => {
     const name = f.slice(SRC_DIR.length + 1);
     return [name, readFileSync(f, 'utf8'), f === STYLES_FILE] as const;
@@ -89,16 +95,40 @@ describe('design tokens (M6)', () => {
     expect(STYLE_FILES.length).toBeGreaterThanOrEqual(12);
   });
 
-  it('styles.scss — colour literals only inside the :root token block', () => {
+  it('styles.scss — colour literals only inside the :root token block or the theme block', () => {
     stylesCss.split('\n').forEach((line, i) => {
       const isColour = /#[0-9a-fA-F]{3,8}\b/.test(line) || /rgba?\(/.test(line);
       if (isColour) {
         expect(
-          rootLines.has(i),
-          `colour literal outside the :root token block — line ${i + 1}: ${line.trim()}`,
+          tokenLines.has(i),
+          `colour literal outside the :root / high-contrast token blocks — line ${i + 1}: ${line.trim()}`,
         ).toBe(true);
       }
     });
+  });
+
+  it('styles.scss — the high-contrast theme block overrides a sampled set of token names (D1)', () => {
+    // Names are stable across themes (same names, values differ) — sample
+    // the load-bearing tokens so a rename/typo in the override block fails.
+    const themeCss = [...themeLines].map((i) => stylesCss.split('\n')[i]).join('\n');
+    for (const token of [
+      '--color-text',
+      '--color-muted',
+      '--color-bg',
+      '--color-bg-surface',
+      '--color-surface-overlay',
+      '--color-primary',
+      '--color-cta',
+      '--color-border',
+      '--color-danger',
+      '--color-success',
+      '--color-warning',
+      '--color-info',
+      '--color-badge-registry',
+      '--color-shelter-registry',
+    ]) {
+      expect(themeCss, `high-contrast block missing ${token}`).toContain(`${token}:`);
+    }
   });
 
   it.each(audited)('%s — no literal colour values', (_name, css, isGlobal) => {
