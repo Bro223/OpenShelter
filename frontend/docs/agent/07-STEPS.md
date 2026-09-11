@@ -8,7 +8,8 @@ Each milestone lists its **inputs** (puml + context files), **deliverables**, **
 
 **Status:** M0–M6 DONE (all milestones complete; M6 verified 2026-09-06 against the real
 running API — `mvn spring-boot:run` at the repo root, port 8080, with the dev server at
-`http://localhost:5173`). Every milestone was verified against the real running API.
+`http://localhost:5173`). Every milestone was verified against the real running API. The
+post-M6 trust wave (shelter-trust-and-reports) is documented at the end of this file.
 
 ---
 
@@ -203,5 +204,32 @@ MapLibre, httpOnly cookies); `environment.ts` prod values documented; final `ng 
   review → account change).
 
 **Manual review:** the whole app + docs.
+
+**STOP — final review.**
+
+---
+
+## Trust & reports wave (shelter-trust-and-reports, post-M6)
+
+**Status: DONE.** The frontend half of the community trust layer — no new routes, only the
+existing pages grow: `MapPage` (trust filter chips + rating select, the orange reported
+marker + `Reported` legend entry, row trust badges), `ShelterDetailPage` (the trust header
+badges, "Report this shelter" — five radio types, the per-review "Report" picker — four
+reasons, and "Report how full" — three large band buttons pre-selected from
+`yourOccupancyBand`), the `ContributionsPanel` (auto-hidden rows marked "Hidden — reported
+by the community (N reports)", no restore action; the 409 shelter-cap surfaces the server
+message in the row error), and the `--color-reported` design token (light `#c2410c`, high-
+contrast `#ffa94d` — contrast pinned in `design-tokens.spec.ts`). Gateway additions:
+`ShelterGateway.report` / `reportOccupancy`, `ReviewGateway.reportReview`; `ShelterGateway.
+list` takes the optional `ShelterTrustFilter`; `ShelterGateway.get` returns the detail
+projection (`ShelterDetailDto`). All trust state is rendered from the DTO fields — never
+re-derived client-side; a 409 duplicate shows the server's message inline (`role=status`), a
+429 throttle uses the generic "slow down" banner copy, and every successful report
+refetches. See `02-CONTEXT-API.md` (trust-reports section), `05-CONTEXT-MAP.md`,
+`06-CONTEXT-SHELTER.md` and the two updated pumls (`04-map-browse-flow.puml`,
+`05-shelter-review-flow.puml`).
+
+**Acceptance:** `npx ng test` green — **657 tests across 35 spec files** (counted
+2026-09-11); backend half: 433 tests green (same count). `tsc` + `prettier` clean.
 
 **STOP — final review.**

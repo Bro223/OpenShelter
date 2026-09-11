@@ -6,12 +6,14 @@ title Shelter Map - Shelter API (read + write + community reviews)
 
 package "api" {
   class ShelterController {
-    + GET    /api/shelters?source=REGISTRY|USER|ALL
+    + GET    /api/shelters?source=REGISTRY|USER|ALL  ' + optional trust filters (V9)
     + GET    /api/shelters/{id}
     + POST   /api/shelters
     + GET    /api/shelters/mine
     + PUT    /api/shelters/{id}
     + DELETE /api/shelters/{id}
+    + POST   /api/shelters/{id}/reports      ' V9: 204; 404/409/429
+    + PUT    /api/shelters/{id}/occupancy    ' V9: 204 upsert; 404/429
   }
 
   class ReviewController {
@@ -19,6 +21,7 @@ package "api" {
     + POST   /api/shelters/{id}/reviews
     + PUT    /api/shelters/{id}/reviews/mine
     + DELETE /api/shelters/{id}/reviews/mine
+    + POST   /api/shelters/{id}/reviews/{reviewId}/reports  ' V9: 204; 403 own/404/409/429
   }
 
   class AccountController {
@@ -45,10 +48,16 @@ package "api" {
   }
 
   class ShelterQueryService {
-    + findAll(filter : ShelterSourceFilter) : List<ShelterDto>
-    + findById(id : Long) : Optional<ShelterDto>
+    + findAll(source : ShelterSourceFilter, reviewed : Boolean, minRating : Integer, hasCapacity : Boolean) : List<ShelterDto>
+    + findById(id : Long, caller : User) : Optional<ShelterDto>
     + findByCreatedBy(userId : Long) : List<ShelterDto>
     ' M8 author-scoped list - same lean DTO projection (no N+1).
+    ' V9 (D5): the public list is ACTIVE rows only (auto-hidden shelters are
+    ' absent); the trust filters (reviewed / minRating 1..5 / hasCapacity) are
+    ' applied in-memory over the projection - no new SQL surface. findById is
+    ' the detail read (ALL statuses; the single-shelter read carries
+    ' yourOccupancyBand). The trust derivations (nonexistentReports, the
+    ' statusFlag net, the fresh occupancy block) ride the same batched pass.
   }
 
   class ShelterReviewService {
@@ -80,11 +89,46 @@ package "api" {
                                    ' exists + verification COMPLETED; false for
                                    ' registry rows (no author) and for deleted
                                    ' creators (absent from the findByIds batch)
+    + nonexistentReports : int     ' V9 (D1): 0 when none; > 0 = the orange
+                                   ' "Reported" affordance (derived, not stored)
+    + statusFlag : ShelterStatusFlag  ' V9 (D1): CLOSED vs OPEN_CONFIRMED net
+                                   ' (REPORTED_CLOSED / CONFIRMED_OPEN / null);
+                                   ' display-only, never status or visibility
+    + occupancy : Occupancy        ' V9 (D4): the fresh (<= 2 h) block; null
+                                   ' when nothing fresh (silent - no cleanup job)
+    + yourOccupancyBand : OccupancyBand
+                                   ' V9 (D5): the CALLER's own live band -
+                                   ' DETAIL read only; null for guests,
+                                   ' anonymous callers and no-report users
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
-    ' the UI gets only what the map needs.
+    ' the UI gets only what the map needs. All V9 derivations are computed
+    ' server-side in the batched projection - never client-computed.
     ' description/capacity: USER-submission details (stored since V3;
     ' null for registry rows).
+  }
+
+  class Occupancy <<record>> {
+    ' Nested inside ShelterDto (V9, D4): the fresh (<= 2 h) occupancy block;
+    ' null on the DTO when nothing is fresh (silent - no cleanup job).
+    + band : OccupancyBand      ' the latest fresh band (ties: user id)
+    + reportCount : int         ' fresh reports agreeing with it:
+                                ' 1 = hedged copy, 2+ = firm
+    + lastReportedAt : Instant  ' the newest fresh report's time
+  }
+
+  class ShelterReportRequest <<record>> {
+    + type : ShelterReportType    ' @NotNull
+    + detail : String             ' @Size(max = 500) - free text for OTHER only
+  }
+
+  class OccupancyReportRequest <<record>> {
+    + band : OccupancyBand        ' @NotNull
+  }
+
+  class ReviewReportRequest <<record>> {
+    + reason : ReviewReportReason ' @NotNull
+    + detail : String             ' @Size(max = 500) - free text for OTHER only
   }
 
   class CreateShelterRequest <<record>> {
@@ -116,6 +160,9 @@ package "api" {
     + rating : int
     + comment : String
     + createdAt : Instant
+    + hidden : boolean  ' V9 (D2): community-hidden (5th report); hidden rows
+                        ' are NEVER returned to non-authors - only the author
+                        ' receives their own, with this flag, to mark it
   }
 
   class MyReviewDto <<record>> {
@@ -141,6 +188,33 @@ package "api" {
     REGISTRY
     USER
     ALL
+  }
+
+  ' V9 (shelter-trust-and-reports): the closed sets of the trust layer.
+  enum ShelterReportType {
+    NON_EXISTENT
+    CLOSED
+    OPEN_CONFIRMED
+    WRONG_LOCATION
+    OTHER
+  }
+
+  enum OccupancyBand {
+    SPACE
+    GETTING_FULL
+    FULL
+  }
+
+  enum ReviewReportReason {
+    FALSY_DATA
+    NOT_RELEVANT
+    SPAM
+    OTHER
+  }
+
+  enum ShelterStatusFlag {
+    REPORTED_CLOSED
+    CONFIRMED_OPEN
   }
 }
 
@@ -188,6 +262,58 @@ package "app - location resolution (contracts only)" {
   end note
 }
 
+' ============ TRUST LAYER (shelter-trust-and-reports, V9) ============
+' app/ seams shown as contracts - defined in 01 (app context). The V9 tables:
+' shelter_reports (UNIQUE shelter_id, user_id, type), shelter_occupancy_reports
+' (UNIQUE shelter_id, user_id), review_reports (UNIQUE review_id, user_id),
+' report_actions (the durable throttle log), shelters.auto_hide_disarmed,
+' shelter_reviews.hidden_at. Every report FK is ON DELETE CASCADE to
+' shelters/users (a deleted shelter/user/review drops its reports with it).
+package "app - trust layer (contracts only)" {
+  class ShelterReportService {
+    + reportShelter(user : User, shelterId : long, type : ShelterReportType, detail : String) : void
+    + reportOccupancy(user : User, shelterId : long, band : OccupancyBand) : void
+    ' Verified-only (403, the submission vocabulary), 404 unknown shelter,
+    ' 409 duplicate (shelter, user, type) BEFORE any throttle budget is
+    ' consumed, 429 report throttle (10 report-type actions / rolling hour).
+    ' The 4 -> 5 NON_EXISTENT insert auto-hides an ACTIVE shelter whose
+    ' autoHideDisarmed is false - the ONLY auto-hide path (D1); later
+    ' reports never re-hide (manual restore sets the flag).
+    ' Occupancy: upsert - one live band per user per shelter, latest wins,
+    ' updated_at refreshed. Display-only: never hides, recolors or filters.
+  }
+
+  interface ReportActionLog {
+    + record(userId : long, action : Action) : void
+    ' Action = SHELTER_REPORT | REVIEW_REPORT | OCCUPANCY - one row per
+    ' report-type action (any target, any type; occupancy re-PUTs count -
+    ' a re-PUT updates one row and would be uncountable from the report
+    ' tables). Counted over the trailing hour; at the cap (default 10,
+    ' ReportProperties.maxActionsPerHour, 0 disables) reject WITHOUT
+    ' recording (429 "Too many report requests"). The check-and-record is
+    ' ATOMIC per user: persistence.JpaReportActionLog serializes it with a
+    ' transaction-scoped Postgres advisory lock (pg_advisory_xact_lock,
+    ' released on commit - the exact critical section).
+  }
+
+  interface ShelterReportRepository {
+    + countByTypeForShelterIds(ids : Collection<Long>) : List<ReportTypeCount>
+    ' one report per (shelter, user, type) - the per-target unique bound
+  }
+
+  interface ShelterOccupancyRepository {
+    + findFreshByShelterIds(ids : Collection<Long>, freshSince : Instant) : List<ShelterOccupancyReport>
+    ' the 2 h freshness window is applied in SQL; the derivation
+    ' (latest band wins, agreeing count, newest timestamp) is in memory
+  }
+
+  interface ReviewReportRepository {
+    + countByReviewId(reviewId : Long) : long
+    ' one report per (review, user); the 5th hides the review (hidden_at,
+    ' set once, never cleared automatically - admin moderation only)
+  }
+}
+
 ' ============ CONTRACT WITH OTHER CONTEXTS (interfaces only) ============
 ShelterController --> ShelterQueryService : GET + GET /mine
 ShelterController --> ShelterService : POST / PUT / DELETE (app/01)
@@ -208,7 +334,22 @@ ShelterReviewService --> RegisteredUser : requires verified account
 ShelterReviewService ..> ShelterReview : upserts
 ShelterReviewService --> ShelterReviewDto
 ReviewController --> ReviewRequest
-ShelterReviewService ..> ErrorResponse : 403 if not verified / not author
+ReviewController --> ReviewReportRequest : V9 review-report body
+ShelterReviewService ..> ErrorResponse : 403 if not verified / not author / own review
+
+' ---- trust layer (V9, shelter-trust-and-reports) ----
+ShelterController --> ShelterReportService : reports + occupancy (app/V9)
+ShelterController --> ShelterReportRequest : parses report body
+ShelterController --> OccupancyReportRequest : parses occupancy body
+ShelterReportService --> ShelterReportRepository : interface (V9)
+ShelterReportService --> ShelterOccupancyRepository : interface (V9)
+ShelterReportService ..> ReportActionLog : check-and-record (429 at the cap)
+ShelterReportService ..> Shelter : the ONLY auto-hide path (4 -> 5 NON_EXISTENT)
+ShelterQueryService --> ShelterReportRepository : report counts by type (one batched query)
+ShelterQueryService --> ShelterOccupancyRepository : fresh occupancy rows (one batched query)
+ShelterReviewService --> ReviewReportRepository : interface (V9)
+ShelterReviewService ..> ReportActionLog : check-and-record (429 at the cap)
+ShelterReviewService ..> ShelterReview : the 5th report sets hidden_at (once)
 
 ' ---- location resolution (POST /api/geo/resolve) ----
 LocationController --> LocationResolveService : resolve(url)
@@ -224,12 +365,26 @@ ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()
 ShelterSourceFilter --> ShelterSource : REGISTRY={PAASETEAMET,MUNICIPALITY}, USER={USER}, ALL={all}
 
 note bottom of ShelterController
-  GET  /api/shelters?source=REGISTRY|USER|ALL  (public - VIEW_MAP baseline)
-  GET  /api/shelters/{id}                      (public)
-  POST /api/shelters                           (Bearer JWT, canWrite() check)
-  GET  /api/shelters/mine                      (Bearer JWT - the CALLER's shelters, NOT public)
+  GET  /api/shelters?source=REGISTRY|USER|ALL  (public - VIEW_MAP baseline;
+       ACTIVE rows ONLY since V9 - auto-hidden shelters are absent; the optional
+       trust filters reviewed / minRating 1..5 (else 400) / hasCapacity compose
+       with source, applied in the projection)
+  GET  /api/shelters/{id}                      (public - ALL statuses, incl.
+       auto-hidden; the detail read additionally carries yourOccupancyBand)
+  POST /api/shelters                           (Bearer JWT, canWrite() check;
+       409 when the caller already has 10 ACTIVE USER shelters - ADMIN kind
+       exempt; deletions and auto-hidden rows free the cap)
+  GET  /api/shelters/mine                      (Bearer JWT - the CALLER's shelters,
+       ALL statuses incl. auto-hidden, NOT public)
   PUT    /api/shelters/{id}                    (Bearer JWT, author-only USER rows)
   DELETE /api/shelters/{id}                    (Bearer JWT, author-only; reviews cascade)
+  POST /api/shelters/{id}/reports              (Bearer JWT + verified -> 204;
+       404 unknown shelter; 409 duplicate (shelter, user, type) - checked before
+       the throttle budget; 429 report throttle. The 5th NON_EXISTENT auto-hides.
+       Verified-only: 403 "Reporting requires a verified account")
+  PUT  /api/shelters/{id}/occupancy            (Bearer JWT + verified -> 204 upsert;
+       one live band per user per shelter, latest wins; 404 unknown; 429 throttle;
+       no 409 - a re-send is the update. Display-only, fresh <= 2 h at read time)
   POST /api/geo/resolve                        (Bearer JWT, per-IP 5/min -> 429;
        LocationController - 400 ONE generic message when no pair / outside
        Estonia / non-whitelisted host; 502 ONE generic retry-later message on
@@ -254,6 +409,12 @@ note bottom of ShelterReviewService
   - Requires an authenticated, VERIFIED account (any VerificationClaim)
   - update/delete: author only (ownership check)
   - rating 1..5, comment <= 500 chars
+  - V9 (D2): reportReview - verified users report any NON-OWN review
+    (403 own, 404 unknown/mismatched, 409 duplicate (review, user),
+    429 throttle); the 5th report sets hidden_at (once, never cleared
+    automatically, never deletes). Hidden reviews are excluded from the list
+    (except the author, marked hidden), the rating aggregate, the review
+    count and the reviewed filter.
   - Aggregates computed per request in v1; denormalize onto Shelter or
     Redis-cache when traffic grows (SDI Ch 6)
 end note
@@ -267,6 +428,8 @@ participant "ShelterController" as SC
 participant "ShelterQueryService" as SQS
 participant "ShelterRepository" as REPO
 participant "ShelterService" as SS
+participant "ShelterReportService" as SRS
+participant "ReportActionLog" as RAL
 participant "ShelterReviewService" as RVS
 participant "ShelterReviewRepository" as RREPO
 participant "AccountController" as ACC
@@ -275,13 +438,19 @@ participant "LocationResolveService" as LRS
 participant "HttpUrlRedirectClient" as HRC
 database "PostgreSQL" as DB
 
-== 1. GET /api/shelters?source=USER (public) ==
+== 1. GET /api/shelters?source=USER (public, ACTIVE rows only) ==
 Client -> SC : GET /api/shelters?source=USER
-SC -> SQS : findAll(USER)
-SQS -> REPO : findAllBySourceIn([USER])
-REPO -> DB : SELECT ... WHERE source IN (...)
+note right of SC
+  V9: the public list is status = ACTIVE ONLY (auto-hidden shelters
+  are absent). Optional trust filters compose with source:
+  reviewed=true, minRating=1..5 (else 400), hasCapacity=true.
+end note
+SC -> SQS : findAll(USER, reviewed?, minRating?, hasCapacity?)
+SQS -> REPO : findAllActiveBySourceIn([USER])
+REPO -> DB : SELECT ... WHERE source IN (...) AND status = 'ACTIVE'
 REPO --> SQS : List<Shelter>
-SQS --> SC : List<ShelterDto> (with averageRating, reviewCount)
+SQS -> DB : rating aggregates + report counts by type + fresh occupancy (one batched pass - no N+1)
+SQS --> SC : List<ShelterDto> (with averageRating, reviewCount, nonexistentReports, statusFlag, occupancy)
 SC --> Client : 200 [ShelterDto]
 
 == 2. POST /api/shelters (Bearer JWT, verified user) ==
@@ -365,4 +534,82 @@ else
     LC --> Client : 502 ONE generic retry-later message (no upstream detail)
   end
 end
+
+== 10. POST /api/shelters/{id}/reports (Bearer JWT, verified user) ==
+Client -> SC : POST /api/shelters/{id}/reports {type, detail?}
+SC -> SRS : reportShelter(user, id, type, detail)
+alt no/invalid token (guests cannot report)
+  SC --> Client : 401 (uniform ErrorResponse)
+else registered but NOT verified
+  SRS --> Client : 403 "Reporting requires a verified account"
+else unknown shelter
+  SRS --> Client : 404
+else duplicate (shelter, user, type)
+  SRS --> Client : 409 "This report has already been submitted" (no throttle budget consumed)
+else report throttle (10 report-type actions / rolling hour)
+  SRS -> RAL : record(user, SHELTER_REPORT)
+  RAL --> SRS : at cap -> reject WITHOUT recording
+  SRS --> Client : 429 "Too many report requests"
+else
+  SRS -> RAL : record(user, SHELTER_REPORT)  (advisory-locked check-and-record)
+  SRS -> DB : INSERT shelter_reports (UNIQUE shelter_id, user_id, type)
+  alt type = NON_EXISTENT and the count goes 4 -> 5 (shelter ACTIVE, not disarmed)
+    SRS -> DB : UPDATE shelters SET status = INACTIVE (auto-hide, exactly-once trigger)
+  end
+  SRS --> Client : 204 No Content
+end
+note over SRS
+  The auto-hide is the ONLY auto-hide path. After a manual status change
+  (admin restore sets auto_hide_disarmed = true) later reports increment
+  the count but never re-hide. CLOSED / OPEN_CONFIRMED net to a display
+  flag only (closed > confirmed -> REPORTED_CLOSED; both >= 1 ->
+  CONFIRMED_OPEN, a tie counts as confirmed open) - they never hide.
+end note
+
+== 11. POST /api/shelters/{id}/reviews/{reviewId}/reports (Bearer JWT, verified user) ==
+Client -> RVS : POST .../reports {reason, detail?}
+alt registered but NOT verified
+  RVS --> Client : 403 "Reviews require a verified account"
+else unknown shelter / unknown review / review not of this shelter
+  RVS --> Client : 404
+else the caller's OWN review
+  RVS --> Client : 403 "You cannot report your own review"
+else duplicate (review, user)
+  RVS --> Client : 409 (no throttle budget consumed)
+else report throttle
+  RVS --> Client : 429
+else
+  RVS -> RAL : record(user, REVIEW_REPORT)
+  RVS -> DB : INSERT review_reports (UNIQUE review_id, user_id)
+  alt the report count reaches 5
+    RVS -> DB : UPDATE shelter_reviews SET hidden_at = now()  (set once, never cleared automatically)
+  end
+  note right of RVS
+    Hidden = excluded from the review list (except the author, who
+    sees it marked hidden), the average rating, the review count and
+    the reviewed filter. Only admin moderation clears hidden_at.
+  end note
+  RVS --> Client : 204 No Content
+end
+
+== 12. PUT /api/shelters/{id}/occupancy (Bearer JWT, verified user) ==
+Client -> SRS : PUT /api/shelters/{id}/occupancy {band}
+alt NOT verified
+  SRS --> Client : 403
+else unknown shelter
+  SRS --> Client : 404
+else report throttle (re-PUTs count against the budget)
+  SRS --> Client : 429
+else
+  SRS -> RAL : record(user, OCCUPANCY)
+  SRS -> DB : UPSERT shelter_occupancy_reports (shelter_id, user_id) - latest band wins, updated_at refreshed
+  SRS --> Client : 204 No Content
+end
+note over SRS, DB
+  Occupancy is DISPLAY-ONLY: it never hides, recolors or filters. The read-time
+  derivation (GET /api/shelters*): fresh = updated_at within the last 2 h (checked
+  in SQL, no cleanup job); the most recent fresh band wins; reportCount = fresh
+  reports agreeing with it (1 = "Reported full" hedged, 2+ = "Full" firm);
+  nothing fresh -> no occupancy shown.
+end note
 @enduml

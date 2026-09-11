@@ -62,6 +62,9 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     description: null,
     capacity: null,
     submitterVerified: false,
+    nonexistentReports: 0,
+    statusFlag: null,
+    occupancy: null,
     ...overrides,
   };
 }
@@ -1017,6 +1020,264 @@ describe('MapPage', () => {
       expect(scss).not.toMatch(/scroll-snap-type\s*:/);
       expect(scss).not.toMatch(/scroll-snap-align\s*:/);
       expect(scss).not.toMatch(/scroll-snap-stop\s*:/);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Trust filters + reported/occupancy presentation (shelter-trust-and-
+  // reports D5/D6): Reviewed / Has capacity toggle chips + the rating
+  // select, all composable with the source chips — every change is a
+  // server refetch with the matching query params, then the list rebuild.
+  // ---------------------------------------------------------------------------
+  describe('trust filters (shelter-trust-and-reports D5/D6)', () => {
+    beforeEach(() => {
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(
+          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
+        ),
+      );
+    });
+
+    /** The two toggle chips + the rating select of the trust row. */
+    function trustControls(element: HTMLElement): {
+      reviewed: HTMLButtonElement;
+      hasCapacity: HTMLButtonElement;
+      select: HTMLSelectElement;
+    } {
+      const chips = [...element.querySelectorAll<HTMLButtonElement>('.trust-chip')];
+      const select = element.querySelector<HTMLSelectElement>('.filter-rating select');
+      if (chips.length !== 2 || select === null) {
+        throw new Error('trust filter controls not rendered');
+      }
+      return { reviewed: chips[0], hasCapacity: chips[1], select };
+    }
+
+    function setRating(element: HTMLElement, value: string): void {
+      const { select } = trustControls(element);
+      select.value = value;
+      select.dispatchEvent(new Event('change'));
+    }
+
+    it('renders the Reviewed / Has capacity toggle chips and the rating select beside the source chips', async () => {
+      const { element } = await open('/map');
+
+      const { reviewed, hasCapacity, select } = trustControls(element);
+      expect(reviewed.textContent?.trim()).toBe('Reviewed');
+      expect(hasCapacity.textContent?.trim()).toBe('Has capacity');
+      // Neither toggle is active initially; the select starts on Any rating.
+      expect(reviewed.classList.contains('chip--active')).toBe(false);
+      expect(reviewed.getAttribute('aria-pressed')).toBe('false');
+      expect(hasCapacity.getAttribute('aria-pressed')).toBe('false');
+      expect(select.value).toBe('');
+      expect([...select.options].map((o) => o.textContent?.trim())).toEqual([
+        'Any rating',
+        '1★+',
+        '2★+',
+        '3★+',
+        '4★+',
+        '5★+',
+      ]);
+      // The source chips are untouched (existing three, still first in the row).
+      const sourceChips = [...element.querySelectorAll<HTMLButtonElement>('.chip')];
+      expect(sourceChips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
+    });
+
+    it('toggling Reviewed refetches with reviewed=true and back to the legacy call shape', async () => {
+      const { element, fixture } = await open('/map');
+      const { reviewed } = trustControls(element);
+
+      reviewed.click();
+      await settle(fixture);
+      expect(reviewed.classList.contains('chip--active')).toBe(true);
+      expect(reviewed.getAttribute('aria-pressed')).toBe('true');
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { reviewed: true });
+
+      reviewed.click(); // off — the param disappears (legacy single-arg call)
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+    });
+
+    it('toggling Has capacity refetches with hasCapacity=true', async () => {
+      const { element, fixture } = await open('/map');
+      const { hasCapacity } = trustControls(element);
+
+      hasCapacity.click();
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
+
+      hasCapacity.click();
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+    });
+
+    it('the rating select refetches with minRating (4★+ -> minRating=4) and Any clears it', async () => {
+      const { element, fixture } = await open('/map');
+
+      setRating(element, '4');
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { minRating: 4 });
+
+      setRating(element, '1');
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { minRating: 1 });
+
+      setRating(element, ''); // Any rating again
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+    });
+
+    it('the trust filters combine with the source chips (User + Reviewed + 3★+)', async () => {
+      const { element, fixture } = await open('/map');
+      const { reviewed, hasCapacity } = trustControls(element);
+
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User
+      await settle(fixture);
+      reviewed.click();
+      await settle(fixture);
+      hasCapacity.click();
+      await settle(fixture);
+      setRating(element, '3');
+      await settle(fixture);
+
+      // One request carrying the whole composed state (D5 scenario).
+      expect(gateway.list).toHaveBeenLastCalledWith('USER', {
+        reviewed: true,
+        minRating: 3,
+        hasCapacity: true,
+      });
+      // The list rebuilt from that response (the USER rows, name-sorted).
+      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+      expect(text(fixture)).toContain('Community Cellar');
+    });
+
+    it('a trust-filter refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
+      let calls = 0;
+      gateway.list.mockImplementation(() => {
+        calls++;
+        // The initial ALL fetch succeeds; the reviewed=true refetch fails;
+        // toggling back off re-fetches cleanly.
+        return calls === 2 ? Promise.reject(ApiError.fromNetwork()) : Promise.resolve(ALL_ROWS);
+      });
+      const { element, fixture } = await open('/map');
+      const { reviewed } = trustControls(element);
+
+      reviewed.click();
+      await settle(fixture);
+      expect(element.querySelector('.banner--error')).not.toBeNull();
+
+      reviewed.click(); // back off — the failed filter is dropped, list re-fetches cleanly
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenCalledTimes(3);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+      expect(element.querySelector('.banner--error')).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Reported / occupancy presentation (shelter-trust-and-reports D1/D6):
+  // the orange legend entry, the row badges, and the marker hand-off to
+  // LeafletService (whose class logic lives in leaflet-service.spec.ts).
+  // ---------------------------------------------------------------------------
+  describe('reported and occupancy presentation (D1/D6)', () => {
+    const minutesAgo = (minutes: number): string =>
+      new Date(Date.now() - minutes * 60000).toISOString();
+
+    beforeEach(() => {
+      // Default list (unreported, unoccupied) — individual tests override.
+      gateway.list.mockResolvedValue(ALL_ROWS);
+    });
+
+    const REPORTED_BASEMENT = shelter({
+      id: 20,
+      name: 'Reported Cellar',
+      address: null,
+      source: 'USER',
+      averageRating: null,
+      reviewCount: 0,
+      nonexistentReports: 2, // 1–4: flagged, still ACTIVE and public
+    });
+    const REPORTED_CLOSED = shelter({
+      id: 21,
+      name: 'Closed Shelter',
+      statusFlag: 'REPORTED_CLOSED',
+    });
+    const CONFIRMED_OPEN = shelter({ id: 22, name: 'Open Shelter', statusFlag: 'CONFIRMED_OPEN' });
+    const FULL_FIRM = shelter({
+      id: 23,
+      name: 'Full Shelter',
+      occupancy: { band: 'FULL', reportCount: 2, lastReportedAt: minutesAgo(12) },
+    });
+    const FULL_HEDGED = shelter({
+      id: 24,
+      name: 'Lone Shelter',
+      occupancy: { band: 'FULL', reportCount: 1, lastReportedAt: minutesAgo(12) },
+    });
+
+    it('the legend gains the orange "reported" entry (marker class + label)', async () => {
+      const { element } = await open('/map');
+
+      const legend = element.querySelector<HTMLElement>('.map-legend');
+      expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
+      expect(legend?.textContent).toContain('Reported');
+      // The two provenance entries stay (the orange one is ADDED, not swapped).
+      expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
+    });
+
+    it('a reported shelter (nonexistentReports > 0) shows the orange "Reported" row badge and is handed to the marker renderer', async () => {
+      gateway.list.mockResolvedValue([REPORTED_BASEMENT]);
+      const { element } = await open('/map');
+
+      const badge = element.querySelector('.badge--reported');
+      expect(badge?.textContent?.trim()).toBe('Reported');
+      // The row keeps its provenance badge too (the orange is the single
+      // marker affordance; the row text stays four-valued).
+      expect(element.querySelector('.shelter-row .badge')?.textContent?.trim()).toBe(
+        'User-submitted',
+      );
+      // The reported row reaches the marker renderer (the orange CLASS on
+      // the pin itself is asserted in leaflet-service.spec.ts).
+      expect(leaflet.lastRendered).toEqual([REPORTED_BASEMENT]);
+    });
+
+    it('unreported rows carry no "Reported" badge (provenance colours only)', async () => {
+      const { element } = await open('/map'); // ALL_ROWS — all unreported
+
+      expect(element.querySelector('.badge--reported')).toBeNull();
+      expect(element.querySelector('.badge--closed')).toBeNull();
+      expect(element.querySelector('.badge--open')).toBeNull();
+      expect(element.querySelector('.badge--occupancy')).toBeNull();
+    });
+
+    it('statusFlag renders as the amber "Reported closed" / green "Confirmed open" badges', async () => {
+      gateway.list.mockResolvedValue([REPORTED_CLOSED, CONFIRMED_OPEN]);
+      const { element } = await open('/map');
+
+      const closed = element.querySelector('.badge--closed');
+      expect(closed?.textContent?.trim()).toBe('Reported closed');
+      const openBadge = element.querySelector('.badge--open');
+      expect(openBadge?.textContent?.trim()).toBe('Confirmed open');
+    });
+
+    it('fresh occupancy renders the NEUTRAL badge: firm at two+, hedged at one, with recency', async () => {
+      gateway.list.mockResolvedValue([FULL_FIRM, FULL_HEDGED]);
+      const { element } = await open('/map');
+
+      const badges = [...element.querySelectorAll<HTMLElement>('.badge--occupancy')].map((b) =>
+        b.textContent?.trim(),
+      );
+      // Name-sorted: Full Shelter (firm) before Lone Shelter (hedged).
+      expect(badges).toEqual(['Full · 12 min ago', 'Reported full · 12 min ago']);
+      // Occupancy is never styled success/crisis — its own neutral class only.
+      expect(element.querySelector('.badge--occupancy.badge--open')).toBeNull();
+      expect(element.querySelector('.badge--occupancy.badge--reported')).toBeNull();
+    });
+
+    it('stale/absent occupancy (null block) renders no occupancy badge', async () => {
+      const { element, fixture } = await open('/map'); // ALL_ROWS — occupancy null
+
+      expect(element.querySelector('.badge--occupancy')).toBeNull();
+      expect(text(fixture)).not.toContain('min ago');
     });
   });
 });

@@ -17,6 +17,24 @@
           <span class="badge" [class.badge--user]="s.source === 'USER'">
             {{ provenanceLabel(s) }}
           </span>
+          <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
+               as the map list row — reported / statusFlag / occupancy. -->
+          @if (hasTrustBadges(s)) {
+            @if (hasReports(s)) {
+              <span class="badge badge--reported">Reported</span>
+            }
+            @if (statusFlagText(s.statusFlag); as flagText) {
+              <span
+                class="badge"
+                [class.badge--closed]="s.statusFlag === 'REPORTED_CLOSED'"
+                [class.badge--open]="s.statusFlag === 'CONFIRMED_OPEN'"
+                >{{ flagText }}</span
+              >
+            }
+            @if (s.occupancy; as occ) {
+              <span class="badge badge--occupancy">{{ occupancyText(occ) }}</span>
+            }
+          }
         }
       </div>
       @if (shelter(); as s) {
@@ -85,6 +103,137 @@
         </section>
       }
 
+      <!-- Report how full (shelter-trust-and-reports D4/D6): three large
+           band buttons, one tap, latest-wins. The user's current band is
+           pre-selected from yourOccupancyBand; the current aggregate +
+           recency render ONLY while fresh (the null block shows nothing).
+           Verified viewers report; unverified/anonymous get the existing
+           redirect vocabulary. -->
+      <section class="detail-section" aria-labelledby="occupancy-heading">
+        <h2 class="section-title" id="occupancy-heading">Report how full</h2>
+        @if (auth.initialized() && auth.authenticated()) {
+          @if (auth.isVerified()) {
+            <div class="band-picker" role="group" aria-label="How full is this shelter right now?">
+              @for (band of BANDS; track band.value) {
+                <button
+                  type="button"
+                  class="btn band-btn"
+                  [class.band-btn--active]="s.yourOccupancyBand === band.value"
+                  [attr.aria-pressed]="s.yourOccupancyBand === band.value"
+                  [disabled]="reporting()"
+                  (click)="reportBand(band.value)"
+                >
+                  {{ band.label }}
+                </button>
+              }
+            </div>
+            @if (s.occupancy; as occ) {
+              <p class="occupancy-line">{{ occupancyText(occ) }}</p>
+            }
+          } @else {
+            <div class="my-review-prompt">
+              <p>Verify your email or phone to report how full this shelter is.</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >Verify your account</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="my-review-prompt">
+            <p>Log in to report how full this shelter is.</p>
+          </div>
+        }
+      </section>
+
+      <!-- Report this shelter (shelter-trust-and-reports D1/D6): the typed
+           report (verified only, one per type), free text for OTHER. -->
+      <section class="detail-section" aria-labelledby="report-shelter-heading">
+        <h2 class="section-title" id="report-shelter-heading">Report this shelter</h2>
+        @if (auth.initialized() && auth.authenticated()) {
+          @if (auth.isVerified()) {
+            @if (!reportOpen()) {
+              <button
+                type="button"
+                class="btn btn--ghost"
+                [disabled]="reporting()"
+                (click)="openReport()"
+              >
+                Report
+              </button>
+            } @else {
+              <form class="report-form" (submit)="$event.preventDefault(); submitReport()">
+                <fieldset class="report-options" aria-label="Report type">
+                  @for (option of REPORT_TYPES; track option.value) {
+                    <label class="report-option">
+                      <input
+                        type="radio"
+                        name="shelter-report-type"
+                        [value]="option.value"
+                        [checked]="reportType() === option.value"
+                        (change)="onReportTypeChange($event)"
+                      />
+                      {{ option.label }}
+                    </label>
+                  }
+                </fieldset>
+                @if (reportType() === 'OTHER') {
+                  <div class="field">
+                    <label for="report-detail">Details (optional)</label>
+                    <textarea
+                      id="report-detail"
+                      rows="2"
+                      maxlength="500"
+                      [formControl]="reportDetail"
+                      placeholder="What should the community know?"
+                    ></textarea>
+                    @if (reportDetail.touched && reportDetail.invalid) {
+                      <p class="field-error">Details must be 500 characters or fewer.</p>
+                    }
+                  </div>
+                }
+                @if (reportDuplicate(); as dup) {
+                  <p class="report-status" role="status">{{ dup }}</p>
+                }
+                <div class="report-actions">
+                  <button
+                    type="submit"
+                    class="btn btn--primary"
+                    [disabled]="reporting() || reportType() === null || reportDetail.invalid"
+                  >
+                    {{ reporting() ? 'Submitting…' : 'Submit report' }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="closeReport()"
+                    [disabled]="reporting()"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            }
+          } @else {
+            <div class="my-review-prompt">
+              <p>Verify your email or phone to report this shelter.</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >Verify your account</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="my-review-prompt">
+            <p>Log in to report this shelter.</p>
+          </div>
+        }
+      </section>
+
       <section class="detail-section" aria-labelledby="reviews-heading">
         <h2 class="section-title" id="reviews-heading">Reviews</h2>
         @if (reviewsError(); as reviewError) {
@@ -94,9 +243,15 @@
         } @else {
           <ul class="review-list">
             @for (review of reviewsList(); track review.id) {
-              <li class="review">
+              <li class="review" [class.review--hidden]="review.hidden">
                 <div class="review__head">
                   <span class="review__author">{{ review.authorName }}</span>
+                  <!-- Hidden by five review reports (D2): only the author is
+                       ever served the row — the mark tells them why it no
+                       longer counts. -->
+                  @if (review.hidden) {
+                    <span class="review__hidden">Hidden</span>
+                  }
                   <app-rating-stars [rating]="review.rating" />
                   <time class="review__date" [attr.datetime]="review.createdAt">{{
                     review.createdAt | date: 'medium'
@@ -104,6 +259,84 @@
                 </div>
                 @if (review.comment) {
                   <p class="review__comment">{{ review.comment }}</p>
+                }
+                <!-- Per-review report (D2): verified viewers, NON-OWN rows
+                     only. Own rows are edited/deleted in "Your review",
+                     never reported (the backend 403s too). -->
+                @if (
+                  auth.initialized() &&
+                  auth.authenticated() &&
+                  auth.isVerified() &&
+                  !isMyReview(review)
+                ) {
+                  @if (reviewReportOpenId() !== review.id) {
+                    <button
+                      type="button"
+                      class="btn btn--ghost review__report"
+                      [disabled]="reporting()"
+                      (click)="openReviewReport(review)"
+                    >
+                      Report
+                    </button>
+                  } @else {
+                    <form
+                      class="report-form"
+                      (submit)="$event.preventDefault(); submitReviewReport(review)"
+                    >
+                      <fieldset class="report-options" aria-label="Report reason">
+                        @for (option of REVIEW_REASONS; track option.value) {
+                          <label class="report-option">
+                            <input
+                              type="radio"
+                              name="review-report-reason"
+                              [value]="option.value"
+                              [checked]="reviewReportReason() === option.value"
+                              (change)="onReviewReportReasonChange($event)"
+                            />
+                            {{ option.label }}
+                          </label>
+                        }
+                      </fieldset>
+                      @if (reviewReportReason() === 'OTHER') {
+                        <div class="field">
+                          <label [for]="'review-report-detail-' + review.id"
+                            >Details (optional)</label
+                          >
+                          <textarea
+                            [id]="'review-report-detail-' + review.id"
+                            rows="2"
+                            maxlength="500"
+                            [formControl]="reviewReportDetail"
+                          ></textarea>
+                          @if (reviewReportDetail.touched && reviewReportDetail.invalid) {
+                            <p class="field-error">Details must be 500 characters or fewer.</p>
+                          }
+                        </div>
+                      }
+                      @if (reviewReportDuplicate()?.reviewId === review.id) {
+                        <p class="report-status" role="status">
+                          {{ reviewReportDuplicate()?.message }}
+                        </p>
+                      }
+                      <div class="report-actions">
+                        <button
+                          type="submit"
+                          class="btn btn--primary"
+                          [disabled]="reporting() || reviewReportReason() === null"
+                        >
+                          {{ reporting() ? 'Submitting…' : 'Submit report' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="closeReviewReport()"
+                          [disabled]="reporting()"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  }
                 }
               </li>
             }

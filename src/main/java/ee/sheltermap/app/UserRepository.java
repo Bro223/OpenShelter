@@ -31,4 +31,14 @@ public interface UserRepository {
      * review listings). Missing ids are simply absent from the result map.
      */
     Map<Long, User> findByIds(Collection<Long> ids);
+
+    /**
+     * Whether the row behind {@code userId} is of ADMIN kind (the
+     * per-user active-shelter cap is skipped for admins —
+     * shelter-trust-and-reports D3). v1 has no admin accounts (the domain
+     * hierarchy predates them), so the JPA impl answers from the
+     * {@code users.kind} column and every other impl answers {@code false};
+     * unknown ids are {@code false}.
+     */
+    boolean isAdmin(long userId);
 }

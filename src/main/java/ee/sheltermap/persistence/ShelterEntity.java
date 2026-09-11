@@ -85,6 +85,14 @@ public class ShelterEntity {
     @Column(name = "version")
     private Long version;
 
+    /**
+     * Auto-hide disarm flag (V9, D1): while FALSE the 5th NON_EXISTENT
+     * report may auto-hide the shelter; the admin restore (later change)
+     * sets it TRUE.
+     */
+    @Column(name = "auto_hide_disarmed", nullable = false)
+    private boolean autoHideDisarmed;
+
     public Long getId() {
         return id;
     }
@@ -219,5 +227,13 @@ public class ShelterEntity {
 
     public void setVersion(Long version) {
         this.version = version;
+    }
+
+    public boolean isAutoHideDisarmed() {
+        return autoHideDisarmed;
+    }
+
+    public void setAutoHideDisarmed(boolean autoHideDisarmed) {
+        this.autoHideDisarmed = autoHideDisarmed;
     }
 }

@@ -20,13 +20,19 @@ database "Spring Boot API" as API
 == Shelter detail (public) ==
 Person -> DP : open /shelters/123
 DP -> SHG : get(123)
-SHG -> AC : get<ShelterDto>('/api/shelters/123')
+SHG -> AC : get<ShelterDetailDto>('/api/shelters/123')
 AC -> API : GET /api/shelters/123
-API --> AC : ShelterDto (averageRating null when no reviews yet)
+API --> AC : ShelterDetailDto (list fields + trust fields: nonexistentReports, statusFlag, occupancy, yourOccupancyBand; averageRating null when no reviews yet)
+note over DP
+  The detail read is public for ALL statuses (incl. auto-hidden).
+  Header badges: provenance chip + the trust badges ("Reported" when
+  nonexistentReports > 0, statusFlagText, occupancyText) - the same
+  shared copy as the map rows.
+end note
 DP -> RG : list(123)
 RG -> AC : get<ShelterReviewDto[]>('/api/shelters/123/reviews')
 AC -> API : GET /api/shelters/123/reviews
-API --> AC : ShelterReviewDto[]
+API --> AC : ShelterReviewDto[] (hidden reviews excluded - except the caller's own, flagged hidden)
 DP --> Person : shelter info + rating summary + review list
 note over DP
   Location section: a static Leaflet map (page-scoped LeafletService,
@@ -87,6 +93,70 @@ RG -> AC : delete('/api/shelters/123/reviews/mine')
 AC -> API : DELETE /api/shelters/123/reviews/mine
 API --> AC : 204 No Content
 DP --> Person : review removed, summary refetched
+
+== Report this shelter (verified viewers) ==
+note over DP
+  Verified only: anonymous / unverified get the login/verify prompts
+  (the "My review" vocabulary). One report per (shelter, user, type) -
+  the duplicate check (409) runs BEFORE the shared per-user throttle
+  budget (10 report-type actions / rolling hour -> 429).
+end note
+Person -> DP : "Report" -> pick a type (It does not exist / It is closed / It is open / The location is wrong / Something else) + detail (OTHER only, <= 500)
+DP -> SHG : report(123, {type, detail})
+SHG -> AC : post<void>('/api/shelters/123/reports', body)
+AC -> API : POST /api/shelters/123/reports
+alt 204 No Content
+  DP -> SHG : get(123)   ' the trust badges may have changed
+  DP --> Person : picker closed + refetched shelter
+else 409 duplicate (shelter, user, type)
+  API --> AC : ErrorResponse 409
+  DP --> Person : the server's message inline near the picker (role=status)
+else 403 (unverified) / 429 (throttle)
+  API --> AC : ErrorResponse
+  DP --> Person : banner (verify prompt / "slow down" copy)
+end
+
+== Report a review (verified viewers) ==
+note over DP
+  The "Report" link renders on every review EXCEPT the caller's own -
+  own reviews are never reportable (the backend 403s too).
+  The 5th report hides the review server-side (hidden_at - the author
+  still sees it, marked hidden).
+end note
+Person -> DP : "Report" on a review -> pick a reason (False or misleading / Not relevant / Spam / Something else) + detail (optional)
+DP -> RG : reportReview(123, reviewId, {reason, detail})
+RG -> AC : post<void>('/api/shelters/123/reviews/{reviewId}/reports', body)
+AC -> API : POST /api/shelters/123/reviews/{reviewId}/reports
+alt 204 No Content
+  DP -> RG : list(123)
+  DP --> Person : refetched (a newly hidden review disappears for everyone but its author)
+else 409 duplicate (review, user)
+  API --> AC : ErrorResponse 409
+  DP --> Person : the server's message inline (role=status)
+else 403 (own review / unverified) / 429
+  API --> AC : ErrorResponse
+  DP --> Person : banner
+end
+
+== Report how full (verified viewers) ==
+note over DP
+  Three large band buttons (Space available / Getting full / Full) -
+  one tap, latest-wins upsert (NO 409: a re-tap is the update).
+  Pre-selected from the detail DTO's yourOccupancyBand. Display-only
+  server-side: 2 h freshness, latest fresh band wins, 1 agreeing report
+  = hedged copy ("Reported full"), 2+ = firm ("Full").
+end note
+Person -> DP : tap a band button
+DP -> SHG : reportOccupancy(123, band)
+SHG -> AC : put<void>('/api/shelters/123/occupancy', {band})
+AC -> API : PUT /api/shelters/123/occupancy
+alt 204 No Content
+  DP -> SHG : get(123)
+  DP --> Person : the aggregate + recency line updated (occupancyText)
+else 403 (unverified) / 429 (throttle)
+  API --> AC : ErrorResponse
+  DP --> Person : banner
+end
 
 == Submit a shelter (verified users) ==
 note over SP
@@ -155,9 +225,9 @@ AC -> API : POST /api/shelters
 alt 201 Created + Location header
   API --> AC : ShelterDto (source=USER, status=ACTIVE)
   SP --> Person : navigate('/shelters/{id}')
-else 401 anonymous / 403 not verified / 400 out-of-Estonia
+else 401 anonymous / 403 not verified / 400 out-of-Estonia / 409 cap
   API --> AC : ErrorResponse
-  SP --> Person : banner with message (input preserved; 403 adds a /verify link)
+  SP --> Person : banner with message (input preserved; 403 adds a /verify link; 409 = "The limit of 10 active shelters has been reached")
 end
 
 note over DP
@@ -178,7 +248,12 @@ Person -> CP : open /account
 CP -> SHG : mine()
 SHG -> AC : get<ShelterDto[]>('/api/shelters/mine')
 AC -> API : GET /api/shelters/mine (Bearer JWT)
-API --> CP : ShelterDto[] (the caller's USER rows only)
+API --> CP : ShelterDto[] (the caller's USER rows, ALL statuses)
+note over CP
+  Auto-hidden (INACTIVE) rows stay in the owner's list, each marked
+  "Hidden - reported by the community (N reports)" - no restore action
+  (restore is admin-only).
+end note
 == reviews list ==
 CP -> AG : myReviews()
 AG -> AC : get<MyReviewDto[]>('/account/reviews/mine')

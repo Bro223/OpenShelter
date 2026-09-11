@@ -13,13 +13,18 @@ import java.util.Objects;
  * <p>{@code createdBy} links USER submissions to their author (V7) —
  * registry rows and pre-V7 legacy USER rows have a {@code null} author and
  * are unmanageable by anyone.
+ *
+ * <p>{@code status} is the one mutable field: in this change only the
+ * trust layer's auto-hide transitions a shelter to {@code INACTIVE}
+ * (shelter-trust-and-reports D1); the admin restore (back to {@code ACTIVE})
+ * lands with the admin-moderation change.
  */
 public class Shelter {
 
     private Long id;
     private final String name;
     private final GeoPoint location;
-    private final ShelterStatus status;
+    private ShelterStatus status;
     private final String externalId;
     private final ShelterSource source;
     private final String address;
@@ -32,6 +37,13 @@ public class Shelter {
     private Instant createdAt;
     /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
     private Long createdBy;
+    /**
+     * Auto-hide disarm flag (V9): while {@code false} the 5th
+     * {@code NON_EXISTENT} report may auto-hide the shelter; a manual
+     * admin restore sets it {@code true} (the admin-moderation change owns
+     * the write path — the auto-hide condition honours it from day one).
+     */
+    private boolean autoHideDisarmed;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -78,6 +90,23 @@ public class Shelter {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    /**
+     * Status transition — the only caller in this change is the trust
+     * layer's auto-hide (D1). Kept deliberately plain: the admin restore
+     * (admin-moderation) reuses it.
+     */
+    public void setStatus(ShelterStatus status) {
+        this.status = Objects.requireNonNull(status, "status");
+    }
+
+    public boolean isAutoHideDisarmed() {
+        return autoHideDisarmed;
+    }
+
+    public void setAutoHideDisarmed(boolean autoHideDisarmed) {
+        this.autoHideDisarmed = autoHideDisarmed;
     }
 
     /** Author user id ({@code null} for registry rows and pre-V7 legacy USER rows). */

@@ -138,6 +138,7 @@
 .filter-chips {
   display: flex;
   gap: var(--space-6);
+  flex-wrap: wrap;
 
   .chip {
     flex: 1;
@@ -157,6 +158,63 @@
       background: var(--color-primary);
       border-color: var(--color-primary);
       color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* Trust filters (shelter-trust-and-reports D6): the second row beside the
+   source chips — toggle chips in the same visual language (the combined
+   selector keeps ONE style source for both chip kinds) + the rating select.
+   Every control is a new interactive target, so each carries the 48px
+   minimum (the pre-existing source chips keep their M4 sizing). */
+.filter-trust {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: center;
+
+  .trust-chip {
+    padding: var(--space-6) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    font-size: var(--text-md);
+    font-family: inherit;
+    cursor: pointer;
+    min-height: var(--space-48);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.chip--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+
+  .filter-rating {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-6);
+    min-width: 0;
+    font-size: var(--text-md);
+    color: var(--color-text);
+
+    select {
+      flex: 1;
+      min-width: 0;
+      min-height: var(--space-48);
+      padding: var(--space-4) var(--space-8);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-full);
+      background: var(--color-bg-surface);
+      color: var(--color-text);
+      font-size: var(--text-md);
+      font-family: inherit;
+      cursor: pointer;
     }
   }
 }
@@ -253,6 +311,42 @@
     background: color-mix(in srgb, var(--color-shelter-user) 12%, var(--color-bg-surface));
     color: var(--color-shelter-user);
   }
+
+  /* Trust badges (shelter-trust-and-reports D6). "Reported" is the single
+     reported affordance (the token, white text 5.18:1 — HC flips to dark on
+     the brightened fill). The statusFlag badges reuse the existing warning
+     / success tints. Occupancy is NEUTRAL on purpose: "space available" is
+     not a celebration and "full" is not a crisis — muted text, muted fill. */
+  &.badge--reported {
+    background: var(--color-reported);
+    color: var(--color-bg-surface);
+  }
+
+  &.badge--closed {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+  }
+
+  &.badge--open {
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-success-border);
+    color: var(--color-success);
+  }
+
+  &.badge--occupancy {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+}
+
+/* The trust-badge strip under the row meta (D6). */
+.shelter-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 /* M6 responsive (breakpoint: --bp-narrow; @media cannot consume var()):

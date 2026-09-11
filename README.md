@@ -4,10 +4,14 @@ Backend for an Estonia public-shelter map: verified user registration, password 
 JWT sessions, shelter data ingested automatically from the official registry, user-submitted
 shelters with community ratings (the rating system **is** the moderation — no moderator).
 Users manage their own contributions — list/edit/delete their own shelters and reviews from
-the account page (M8, `user-contributions`).
+the account page (M8, `user-contributions`). On top, a community trust layer (shelter-
+trust-and-reports) keeps the map honest without a moderator: users report shelters that no
+longer exist (the 5th such report takes the shelter off the public map), report bad reviews
+(the 5th hides the review), and report how full a shelter is right now (shown to everyone
+while fresh).
 
-**Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse, auth, verification,
-shelter submission, community reviews); run/build docs in
+**Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse with trust filters,
+auth, verification, shelter submission, community reviews and reports); run/build docs in
 [frontend/README.md](frontend/README.md).
 
 > Built step by step from the task pack in [`context and tasks/agent/`](context%20and%20tasks/agent/):
@@ -16,6 +20,17 @@ shelter submission, community reviews); run/build docs in
 
 ## Status
 
+- ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
+  reports (the 5th "does not exist" auto-hides the shelter from the public list/map), review
+  reports (the 5th hides the review), live occupancy bands (display-only, 2 h freshness),
+  trust filters on the public list (`reviewed` / `minRating` / `hasCapacity`), the 10-active-
+  shelter submission cap, a durable per-user report throttle (10 report-type actions /
+  rolling hour, advisory-locked check-and-record) and `V9__shelter_trust_and_reports.sql` —
+  **433 backend tests green**, plus the frontend trust wave (trust filter chips + rating
+  select, the orange reported marker + legend, the badge set, detail-page report pickers,
+  the "Report how full" 3-band picker, the contributions-panel hidden state, the
+  `--color-reported` token) at **657 frontend tests across 35 spec files** (both counted
+  2026-09-11), all green.
 - ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
   backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave) —
   2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
@@ -81,9 +96,28 @@ shelter submission, community reviews); run/build docs in
   **Maa-amet WFS** (`https://xgis.maaamet.ee/xgis2/service/1pdl2oh`, `typeName=VARJEKOHT`),
   EPSG:3301 → WGS84 transformation via proj4j, pagination + retry/backoff + politeness delay,
   **registry rows only** — user-submitted rows are never touched by the importer.
-- **Shelter API**: public read endpoints with source filter and rating aggregates; adding a
-  shelter requires an authenticated, verified user; **community reviews** — one review per
-  user per shelter (re-rating = update), author-only update/delete.
+- **Shelter API**: public read endpoints with source filter, trust filters and rating
+  aggregates — the public list is ACTIVE-only (auto-hidden shelters are absent) and carries
+  the server-computed trust state (report counts, status flag, fresh occupancy); the detail
+  read is public for all statuses and adds the caller's own occupancy band; adding a shelter
+  requires an authenticated, verified user; **community reviews** — one review per user per
+  shelter (re-rating = update), author-only update/delete.
+- **Trust & reports (shelter-trust-and-reports)** — the community keeps the map honest, no
+  moderator. Verified users report a shelter ("it does not exist" / "it is closed" / "it is
+  open" / wrong location / other — one report per user per type) and the **5th "does not
+  exist" report automatically hides the shelter from the public list and map** (the owner
+  still sees it, marked hidden; restoring is admin-only — later reports never re-hide). Closed
+  vs open reports net to a display flag ("Reported closed" / "Confirmed open") that never
+  hides. Reviews can be reported (four reasons, one per user per review — the **5th hides the
+  review** from everyone except its author, and it drops out of the rating, the count and the
+  `reviewed` filter). Anyone verified can report how full a shelter is right now (three bands,
+  one live report per user, latest wins — shown to everyone while fresh: 2 h window, latest
+  fresh band wins, hedged "Reported full" at one agreeing report, firm at two+; display-only,
+  it never hides or filters). All report endpoints share one durable per-user throttle — 10
+  report-type actions per rolling hour, check-and-record made atomic per user with a
+  transaction-scoped Postgres advisory lock (a duplicate 409 consumes no budget; at the cap
+  nothing is recorded). Submissions are capped at 10 ACTIVE USER shelters (409; ADMIN kind
+  exempt).
 - **User contributions (M8)**: submitting users can list, edit and delete their OWN
   USER-source shelters (`GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}`) and list
   their own reviews across all shelters (`GET /account/reviews/mine`). `shelters.created_by`
@@ -95,7 +129,7 @@ shelter submission, community reviews); run/build docs in
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`, `V9__shelter_trust_and_reports.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -162,18 +196,21 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | POST   | `/account/phone-change/confirm`            | JWT                     | Complete phone change with the email code (200/400)                                                                                                                                                         |
 | POST   | `/verify/request`                          | JWT                     | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap)                                                                                                                    |
 | POST   | `/verify/confirm`                          | JWT                     | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200)                                                                                        |
-| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount`                                                                                                                                                            |
-| GET    | `/api/shelters/{id}`                       | public                  | Shelter detail                                                                                                                                                                                              |
-| POST   | `/api/shelters`                            | JWT + verified          | Submit a shelter → 201 + Location                                                                                                                                                                           |
-| GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows)                                                                                                                                             |
+| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount` — **ACTIVE rows only** (auto-hidden shelters are absent); optional trust filters `reviewed=true`, `minRating=1..5` (else 400), `hasCapacity=true` compose with `source`, applied server-side; rows carry the trust state (`nonexistentReports`, `statusFlag`, `occupancy`) |
+| GET    | `/api/shelters/{id}`                       | public                  | Shelter detail (`ShelterDetailDto` — the list fields + the caller's `yourOccupancyBand`); **all statuses** (an auto-hidden shelter stays reachable here and by its owner) |
+| POST   | `/api/shelters`                            | JWT + verified          | Submit a shelter → 201 + Location; 409 when the caller already has 10 ACTIVE USER shelters (the cap; ADMIN kind exempt) |
+| GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows; **all statuses** — auto-hidden rows included, the contributions panel marks them) |
 | PUT    | `/api/shelters/{id}`                       | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows)                                                          |
 | DELETE | `/api/shelters/{id}`                       | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author                                                                                                                                 |
+| POST   | `/api/shelters/{id}/reports`               | JWT + verified          | Report a shelter `{type, detail?}` (NON_EXISTENT / CLOSED / OPEN_CONFIRMED / WRONG_LOCATION / OTHER; detail only for OTHER, ≤ 500) → 204; 404 unknown shelter, 409 duplicate (shelter, user, type — checked before the throttle budget), 429 report throttle. The 5th NON_EXISTENT auto-hides an ACTIVE shelter (never re-hides after a manual status change) |
+| PUT    | `/api/shelters/{id}/occupancy`             | JWT + verified          | Report how full `{band}` (SPACE / GETTING_FULL / FULL) → 204 upsert — one live band per user per shelter, latest wins (no 409: a re-PUT is the update); 404 unknown shelter, 429 throttle. Display-only: 2 h freshness at read time, latest fresh band wins, hedged at one agreeing report, firm at two+ — never hides or filters |
 | POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link → `{latitude, longitude}` (per-IP 5/min → 429; 400 one generic message when no pair / outside Estonia / other host; 502 one generic retry-later on upstream failure) |
 | GET    | `/account/reviews/mine`                    | JWT                     | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps)                                                                                                          |
 | GET    | `/api/shelters/{id}/reviews`               | public                  | Reviews for a shelter                                                                                                                                                                                       |
 | POST   | `/api/shelters/{id}/reviews`               | JWT + verified          | Review (upsert: re-rating updates)                                                                                                                                                                          |
 | PUT    | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Update own review                                                                                                                                                                                           |
 | DELETE | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Delete own review                                                                                                                                                                                           |
+| POST   | `/api/shelters/{id}/reviews/{reviewId}/reports` | JWT + verified | Report a review `{reason, detail?}` (FALSY_DATA / NOT_RELEVANT / SPAM / OTHER) → 204; 403 own review or not verified, 404 unknown shelter/review, 409 duplicate (review, user), 429 throttle. The 5th report hides the review (set once, cleared only by admin moderation; the author still sees it, marked hidden) |
 | POST   | `/dev/email-test`                          | JWT + opt-in            | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below)                                                                                               |
 | POST   | `/dev/sms-test`                            | JWT + opt-in            | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below)                                                                         |
 | GET    | `/actuator/health`                         | public                  | Health check                                                                                                                                                                                                |
@@ -241,7 +278,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 360 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 433 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
@@ -456,8 +493,10 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 - **Cross-channel contact change** (`POST /account/*-change/request` + `/confirm`) — email
   change verified by SMS, phone change by email
 - Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
-- Public read API with rating aggregates, verified-write API for shelters and reviews
-- Persistence (Flyway V1–V8, JPA, `ddl-auto=validate`), uniform error handling
+- Public read API with rating aggregates, verified-write API for shelters and reviews, and
+  the community trust layer (shelter/review reports with auto-hide, live occupancy, trust
+  filters)
+- Persistence (Flyway V1–V9, JPA, `ddl-auto=validate`), uniform error handling
 - Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
 **Known gaps / next steps:**

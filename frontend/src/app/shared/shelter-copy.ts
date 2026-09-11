@@ -1,4 +1,9 @@
-import type { ShelterSource } from '../core/models';
+import type {
+  OccupancyBand,
+  ShelterOccupancy,
+  ShelterSource,
+  ShelterStatusFlag,
+} from '../core/models';
 
 /**
  * The shared shelter copy (W24): source-badge labels + the rating-summary
@@ -46,4 +51,86 @@ export function ratingText(averageRating: number | null, reviewCount: number): s
     return NO_RATINGS_YET;
   }
   return `★ ${averageRating.toFixed(1)} · ${reviewCountText(reviewCount)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Trust layer copy (shelter-trust-and-reports D6): the map rows and the
+// detail header render the SAME badge text — single-sourced here, the same
+// W24 way provenanceLabel is. Copy changes are spec changes; the pins live
+// in shelter-copy.spec.ts.
+// ---------------------------------------------------------------------------
+
+/**
+ * The statusFlag badge text (D1 netting): amber "Reported closed" /
+ * green "Confirmed open"; null = no flag (render nothing).
+ */
+export function statusFlagText(flag: ShelterStatusFlag | null): string | null {
+  if (flag === 'REPORTED_CLOSED') {
+    return 'Reported closed';
+  }
+  if (flag === 'CONFIRMED_OPEN') {
+    return 'Confirmed open';
+  }
+  return null;
+}
+
+/** True when the DTO is in the reported state (D1: nonexistentReports > 0). */
+export function hasReports(shelter: { nonexistentReports: number }): boolean {
+  return shelter.nonexistentReports > 0;
+}
+
+/** True when the DTO carries at least one trust badge to render (D6). */
+export function hasTrustBadges(shelter: {
+  nonexistentReports: number;
+  statusFlag: ShelterStatusFlag | null;
+  occupancy: ShelterOccupancy | null;
+}): boolean {
+  return (
+    shelter.nonexistentReports > 0 || shelter.statusFlag !== null || shelter.occupancy !== null
+  );
+}
+
+/** Firm band copy (D4) — >= 2 fresh reports agreeing with the latest band. */
+export const OCCUPANCY_FIRM_COPY: Record<OccupancyBand, string> = {
+  SPACE: 'Space available',
+  GETTING_FULL: 'Getting full',
+  FULL: 'Full',
+};
+
+/** Hedged band copy (D4) — exactly one fresh report (a lone claim). */
+export const OCCUPANCY_HEDGED_COPY: Record<OccupancyBand, string> = {
+  SPACE: 'Reported space available',
+  GETTING_FULL: 'Reported getting full',
+  FULL: 'Reported full',
+};
+
+/**
+ * The recency suffix of the occupancy badge ("12 min ago"). The freshness
+ * WINDOW itself is server-side (2 h, read-time); this only formats the
+ * server's lastReportedAt relative to now. `now` is injectable so specs are
+ * deterministic.
+ */
+export function recencyText(iso: string, now: number = Date.now()): string {
+  const minutes = Math.round((now - Date.parse(iso)) / 60000);
+  if (Number.isNaN(minutes) || minutes < 1) {
+    return 'just now';
+  }
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  return `${Math.round(minutes / 60)} h ago`;
+}
+
+/**
+ * The occupancy badge line (D4/D6): firm head at reportCount >= 2
+ * ("Full · 12 min ago"), hedged at exactly 1 ("Reported full · 12 min
+ * ago"). Occupancy is display-only — the copy deliberately never reads
+ * as success or crisis; the styling is the neutral badge class.
+ */
+export function occupancyText(occupancy: ShelterOccupancy, now: number = Date.now()): string {
+  const head =
+    occupancy.reportCount >= 2
+      ? OCCUPANCY_FIRM_COPY[occupancy.band]
+      : OCCUPANCY_HEDGED_COPY[occupancy.band];
+  return `${head} · ${recencyText(occupancy.lastReportedAt, now)}`;
 }

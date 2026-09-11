@@ -19,6 +19,16 @@
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
           User-submitted
         </span>
+        <!-- Reported state (shelter-trust-and-reports D6): the single
+             orange "reported" affordance — provenance colours apply only to
+             unreported shelters. -->
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--reported legend-swatch"
+            aria-hidden="true"
+          ></span>
+          Reported
+        </span>
       </div>
     </div>
 
@@ -74,6 +84,38 @@
         }
       </div>
 
+      <!-- Trust filters (shelter-trust-and-reports D6): composable with the
+           source chips above — every change is a SERVER refetch + list
+           rebuild (the existing pattern), never client-side filtering. -->
+      <div class="filter-trust" role="group" aria-label="Trust filters">
+        <button
+          type="button"
+          class="trust-chip"
+          [class.chip--active]="reviewed()"
+          [attr.aria-pressed]="reviewed()"
+          (click)="toggleReviewed()"
+        >
+          Reviewed
+        </button>
+        <button
+          type="button"
+          class="trust-chip"
+          [class.chip--active]="hasCapacity()"
+          [attr.aria-pressed]="hasCapacity()"
+          (click)="toggleHasCapacity()"
+        >
+          Has capacity
+        </button>
+        <label class="filter-rating">
+          Rating
+          <select [value]="minRating() ?? ''" (change)="setMinRating($event)">
+            @for (option of ratingFilters; track option.label) {
+              <option [value]="option.value ?? ''">{{ option.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
       @if (error(); as err) {
         <app-banner severity="error" [message]="err" />
       }
@@ -116,6 +158,28 @@
                     ratingText(shelter.averageRating, shelter.reviewCount)
                   }}</span>
                 </span>
+                <!-- Trust badges (shelter-trust-and-reports D6): orange
+                     "Reported" (nonexistentReports > 0), the statusFlag
+                     amber/green badge, and the NEUTRAL occupancy badge with
+                     recency (hedged at one fresh report, firm at two+). -->
+                @if (hasTrustBadges(shelter)) {
+                  <span class="shelter-row__badges">
+                    @if (hasReports(shelter)) {
+                      <span class="badge badge--reported">Reported</span>
+                    }
+                    @if (statusFlagText(shelter.statusFlag); as flagText) {
+                      <span
+                        class="badge"
+                        [class.badge--closed]="shelter.statusFlag === 'REPORTED_CLOSED'"
+                        [class.badge--open]="shelter.statusFlag === 'CONFIRMED_OPEN'"
+                        >{{ flagText }}</span
+                      >
+                    }
+                    @if (shelter.occupancy; as occ) {
+                      <span class="badge badge--occupancy">{{ occupancyText(occ) }}</span>
+                    }
+                  </span>
+                }
               </button>
               <!-- The explicit details step: appears ONLY on the selected
                    row and is the only sidebar element that opens

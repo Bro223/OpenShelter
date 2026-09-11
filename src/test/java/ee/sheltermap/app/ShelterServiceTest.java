@@ -22,12 +22,14 @@ class ShelterServiceTest {
     private static final GeoPoint POINT = new GeoPoint(59.438861, 24.754472);
 
     private InMemoryShelterRepository repo;
+    private InMemoryUserRepository users;
     private ShelterService service;
 
     @BeforeEach
     void setUp() {
         repo = new InMemoryShelterRepository();
-        service = new ShelterService(repo);
+        users = new InMemoryUserRepository();
+        service = new ShelterService(repo, users);
     }
 
     private static Shelter userPlace() {
@@ -157,7 +159,7 @@ class ShelterServiceTest {
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
-        ShelterService guarded = new ShelterService(guardedRepo);
+        ShelterService guarded = new ShelterService(guardedRepo, users);
         Shelter place = userPlace("Original");
         guarded.addPlace(verifiedUser(), place);
         Long id = place.getId();
@@ -189,7 +191,7 @@ class ShelterServiceTest {
                 super.save(shelter);
             }
         };
-        ShelterService failing = new ShelterService(alwaysFailing);
+        ShelterService failing = new ShelterService(alwaysFailing, users);
         Shelter place = userPlace("Original");
         failing.addPlace(verifiedUser(), place);
 
@@ -225,5 +227,62 @@ class ShelterServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         assertThat(repo.findAll()).isEmpty();
+    }
+
+    // ---------- per-user active-shelter cap (shelter-trust-and-reports D3) ----------
+
+    @Test
+    void eleventhActiveShelterIsRejected() {
+        for (int i = 1; i <= 10; i++) {
+            service.addPlace(verifiedUser(), userPlace("Varjend " + i));
+        }
+
+        assertThat(repo.countByCreatedByAndSourceAndStatus(1L, ShelterSource.USER, ShelterStatus.ACTIVE))
+                .isEqualTo(10);
+        assertThatThrownBy(() -> service.addPlace(verifiedUser(), userPlace("Üllejääja")))
+                .isInstanceOf(ShelterLimitExceededException.class);
+        assertThat(repo.findAll()).hasSize(10);
+    }
+
+    @Test
+    void hiddenSheltersDoNotCountTowardsTheCap() {
+        for (int i = 1; i <= 10; i++) {
+            service.addPlace(verifiedUser(), userPlace("Varjend " + i));
+        }
+        // the admin (or a later change) deactivates one — it frees the cap
+        repo.findAll().get(0).setStatus(ShelterStatus.INACTIVE);
+        repo.save(repo.findAll().get(0));
+
+        // the 11th ACTIVE submission is accepted now (10 rows, 9 active)
+        service.addPlace(verifiedUser(), userPlace("Vaba"));
+        assertThat(repo.findAll()).hasSize(11);
+    }
+
+    @Test
+    void deletedSheltersFreeTheCap() {
+        for (int i = 1; i <= 10; i++) {
+            service.addPlace(verifiedUser(), userPlace("Varjend " + i));
+        }
+        service.deletePlace(repo.findAll().get(0).getId());
+
+        service.addPlace(verifiedUser(), userPlace("Vaba"));
+        assertThat(repo.findAll()).hasSize(10);
+    }
+
+    @Test
+    void adminKindIsExemptFromTheCap() {
+        InMemoryUserRepository adminUsers = new InMemoryUserRepository() {
+            @Override
+            public boolean isAdmin(long userId) {
+                return true;
+            }
+        };
+        ShelterService adminService = new ShelterService(repo, adminUsers);
+
+        // 11 in a row — the admin is never capped
+        for (int i = 1; i <= 11; i++) {
+            adminService.addPlace(verifiedUser(), userPlace("Admin varjend " + i));
+        }
+        assertThat(repo.findAll()).hasSize(11);
     }
 }

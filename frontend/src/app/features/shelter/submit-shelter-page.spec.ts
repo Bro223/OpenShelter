@@ -73,6 +73,9 @@ const CREATED: ShelterDto = {
   // The submitter is verified (creation is verified-gated) — the created
   // row comes back already proven (D3/D4).
   submitterVerified: true,
+  nonexistentReports: 0,
+  statusFlag: null,
+  occupancy: null,
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */

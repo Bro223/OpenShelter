@@ -3,7 +3,11 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.OwnReviewReportException;
+import ee.sheltermap.app.ReportThrottledException;
+import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.DuplicateReportException;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidContactChangeException;
@@ -102,6 +106,25 @@ public class ApiErrorHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
+    /**
+     * A report the user already made (shelter-trust-and-reports D1/D2):
+     * the per-target unique bound — same (shelter, user, type) or same
+     * (review, user). 409 so the client knows nothing was stored.
+     */
+    @ExceptionHandler(DuplicateReportException.class)
+    ResponseEntity<ErrorResponse> duplicateReport(DuplicateReportException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * The per-user active-shelter cap (shelter-trust-and-reports D3):
+     * the 11th ACTIVE USER shelter is a conflict, plain-spoken.
+     */
+    @ExceptionHandler(ShelterLimitExceededException.class)
+    ResponseEntity<ErrorResponse> shelterLimit(ShelterLimitExceededException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(AlreadyVerifiedException.class)
     ResponseEntity<ErrorResponse> alreadyVerified(AlreadyVerifiedException ex, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
@@ -178,6 +201,16 @@ public class ApiErrorHandler {
         return false;
     }
 
+    /**
+     * A user reporting their OWN review (shelter-trust-and-reports D2 —
+     * own content is edited or deleted, not reported). Same 403 family
+     * as the not-verified / not-author gates.
+     */
+    @ExceptionHandler(OwnReviewReportException.class)
+    ResponseEntity<ErrorResponse> ownReviewReport(OwnReviewReportException ex, HttpServletRequest request) {
+        return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class})
     ResponseEntity<ErrorResponse> forbidden(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
@@ -193,6 +226,17 @@ public class ApiErrorHandler {
 
     @ExceptionHandler(RateLimitExceededException.class)
     ResponseEntity<ErrorResponse> rateLimit(RateLimitExceededException ex, HttpServletRequest request) {
+        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+    }
+
+    /**
+     * The per-user report throttle (shelter-trust-and-reports D3): 10
+     * report-type actions per rolling hour (any target, any type) — the
+     * standard throttle body (429 + uniform ErrorResponse), same
+     * vocabulary as the verification and password-reset throttles.
+     */
+    @ExceptionHandler(ReportThrottledException.class)
+    ResponseEntity<ErrorResponse> reportThrottled(ReportThrottledException ex, HttpServletRequest request) {
         return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
     }
 

@@ -6,22 +6,26 @@
 
 ## Purpose
 
-The heart of the product: a **public, read-only map** of Estonia with every shelter
-(registry + user-submitted), a sidebar list, and a source filter. No login required. Detail pages
-and submission come in M5 — this milestone keeps the map read-only.
+The heart of the product: a **public, read-only map** of Estonia with every ACTIVE shelter
+(registry + user-submitted), a sidebar list, and the source filter. No login required. Detail
+pages and submission come in M5 — this milestone keeps the map read-only. (shelter-trust-and-
+reports: auto-hidden shelters are simply absent from the public list — the backend lists
+ACTIVE rows only — and the map gains the trust filters, the reported marker and the row
+trust badges, all documented below.)
 
 ## Classes to create
 
 | Type             | Kind                                                                                                       | Key members / notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ---------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ShelterGateway` | service (`gateways/`)                                                                                      | `list(source: ShelterSourceFilter): ShelterDto[]` → `GET /api/shelters?source=…`; `get(id)` → `GET /api/shelters/{id}` (used by M5 too).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `ShelterGateway` | service (`gateways/`)                                                                                      | `list(source: ShelterSourceFilter, trust?: ShelterTrustFilter): ShelterDto[]` → `GET /api/shelters?source=…` (optional `reviewed` / `minRating` / `hasCapacity` trust filters — absent fields are omitted from the query string entirely); `get(id)` → `GET /api/shelters/{id}` → `ShelterDetailDto` (the list DTO + `yourOccupancyBand`; used by M5 too).                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `LeafletService` | service (`shared/` — moved there from `features/map/` in the 2026-09-08 arch pass; it has no feature deps) | thin wrapper around the `leaflet` npm package. Owns one map instance per page: `create(el, center, zoom)`, `renderShelters(ShelterDto[])` (replaces markers), `setFilter`, `flyTo(lat, lng, zoom?)` (keeps the current zoom unless `zoom` is given), `showShelter(shelter \| null)` (single static pin — the detail page's Location map), `destroy()`. Exposes a `markerClick` callback/event. **No ngx-leaflet** — the wrapper stays ~1 release behind Angular majors, we call leaflet directly.                                                                                                                                                                                                                       |
-| `MapPage`        | component (route `/map`, public, default route)                                                            | Layout: Leaflet map + sidebar list. Loads `ShelterGateway.list('ALL')` on init; source filter chips (All / Registry / User) refetch with the server-side `source` param. Renders markers with distinct icons per source. Empty state + network-error banner (see M1 error rules). Clicking a marker or list row → select + zoom the map to street level (`SHELTER_ZOOM` 16) and **stay on /map**; the selected row shows a "View details" link that navigates to `/shelters/{id}` (the explicit navigation step). The list scrolls freely — deliberately NO scroll-snap (proximity snap made Chrome swallow fast wheel input; the mandatory one-row carousel was rejected; full measured rationale in `map-page.scss`). |
+| `MapPage`        | component (route `/map`, public, default route)                                                            | Layout: Leaflet map + sidebar list. Loads `ShelterGateway.list('ALL')` on init; source filter chips (All / Registry / User) refetch with the server-side `source` param. Trust filters (shelter-trust-and-reports D6) below the source chips, composing with it — every change is the same SERVER refetch + list rebuild, never client-side filtering: a `Reviewed` toggle chip (`reviewed=true`), a `Has capacity` toggle chip (`hasCapacity=true`), and a `Rating` select ("Any rating" / "1★+" … "5★+" → `minRating`, the first option sends nothing). Renders markers with distinct icons per source; the reported state (D1) OVERRIDES the provenance colours — any shelter with `nonexistentReports > 0` gets the single orange marker (`--color-reported`), and the legend gains the third entry (Registry / User-submitted / Reported). Row badges (single-sourced in `shared/shelter-copy.ts`): the "Reported" badge, `statusFlagText` ("Reported closed" / "Confirmed open") and `occupancyText` (firm or hedged band + recency) — rendered only when the DTO carries the state, never client-derived. Clicking a marker or list row → select + zoom the map to street level (`SHELTER_ZOOM` 16) and **stay on /map**; the selected row shows a "View details" link that navigates to `/shelters/{id}` (the explicit navigation step). The list scrolls freely — deliberately NO scroll-snap (proximity snap made Chrome swallow fast wheel input; the mandatory one-row carousel was rejected; full measured rationale in `map-page.scss`). |
 
 ## Key decisions
 
-1. **Server-side filtering, not client-side.** The backend supports `?source=ALL|REGISTRY|USER`;
-   always refetch on filter change. Keeps the UI dumb and the data honest.
+1. **Server-side filtering, not client-side.** The backend supports `?source=ALL|REGISTRY|USER`
+   plus the trust filters `reviewed` / `minRating` / `hasCapacity` (composable with `source`);
+   always refetch on any filter change. Keeps the UI dumb and the data honest.
 2. **Estonia-scale fetch-all.** The backend has no paging by design (hundreds of rows). Load once,
    replace markers on filter change — no clustering lib needed at this scale (revisit if >5k).
 3. **Leaflet directly.** `npm i leaflet` (+ its types). CSS: import `leaflet/dist/leaflet.css`.
@@ -32,13 +36,17 @@ and submission come in M5 — this milestone keeps the map read-only.
    change-detection crutch to hide leaks). Don't fight zoneless: leaflet is DOM-event driven, so
    its callbacks work fine; just update signals inside `ngZone`-free handlers.
 5. **Registry vs USER distinction is visible.** A small legend explains: blue = Päästeamet /
-   municipality registry, green = user-submitted. (No moderator — user rows are trusted into the
-   map and governed by reviews from M5.)
-6. **Status filtering is a backend concern** — v1 lists ACTIVE rows; do not add status UI.
+   municipality registry, green = user-submitted, orange = reported (`--color-reported`; the
+   provenance colours apply only to UNREPORTED shelters). (No moderator — user rows are
+   trusted into the map and governed by reviews and reports.)
+6. **Status filtering is a backend concern** — the public list is ACTIVE rows only (auto-hidden
+   shelters are absent); do not add status UI.
 
 ## UI details
 
-- Sidebar: name + address + source badge + rating (averageRating null → "no ratings yet").
+- Sidebar: name + address + source badge + rating (averageRating null → "no ratings yet") +
+  the trust badges ("Reported" when `nonexistentReports > 0`, the status-flag text, the
+  occupancy text — all from the shared helpers).
   Sorting: by name (stable). Nearest-by-location is available as the **"Nearest shelter" CTA**
   (map-crisis-actions): high-accuracy geolocation (the submit page's options, 10 s timeout),
   Haversine nearest computed client-side over the loaded list (no backend call), fly to
@@ -71,4 +79,5 @@ and submission come in M5 — this milestone keeps the map read-only.
   CTA in the map sidebar, visible to AUTHENTICATED users — the /submit route
   guards handle the verified redirect, so unverified users land on /verify.)_
 - Models: `ShelterDto` from `02-CONTEXT-API.md` — `averageRating: number | null`, `source`,
-  `status`, `description`/`capacity` nullable.
+  `status`, `description`/`capacity` nullable, plus the trust fields (`submitterVerified`,
+  `nonexistentReports`, `statusFlag`, `occupancy`).

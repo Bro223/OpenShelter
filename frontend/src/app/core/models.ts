@@ -144,6 +144,67 @@ export interface ReviewRequest {
 }
 
 // ---------------------------------------------------------------------------
+// Trust layer: typed reports + occupancy (shelter-trust-and-reports D1/D2/D4)
+// ---------------------------------------------------------------------------
+
+/** Typed shelter report (POST /api/shelters/{id}/reports — verified only). */
+export type ShelterReportType =
+  'NON_EXISTENT' | 'CLOSED' | 'OPEN_CONFIRMED' | 'WRONG_LOCATION' | 'OTHER';
+
+export interface ReportShelterRequest {
+  type: ShelterReportType;
+  /** Free text for OTHER (<= 500 chars); ignored by the backend for other types. */
+  detail?: string;
+}
+
+/** Review-report reasons (POST /api/shelters/{id}/reviews/{reviewId}/reports). */
+export type ReviewReportReason = 'FALSY_DATA' | 'NOT_RELEVANT' | 'SPAM' | 'OTHER';
+
+export interface ReportReviewRequest {
+  reason: ReviewReportReason;
+  /** Free text (<= 500 chars) — the honest detail for any reason. */
+  detail?: string;
+}
+
+/** Live occupancy bands (PUT /api/shelters/{id}/occupancy — one per user). */
+export type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
+
+export interface ReportOccupancyRequest {
+  band: OccupancyBand;
+}
+
+/**
+ * Server-derived occupancy block (D4 — computed at read time over the last
+ * 2 h of updated_at). `reportCount` is the number of fresh reports agreeing
+ * with `band`: 1 = the UI hedges ("Reported full"), >= 2 = firm ("Full").
+ * `null` on the DTO = nothing fresh — the UI shows nothing.
+ */
+export interface ShelterOccupancy {
+  /** The latest fresh band. */
+  band: OccupancyBand;
+  /** Fresh reports agreeing with that band (1 = lone, >= 2 = firm). */
+  reportCount: number;
+  /** ISO-8601 instant of the latest report in the window. */
+  lastReportedAt: string;
+}
+
+/** Display-only flag netting CLOSED vs OPEN_CONFIRMED (D1) — never status. */
+export type ShelterStatusFlag = 'REPORTED_CLOSED' | 'CONFIRMED_OPEN';
+
+/**
+ * Optional trust filters for GET /api/shelters (D5) — composable with the
+ * source filter. Absent fields are omitted from the query string entirely.
+ */
+export interface ShelterTrustFilter {
+  /** reviewed=true — at least one visible (non-hidden) review. */
+  reviewed?: boolean;
+  /** Minimum average rating (1..5); a shelter with 0 reviews never matches. */
+  minRating?: number;
+  /** hasCapacity=true — capacity data present. */
+  hasCapacity?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Response bodies (DTOs)
 // ---------------------------------------------------------------------------
 
@@ -192,6 +253,26 @@ export interface ShelterDto {
    * the UI never re-derives it).
    */
   submitterVerified: boolean;
+  /**
+   * Non-existence reports (D1): 0 when none, > 0 = the orange reported
+   * state (marker + "Reported" badge). Five reach auto-hide server-side —
+   * the public list simply no longer contains the row.
+   */
+  nonexistentReports: number;
+  /** CLOSED vs OPEN_CONFIRMED net (D1) — display-only, null = no flag. */
+  statusFlag: ShelterStatusFlag | null;
+  /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
+  occupancy: ShelterOccupancy | null;
+}
+
+/**
+ * Detail projection (GET /api/shelters/{id}): every list field plus the
+ * CALLER's own occupancy band — the "Report how full" picker's pre-select.
+ * Null for guests and anonymous users (and for a user without a live
+ * report for this shelter).
+ */
+export interface ShelterDetailDto extends ShelterDto {
+  yourOccupancyBand: OccupancyBand | null;
 }
 
 export interface ShelterReviewDto {
@@ -202,6 +283,13 @@ export interface ShelterReviewDto {
   comment: string | null;
   /** ISO-8601 instant. */
   createdAt: string;
+  /**
+   * Hidden by five review reports (D2): excluded from the public list,
+   * the average and the count. Hidden reviews are NEVER returned to
+   * non-authors — the author sees their own row with this flag true and
+   * renders it marked "Hidden".
+   */
+  hidden: boolean;
 }
 
 /**

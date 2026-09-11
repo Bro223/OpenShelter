@@ -22,6 +22,9 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     description: null,
     capacity: null,
     submitterVerified: false,
+    nonexistentReports: 0,
+    statusFlag: null,
+    occupancy: null,
     ...overrides,
   };
 }
@@ -100,8 +103,47 @@ describe('LeafletService', () => {
     expect(markers).toHaveLength(3);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(2);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(1);
+    // No reported state on the plain fixtures — the orange class is absent.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--reported')).length).toBe(0);
     // Each pin keeps the leaflet positioning class alongside the marker class.
     expect(markers.every((m) => m.classList.contains('leaflet-marker-icon'))).toBe(true);
+  });
+
+  it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of source (D1)', () => {
+    const reportedRegistry = shelter({
+      id: 3,
+      name: 'Reported Registry Row',
+      nonexistentReports: 1,
+    });
+    const reportedUser = shelter({
+      id: 4,
+      name: 'Reported User Row',
+      source: 'USER',
+      nonexistentReports: 5,
+    });
+    service.renderShelters([reportedRegistry, reportedUser, TALLINN, BASEMENT]);
+
+    const markers = renderedMarkers(container);
+    expect(markers).toHaveLength(4);
+    // Both reported rows are orange — the single "reported" affordance…
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--reported'))).toHaveLength(2);
+    // …and provenance colours apply ONLY to the unreported rows.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--registry'))).toHaveLength(1); // TALLINN only
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(1); // BASEMENT only
+    // Clicks still resolve to the shelter id on reported markers.
+    const onMarkerClick = vi.fn();
+    service.markerClick = onMarkerClick;
+    clickMarker(container, 'Reported User Row');
+    expect(onMarkerClick).toHaveBeenCalledWith(4);
+  });
+
+  it('one non-existence report is enough for the orange state (the threshold for auto-hide is 5, server-side)', () => {
+    const flagged = shelter({ id: 5, name: 'Flagged Row', nonexistentReports: 1 });
+    service.renderShelters([flagged]);
+
+    const markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--reported')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--registry')).toBe(false);
   });
 
   it('renderShelters replaces markers — re-rendering never duplicates', () => {

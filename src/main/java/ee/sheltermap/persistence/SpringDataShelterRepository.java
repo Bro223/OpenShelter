@@ -1,6 +1,7 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -17,6 +18,13 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findAllBySourceInOrderByIdAsc(Collection<ShelterSource> sources);
+
+    /** Public list (V9, D5): the same stable order, ACTIVE rows only. */
+    List<ShelterEntity> findAllBySourceInAndStatusOrderByIdAsc(Collection<ShelterSource> sources,
+                                                               ShelterStatus status);
+
+    /** Per-user active-shelter cap count (V9, D3). */
+    long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
     /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);

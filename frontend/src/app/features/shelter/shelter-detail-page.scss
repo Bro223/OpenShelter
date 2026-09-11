@@ -46,6 +46,33 @@
     background: var(--color-badge-user);
     color: var(--color-shelter-user);
   }
+
+  /* Trust badges (shelter-trust-and-reports D6) — the same language as the
+     map row badges: reported = the single reported token; closed/open = the
+     existing warning/success tints; occupancy = NEUTRAL ("space available"
+     is not a celebration, "full" is not a crisis). */
+  &.badge--reported {
+    background: var(--color-reported);
+    color: var(--color-bg-surface);
+  }
+
+  &.badge--closed {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+  }
+
+  &.badge--open {
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-success-border);
+    color: var(--color-success);
+  }
+
+  &.badge--occupancy {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
 }
 
 .shelter-detail__address {
@@ -189,4 +216,111 @@
   p {
     margin: 0;
   }
+}
+
+/* Report how full (shelter-trust-and-reports D4/D6): three large band
+   buttons. The .btn base carries the 48px minimum target (D5); the active
+   band is the user's CURRENT report (yourOccupancyBand pre-select) and
+   flips to the primary fill. Occupancy is display-only — the active state
+   is the primary colour, never success/crisis. */
+.band-picker {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+
+  .band-btn {
+    flex: 1;
+    min-width: 0;
+    border-color: var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.band-btn--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* The current aggregate + recency line (D4) — neutral muted copy; it
+   renders ONLY while occupancy is fresh (null = nothing shown). */
+.occupancy-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* The trust-layer pickers (D1/D2): inline expansion (the app's convention
+   — no modals), one picker open at a time. Radio rows are the interactive
+   targets, so each carries the 48px minimum. */
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.report-options {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8) var(--space-12);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.report-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--space-48);
+  font-size: var(--text-base);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    width: 18px; /* radio glyph size, not spacing */
+    height: 18px;
+    accent-color: var(--color-primary);
+  }
+}
+
+/* The 409 duplicate answer — a plain sentence-case status line, not an
+   error banner (the user already did this; the sentence says so). */
+.report-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.report-actions {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+/* The per-review Report button (D2): the .btn base gives it the 48px
+   target; it sits under the review comment as a quiet secondary action. */
+.review__report {
+  align-self: flex-start;
+}
+
+/* The author's own hidden review (D2): the mark + muted author line. */
+.review__hidden {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.review--hidden .review__author {
+  color: var(--color-muted);
 }

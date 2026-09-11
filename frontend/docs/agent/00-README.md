@@ -23,8 +23,8 @@ in `02-CONTEXT-API.md`.
 | `02-CONTEXT-API.md`            | Backend API contract: endpoints, DTO models (field-for-field), error shape, status semantics.          |
 | `03-CONTEXT-CORE-AUTH.md`      | Core layer + auth: ApiClient, ApiError, TokenStore/AuthStore, interceptor, guards, auth pages (M1–M2). |
 | `04-CONTEXT-ACCOUNT-VERIFY.md` | Verification + cross-channel contact change screens (M3).                                              |
-| `05-CONTEXT-MAP.md`            | Map & browse: Leaflet wrapper, public shelter list, source filter (M4).                                |
-| `06-CONTEXT-SHELTER.md`        | Shelter detail, reviews (upsert), verified-only submission (M5). Polish & prod build (M6) notes.       |
+| `05-CONTEXT-MAP.md`            | Map & browse: Leaflet wrapper, public shelter list, source + trust filters, reported marker (M4).                                |
+| `06-CONTEXT-SHELTER.md`        | Shelter detail, reviews (upsert), community reports, verified-only submission (M5). Polish & prod build (M6) notes.       |
 | `07-STEPS.md`                  | The ordered build plan — milestones M0–M6 with acceptance criteria and stop points.                    |
 
 ## Source-of-truth UML
@@ -77,3 +77,12 @@ what lets you check and build every file manually — exactly how the backend wa
   `environment.ts`, documented bundle budget (initial 530.5 kB → 560 kB warning),
   README rewritten, full manual E2E (headless Chromium driver, zero console errors).
   See `openspec/changes/frontend-m6-polish-prod/`.
+- **Trust & reports (shelter-trust-and-reports)** — DONE: map trust filter chips
+  (`Reviewed` / `Has capacity`) + the `Rating` select (server-refetched with the source
+  filter), the orange reported marker + `Reported` legend entry (`--color-reported` token,
+  contrast-pinned in `design-tokens.spec.ts`), the row/header trust badges ("Reported",
+  status flag, occupancy — single-sourced in `shelter-copy.ts`), the detail-page report
+  pickers (five shelter-report types, four review-report reasons, the "Report how full"
+  3-band picker pre-selected from `yourOccupancyBand`), the contributions panel's hidden-row
+  mark + the 409 shelter-cap server message. `npx ng test` green — 657 tests across 35 spec
+  files (counted 2026-09-11).

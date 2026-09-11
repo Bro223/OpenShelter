@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
-import type { ShelterDto } from '../core/models';
+import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../core/models';
 import { ShelterGateway } from './shelter-gateway';
 
 const REGISTRY_ROW: ShelterDto = {
@@ -19,6 +19,9 @@ const REGISTRY_ROW: ShelterDto = {
   description: null,
   capacity: null,
   submitterVerified: false, // registry rows have no creator (D3)
+  nonexistentReports: 0,
+  statusFlag: null,
+  occupancy: null,
 };
 
 const USER_ROW: ShelterDto = {
@@ -75,6 +78,43 @@ describe('ShelterGateway', () => {
 
     expect(api.get).toHaveBeenCalledWith('/api/shelters?source=USER');
     expect(rows).toEqual([]);
+  });
+
+  // ---- trust filters (shelter-trust-and-reports D5) ------------------------
+
+  it.each([
+    ['ALL', { reviewed: true }, '/api/shelters?source=ALL&reviewed=true'],
+    ['ALL', { minRating: 4 }, '/api/shelters?source=ALL&minRating=4'],
+    ['ALL', { hasCapacity: true }, '/api/shelters?source=ALL&hasCapacity=true'],
+    [
+      'USER',
+      { reviewed: true, minRating: 3 },
+      '/api/shelters?source=USER&reviewed=true&minRating=3',
+    ],
+    [
+      'REGISTRY',
+      { reviewed: true, minRating: 3, hasCapacity: true },
+      '/api/shelters?source=REGISTRY&reviewed=true&minRating=3&hasCapacity=true',
+    ],
+  ] as [ShelterSourceFilter, ShelterTrustFilter, string][])(
+    'list composes %j for %s into %s',
+    async (source, trust, path) => {
+      api.get.mockReturnValue(of([REGISTRY_ROW]));
+
+      await gateway.list(source, trust);
+
+      expect(api.get).toHaveBeenCalledTimes(1);
+      expect(api.get).toHaveBeenCalledWith(path);
+    },
+  );
+
+  it('list omits inactive trust filters (false/undefined -> no param, legacy shape)', async () => {
+    api.get.mockReturnValue(of([REGISTRY_ROW]));
+
+    await gateway.list('ALL', { reviewed: false, hasCapacity: false, minRating: undefined });
+
+    // Byte-identical to the M4 shape when nothing is active.
+    expect(api.get).toHaveBeenCalledWith('/api/shelters?source=ALL');
   });
 
   it('get(id) GETs /api/shelters/{id} and returns one typed row', async () => {
@@ -218,5 +258,86 @@ describe('ShelterGateway', () => {
     await expect(gateway.remove(7)).resolves.toBeUndefined();
     expect(api.delete).toHaveBeenCalledTimes(1);
     expect(api.delete).toHaveBeenCalledWith('/api/shelters/7');
+  });
+
+  // ---- trust layer (shelter-trust-and-reports D1/D4) ------------------------
+
+  it('report POSTs the typed body to /api/shelters/{id}/reports (detail omitted when blank)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await expect(gateway.report(7, { type: 'NON_EXISTENT' })).resolves.toBeUndefined();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reports', { type: 'NON_EXISTENT' });
+  });
+
+  it('report carries the free-text detail for OTHER', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await expect(
+      gateway.report(7, { type: 'OTHER', detail: 'The cellar entrance is bricked up' }),
+    ).resolves.toBeUndefined();
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reports', {
+      type: 'OTHER',
+      detail: 'The cellar entrance is bricked up',
+    });
+  });
+
+  it('report rejects with ApiError on a duplicate (409)', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 409,
+        error: 'Conflict',
+        message: 'you have already reported this shelter with this report type',
+        path: '/api/shelters/7/reports',
+      },
+      '/api/shelters/7/reports',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.report(7, { type: 'CLOSED' })).rejects.toBe(failure);
+  });
+
+  it('report rejects with ApiError for an unverified account (403)', async () => {
+    const failure = ApiError.fromHttp(
+      403,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 403,
+        error: 'Forbidden',
+        message: 'reports require a verified account',
+        path: '/api/shelters/7/reports',
+      },
+      '/api/shelters/7/reports',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.report(7, { type: 'OTHER' })).rejects.toBe(failure);
+  });
+
+  it('reportOccupancy PUTs the band body to /api/shelters/{id}/occupancy', async () => {
+    api.put.mockReturnValue(of(undefined));
+
+    await expect(gateway.reportOccupancy(7, 'FULL')).resolves.toBeUndefined();
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith('/api/shelters/7/occupancy', { band: 'FULL' });
+  });
+
+  it('reportOccupancy rejects with ApiError on a failed upsert (404)', async () => {
+    const failure = ApiError.fromHttp(
+      404,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 404,
+        error: 'Not Found',
+        message: 'shelter not found',
+        path: '/api/shelters/999/occupancy',
+      },
+      '/api/shelters/999/occupancy',
+    );
+    api.put.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.reportOccupancy(999, 'SPACE')).rejects.toBe(failure);
   });
 });

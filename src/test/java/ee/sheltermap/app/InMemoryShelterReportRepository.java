@@ -1,0 +1,64 @@
+package ee.sheltermap.app;
+
+import ee.sheltermap.domain.ShelterReport;
+import ee.sheltermap.domain.ShelterReportType;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+/**
+ * In-memory fake of {@link ShelterReportRepository} for tests (mirrors the
+ * JPA implementation's semantics; the (shelter, user, type) uniqueness is
+ * the caller's concern, as in the real DB).
+ */
+public class InMemoryShelterReportRepository implements ShelterReportRepository {
+
+    private final Map<Long, ShelterReport> store = new LinkedHashMap<>();
+    private long nextId = 1;
+
+    @Override
+    public void save(ShelterReport report) {
+        if (report.getId() == null) {
+            report.setId(nextId++);
+        }
+        store.put(report.getId(), report);
+    }
+
+    @Override
+    public boolean existsByShelterIdAndUserIdAndType(long shelterId, long userId,
+                                                     ShelterReportType type) {
+        return store.values().stream()
+                .anyMatch(r -> r.getShelterId() == shelterId
+                        && r.getUserId() == userId
+                        && r.getType() == type);
+    }
+
+    @Override
+    public long countByShelterIdAndType(long shelterId, ShelterReportType type) {
+        return store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId && r.getType() == type)
+                .count();
+    }
+
+    @Override
+    public List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds) {
+        return store.values().stream()
+                .filter(r -> shelterIds.contains(r.getShelterId()))
+                .collect(Collectors.groupingBy(r -> new CountKey(r.getShelterId(), r.getType())))
+                .entrySet().stream()
+                .map(e -> new ReportTypeCount(e.getKey().shelterId, e.getKey().type, e.getValue().size()))
+                .toList();
+    }
+
+    private record CountKey(long shelterId, ShelterReportType type) {
+    }
+
+    public List<ShelterReport> findAll() {
+        return new ArrayList<>(store.values());
+    }
+}

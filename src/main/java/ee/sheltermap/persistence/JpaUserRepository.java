@@ -132,4 +132,12 @@ public class JpaUserRepository implements UserRepository {
                 .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId())))
                 .orElse(null);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAdmin(long userId) {
+        return users.findById(userId)
+                .map(e -> e.getKind() == UserKind.ADMIN)
+                .orElse(false);
+    }
 }

@@ -12,9 +12,19 @@ import {
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
-import type { ShelterDto, ShelterReviewDto } from '../../core/models';
+import type {
+  OccupancyBand,
+  ReportReviewRequest,
+  ReportShelterRequest,
+  ReviewReportReason,
+  ShelterDetailDto,
+  ShelterDto,
+  ShelterReportType,
+  ShelterReviewDto,
+} from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
@@ -22,8 +32,12 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   NO_RATINGS_YET,
+  hasReports as hasReportsShared,
+  hasTrustBadges as hasTrustBadgesShared,
+  occupancyText as occupancyTextShared,
   provenanceLabel as provenanceLabelShared,
   reviewCountText as reviewCountTextShared,
+  statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
 import {
   ESTONIA_CENTER,
@@ -69,7 +83,15 @@ import { ReviewForm } from './review-form';
  */
 @Component({
   selector: 'app-shelter-detail-page',
-  imports: [RouterLink, DatePipe, BannerComponent, RatingStars, ReviewForm, LoadingIndicator],
+  imports: [
+    RouterLink,
+    DatePipe,
+    ReactiveFormsModule,
+    BannerComponent,
+    RatingStars,
+    ReviewForm,
+    LoadingIndicator,
+  ],
   providers: [LeafletService],
   templateUrl: './shelter-detail-page.html',
   styleUrl: './shelter-detail-page.scss',
@@ -86,7 +108,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
 
   /** The shelter id from /shelters/:id (null = invalid id -> not-found). */
   readonly id = signal<number | null>(null);
-  readonly shelter = signal<ShelterDto | null>(null);
+  /** Detail projection — the list fields + yourOccupancyBand (D5). */
+  readonly shelter = signal<ShelterDetailDto | null>(null);
   readonly reviewsList = signal<ShelterReviewDto[]>([]);
   /** The reviews half of load() failed — the section shows its own error.
    *  (Promise.allSettled: a reviews 5xx never hides a loaded shelter, N11.) */
@@ -96,6 +119,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   readonly notFound = signal(false);
   /** A successful write is in flight (form buttons disable meanwhile). */
   readonly saving = signal(false);
+  /** A report/occupancy write is in flight (the trust-layer pickers). */
+  readonly reporting = signal(false);
   readonly notice = signal<{ severity: 'success'; text: string } | null>(null);
 
   /**
@@ -110,10 +135,59 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
 
   /** W24: the shared source/rating copy, exposed to the template (Angular's
    *  template scope is the component class). The header badge shows the
-   *  four-valued provenance (accessibility-and-provenance D4). */
+   *  four-valued provenance (accessibility-and-provenance D4) and, from
+   *  shelter-trust-and-reports, the trust badges (D6). */
   protected readonly provenanceLabel = provenanceLabelShared;
   protected readonly reviewCountText = reviewCountTextShared;
   protected readonly noRatingsYet = NO_RATINGS_YET;
+  protected readonly statusFlagText = statusFlagTextShared;
+  protected readonly occupancyText = occupancyTextShared;
+  protected readonly hasReports = hasReportsShared;
+  protected readonly hasTrustBadges = hasTrustBadgesShared;
+
+  // ---- trust layer (shelter-trust-and-reports D1/D2/D4/D6) ------------------
+  /** The five report types + their picker labels (D1). */
+  protected readonly REPORT_TYPES: { value: ShelterReportType; label: string }[] = [
+    { value: 'NON_EXISTENT', label: 'It does not exist' },
+    { value: 'CLOSED', label: 'It is closed' },
+    { value: 'OPEN_CONFIRMED', label: 'It is open' },
+    { value: 'WRONG_LOCATION', label: 'The location is wrong' },
+    { value: 'OTHER', label: 'Something else' },
+  ];
+
+  /** The four review-report reasons + their picker labels (D2). */
+  protected readonly REVIEW_REASONS: { value: ReviewReportReason; label: string }[] = [
+    { value: 'FALSY_DATA', label: 'False or misleading' },
+    { value: 'NOT_RELEVANT', label: 'Not relevant' },
+    { value: 'SPAM', label: 'Spam' },
+    { value: 'OTHER', label: 'Something else' },
+  ];
+
+  /** The three occupancy bands (D4) — the picker's large buttons. */
+  protected readonly BANDS: { value: OccupancyBand; label: string }[] = [
+    { value: 'SPACE', label: 'Space available' },
+    { value: 'GETTING_FULL', label: 'Getting full' },
+    { value: 'FULL', label: 'Full' },
+  ];
+
+  /** The shelter-report picker is open (the "Report" button toggles it). */
+  readonly reportOpen = signal(false);
+  readonly reportType = signal<ShelterReportType | null>(null);
+  readonly reportDetail = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(500)],
+  });
+  /** Plain sentence-case duplicate (409) line for the open shelter picker. */
+  readonly reportDuplicate = signal<string | null>(null);
+
+  /** Per-review picker: the review whose picker is open (one at a time). */
+  readonly reviewReportOpenId = signal<number | null>(null);
+  readonly reviewReportReason = signal<ReviewReportReason | null>(null);
+  readonly reviewReportDetail = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(500)],
+  });
+  readonly reviewReportDuplicate = signal<{ reviewId: number; message: string } | null>(null);
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
@@ -231,11 +305,26 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.reviewsError.set(null);
     this.myReview.set(null);
     this.notice.set(null);
+    // The trust-layer pickers (D1/D2/D4) belong to the previous shelter —
+    // close them with the data they were reporting on.
+    this.resetTrustPickers();
     // F9: clear the PREVIOUS shelter's pin (showShelter(null) is the
     // service's clear API) — the new fetch's pin lands on settle; without
     // this the stale marker sits over the map during the load.
     this.leaflet.showShelter(null);
     this.load();
+  }
+
+  /** Closes every open trust-layer picker and drops its draft state. */
+  private resetTrustPickers(): void {
+    this.reportOpen.set(false);
+    this.reportType.set(null);
+    this.reportDetail.reset();
+    this.reportDuplicate.set(null);
+    this.reviewReportOpenId.set(null);
+    this.reviewReportReason.set(null);
+    this.reviewReportDetail.reset();
+    this.reviewReportDuplicate.set(null);
   }
 
   /**
@@ -407,6 +496,181 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       this.error.set(bannerMessage(failure, 'shelter'));
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  // ---- report this shelter (shelter-trust-and-reports D1/D6) ---------------
+  /** The verified viewer opens the type picker (inline — no modal). */
+  openReport(): void {
+    this.reportDuplicate.set(null);
+    this.reportOpen.set(true);
+  }
+
+  closeReport(): void {
+    this.reportOpen.set(false);
+    this.reportType.set(null);
+    this.reportDetail.reset();
+    this.reportDuplicate.set(null);
+  }
+
+  /** Radio change in the shelter-report picker. */
+  onReportTypeChange(event: Event): void {
+    this.reportType.set((event.target as HTMLInputElement).value as ShelterReportType);
+  }
+
+  /**
+   * Submit the typed report (verified only — the template gates it). One
+   * report per (shelter, user, type): a 409 answers with a PLAIN
+   * sentence-case line in the picker (not an error banner). detail is sent
+   * only for OTHER and only when non-blank.
+   */
+  async submitReport(): Promise<void> {
+    const id = this.id();
+    const type = this.reportType();
+    if (id === null || type === null || this.reporting()) {
+      return;
+    }
+    const detail = this.reportDetail.value.trim();
+    if (type === 'OTHER' && this.reportDetail.invalid) {
+      this.reportDetail.markAsTouched();
+      return;
+    }
+    const request: ReportShelterRequest = { type };
+    if (type === 'OTHER' && detail !== '') {
+      request.detail = detail;
+    }
+    this.reporting.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    this.reportDuplicate.set(null);
+    try {
+      await this.gateway.report(id, request);
+      this.closeReport();
+      this.notice.set({ severity: 'success', text: 'Your report was submitted.' });
+      // The derived state (nonexistentReports, statusFlag) moved server-
+      // side — refetch so the header badges reflect it (design decision 7).
+      await this.load();
+    } catch (failure: unknown) {
+      if (failure instanceof ApiError && failure.status === 409) {
+        // The server's standard duplicate message is the source of truth
+        // (map-browse delta: duplicate → the standard 409 message); the
+        // fixed line is only the fallback for an empty body.
+        this.reportDuplicate.set(
+          failure.message || 'You have already reported this shelter with this report type.',
+        );
+      } else {
+        this.error.set(bannerMessage(failure, 'shelter'));
+      }
+    } finally {
+      this.reporting.set(false);
+    }
+  }
+
+  // ---- per-review report (shelter-trust-and-reports D2) ---------------------
+  /**
+   * "Mine" detection for a review row: the v1 DTO carries no author id, so
+   * a row is provably the viewer's when (a) it is hidden — hidden reviews
+   * are NEVER returned to non-authors — or (b) the page saved it this
+   * session (myReview). Only non-own rows get a Report action.
+   */
+  protected isMyReview(review: ShelterReviewDto): boolean {
+    if (review.hidden) {
+      return true;
+    }
+    const mine = this.myReview();
+    return mine !== null && mine.id === review.id;
+  }
+
+  /** Open the reason picker on ONE review row (one at a time). */
+  openReviewReport(review: ShelterReviewDto): void {
+    if (this.isMyReview(review)) {
+      return; // own content is edited/deleted, not reported
+    }
+    this.reviewReportReason.set(null);
+    this.reviewReportDetail.reset();
+    this.reviewReportDuplicate.set(null);
+    this.reviewReportOpenId.set(review.id);
+  }
+
+  closeReviewReport(): void {
+    this.reviewReportOpenId.set(null);
+    this.reviewReportReason.set(null);
+    this.reviewReportDetail.reset();
+    this.reviewReportDuplicate.set(null);
+  }
+
+  onReviewReportReasonChange(event: Event): void {
+    this.reviewReportReason.set((event.target as HTMLInputElement).value as ReviewReportReason);
+  }
+
+  /**
+   * Submit the review report (verified, non-own rows only). 409 duplicate
+   * -> the plain sentence-case line; the 5th report hides the review
+   * server-side, so a success refetches (design decision 7) — the row may
+   * legitimately disappear from the list after that.
+   */
+  async submitReviewReport(review: ShelterReviewDto): Promise<void> {
+    const id = this.id();
+    const reason = this.reviewReportReason();
+    if (id === null || reason === null || this.reporting()) {
+      return;
+    }
+    const detail = this.reviewReportDetail.value.trim();
+    if (this.reviewReportDetail.invalid) {
+      this.reviewReportDetail.markAsTouched();
+      return;
+    }
+    const request: ReportReviewRequest = { reason };
+    if (detail !== '') {
+      request.detail = detail;
+    }
+    this.reporting.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    this.reviewReportDuplicate.set(null);
+    try {
+      await this.reviews.reportReview(id, review.id, request);
+      this.closeReviewReport();
+      this.notice.set({ severity: 'success', text: 'Your report was submitted.' });
+      await this.load();
+    } catch (failure: unknown) {
+      if (failure instanceof ApiError && failure.status === 409) {
+        this.reviewReportDuplicate.set({
+          reviewId: review.id,
+          message: failure.message || 'You have already reported this review.',
+        });
+      } else {
+        this.error.set(bannerMessage(failure, 'shelter'));
+      }
+    } finally {
+      this.reporting.set(false);
+    }
+  }
+
+  // ---- report how full (shelter-trust-and-reports D4/D6) --------------------
+  /**
+   * One-tap occupancy upsert: the latest edit wins (the backend keeps ONE
+   * live band per user). Success refetches — the aggregate + recency and
+   * the picker's pre-select (yourOccupancyBand) both come from the fresh
+   * detail projection. Occupancy is display-only: it never hides or recolours
+   * anything, so the failure path only surfaces the shared banner copy.
+   */
+  async reportBand(band: OccupancyBand): Promise<void> {
+    const id = this.id();
+    if (id === null || this.reporting()) {
+      return;
+    }
+    this.reporting.set(true);
+    this.error.set(null);
+    this.notice.set(null);
+    try {
+      await this.gateway.reportOccupancy(id, band);
+      this.notice.set({ severity: 'success', text: 'Your occupancy report was saved.' });
+      await this.load();
+    } catch (failure: unknown) {
+      this.error.set(bannerMessage(failure, 'shelter'));
+    } finally {
+      this.reporting.set(false);
     }
   }
 }

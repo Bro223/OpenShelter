@@ -39,6 +39,15 @@
      #bf360c = 5.6:1 (WCAG AA ≥ 4.5; #e8590c and #d9480f fail at 3.6/4.3). */
   --color-cta: #bf360c;
 
+  /* Reported state (shelter-trust-and-reports D6) — the SINGLE "reported"
+     affordance: the orange map marker fill AND the "Reported" badge
+     (text = --color-bg-surface). Reuses the --color-cta hue family (safety
+     orange, ~10–22°) as its own token: the crisis CTA keeps its colour, the
+     reported state is the badge/marker language — and both stay distinct
+     from the provenance blue/green marker colours. White text on #c2410c
+     = 5.18:1 (WCAG AA ≥ 4.5). */
+  --color-reported: #c2410c;
+
   /* Borders */
   --color-border: #d8d8dd; /* inputs, cards, list rows */
   --color-border-subtle: #e3e3e3; /* shell header divider */
@@ -168,6 +177,7 @@
      primary-hover #a8d0f5 on bg/surface               12.3 / 11.4
      surface #141414 text  on primary/primary-hover    8.8 / 11.4 (btn--primary)
      surface #141414 text  on cta #ff9f1c              9.0 (.map-cta)
+     surface #141414 text  on reported #ffa94d         9.7 (reported badge/marker)
      danger #ff8a7a        on bg / surface / danger-bg 8.6 /  8.0 /  7.5
      error #ff9d8f         on surface                  9.2
      warning #f0b429       on warning-bg / surface     8.6 /  9.9
@@ -230,6 +240,10 @@
 
   /* Crisis CTA — the CTA button's text is --color-bg-surface (dark on orange). */
   --color-cta: #ff9f1c;
+
+  /* Reported state — brightened the same way as the CTA: the badge/marker
+     text is --color-bg-surface (dark on the bright fill, 9.7:1). */
+  --color-reported: #ffa94d;
 
   /* Borders */
   --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
@@ -460,6 +474,14 @@ textarea {
 
 .shelter-marker--user {
   background: var(--color-shelter-user);
+}
+
+/* Reported state (shelter-trust-and-reports D1): the single "reported"
+ * marker affordance — any shelter with nonexistentReports > 0 renders this
+ * orange regardless of source; provenance colours apply only to
+ * unreported shelters. The map legend's third swatch reuses this class. */
+.shelter-marker--reported {
+  background: var(--color-reported);
 }
 
 /* Selected-location pin on the /submit mini-map (leaflet-service setPick).

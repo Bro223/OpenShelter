@@ -14,11 +14,11 @@ conventions, and build order** that the diagrams don't carry.
 | File | Purpose |
 |---|---|
 | `01-TASK.md` | **The task contract.** Read this first — project goal, stack, rules, conventions. |
-| `02-CONTEXT-DOMAIN.md` | Domain core: users, verification claims, policy, shelter, reviews (from `01` puml). |
+| `02-CONTEXT-DOMAIN.md` | Domain core: users, verification claims, policy, shelter, reviews, trust entities — reports, occupancy, status flag (from `01` puml). |
 | `03-CONTEXT-VERIFICATION.md` | Verification providers & service (from `01` puml). |
 | `04-CONTEXT-AUTH.md` | Password login, JWT sessions, password reset (from `03` puml). |
 | `05-CONTEXT-INGESTION.md` | Registry ingestion (from `04` puml). |
-| `06-CONTEXT-API.md` | Shelter API: read/write + community reviews (from `05` puml). |
+| `06-CONTEXT-API.md` | Shelter API: read/write + community reviews + the trust layer (reports, occupancy, filters, V9) (from `05` puml). |
 | `07-STEPS.md` | The ordered build plan — steps 0–6 with acceptance criteria and stop points. |
 
 ## Source-of-truth UML

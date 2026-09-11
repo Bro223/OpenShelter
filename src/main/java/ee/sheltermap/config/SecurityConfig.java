@@ -2,6 +2,7 @@ package ee.sheltermap.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ee.sheltermap.api.ErrorResponse;
+import ee.sheltermap.app.ReportProperties;
 import ee.sheltermap.auth.ContactChangeProperties;
 import ee.sheltermap.auth.JwtProperties;
 import ee.sheltermap.auth.JwtTokenService;
@@ -45,7 +46,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties({JwtProperties.class, RateLimitProperties.class, VerificationProperties.class,
-        ContactChangeProperties.class})
+        ContactChangeProperties.class, ReportProperties.class})
 public class SecurityConfig {
 
     @Bean

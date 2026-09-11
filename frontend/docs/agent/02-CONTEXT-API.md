@@ -20,10 +20,10 @@
 | ------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | 400    | validation / invalid code / invalid token / bad request                                  | show `message`                                              |
 | 401    | unauthenticated or bad/expired access token                                              | interceptor: single-flight refresh, retry once, else logout |
-| 403    | verified account required / not the author                                               | banner + link to `/verify` or "author only"                 |
+| 403    | verified account required / not the author / cannot report your own review               | banner + link to `/verify` or "author only"                 |
 | 404    | shelter/review not found                                                                 | show "not found" state                                      |
-| 409    | duplicate email/phone, already-verified level, duplicate target contact                  | informational banner                                        |
-| 429    | rate limited (login/register/verify/contact-change, geo resolve)                         | "slow down" message + retry hint                            |
+| 409    | duplicate email/phone, already-verified level, duplicate target contact, duplicate report (shelter/user/type or review/user), 10-active-shelter cap | informational banner (the server message) |
+| 429    | rate limited (login/register/verify/contact-change, geo resolve, report throttle)        | "slow down" message + retry hint                            |
 | 500    | internal (never expected)                                                                | generic error                                               |
 | 502    | geo resolve: upstream short-link chain timed out / failed (generic — no upstream detail) | generic "try again later" error                             |
 
@@ -35,11 +35,11 @@
 
 ### Public read (no auth)
 
-| Method + path                           | Query/body                                         | Response             |
-| --------------------------------------- | -------------------------------------------------- | -------------------- |
-| `GET /api/shelters`                     | `source` = `ALL` (default) \| `REGISTRY` \| `USER` | `ShelterDto[]`       |
-| `GET /api/shelters/{id}`                | —                                                  | `ShelterDto` or 404  |
-| `GET /api/shelters/{shelterId}/reviews` | —                                                  | `ShelterReviewDto[]` |
+| Method + path                           | Query/body                                                                                                                        | Response                                                                                     |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `GET /api/shelters`                     | `source` = `ALL` (default) \| `REGISTRY` \| `USER`; optional trust filters `reviewed` = `true`, `minRating` = `1..5` (else 400), `hasCapacity` = `true` — composable with `source`, applied server-side | `ShelterDto[]` (**ACTIVE rows only** — auto-hidden shelters are absent)                    |
+| `GET /api/shelters/{id}`                | —                                                                                                                                 | `ShelterDetailDto` or 404 — **all statuses** (the public detail read includes auto-hidden)  |
+| `GET /api/shelters/{shelterId}/reviews` | —                                                                                                                                 | `ShelterReviewDto[]` (hidden reviews excluded, except the caller's own — marked `hidden`)   |
 
 ### Location resolution (`/api/geo`) — JWT required, per-IP rate-limited (5/min)
 
@@ -76,8 +76,8 @@ Nominatim DIRECTLY from the browser (no JWT, no backend hop, no API key).
 
 | Method + path               | Body                                                                                       | Success                                                                         | Errors                                                                                          |
 | --------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `POST /api/shelters`        | `CreateShelterRequest`                                                                     | 201 + `Location` + `ShelterDto` (stored `ACTIVE`/`USER`, `created_by` = caller) | 400 (bbox/fields), 403 (not verified)                                                           |
-| `GET /api/shelters/mine`    | —                                                                                          | 200 `ShelterDto[]` (the caller's USER rows only — NOT part of the public GETs)  | 401                                                                                             |
+| `POST /api/shelters`        | `CreateShelterRequest`                                                                     | 201 + `Location` + `ShelterDto` (stored `ACTIVE`/`USER`, `created_by` = caller) | 400 (bbox/fields), 403 (not verified), 409 (caller already has 10 ACTIVE USER shelters — the server message; ADMIN exempt) |
+| `GET /api/shelters/mine`    | —                                                                                          | 200 `ShelterDto[]` (the caller's USER rows only — NOT part of the public GETs; **ALL statuses**, auto-hidden rows included — the contributions panel marks them)  | 401                                                                                             |
 | `PUT /api/shelters/{id}`    | `UpdateShelterRequest` (five writable fields, same constraints as create; bbox re-checked) | 200 updated `ShelterDto`                                                        | 400 (bbox/fields), 401, 403 (not the author — registry/legacy rows unmanageable by anyone), 404 |
 | `DELETE /api/shelters/{id}` | —                                                                                          | 204 (the shelter's reviews cascade)                                             | 401, 403, 404                                                                                   |
 
@@ -88,6 +88,29 @@ Nominatim DIRECTLY from the browser (no JWT, no backend hop, no API key).
 | `POST /api/shelters/{shelterId}/reviews`        | `ReviewRequest` | 201 (created) or 200 (upsert adopted an existing review) + `ShelterReviewDto` | 400 (bounds), 403 (not verified), 404 |
 | `PUT /api/shelters/{shelterId}/reviews/mine`    | `ReviewRequest` | 200 `ShelterReviewDto`                                                        | 400, 403 (not the author), 404        |
 | `DELETE /api/shelters/{shelterId}/reviews/mine` | —               | 204                                                                           | 403, 404                              |
+
+### Trust reports (shelter / review / occupancy) — JWT + verified account
+
+All three require a verified registered user (the same gate and 403 vocabulary as
+submissions), all three return **204 No Content** on success, and all three share ONE
+per-user throttle: **10 report-type actions per rolling hour** across every action type
+(429 — "slow down" copy; a duplicate that 409s consumes no budget — the duplicate check
+runs first). `ShelterGateway.report` / `ShelterGateway.reportOccupancy` and
+`ReviewGateway.reportReview` are the only door.
+
+| Method + path                                         | Body                     | Success | Errors                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/shelters/{id}/reports`                     | `ReportShelterRequest`   | 204     | 403 (not verified), 404 (unknown shelter), 409 (already reported this shelter with this type — "This report has already been submitted"), 429 |
+| `PUT /api/shelters/{id}/occupancy`                    | `ReportOccupancyRequest` | 204     | 403 (not verified), 404 (unknown shelter), 429 — **no 409**: a re-PUT is the update (one live band per user per shelter, latest wins) |
+| `POST /api/shelters/{id}/reviews/{reviewId}/reports`  | `ReportReviewRequest`    | 204     | 403 (not verified, or the caller's OWN review — "You cannot report your own review"), 404 (unknown shelter/review), 409 (already reported this review), 429 |
+
+> Server-side effects the frontend never computes (the UI renders what the DTO carries —
+> never re-derives trust state): the 5th `NON_EXISTENT` shelter report auto-hides an ACTIVE
+> shelter (it simply disappears from `GET /api/shelters` and the map); `CLOSED` /
+> `OPEN_CONFIRMED` net to the display-only `statusFlag`; the 5th review report sets
+> `hidden_at` (the review drops out of the list, the average and the count — the author
+> still sees it, marked hidden); occupancy is display-only (2 h freshness, latest band
+> wins) and never hides, recolors or filters.
 
 ### Auth (`/auth`) — all six public (permitAll); five token buckets
 
@@ -202,6 +225,20 @@ interface ReviewRequest {
   rating: number;
   comment?: string;
 } // 1..5, ≤500 chars
+type ShelterReportType = 'NON_EXISTENT' | 'CLOSED' | 'OPEN_CONFIRMED' | 'WRONG_LOCATION' | 'OTHER';
+interface ReportShelterRequest {
+  type: ShelterReportType;
+  detail?: string; // free text for OTHER, ≤500 chars
+}
+type ReviewReportReason = 'FALSY_DATA' | 'NOT_RELEVANT' | 'SPAM' | 'OTHER';
+interface ReportReviewRequest {
+  reason: ReviewReportReason;
+  detail?: string; // optional detail for any reason, ≤500 chars
+}
+type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
+interface ReportOccupancyRequest {
+  band: OccupancyBand; // one live band per user per shelter — a re-PUT updates it
+}
 ```
 
 ## Response models (TS mirrors, field-for-field)
@@ -227,13 +264,32 @@ interface ShelterDto {
   address: string;
   latitude: number;
   longitude: number;
-  status: 'ACTIVE'; // enum: ACTIVE, INACTIVE (PENDING/REJECTED removed)
+  status: 'ACTIVE' | 'INACTIVE'; // the public list is ACTIVE-only; /mine + the detail read carry both
   source: 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
   averageRating: number | null; // null = no reviews yet (NOT 0)
   reviewCount: number;
   createdAt: string; // ISO-8601 (V5)
   description: string | null; // USER submissions only
   capacity: number | null; // USER submissions only
+  submitterVerified: boolean; // backend-computed (creator has a completed verification;
+  // registry rows false) — the four-valued provenance badge reads THIS, never re-derived
+  nonexistentReports: number; // community "does not exist" reports (> 0 = the orange
+  // reported state: marker + "Reported" badge); five reach auto-hide server-side
+  statusFlag: 'REPORTED_CLOSED' | 'CONFIRMED_OPEN' | null; // closed/confirmed net — display only
+  occupancy: ShelterOccupancy | null; // fresh (≤ 2 h) occupancy block; null = show nothing
+}
+
+interface ShelterOccupancy {
+  band: OccupancyBand; // the latest fresh band (ties: user id)
+  reportCount: number; // fresh reports agreeing with it: 1 = hedged copy, 2+ = firm
+  lastReportedAt: string; // ISO-8601 — the recency suffix ("12 min ago") formats this
+}
+
+interface ShelterDetailDto extends ShelterDto {
+  // GET /api/shelters/{id} (the detail read): the CALLER's own live band — the
+  // "Report how full" picker's pre-select; null for guests, anonymous callers and
+  // no-report users
+  yourOccupancyBand: OccupancyBand | null;
 }
 
 interface ShelterReviewDto {
@@ -242,6 +298,8 @@ interface ShelterReviewDto {
   rating: number; // 1..5
   comment: string | null;
   createdAt: string;
+  hidden: boolean; // community-hidden (5th report); hidden rows are returned to the
+  // AUTHOR ONLY (marked) — excluded from list, average and count for everyone else
 }
 
 interface MyReviewDto {
@@ -269,4 +327,7 @@ Notes:
   surfaced in the UI.
 - Registry rows carry `address` and no description/capacity; USER rows carry description/capacity
   and no external registry id. UI must render `null` gracefully.
-- `GET /api/shelters` fetches all rows (no paging) — hundreds of points, fine for the map.
+- `GET /api/shelters` fetches all ACTIVE rows (no paging) — hundreds of points, fine for the
+  map. Auto-hidden (INACTIVE) rows are absent from the public list and the map; `GET
+  /api/shelters/mine` and `GET /api/shelters/{id}` still carry them (the contributions panel
+  marks the owner's hidden rows; the detail read is public for all statuses).

@@ -89,6 +89,7 @@ public class JpaShelterReviewRepository implements ShelterReviewRepository {
         entity.setComment(review.getComment());
         entity.setCreatedAt(review.getCreatedAt());
         entity.setUpdatedAt(review.getUpdatedAt());
+        entity.setHiddenAt(review.getHiddenAt());
         return entity;
     }
 
@@ -97,6 +98,9 @@ public class JpaShelterReviewRepository implements ShelterReviewRepository {
                 entity.getShelterId(), entity.getUserId(), entity.getRating(), entity.getComment(),
                 entity.getCreatedAt(), entity.getUpdatedAt());
         review.setId(entity.getId());
+        if (entity.getHiddenAt() != null) {
+            review.markHidden(entity.getHiddenAt());
+        }
         return review;
     }
 }

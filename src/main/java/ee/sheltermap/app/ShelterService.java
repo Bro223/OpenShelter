@@ -28,10 +28,21 @@ public class ShelterService {
     public static final String SUBMIT_SHELTERS_MESSAGE =
             "A verified account is required to submit shelters";
 
-    private final ShelterRepository shelterRepository;
+    /**
+     * Per-user spam floor (shelter-trust-and-reports D3): the max shelters
+     * one user may have with {@code source = USER} and {@code status =
+     * ACTIVE}; the 11th submission is a 409. Deletions and auto-hidden
+     * shelters free the cap; ADMIN-kind users are exempt.
+     */
+    public static final int MAX_ACTIVE_SHELTERS_PER_USER = 10;
 
-    public ShelterService(ShelterRepository shelterRepository) {
+    private final ShelterRepository shelterRepository;
+    private final UserRepository userRepository;
+
+    public ShelterService(ShelterRepository shelterRepository,
+                          UserRepository userRepository) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
     }
 
     /**
@@ -45,6 +56,10 @@ public class ShelterService {
      *                                (guest or unverified registered user)
      *                                — the 403-mapped exception, mirroring
      *                                the API layer (B7c; was a generic 500)
+     * @throws ShelterLimitExceededException when the user already has
+     *                                  {@link #MAX_ACTIVE_SHELTERS_PER_USER}
+     *                                  active USER shelters (→ 409; ADMIN
+     *                                  kind is exempt — D3)
      * @throws IllegalArgumentException if the place is not already
      *                                  {@code ACTIVE}/{@code USER} — user submissions must be
      *                                  created ACTIVE immediately, never imported as USER
@@ -58,6 +73,12 @@ public class ShelterService {
         if (place.getStatus() != ShelterStatus.ACTIVE || place.getSource() != ShelterSource.USER) {
             throw new IllegalArgumentException(
                     "user-submitted shelters must be ACTIVE with source USER");
+        }
+        if (!userRepository.isAdmin(user.getId())
+                && shelterRepository.countByCreatedByAndSourceAndStatus(
+                        user.getId(), ShelterSource.USER, ShelterStatus.ACTIVE)
+                >= MAX_ACTIVE_SHELTERS_PER_USER) {
+            throw new ShelterLimitExceededException();
         }
         place.setCreatedBy(user.getId());
         shelterRepository.save(place);

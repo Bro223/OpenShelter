@@ -4,6 +4,7 @@ import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +65,7 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setCapacity(shelter.getCapacity());
         entity.setCreatedAt(shelter.getCreatedAt());
         entity.setCreatedBy(shelter.getCreatedBy());
+        entity.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
     }
 
     @Override
@@ -110,6 +112,21 @@ public class JpaShelterRepository implements ShelterRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources) {
+        return shelters.findAllBySourceInAndStatusOrderByIdAsc(sources, ShelterStatus.ACTIVE).stream()
+                .map(JpaShelterRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source,
+                                                   ShelterStatus status) {
+        return shelters.countByCreatedByAndSourceAndStatus(createdBy, source, status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Shelter> findByCreatedBy(Long userId) {
         return shelters.findByCreatedByOrderByIdAsc(userId).stream().map(JpaShelterRepository::toDomain).toList();
     }
@@ -152,6 +169,7 @@ public class JpaShelterRepository implements ShelterRepository {
         shelter.setId(entity.getId());
         shelter.setCreatedAt(entity.getCreatedAt());
         shelter.setCreatedBy(entity.getCreatedBy());
+        shelter.setAutoHideDisarmed(entity.isAutoHideDisarmed());
         return shelter;
     }
 }

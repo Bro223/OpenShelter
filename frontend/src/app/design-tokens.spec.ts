@@ -119,6 +119,7 @@ describe('design tokens (M6)', () => {
       '--color-surface-overlay',
       '--color-primary',
       '--color-cta',
+      '--color-reported',
       '--color-border',
       '--color-danger',
       '--color-success',
@@ -201,9 +202,12 @@ describe('design tokens (M6)', () => {
     ['--color-error', '--color-bg-surface'],
     // Button text: btn--primary and the crisis CTA both set their text to
     // --color-bg-surface (light: white on blue/orange; high-contrast flips
-    // to dark on the brightened fills — both directions checked).
+    // to dark on the brightened fills — both directions checked). The
+    // reported-state badge/marker (shelter-trust-and-reports D6) uses the
+    // same pair: white on #c2410c (5.18:1) / dark on #ffa94d (9.68:1).
     ['--color-bg-surface', '--color-primary'],
     ['--color-bg-surface', '--color-cta'],
+    ['--color-bg-surface', '--color-reported'],
     // Provenance badge text on its fill (shelter-detail-page .badge). The
     // map rows use the same pair over a 12% color-mix — that computed fill
     // is covered by the styles.scss D1 note, not this literal-based check.
@@ -371,6 +375,7 @@ describe('design tokens (M6)', () => {
       '--radius-full',
       '--color-primary',
       '--color-cta',
+      '--color-reported',
       '--color-border',
       '--color-danger',
       '--color-info',

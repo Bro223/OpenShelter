@@ -78,6 +78,15 @@
   flex-wrap: wrap;
 }
 
+/* Auto-hidden row mark (user-contributions, shelter-trust-and-reports):
+   muted neutral copy — the shelter is still the author's (View/Edit/Delete
+   stay available); only an admin can restore it, so there is no restore
+   action here. */
+.contrib-row__hidden {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
 .contrib-row__stars {
   display: inline-flex;
 }

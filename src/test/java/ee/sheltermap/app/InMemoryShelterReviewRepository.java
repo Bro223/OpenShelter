@@ -56,7 +56,10 @@ public class InMemoryShelterReviewRepository implements ShelterReviewRepository 
 
     @Override
     public List<RatingAggregate> findRatingAggregates(List<Long> shelterIds) {
+        // Mirrors the JPA query: hidden reviews (V9, D2) are excluded from
+        // the average and the (visible) count.
         return store.values().stream()
+                .filter(r -> !r.isHidden())
                 .filter(r -> shelterIds.contains(r.getShelterId()))
                 .collect(java.util.stream.Collectors.groupingBy(ShelterReview::getShelterId))
                 .entrySet().stream()

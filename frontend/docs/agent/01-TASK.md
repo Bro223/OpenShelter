@@ -10,10 +10,14 @@ anyone can:
 - **change their email or phone** — cross-channel proof (email change needs an SMS code to the
   current phone; phone change needs an email code to the current email),
 - **contribute**: verified users submit shelters and rate/review shelters (the rating system IS
-  the moderation — there is no moderator).
+  the moderation — there is no moderator), and report shelters, reviews, and how full a shelter
+  is right now (the community trust layer — the 5th "does not exist" shelter report
+  auto-hides the shelter from the public map, the 5th review report hides the review,
+  occupancy is display-only; all three verified-only, idempotent per user, one shared
+  per-user throttle).
 
-The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests, counted
-2026-09-11 pre-fix-wave)**. This task pack covers the **frontend only**.
+The backend (Spring Boot, same repo, `src/`) is **complete and green (433 tests, counted
+2026-09-11)**. This task pack covers the **frontend only**.
 
 ## 2. Tech stack (fixed — do not change without asking)
 
@@ -21,7 +25,10 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
   ~6.0** (strict)
 - **Angular Signals** for state (no NgRx in v1), RxJS only where async streams demand it
 - **SCSS** + small design-token file (CSS custom properties — the single `--color-cta`
-  crisis-orange is consumed ONLY by the map page's "Nearest shelter" CTA; `.num-tabular` is the
+  crisis-orange is consumed ONLY by the map page's "Nearest shelter" CTA; `--color-reported`
+  is the second safety-orange — the reported-state marker fill + "Reported" badge, kept its
+  own token so the two never drift (light `#c2410c`, high-contrast `#ffa94d`; both contrast
+  values are pinned in `design-tokens.spec.ts`); `.num-tabular` is the
   tabular-figures utility for coordinate readouts) — **no heavy component library**. The `:root`
   token block is the single source of truth for visual values, with ONE persisted
   `[data-theme='high-contrast']` override block on `<html>` (shell-header toggle, `aria-pressed`,
@@ -54,12 +61,12 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
 | ------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------- |
 | `core/` `ApiClient`, `ApiError`, `TokenStore`, `ThemeStore` (persisted high-contrast theme: `highContrast` signal + `openshelter-theme` localStorage + the `<html>` `data-theme` attribute — same persistence shape as `TokenStore`), guards, `ApiInterceptor`, typed models (NO session state — that moved to `session/`) `01` |
 | `session/` `AuthStore` — session state (profile + real verified claims). Moved out of `core/` in the 2026-09-08 arch pass; `core/` keeps the guards + interceptor, which import it — the core→session edge is intentional `01` |
-| `gateways/` `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`), `GeoGateway` (`resolve` — POST /api/geo/resolve, short links), `GeocodeGateway` (`search` — client-side OSM Nominatim; the ONE documented raw-fetch exception to the ApiClient rule) — one per backend controller group + the one external-service door `01` |
+| `gateways/` `AuthGateway`, `VerifyGateway`, `ShelterGateway` (`list`/`get`/`create`/`mine`/`update`/`remove`/`report`/`reportOccupancy`), `ReviewGateway` (`list`/`add`/`updateMine`/`deleteMine`/`reportReview`), `AccountGateway` (`me`/`updateProfile`/contact-change/`myReviews`), `GeoGateway` (`resolve` — POST /api/geo/resolve, short links), `GeocodeGateway` (`search` — client-side OSM Nominatim; the ONE documented raw-fetch exception to the ApiClient rule) — one per backend controller group + the one external-service door `01` |
 | `features/auth/` `LoginPage`, `RegisterPage`, `ResetPage` `01`+`02` |
-| `features/account/` `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted) `01`+`03`+`05` |
-| `features/map/` `MapPage` (public map: markers + sidebar list, filter chips, legend; crisis actions — the "Nearest shelter" CTA (`--color-cta`, geolocation + Haversine nearest over the loaded list, per-error copy, row emphasis) and the authenticated-only "Add shelter" → /submit; the Leaflet wrapper lives in `shared/` now; sidebar rows carry the four-valued provenance badge (D4)) `01`+`04` |
-| `features/shelter/` `ShelterDetailPage` (header carries the coordinate line + the "Navigate" / "Open in Apple Maps" deep links; header badge = the four-valued provenance chip per D4), `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`) `01`+`05` |
-| `shared/` `PageShell` (brand + nav + shell actions, incl. the high-contrast theme toggle bound to `ThemeStore`), `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`), `shelter-copy.ts` (canonical source/rating copy + `provenanceLabel` — the single-sourced four-valued provenance badge: "Paasteamet registry" / "Municipal registry" / "Verified user" / "User-submitted"; legend/filter chip wording stays the two-valued `sourceLabel` copy) and `location-input.ts` (pure location-string parser: `parseLocationInput`, `isGooShortLink`, `normalizeShortLinkUrl` — fixture-table-tested, no Angular imports) `01` |
+| `features/account/` `VerifyPage`, `AccountPage`, `ContributionsPanel` (M8; moved here in the 2026-09-08 arch pass — `features/contributions/` was deleted; trust: the owner's shelter list carries auto-hidden (INACTIVE) rows marked "Hidden — reported by the community (N reports)" with no restore action, and a 409 shelter-cap on submit surfaces the server message in the row error) `01`+`03`+`05` |
+| `features/map/` `MapPage` (public map: markers + sidebar list, filter chips, legend; crisis actions — the "Nearest shelter" CTA (`--color-cta`, geolocation + Haversine nearest over the loaded list, per-error copy, row emphasis) and the authenticated-only "Add shelter" → /submit; the Leaflet wrapper lives in `shared/` now; sidebar rows carry the four-valued provenance badge (D4); trust filters — `Reviewed` / `Has capacity` chips + a `Rating` select ("Any rating" / "1★+" … "5★+") — compose with the source chips as SERVER refetches; reported shelters get the single orange marker + the "Reported" legend entry (`--color-reported`), overriding the provenance colours; row badges for the trust state — "Reported", the status-flag text, the occupancy text) `01`+`04` |
+| `features/shelter/` `ShelterDetailPage` (header carries the coordinate line + the "Navigate" / "Open in Apple Maps" deep links; header badge = the four-valued provenance chip per D4 + the trust badges — "Reported", status flag, occupancy; three verified-only report sections: "Report this shelter" (five radio types, optional detail for OTHER), a per-review "Report" picker (four reasons, optional detail for OTHER), and "Report how full" (three large band buttons, pre-selected from the detail DTO's `yourOccupancyBand`, aggregate + recency line while fresh)), `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`) `01`+`05` |
+| `shared/` `PageShell` (brand + nav + shell actions, incl. the high-contrast theme toggle bound to `ThemeStore`), `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`), `shelter-copy.ts` (canonical source/rating copy + `provenanceLabel` — the single-sourced four-valued provenance badge: "Paasteamet registry" / "Municipal registry" / "Verified user" / "User-submitted"; legend/filter chip wording stays the two-valued `sourceLabel` copy — plus the trust copy: `statusFlagText` ("Reported closed" / "Confirmed open"), the occupancy firm/hedged band copy, `occupancyText` (firm or hedged + recency), `hasReports`/`hasTrustBadges` — the map rows and the detail header render the SAME badge text) and `location-input.ts` (pure location-string parser: `parseLocationInput`, `isGooShortLink`, `normalizeShortLinkUrl` — fixture-table-tested, no Angular imports) `01` |
 
 **Dependency rule (never break it):** `features` → `gateways` → `core`; `features` also reach
 `shared/` and `session/` directly, and `shared/` may import `core/` (established:
@@ -86,7 +93,10 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
    **and** calls `POST /auth/logout`.
 6. **Guards mirror backend authorization.** Public: map/detail/reviews. `AuthGuard`: /verify,
    /account, submitting. `VerifiedGuard`: /submit — mirrors the backend's "verified account
-   required" 403. A 403 from the API is still handled gracefully (banner + link to /verify).
+   required" 403. The same 403 vocabulary gates the trust actions client-side: the report and
+   "Report how full" pickers render for verified users only, and anonymous/unverified viewers
+   get the login/verify prompts (the API 403 remains the enforcement point). A 403 from the
+   API is still handled gracefully (banner + link to /verify).
 7. **Loading & empty states everywhere** — no silent hangs, no blank pages; the dev backend may
    simply be off.
 8. **Tests are mandatory in every milestone** — Vitest unit tests for stores/gateways/services

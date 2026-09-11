@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -65,6 +66,23 @@ public class InMemoryShelterRepository implements ShelterRepository {
         return store.values().stream()
                 .filter(s -> sources.contains(s.getSource()))
                 .toList();
+    }
+
+    @Override
+    public List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources) {
+        return store.values().stream()
+                .filter(s -> sources.contains(s.getSource()))
+                .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
+                .toList();
+    }
+
+    @Override
+    public long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status) {
+        return store.values().stream()
+                .filter(s -> Objects.equals(s.getCreatedBy(), createdBy))
+                .filter(s -> s.getSource() == source)
+                .filter(s -> s.getStatus() == status)
+                .count();
     }
 
     @Override

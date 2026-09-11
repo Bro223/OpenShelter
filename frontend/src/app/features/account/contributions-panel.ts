@@ -92,6 +92,17 @@ export class ContributionsPanel implements OnInit {
   /** W24: the shared rating summary copy, exposed to the template. */
   protected readonly ratingText = ratingTextShared;
 
+  /**
+   * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
+   * the owner's list includes INACTIVE (auto-hidden) rows, marked with the
+   * community non-existence report count. Restore is admin-only — the user
+   * UI offers no restore action, so the mark is the row's only new element.
+   */
+  protected hiddenText(row: ShelterDto): string {
+    const n = row.nonexistentReports;
+    return `Hidden — reported by the community (${n} report${n === 1 ? '' : 's'})`;
+  }
+
   // ---- shelter edit form (pre-filled on Edit; public so specs can drive it)
   readonly editName = new FormControl('', {
     nonNullable: true,

@@ -1,23 +1,33 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.InMemoryReportActionLog;
+import ee.sheltermap.app.InMemoryReviewReportRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.OwnReviewReportException;
+import ee.sheltermap.app.DuplicateReportException;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewReportReason;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
+import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,13 +37,20 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the community-review service: verified-account gate,
- * one-review-per-user upsert, author-only update/delete, 404s, DTO mapping.
+ * one-review-per-user upsert, author-only update/delete, 404s, DTO mapping,
+ * and review reports (shelter-trust-and-reports D2): own-review 403,
+ * duplicate 409, the 5th-report hide, hidden exclusion from the public
+ * list and the rating aggregate.
  */
 class ShelterReviewServiceTest {
+
+    private static final Clock FIXED = Clock.fixed(Instant.parse("2026-09-11T12:00:00Z"), ZoneOffset.UTC);
 
     private InMemoryShelterRepository shelters;
     private InMemoryShelterReviewRepository reviews;
     private InMemoryUserRepository users;
+    private InMemoryReviewReportRepository reviewReports;
+    private InMemoryReportActionLog actionLog;
     private ShelterReviewService service;
 
     private RegisteredUser verified;
@@ -45,7 +62,9 @@ class ShelterReviewServiceTest {
         shelters = new InMemoryShelterRepository();
         reviews = new InMemoryShelterReviewRepository();
         users = new InMemoryUserRepository();
-        service = new ShelterReviewService(reviews, shelters, users);
+        reviewReports = new InMemoryReviewReportRepository();
+        actionLog = new InMemoryReportActionLog(FIXED);
+        service = new ShelterReviewService(reviews, shelters, users, reviewReports, actionLog, FIXED);
 
         verified = user("Mari Maasikas", "mari@example.ee");
         verified.addVerification(claim("smtp"));
@@ -148,7 +167,7 @@ class ShelterReviewServiceTest {
         ShelterReview otherOwnersReview = new ShelterReview(shelter.getId(), otherUser.getId(), 4, "teise kasutaja");
         reviews.save(otherOwnersReview);
         InMemoryShelterReviewRepository wrongOwner = new WrongOwnerReviewRepository(otherOwnersReview);
-        ShelterReviewService guarded = new ShelterReviewService(wrongOwner, shelters, users);
+        ShelterReviewService guarded = new ShelterReviewService(wrongOwner, shelters, users, reviewReports, actionLog, FIXED);
 
         assertThatThrownBy(() -> guarded.updateReview(verified, shelter.getId(), 1, "x"))
                 .isInstanceOf(NotAuthorException.class);
@@ -160,7 +179,7 @@ class ShelterReviewServiceTest {
     void reviewsRequireExistingShelter() {
         assertThatThrownBy(() -> service.addReview(verified, 999_999L, 4, "x"))
                 .isInstanceOf(ShelterNotFoundException.class);
-        assertThatThrownBy(() -> service.getReviews(999_999L))
+        assertThatThrownBy(() -> service.getReviews(999_999L, null))
                 .isInstanceOf(ShelterNotFoundException.class);
     }
 
@@ -169,13 +188,169 @@ class ShelterReviewServiceTest {
         service.addReview(verified, shelter.getId(), 4, "hea");
         service.addReview(otherUser, shelter.getId(), 5, "väga hea");
 
-        var dtos = service.getReviews(shelter.getId());
+        var dtos = service.getReviews(shelter.getId(), null);
 
         assertThat(dtos).hasSize(2);
         assertThat(dtos).extracting(ShelterReviewDto::authorName)
                 .containsExactlyInAnyOrder("Mari Maasikas", "Jaan Jänes");
         assertThat(dtos).extracting(ShelterReviewDto::rating)
                 .containsExactlyInAnyOrder(4, 5);
+    }
+
+    // ---------- review reports (shelter-trust-and-reports D2) ----------
+
+    @Test
+    void fiveReviewReportsHideTheReviewOnce() {
+        service.addReview(verified, shelter.getId(), 4, "võlts info");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), verified.getId())
+                .orElseThrow().getId();
+        // Mari authored the review — five OTHER users report it
+        service.reportReview(user("Arv1", "arv1@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null);
+        service.reportReview(user("Arv2", "arv2@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null);
+        service.reportReview(user("Arv3", "arv3@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.FALSY_DATA, null);
+        service.reportReview(user("Arv4", "arv4@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.OTHER, "põhjendus");
+
+        // 4 reports: still visible, hidden_at unset (the flag only at 5)
+        assertThat(reviews.findById(reviewId).orElseThrow().isHidden()).isFalse();
+
+        service.reportReview(user("Arv5", "arv5@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null);
+
+        ShelterReview stored = reviews.findById(reviewId).orElseThrow();
+        assertThat(stored.isHidden()).isTrue();
+        assertThat(stored.getHiddenAt()).isEqualTo(FIXED.instant());
+        // hiding never deletes the row
+        assertThat(reviews.findAll()).hasSize(1);
+        // a 6th report increments the count but does not re-stamp the hide
+        service.reportReview(user("Arv6", "arv6@example.ee", true), shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null);
+        assertThat(reviews.findById(reviewId).orElseThrow().getHiddenAt())
+                .isEqualTo(FIXED.instant());
+        assertThat(reviewReports.countByReviewId(reviewId)).isEqualTo(6);
+    }
+
+    @Test
+    void hiddenReviewIsExcludedFromThePublicListButNotFromTheAuthor() {
+        service.addReview(verified, shelter.getId(), 4, "peita mind");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), verified.getId())
+                .orElseThrow().getId();
+        reviews.findById(reviewId).orElseThrow().markHidden(FIXED.instant());
+        reviews.save(reviews.findById(reviewId).orElseThrow());
+
+        // the author still sees their hidden review, marked
+        var authorView = service.getReviews(shelter.getId(), verified);
+        assertThat(authorView).hasSize(1);
+        assertThat(authorView.get(0).hidden()).isTrue();
+
+        // everyone else (another user, a guest) never receives it
+        assertThat(service.getReviews(shelter.getId(), otherUser)).isEmpty();
+        assertThat(service.getReviews(shelter.getId(), null)).isEmpty();
+    }
+
+    @Test
+    void hiddenReviewIsExcludedFromTheRatingAggregate() {
+        service.addReview(verified, shelter.getId(), 1, "peita mind");
+        service.addReview(otherUser, shelter.getId(), 5, "reaalne");
+        long hiddenId = reviews.findByShelterIdAndUserId(shelter.getId(), verified.getId())
+                .orElseThrow().getId();
+        reviews.findById(hiddenId).orElseThrow().markHidden(FIXED.instant());
+        reviews.save(reviews.findById(hiddenId).orElseThrow());
+
+        List<ShelterReviewRepository.RatingAggregate> aggregates =
+                reviews.findRatingAggregates(List.of(shelter.getId()));
+
+        assertThat(aggregates).hasSize(1);
+        assertThat(aggregates.get(0).average()).isEqualTo(5.0);
+        assertThat(aggregates.get(0).count()).isEqualTo(1);
+    }
+
+    @Test
+    void ownReviewCannotBeReported() {
+        service.addReview(verified, shelter.getId(), 4, "oma arvustus");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), verified.getId())
+                .orElseThrow().getId();
+
+        assertThatThrownBy(() -> service.reportReview(verified, shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(OwnReviewReportException.class);
+        assertThat(reviewReports.findAll()).isEmpty();
+    }
+
+    @Test
+    void duplicateReviewReportIsRejected() {
+        service.addReview(otherUser, shelter.getId(), 2, "süütu");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), otherUser.getId())
+                .orElseThrow().getId();
+
+        service.reportReview(verified, shelter.getId(), reviewId, ReviewReportReason.SPAM, null);
+
+        assertThatThrownBy(() -> service.reportReview(verified, shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(DuplicateReportException.class);
+        assertThat(reviewReports.countByReviewId(reviewId)).isEqualTo(1);
+    }
+
+    @Test
+    void reviewReportRequiresExistingShelterAndReviewOfThatShelter() {
+        assertThatThrownBy(() -> service.reportReview(verified, 999_999L, 1L,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(ShelterNotFoundException.class);
+
+        service.addReview(otherUser, shelter.getId(), 2, "siin");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), otherUser.getId())
+                .orElseThrow().getId();
+        // a real review id pointed at a DIFFERENT shelter → 404, not a leak
+        assertThatThrownBy(() -> service.reportReview(verified, 424242L, reviewId,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(ShelterNotFoundException.class);
+        // a review id that does not exist at all → 404
+        assertThatThrownBy(() -> service.reportReview(verified, shelter.getId(), 424242L,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(ShelterReviewNotFoundException.class);
+        assertThat(reviewReports.findAll()).isEmpty();
+    }
+
+    @Test
+    void unverifiedCannotReportAReview() {
+        service.addReview(otherUser, shelter.getId(), 2, "süütu");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), otherUser.getId())
+                .orElseThrow().getId();
+        RegisteredUser unverified = user("Priit", "priit@example.ee", false);
+
+        assertThatThrownBy(() -> service.reportReview(unverified, shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, null))
+                .isInstanceOf(NotVerifiedException.class);
+        assertThat(reviewReports.findAll()).isEmpty();
+    }
+
+    @Test
+    void otherReasonDetailIsStoredAndOtherReasonsDropIt() {
+        service.addReview(otherUser, shelter.getId(), 2, "süütu");
+        long reviewId = reviews.findByShelterIdAndUserId(shelter.getId(), otherUser.getId())
+                .orElseThrow().getId();
+
+        service.reportReview(verified, shelter.getId(), reviewId,
+                ReviewReportReason.OTHER, "põhjendus siin");
+        assertThat(reviewReports.findAll().get(0).getDetail()).isEqualTo("põhjendus siin");
+
+        RegisteredUser second = user("Arv2", "arv2@example.ee", true);
+        service.reportReview(second, shelter.getId(), reviewId,
+                ReviewReportReason.SPAM, "peab unune ma");
+        assertThat(reviewReports.findAll().get(1).getDetail()).isNull();
+    }
+
+    /** The user factory with an explicit verification state (report-report tests). */
+    private RegisteredUser user(String name, String email, boolean verified) {
+        RegisteredUser u = new RegisteredUser(name, email, "+3725000" + (20 + users.findAll().size()), "49001010009");
+        if (verified) {
+            u.addVerification(claim("smtp"));
+        }
+        users.save(u);
+        return u;
     }
 
 
@@ -209,7 +384,7 @@ class ShelterReviewServiceTest {
                 return looks.incrementAndGet() <= 1 ? shelters.findById(id) : Optional.empty();
             }
         };
-        ShelterReviewService guarded = new ShelterReviewService(fkFailing, deletedMidFlight, users);
+        ShelterReviewService guarded = new ShelterReviewService(fkFailing, deletedMidFlight, users, reviewReports, actionLog, FIXED);
 
         assertThatThrownBy(() -> guarded.addReview(verified, shelter.getId(), 4, "x"))
                 .isInstanceOf(ShelterNotFoundException.class);
@@ -246,7 +421,7 @@ class ShelterReviewServiceTest {
                 super.save(review);
             }
         };
-        ShelterReviewService guarded = new ShelterReviewService(racing, shelters, users);
+        ShelterReviewService guarded = new ShelterReviewService(racing, shelters, users, reviewReports, actionLog, FIXED);
 
         ShelterReviewService.SaveResult result =
                 guarded.addReview(verified, shelter.getId(), 2, "loser update");

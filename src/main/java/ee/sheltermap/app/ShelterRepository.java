@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 
 import java.util.Collection;
 import java.util.List;
@@ -28,6 +29,20 @@ public interface ShelterRepository {
     List<Shelter> findAll();
 
     List<Shelter> findAllBySourceIn(List<ShelterSource> sources);
+
+    /**
+     * The public list projection (shelter-trust-and-reports D5): only
+     * {@code ACTIVE} rows — auto-hidden shelters disappear from the map
+     * and list. Owner ({@link #findByCreatedBy}) and admin listings keep
+     * all statuses.
+     */
+    List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources);
+
+    /**
+     * The caller's shelters with the given source/status — the input of
+     * the per-user active-shelter cap (shelter-trust-and-reports D3).
+     */
+    long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
     /** All shelters created by {@code userId} — the author-scoped "my shelters" query (V7). */
     List<Shelter> findByCreatedBy(Long userId);

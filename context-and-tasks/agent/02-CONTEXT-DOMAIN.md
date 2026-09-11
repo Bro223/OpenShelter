@@ -21,12 +21,19 @@ depends on it. It answers "what is this app about": users, verification claims, 
 | `VerificationPolicy` | class | holds `rules: VerificationRules`; `allows(levels: Set<VerificationLevel>, capability: Capability): boolean`. |
 | `VerificationRules` | record | `baseline: Set<Capability>`, `byLevel: Map<VerificationLevel, Set<Capability>>`, `ofDefaults(): VerificationRules`. |
 | `Capability` | enum | `VIEW_MAP, SUBMIT_SHELTER` (`PUBLISH_INSTANTLY` removed in the review-fix pass). |
-| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource, address, county, municipality, dataAsOf, sourceAttribution, description: String, capacity: Integer`. User submissions: `externalId = null`, `source = USER`. Registry rows carry the FULL published record; `description`/`capacity` are USER-submission details (stored since V3 — previously validated then silently dropped). **`createdBy: Long` (M8, V7)** — the author of a USER submission (set by `ShelterService.addPlace` to the submitting user's id); `null` for registry rows and pre-V7 legacy USER rows, which are unmanageable by anyone. Getter/setter like `id`/`createdAt`; the rest of the record stays immutable-final. |
-| `ShelterStatus` | enum | `ACTIVE, INACTIVE` (`PENDING`/`REJECTED` removed in the review-fix pass). |
+| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource, address, county, municipality, dataAsOf, sourceAttribution, description: String, capacity: Integer`. User submissions: `externalId = null`, `source = USER`. Registry rows carry the FULL published record; `description`/`capacity` are USER-submission details (stored since V3 — previously validated then silently dropped). **`createdBy: Long` (M8, V7)** — the author of a USER submission (set by `ShelterService.addPlace` to the submitting user's id); `null` for registry rows and pre-V7 legacy USER rows, which are unmanageable by anyone. **`autoHideDisarmed: boolean` (V9, default `false`)** — the auto-hide disarm flag: an `ACTIVE` shelter whose flag is still `false` can be auto-hidden by the 5th `NON_EXISTENT` report; a manual admin restore sets it `true` so later reports never re-hide (the write path lands in the admin-moderation change; the read-side condition is honoured from day one). Getter/setter like `id`/`createdAt`; the rest of the record stays immutable-final. |
+| `ShelterStatus` | enum | `ACTIVE, INACTIVE` (`PENDING`/`REJECTED` removed in the review-fix pass). `INACTIVE` is also the auto-hidden state (V9) — a report-triggered soft hide, restorable later by an admin only. |
+| `ShelterStatusFlag` | enum | `REPORTED_CLOSED, CONFIRMED_OPEN` (V9) — the CLOSED vs OPEN_CONFIRMED net, a **display-only** flag computed at read time and carried on `ShelterDto` (`null` = no flag); it never changes status or visibility. |
+| `ShelterReport` | class | `id, shelterId, userId, type: ShelterReportType, detail: String (≤500, free text for `OTHER` only), createdAt`. **Unique (shelterId, userId, type)** (V9) — the per-target abuse bound; the `type` routes the consequence (auto-hide / display flag / admin queue only). |
+| `ShelterReportType` | enum | `NON_EXISTENT, CLOSED, OPEN_CONFIRMED, WRONG_LOCATION, OTHER` (V9). |
+| `ShelterOccupancyReport` | class | `id, shelterId, userId, band: OccupancyBand, updatedAt`. **Unique (shelterId, userId)** (V9) — ONE live report per user per shelter; a re-report updates the row (latest band wins, `updatedAt` refreshed). Display-only: never hides, recolors or filters. |
+| `OccupancyBand` | enum | `SPACE, GETTING_FULL, FULL` (V9). |
+| `ReviewReport` | class | `id, reviewId, userId, reason: ReviewReportReason, detail: String (≤500, free text for `OTHER` only), createdAt`. **Unique (reviewId, userId)** (V9) — one report per user per review; the 5th hides the review (`hiddenAt` set once, never cleared automatically). |
+| `ReviewReportReason` | enum | `FALSY_DATA, NOT_RELEVANT, SPAM, OTHER` (V9). |
 | `ShelterSource` | enum | `PAASETEAMET, MUNICIPALITY, USER`. |
 | `GeoPoint` | record | `lat: double, lng: double`. |
-| `ShelterReview` | class | `id, shelterId, userId, rating: int (1..5), comment: String (≤500), createdAt, updatedAt`. **Unique (shelterId, userId)** — one review per user per shelter. |
-| `ShelterReviewRepository` | interface | `save, findById, findByShelterId, findByShelterIdAndUserId, delete, findRatingAggregates(ids): List<RatingAggregate>` (one batched query — no N+1 on listings). |
+| `ShelterReview` | class | `id, shelterId, userId, rating: int (1..5), comment: String (≤500), createdAt, updatedAt`. **Unique (shelterId, userId)** — one review per user per shelter. **`hiddenAt: Instant` (nullable, V9)** — set once when the 5th review report lands; never cleared automatically (admin moderation only). Hidden reviews are excluded from the public list, the rating aggregate and the `reviewed` filter — except for the author, who sees their own marked hidden. |
+| `ShelterReviewRepository` | interface | `save, findById, findByShelterId, findByShelterIdAndUserId, delete, findRatingAggregates(ids): List<RatingAggregate>` (one batched query — no N+1 on listings; V9: counts VISIBLE reviews only — `hiddenAt IS NULL` — so hidden reviews drop out of the average, the count and the `reviewed` filter in one place). |
 
 Repository interfaces `UserRepository`, `ShelterRepository` live in the **`app` package** per the
 diagram (see `03-CONTEXT-VERIFICATION.md` note / `01` puml package `app`).
@@ -50,6 +57,14 @@ diagram (see `03-CONTEXT-VERIFICATION.md` note / `01` puml package `app`).
    quality. Do not build moderation logic anywhere.
 5. **No PENDING/REJECTED.** v1 has no moderation lifecycle — shelters are `ACTIVE` or
    `INACTIVE` only (`PENDING`/`REJECTED` were removed in the review-fix pass).
+6. **The trust layer is community-derived, not a moderator** (shelter-trust-and-reports).
+   Reports are data whose consequences are DERIVED at read time in the API projection
+   (`nonexistentReports`, the `statusFlag` net, fresh occupancy) — nothing is stored
+   except the report rows themselves, plus the two deliberate state writes: the
+   auto-hide (exactly on the 4→5 `NON_EXISTENT` insert of an `ACTIVE` shelter whose
+   `autoHideDisarmed` is `false`) and a review's `hiddenAt` (5th review report, set
+   once). `CLOSED`/`OPEN_CONFIRMED` never touch status; occupancy never touches
+   anything but the display.
 
 ## Contracts with other contexts
 
@@ -69,3 +84,9 @@ diagram (see `03-CONTEXT-VERIFICATION.md` note / `01` puml package `app`).
   true`; `RegisteredUser.levels()` reflects added/revoked claims.
 - Review invariants: rating bounds, comment length, uniqueness constraint surfaces as an error on
   duplicate (shelterId, userId).
+- Trust invariants (V9): report uniqueness per (shelter, user, type) and (review, user);
+  the 4→5 auto-hide fires once and not when disarmed or not `ACTIVE`; the `statusFlag` net
+  (closed > confirmed → `REPORTED_CLOSED`; both ≥ 1 → `CONFIRMED_OPEN`, tie included;
+  otherwise none); occupancy derivation (latest fresh band wins, agreeing count, 2 h window).
+- Throttle (V9): `ReportActionLog.record` rejects at the cap WITHOUT recording, and the
+  check-and-record is atomic per user (no concurrent pair both reads the pre-increment count).

@@ -40,6 +40,10 @@ public class ShelterReviewEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** When the 5th review report hid the review (V9, D2); NULL while visible. */
+    @Column(name = "hidden_at")
+    private Instant hiddenAt;
+
     public Long getId() {
         return id;
     }
@@ -94,5 +98,13 @@ public class ShelterReviewEntity {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getHiddenAt() {
+        return hiddenAt;
+    }
+
+    public void setHiddenAt(Instant hiddenAt) {
+        this.hiddenAt = hiddenAt;
     }
 }

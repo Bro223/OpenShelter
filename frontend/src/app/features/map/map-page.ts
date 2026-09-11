@@ -12,14 +12,18 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { ShelterDto, ShelterSourceFilter } from '../../core/models';
+import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
+  hasReports as hasReportsShared,
+  hasTrustBadges as hasTrustBadgesShared,
+  occupancyText as occupancyTextShared,
   provenanceLabel as provenanceLabelShared,
   ratingText as ratingTextShared,
+  statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
 import { bannerMessage } from '../../shared/error-copy';
 import {
@@ -34,6 +38,19 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
   { value: 'ALL', label: 'All' },
   { value: 'REGISTRY', label: 'Registry' },
   { value: 'USER', label: 'User' },
+];
+
+/**
+ * The rating `<select>` options (shelter-trust-and-reports D6): the first
+ * option is "Any rating" (no minRating param); the rest are "N★+".
+ */
+const RATING_FILTERS: { value: number | null; label: string }[] = [
+  { value: null, label: 'Any rating' },
+  { value: 1, label: '1★+' },
+  { value: 2, label: '2★+' },
+  { value: 3, label: '3★+' },
+  { value: 4, label: '4★+' },
+  { value: 5, label: '5★+' },
 ];
 
 /**
@@ -66,8 +83,11 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 /**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience (M4): a Leaflet map with
- * divIcon markers (REGISTRY=blue, USER=green) + a sidebar list, source-filter
- * chips that refetch server-side, a legend, and loading/empty/error states.
+ * divIcon markers (REGISTRY=blue, USER=green, REPORTED=orange) + a sidebar
+ * list, source-filter chips that refetch server-side, trust filters
+ * (shelter-trust-and-reports D6: Reviewed / Has capacity toggle chips + a
+ * rating select — all composable, all server-side), a legend, and
+ * loading/empty/error states.
  *
  * Thin shell (01-TASK.md §7): state in signals, business behaviour delegated —
  * the gateway owns the API, LeafletService owns the map. LeafletService is
@@ -106,12 +126,29 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly injector = inject(EnvironmentInjector);
 
   protected readonly sourceFilters = SOURCE_FILTERS;
+  protected readonly ratingFilters = RATING_FILTERS;
   /** W24: the shared source/rating copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
-   *  four-valued provenance (accessibility-and-provenance D4). */
+   *  four-valued provenance (accessibility-and-provenance D4); the trust
+   *  badges (D6) reuse the shared statusFlag/occupancy copy. */
   protected readonly provenanceLabel = provenanceLabelShared;
   protected readonly ratingText = ratingTextShared;
+  protected readonly statusFlagText = statusFlagTextShared;
+  protected readonly occupancyText = occupancyTextShared;
+  /** Trust-badge predicates (D6) — the template keeps the `>` comparisons
+   *  in code, not in the template expressions. */
+  protected readonly hasReports = hasReportsShared;
+  protected readonly hasTrustBadges = hasTrustBadgesShared;
   protected readonly filter = signal<ShelterSourceFilter>('ALL');
+
+  // ---- trust filters (shelter-trust-and-reports D5/D6) ----------------------
+  /** Reviewed toggle chip -> `reviewed=true` (>= 1 visible review). */
+  protected readonly reviewed = signal(false);
+  /** Has capacity toggle chip -> `hasCapacity=true`. */
+  protected readonly hasCapacity = signal(false);
+  /** Rating select -> `minRating=1..5`; null = "Any rating" (no param). */
+  protected readonly minRating = signal<number | null>(null);
+
   protected readonly shelters = signal<ShelterDto[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -175,6 +212,42 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return;
     }
     this.load(source);
+  }
+
+  /** Reviewed toggle chip (D6) — flip + refetch with the current source. */
+  toggleReviewed(): void {
+    this.reviewed.update((active) => !active);
+    this.load(this.filter());
+  }
+
+  /** Has capacity toggle chip (D6) — flip + refetch with the current source. */
+  toggleHasCapacity(): void {
+    this.hasCapacity.update((active) => !active);
+    this.load(this.filter());
+  }
+
+  /** Rating select change (D6) — "" = Any rating (null), else 1..5. */
+  setMinRating(event: Event): void {
+    const raw = (event.target as HTMLSelectElement).value;
+    this.minRating.set(raw === '' ? null : Number(raw));
+    this.load(this.filter());
+  }
+
+  /**
+   * The active trust filters, or undefined when none are active (D5).
+   * An undefined result keeps the legacy single-arg `list(source)` call
+   * shape — the query string is byte-identical to M4 until a trust filter
+   * is actually set.
+   */
+  private activeTrustFilter(): ShelterTrustFilter | undefined {
+    if (!this.reviewed() && !this.hasCapacity() && this.minRating() === null) {
+      return undefined;
+    }
+    return {
+      reviewed: this.reviewed() || undefined,
+      minRating: this.minRating() ?? undefined,
+      hasCapacity: this.hasCapacity() || undefined,
+    };
   }
 
   /**
@@ -343,7 +416,12 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.filter.set(source);
     this.error.set(null);
     this.loading.set(true);
-    void this.gateway.list(source).then(
+    // Trust filters compose with the source (D5); with none active the call
+    // is the plain M4 shape — list(source), no second argument at all.
+    const trust = this.activeTrustFilter();
+    const request =
+      trust === undefined ? this.gateway.list(source) : this.gateway.list(source, trust);
+    void request.then(
       (rows) => {
         if (seq !== this.fetchSeq) {
           return; // a newer filter refetch superseded this response

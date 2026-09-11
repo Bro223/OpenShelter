@@ -42,6 +42,22 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
+ * The marker tone class suffix (shelter-trust-and-reports D1): reported
+ * (nonexistentReports > 0) wins over provenance — the orange dot is the
+ * single "reported" affordance, provenance colours only for unreported
+ * rows.
+ */
+export function markerTone(shelter: {
+  source: ShelterSource;
+  nonexistentReports: number;
+}): 'reported' | 'user' | 'registry' {
+  if (shelter.nonexistentReports > 0) {
+    return 'reported';
+  }
+  return shelter.source === 'USER' ? 'user' : 'registry';
+}
+
+/**
  * Thin wrapper around the `leaflet` npm package (05-CONTEXT-MAP.md decision 3:
  * leaflet is called directly — no ngx-leaflet, which lags Angular majors).
  *
@@ -101,6 +117,11 @@ export class LeafletService {
   /**
    * Replaces ALL markers with one divIcon per shelter row — the layer group
    * is cleared first, so a filter refetch never duplicates markers.
+   *
+   * Reported state (shelter-trust-and-reports D1): a shelter with
+   * `nonexistentReports > 0` renders the ORANGE reported marker — the single
+   * "reported" affordance — regardless of source. Provenance colours
+   * (blue registry / green user) apply only to unreported shelters.
    */
   renderShelters(shelters: ShelterDto[]): void {
     if (!this.map || !this.markers) {
@@ -108,10 +129,10 @@ export class LeafletService {
     }
     this.markers.clearLayers();
     for (const shelter of shelters) {
-      const isUser = shelter.source === 'USER';
+      const tone = markerTone(shelter);
       const marker = L.marker([shelter.latitude, shelter.longitude], {
         icon: L.divIcon({
-          className: `shelter-marker ${isUser ? 'shelter-marker--user' : 'shelter-marker--registry'}`,
+          className: `shelter-marker shelter-marker--${tone}`,
           iconSize: [14, 14],
         }),
         title: shelter.name,

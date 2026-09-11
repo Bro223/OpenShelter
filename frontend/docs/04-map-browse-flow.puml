@@ -13,8 +13,10 @@ database "Spring Boot /api/shelters" as API
 == Default route: /map ==
 note over MP
   Public - no auth. GET /api/shelters?source=ALL returns every
-  shelter (registry + user). Estonia-scale data (hundreds) - the
-  backend deliberately has no paging yet (fetch-all is fine).
+  ACTIVE shelter (registry + user) - auto-hidden shelters (the 5th
+  community "does not exist" report) are absent from the public
+  list. Estonia-scale data (hundreds) - the backend deliberately
+  has no paging yet (fetch-all is fine).
 end note
 Visitor -> MP : open /map
 MP -> SG : list(ALL)
@@ -28,6 +30,9 @@ note over LS
   leaflet map centered on Estonia (lat ~58.6, lng ~25.0, zoom 7).
   One L.marker per shelter; markers for USER vs REGISTRY sources
   get distinct icons; no clustering needed at this scale.
+  Reported state (nonexistentReports > 0) OVERRIDES the provenance
+  colours: the single orange marker (the --color-reported token)
+  with the third legend entry (Registry / User-submitted / Reported).
 end note
 LS --> MP : markers layer ready
 MP --> Visitor : map + sidebar list
@@ -42,6 +47,28 @@ SG --> MP : models
 MP -> LS : replaceMarkers(shelters)
 LS --> MP : updated
 MP --> Visitor : filtered markers
+
+== Trust filters (composable with source) ==
+note over MP
+  The trust-filter row under the source chips: a "Reviewed" toggle
+  (reviewed=true), a "Has capacity" toggle (hasCapacity=true) and a
+  Rating select ("Any rating" = no param / "1+".."5+" = minRating 1..5).
+  Every combination composes with the source chip - each change is the
+  same SERVER refetch + list rebuild, never client-side filtering.
+  Rows render the shared trust badges: the "Reported" badge, the
+  status-flag text ("Reported closed" / "Confirmed open") and the
+  occupancy text (firm or hedged band + recency) - only when the DTO
+  carries the state, never client-derived.
+end note
+Visitor -> MP : toggle "Reviewed" / "Has capacity" or pick "4+"
+MP -> SG : list(ALL, {reviewed: true, minRating: 4})   ' server-side trust filter
+SG -> AC : get<ShelterDto[]>('/api/shelters?reviewed=true&minRating=4')
+AC -> API : GET /api/shelters?reviewed=true&minRating=4
+API --> AC : ShelterDto[]
+SG --> MP : models
+MP -> LS : replaceMarkers(shelters)
+LS --> MP : updated
+MP --> Visitor : filtered markers + rows with trust badges
 
 == Error / empty handling ==
 alt backend unreachable

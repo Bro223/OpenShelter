@@ -1,17 +1,25 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.DuplicateReportException;
+import ee.sheltermap.app.OwnReviewReportException;
+import ee.sheltermap.app.ReportActionLog;
+import ee.sheltermap.app.ReviewReportRepository;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewReport;
+import ee.sheltermap.domain.ReviewReportReason;
 import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.User;
-import ee.sheltermap.domain.UserData;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
@@ -24,6 +32,13 @@ import java.util.stream.Collectors;
  * by the DB constraint from Step 3): adding again re-rates instead of
  * inserting. Reviews require an authenticated, verified account
  * (any {@code VerificationClaim}); update/delete are author-only.
+ *
+ * <p>Review reports (shelter-trust-and-reports D2): verified users can
+ * report any review that is not their own (403 own, 409 duplicate);
+ * the 5th report hides the review ({@code hidden_at}, set once, never
+ * cleared automatically). Hidden reviews are excluded from the public
+ * list, the rating aggregate and the {@code reviewed} filter — the
+ * author still sees their own, marked hidden.
  */
 @Service
 public class ShelterReviewService {
@@ -36,6 +51,9 @@ public class ShelterReviewService {
      */
     public static final String VERIFIED_ACCOUNT_MESSAGE = "Reviews require a verified account";
 
+    /** Review reports that hide a review (D2). */
+    public static final int REVIEW_HIDE_THRESHOLD = 5;
+
     /** Result of an add: the persisted review and whether it was a create (vs an update). */
     public record SaveResult(ShelterReview review, boolean created) {
     }
@@ -43,13 +61,22 @@ public class ShelterReviewService {
     private final ShelterReviewRepository reviewRepository;
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
+    private final ReviewReportRepository reviewReports;
+    private final ReportActionLog actionLog;
+    private final Clock clock;
 
     public ShelterReviewService(ShelterReviewRepository reviewRepository,
                                 ShelterRepository shelterRepository,
-                                UserRepository userRepository) {
+                                UserRepository userRepository,
+                                ReviewReportRepository reviewReports,
+                                ReportActionLog actionLog,
+                                Clock clock) {
         this.reviewRepository = reviewRepository;
         this.shelterRepository = shelterRepository;
         this.userRepository = userRepository;
+        this.reviewReports = reviewReports;
+        this.actionLog = actionLog;
+        this.clock = clock;
     }
 
     /** Creates the user's review, or updates it if one already exists. */
@@ -113,16 +140,73 @@ public class ShelterReviewService {
         reviewRepository.delete(review);
     }
 
-    public List<ShelterReviewDto> getReviews(long shelterId) {
+    /**
+     * The public review list for a shelter (D2): hidden reviews are
+     * excluded for everyone EXCEPT the author, who receives their own
+     * hidden review marked {@code hidden} (the DTO flag). Guests and
+     * anonymous callers pass a {@code null} caller and see no hidden rows.
+     */
+    public List<ShelterReviewDto> getReviews(long shelterId, User caller) {
         requireShelter(shelterId);
         List<ShelterReview> reviews = reviewRepository.findByShelterId(shelterId);
         // Batched author lookup — one query for all authors, not one per review
         // (P2 fix; previously this was an N+1 via toDto's findById).
         Map<Long, User> authors = userRepository.findByIds(
                 reviews.stream().map(ShelterReview::getUserId).collect(Collectors.toSet()));
+        Long callerId = caller == null ? null : caller.getId();
         return reviews.stream()
+                .filter(review -> !review.isHidden() || review.getUserId().equals(callerId))
                 .map(review -> toDto(review, authors))
                 .toList();
+    }
+
+    /**
+     * Stores the user's report on a review (D2): verified users only, one
+     * report per user per review (409), own reviews cannot be reported
+     * (403 — own content is edited or deleted, not reported), and the
+     * 5th report hides the review ({@code hidden_at} set once, never
+     * cleared automatically; hiding never deletes the row).
+     *
+     * @throws NotVerifiedException         guest or unverified registered user (→ 403)
+     * @throws ShelterNotFoundException     unknown shelter id (→ 404)
+     * @throws ShelterReviewNotFoundException unknown review id, or a review
+     *                                      that does not belong to this
+     *                                      shelter (→ 404)
+     * @throws OwnReviewReportException     the caller authored the review (→ 403)
+     * @throws DuplicateReportException     the user already reported this
+     *                                      review (→ 409)
+     * @throws ReportThrottledException     the per-hour report budget is
+     *                                      exhausted (→ 429)
+     */
+    @Transactional
+    public void reportReview(User caller, long shelterId, long reviewId,
+                             ReviewReportReason reason, String detail) {
+        RegisteredUser user = requireVerified(caller);
+        requireShelter(shelterId);
+        ShelterReview review = reviewRepository.findById(reviewId)
+                .filter(candidate -> candidate.getShelterId().equals(shelterId))
+                .orElseThrow(() -> new ShelterReviewNotFoundException(shelterId));
+        if (review.getUserId().equals(user.getId())) {
+            throw new OwnReviewReportException();
+        }
+        if (reviewReports.existsByReviewIdAndUserId(reviewId, user.getId())) {
+            throw new DuplicateReportException();
+        }
+        actionLog.record(user.getId(), ReportActionLog.Action.REVIEW_REPORT);
+        boolean reachesHideThreshold = reviewReports.countByReviewId(reviewId) == REVIEW_HIDE_THRESHOLD - 1;
+        try {
+            reviewReports.save(new ReviewReport(
+                    reviewId, user.getId(), reason, reason == ReviewReportReason.OTHER ? detail : null));
+        } catch (DataIntegrityViolationException e) {
+            // Lost a race with an identical concurrent report — the unique
+            // constraint is the authority; same semantics as the pre-check.
+            throw new DuplicateReportException();
+        }
+        if (reachesHideThreshold && !review.isHidden()) {
+            Instant now = clock.instant();
+            review.markHidden(now);
+            reviewRepository.save(review);
+        }
     }
 
 
@@ -140,13 +224,15 @@ public class ShelterReviewService {
                 authorName,
                 review.getRating(),
                 review.getComment(),
-                review.getCreatedAt());
+                review.getCreatedAt(),
+                review.isHidden());
     }
 
-    private void requireVerified(RegisteredUser user) {
-        if (!user.canWrite()) {
+    private RegisteredUser requireVerified(User user) {
+        if (!(user instanceof RegisteredUser registered) || !registered.canWrite()) {
             throw new NotVerifiedException(VERIFIED_ACCOUNT_MESSAGE);
         }
+        return registered;
     }
 
     private void requireShelter(long shelterId) {

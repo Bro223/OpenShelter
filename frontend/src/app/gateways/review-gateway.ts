@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
-import type { ReviewRequest, ShelterReviewDto } from '../core/models';
+import type { ReportReviewRequest, ReviewRequest, ShelterReviewDto } from '../core/models';
 
 /**
  * The door to the /api/shelters/{id}/reviews controller group (01 puml: one
@@ -56,6 +56,18 @@ export class ReviewGateway {
   /** DELETE /api/shelters/{id}/reviews/mine -> 204 No Content (author-only). */
   deleteMine(shelterId: number): Promise<void> {
     return lastValueFrom(this.api.delete<void>(`/api/shelters/${shelterId}/reviews/mine`));
+  }
+
+  /**
+   * POST /api/shelters/{shelterId}/reviews/{reviewId}/reports -> 2xx
+   * (shelter-trust-and-reports D2): one report per user per review. 403 for
+   * the caller's OWN review (own content is edited/deleted, not reported)
+   * or an unverified account, 404 unknown review, 409 duplicate.
+   */
+  reportReview(shelterId: number, reviewId: number, request: ReportReviewRequest): Promise<void> {
+    return lastValueFrom(
+      this.api.post<void>(`/api/shelters/${shelterId}/reviews/${reviewId}/reports`, request),
+    );
   }
 }
 

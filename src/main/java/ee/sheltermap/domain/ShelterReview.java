@@ -9,6 +9,12 @@ import java.util.Objects;
  * <p>One review per user per shelter (unique {@code shelterId + userId});
  * re-rating is an update, not an insert. {@code rating} 1..5,
  * {@code comment} ≤ 500 chars (empty = no comment).
+ *
+ * <p>{@code hiddenAt} marks a community-hidden review (shelter-trust-and-
+ * reports D2): set ONCE by the 5th review report, never cleared
+ * automatically (only admin moderation can restore a hidden review).
+ * Hidden reviews are excluded from the public list, the rating aggregate
+ * and the {@code reviewed} filter — the author still sees their own.
  */
 public class ShelterReview {
 
@@ -21,6 +27,8 @@ public class ShelterReview {
     private String comment;
     private final Instant createdAt;
     private Instant updatedAt;
+    /** When the 5th review report hid this review; {@code null} while visible. */
+    private Instant hiddenAt;
 
     public ShelterReview(Long shelterId, Long userId, int rating, String comment) {
         this(shelterId, userId, rating, comment, Instant.now());
@@ -76,6 +84,30 @@ public class ShelterReview {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    /** {@code true} once the community (5 review reports) hid this review. */
+    public boolean isHidden() {
+        return hiddenAt != null;
+    }
+
+    public Instant getHiddenAt() {
+        return hiddenAt;
+    }
+
+    /**
+     * Hides the review (D2). Set ONCE — a second call is a no-op, so the
+     * hide can never be double-stamped or accidentally cleared.
+     */
+    public void markHidden(Instant hiddenAt) {
+        if (this.hiddenAt == null) {
+            this.hiddenAt = Objects.requireNonNull(hiddenAt, "hiddenAt");
+        }
+    }
+
+    /** Restores visibility — admin moderation only (later change). */
+    public void markVisible() {
+        this.hiddenAt = null;
     }
 
     /** Re-rating = update, not insert. */

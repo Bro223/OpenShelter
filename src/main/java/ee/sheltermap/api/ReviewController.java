@@ -3,6 +3,7 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
+import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import jakarta.validation.Valid;
@@ -29,6 +30,11 @@ import java.util.List;
  * (any VerificationClaim) — one review per user per shelter, re-rating
  * updates. PUT/DELETE act on the authenticated user's own review
  * ("/mine" — author-only by construction; the service also enforces it).
+ *
+ * <p>Review reports (shelter-trust-and-reports D2): POST
+ * {@code /{reviewId}/reports} requires an authenticated, verified user;
+ * the service enforces the own-review 403, the duplicate 409 and the
+ * 5th-report hide.
  */
 @RestController
 @RequestMapping("/api/shelters/{shelterId}/reviews")
@@ -44,7 +50,18 @@ public class ReviewController {
 
     @GetMapping
     public List<ShelterReviewDto> list(@PathVariable long shelterId) {
-        return reviewService.getReviews(shelterId);
+        // D2: hidden reviews are excluded for everyone except their author —
+        // the caller (guest for anonymous reads) decides the visibility.
+        return reviewService.getReviews(shelterId, callerOrGuest());
+    }
+
+    @PostMapping("/{reviewId}/reports")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reportReview(@PathVariable long shelterId,
+                             @PathVariable long reviewId,
+                             @Valid @RequestBody ReviewReportRequest request) {
+        reviewService.reportReview(currentUser(), shelterId, reviewId,
+                request.reason(), request.detail());
     }
 
     @PostMapping
@@ -72,12 +89,36 @@ public class ReviewController {
         reviewService.deleteReview(user, shelterId);
     }
 
-    private RegisteredUser requireVerifiedRegisteredUser() {
+    private User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);
+        if (user == null) {
+            throw new InvalidAccessTokenException("Unknown user");
+        }
+        return user;
+    }
+
+    /**
+     * The authenticated caller, or a fresh guest for anonymous reads —
+     * the public review list's hidden-row visibility is caller-dependent
+     * (D2), so the GET never throws for guests.
+     */
+    private User callerOrGuest() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof Long userId) {
+            User user = userRepository.findById(userId);
+            if (user != null) {
+                return user;
+            }
+        }
+        return new GuestUser();
+    }
+
+    private RegisteredUser requireVerifiedRegisteredUser() {
+        User user = currentUser();
         if (!(user instanceof RegisteredUser registered)) {
             // guests never reach here (401 first); admins are not "verified accounts"
             throw new NotVerifiedException(ShelterReviewService.VERIFIED_ACCOUNT_MESSAGE);

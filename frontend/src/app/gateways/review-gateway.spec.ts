@@ -11,6 +11,7 @@ const REVIEW: ShelterReviewDto = {
   rating: 5,
   comment: 'Deep and dry — good spot.',
   createdAt: '2025-09-01T08:00:00Z',
+  hidden: false,
 };
 
 const BARE: ShelterReviewDto = { ...REVIEW, id: 12, comment: null };
@@ -145,5 +146,61 @@ describe('ReviewGateway', () => {
     api.delete.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.deleteMine(7)).rejects.toBe(failure);
+  });
+
+  // ---- review reports (shelter-trust-and-reports D2) -----------------------
+
+  it('reportReview POSTs the reason body to /api/shelters/{id}/reviews/{reviewId}/reports', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await expect(gateway.reportReview(7, 11, { reason: 'SPAM' })).resolves.toBeUndefined();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reviews/11/reports', { reason: 'SPAM' });
+  });
+
+  it('reportReview carries the optional detail', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await expect(
+      gateway.reportReview(7, 11, { reason: 'OTHER', detail: 'Copy-pasted from a forum' }),
+    ).resolves.toBeUndefined();
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reviews/11/reports', {
+      reason: 'OTHER',
+      detail: 'Copy-pasted from a forum',
+    });
+  });
+
+  it('reportReview rejects with ApiError when it is the caller own review (403)', async () => {
+    const failure = ApiError.fromHttp(
+      403,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 403,
+        error: 'Forbidden',
+        message: 'you cannot report your own review',
+        path: '/api/shelters/7/reviews/11/reports',
+      },
+      '/api/shelters/7/reviews/11/reports',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.reportReview(7, 11, { reason: 'OTHER' })).rejects.toBe(failure);
+  });
+
+  it('reportReview rejects with ApiError on a duplicate (409)', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 409,
+        error: 'Conflict',
+        message: 'you have already reported this review',
+        path: '/api/shelters/7/reviews/11/reports',
+      },
+      '/api/shelters/7/reviews/11/reports',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.reportReview(7, 11, { reason: 'SPAM' })).rejects.toBe(failure);
   });
 });

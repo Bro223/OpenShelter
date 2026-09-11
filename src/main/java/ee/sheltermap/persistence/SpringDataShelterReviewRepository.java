@@ -17,8 +17,13 @@ public interface SpringDataShelterReviewRepository extends JpaRepository<Shelter
 
     Optional<ShelterReviewEntity> findByShelterIdAndUserId(Long shelterId, Long userId);
 
-    /** One row per shelter id: [shelterId, avg(rating), count]. */
+    /**
+     * One row per shelter id: [shelterId, avg(rating), count]. Hidden
+     * reviews (V9, D2) are excluded — a community-hidden review must not
+     * keep distorting the rating it attacked, and the count is the
+     * VISIBLE-review count the list and the {@code reviewed} filter use.
+     */
     @Query("select r.shelterId, avg(r.rating), count(r) from ShelterReviewEntity r " +
-            "where r.shelterId in :ids group by r.shelterId")
+            "where r.shelterId in :ids and r.hiddenAt is null group by r.shelterId")
     List<Object[]> findRatingAggregates(@Param("ids") Collection<Long> ids);
 }

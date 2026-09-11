@@ -60,6 +60,13 @@ public class InMemoryUserRepository implements UserRepository {
         return result;
     }
 
+    @Override
+    public boolean isAdmin(long userId) {
+        // The in-memory domain hierarchy has no admin kind (v1: no admin
+        // accounts) — the JPA impl answers from the users.kind column.
+        return false;
+    }
+
     public List<User> findAll() {
         return List.copyOf(store.values());
     }

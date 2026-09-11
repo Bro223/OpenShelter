@@ -32,6 +32,13 @@
         <li class="contrib-row">
           <div class="contrib-row__info">
             <span class="contrib-row__title">{{ row.name }}</span>
+            <!-- Auto-hidden by five non-existence reports (user-
+                 contributions): the owner's list keeps hidden rows, marked
+                 with the community report count. There is deliberately NO
+                 restore action — only an admin can restore. -->
+            @if (row.status === 'INACTIVE') {
+              <span class="contrib-row__hidden">{{ hiddenText(row) }}</span>
+            }
             <span class="contrib-row__meta">
               {{ row.createdAt | date: 'medium' }} ·
               {{ ratingText(row.averageRating, row.reviewCount) }}

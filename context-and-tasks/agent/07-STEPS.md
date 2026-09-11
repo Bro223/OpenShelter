@@ -320,3 +320,73 @@ frontend `06-CONTEXT-SHELTER.md` + `05-shelter-review-flow.puml`, both READMEs).
 **Acceptance:** `mvn test` + `ng test` green, live journey verified (submit → review → both
 appear in the panel → edit persists on the detail page → delete removes shelter + review;
 non-author and registry attempts → 403).
+
+---
+
+## Post-step-7 additions (shelter-trust-and-reports — the trust layer)
+
+Built as OpenSpec change `shelter-trust-and-reports` (V9 migration + report/occupancy
+endpoints + trust filters + the frontend trust UI). No moderator anywhere — the community
+reports and the derived state are the moderation.
+
+**Schema (V9__shelter_trust_and_reports.sql)** — four new tables + two columns. Every report
+FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with it):
+
+- `shelter_reports` — `id BIGSERIAL PK, shelter_id BIGINT NOT NULL → shelters(id) CASCADE,
+  user_id BIGINT NOT NULL → users(id) CASCADE, type VARCHAR(16) NOT NULL CHECK IN
+  (NON_EXISTENT, CLOSED, OPEN_CONFIRMED, WRONG_LOCATION, OTHER), detail VARCHAR(500) (free text
+  for OTHER, NULL otherwise), created_at TIMESTAMPTZ NOT NULL DEFAULT now()`; **UNIQUE
+  (shelter_id, user_id, type)** — the per-target abuse bound; indexes (shelter_id), (user_id).
+- `shelter_occupancy_reports` — `id BIGSERIAL PK, shelter_id → shelters(id) CASCADE,
+  user_id → users(id) CASCADE, band VARCHAR(16) NOT NULL CHECK IN (SPACE, GETTING_FULL, FULL),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`; **UNIQUE (shelter_id, user_id)** — one live
+  report per user per shelter (a re-report updates the row, `updated_at` refreshed); indexes
+  (shelter_id), (user_id). Freshness (2 h on `updated_at`) is checked at read time — no
+  cleanup job.
+- `review_reports` — `id BIGSERIAL PK, review_id BIGINT NOT NULL → shelter_reviews(id)
+  CASCADE, user_id BIGINT NOT NULL → users(id) CASCADE, reason VARCHAR(16) NOT NULL CHECK IN
+  (FALSY_DATA, NOT_RELEVANT, SPAM, OTHER), detail VARCHAR(500) (free text for OTHER, NULL
+  otherwise), created_at TIMESTAMPTZ NOT NULL DEFAULT now()`; **UNIQUE (review_id, user_id)**;
+  indexes (review_id), (user_id).
+- `report_actions` — the durable log behind the report throttle (same table family and window
+  style as the password-reset rotation guard): `id BIGSERIAL PK, user_id BIGINT NOT NULL →
+  users(id) CASCADE, action VARCHAR(32) NOT NULL (SHELTER_REPORT | REVIEW_REPORT | OCCUPANCY),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()`; index (user_id, created_at). A separate log
+  (not a count over the three report tables) because an occupancy re-PUT updates one row and
+  would be uncountable.
+- `shelters.auto_hide_disarmed BOOLEAN NOT NULL DEFAULT FALSE` — the auto-hide disarm flag
+  (FALSE while the shelter may still be auto-hidden by the 5th NON_EXISTENT report; a manual
+  admin restore sets it TRUE — the admin-moderation change lands the write path, the condition
+  is honoured from day one).
+- `shelter_reviews.hidden_at TIMESTAMPTZ` (nullable) — set once when the 5th review report
+  lands; never cleared automatically (admin moderation only).
+
+**Endpoints** — `POST /api/shelters/{id}/reports` (204; 401/403/404/400/409/429, see
+`06-CONTEXT-API.md` for the full matrix), `PUT /api/shelters/{id}/occupancy` (204 upsert;
+401/403/404/400/429 — no 409, a re-send is the update),
+`POST /api/shelters/{id}/reviews/{reviewId}/reports` (204; 401/403 own-or-unverified/404/400/
+409/429). All three require a Bearer JWT + a verified registered user (the same `canWrite()`
+gate and error vocabulary as submissions). `GET /api/shelters` gains the optional trust filters
+`reviewed` / `minRating` (1..5, else 400) / `hasCapacity` (composable with `source`) and is now
+**ACTIVE-only** (auto-hidden shelters disappear from the public list and map); `GET
+/api/shelters/mine` and `GET /api/shelters/{id}` keep all statuses. `POST /api/shelters`
+rejects the 11th ACTIVE USER shelter with 409 (ADMIN kind exempt — the `isAdmin` seam).
+
+**Rules** — auto-hide fires exactly on the 4→5 NON_EXISTENT insert (an ACTIVE shelter whose
+`autoHideDisarmed` is `false`; after a manual status change the count is past 4, so later
+reports never re-hide); CLOSED vs OPEN_CONFIRMED net to a display-only flag (`closed >
+confirmed` → REPORTED_CLOSED; both ≥ 1 → CONFIRMED_OPEN, **a tie counts as confirmed open**);
+occupancy display is 2 h-fresh at read time, latest band wins, hedged at one agreeing report,
+firm at two+, silent when stale; the per-user report throttle is 10 report-type actions per
+rolling hour (any target/type, `REPORTS_MAX_ACTIONS_PER_HOUR`, 0 disables) with the
+check-and-record atomic per user via a transaction-scoped advisory lock (a throttled decision
+records nothing; a 409 duplicate consumes no budget); hidden reviews drop out of the list,
+the average rating, the review count and the `reviewed` filter (the author still sees their
+own, marked hidden).
+
+**Acceptance:** `mvn test` green — **433 tests** (counted 2026-09-11). Frontend wave (trust
+filter chips + rating select, orange reported marker + legend, badge set, detail-page report
+pickers, "Report how full" band picker, contributions-panel hidden state, `--color-reported`
+token): `npx ng test` green — **657 tests across 35 spec files** (counted 2026-09-11).
+
+**STOP — final review.**

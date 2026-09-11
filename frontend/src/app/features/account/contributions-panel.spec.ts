@@ -21,6 +21,9 @@ const SHELTER_ROW: ShelterDto = {
   description: 'Neighbourhood basement',
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
+  nonexistentReports: 0,
+  statusFlag: null,
+  occupancy: null,
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -341,6 +344,7 @@ describe('ContributionsPanel', () => {
       rating: 5,
       comment: 'Uus kommentaar',
       createdAt: '2025-09-02T09:00:00Z',
+      hidden: false,
     };
     reviews.updateMine.mockResolvedValue(updatedReview);
     const { page, element, fixture } = await open();
@@ -403,5 +407,41 @@ describe('ContributionsPanel', () => {
 
     expect(element.textContent).toContain('only the author may delete this review');
     expect(element.textContent).toContain('Hea varjend'); // row unchanged
+  });
+
+  // ---- hidden own shelters (shelter-trust-and-reports / user-contributions) ----
+
+  it('an auto-hidden own shelter is marked with the community report count and has no restore action', async () => {
+    const hiddenRow: ShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 5 };
+    shelters.mine.mockResolvedValue([hiddenRow]);
+    const { element } = await open();
+
+    // The row renders (the owner's list includes INACTIVE rows) and carries
+    // the exact hidden copy with the report count.
+    expect(element.textContent).toContain('Community Cellar');
+    expect(element.textContent).toContain('Hidden — reported by the community (5 reports)');
+    // No restore action anywhere in the panel (admin-only restore).
+    expect(element.textContent).not.toContain('Restore');
+    expect(buttonByText(element, 'Restore')).toBeUndefined();
+    // The row itself stays manageable: View/Edit/Delete are still offered.
+    expect(buttonByText(element, 'Edit')).toBeDefined();
+    expect(buttonByText(element, 'Delete')).toBeDefined();
+    expect(element.querySelector('a[href="/shelters/7"]')).not.toBeNull();
+  });
+
+  it('a hidden shelter with a single report singularizes the copy', async () => {
+    const hiddenRow: ShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 1 };
+    shelters.mine.mockResolvedValue([hiddenRow]);
+    const { element } = await open();
+
+    expect(element.textContent).toContain('Hidden — reported by the community (1 report)');
+  });
+
+  it('an active own shelter renders no hidden mark', async () => {
+    shelters.mine.mockResolvedValue([SHELTER_ROW]);
+    const { element } = await open();
+
+    expect(element.querySelector('.contrib-row__hidden')).toBeNull();
+    expect(element.textContent).not.toContain('Hidden');
   });
 });
