@@ -430,11 +430,16 @@ describe('design tokens (M6)', () => {
     expect(stylesCss).toMatch(/\.num-tabular \{\s*font-variant-numeric: tabular-nums;\s*\}/);
   });
 
-  it('block buttons centre their label: .btn carries text-align: center', () => {
-    // The "Add shelter" fix: .btn--block is width: 100%, and an inline-block
-    // with padding leaves its label left-aligned. Centring the base rule is
-    // a no-op for auto-width buttons.
-    expect(stylesCss).toMatch(/\.btn \{[^}]*text-align: center;/);
+  it('buttons centre their label on both axes: .btn is inline-flex centered', () => {
+    // The "Add shelter" vertical-centring fix: min-height 48 + 8px vertical
+    // padding leaves ~9px of dead space at the bottom for a single text
+    // line — text-align alone only centres horizontally. inline-flex with
+    // both axes centred fixes every button (incl. btn--block); auto-width
+    // buttons keep shrink-to-fit. The left-aligned exceptions opt out with
+    // justify-content: flex-start (shelter-row__details).
+    expect(stylesCss).toMatch(/\.btn \{[^}]*display: inline-flex/);
+    expect(stylesCss).toMatch(/align-items: center/);
+    expect(stylesCss).toMatch(/justify-content: center/);
   });
 
   it('form controls and links carry explicit token colours (UA defaults do not follow [data-theme])', () => {

@@ -366,7 +366,15 @@ textarea {
 
 /* Buttons */
 .btn {
-  display: inline-block;
+  /* Both-axis label centering (flex): with the 48px min-height a single
+     line of text (~23px + 16px vertical padding = ~39px) leaves ~9px of
+     dead space at the BOTTOM if only text-align centres it — inline-flex
+     centers the label on BOTH axes for every .btn (incl. btn--block),
+     while auto-width buttons keep their shrink-to-fit width. The
+     intentionally left-aligned exceptions opt out (shelter-row__details). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   /* D5 (map-crisis-actions) touch target: content + 8px vertical padding
      lands at ~41px, short of 48 — the explicit min-height makes every .btn
      (and the row buttons that reuse the class) at least a 48px target. */
@@ -379,9 +387,6 @@ textarea {
   cursor: pointer;
   text-decoration: none;
   font-family: inherit;
-  /* Block buttons (btn--block, e.g. "Add shelter") must centre their label;
-     a no-op for auto-width buttons. */
-  text-align: center;
 
   &:disabled {
     opacity: 0.55;

@@ -262,6 +262,10 @@
   padding-left: var(--space-12);
   padding-right: var(--space-12);
   text-align: left;
+  /* Deliberate opt-out of the .btn flex centering: this step reads as part
+     of the row above it, so its label stays left-aligned to the row's
+     content (design decision 5). */
+  justify-content: flex-start;
 }
 
 .badge {
