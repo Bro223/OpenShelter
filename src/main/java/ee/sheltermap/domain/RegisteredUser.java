@@ -27,6 +27,24 @@ public class RegisteredUser extends User {
         this.nationalIdCode = Objects.requireNonNull(nationalIdCode, "nationalIdCode");
     }
 
+    /**
+     * Admin-only (admin-moderation D1): {@code phone} may be null — the
+     * provisioned admin has NO phone route. Null is outside the unique
+     * {@code uq_users_phone} index (partial, WHERE phone IS NOT NULL), so
+     * it can never collide with any other user, and it can never be a
+     * login contact. Every other path keeps the public constructor's
+     * non-null guarantee.
+     */
+    protected RegisteredUser(String name, String email, String phone, String nationalIdCode, boolean admin) {
+        this.name = Objects.requireNonNull(name, "name");
+        this.email = Objects.requireNonNull(email, "email");
+        if (!admin) {
+            Objects.requireNonNull(phone, "phone");
+        }
+        this.phone = phone;
+        this.nationalIdCode = Objects.requireNonNull(nationalIdCode, "nationalIdCode");
+    }
+
     /** Adds a verified claim (called by the verification service on success). */
     public void addVerification(VerificationClaim claim) {
         verifications.add(Objects.requireNonNull(claim, "claim"));

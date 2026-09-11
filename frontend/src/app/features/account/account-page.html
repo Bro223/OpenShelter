@@ -36,7 +36,15 @@
         <dl class="identity-values">
           <div class="identity-row">
             <dt>Name</dt>
-            <dd>{{ auth.name() }}</dd>
+            <dd>
+              {{ auth.name() }}
+              <!-- Provenance-style badge (admin-moderation D5): the admin kind
+                   is the truth server-side; the store's isAdmin comes from
+                   the fetched profile (always present, false for regulars). -->
+              @if (auth.isAdmin()) {
+                <span class="badge badge--admin">Admin</span>
+              }
+            </dd>
           </div>
           <div class="identity-row">
             <dt>National ID code</dt>

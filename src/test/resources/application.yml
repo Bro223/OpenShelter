@@ -66,6 +66,13 @@ management:
       enabled: false
 
 app:
+  admin:
+    # Env-provisioned admin (admin-moderation D1): an ApplicationRunner
+    # creates the ADMIN-kind account at startup only when BOTH are set;
+    # empty = no admin exists and the app behaves exactly as without this
+    # capability. Values ONLY via env vars, never committed.
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
   cors:
     # Origins the browser frontend may call (preflight
     # handled by Spring Security).

@@ -135,7 +135,7 @@ class FakeLeafletService {
 }
 
 /** AuthStore-shaped fake — real signals so zoneless CD stays reactive. */ function fakeAuthStore(
-  overrides: { authenticated?: boolean; levels?: VerificationLevel[] } = {},
+  overrides: { authenticated?: boolean; levels?: VerificationLevel[]; isAdmin?: boolean } = {},
 ): AuthStore {
   const authenticated = signal(overrides.authenticated ?? false);
   const levels = signal<VerificationLevel[]>(overrides.levels ?? []);
@@ -143,6 +143,8 @@ class FakeLeafletService {
     authenticated,
     initialized: signal(true),
     levels,
+    // admin-moderation D5: the shell's nav item reads this — default false.
+    isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async () => undefined),
     isVerified: () => levels().includes('EMAIL') || levels().includes('PHONE'),
   } as unknown as AuthStore;

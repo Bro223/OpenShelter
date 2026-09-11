@@ -13,6 +13,10 @@ Three concerns, three services — **never one blob**:
 2. **Authentication** (this context) = prove you are the same person at login → password + tokens.
 3. **Password reset** (this context) = recover auth via the **verified** email.
 
+Plus one **startup job** (admin-moderation D1): the `AdminSeeder` provisions the single
+admin account from `ADMIN_EMAIL`/`ADMIN_PASSWORD` — see the seeder section below. The admin
+logs in through the normal `POST /auth/login`; nothing here is admin-specific.
+
 ## Classes to create (all in `ee.sheltermap.auth`)
 
 | Type | Kind | Key members / notes |
@@ -35,8 +39,9 @@ Three concerns, three services — **never one blob**:
 | `Codes` | class | Package-private shared generator for the auth code flows: `sixDigitCode()` (leading zeros preserved) + `randomToken(length, alphabet)`, one `SecureRandom`. Used by the password-reset and contact-change services and by `Tokens`. The verification package keeps its own channel-specific generators on purpose (dependency rule: verification must not import auth). |
 | `Hashes` | class | Package-private SHA-256 helpers for tokens-at-rest: `sha256Hex` + `constantTimeEquals` (W9 — `MessageDigest.isEqual`, no early exit) used for **every** stored-vs-presented code/token hash compare (reset code, refresh token, contact-change code). |
 | `AuthController` | class | Thin shell — `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`. |
-| `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
-| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels}`, `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
+| `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set + `isAdmin` — true iff the freshly loaded user's kind is `ADMIN`, never a token claim) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
+| `AdminSeeder` | class | The env-provisioned admin (admin-moderation D1): an `ApplicationRunner` — runs ONCE at startup, transactional. **Create-if-absent, the whole contract:** (1) either `app.admin.email`/`app.admin.password` blank → no-op, no admin exists; (2) a user with that email ALREADY exists (any kind, case-insensitive lookup) → no-op — the seeder NEVER re-hashes, flips kind or touches claims; (3) otherwise create: `AdminUser.provisioned("Admin", email, "")` (kind `ADMIN`, no phone, every verification claim pre-set so `canWrite()` is true without the email/SMS flow) + `UserCredentials` with the Argon2 hash of `ADMIN_PASSWORD` (the same `PasswordHasher` registration uses). Env: `app.admin.email: ${ADMIN_EMAIL:}` / `app.admin.password: ${ADMIN_PASSWORD:}` (bare names, empty defaults — no values committed). |
+| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels, isAdmin}` (admin-moderation D2: `isAdmin` always present — `true` only for the ADMIN-kind account), `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
 
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
 RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
@@ -85,6 +90,20 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
    - `/auth/register` — per client IP (account-spam vector), 10/0.01.
    All capacities/refills configurable under `app.ratelimit.*`.
 6. **Controllers are thin shells.** No logic in `AuthController`.
+7. **The admin comes from env, not from the registration flow (admin-moderation D1).** Two env
+   vars following the repo convention (`DB_URL`, `SMTP_HOST`, `CORS_ALLOWED_ORIGINS` — bare names,
+   empty defaults): `ADMIN_EMAIL` and `ADMIN_PASSWORD`. **Either unset → no admin exists** — no
+   user is created, `/admin/*` answers 403 for everyone (including a normal account that happens
+   to hold the email string — kind is the truth), and the app behaves exactly as if the capability
+   were absent (dev boxes without the vars keep working; prod is opt-in). **Both set + no user
+   with that email → create** the ADMIN-kind account (all claims pre-set, Argon2 via the standard
+   encoder). **A user with that email already exists → do nothing** (create-if-absent; the check
+   is case-insensitive) — an in-app password change by the admin survives restarts and
+   deployments, and a normal account holding the email string stays a normal account.
+   **Login is the normal `POST /auth/login`** (emailOrPhone + password) — no dedicated endpoint,
+   no backdoor path; the JWT has the same shape as every other user's (principal = userId,
+   **NO role claim** — D2: `/admin/*` authorizes by a fresh `UserKind.ADMIN` lookup per request,
+   so a demotion takes effect on the very next request even with a still-valid token).
 
 ## Cross-channel contact change (email <-> phone)
 
@@ -125,7 +144,7 @@ violated the V3 unique index `uq_verification_claims_user_level_active`. It is n
 
 | Endpoint | Behavior |
 |---|---|
-| `GET /account/me` | 200 + `MeResponse {name, email, phone, nationalIdCode, levels}` — the REAL profile and the REAL verified claim set (levels in enum order). The frontend's single source of truth (replaces its session-only optimistic mirror). 401 unauthenticated. |
+| `GET /account/me` | 200 + `MeResponse {name, email, phone, nationalIdCode, levels, isAdmin}` — the REAL profile, the REAL verified claim set (levels in enum order) and `isAdmin` (admin-moderation D2: always present; the freshly loaded user's KIND — true only for the ADMIN-kind row, never a token claim; the frontend's gate for the admin nav item and the `/admin` route). The frontend's single source of truth (replaces its session-only optimistic mirror). 401 unauthenticated. |
 | `PUT /account/profile` | Body `{name, nationalIdCode, currentPassword}` — verifies the current password against the stored Argon2 hash BEFORE any update (wrong → 401 `InvalidProfilePasswordException`, message "current password is incorrect", nothing written); validates name/nationalIdCode exactly like registration (`@NotBlank` — blank → 400, no checksum, values stored as given); persists via `RegisteredUser.changeName`/`changeNationalIdCode` + `JpaUserRepository.save`; returns the fresh `MeResponse`. 401 unauthenticated. |
 
 **Decisions:** identity fields have no cross-channel second factor, so current-password
@@ -133,6 +152,9 @@ possession is the v1 gate for name/ID edits (email/phone stay on the cross-chann
 Updating the national ID does NOT clear or add verification claims — SMART-ID is a stub; when it
 lands, a code change must invalidate any pending/active SMART-ID claim (documented follow-up in
 `AccountService`). Both endpoints are cheap (no code issuance) and need no rate bucket.
+`GET /account/me` carries **`isAdmin`** (admin-moderation D2): the frontend gates the admin
+route and the admin-only nav item on it — it is the freshly loaded user's KIND (true iff
+ADMIN), never derived from any token claim.
 
 ## Spring Security wiring (Step 4)
 
@@ -141,7 +163,10 @@ lands, a code change must invalidate any pending/active SMART-ID claim (document
   `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm`, plus
   `GET /api/shelters/**` **except** `GET /api/shelters/mine` (author-scoped, authenticated)
   and `GET /actuator/health` + `/actuator/info`. Everything else (all `/account/**`,
-  `/verify/**`, shelter/review writes, review `/mine` routes) requires the JWT.
+  `/verify/**`, `/admin/**`, shelter/review writes, review `/mine` routes) requires the JWT.
+  `/admin/**` (admin-moderation) sits in the authenticated set — the security entry point
+  answers 401 for anonymous callers; the controller's own fresh `isAdmin` lookup then answers
+  403 for an authenticated non-admin (D2).
 - The JWT filter is the Spring-side implementation of `JwtTokenService` validation.
 - `PasswordEncoder` bean = `Argon2PasswordEncoder` (used by `Argon2PasswordHasher`).
 
@@ -165,7 +190,15 @@ lands, a code change must invalidate any pending/active SMART-ID claim (document
   within cooldown → `VerificationThrottledException`.
 
 - `AccountControllerIT` (profile surface): `GET /account/me` returns the stored profile + the REAL
-  claim set (seeded claims come back; none → empty list); unauthenticated → 401. `PUT
+  claim set (seeded claims come back; none → empty list) + `isAdmin` (false for registered users,
+  true for the ADMIN-kind row); unauthenticated → 401. `PUT
   /account/profile`: happy path persists + returns the fresh profile; wrong current password → 401
   "current password is incorrect" with nothing updated; blank name / nationalIdCode → 400;
   unauthenticated → 401; an ID change leaves verification claims intact.
+
+- `AdminSeederTest` + `AdminSeederIT` (admin-moderation D1): both vars set + no user with the
+  email → the admin row is created (kind `ADMIN`, all three claims present, `canWrite()` true)
+  and logs in through the normal `/auth/login` with NO verification step (wrong password still
+  401); a second run changes NOTHING (hash, kind and claims untouched — a password changed in-app
+  survives a restart); a pre-existing user with the same email (any kind, case variant included)
+  is never touched; either var empty → no-op, no admin exists.

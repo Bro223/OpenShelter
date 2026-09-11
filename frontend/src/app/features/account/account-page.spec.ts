@@ -20,6 +20,7 @@ const PROFILE: MeResponse = {
   phone: '+37250004444',
   nationalIdCode: '49001014444',
   levels: [],
+  isAdmin: false,
 };
 
 /** The ack body of a successful change request (the server's cooldown in seconds). */
@@ -175,6 +176,28 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain('Kontakt Muutus');
     expect(element.textContent).toContain('49001014444');
     expect(element.querySelector('#profile-name')).toBeNull(); // closed form
+  });
+
+  // ---- admin badge (admin-moderation D5) ------------------------------------
+
+  it('a regular user sees NO Admin badge next to the name', async () => {
+    const { element } = await open();
+
+    expect(element.querySelector('.badge--admin')).toBeNull();
+  });
+
+  it('an admin profile gets the Admin badge next to the name (provenance style)', async () => {
+    account.me.mockResolvedValue({ ...PROFILE, isAdmin: true });
+    const { element } = await open();
+
+    const badge = element.querySelector('.badge--admin');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent?.trim()).toBe('Admin');
+    // It sits on the Name row of the identity card, next to the fetched name.
+    const row = badge?.closest('.identity-row');
+    expect(row?.textContent).toContain('Kontakt Muutus');
+    // The store carries it too (the nav/guard read the same signal).
+    expect(store.isAdmin()).toBe(true);
   });
 
   it('renders the real contact values with per-contact verification labels', async () => {

@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.ReviewReport;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,11 @@ public class InMemoryReviewReportRepository implements ReviewReportRepository {
                 .count();
     }
 
+    @Override
     public List<ReviewReport> findAll() {
-        return new ArrayList<>(store.values());
+        return new ArrayList<>(store.values()).stream()
+                .sorted(Comparator.comparing(ReviewReport::getCreatedAt).reversed()
+                        .thenComparing(ReviewReport::getId, Comparator.reverseOrder()))
+                .toList();
     }
 }

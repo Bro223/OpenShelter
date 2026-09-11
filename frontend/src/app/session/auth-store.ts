@@ -70,6 +70,16 @@ export class AuthStore {
    */
   readonly levels = signal<VerificationLevel[]>([]);
 
+  /**
+   * True for the ADMIN-kind account (admin-moderation D1/D2): adopted from
+   * the fetched profile (`isAdmin` is always present — false for every
+   * regular user) and reset to false with the profile. The kind is the
+   * truth server-side (fresh lookup per /admin/* request, never a JWT
+   * claim); this is only the UI's copy of it for the nav item and the
+   * /admin guard. A failed profile fetch leaves it false — fail-closed.
+   */
+  readonly isAdmin = signal<boolean>(false);
+
   private readonly tokens = inject(TokenStore);
   private readonly authGateway = inject(AuthGateway);
   private readonly accountGateway = inject(AccountGateway);
@@ -322,6 +332,7 @@ export class AuthStore {
     this.phone.set(profile.phone);
     this.nationalIdCode.set(profile.nationalIdCode);
     this.levels.set(profile.levels);
+    this.isAdmin.set(profile.isAdmin);
   }
 
   /** Rotate via /auth/refresh and store the new pair. */
@@ -349,6 +360,7 @@ export class AuthStore {
     this.phone.set(null);
     this.nationalIdCode.set(null);
     this.levels.set([]);
+    this.isAdmin.set(false);
   }
 
   /**

@@ -8,9 +8,11 @@ title Shelter Map - User & Verification (Core with providers)
 '    about themselves; services perform work.
 ' 2. Inheritance only for genuine is-a, fixed at creation (Ch 1):
 '    User (abstract = Bird) <- GuestUser (Pigeon), RegisteredUser
-'    (Penguin). Subclasses OVERRIDE base methods; they never add
-'    methods a base reference cannot see. (AdminUser was removed in
-'    the review-fix pass - v1 has no admin/staff role.)
+'    (Penguin), AdminUser (admin-moderation D1 - the env-provisioned admin;
+'    it was removed as dead code in the review-fix pass and came back WITH a
+'    real provisioning path, the auth AdminSeeder - never the registration
+'    flow). Subclasses OVERRIDE base methods; they never add
+'    methods a base reference cannot see.
 ' 3. Prefer composition first (Ch 1): runtime-changing state is
 '    DATA. Verification = Set<VerificationClaim> - an object never
 '    changes class, but its claims can be added/revoked.
@@ -46,6 +48,22 @@ package "domain" {
     + levels() : Set<VerificationLevel>
     + canWrite() : boolean
     + deleteAccount() : void
+  }
+
+  class AdminUser {
+    ' The third fixed kind (admin-moderation D1): the env-provisioned
+    ' admin - a fully verified registered account whose row kind, not its
+    ' class, is the authorization truth (fresh kind lookup per /admin/*
+    ' request, no JWT claim - D2).
+    --
+    + AdminUser(name, email, phone, nationalIdCode)
+    ' persistence ctor: the stored claims are restored by UserMapper
+    ' (NOT pre-set - a reload reflects the stored claim state); phone
+    ' is null for provisioned admins (no phone route)
+    + {static} provisioned(name, email, nationalIdCode) : AdminUser
+    ' AdminSeeder factory ONLY: phone = null, nationalIdCode = "", EVERY
+    ' verification claim pre-set (EMAIL/PHONE/SMART_ID) - the mailbox does
+    ' not exist by design, so canWrite() is true from the first request
   }
 
   class UserData <<record>> {
@@ -266,7 +284,13 @@ package "app" {
     + save(user : User) : void
     + findById(id : Long) : User
     + findByEmail(email : String) : RegisteredUser
+    ' REGISTERED and ADMIN rows (kind restored by the mapper) - the admin
+    ' logs in through the normal /auth/login and the registration pre-check
+    ' sees the admin's email as in use (409); case-insensitive
     + findByPhone(phone : String) : RegisteredUser
+    + isAdmin(id : Long) : boolean
+    ' admin-moderation D2: the fresh kind lookup behind every /admin/*
+    ' request (also the 10-shelter cap exemption) - one indexed PK lookup
     + findByIds(ids : Collection<Long>) : Map<Long, User>
   }
 
@@ -294,6 +318,9 @@ interface ShelterRepository {
 ' ==================== THE BIRD RULE ====================
 GuestUser --|> User
 RegisteredUser --|> User
+AdminUser --|> RegisteredUser
+' kind is fixed at creation and must survive every save (UserMapper checks
+' AdminUser BEFORE RegisteredUser - it IS-A RegisteredUser)
 
 ' ==================== COMPOSITION / DATA ====================
 RegisteredUser "1" *-- "many" VerificationClaim : holds

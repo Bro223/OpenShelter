@@ -5,10 +5,12 @@ import ee.sheltermap.domain.ShelterReportType;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +60,27 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     private record CountKey(long shelterId, ShelterReportType type) {
     }
 
+    @Override
+    public Optional<ShelterReport> findById(Long id) {
+        return Optional.ofNullable(store.get(id));
+    }
+
+    @Override
+    public List<ShelterReport> findByShelterId(long shelterId) {
+        return newestFirst(store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId)
+                .toList());
+    }
+
+    private static List<ShelterReport> newestFirst(List<ShelterReport> reports) {
+        return reports.stream()
+                .sorted(Comparator.comparing(ShelterReport::getCreatedAt).reversed()
+                        .thenComparing(ShelterReport::getId, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    @Override
     public List<ShelterReport> findAll() {
-        return new ArrayList<>(store.values());
+        return newestFirst(new ArrayList<>(store.values()));
     }
 }

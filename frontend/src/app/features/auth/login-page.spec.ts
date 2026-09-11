@@ -16,6 +16,7 @@ const PROFILE: MeResponse = {
   phone: '+37250000001',
   nationalIdCode: '49901019999',
   levels: [],
+  isAdmin: false,
 };
 
 /** Hand-written fake gateway — the pages never see HTTP. */

@@ -5,6 +5,7 @@ import ee.sheltermap.domain.ShelterReview;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -56,6 +57,15 @@ public class JpaShelterReviewRepository implements ShelterReviewRepository {
     @Transactional(readOnly = true)
     public List<ShelterReview> findByUserId(Long userId) {
         return reviews.findByUserId(userId).stream().map(JpaShelterReviewRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShelterReview> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return reviews.findByIdIn(ids).stream().map(JpaShelterReviewRepository::toDomain).toList();
     }
 
     @Override

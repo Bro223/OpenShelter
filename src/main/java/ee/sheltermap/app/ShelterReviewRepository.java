@@ -2,6 +2,7 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.domain.ShelterReview;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +26,9 @@ public interface ShelterReviewRepository {
 
     /** All reviews written by {@code userId}, across all shelters (V7 "my reviews"). */
     List<ShelterReview> findByUserId(Long userId);
+
+    /** Batched read by id (one query — the admin review-report queue, no N+1). */
+    List<ShelterReview> findByIds(Collection<Long> ids);
 
     /**
      * Rating aggregates for all given shelter ids in ONE query.

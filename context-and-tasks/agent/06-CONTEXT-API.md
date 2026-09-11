@@ -5,7 +5,8 @@
 **Depends on contracts from:** `app.ShelterService`, `app.ShelterRepository`,
 `app.ShelterReviewRepository`, `domain.Shelter`, `domain.ShelterReview`, `domain.RegisteredUser`,
 plus the V9 trust seams (`app.ShelterReportService`, `app.ShelterReportRepository`,
-`app.ShelterOccupancyRepository`, `app.ReviewReportRepository`, `app.ReportActionLog`).
+`app.ShelterOccupancyRepository`, `app.ReviewReportRepository`, `app.ReportActionLog`) and the
+admin seams (admin-moderation: `app.UserRepository.isAdmin`, `AdminModerationService`).
 
 ## Purpose
 
@@ -19,7 +20,7 @@ lives in the services.
 | ------------------------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ShelterController`      | class  | `GET /api/shelters?source=REGISTRY\|USER\|ALL` (public — **ACTIVE rows only**, auto-hidden shelters are absent; V9 optional trust filters `reviewed`, `minRating` 1..5, `hasCapacity` — anything outside 1..5 → 400), `GET /api/shelters/{id}` (public — **all statuses**, incl. auto-hidden; the detail read additionally carries `yourOccupancyBand`), `POST /api/shelters` (Bearer JWT + `canWrite()` check; **409 when the caller already has 10 ACTIVE USER shelters** — deletions and auto-hidden rows free the cap, ADMIN kind exempt). **M8 (user-contributions):** `GET /api/shelters/mine` (Bearer JWT — the caller's own shelters, **all statuses** incl. auto-hidden; NOT part of the public GETs), `PUT /api/shelters/{id}` (author-only update of the five writable fields), `DELETE /api/shelters/{id}` (author-only; reviews cascade via the DB). **V9 (shelter-trust-and-reports):** `POST /api/shelters/{id}/reports` (Bearer + verified — typed shelter report, 204; 404 unknown shelter, 409 duplicate (shelter, user, type), 429 report throttle) and `PUT /api/shelters/{id}/occupancy` (Bearer + verified — the caller's live band, 204 upsert; 404 unknown shelter, 429 report throttle; no 409, a re-send IS the update). |
 | `ReviewController`       | class  | `GET /api/shelters/{id}/reviews` (public — hidden reviews excluded for everyone except the author, who gets their own marked `hidden`), `POST /api/shelters/{id}/reviews` (Bearer, verified), `PUT /api/shelters/{id}/reviews/mine` (author only), `DELETE /api/shelters/{id}/reviews/mine` (author only). **V9:** `POST /api/shelters/{id}/reviews/{reviewId}/reports` (Bearer + verified — 204; 403 the caller's own review, 404 unknown review or a review not of this shelter, 409 duplicate (review, user), 429 report throttle). |
-| `ShelterQueryService`    | class  | `findAll(source: ShelterSourceFilter, reviewed: Boolean, minRating: Integer, hasCapacity: Boolean): List<ShelterDto>` — the PUBLIC list: `status = ACTIVE` rows only (auto-hidden shelters disappear), the trust filters applied **in-memory over the projection** (no new SQL surface), `GET /api/shelters/{id}`'s `findById(id: Long, caller: User): Optional<ShelterDto>` (all statuses; the single-shelter read carries `yourOccupancyBand` — null for guests, anonymous callers and callers without a report), `findByCreatedBy(userId: long): List<ShelterDto>` (M8 — the author-scoped list, **all statuses**, same lean DTO projection). Returns **DTOs only, never entities**. **Hardening:** rating aggregates are computed in ONE batched query (`findRatingAggregates(ids)`, visible reviews only — V9). **V9:** the trust derivations ride the SAME batched pass (no N+1) — per-shelter report counts by type (ONE query), fresh occupancy rows for the whole batch (ONE query, the 2 h window applied in SQL), then in-memory: `nonexistentReports` (0 when none), the `statusFlag` net, and the occupancy block (latest fresh band wins, agreeing count, newest timestamp). |
+| `ShelterQueryService`    | class  | `findAll(source: ShelterSourceFilter, reviewed: Boolean, minRating: Integer, hasCapacity: Boolean): List<ShelterDto>` — the PUBLIC list: `status = ACTIVE` rows only (auto-hidden shelters disappear), the trust filters applied **in-memory over the projection** (no new SQL surface), `GET /api/shelters/{id}`'s `findById(id: Long, caller: User): Optional<ShelterDto>` (all statuses; the single-shelter read carries `yourOccupancyBand` — null for guests, anonymous callers and callers without a report), `findByCreatedBy(userId: long): List<ShelterDto>` (M8 — the author-scoped list, **all statuses**, same lean DTO projection). **`findAllForAdmin(status, source, q)` (admin-moderation D3)** — the ADMIN list: **every shelter, all statuses** (auto-hidden rows included), id-ordered, exact-match `status`/`source` filters + the case-insensitive name/address substring `q`, with the SAME batched trust derivations as the public list **plus the submitter's profile name** (reuses the same projection — no N+1). Returns **DTOs only, never entities**. **Hardening:** rating aggregates are computed in ONE batched query (`findRatingAggregates(ids)`, visible reviews only — V9). **V9:** the trust derivations ride the SAME batched pass (no N+1) — per-shelter report counts by type (ONE query), fresh occupancy rows for the whole batch (ONE query, the 2 h window applied in SQL), then in-memory: `nonexistentReports` (0 when none), the `statusFlag` net, and the occupancy block (latest fresh band wins, agreeing count, newest timestamp). |
 | `ShelterReviewService`   | class  | `addReview(user, shelterId, rating, comment): SaveResult` (`(review, created)` — the upsert outcome the controller maps to 200/201), `updateReview(user, shelterId, rating, comment): ShelterReview`, `deleteReview(user, shelterId): void`, `getReviews(shelterId, caller): List<ShelterReviewDto>` (`getRatingSummary` removed in the review-fix pass — no endpoint consumed it; rating aggregates are served via `ShelterDto` + the batched `findRatingAggregates` query; the `RatingSummaryDto` record was deleted in the 2026-09-08 campaign). **V9:** `reportReview(caller, shelterId, reviewId, reason, detail): void` — verified-only (403 "Reviews require a verified account"), 404 unknown shelter or unknown/mismatched review, **403 the caller's own review** (`OwnReviewReportException` — own content is edited or deleted, not reported), 409 duplicate (checked BEFORE the throttle budget is consumed), 429 throttle; the 5th report sets `hiddenAt` (once, never cleared automatically; hiding never deletes the row). **Hardening:** the find-then-insert upsert is concurrency-safe — a unique-constraint race is caught and retried as an update (no 500). |
 | `ShelterDto`             | record | `id, name, address, latitude, longitude, status: ShelterStatus, source: ShelterSource, averageRating: Double, reviewCount: int, createdAt: Instant, description: String, capacity: Integer, submitterVerified: boolean` (accessibility-and-provenance D3), **`nonexistentReports: int` (V9 — 0 when none; `> 0` is the UI's orange "Reported" affordance), `statusFlag: ShelterStatusFlag` (V9 — `REPORTED_CLOSED`/`CONFIRMED_OPEN`/null, display-only), `occupancy: Occupancy` (V9 — the fresh ≤ 2 h block, `null` when nothing fresh), `yourOccupancyBand: OccupancyBand` (V9 — the CALLER's own live band; detail read only, null for guests/anonymous/no report)**; nested record `Occupancy(band, reportCount, lastReportedAt)` — `reportCount` 1 = hedged copy, 2+ = firm. **Lean projection** — the full registry record (county, municipality, data-as-of, attribution) stays in the DB but is not dumped to the UI. All V9 derivations are computed server-side in the batched projection — never client-computed from raw report lists. |
 | `CreateShelterRequest`   | record | `name, latitude, longitude, description: String, capacity: Integer` (validated at the boundary). **Hardening:** `description`/`capacity` are STORED (V3) — previously validated then silently dropped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -31,6 +32,12 @@ lives in the services.
 | `OccupancyReportRequest` | record | V9: `band: OccupancyBand (@NotNull)` — one live report per user per shelter (upsert; latest band wins, `updated_at` refreshed). |
 | `ShelterReviewDto`       | record | `id, authorName, rating, comment, createdAt, hidden: boolean` (V9 — `true` marks a community-hidden review; hidden rows are NEVER returned to non-authors, only the author receives their own, with this flag, to mark it). |
 | `ErrorResponse`          | record | `timestamp: Instant, status: int, error: String, message: String, path: String`. One uniform shape via `@RestControllerAdvice`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `AdminController`        | class  | The admin moderation surface (admin-moderation D3) — thin shell: parse, validate, **authorize, delegate** to `AdminModerationService`. Authorization is a FRESH `UserRepository.isAdmin(userId)` kind lookup per request (D2 — never a JWT claim): anonymous → 401 (the security entry point answers first), authenticated non-admin → 403 (`AdminAccessException`). `GET /admin/shelters?status=&source=&q=` → `AdminShelterDto[]` (all statuses incl. hidden); `POST /admin/shelters/{id}/status` body `AdminShelterStatusRequest` → 204 (manual hide/restore — a restore DISARMS auto-hide); `DELETE /admin/shelters/{id}` → 204 (hard delete, cascade); `GET /admin/reports?shelterId=` → `AdminShelterReportDto[]` (shelter-report queue, newest first); `POST /admin/reports/{id}/dismiss` → 204 (idempotent); `GET /admin/review-reports` → `AdminReviewReportDto[]` (review-report queue, newest first, hidden reviews included); `POST /admin/reviews/{id}/hide` → 204 (idempotent — `{id}` is the REVIEW's id); `POST /admin/reviews/{id}/restore` → 204 (idempotent). All writes are single-row; no bulk endpoints; every unknown id → 404. Reporter identity is served from this API ONLY. |
+| `AdminModerationService` | class  | Owns the admin guard rails (the controller authorizes, the service guards): **USER rows only** — `POST .../status` and `DELETE` on `source != USER` → **409** `ImportOwnedShelterException` ("Registry shelters are import-owned and cannot be moderated here" — D4: the registry import rebuilds its rows as `ACTIVE` on every run, so an admin edit would silently revert); a restore (`INACTIVE → ACTIVE`) is the manual status change that sets `autoHideDisarmed = true` (shelter-trust-and-reports D1 — later `NON_EXISTENT` reports never re-hide); `deleteShelter` hard-deletes (the DB cascades reviews, shelter reports, review reports and occupancy rows — all FKs `ON DELETE CASCADE`); `dismissReport` stamps `dismissedAt` ONCE (idempotent; the row is KEPT — dismissing records the resolution, it never deletes); `hideReview`/`restoreReview` set/clear `hidden_at` (idempotent; hiding never deletes the row); every unknown id → 404 (`ShelterNotFoundException`/`ReportNotFoundException`). Queues resolve shelter names, review excerpts and reporter identity (profile name + email) in ONE batched lookup each (no N+1). |
+| `AdminShelterDto`        | record | admin-moderation: `id, name, address, source, status` (ALL statuses), `rating: Double` (visible-review average — `null` when the shelter has no visible reviews, same as the public projection), `reviewCount: int`, `nonexistentReports: int` (0 when none), `statusFlag: ShelterStatusFlag` (null = no flag), `occupancy: ShelterDto.Occupancy` (the fresh ≤ 2 h block, null when nothing fresh), `capacity: Integer`, `submitter: String` (the creator's profile name — `null` for registry rows and for creators whose account no longer exists). |
+| `AdminShelterReportDto`  | record | admin-moderation: one row of the shelter-report queue — `id, shelterId, shelterName, shelterStatus` (the shelter's LIVE status — drives the UI's restore shortcut), `type: ShelterReportType, detail, reporterName, reporterEmail` (admin-only data, never exposed outside `/admin/*`), `createdAt, dismissed: boolean` (the `dismissed_at != null` marker — dismissed rows stay in the queue, recorded as resolved). |
+| `AdminReviewReportDto`   | record | admin-moderation: one row of the review-report queue (hidden reviews INCLUDED) — `id, shelterId, shelterName, reviewId` (the HIDE/RESTORE actions target THIS id, not the report row's), `reviewRating: Integer, reviewComment: String` (the review excerpt — the moderation context), `reviewHidden: boolean` (the review's `hidden_at` marker), `reason: ReviewReportReason, detail, reporterName, reporterEmail` (admin-only), `createdAt`. |
+| `AdminShelterStatusRequest` | record | admin-moderation: `{status: ShelterStatus}` with `@NotNull` — the manual hide/restore body (`{"status": "ACTIVE" \| "INACTIVE"}`); a missing/unknown value is a 400 through the standard vocabulary. |
 | `ShelterSourceFilter`    | enum   | `REGISTRY, USER, ALL`. Maps to repository query: `REGISTRY` → `{PAASETEAMET, MUNICIPALITY}`, `USER` → `{USER}`, `ALL` → everything.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `LocationController`     | class  | shelter-location-input: `POST /api/geo/resolve` (Bearer JWT — inside the authenticated set, NOT permitAll) + per-IP token bucket 5/min (keys via `ClientIps`, same pattern as the auth endpoints). Thin shell: parse, validate, delegate to `app.LocationResolveService`, map the outcome.                                                                                                                                                                                                                                                                                                                                                                                         |
 | `LocationResolveRequest` | record | `url: String` (`@NotBlank @Size(max = 2048)`) — a `maps.app.goo.gl` short link (host whitelist enforced service-side; anything else is the generic 400).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -100,7 +107,8 @@ location-resolution style):
   sets `shelter_reviews.hidden_at` (once, never cleared automatically; hiding never deletes the
   row). Hidden reviews are excluded from the review list (except the author, who sees their own
   marked `hidden`), the rating aggregate + review count, and the `reviewed` filter; only the
-  admin moderation API (change: admin-moderation) can clear `hidden_at`.
+  admin moderation API (`POST /admin/reviews/{id}/restore` — admin-moderation D3) can clear
+  `hidden_at`.
 - **Occupancy (V9, D4):** `PUT /api/shelters/{id}/occupancy` body `{"band": SPACE|
   GETTING_FULL|FULL}` → **204** upsert — one live report per user per shelter; re-sending
   updates the existing row (latest band wins, `updated_at` refreshed) and refreshes the
@@ -124,7 +132,7 @@ location-resolution style):
   exactly 4 to 5, an `ACTIVE` shelter whose `autoHideDisarmed` is still `false` becomes
   `INACTIVE` (soft auto-hide — the row and its reports/reviews are retained; it drops out of
   the public list and the map). The trigger fires **only on that one 4→5 insert**: after any
-  manual status change (admin restore — which sets the disarm flag — or the author's delete),
+  manual status change (the admin restore — which sets the disarm flag — or the author's delete),
   the count is already past 4 (or the flag is set), so later reports increment it but never
   re-hide. No other path auto-hides; a 1–4 report state only flags (the orange "Reported" state
   on the still-active shelter).
@@ -134,6 +142,50 @@ location-resolution style):
   counts as confirmed open** — the rule pinned in `ShelterQueryServiceTest`); otherwise no flag
   (so confirmed-only with zero closed reports carries no flag). Schools/daycares that are
   normally closed may stay visible with the flag.
+- **Admin moderation (`/admin/*`, admin-moderation D3/D4)** — the trust layer's human lever.
+  Every endpoint authorizes with the SAME fresh-lookup rule (D2): the JWT's userId is loaded
+  on EVERY request and `UserKind.ADMIN` is required — no role claim in the token, so a
+  demotion/deletion takes effect on the next request. Vocabulary: **401** anonymous (the
+  security entry point — `/admin/**` is in the authenticated set) → **403** authenticated
+  non-admin (`AdminAccessException`, "Admin access required") → **404** unknown id → **409**
+  registry row under a write (`ImportOwnedShelterException` — import-owned, D4) → **400**
+  malformed body (missing/unknown `status`). All list endpoints answer **200** with a JSON
+  array; all writes answer **204** (no body) and are single-row transactions — no bulk
+  endpoints. The eight endpoints:
+  - `GET /admin/shelters?status=&source=&q=` — every shelter incl. hidden, id-ordered, with the
+    batched trust fields + the submitter's name; `status`/`source` exact-match filters, `q` the
+    case-insensitive name/address substring (server-side; the client never filters).
+  - `POST /admin/shelters/{id}/status` `{"status": "ACTIVE" | "INACTIVE"}` — manual
+    hide/restore of a USER row. A **restore sets `autoHideDisarmed = true`** — the manual-change
+    marker that permanently disarms auto-hide for that shelter. Setting the status a shelter
+    already has is a no-op. USER rows only (registry → 409); unknown → 404.
+  - `DELETE /admin/shelters/{id}` — hard delete of a USER shelter; reviews, shelter reports,
+    review reports and occupancy rows cascade (DB `ON DELETE CASCADE`). The ONLY path that
+    deletes a USER row (the author's own `DELETE /api/shelters/{id}` remains; admin delete is
+    the trust lever for spam). USER rows only (registry → 409); unknown → 404.
+  - `GET /admin/reports?shelterId=` — the shelter-report queue, **newest first** (created_at
+    desc, id desc tie-break); the optional `shelterId` narrows to one shelter (unknown shelter
+    → 404). Rows carry the shelter's LIVE status and the reporter's profile name + email
+    (admin-only data — never exposed outside `/admin/*`).
+  - `POST /admin/reports/{id}/dismiss` — mark a shelter report resolved: stamps `dismissed_at`
+    ONCE (**idempotent** — a re-dismiss is a no-op that still answers 204, never double-stamped). The
+    row is KEPT — dismissing records the resolution, it never deletes. Unknown → 404.
+  - `GET /admin/review-reports` — the review-report queue, newest first, **hidden reviews
+    included** with their hidden marker and the review excerpt (rating + comment) as context.
+  - `POST /admin/reviews/{id}/hide` — immediate hide of the reviewed review (`{id}` = the
+    REVIEW's id) — **idempotent**. Hiding never deletes the row; from this point the review is
+    excluded from the public list, the rating aggregate, the count and the `reviewed` filter
+    (i.e. it can be hidden BEFORE the 5th-report threshold). Unknown → 404.
+  - `POST /admin/reviews/{id}/restore` — clear the review's `hidden_at` — **idempotent**; the
+    review rejoins the rating, the count and the `reviewed` filter. Unknown → 404.
+
+  **Registry rows are read-only for admins (D4):** `POST .../status` and `DELETE` on
+  `source != USER` → **409** with the plain message — the registry import owns those rows'
+  lifecycle and rebuilds them as `ACTIVE` on every run, so an admin edit would silently
+  revert (provenance: "the registry published it, so it exists"). The admin UI offers no
+  actions for registry rows at all; the lever for bad registry data is upstream (Päästeamet),
+  not in-app.
+
 - `GET /account/reviews/mine` (M8, on the `/account` group — a cross-shelter list has no
   per-shelter parent) returns the caller's reviews across ALL shelters as `MyReviewDto[]`
   (shelter names batched — no N+1); empty list when the user has no reviews.
@@ -148,10 +200,11 @@ location-resolution style):
   generic message** for invalid input / non-whitelisted host / no extractable pair /
   outside Estonia (no enumeration); **502 ONE generic retry-later** for upstream
   timeout / network / server failure (no upstream detail).
-- `ErrorResponse` for 400 (validation / malformed report body), 401 (unauthenticated), 403
-  (not verified / not author / own review), 404 (shelter or review not found), 409 (duplicate
-  report, 10-active-shelter cap, optimistic lock), 429 (rate limited — incl. the report
-  throttle), 502 (geo-resolve upstream).
+- `ErrorResponse` for 400 (validation / malformed report body / malformed admin status body),
+  401 (unauthenticated), 403 (not verified / not author / own review / not an admin —
+  admin-moderation), 404 (shelter, review or report not found), 409 (duplicate report,
+  10-active-shelter cap, optimistic lock, import-owned registry row — admin-moderation), 429
+  (rate limited — incl. the report throttle), 502 (geo-resolve upstream).
 
 ## Design decisions
 
@@ -169,8 +222,10 @@ location-resolution style):
    established `submitterVerified`/`averageRating` no-N+1 pattern — counts by type and fresh
    occupancy rows are each ONE query per listing). The client renders what the DTO carries and
    never derives trust state from raw report lists. The public list is ACTIVE-only; the owner
-   list and the detail read keep all statuses. The only state a report WRITES: the auto-hide
-   (exactly-once 4→5, D1) and `shelter_reviews.hidden_at` (once, D2).
+   list and the detail read keep all statuses; the ADMIN list (`findAllForAdmin`) keeps ALL
+   statuses (admin-moderation D3). The state a report or an admin action WRITES: the auto-hide
+   (exactly-once 4→5, D1), `shelter_reviews.hidden_at` (once, D2; cleared only by the admin
+   restore) and the report's `dismissed_at` stamp (V10 — once, idempotent, never deletes).
 
 ## Testing notes
 
@@ -196,3 +251,14 @@ location-resolution style):
   visible-only review counting; the 10-active-shelter cap (409; ADMIN kind exempt; deleting or
   auto-hiding frees the cap); the throttle (default 10/rolling hour, at-cap rejects WITHOUT
   recording, 0 disables, atomic under concurrent same-user actions via the advisory lock).
+- Admin-moderation (in `AdminModerationIT` + the `AdminSeeder` tests, see `04-CONTEXT-AUTH.md`):
+  anonymous `/admin/*` → 401; verified non-admin → 403 with no data; a demotion takes effect on
+  the NEXT request (still-valid JWT) — the fresh kind lookup; `GET /account/me` carries
+  `isAdmin`; the admin list has all statuses + trust fields + the submitter and filters by
+  status/source/q; hide/restore cycles work and a restore PERMANENTLY disarms auto-hide
+  (later NON_EXISTENT reports never re-hide); registry rows → 409 on status/delete (import-
+  owned); unknown shelter/report/review ids → 404, a missing/unknown `status` body → 400;
+  delete cascades reviews, shelter reports, review reports and occupancy; the shelter-report
+  queue is newest-first with reporter identity and the `dismissed` marker (a re-dismiss is a
+  no-op, the row is kept); the review-report queue includes hidden reviews with their markers;
+  review hide/restore are idempotent and a restore restores the rating aggregate.

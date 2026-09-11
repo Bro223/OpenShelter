@@ -5,6 +5,7 @@ import ee.sheltermap.domain.ShelterReportType;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Persistence seam for {@link ShelterReport} (shelter-trust-and-reports D1).
@@ -29,4 +30,13 @@ public interface ShelterReportRepository {
      * (caller treats "missing" as count 0).
      */
     List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds);
+
+    /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation D3). */
+    Optional<ShelterReport> findById(Long id);
+
+    /** One shelter's reports, newest first (the admin queue, admin-moderation D3). */
+    List<ShelterReport> findByShelterId(long shelterId);
+
+    /** Every report, newest first (the admin queue without a shelter filter). */
+    List<ShelterReport> findAll();
 }

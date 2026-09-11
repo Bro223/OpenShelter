@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.ShelterReview;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +53,21 @@ public class InMemoryShelterReviewRepository implements ShelterReviewRepository 
         return store.values().stream()
                 .filter(r -> Objects.equals(r.getUserId(), userId))
                 .toList();
+    }
+
+    @Override
+    public List<ShelterReview> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<ShelterReview> result = new ArrayList<>();
+        for (Long id : ids) {
+            ShelterReview review = store.get(id);
+            if (review != null) {
+                result.add(review);
+            }
+        }
+        return result;
     }
 
     @Override

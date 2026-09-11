@@ -20,9 +20,9 @@
 | ------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
 | 400    | validation / invalid code / invalid token / bad request                                  | show `message`                                              |
 | 401    | unauthenticated or bad/expired access token                                              | interceptor: single-flight refresh, retry once, else logout |
-| 403    | verified account required / not the author / cannot report your own review               | banner + link to `/verify` or "author only"                 |
-| 404    | shelter/review not found                                                                 | show "not found" state                                      |
-| 409    | duplicate email/phone, already-verified level, duplicate target contact, duplicate report (shelter/user/type or review/user), 10-active-shelter cap | informational banner (the server message) |
+| 403    | verified account required / not the author / cannot report your own review / not an admin (any `/admin/*` call by a non-admin) | banner + link to `/verify` or "author only"; the admin page surfaces the server message |
+| 404    | shelter/review/report not found                                                                 | show "not found" state                                      |
+| 409    | duplicate email/phone, already-verified level, duplicate target contact, duplicate report (shelter/user/type or review/user), 10-active-shelter cap, import-owned registry row (admin status/delete on a registry shelter) | informational banner (the server message) |
 | 429    | rate limited (login/register/verify/contact-change, geo resolve, report throttle)        | "slow down" message + retry hint                            |
 | 500    | internal (never expected)                                                                | generic error                                               |
 | 502    | geo resolve: upstream short-link chain timed out / failed (generic — no upstream detail) | generic "try again later" error                             |
@@ -151,7 +151,29 @@ runs first). `ShelterGateway.report` / `ShelterGateway.reportOccupancy` and
 
 | Method + path               | Body                   | Success                                                                                                                                   | Errors                                                                                   |
 | --------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `GET /account/me`           | —                      | 200 `MeResponse` — the REAL profile + REAL verified claims (the frontend's single source of truth for name/email/phone/nationalId/levels) | 401                                                                                      |
+| `GET /account/me`           | —                      | 200 `MeResponse` — the REAL profile + REAL verified claims + `isAdmin` (the frontend's single source of truth for name/email/phone/nationalId/levels + the admin gate) | 401                                                                                      |
+
+### Admin moderation (`/admin`) — JWT + ADMIN kind required (admin-moderation)
+
+Every endpoint requires the Bearer JWT **and** the caller's `kind = ADMIN` — the backend
+loads the user on EVERY request (a fresh kind lookup, never a JWT claim — a demotion takes
+effect on the next request): **401** anonymous → **403** authenticated non-admin → **404**
+unknown id → **409** a write on a registry row (import-owned) → **400** malformed body.
+All list endpoints answer **200** with a JSON array; all writes answer **204** with no body
+(single-row, idempotent where marked). Reporter identity (profile name + email) is
+admin-only data — never rendered outside the `/admin` feature. `AdminGateway` is the only
+door.
+
+| Method + path                         | Body / query                                                       | Success                              | Errors                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------- |
+| `GET /admin/shelters`                 | optional `status`, `source` (exact match) + `q` (name/address substring) — absent fields omitted from the URL | 200 `AdminShelterDto[]` — **every shelter incl. hidden** (id-ordered, with `nonexistentReports`, `statusFlag`, fresh `occupancy`, the submitter's name) | 401, 403 |
+| `POST /admin/shelters/{id}/status`    | `{status: 'ACTIVE' \| 'INACTIVE'}`                                 | 204 — manual hide/restore (USER rows only; a **restore disarms auto-hide permanently**) | 400 (missing/unknown status), 404, 409 (registry row) |
+| `DELETE /admin/shelters/{id}`         | —                                                                  | 204 — hard delete (reviews, reports and occupancy cascade) | 404, 409 (registry row) |
+| `GET /admin/reports`                  | optional `shelterId`                                               | 200 `AdminShelterReportDto[]` — the shelter-report queue, **newest first**, with the shelter's LIVE status + the reporter's name/email | 401, 403, 404 (unknown `shelterId`) |
+| `POST /admin/reports/{id}/dismiss`    | —                                                                  | 204 — mark resolved (**idempotent**; the row is KEPT, stamped once) | 404                                 |
+| `GET /admin/review-reports`           | —                                                                  | 200 `AdminReviewReportDto[]` — the review-report queue, newest first, **hidden reviews included** with their marker + the review excerpt | 401, 403 |
+| `POST /admin/reviews/{id}/hide`       | — (`{id}` = the REVIEW's id — `row.reviewId`, NOT the report row's) | 204 — immediate hide (**idempotent**; can fire before the 5th-report threshold) | 404 |
+| `POST /admin/reviews/{id}/restore`    | — (`{id}` = the REVIEW's id)                                       | 204 — clear the hidden state (**idempotent**; the review re-joins the rating, count and `reviewed` filter) | 404 |
 | `PUT /account/profile`      | `ProfileUpdateRequest` | 200 fresh `MeResponse` (current password verified against the stored hash BEFORE any write)                                               | 400 (blank name/ID), 401 (wrong current password — nothing updated), 401 unauthenticated |
 | `GET /account/reviews/mine` | —                      | 200 `MyReviewDto[]` — the caller's reviews across ALL shelters (shelterId + shelterName for navigation; empty list when none)             | 401                                                                                      |
 
@@ -226,6 +248,9 @@ interface ReviewRequest {
   comment?: string;
 } // 1..5, ≤500 chars
 type ShelterReportType = 'NON_EXISTENT' | 'CLOSED' | 'OPEN_CONFIRMED' | 'WRONG_LOCATION' | 'OTHER';
+type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
+type ShelterStatus = 'ACTIVE' | 'INACTIVE';
+type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
 interface ReportShelterRequest {
   type: ShelterReportType;
   detail?: string; // free text for OTHER, ≤500 chars
@@ -256,6 +281,9 @@ interface MeResponse {
   phone: string;
   nationalIdCode: string;
   levels: VerificationLevel[]; // REAL verified claims, enum order (empty = none)
+  isAdmin: boolean; // admin-moderation: always present — true only for the ADMIN-kind
+  // account (the backend's fresh kind, never a token claim); gates the nav item
+  // + the /admin route; the account page's "Admin" badge
 }
 
 interface ShelterDto {
@@ -318,6 +346,72 @@ interface ApiError {
   error: string;
   message: string;
   path: string;
+}
+
+type ShelterStatusFlag = 'REPORTED_CLOSED' | 'CONFIRMED_OPEN';
+
+interface AdminOccupancy {
+  // the fresh (<= 2 h) occupancy block of the ADMIN shelter list — the same
+  // contract shape as ShelterOccupancy, except the field is reportedAt
+  // (what the public projection calls lastReportedAt); same window, same
+  // semantics (reportCount 1 = hedged copy, >= 2 = firm)
+  band: OccupancyBand;
+  reportedAt: string; // ISO-8601
+  reportCount: number;
+}
+
+interface AdminShelterDto {
+  // GET /admin/shelters — every shelter, ALL statuses (INACTIVE included);
+  // the public projection's trust fields plus what the public list hides
+  id: number;
+  name: string;
+  address: string | null; // null for USER rows — registry rows always carry one
+  source: ShelterSource;
+  status: 'ACTIVE' | 'INACTIVE';
+  rating: number | null; // null = no visible reviews yet (NOT 0)
+  reviewCount: number;
+  nonexistentReports: number;
+  statusFlag: ShelterStatusFlag | null;
+  occupancy: AdminOccupancy | null;
+  capacity: number | null;
+  submitter: string | null; // the creator's profile name (USER rows only)
+}
+
+interface AdminShelterFilters {
+  status?: 'ACTIVE' | 'INACTIVE'; // exact match; absent = omitted from the URL
+  source?: ShelterSource;
+  q?: string; // name/address substring (server-side)
+}
+
+interface AdminShelterReportDto {
+  // one row of GET /admin/reports (newest first); reporter identity is admin-only
+  id: number;
+  shelterId: number;
+  shelterName: string;
+  shelterStatus: 'ACTIVE' | 'INACTIVE'; // the shelter's LIVE status — drives the restore shortcut
+  type: ShelterReportType;
+  detail: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  createdAt: string; // ISO-8601
+  dismissed: boolean; // dismissed rows stay in the queue, dimmed (the audit trail)
+}
+
+interface AdminReviewReportDto {
+  // one row of GET /admin/review-reports (newest first, hidden reviews included);
+  // the hide/restore actions target reviewId — NOT id
+  id: number;
+  shelterId: number;
+  shelterName: string;
+  reviewId: number;
+  reviewRating: number; // 1..5
+  reviewComment: string | null;
+  reviewHidden: boolean; // the review's hidden marker
+  reason: ReviewReportReason;
+  detail: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  createdAt: string; // ISO-8601
 }
 ```
 

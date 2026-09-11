@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
@@ -62,9 +63,10 @@ public class InMemoryUserRepository implements UserRepository {
 
     @Override
     public boolean isAdmin(long userId) {
-        // The in-memory domain hierarchy has no admin kind (v1: no admin
-        // accounts) — the JPA impl answers from the users.kind column.
-        return false;
+        // The in-memory domain hierarchy now HAS an admin kind (AdminUser,
+        // admin-moderation D1) — answer from the domain class, the mirror
+        // of the JPA impl's users.kind-column check.
+        return store.get(userId) instanceof AdminUser;
     }
 
     public List<User> findAll() {

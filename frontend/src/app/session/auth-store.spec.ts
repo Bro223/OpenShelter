@@ -19,6 +19,7 @@ const PROFILE: MeResponse = {
   phone: '+37250000001',
   nationalIdCode: '49901019999',
   levels: [],
+  isAdmin: false,
 };
 
 const TEINE_PROFILE: MeResponse = {
@@ -27,6 +28,7 @@ const TEINE_PROFILE: MeResponse = {
   phone: '+37250000002',
   nationalIdCode: '49901019998',
   levels: ['EMAIL'],
+  isAdmin: false,
 };
 
 const REGISTER: RegisterRequest = {
@@ -530,7 +532,43 @@ describe('AuthStore', () => {
       expect(store.phone()).toBeNull();
       expect(store.nationalIdCode()).toBeNull();
       expect(store.levels()).toEqual([]);
+      expect(store.isAdmin()).toBe(false);
       expect(store.isVerified()).toBe(false);
+    });
+
+    // ---- admin flag (admin-moderation D1/D2) --------------------------------
+
+    it('refreshProfile() adopts isAdmin from the profile (always present)', async () => {
+      account.me.mockResolvedValue({ ...PROFILE, isAdmin: true });
+
+      await store.refreshProfile();
+
+      expect(store.isAdmin()).toBe(true);
+
+      account.me.mockResolvedValue(PROFILE); // a regular user
+      await store.refreshProfile();
+
+      expect(store.isAdmin()).toBe(false);
+    });
+
+    it('an admin login starts with isAdmin false until the profile lands, then true', async () => {
+      let resolveMe!: (value: MeResponse) => void;
+      account.me.mockReturnValue(
+        new Promise<MeResponse>((resolve) => {
+          resolveMe = resolve;
+        }),
+      );
+      gateway.login.mockResolvedValue(PAIR);
+
+      const login = store.login('admin@example.ee', 's3cret!');
+      await vi.waitFor(() => expect(account.me).toHaveBeenCalledTimes(1));
+      expect(store.authenticated()).toBe(true);
+      expect(store.isAdmin()).toBe(false); // fail-closed while the profile is in flight
+
+      resolveMe({ ...PROFILE, isAdmin: true });
+      await login;
+
+      expect(store.isAdmin()).toBe(true);
     });
 
     it('a fresh login adopts the NEW identity — previous profile does not carry over', async () => {
@@ -540,6 +578,7 @@ describe('AuthStore', () => {
         phone: '+37250000002',
         nationalIdCode: '49901019998',
         levels: [],
+        isAdmin: false,
       });
       gateway.login.mockResolvedValue(PAIR);
       await store.login('test@example.ee', 's3cret!');

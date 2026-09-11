@@ -8,7 +8,9 @@ the account page (M8, `user-contributions`). On top, a community trust layer (sh
 trust-and-reports) keeps the map honest without a moderator: users report shelters that no
 longer exist (the 5th such report takes the shelter off the public map), report bad reviews
 (the 5th hides the review), and report how full a shelter is right now (shown to everyone
-while fresh).
+while fresh). A single env-provisioned admin (admin-moderation) works the trust layer's report
+queues — restore/delete user shelters, triage shelter reports, hide/restore reviews — from a
+moderation panel that is invisible to everyone else.
 
 **Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse with trust filters,
 auth, verification, shelter submission, community reviews and reports); run/build docs in
@@ -20,6 +22,18 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 
 ## Status
 
+- ✅ **Admin moderation (admin-moderation)** — the env-provisioned admin + moderation API:
+  `ADMIN_EMAIL`/`ADMIN_PASSWORD` provision one ADMIN-kind account at startup (create-if-absent,
+  never re-hashed, no-op when either var is unset; login through the normal `/auth/login`),
+  fresh `UserKind.ADMIN` lookup per `/admin/*` request (no JWT role claim — 401 anonymous /
+  403 non-admin, a demotion takes effect on the next request), the `/admin/*` surface
+  (all-shelters list incl. hidden + search, user-shelter hide/restore — a restore disarms
+  auto-hide — and hard delete, the shelter-report queue with idempotent dismiss, the
+  review-report queue with idempotent hide/restore; registry rows are import-owned → 409),
+  `isAdmin` on `GET /account/me`, `V10__admin_moderation.sql` (`shelter_reports.dismissed_at`)
+  — **464 backend tests green** plus the frontend `/admin` page (guard + admin-only nav item,
+  three tabs, account-page badge, `AdminGateway`) at **723 frontend tests across 38 spec
+  files** (both counted 2026-09-12), all green.
 - ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
   reports (the 5th "does not exist" auto-hides the shelter from the public list/map), review
   reports (the 5th hides the review), live occupancy bands (display-only, 2 h freshness),
@@ -125,11 +139,38 @@ auth, verification, shelter submission, community reviews and reports); run/buil
   404 if the shelter is absent, 403 if it exists but is not the caller's (registry and
   legacy rows are unmanageable by anyone); deleting a shelter cascades to its reviews.
 - **Uniform error shape** (`ErrorResponse`) across the whole API; `@RestControllerAdvice`.
+- **Admin moderation (admin-moderation)** — a single env-provisioned admin works the trust
+  layer's report queues; the rating/submission flow stays community-moderated (no moderator
+  touches ratings or reviews the community didn't flag).
+  - **Provisioning**: set `ADMIN_EMAIL` + `ADMIN_PASSWORD` in the environment (dev values
+    live in the gitignored `.env`). At startup the `AdminSeeder` creates the account **only if
+    no user with that email exists** (create-if-absent — it never overwrites an existing user,
+    never re-hashes the password, so an in-app password change survives restarts; a normal
+    account that happens to hold the email string stays a normal account). Both claims are
+    pre-set on the account (the mailbox does not exist by design), so it is fully writable
+    from the first request with no email/SMS verification. The admin logs in through the
+    normal `POST /auth/login` — no special endpoint. **Either var unset → no admin exists**
+    and the app behaves exactly as before. De-provisioning = remove the env vars and delete
+    the row (manual — no API deletes admin accounts); while both vars stay set, the seeder
+    recreates the account on the next boot after the row was deleted.
+  - **What an admin can do** (`/admin/*`, 403 for non-admins; the kind is re-checked on every
+    request — no role in the JWT): list **every** shelter including auto-hidden ones (with
+    report counts, occupancy, the submitter's name, name/address search); **hide/restore
+    user shelters** (a restore is the manual change that disarms auto-hide — later "does
+    not exist" reports never re-hide that shelter); **hard-delete a user shelter** (reviews
+    and reports cascade); **triage the shelter-report queue** (newest first, with the
+    reporter's name + email — idempotent dismiss keeps the row, recorded as resolved);
+    **hide/restore reviews** from the review-report queue (immediate, idempotent — a hide can
+    land before the 5th-report threshold; a restore re-joins the review to the rating,
+    count and `reviewed` filter). **Registry rows are read-only** — the registry import owns
+    their lifecycle (it rebuilds them as `ACTIVE` on every run), so status/delete on them
+    answers 409 and the UI offers no actions for them. The admin is also exempt from the
+    10-active-shelter submission cap.
 
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`, `V9__shelter_trust_and_reports.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`, `V9__shelter_trust_and_reports.sql`, `V10__admin_moderation.sql`)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -138,12 +179,12 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 
 | Package        | Contents                                                                                                                                                                                                                                                                     |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `domain`       | `User` hierarchy, `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring                                                                                                                                              |
+| `domain`       | `User` hierarchy (incl. `AdminUser` — the env-provisioned admin, admin-moderation), `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring                                                                                                                                              |
 | `app`          | `UserService`, `ShelterService`, `LocationResolveService`, `MapsUrlCoordinates`, `RedirectClient` + `HttpUrlRedirectClient`, `AppInfo`, repository **interfaces**, `NotVerifiedException`                                                                                                                                                   |
 | `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties`                                                                                                                                   |
-| `auth`         | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, DTOs |
+| `auth`         | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, `AdminSeeder` (env-provisioned admin, admin-moderation), DTOs |
 | `ingestion`    | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                                            |
-| `api`          | `ShelterController`, `ReviewController`, `LocationController`, query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
+| `api`          | `ShelterController`, `ReviewController`, `LocationController`, `AdminController` + `AdminModerationService` (admin-moderation), query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
 | `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                      |
 | `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
 
@@ -188,7 +229,7 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | POST   | `/auth/logout`                             | refresh                 | Revoke session                                                                                                                                                                                              |
 | POST   | `/auth/password-reset/request`             | —                       | Always 200 ("if the account exists, we emailed a 6-digit code")                                                                                                                                             |
 | POST   | `/auth/password-reset/confirm`             | —                       | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions                                                                                                                 |
-| GET    | `/account/me`                              | JWT                     | The caller's real profile + real verified claims (`MeResponse` — the frontend's single source of truth)                                                                                                     |
+| GET    | `/account/me`                              | JWT                     | The caller's real profile + real verified claims + `isAdmin` (admin-moderation: always present, true only for the ADMIN-kind account — the frontend's gate for the nav item and the `/admin` route) (`MeResponse` — the frontend's single source of truth)                                                                                                     |
 | PUT    | `/account/profile`                         | JWT                     | Update name + national ID with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                                                   |
 | POST   | `/account/email-change/request`            | JWT                     | Start email change → **SMS code to current phone** (202)                                                                                                                                                    |
 | POST   | `/account/email-change/confirm`            | JWT                     | Complete email change with the SMS code (200/400)                                                                                                                                                           |
@@ -211,6 +252,14 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | PUT    | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Update own review                                                                                                                                                                                           |
 | DELETE | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Delete own review                                                                                                                                                                                           |
 | POST   | `/api/shelters/{id}/reviews/{reviewId}/reports` | JWT + verified | Report a review `{reason, detail?}` (FALSY_DATA / NOT_RELEVANT / SPAM / OTHER) → 204; 403 own review or not verified, 404 unknown shelter/review, 409 duplicate (review, user), 429 throttle. The 5th report hides the review (set once, cleared only by admin moderation; the author still sees it, marked hidden) |
+| GET    | `/admin/shelters?status=&source=&q=`       | JWT + ADMIN kind        | **Every shelter incl. hidden** (id-ordered) with `nonexistentReports`, `statusFlag`, fresh `occupancy`, `reviewCount`/`rating` and the submitter's name; `status`/`source` exact-match filters, `q` = case-insensitive name/address substring → 200 `AdminShelterDto[]` (401 anonymous, 403 non-admin — fresh kind lookup per request) |
+| POST   | `/admin/shelters/{id}/status`              | JWT + ADMIN kind        | `{"status": "ACTIVE" \| "INACTIVE"}` — manual hide/restore of a USER shelter → 204; a **restore disarms auto-hide permanently** (later NON_EXISTENT reports never re-hide); 400 missing/unknown status, 404 unknown shelter, **409 registry row** (import-owned) |
+| DELETE | `/admin/shelters/{id}`                     | JWT + ADMIN kind        | Hard delete of a USER shelter (reviews, shelter reports, review reports, occupancy cascade) → 204; 404 unknown shelter, 409 registry row (import-owned) |
+| GET    | `/admin/reports?shelterId=`                | JWT + ADMIN kind        | The shelter-report queue, **newest first**, with the shelter's live status + the reporter's profile name + email (admin-only data); optional `shelterId` filter (unknown shelter → 404) → 200 `AdminShelterReportDto[]` |
+| POST   | `/admin/reports/{id}/dismiss`              | JWT + ADMIN kind        | Mark a shelter report resolved → 204 — **idempotent** (a re-dismiss is a no-op); the row is KEPT, stamped `dismissed_at` once (V10); 404 unknown report |
+| GET    | `/admin/review-reports`                    | JWT + ADMIN kind        | The review-report queue, newest first, **hidden reviews included** with their hidden marker + the review excerpt (rating + comment) → 200 `AdminReviewReportDto[]` |
+| POST   | `/admin/reviews/{id}/hide`                 | JWT + ADMIN kind        | Immediate hide of the reviewed review (`{id}` = the REVIEW's id) → 204 — **idempotent**; can fire before the 5th-report threshold; hiding never deletes the row; 404 unknown review |
+| POST   | `/admin/reviews/{id}/restore`              | JWT + ADMIN kind        | Clear the review's hidden state (`{id}` = the REVIEW's id) → 204 — **idempotent**; the review re-joins the rating, count and `reviewed` filter; 404 unknown review |
 | POST   | `/dev/email-test`                          | JWT + opt-in            | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below)                                                                                               |
 | POST   | `/dev/sms-test`                            | JWT + opt-in            | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below)                                                                         |
 | GET    | `/actuator/health`                         | public                  | Health check                                                                                                                                                                                                |
@@ -278,7 +327,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 433 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 464 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
@@ -358,6 +407,7 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `REGISTRY_BASE_URL`                                              | Maa-amet WFS URL                                                            | Registry endpoint                                                                |
 | `REGISTRY_CLIENT`                                                | `paasteamet`                                                                | `paasteamet` (real HTTP) or `dev` (local fixture)                                |
 | `CORS_ALLOWED_ORIGINS`                                           | `http://localhost:5173,http://localhost:3000`                               | Browser origins allowed to call the API                                          |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD`                                 | — (empty = no admin exists)                                                 | The env-provisioned admin (admin-moderation): both set + no user with that email → an ADMIN-kind account is created at startup (create-if-absent — never re-hashed; login through the normal `/auth/login`); either unset → no admin, `/admin/*` answers 403 for everyone. **No defaults are committed** — the dev values live in the gitignored `.env` |
 | `RATELIMIT_TRUSTED_PROXIES`                                      | —                                                                           | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys)           |
 | `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false`                                                                 | E-mail-test recipient allowlist (spam-relay guard)                               |
 | `DEV_SMS_TEST_ENABLED`                                           | `false`                                                                     | Enables `POST /dev/sms-test` (SMS diagnostic, JWT required)                      |
@@ -496,7 +546,7 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 - Public read API with rating aggregates, verified-write API for shelters and reviews, and
   the community trust layer (shelter/review reports with auto-hide, live occupancy, trust
   filters)
-- Persistence (Flyway V1–V9, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway V1–V10, JPA, `ddl-auto=validate`), uniform error handling
 - Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
 **Known gaps / next steps:**

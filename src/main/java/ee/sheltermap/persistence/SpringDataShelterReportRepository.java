@@ -19,4 +19,10 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
     @Query("select r.shelterId, r.type, count(r) from ShelterReportEntity r " +
             "where r.shelterId in :ids group by r.shelterId, r.type")
     List<Object[]> countByTypeForShelterIds(@Param("ids") Collection<Long> ids);
+
+    /** One shelter's reports, newest first (the admin queue); created_at ties break by id desc. */
+    List<ShelterReportEntity> findByShelterIdOrderByCreatedAtDescIdDesc(Long shelterId);
+
+    /** Every report, newest first (the admin queue without a shelter filter). */
+    List<ShelterReportEntity> findAllByOrderByCreatedAtDescIdDesc();
 }

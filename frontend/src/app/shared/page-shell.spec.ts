@@ -48,6 +48,7 @@ describe('PageShell', () => {
       phone: '+37250000001',
       nationalIdCode: '49901019999',
       levels: [],
+      isAdmin: false,
     });
     TestBed.configureTestingModule({
       imports: [PageShell],
@@ -112,6 +113,28 @@ describe('PageShell', () => {
     // M7: the standalone Verify nav item is gone — verification is a
     // per-contact label on /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
+    // admin-moderation D5: a regular user's nav is unchanged — no Admin item.
+    expect(element.querySelector('a[href="/admin"]')).toBeNull();
+  });
+
+  it('an ADMIN user gets the Admin nav item (regular users see no change)', async () => {
+    account.me.mockResolvedValue({
+      name: 'Test User',
+      email: 'user@example.ee',
+      phone: '+37250000001',
+      nationalIdCode: '49901019999',
+      levels: [],
+      isAdmin: true,
+    });
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const adminLink = element.querySelector('a[href="/admin"]');
+    expect(adminLink).not.toBeNull();
+    expect(adminLink?.textContent?.trim()).toBe('Admin');
   });
 
   it('the nav stays link-stable whether or not a level is verified', async () => {

@@ -37,6 +37,107 @@ package "api" {
     + POST /api/geo/resolve (body : LocationResolveRequest) : LocationResolvedDto
   }
 
+  class AdminController {
+    ' admin-moderation D3 - the /admin/* moderation surface. Thin shell:
+    ' parse, validate, AUTHORIZE, delegate. Authorization (D2): a FRESH
+    ' UserRepository.isAdmin(userId) kind lookup PER REQUEST - never a JWT
+    ' claim (a demotion takes effect on the very next request). 401
+    ' anonymous (the security entry point - /admin/** is in the
+    ' authenticated set), 403 authenticated non-admin (AdminAccessException).
+    + GET    /admin/shelters?status=&source=&q=   : List<AdminShelterDto>   ' ALL statuses incl. hidden
+    + POST   /admin/shelters/{id}/status (body : AdminShelterStatusRequest) : 204  ' USER rows only; restore disarms auto-hide
+    + DELETE /admin/shelters/{id} : 204                     ' hard delete (cascade); USER rows only
+    + GET    /admin/reports?shelterId= : List<AdminShelterReportDto>  ' shelter-report queue, newest first
+    + POST   /admin/reports/{id}/dismiss : 204              ' idempotent; the row is KEPT
+    + GET    /admin/review-reports : List<AdminReviewReportDto>  ' newest first; hidden reviews included
+    + POST   /admin/reviews/{id}/hide : 204                 ' idempotent; {id} = the REVIEW's id
+    + POST   /admin/reviews/{id}/restore : 204              ' idempotent; clears hidden_at
+  }
+
+  class AdminModerationService {
+    ' admin-moderation D3/D4 - owns the guard rails (the controller
+    ' authorizes; this service guards). All writes are single-row
+    ' transactions; no bulk endpoints; every unknown id -> 404.
+    + listShelters(status : ShelterStatus, source : ShelterSource, q : String) : List<AdminShelterDto>
+    + setShelterStatus(shelterId : long, target : ShelterStatus) : void
+    ' USER rows only (source != USER -> 409 ImportOwnedShelterException - D4).
+    ' A restore (INACTIVE -> ACTIVE) sets autoHideDisarmed = true - the
+    ' manual-change marker that PERMANENTLY disarms auto-hide (V9 D1).
+    + deleteShelter(shelterId : long) : void
+    ' USER rows only (409); the DB cascades reviews, shelter reports,
+    ' review reports and occupancy rows (all FKs ON DELETE CASCADE).
+    + listShelterReports(shelterId : Long) : List<AdminShelterReportDto>
+    ' newest first (created_at desc, id desc tie-break); optional shelterId
+    ' (unknown shelter -> 404); shelter status + reporter name/email in ONE
+    ' batched lookup each (no N+1).
+    + dismissReport(reportId : long) : void
+    ' stamps dismissed_at ONCE (idempotent - a re-dismiss is a no-op);
+    ' the row is KEPT (records the resolution, never deletes).
+    + listReviewReports() : List<AdminReviewReportDto>
+    ' newest first; hidden reviews INCLUDED with their marker + the review
+    ' excerpt (rating + comment) as the moderation context.
+    + hideReview(reviewId : long) : void          ' idempotent; never deletes the row
+    + restoreReview(reviewId : long) : void       ' idempotent; clears hidden_at,
+                                                   ' re-joins rating/count/reviewed filter
+  }
+
+  class AdminShelterStatusRequest <<record>> {
+    + status : ShelterStatus   ' @NotNull - {"status": "ACTIVE" | "INACTIVE"};
+                               ' missing/unknown -> 400 (standard vocabulary)
+  }
+
+  class AdminShelterDto <<record>> {
+    ' One row of GET /admin/shelters - every shelter, ALL statuses
+    ' (auto-hidden rows included), id-ordered: the public projection's
+    ' trust fields plus what the public list hides.
+    + id : Long
+    + name : String
+    + address : String
+    + source : ShelterSource
+    + status : ShelterStatus       ' incl. INACTIVE (auto-hidden)
+    + rating : Double              ' visible-review average; null = none (same as public)
+    + reviewCount : int
+    + nonexistentReports : int     ' 0 when none
+    + statusFlag : ShelterStatusFlag  ' REPORTED_CLOSED / CONFIRMED_OPEN / null
+    + occupancy : Occupancy        ' the fresh (<= 2 h) block; null when nothing fresh
+    + capacity : Integer
+    + submitter : String           ' the creator's profile name; null for registry
+                                   ' rows and for deleted creators
+  }
+
+  class AdminShelterReportDto <<record>> {
+    ' One row of the shelter-report queue. Reporter identity is ADMIN-ONLY
+    ' data - never exposed outside /admin/*.
+    + id : Long
+    + shelterId : Long
+    + shelterName : String
+    + shelterStatus : ShelterStatus  ' the shelter's LIVE status (drives the UI restore shortcut)
+    + type : ShelterReportType
+    + detail : String
+    + reporterName : String
+    + reporterEmail : String
+    + createdAt : Instant
+    + dismissed : boolean          ' dismissed_at != null; dismissed rows stay in the queue
+  }
+
+  class AdminReviewReportDto <<record>> {
+    ' One row of the review-report queue (hidden reviews INCLUDED, carrying
+    ' their hidden marker + the review excerpt). Reporter identity is
+    ' ADMIN-ONLY data. The hide/restore actions target reviewId, NOT id.
+    + id : Long                    ' the REPORT row's id
+    + shelterId : Long
+    + shelterName : String
+    + reviewId : Long              ' the REVIEW's id (the action target)
+    + reviewRating : Integer
+    + reviewComment : String
+    + reviewHidden : boolean       ' the review's hidden_at marker
+    + reason : ReviewReportReason
+    + detail : String
+    + reporterName : String
+    + reporterEmail : String
+    + createdAt : Instant
+  }
+
   class LocationResolveRequest <<record>> {
     + url : String   ' @NotBlank @Size(max = 2048)
   }
@@ -351,6 +452,17 @@ ShelterReviewService --> ReviewReportRepository : interface (V9)
 ShelterReviewService ..> ReportActionLog : check-and-record (429 at the cap)
 ShelterReviewService ..> ShelterReview : the 5th report sets hidden_at (once)
 
+' ---- admin moderation (admin-moderation D3/D4) ----
+AdminController --> AdminModerationService : all /admin/* writes + queues
+AdminController ..> UserRepository : fresh isAdmin(userId) kind lookup PER REQUEST (D2)
+AdminController ..> ErrorResponse : 401 anonymous (entry point) / 403 non-admin
+AdminModerationService --> ShelterQueryService : findAllForAdmin (the same batched projection - no N+1)
+AdminModerationService ..> Shelter : the ONLY manual status path + the ONLY admin delete (USER rows)
+AdminModerationService ..> ReviewReportRepository : findAll (the queue, newest first)
+AdminModerationService ..> ShelterReview : hide/restore set/clear hidden_at (once, idempotent)
+AdminModerationService ..> ShelterReport : dismiss stamps dismissed_at (once, idempotent; the row is kept)
+AdminModerationService ..> ErrorResponse : 404 unknown id / 409 import-owned registry row (D4)
+
 ' ---- location resolution (POST /api/geo/resolve) ----
 LocationController --> LocationResolveService : resolve(url)
 LocationController --> LocationResolveRequest : parses body
@@ -363,6 +475,45 @@ LocationResolveService --> MapsUrlCoordinates : pair extraction on the final URL
 
 ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()
 ShelterSourceFilter --> ShelterSource : REGISTRY={PAASETEAMET,MUNICIPALITY}, USER={USER}, ALL={all}
+
+note bottom of AdminController
+  ADMIN MODERATION (admin-moderation) - the trust layer's human lever.
+  Authorization (D2): FRESH kind lookup per request - the JWT's userId is
+  loaded and UserKind.ADMIN is required (no role claim in the token, so a
+  demotion takes effect on the next request). 401 anonymous (the security
+  entry point - /admin/** is in the authenticated set) -> 403 authenticated
+  non-admin -> 404 unknown id -> 409 registry row under a write (D4) ->
+  400 malformed body. All writes are 204, single-row, no bulk endpoints.
+
+  GET  /admin/shelters?status=&source=&q=      every shelter incl. hidden,
+       id-ordered, batched trust fields + the submitter's name; status/
+       source exact-match, q = case-insensitive name/address substring
+  POST /admin/shelters/{id}/status             manual hide/restore (USER rows
+       only; registry -> 409 import-owned). A RESTORE sets autoHideDisarmed
+       = true - permanently disarms auto-hide (V9 D1: later NON_EXISTENT
+       reports never re-hide)
+  DELETE /admin/shelters/{id}                   hard delete (cascade: reviews,
+       shelter reports, review reports, occupancy - all FKs ON DELETE
+       CASCADE); USER rows only; the only path that deletes a USER row for
+       the trust layer
+  GET  /admin/reports?shelterId=               shelter-report queue, newest
+       first, with the shelter's LIVE status + the reporter's profile name
+       + email (admin-only data - never exposed outside /admin/*)
+  POST /admin/reports/{id}/dismiss             mark resolved - stamps
+       dismissed_at ONCE (idempotent); the row is KEPT (records the
+       resolution, never deletes)
+  GET  /admin/review-reports                   review-report queue, newest
+       first, hidden reviews INCLUDED with their marker + the review excerpt
+  POST /admin/reviews/{id}/hide                immediate hide (idempotent;
+       can hide BEFORE the 5th-report threshold); {id} = the REVIEW's id
+  POST /admin/reviews/{id}/restore             clear hidden_at (idempotent);
+       the review re-joins the rating, the count and the reviewed filter
+
+  D4: registry rows (source != USER) are READ-ONLY for admins - the
+  registry import owns their lifecycle and rebuilds them as ACTIVE on every
+  run, so an admin edit would silently revert (the UI offers no actions for
+  them; the lever for bad registry data is upstream, Päästeamet).
+end note
 
 note bottom of ShelterController
   GET  /api/shelters?source=REGISTRY|USER|ALL  (public - VIEW_MAP baseline;
@@ -433,6 +584,8 @@ participant "ReportActionLog" as RAL
 participant "ShelterReviewService" as RVS
 participant "ShelterReviewRepository" as RREPO
 participant "AccountController" as ACC
+participant "AdminController" as ADC
+participant "AdminModerationService" as AMS
 participant "LocationController" as LC
 participant "LocationResolveService" as LRS
 participant "HttpUrlRedirectClient" as HRC
@@ -611,5 +764,68 @@ note over SRS, DB
   in SQL, no cleanup job); the most recent fresh band wins; reportCount = fresh
   reports agreeing with it (1 = "Reported full" hedged, 2+ = "Full" firm);
   nothing fresh -> no occupancy shown.
+end note
+
+== 13. Admin moderation (Bearer JWT + ADMIN kind - fresh lookup per request) ==
+Client -> ADC : any /admin/* call
+ADC -> DB : load the JWT's userId, check kind = ADMIN (fresh lookup, D2 - no JWT claim)
+alt anonymous (no/invalid token)
+  ADC --> Client : 401 (the security entry point - /admin/** is in the authenticated set)
+else authenticated but NOT admin-kind
+  ADC --> Client : 403 "Admin access required" (AdminAccessException - a demotion takes effect on this very request)
+end
+
+== 13a. GET /admin/shelters?status=&source=&q= ==
+ADC -> AMS : listShelters(status, source, q)
+AMS -> DB : every shelter (ALL statuses incl. hidden) + the same batched trust pass as the public list (no N+1)
+AMS --> ADC : List<AdminShelterDto> (+ the submitter's profile name)
+ADC --> Client : 200 [AdminShelterDto]
+
+== 13b. POST /admin/shelters/{id}/status {status: ACTIVE|INACTIVE} ==
+ADC -> AMS : setShelterStatus(id, target)
+AMS -> DB : findById(id)
+alt absent
+  ADC --> Client : 404
+else source != USER (a registry row - import-owned, D4)
+  ADC --> Client : 409 "Registry shelters are import-owned and cannot be moderated here"
+else restore (INACTIVE -> ACTIVE)
+  AMS -> DB : UPDATE shelters SET auto_hide_disarmed = true, status = 'ACTIVE'  ' the disarm is permanent (V9 D1)
+  ADC --> Client : 204 No Content
+else hide (ACTIVE -> INACTIVE)
+  AMS -> DB : UPDATE shelters SET status = 'INACTIVE'
+  ADC --> Client : 204 No Content
+end
+
+== 13c. DELETE /admin/shelters/{id} (USER rows only) ==
+ADC -> AMS : deleteShelter(id)
+AMS -> DB : DELETE shelter (USER rows only - registry 409, absent 404; ON DELETE CASCADE -> reviews, shelter reports, review reports, occupancy)
+ADC --> Client : 204 No Content
+
+== 13d. POST /admin/reports/{id}/dismiss ==
+ADC -> AMS : dismissReport(id)
+alt absent
+  ADC --> Client : 404
+else not yet dismissed
+  AMS -> DB : UPDATE shelter_reports SET dismissed_at = now()  (stamped ONCE - a re-dismiss is a no-op; the row is KEPT)
+  ADC --> Client : 204 No Content
+end
+
+== 13e. POST /admin/reviews/{id}/hide | /restore ({id} = the REVIEW's id) ==
+ADC -> AMS : hideReview / restoreReview(reviewId)
+alt absent
+  ADC --> Client : 404
+else hide
+  AMS -> DB : UPDATE shelter_reviews SET hidden_at = now()  (idempotent; never deletes; can fire BEFORE the 5th-report threshold)
+  ADC --> Client : 204 No Content
+else restore
+  AMS -> DB : UPDATE shelter_reviews SET hidden_at = NULL  (idempotent; the review re-joins the rating, the count and the reviewed filter)
+  ADC --> Client : 204 No Content
+end
+note over ADC, AMS
+  Queues: GET /admin/reports?shelterId= (newest first; the shelter's LIVE status +
+  the reporter's profile name/email - admin-only data, never exposed outside
+  /admin/*) and GET /admin/review-reports (newest first; hidden reviews INCLUDED
+  with their marker + the review excerpt). Reporter identity is served from this
+  API ONLY.
 end note
 @enduml

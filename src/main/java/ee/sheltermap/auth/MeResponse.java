@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.UserData;
 import ee.sheltermap.domain.VerificationLevel;
@@ -15,13 +16,19 @@ import java.util.stream.Stream;
  * this account (non-revoked claims), in enum order for a stable body — the
  * frontend adopts it as the single source of truth for its verification
  * labels (replacing the old session-only optimistic mirror).
+ *
+ * <p>{@code isAdmin} is always present (admin-moderation D2): the frontend
+ * gates the admin route and nav item on it. It reflects the freshly loaded
+ * user's KIND (kind is the truth) — {@code true} only for the ADMIN-kind
+ * account, never derived from any token claim.
  */
 public record MeResponse(
         String name,
         String email,
         String phone,
         String nationalIdCode,
-        List<VerificationLevel> levels) {
+        List<VerificationLevel> levels,
+        boolean isAdmin) {
 
     /** Builds the DTO from the domain snapshot of the authenticated user. */
     public static MeResponse from(RegisteredUser user) {
@@ -29,6 +36,7 @@ public record MeResponse(
         List<VerificationLevel> levels = Stream.of(VerificationLevel.values())
                 .filter(data.levels()::contains)
                 .toList();
-        return new MeResponse(data.name(), data.email(), data.phone(), data.nationalIdCode(), levels);
+        return new MeResponse(data.name(), data.email(), data.phone(), data.nationalIdCode(),
+                levels, user instanceof AdminUser);
     }
 }

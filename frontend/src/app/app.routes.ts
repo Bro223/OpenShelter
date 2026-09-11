@@ -1,6 +1,6 @@
 import type { Routes } from '@angular/router';
-import { authGuard, guestGuard, verifiedGuard } from './core/guards';
 import { titleGuard } from './core/title';
+import { authGuard, adminGuard, guestGuard, verifiedGuard } from './core/guards';
 import { LoginPage } from './features/auth/login-page';
 import { RegisterPage } from './features/auth/register-page';
 import { ResetPage } from './features/auth/reset-page';
@@ -78,6 +78,17 @@ export const routes: Routes = [
       import('./features/shelter/submit-shelter-page').then((m) => m.SubmitShelterPage),
     data: { title: 'Submit a shelter' },
     canActivate: [titleGuard, authGuard, verifiedGuard],
+  },
+  // Admin-kind only (admin-moderation D2): adminGuard sends BOTH anonymous
+  // and authenticated non-admins home; the backend re-checks kind per
+  // request, so this is UX, not enforcement.
+  {
+    path: 'admin',
+    // Lazy (bundle budget): the moderation tool is a rare route — no other
+    // page needs its code.
+    loadComponent: () => import('./features/admin/admin-page').then((m) => m.AdminPage),
+    data: { title: 'Admin' },
+    canActivate: [titleGuard, adminGuard],
   },
   { path: '**', redirectTo: 'map' },
 ];

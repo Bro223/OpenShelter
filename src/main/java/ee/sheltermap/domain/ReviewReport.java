@@ -27,7 +27,12 @@ public class ReviewReport {
         this(reviewId, userId, reason, detail, Instant.now());
     }
 
-    ReviewReport(Long reviewId, Long userId, ReviewReportReason reason, String detail, Instant createdAt) {
+    /**
+     * Full-state constructor used by the persistence layer to restore an
+     * existing report from storage (admin review-report queue, V10).
+     */
+    public ReviewReport(Long reviewId, Long userId, ReviewReportReason reason, String detail,
+                        Instant createdAt) {
         this.reviewId = Objects.requireNonNull(reviewId, "reviewId");
         this.userId = Objects.requireNonNull(userId, "userId");
         this.reason = Objects.requireNonNull(reason, "reason");

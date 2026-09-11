@@ -9,7 +9,8 @@ Each milestone lists its **inputs** (puml + context files), **deliverables**, **
 **Status:** M0–M6 DONE (all milestones complete; M6 verified 2026-09-06 against the real
 running API — `mvn spring-boot:run` at the repo root, port 8080, with the dev server at
 `http://localhost:5173`). Every milestone was verified against the real running API. The
-post-M6 trust wave (shelter-trust-and-reports) is documented at the end of this file.
+post-M6 trust wave (shelter-trust-and-reports) is documented at the end of this file, followed
+by the admin-moderation wave.
 
 ---
 
@@ -231,5 +232,70 @@ refetches. See `02-CONTEXT-API.md` (trust-reports section), `05-CONTEXT-MAP.md`,
 
 **Acceptance:** `npx ng test` green — **657 tests across 35 spec files** (counted
 2026-09-11); backend half: 433 tests green (same count). `tsc` + `prettier` clean.
+
+**STOP — final review.**
+
+---
+
+## Admin moderation wave (admin-moderation, post-trust)
+
+**Status: DONE.** The frontend half of the env-provisioned admin: a moderation panel for the
+trust layer, visible to the ADMIN-kind account only. No change to any existing page except
+the shell nav (one admin-only item) and the account page (one badge).
+
+**Route & guard** — `GET` the route map: `/admin` → `AdminPage`, **lazy** (`loadComponent` —
+the moderation tool is a rare route; bundle budget) + `TitleGuard` ("Admin") + `AdminGuard`
+(`core/guards.ts`): authenticated AND `AuthStore.isAdmin()`? else redirect **home** — anonymous
+AND an authenticated non-admin alike (deliberately no `/login` offer). The backend re-checks
+the admin kind per request, so the guard is UX, not enforcement (backend 401/403 remains the
+enforcement point).
+
+**Session store** — `AuthStore.isAdmin` signal: adopted from the fetched profile (`GET
+/account/me` gains `isAdmin`, always present, false for every regular user), reset to false
+with the profile; a failed profile fetch leaves it false — fail-closed for the nav item, the
+badge and the guard.
+
+**Nav** — the shell nav gains a single "Admin" item, rendered only when `isAdmin()` (regular
+users see the nav unchanged).
+
+**Account page** — the identity card shows a provenance-style "Admin" badge next to the name,
+rendered only when `isAdmin()` (consistency with the provenance-badge system).
+
+**`AdminGateway`** (`gateways/admin-gateway.ts`) — the door to the `/admin/*` group, one method
+per endpoint (all return typed promises, `ApiError` on failure): `listShelters(filters?)` (the
+optional `status`/`source`/`q` fields are omitted from the URL when absent),
+`setShelterStatus(id, status)`, `deleteShelter(id)`, `listShelterReports(shelterId?)`,
+`dismissShelterReport(id)`, `listReviewReports()`, `hideReview(reviewId)`,
+`restoreReview(reviewId)` — the review hide/restore take the **REVIEW's** id (`row.reviewId`),
+not the report row's id. Models: `AdminShelterDto`/`AdminShelterFilters`/`AdminShelterReportDto`/
+`AdminReviewReportDto`/`AdminOccupancy` in `core/models.ts` (field-for-field; see
+`02-CONTEXT-API.md`).
+
+**`features/admin/` — three tabs**, each a table with 48px action targets on the existing
+tokens (own feature folder — the no-cross-feature-imports rule holds):
+
+1. **Shelters** — every row incl. hidden; USER rows actionable (Hide/Activate inline, Delete
+   with a two-tap inline confirm — no `window.confirm`), registry rows **read-only** (the UI
+   never offers actions for them — the backend 409s them anyway); columns name/source/status/
+   rating/reviews/reports/occupancy/submitter; a name/address search box (submit-on-enter;
+   the server does the substring match — no client-side filtering).
+2. **Shelter reports** — the queue: shelter (link to its detail), type, reporter (name +
+   email), age, dismiss. Dismissed rows **stay in the queue, dimmed** (the audit trail — the
+   choice over filtering: the admin sees what was resolved). Rows whose shelter is INACTIVE
+   get a "Restore shelter" shortcut (the same manual-restore endpoint as tab 1; both
+   in-memory caches stay in sync).
+3. **Review reports** — the queue: shelter, review excerpt (stars + comment, hidden badge
+   when hidden), reason, reporter(s), age; Hide/Restore actions.
+
+**Behaviour** — the default tab loads immediately; the other two load lazily on first switch
+(and keep their rows in memory on later visits). Mutations patch the in-memory row in place
+(the backend answers 204 with no body — no full refetch); a rejected mutation surfaces the
+server message through the page-level banner (403/409 echo the backend message; 401
+mid-session is the global interceptor's job). One in-flight mutation at a time.
+
+**Acceptance:** `npx ng test` green — **723 tests across 38 spec files** (counted
+2026-09-12: admin-page spec — tabs, guard redirect, admin-only nav, actions + confirm dialog;
+session store `isAdmin` assertions; account-page badge; admin-gateway endpoint mapping);
+backend half: 464 tests green (same count). `tsc` (both configs) + `prettier` clean.
 
 **STOP — final review.**

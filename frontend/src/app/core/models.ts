@@ -226,6 +226,12 @@ export interface MeResponse {
   phone: string;
   nationalIdCode: string;
   levels: VerificationLevel[];
+  /**
+   * True for the ADMIN-kind account (admin-moderation D1/D2). The kind is
+   * the truth (fresh lookup server-side, never a JWT claim); ALWAYS present
+   * — false for every regular user.
+   */
+  isAdmin: boolean;
 }
 
 export interface ShelterDto {
@@ -273,6 +279,100 @@ export interface ShelterDto {
  */
 export interface ShelterDetailDto extends ShelterDto {
   yourOccupancyBand: OccupancyBand | null;
+}
+
+// ---------------------------------------------------------------------------
+// Admin moderation (admin-moderation D3): the /admin/* DTOs. Every field is
+// admin-only data (hidden rows, reporter identity) — never rendered outside
+// the /admin feature.
+// ---------------------------------------------------------------------------
+
+/**
+ * Fresh-occupancy block of the admin shelter list — the contract's
+ * `{band, reportedAt, reportCount}` shape (`reportedAt` is what the public
+ * ShelterOccupancy calls `lastReportedAt`; same 2 h window, same semantics:
+ * reportCount 1 = hedged copy, >= 2 = firm).
+ */
+export interface AdminOccupancy {
+  band: OccupancyBand;
+  /** ISO-8601 instant of the latest report in the window. */
+  reportedAt: string;
+  reportCount: number;
+}
+
+/**
+ * The admin's view of one shelter row (GET /admin/shelters): the public
+ * projection's trust fields plus what the public list hides — INACTIVE rows
+ * included, the submitter's name, and the raw capacity.
+ */
+export interface AdminShelterDto {
+  id: number;
+  name: string;
+  /** null for USER-submitted rows — registry rows always carry one. */
+  address: string | null;
+  source: ShelterSource;
+  /** Includes INACTIVE — the public list never contains them. */
+  status: ShelterStatus;
+  /** null = no visible reviews yet (NOT 0). */
+  rating: number | null;
+  reviewCount: number;
+  nonexistentReports: number;
+  statusFlag: ShelterStatusFlag | null;
+  occupancy: AdminOccupancy | null;
+  capacity: number | null;
+  /** The submitting user's profile name (USER rows only). */
+  submitter: string | null;
+}
+
+/** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
+export interface AdminShelterFilters {
+  status?: ShelterStatus;
+  source?: ShelterSource;
+  /** Name/address substring. */
+  q?: string;
+}
+
+/**
+ * One row of GET /admin/reports (shelter-report queue, newest first).
+ * Reporter identity is the user's profile name + email (admin-only data).
+ */
+export interface AdminShelterReportDto {
+  id: number;
+  shelterId: number;
+  shelterName: string;
+  /** The shelter's LIVE status — drives the "restore shelter" shortcut. */
+  shelterStatus: ShelterStatus;
+  type: ShelterReportType;
+  /** Free text for OTHER. */
+  detail: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** Dismissed rows stay in the queue, dimmed (the admin's audit trail). */
+  dismissed: boolean;
+}
+
+/**
+ * One row of GET /admin/review-reports (review-report queue, newest first).
+ * The action targets the REVIEW's id (`reviewId`), not this row's id.
+ */
+export interface AdminReviewReportDto {
+  id: number;
+  shelterId: number;
+  shelterName: string;
+  reviewId: number;
+  /** 1..5 */
+  reviewRating: number;
+  reviewComment: string | null;
+  reviewHidden: boolean;
+  reason: ReviewReportReason;
+  /** Free text for the report (any reason). */
+  detail: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
 }
 
 export interface ShelterReviewDto {

@@ -1,0 +1,316 @@
+<section class="admin">
+  <h1 class="page-title">Admin</h1>
+  <p class="page-subtitle">
+    Moderation: shelter visibility, the shelter-report queue and the review-report queue.
+  </p>
+
+  <app-banner severity="success" [message]="success()" />
+  <app-banner severity="error" [message]="error()" />
+
+  <!-- Tabs: the other two queues load lazily on first switch. -->
+  <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'shelters'"
+      [attr.aria-selected]="tab() === 'shelters' ? 'true' : 'false'"
+      (click)="switchTab('shelters')"
+    >
+      Shelters
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'reports'"
+      [attr.aria-selected]="tab() === 'reports' ? 'true' : 'false'"
+      (click)="switchTab('reports')"
+    >
+      Shelter reports
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'reviews'"
+      [attr.aria-selected]="tab() === 'reviews' ? 'true' : 'false'"
+      (click)="switchTab('reviews')"
+    >
+      Review reports
+    </button>
+  </div>
+
+  <!-- ============================== Shelters ============================== -->
+  @if (tab() === 'shelters') {
+    <form class="admin-search" (submit)="onSearchSubmit()">
+      <div class="field admin-search__field">
+        <label for="admin-search">Search shelters (name or address)</label>
+        <input
+          id="admin-search"
+          type="search"
+          [formControl]="searchQuery"
+          placeholder="e.g. kelder"
+          autocomplete="off"
+        />
+      </div>
+      <button type="submit" class="btn btn--ghost" [disabled]="busy()">Search</button>
+    </form>
+
+    @if (shelterRows() === null && shelterLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading shelters…" />
+    } @else if (shelterLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
+    } @else if ((shelterRows() ?? []).length === 0) {
+      <p class="admin-state">No shelters.</p>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Source</th>
+              <th scope="col">Status</th>
+              <th scope="col">Rating</th>
+              <th scope="col">Reviews</th>
+              <th scope="col">Reports</th>
+              <th scope="col">Occupancy</th>
+              <th scope="col">Submitter</th>
+              <th scope="col" class="admin-table__actions-head">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of shelterRows() ?? []; track row.id) {
+              <tr class="admin-row" [class.admin-row--hidden]="row.status === 'INACTIVE'">
+                <td class="admin-cell--name">
+                  <a [routerLink]="['/shelters', row.id]">{{ row.name }}</a>
+                  @if (row.address) {
+                    <span class="admin-muted">{{ row.address }}</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [class.badge--user]="row.source === 'USER'">
+                    {{ sourceLabel(row.source) }}
+                  </span>
+                  <!-- D4: registry rows are import-owned — no actions, the
+                       hint is the muted "registry" marker. -->
+                  @if (row.source !== 'USER') {
+                    <span class="admin-hint">registry</span>
+                  }
+                </td>
+                <td>
+                  @if (row.status === 'INACTIVE') {
+                    <span class="badge badge--hidden">Hidden</span>
+                  } @else {
+                    <span class="admin-muted">Active</span>
+                  }
+                  @if (flagText(row.statusFlag); as flag) {
+                    <span
+                      class="badge"
+                      [class.badge--closed]="row.statusFlag === 'REPORTED_CLOSED'"
+                      [class.badge--open]="row.statusFlag === 'CONFIRMED_OPEN'"
+                    >
+                      {{ flag }}
+                    </span>
+                  }
+                </td>
+                <td>{{ ratingText(row.rating, row.reviewCount) }}</td>
+                <td>{{ row.reviewCount }}</td>
+                <td>{{ row.nonexistentReports }}</td>
+                <td>
+                  @if (occupancyText(row.occupancy); as occ) {
+                    {{ occ }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td>
+                  @if (row.submitter; as submitter) {
+                    {{ submitter }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td class="admin-cell--actions">
+                  @if (row.source === 'USER') {
+                    @if (confirmingDelete() !== row.id) {
+                      @if (row.status === 'ACTIVE') {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="hideShelter(row)"
+                          [disabled]="busy()"
+                        >
+                          Hide
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="activateShelter(row)"
+                          [disabled]="busy()"
+                        >
+                          Activate
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        (click)="requestDelete(row.id)"
+                        [disabled]="busy()"
+                      >
+                        Delete
+                      </button>
+                    } @else {
+                      <!-- two-tap confirm (no window.confirm, the app's inline
+                           style — same as the contributions panel). -->
+                      <span class="admin-confirm">Delete this shelter permanently?</span>
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        (click)="confirmDelete(row.id)"
+                        [disabled]="busy()"
+                      >
+                        {{ busy() ? 'Deleting…' : 'Confirm delete' }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="cancelDelete()"
+                        [disabled]="busy()"
+                      >
+                        Cancel
+                      </button>
+                    }
+                  } @else {
+                    <span class="admin-hint">read-only</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ========================== Shelter reports ========================== -->
+  @if (tab() === 'reports') {
+    @if (reportRows() === null && reportLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading reports…" />
+    } @else if (reportLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadReports()">Retry</button>
+    } @else if ((reportRows() ?? []).length === 0) {
+      <p class="admin-state">No reports.</p>
+    } @else {
+      <ul class="admin-queue">
+        @for (row of reportRows() ?? []; track row.id) {
+          <li class="admin-queue-row" [class.admin-row--dismissed]="row.dismissed">
+            <div class="admin-queue-row__info">
+              <span class="admin-queue-row__title">
+                <a [routerLink]="['/shelters', row.shelterId]">{{ row.shelterName }}</a>
+                @if (row.dismissed) {
+                  <span class="badge badge--hidden">Dismissed</span>
+                }
+              </span>
+              <span class="admin-queue-row__meta">
+                {{ reportTypeLabel(row.type) }} · {{ reporterText(row) }} ·
+                {{ ageText(row.createdAt) }}
+              </span>
+              @if (row.detail) {
+                <span class="admin-queue-row__detail">“{{ row.detail }}”</span>
+              }
+            </div>
+            <div class="admin-queue-row__actions">
+              @if (row.shelterStatus === 'INACTIVE') {
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="restoreShelter(row.shelterId)"
+                  [disabled]="busy()"
+                >
+                  Restore shelter
+                </button>
+              }
+              @if (!row.dismissed) {
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="dismissReport(row.id)"
+                  [disabled]="busy()"
+                >
+                  {{ busy() ? 'Working…' : 'Dismiss' }}
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+
+  <!-- =========================== Review reports ========================== -->
+  @if (tab() === 'reviews') {
+    @if (reviewRows() === null && reviewLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading review reports…" />
+    } @else if (reviewLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadReviews()">Retry</button>
+    } @else if ((reviewRows() ?? []).length === 0) {
+      <p class="admin-state">No review reports.</p>
+    } @else {
+      <ul class="admin-queue">
+        @for (row of reviewRows() ?? []; track row.id) {
+          <li class="admin-queue-row">
+            <div class="admin-queue-row__info">
+              <span class="admin-queue-row__title">
+                <a [routerLink]="['/shelters', row.shelterId]">{{ row.shelterName }}</a>
+                @if (row.reviewHidden) {
+                  <span class="badge badge--hidden">Hidden</span>
+                }
+              </span>
+              <!-- The review excerpt: rating + comment (the admin decides
+                   from what the reviewer actually wrote). -->
+              <span class="admin-queue-row__review">
+                <app-rating-stars [rating]="row.reviewRating" />
+                @if (row.reviewComment) {
+                  <span class="admin-queue-row__detail">“{{ row.reviewComment }}”</span>
+                }
+              </span>
+              <span class="admin-queue-row__meta">
+                {{ reasonLabel(row.reason) }} · {{ reporterText(row) }} ·
+                {{ ageText(row.createdAt) }}
+              </span>
+              @if (row.detail) {
+                <span class="admin-queue-row__detail">“{{ row.detail }}”</span>
+              }
+            </div>
+            <div class="admin-queue-row__actions">
+              @if (row.reviewHidden) {
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="restoreReview(row)"
+                  [disabled]="busy()"
+                >
+                  {{ busy() ? 'Working…' : 'Restore' }}
+                </button>
+              } @else {
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="hideReview(row)"
+                  [disabled]="busy()"
+                >
+                  {{ busy() ? 'Working…' : 'Hide' }}
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

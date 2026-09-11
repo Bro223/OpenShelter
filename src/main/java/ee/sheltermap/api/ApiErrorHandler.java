@@ -4,10 +4,13 @@ import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.OwnReviewReportException;
+import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
 import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.DuplicateReportException;
+import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidContactChangeException;
@@ -131,6 +134,16 @@ public class ApiErrorHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
+    /**
+     * A registry row under an admin moderation write (admin-moderation
+     * D4): the registry import owns those rows and rebuilds them as ACTIVE
+     * on every run, so the edit would silently revert — plain-spoken 409.
+     */
+    @ExceptionHandler(ImportOwnedShelterException.class)
+    ResponseEntity<ErrorResponse> importOwnedShelter(ImportOwnedShelterException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({
             InvalidCredentialsException.class,
             InvalidAccessTokenException.class,
@@ -212,7 +225,7 @@ public class ApiErrorHandler {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }
 
-    @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class})
+    @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class, AdminAccessException.class})
     ResponseEntity<ErrorResponse> forbidden(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }
@@ -220,6 +233,7 @@ public class ApiErrorHandler {
     @ExceptionHandler({
             ShelterNotFoundException.class,
             ShelterReviewNotFoundException.class,
+            ReportNotFoundException.class,
             NoResourceFoundException.class})
     ResponseEntity<ErrorResponse> notFound(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, ex.getMessage(), request);

@@ -98,6 +98,17 @@ package "core" {
     + canActivate() : Promise<boolean | UrlTree>
   }
 
+  class AdminGuard {
+    ' functional guard (core/guards.ts) - admin-moderation D2
+    ' authenticated AND AuthStore.isAdmin()? else redirect HOME (/map)
+    ' - anonymous AND authenticated non-admin alike go home (no /login
+    ' offer - the admin tool has no guest value; the backend answers
+    ' 401/403 the same way). Used on /admin; mirrors the backend's fresh
+    ' kind lookup per request (UX, not enforcement). A failed profile
+    ' fetch leaves isAdmin false - the guard fails closed.
+    + canActivate() : Promise<boolean | UrlTree>
+  }
+
   class TitleGuard {
     ' functional guard (core/title.ts) (M6) — every route carries data.title
     ' and sets document.title = "<Page> — OpenShelter" on activation
@@ -124,6 +135,13 @@ package "session" {
     - phone : signal<string|null>
     - nationalIdCode : signal<string|null>
     - levels : signal<VerificationLevel[]>   ' REAL claims (EMAIL/PHONE)
+    - isAdmin : signal<boolean>              ' admin-moderation: from GET
+                                             ' /account/me (always present,
+                                             ' false for every regular user);
+                                             ' reset to false with the profile;
+                                             ' fail-closed on a failed fetch.
+                                             ' Drives the admin-only nav item
+                                             ' + AdminGuard
     + init() : Promise<void>
     + register(request: RegisterRequest) : Promise<void>
     + login(emailOrPhone, password) : Promise<void>
@@ -170,7 +188,7 @@ package "gateways" {
   }
 
   class AccountGateway {
-    + me() : MeResponse             ' GET /account/me - real profile + claims
+    + me() : MeResponse             ' GET /account/me - real profile + claims + isAdmin
     + updateProfile(request: ProfileUpdateRequest) : MeResponse
                                     ' PUT /account/profile (password-confirmed)
     + requestEmailChange(newEmail) : void
@@ -178,6 +196,34 @@ package "gateways" {
     + requestPhoneChange(newPhone) : void
     + confirmPhoneChange(code) : void
     + myReviews() : MyReviewDto[]    ' M8: GET /account/reviews/mine
+  }
+
+  class AdminGateway {
+    ' admin-moderation - the door to the /admin/* controller group (one
+    ' method per endpoint; typed promises; throws ApiError on failure).
+    ' The backend re-checks the admin kind per request (401 anonymous,
+    ' 403 non-admin, 409 registry-row writes).
+    + listShelters(filters?: AdminShelterFilters) : AdminShelterDto[]
+    ' GET /admin/shelters?status=&source=&q= - ALL rows incl. hidden;
+    ' absent filter fields are omitted from the query string entirely
+    + setShelterStatus(id: number, status: ShelterStatus) : void
+    ' POST /admin/shelters/{id}/status {status} -> 204 - manual hide/restore
+    ' (USER rows only; a restore disarms auto-hide server-side)
+    + deleteShelter(id: number) : void
+    ' DELETE /admin/shelters/{id} -> 204 - hard delete; reviews, reports
+    ' and occupancy cascade (backend); USER rows only (409), 404 unknown
+    + listShelterReports(shelterId?: number) : AdminShelterReportDto[]
+    ' GET /admin/reports?shelterId= - the queue, newest first, with the
+    ' shelter's LIVE status + the reporter's name/email
+    + dismissShelterReport(id: number) : void
+    ' POST /admin/reports/{id}/dismiss -> 204 - idempotent (no-op if done)
+    + listReviewReports() : AdminReviewReportDto[]
+    ' GET /admin/review-reports - newest first, hidden reviews included
+    + hideReview(reviewId: number) : void
+    ' POST /admin/reviews/{id}/hide -> 204, idempotent - {id} = the REVIEW id
+    + restoreReview(reviewId: number) : void
+    ' POST /admin/reviews/{id}/restore -> 204, idempotent - clears the hidden
+    ' marker; the review rejoins the public list, average and count
   }
 
   class GeoGateway {
@@ -230,6 +276,18 @@ package "features" {
     class ReviewForm
     ' RatingStars moved to shared/ (2026-09-08 arch pass)
   }
+
+  package "admin" {
+    ' admin-moderation - own folder (the no-cross-feature-imports rule holds)
+    class AdminPage
+    ' /admin (lazy, AdminGuard) - three tabs, each a table with 48px action
+    ' targets on the existing tokens: Shelters (search + inline Hide/Activate,
+    ' two-tap Delete; registry rows read-only), Shelter reports (queue +
+    ' dismiss, dismissed rows dimmed, "Restore shelter" shortcut on hidden-
+    ' shelter rows), Review reports (queue + Hide/Restore + hidden badge).
+    ' Mutations patch the in-memory row (204, no body); a rejected mutation
+    ' surfaces the server message via the page-level banner.
+  }
 }
 
 package "shared" {
@@ -280,6 +338,7 @@ ApiInterceptor ..> Router
 AuthGuard ..> AuthStore
 GuestGuard ..> AuthStore
 VerifiedGuard ..> AuthStore
+AdminGuard ..> AuthStore
 TitleGuard ..> Title
 
 note top of ApiClient
@@ -309,6 +368,9 @@ ContributionsPanel --> ReviewGateway
 ContributionsPanel --> BannerComponent
 MapPage --> ShelterGateway
 MapPage --> LeafletService
+AdminPage --> AdminGateway
+AdminPage --> AuthStore
+AdminPage --> BannerComponent
 ShelterDetailPage --> ShelterGateway
 ShelterDetailPage --> ReviewGateway
 ShelterDetailPage --> AuthStore
@@ -332,6 +394,11 @@ note bottom of PageShell
   M7: the standalone "Verify" link is REMOVED from the nav; /verify stays
   reachable by route (guard redirects + the account page's per-contact
   "Complete verification" CTAs).
+  admin-moderation D5: the nav gains a SINGLE "Admin" item, rendered only
+  when AuthStore.isAdmin() is true (from GET /account/me - always present,
+  false for every regular user) - regular users see the nav unchanged; a
+  failed profile fetch leaves isAdmin false, so the item hides itself
+  fail-closed.
 end note
 
 note bottom of MapPage
@@ -360,7 +427,8 @@ note as Routes
   /account           AuthGuard    -> AccountPage       (M3 page; M7 full profile)
   /shelters/:id      public       -> ShelterDetailPage(M5, lazy M6)
   /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5, lazy M6)
+  /admin             AdminGuard     -> AdminPage          (admin-moderation, lazy)
   ' M6: all routes data.title + TitleGuard; /shelters/:id and /submit
-  '     loadComponent-lazy for the documented bundle budget
+  '     loadComponent-lazy for the documented bundle budget (so is /admin)
 end note
 @enduml

@@ -390,3 +390,94 @@ pickers, "Report how full" band picker, contributions-panel hidden state, `--col
 token): `npx ng test` green — **657 tests across 35 spec files** (counted 2026-09-11).
 
 **STOP — final review.**
+
+---
+
+## Post-step-7 additions (admin-moderation — env-provisioned admin + moderation API)
+
+Built as OpenSpec change `admin-moderation` (the human lever for the trust layer the previous
+change introduced: auto-hidden shelters had no one to restore them, and the report queues
+would accumulate with no one able to see or act on them). The admin is **env-provisioned**,
+never the registration flow — the admin mailbox does not exist and can never pass email
+verification.
+
+**Provisioning (D1) — `auth.AdminSeeder` (an `ApplicationRunner`, once at startup, transactional):**
+new env vars `ADMIN_EMAIL` / `ADMIN_PASSWORD` (bare names, empty defaults in
+`application.yml`; dev values live in the gitignored `.env`). Create-if-absent, the whole
+contract:
+
+- **Either var unset → no-op.** No admin exists, `/admin/*` answers 403 for everyone (a normal
+  account that holds the email string is still just a normal account — kind is the truth), and
+  the app behaves exactly as without the capability.
+- **Both set + no user with that email → create:** kind `ADMIN`, name "Admin", the configured
+  email, **no phone** (null — outside the partial unique index, never a login route), national
+  ID `""`, **every verification claim pre-set** (EMAIL/PHONE/SMART_ID — `canWrite()` true from
+  the first request), password = Argon2 via the standard encoder.
+- **A user with that email already exists (any kind, case-insensitive) → do nothing.** Never
+  re-hashes, never flips kind, never touches claims — an in-app password change survives
+  restarts/deployments.
+
+**Login is the normal `POST /auth/login`** — no dedicated endpoint, no backdoor; the JWT has
+the same shape as every other user's (principal = userId, **no role claim**).
+
+**Authorization (D2) — fresh lookup, no JWT claim:** every `/admin/*` request loads the JWT's
+userId and requires `UserKind.ADMIN` (`UserRepository.isAdmin`, one indexed PK lookup). 401
+anonymous (the security entry point — `/admin/**` sits in the authenticated set), 403
+authenticated non-admin (`AdminAccessException`). A demotion/deletion takes effect on the
+next request, even with a still-valid token. `GET /account/me` gains `isAdmin` (always
+present; the frontend's gate for the nav item and the `/admin` route).
+
+**Schema (V10__admin_moderation.sql):** `shelter_reports.dismissed_at TIMESTAMPTZ NULL` — the
+admin's dismissal stamp, set once by `POST /admin/reports/{id}/dismiss` (idempotent; NULL
+while unresolved). Dismissing never deletes the row.
+
+**API (D3/D4) — `api.AdminController` + `api.AdminModerationService`, 8 endpoints** (full
+status matrices in `06-CONTEXT-API.md`):
+
+- `GET /admin/shelters?status=&source=&q=` — every shelter incl. hidden, id-ordered, with the
+  batched trust fields + the submitter's name (`ShelterQueryService.findAllForAdmin` — the same
+  projection as the public list, no N+1).
+- `POST /admin/shelters/{id}/status` `{"status": "ACTIVE"|"INACTIVE"}` — manual hide/restore,
+  USER rows only (registry → **409** import-owned); a **restore sets `autoHideDisarmed`
+  (permanently disarms auto-hide)**; 204; 404 unknown.
+- `DELETE /admin/shelters/{id}` — hard delete (cascade: reviews, shelter reports, review
+  reports, occupancy), USER rows only (registry → 409); 204; 404 unknown.
+- `GET /admin/reports?shelterId=` — shelter-report queue, newest first, with the shelter's
+  live status + the reporter's profile name/email (admin-only data, never exposed outside
+  `/admin/*`); unknown `shelterId` → 404.
+- `POST /admin/reports/{id}/dismiss` — mark resolved (idempotent; the row is kept); 204;
+  404 unknown.
+- `GET /admin/review-reports` — review-report queue, newest first, hidden reviews included
+  with their marker + the review excerpt.
+- `POST /admin/reviews/{id}/hide` / `POST /admin/reviews/{id}/restore` — immediate hide /
+  clear `hidden_at` (both idempotent; `{id}` = the REVIEW's id; a restore re-joins the review
+  to the rating, count and `reviewed` filter); 204; 404 unknown.
+
+**Ops note (de-provisioning):** remove the env vars AND delete the row (manual SQL — no API
+deletes admin accounts). While BOTH vars stay set, the seeder **recreates** the admin on the
+next boot if the row was deleted (create-if-absent sees no user with that email). With the
+vars removed, the seeder is a no-op forever — but a still-existing row remains a working admin
+(login with its own stored password), so row deletion is the real off switch.
+
+**Frontend half:** the `/admin` route (lazy, `AdminGuard` — anonymous AND non-admin both
+redirect home; the backend re-checks kind per request, so the guard is UX, not enforcement),
+the admin-only "Admin" nav item, `AuthStore.isAdmin` from `/account/me` (fail-closed false on
+a failed profile fetch), the account-page "Admin" provenance-style badge, `AdminGateway` (all
+eight endpoints), and `features/admin/` — three tabs: Shelters (search + inline
+Hide/Activate, two-tap Delete; registry rows read-only), Shelter reports (queue + dismiss,
+dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter rows), Review reports
+(queue + Hide/Restore + hidden badge). Details in the frontend agent pack.
+
+**Persistence notes:** `UserMapper` round-trips the `ADMIN` kind (before the `RegisteredUser`
+check — `AdminUser` IS-A `RegisteredUser`, and the kind must survive every save of a loaded
+admin); `JpaUserRepository.findByEmail`/`findByPhone` now return REGISTERED **and** ADMIN rows
+(kind restored by the mapper) — the admin logs in through the normal flow and the
+registration pre-check sees the admin's email as in use (409).
+
+**Acceptance:** `mvn test` green — **464 tests** (counted 2026-09-12: seeder create-once /
+never-overwrite / no-op-when-unset + login-without-verification, 401/403/immediate-demotion
+authorization, hide/restore + disarm, delete cascade, registry 409s, queue shapes, idempotent
+dismiss/hide/restore). Frontend: `npx ng test` green — **723 tests across 38 spec files**
+(counted 2026-09-12).
+
+**STOP — final review.**

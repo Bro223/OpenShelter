@@ -7,6 +7,10 @@
  *    (used by /login, /register, /reset)
  *  - VerifiedGuard (M5) -> has a verification claim? allow : redirect
  *    /verify?returnUrl=... (used by /submit; mirrors the backend 403)
+ *  - AdminGuard (admin-moderation D2) -> authenticated AND admin-kind? allow
+ *    : redirect home. Anonymous AND non-admin alike go home — unlike
+ *    authGuard it deliberately does NOT offer /login (the admin tool has no
+ *    guest value, and the backend answers 401/403 the same way).
  *
  * Functional guards (Angular 22 style, same as the apiInterceptor in M1).
  * All await AuthStore.init() so a reload while logged in silently restores
@@ -81,4 +85,23 @@ export const verifiedGuard: CanActivateFn = async (_route, state): Promise<boole
     return true;
   }
   return router.createUrlTree([VERIFY_PATH], { queryParams: { returnUrl: state.url } });
+};
+
+/**
+ * Admin-kind accounts only (admin-moderation D2): mirrors the backend's
+ * /admin/* authorization (fresh kind lookup per request — no JWT claim).
+ * ANYONE else — anonymous OR an authenticated non-admin — is sent home:
+ * the admin tool is not something a regular user is logged in FOR. Reads
+ * `isAdmin` from the fetched profile; a failed profile fetch leaves it
+ * false, so the guard fails CLOSED. (HOME_PATH is the app's home — `''`
+ * redirects to `/map` — same destination the task's `/` resolves to.)
+ */
+export const adminGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  await decideAfterInit(store);
+  if (store.authenticated() && store.isAdmin()) {
+    return true;
+  }
+  return router.parseUrl(HOME_PATH);
 };

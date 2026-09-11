@@ -52,10 +52,10 @@ describe('route titles', () => {
     const titled = routes
       .filter((route: Route) => route.component !== undefined || route.loadComponent !== undefined)
       .map((route: Route) => route.data?.['title']);
-    // The 8 product routes (map, login, register, reset, verify, account,
-    // shelters/:id, submit) — a new component route without a title fails
-    // this check.
-    expect(titled.length).toBe(8);
+    // The 9 product routes (map, login, register, reset, verify, account,
+    // shelters/:id, submit, admin) — a new component route without a title
+    // fails this check.
+    expect(titled.length).toBe(9);
     for (const title of titled) {
       expect(typeof title, `route missing data.title: ${title}`).toBe('string');
       expect((title as string).length).toBeGreaterThan(0);

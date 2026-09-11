@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * JPA implementation of {@link ShelterReportRepository} (approach B).
@@ -29,14 +30,32 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
     @Override
     @Transactional
     public void save(ShelterReport report) {
+        if (report.getId() != null) {
+            // UPDATE path (the admin dismissal stamp, V10): mutate the
+            // managed row in place — a fresh-entity merge would re-insert
+            // against the primary key. The (shelter, user, type) identity
+            // fields never change after insert; only the stamp is mutable.
+            ShelterReportEntity entity = reports.findById(report.getId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "cannot save report with unknown id " + report.getId()));
+            applyFields(entity, report);
+            reports.save(entity);
+            return;
+        }
         ShelterReportEntity entity = new ShelterReportEntity();
+        applyFields(entity, report);
+        ShelterReportEntity saved = reports.save(entity);
+        report.setId(saved.getId());
+    }
+
+    /** Copies every domain field onto the entity (insert or update). */
+    private static void applyFields(ShelterReportEntity entity, ShelterReport report) {
         entity.setShelterId(report.getShelterId());
         entity.setUserId(report.getUserId());
         entity.setType(report.getType());
         entity.setDetail(report.getDetail());
         entity.setCreatedAt(report.getCreatedAt());
-        ShelterReportEntity saved = reports.save(entity);
-        report.setId(saved.getId());
+        entity.setDismissedAt(report.getDismissedAt());
     }
 
     @Override
@@ -64,5 +83,37 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
                         (ShelterReportType) row[1],
                         ((Number) row[2]).longValue()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ShelterReport> findById(Long id) {
+        return reports.findById(id).map(JpaShelterReportRepository::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShelterReport> findByShelterId(long shelterId) {
+        return reports.findByShelterIdOrderByCreatedAtDescIdDesc(shelterId).stream()
+                .map(JpaShelterReportRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShelterReport> findAll() {
+        return reports.findAllByOrderByCreatedAtDescIdDesc().stream()
+                .map(JpaShelterReportRepository::toDomain)
+                .toList();
+    }
+
+    private static ShelterReport toDomain(ShelterReportEntity entity) {
+        ShelterReport report = new ShelterReport(entity.getShelterId(), entity.getUserId(),
+                entity.getType(), entity.getDetail(), entity.getCreatedAt());
+        report.setId(entity.getId());
+        if (entity.getDismissedAt() != null) {
+            report.markDismissed(entity.getDismissedAt());
+        }
+        return report;
     }
 }

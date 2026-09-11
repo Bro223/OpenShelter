@@ -181,12 +181,14 @@ function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): v
 /** AuthStore-shaped fake — real signals so zoneless CD stays reactive
  *  (the detail page spec's pattern). */
 function fakeAuthStore(
-  overrides: { authenticated?: boolean; initialized?: boolean } = {},
+  overrides: { authenticated?: boolean; initialized?: boolean; isAdmin?: boolean } = {},
 ): AuthStore {
   return {
     authenticated: signal(overrides.authenticated ?? false),
     initialized: signal(overrides.initialized ?? true),
     levels: signal<VerificationLevel[]>([]),
+    // admin-moderation D5: the shell's nav item reads this — default false.
+    isAdmin: signal(overrides.isAdmin ?? false),
     init: vi.fn(async (): Promise<void> => undefined),
     isVerified: () => false,
   } as unknown as AuthStore;

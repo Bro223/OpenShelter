@@ -86,3 +86,12 @@ what lets you check and build every file manually — exactly how the backend wa
   3-band picker pre-selected from `yourOccupancyBand`), the contributions panel's hidden-row
   mark + the 409 shelter-cap server message. `npx ng test` green — 657 tests across 35 spec
   files (counted 2026-09-11).
+- **Admin moderation (admin-moderation)** — DONE: the `/admin` route (lazy, `AdminGuard` —
+  anonymous AND authenticated non-admins redirect home), the admin-only "Admin" nav item,
+  `AuthStore.isAdmin` from `GET /account/me` (fail-closed false on a failed profile fetch),
+  the account-page "Admin" provenance-style badge, `AdminGateway` (all eight `/admin/*`
+  endpoints) and `features/admin/` — three tabs: Shelters (search + inline Hide/Activate,
+  two-tap Delete with confirm; registry rows read-only), Shelter reports (queue + dismiss,
+  dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter rows), Review reports
+  (queue + Hide/Restore + hidden badge) — all on the existing tokens with 48px action targets.
+  `npx ng test` green — **723 tests across 38 spec files** (counted 2026-09-12).

@@ -12,6 +12,7 @@ import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewReport;
 import ee.sheltermap.domain.ReviewReportReason;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReview;
@@ -340,7 +341,12 @@ class ShelterReviewServiceTest {
         RegisteredUser second = user("Arv2", "arv2@example.ee", true);
         service.reportReview(second, shelter.getId(), reviewId,
                 ReviewReportReason.SPAM, "peab unune ma");
-        assertThat(reviewReports.findAll().get(1).getDetail()).isNull();
+        // findAll is newest-first (admin queue) — assert per report, not by index.
+        List<ReviewReport> all = reviewReports.findAll();
+        assertThat(all.stream().filter(r -> r.getReason() == ReviewReportReason.OTHER).findFirst())
+                .map(ReviewReport::getDetail).contains("põhjendus siin");
+        assertThat(all.stream().filter(r -> r.getReason() == ReviewReportReason.SPAM).findFirst()
+                .map(ReviewReport::getDetail)).isEmpty(); // detail dropped for non-OTHER
     }
 
     /** The user factory with an explicit verification state (report-report tests). */

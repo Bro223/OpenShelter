@@ -1,5 +1,6 @@
 package ee.sheltermap.persistence;
 
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
@@ -37,8 +38,12 @@ final class UserMapper {
             case GUEST -> new GuestUser();
             case REGISTERED -> new RegisteredUser(
                     entity.getName(), entity.getEmail(), entity.getPhone(), entity.getNationalIdCode());
-            case ADMIN -> throw new IllegalStateException(
-                    "admin accounts are not supported in v1 (AdminUser was removed as dead code)");
+            // Admin-moderation D1: the ADMIN kind round-trips through
+            // AdminUser — the claims are restored from storage below (a
+            // reloaded admin reflects the stored claim state, revoked ones
+            // included; the constructor does NOT pre-set them).
+            case ADMIN -> new AdminUser(
+                    entity.getName(), entity.getEmail(), entity.getPhone(), entity.getNationalIdCode());
         };
         user.setId(entity.getId());
         if (user instanceof RegisteredUser registered) {
@@ -65,6 +70,13 @@ final class UserMapper {
     }
 
     private static UserKind kindOf(User user) {
+        // AdminUser BEFORE the RegisteredUser check (it IS-A RegisteredUser):
+        // the kind column is fixed at creation and must survive every save
+        // of a loaded admin (a name/profile edit must not flip it to
+        // REGISTERED — kind is the truth, admin-moderation D2).
+        if (user instanceof AdminUser) {
+            return UserKind.ADMIN;
+        }
         if (user instanceof RegisteredUser) {
             return UserKind.REGISTERED;
         }

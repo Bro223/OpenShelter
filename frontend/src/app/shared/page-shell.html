@@ -4,6 +4,12 @@
     <a routerLink="/map" routerLinkActive="active">Shelter map</a>
     @if (auth.initialized() && auth.authenticated()) {
       <a routerLink="/account" routerLinkActive="active">Account</a>
+      <!-- Admin-kind only (admin-moderation D5): regular users see the
+           nav unchanged; a failed profile fetch leaves isAdmin false, so
+           the item hides itself fail-closed. -->
+      @if (auth.isAdmin()) {
+        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+      }
     }
   </nav>
   <div class="shell-actions">

@@ -8,6 +8,11 @@
 - password authentication with JWT sessions and email-based password reset,
 - shelter data ingested from public registries (Päästeamet / municipalities),
 - user-submitted shelters with **community ratings** (no moderator — the rating system IS the moderation),
+- a community trust layer (shelter/review/occupancy reports — the 5th "does not exist" report auto-hides
+  the shelter, the 5th review report hides the review),
+- a single **env-provisioned admin** (admin-moderation) with a moderation API for the trust layer
+  (user-shelter hide/restore/delete, shelter-report triage, review hide/restore) — provisioned from
+  `ADMIN_EMAIL`/`ADMIN_PASSWORD`, never the registration flow,
 - a public read API for the frontend (Vue/Angular, out of scope here).
 
 This task pack covers the **backend only**.
@@ -37,12 +42,12 @@ This task pack covers the **backend only**.
 
 | Package | Contents | Source diagram |
 |---|---|---|
-| `ee.sheltermap.domain` | `User` hierarchy, `VerificationClaim`, `VerificationPolicy`/`Rules`/`Capability`, `Shelter` (carries `autoHideDisarmed` — V9), `ShelterReview` (carries `hiddenAt` — V9), trust entities `ShelterReport`/`ShelterOccupancyReport`/`ReviewReport` + enums `ShelterReportType`/`OccupancyBand`/`ReviewReportReason`/`ShelterStatusFlag` (shelter-trust-and-reports, V9), enums, value records | `01` |
-| `ee.sheltermap.app` | `UserService`, `ShelterService` (10-active-shelter cap, V9/D3), `ShelterReportService` (typed reports + occupancy upsert — V9), `LocationResolveService`, `MapsUrlCoordinates`, `RedirectClient` + `HttpUrlRedirectClient` (short-link resolver seam), `AppInfo`, repository **interfaces** (`UserRepository` (incl. `isAdmin` — the cap-exemption seam), `ShelterRepository`, `ShelterReviewRepository`, `ShelterReportRepository`, `ShelterOccupancyRepository`, `ReviewReportRepository`), `ReportActionLog` (the report-throttle seam) + `ReportProperties` (V9), `NotVerifiedException` (moved here from `api/` in the 2026-09-08 arch pass — thrown by the write paths for unverified users) + the trust exceptions (`ShelterLimitExceededException` 409, `DuplicateReportException` 409, `ReportThrottledException` 429, `OwnReviewReportException` 403 — V9) | `01` |
+| `ee.sheltermap.domain` | `User` hierarchy (incl. `AdminUser` — the third fixed kind, admin-moderation D1; born with every verification claim pre-set), `VerificationClaim`, `VerificationPolicy`/`Rules`/`Capability`, `Shelter` (carries `autoHideDisarmed` — V9, set by the admin restore), `ShelterReview` (carries `hiddenAt` — V9, cleared only by admin restore), trust entities `ShelterReport` (carries `dismissedAt` — V10, the admin dismissal stamp)/`ShelterOccupancyReport`/`ReviewReport` + enums `ShelterReportType`/`OccupancyBand`/`ReviewReportReason`/`ShelterStatusFlag` (shelter-trust-and-reports, V9), enums, value records | `01` |
+| `ee.sheltermap.app` | `UserService`, `ShelterService` (10-active-shelter cap, V9/D3), `ShelterReportService` (typed reports + occupancy upsert — V9), `LocationResolveService`, `MapsUrlCoordinates`, `RedirectClient` + `HttpUrlRedirectClient` (short-link resolver seam), `AppInfo`, repository **interfaces** (`UserRepository` (incl. `isAdmin` — the admin-authorization seam (fresh kind lookup) and the 10-cap exemption), `ShelterRepository`, `ShelterReviewRepository`, `ShelterReportRepository` (incl. `findById`/`findByShelterId`/`findAll` — the admin queues, newest first), `ShelterOccupancyRepository`, `ReviewReportRepository` (incl. `findAll` — the admin review-report queue)), `ReportActionLog` (the report-throttle seam) + `ReportProperties` (V9), `NotVerifiedException` (moved here from `api/` in the 2026-09-08 arch pass — thrown by the write paths for unverified users) + the trust exceptions (`ShelterLimitExceededException` 409, `DuplicateReportException` 409, `ReportThrottledException` 429, `OwnReviewReportException` 403 — V9) + the admin exceptions (`AdminAccessException` 403, `ImportOwnedShelterException` 409 — registry rows, `ReportNotFoundException` 404 — admin-moderation) | `01` |
 | `ee.sheltermap.verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties` | `01` |
-| `ee.sheltermap.auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `JwtProperties`, `ContactChangeProperties`, DTOs, repo interfaces, `RateLimiter` | `03` |
+| `ee.sheltermap.auth` | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `JwtProperties`, `ContactChangeProperties`, DTOs, repo interfaces, `RateLimiter`, `AdminSeeder` (the `ApplicationRunner` that env-provisions the admin — admin-moderation D1) | `03` |
 | `ee.sheltermap.ingestion` | `ShelterRegistryClient` + impls, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties` | `04` |
-| `ee.sheltermap.api` | `ShelterController` (incl. the V9 report + occupancy endpoints, the ACTIVE-only public list and the trust filters), `ReviewController` (incl. the V9 review-report endpoint), `LocationController`, `ShelterQueryService` (trust derivations in the batched projection — D1/D4), `ShelterReviewService` (incl. `reportReview` + the hidden-review exclusion — D2), DTOs (`ShelterDto` carries `submitterVerified` — true when the shelter's creator exists and has a completed verification, false for registry rows; accessibility-and-provenance D3 — plus the V9 trust fields `nonexistentReports`, `statusFlag`, `occupancy`, `yourOccupancyBand`; `ShelterReviewDto` carries `hidden`), request records `ShelterReportRequest`/`ReviewReportRequest`/`OccupancyReportRequest` (V9), `ErrorResponse` | `05` |
+| `ee.sheltermap.api` | `ShelterController` (incl. the V9 report + occupancy endpoints, the ACTIVE-only public list and the trust filters), `ReviewController` (incl. the V9 review-report endpoint), `LocationController`, `AdminController` + `AdminModerationService` (admin-moderation D3/D4 — the `/admin/*` moderation surface, fresh `isAdmin` lookup per request, USER-rows-only writes, registry rows → 409), `ShelterQueryService` (trust derivations in the batched projection — D1/D4; `findAllForAdmin` — all statuses incl. hidden, with the submitter's name), `ShelterReviewService` (incl. `reportReview` + the hidden-review exclusion — D2), DTOs (`ShelterDto` carries `submitterVerified` — true when the shelter's creator exists and has a completed verification, false for registry rows; accessibility-and-provenance D3 — plus the V9 trust fields `nonexistentReports`, `statusFlag`, `occupancy`, `yourOccupancyBand`; `ShelterReviewDto` carries `hidden`; the admin DTOs `AdminShelterDto`/`AdminShelterReportDto`/`AdminReviewReportDto` — admin-moderation), request records `ShelterReportRequest`/`ReviewReportRequest`/`OccupancyReportRequest` (V9), `AdminShelterStatusRequest` (admin-moderation), `ErrorResponse` | `05` |
 | `ee.sheltermap.persistence` | Spring Data JPA implementations of the repository interfaces (added in Step 3); incl. `JpaReportActionLog` — the report throttle's check-and-record, serialized per user with a transaction-scoped Postgres advisory lock (V9) | — |
 | `ee.sheltermap.config` | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler`, `RegistryRunConfig`. It no longer holds the context `*Properties` records — those moved with their contexts (`JwtProperties`/`ContactChangeProperties` → `auth`, `RegistryProperties` → `ingestion`, `VerificationProperties` → `verification`) in the 2026-09-08 arch pass | — |
 
@@ -60,9 +65,10 @@ This task pack covers the **backend only**.
    `RateLimiter`, `ShelterRegistryClient`, `ShelterParser`, all repositories). Services depend on
    interfaces, never on concrete collaborators. Implementations are separate, swappable classes
    (`TwilioSmsSender` vs `DevSmsSender`, `PaasteametRegistryClient` vs `DevRegistryClient`).
-3. **Inheritance only for genuine is-a (TIJ Ch 1/7).** `GuestUser`, `RegisteredUser` extend
-   `User` (kind is fixed at creation; `AdminUser` was removed in the review-fix pass — v1 has no
-   staff role). **Never** model verification as subclasses
+3. **Inheritance only for genuine is-a (TIJ Ch 1/7).** `GuestUser`, `RegisteredUser`,
+   `AdminUser` extend `User` (kind is fixed at creation — `AdminUser` came back in
+   admin-moderation as the third kind, the env-provisioned admin; it is never produced by the
+   registration flow, only by the `AdminSeeder`). **Never** model verification as subclasses
    (`VerifiedUser` etc.) — verification is data: `Set<VerificationClaim>` on `RegisteredUser`.
    An object never changes class; claims are added/revoked at runtime.
 4. **Composition first.** Runtime-changing state is data held by an object, not new subclasses.
@@ -73,8 +79,9 @@ This task pack covers the **backend only**.
 7. **Controllers are thin shells** — parse, validate, delegate, map. Zero business logic.
 8. **One uniform error shape** — `ErrorResponse` (`timestamp, status, error, message, path`) via a
    `@RestControllerAdvice`. HTTP semantics: 400 validation, 401 unauthenticated, 403 forbidden
-   (not verified / not author / own review), 404 not found, 409 conflict (duplicate report,
-   10-active-shelter cap, optimistic lock), 429 rate limited, 502 geo-resolve upstream failure.
+   (not verified / not author / own review / not an admin — admin-moderation), 404 not found,
+   409 conflict (duplicate report, 10-active-shelter cap, optimistic lock, import-owned registry
+   row — admin-moderation), 429 rate limited, 502 geo-resolve upstream failure.
 9. **Tests are mandatory in every step** — JUnit 5. Unit tests for logic; integration tests
    (Testcontainers) from Step 3 on. All tests must pass before you report done.
 10. **Secrets discipline.** Never store or log plaintext passwords or tokens. Passwords → Argon2id

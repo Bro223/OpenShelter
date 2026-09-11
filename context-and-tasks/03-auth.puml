@@ -225,6 +225,15 @@ package "auth" {
     + delete(change : PendingContactChange) : void
   }
 
+  class AdminSeeder {
+    ' The env-provisioned admin (admin-moderation D1): an ApplicationRunner
+    ' - runs ONCE at startup, transactional. Create-if-absent is the whole
+    ' contract (see the note below).
+    - email : String        ' app.admin.email  = ${ADMIN_EMAIL:}  (empty default)
+    - password : String     ' app.admin.password = ${ADMIN_PASSWORD:} (empty default)
+    + run(args : ApplicationArguments) : void
+  }
+
   class ProfileUpdateRequest <<record>> {
     + name : String
     + nationalIdCode : String
@@ -237,6 +246,10 @@ package "auth" {
     + phone : String
     + nationalIdCode : String
     + levels : List<VerificationLevel>
+    + isAdmin : boolean  ' admin-moderation D2: always present; true iff the
+                         ' freshly loaded user's KIND is ADMIN (kind is the
+                         ' truth - never a token claim). Gates the frontend
+                         ' nav item + the /admin route.
   }
 
   class MyReviewDto <<record>> {
@@ -276,6 +289,14 @@ package "referenced from 01 (contracts only)" {
     + findByEmail(email : String) : RegisteredUser
   }
 
+  interface "UserRepository" as UR {
+    + save(user : User) : void
+    + findByEmail(email : String) : RegisteredUser
+    ' The seeder's create-if-absent check (REGISTERED and ADMIN rows both
+    ' count - case-insensitive). Also the fresh isAdmin(userId) kind lookup
+    ' behind every /admin/* request (defined in 01; admin-moderation D2).
+  }
+
   interface SmtpSender {
     + send(email : String, message : String) : void
   }
@@ -313,6 +334,10 @@ AuthService --> UserCredentialsRepository : stores & reads hash
 AuthService --> TokenService : issue / refresh / revoke sessions
 AuthService --> PasswordResetService : delegates reset flow
 AuthService --> RefreshTokenRepository : revokeAll on password reset
+
+AdminSeeder --> UR : create-if-absent check + save (interface, 01)
+AdminSeeder --> UserCredentialsRepository : stores the Argon2 hash
+AdminSeeder ..> PasswordHasher : the SAME encoder registration uses
 
 AccountController --> AccountService : me / profile / myReviews
 AccountController --> ContactChangeService : all contact-change endpoints
@@ -409,6 +434,45 @@ note bottom of ContactChangeService
   One pending change per (user, type): resend cooldown (60 s),
   code TTL (15 min), 5-attempt limit, duplicate target -> 409,
   per-IP rate limit on the request endpoints.
+end note
+
+note bottom of MeResponse
+  profile = real profile + REAL verified claims + isAdmin (admin-moderation
+  D2): the frontend's single source of truth - the nav item and the /admin
+  route guard read isAdmin; it is the freshly loaded user's KIND (true only
+  for the ADMIN-kind row), never derived from any token claim.
+end note
+
+note bottom of AdminSeeder
+  ENV-PROVISIONED ADMIN (admin-moderation D1) - the admin comes from the
+  environment, never the registration flow (the mailbox does not exist and
+  can never pass email verification):
+    1. Either ADMIN_EMAIL / ADMIN_PASSWORD empty -> NO-OP. No admin exists,
+       /admin/* answers 403 for everyone (kind is the truth - a normal
+       account holding the email string stays a normal account), and the
+       app behaves exactly as without the capability (dev boxes without the
+       vars keep working; prod is opt-in).
+    2. A user with that email ALREADY exists (any kind; the lookup is
+       case-insensitive) -> NO-OP. The seeder NEVER re-hashes, flips kind or
+       touches claims - an in-app password change survives restarts and
+       deployments.
+    3. Otherwise -> create: AdminUser.provisioned("Admin", email, "") -
+       kind ADMIN, name "Admin", NO phone (null - outside the partial unique
+       index, never a login route), national ID "", EVERY verification claim
+       pre-set (EMAIL/PHONE/SMART_ID - canWrite() true from the first
+       request) + UserCredentials with the Argon2 hash of ADMIN_PASSWORD
+       (the same encoder registration uses).
+  Login is the NORMAL POST /auth/login (emailOrPhone + password) - no
+  dedicated endpoint, no backdoor, same JWT shape as every other user
+  (principal = userId, NO role claim - D2: /admin/* authorizes by a fresh
+  UserKind.ADMIN lookup per request, so a demotion takes effect on the very
+  next request).
+  OPS - de-provisioning: remove BOTH env vars AND delete the row (manual
+  SQL - no API deletes admin accounts). While both vars stay set, the
+  seeder RECREATES the admin on the next boot if the row was deleted
+  (create-if-absent sees no user with that email); with the vars removed it
+  is a no-op forever, but a still-existing row remains a working admin
+  (login with its own stored password) - row deletion is the real off switch.
 end note
 
 note bottom of US

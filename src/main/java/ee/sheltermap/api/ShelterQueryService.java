@@ -11,6 +11,8 @@ import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReportType;
+import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.ShelterStatusFlag;
 import ee.sheltermap.domain.User;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -117,6 +120,23 @@ public class ShelterQueryService {
         if (shelters.isEmpty()) {
             return List.of();
         }
+        Batches batches = batchesFor(shelters);
+        // The caller's own band is a DETAIL-only field (D5): one indexed
+        // lookup, and only for the single-shelter read — the list paths
+        // (public + /mine) pass a null caller and stay pure batch queries.
+        Map<Long, OccupancyBand> callerBands = callerBands(shelters, caller);
+        return shelters.stream()
+                .map(shelter -> toDto(shelter, batches, callerBands.get(shelter.getId())))
+                .toList();
+    }
+
+    /**
+     * The four batched trust lookups (one query each — no N+1) shared by
+     * the public list and the admin list projections: rating aggregates,
+     * creators (the provenance/trust submitter join), report counts by
+     * type, and the fresh occupancy rows.
+     */
+    private Batches batchesFor(List<Shelter> shelters) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
         Map<Long, RatingAggregate> aggregates = reviewRepository.findRatingAggregates(ids).stream()
                 .collect(Collectors.toMap(RatingAggregate::shelterId, Function.identity()));
@@ -138,23 +158,15 @@ public class ShelterQueryService {
         // latest band wins, agreeing count, newest timestamp — is in memory.
         Map<Long, ShelterDto.Occupancy> occupancy = deriveOccupancy(occupancyRepository
                 .findFreshByShelterIds(ids, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
-        // The caller's own band is a DETAIL-only field (D5): one indexed
-        // lookup, and only for the single-shelter read — the list paths
-        // (public + /mine) pass a null caller and stay pure batch queries.
-        Map<Long, OccupancyBand> callerBands = callerBands(shelters, caller);
-        return shelters.stream()
-                .map(shelter -> {
-                    // null key: registry row / pre-V7 legacy row — no author lookup
-                    Long createdById = shelter.getCreatedBy();
-                    User author = createdById == null ? null : authors.get(createdById);
-                    return toDto(shelter,
-                            aggregates.get(shelter.getId()),
-                            author,
-                            reportCounts.getOrDefault(shelter.getId(), Map.of()),
-                            occupancy.get(shelter.getId()),
-                            callerBands.get(shelter.getId()));
-                })
-                .toList();
+        return new Batches(aggregates, authors, reportCounts, occupancy);
+    }
+
+    /** The shared batched inputs of both shelter projections. */
+    private record Batches(
+            Map<Long, RatingAggregate> aggregates,
+            Map<Long, User> authors,
+            Map<Long, Map<ShelterReportType, Long>> reportCounts,
+            Map<Long, ShelterDto.Occupancy> occupancy) {
     }
 
     /** Detail-only: the caller's live band for the single shelter, if any. */
@@ -170,28 +182,19 @@ public class ShelterQueryService {
         return band.map(value -> Map.of(shelterId, value)).orElse(Map.of());
     }
 
-    private ShelterDto toDto(Shelter shelter, RatingAggregate aggregate, User author,
-                             Map<ShelterReportType, Long> typeCounts,
-                             ShelterDto.Occupancy occupancy, OccupancyBand yourOccupancyBand) {
+    private ShelterDto toDto(Shelter shelter, Batches batches, OccupancyBand yourOccupancyBand) {
+        RatingAggregate aggregate = batches.aggregates().get(shelter.getId());
+        // null key: registry row / pre-V7 legacy row — no author lookup
+        Long createdById = shelter.getCreatedBy();
+        User author = createdById == null ? null : batches.authors().get(createdById);
         double average = aggregate == null ? 0 : aggregate.average();
         long count = aggregate == null ? 0 : aggregate.count();
         // "Completed verification" = at least one active (non-revoked) claim;
         // a null author (registry row or a deleted user) is never verified.
         boolean submitterVerified = author != null && !author.getData().levels().isEmpty();
-        // D1: the derived reported state — counts are small, computed at
-        // read time, never stored. REPORTED_CLOSED when closed > confirmed
-        // (confirmed may be 0 — the "2 CLOSED, nobody confirmed" scenario);
-        // CONFIRMED_OPEN when confirmed ≥ closed with BOTH sides present
-        // (a tie is a confirmed open); otherwise no flag.
+        Map<ShelterReportType, Long> typeCounts =
+                batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
-        long closed = typeCounts.getOrDefault(ShelterReportType.CLOSED, 0L);
-        long confirmed = typeCounts.getOrDefault(ShelterReportType.OPEN_CONFIRMED, 0L);
-        ShelterStatusFlag statusFlag = null;
-        if (closed > confirmed) {
-            statusFlag = ShelterStatusFlag.REPORTED_CLOSED;
-        } else if (closed >= 1 && confirmed >= 1) {
-            statusFlag = ShelterStatusFlag.CONFIRMED_OPEN;
-        }
         return new ShelterDto(
                 shelter.getId(),
                 shelter.getName(),
@@ -207,9 +210,86 @@ public class ShelterQueryService {
                 shelter.getCapacity(),
                 submitterVerified,
                 (int) nonExistent,
-                statusFlag,
-                occupancy,
+                statusFlagOf(typeCounts),
+                batches.occupancy().get(shelter.getId()),
                 yourOccupancyBand);
+    }
+
+    /**
+     * The admin shelter list (admin-moderation D3): every shelter, ALL
+     * statuses (auto-hidden rows included), id-ordered, with the same
+     * batched trust derivations as the public list plus the submitter's
+     * profile name (the provenance join — one batched lookup, no N+1).
+     * {@code status}/{@code source} are exact-match filters (absent = no
+     * filter); {@code q} is a case-insensitive substring over name OR
+     * address, applied in-memory over the projected list (Estonia-scale
+     * data — same precedent as the trust filters).
+     */
+    public List<AdminShelterDto> findAllForAdmin(ShelterStatus status, ShelterSource source, String q) {
+        List<Shelter> shelters = shelterRepository.findAll().stream()
+                .filter(s -> status == null || s.getStatus() == status)
+                .filter(s -> source == null || s.getSource() == source)
+                .sorted(Comparator.comparing(Shelter::getId))
+                .toList();
+        if (shelters.isEmpty()) {
+            return List.of();
+        }
+        Batches batches = batchesFor(shelters);
+        List<AdminShelterDto> dtos = shelters.stream()
+                .map(shelter -> toAdminDto(shelter, batches))
+                .toList();
+        if (q == null || q.isBlank()) {
+            return dtos;
+        }
+        String needle = q.trim().toLowerCase(Locale.ROOT);
+        return dtos.stream()
+                .filter(dto -> (dto.name() != null && dto.name().toLowerCase(Locale.ROOT).contains(needle))
+                        || (dto.address() != null && dto.address().toLowerCase(Locale.ROOT).contains(needle)))
+                .toList();
+    }
+
+    private AdminShelterDto toAdminDto(Shelter shelter, Batches batches) {
+        RatingAggregate aggregate = batches.aggregates().get(shelter.getId());
+        // null key: registry row / pre-V7 legacy row — no submitter name
+        Long createdById = shelter.getCreatedBy();
+        User author = createdById == null ? null : batches.authors().get(createdById);
+        double average = aggregate == null ? 0 : aggregate.average();
+        long count = aggregate == null ? 0 : aggregate.count();
+        Map<ShelterReportType, Long> typeCounts =
+                batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
+        long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
+        return new AdminShelterDto(
+                shelter.getId(),
+                shelter.getName(),
+                shelter.getAddress(),
+                shelter.getSource(),
+                shelter.getStatus(),
+                count == 0 ? null : average,
+                (int) count,
+                (int) nonExistent,
+                statusFlagOf(typeCounts),
+                batches.occupancy().get(shelter.getId()),
+                shelter.getCapacity(),
+                author == null ? null : author.getData().name());
+    }
+
+    /**
+     * D1: the derived reported state — counts are small, computed at
+     * read time, never stored. REPORTED_CLOSED when closed > confirmed
+     * (confirmed may be 0 — the "2 CLOSED, nobody confirmed" scenario);
+     * CONFIRMED_OPEN when confirmed ≥ closed with BOTH sides present
+     * (a tie is a confirmed open); otherwise no flag.
+     */
+    private static ShelterStatusFlag statusFlagOf(Map<ShelterReportType, Long> typeCounts) {
+        long closed = typeCounts.getOrDefault(ShelterReportType.CLOSED, 0L);
+        long confirmed = typeCounts.getOrDefault(ShelterReportType.OPEN_CONFIRMED, 0L);
+        if (closed > confirmed) {
+            return ShelterStatusFlag.REPORTED_CLOSED;
+        }
+        if (closed >= 1 && confirmed >= 1) {
+            return ShelterStatusFlag.CONFIRMED_OPEN;
+        }
+        return null;
     }
 
     /**

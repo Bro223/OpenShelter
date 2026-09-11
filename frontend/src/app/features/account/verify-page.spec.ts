@@ -17,6 +17,7 @@ const PROFILE: MeResponse = {
   phone: '+37250000001',
   nationalIdCode: '49901019999',
   levels: [],
+  isAdmin: false,
 };
 
 /** The ack body of a successful code send (the server's cooldown in seconds). */

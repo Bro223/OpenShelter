@@ -21,12 +21,19 @@ public class ShelterReport {
     private final ShelterReportType type;
     private final String detail;
     private final Instant createdAt;
+    /** When an admin dismissed this report (V10, admin-moderation D3); {@code null} while unresolved. */
+    private Instant dismissedAt;
 
     public ShelterReport(Long shelterId, Long userId, ShelterReportType type, String detail) {
         this(shelterId, userId, type, detail, Instant.now());
     }
 
-    ShelterReport(Long shelterId, Long userId, ShelterReportType type, String detail, Instant createdAt) {
+    /**
+     * Full-state constructor used by the persistence layer to restore an
+     * existing report from storage (dismissal stamp included).
+     */
+    public ShelterReport(Long shelterId, Long userId, ShelterReportType type, String detail,
+                         Instant createdAt) {
         this.shelterId = Objects.requireNonNull(shelterId, "shelterId");
         this.userId = Objects.requireNonNull(userId, "userId");
         this.type = Objects.requireNonNull(type, "type");
@@ -72,5 +79,25 @@ public class ShelterReport {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    /** {@code true} once an admin dismissed this report (the queue's resolved marker). */
+    public boolean isDismissed() {
+        return dismissedAt != null;
+    }
+
+    public Instant getDismissedAt() {
+        return dismissedAt;
+    }
+
+    /**
+     * Dismisses the report (admin-moderation D3). Set ONCE — a second call
+     * is a no-op, so a re-dismiss can never double-stamp the row. Dismissing
+     * never deletes: the report stays recorded as resolved.
+     */
+    public void markDismissed(Instant dismissedAt) {
+        if (this.dismissedAt == null) {
+            this.dismissedAt = Objects.requireNonNull(dismissedAt, "dismissedAt");
+        }
     }
 }

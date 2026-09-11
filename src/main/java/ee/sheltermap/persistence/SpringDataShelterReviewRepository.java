@@ -17,6 +17,8 @@ public interface SpringDataShelterReviewRepository extends JpaRepository<Shelter
 
     Optional<ShelterReviewEntity> findByShelterIdAndUserId(Long shelterId, Long userId);
 
+    List<ShelterReviewEntity> findByIdIn(Collection<Long> ids);
+
     /**
      * One row per shelter id: [shelterId, avg(rating), count]. Hidden
      * reviews (V9, D2) are excluded — a community-hidden review must not

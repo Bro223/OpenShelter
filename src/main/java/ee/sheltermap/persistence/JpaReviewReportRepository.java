@@ -5,6 +5,7 @@ import ee.sheltermap.domain.ReviewReport;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -46,5 +47,20 @@ public class JpaReviewReportRepository implements ReviewReportRepository {
     @Transactional(readOnly = true)
     public long countByReviewId(long reviewId) {
         return reviewReports.countByReviewId(reviewId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReviewReport> findAll() {
+        return reviewReports.findAllByOrderByCreatedAtDescIdDesc().stream()
+                .map(JpaReviewReportRepository::toDomain)
+                .toList();
+    }
+
+    private static ReviewReport toDomain(ReviewReportEntity entity) {
+        ReviewReport report = new ReviewReport(entity.getReviewId(), entity.getUserId(),
+                entity.getReason(), entity.getDetail(), entity.getCreatedAt());
+        report.setId(entity.getId());
+        return report;
     }
 }

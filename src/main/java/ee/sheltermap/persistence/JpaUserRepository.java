@@ -103,8 +103,13 @@ public class JpaUserRepository implements UserRepository {
     @Override
     @Transactional(readOnly = true)
     public RegisteredUser findByEmail(String email) {
+        // REGISTERED and ADMIN rows are returned (kind is restored by the
+        // mapper): the admin logs in through the normal /auth/login
+        // (admin-moderation D1), and the registration pre-check must see
+        // the admin's email as in use (409), not as free. GUEST rows have
+        // no email to begin with.
         return users.findByEmailIgnoreCase(email)
-                .filter(e -> e.getKind() == UserKind.REGISTERED)
+                .filter(e -> e.getKind() != UserKind.GUEST)
                 .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId())))
                 .orElse(null);
     }
@@ -128,7 +133,7 @@ public class JpaUserRepository implements UserRepository {
     @Transactional(readOnly = true)
     public RegisteredUser findByPhone(String phone) {
         return users.findByPhone(phone)
-                .filter(e -> e.getKind() == UserKind.REGISTERED)
+                .filter(e -> e.getKind() != UserKind.GUEST)
                 .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId())))
                 .orElse(null);
     }

@@ -42,6 +42,10 @@ public class ShelterReportEntity {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /** When an admin dismissed the report (V10, admin-moderation D3); NULL while unresolved. */
+    @Column(name = "dismissed_at")
+    private Instant dismissedAt;
+
     public Long getId() {
         return id;
     }
@@ -88,5 +92,13 @@ public class ShelterReportEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getDismissedAt() {
+        return dismissedAt;
+    }
+
+    public void setDismissedAt(Instant dismissedAt) {
+        this.dismissedAt = dismissedAt;
     }
 }
