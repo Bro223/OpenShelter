@@ -26,7 +26,9 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
   token block is the single source of truth for visual values, with ONE persisted
   `[data-theme='high-contrast']` override block on `<html>` (shell-header toggle, `aria-pressed`,
   localStorage key `openshelter-theme`, applied pre-paint by the inline `index.html` script —
-  accessibility-and-provenance D1/D2; same token names, values differ by theme, default is light)
+  accessibility-and-provenance D1/D2; same token names, values differ by theme, default is light;
+  the HC block's contrast is audit-verified — every text pair ≥ 4.5:1, asserted in
+  `design-tokens.spec.ts`)
 - **Vitest** (via `ng test` — the scaffold's test runner) + `jsdom`; JUnit-style unit tests are
   mandatory per milestone
 - **Leaflet** (npm `leaflet`, used directly behind a thin service) for the map — MapLibre GL is a

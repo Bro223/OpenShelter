@@ -149,6 +149,15 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain("You haven't submitted any shelters yet.");
     expect(element.querySelector('a[href="/submit"]')).not.toBeNull();
     expect(element.textContent).toContain("You haven't written any reviews yet.");
+    // The empty state is a self-contained symmetric block (the spacing itself
+    // is CSS-only in .contributions-empty — jsdom does not compute layout, so
+    // the wrapper is the structural pin).
+    const empty = element.querySelector('.contributions-empty');
+    expect(empty, 'empty state must be wrapped in .contributions-empty').not.toBeNull();
+    expect(empty?.querySelector('p.contributions-state')?.textContent).toContain(
+      "You haven't submitted any shelters yet.",
+    );
+    expect(empty?.querySelector('a[href="/submit"]')).not.toBeNull();
   });
 
   it('a failed shelter load shows the error state and Retry re-fetches', async () => {

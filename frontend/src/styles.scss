@@ -176,6 +176,13 @@
      badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
      badge green #7ac98a   on badge-user #11301d       7.2
      same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
+     pick #ff8a80          on bg / surface / subtle     8.7 /  8.1 /  7.2
+     (HC contrast audit, 2026-09-11: the user-reported dark-on-dark was NOT a
+     token pair — every text token pair above passes. The dark texts were
+     elements whose colour comes from the UA stylesheet instead of a token
+     (bare .btn buttons on /submit, the map filter chips, the auth pages'
+     .auth-links links: UA black/blue on the dark surfaces at 1.06/1.14/2.11)
+     — fixed by the global element colour rules below, not by this block.)
      border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
      star-filled/empty     vs surface 8.5 / 3.2 (decorative, aria-label carries value)
      Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
@@ -197,8 +204,13 @@
      untouched per D1) and dark blue/green text fails 4.5:1 on the dark
      surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
      --color-bg-surface border (#141414 here) plus the hue carry the marker —
-     the documented trade-off of one token serving map + UI. --color-map-
-     placeholder stays light: it IS the map surface (tiles about to paint).
+     the documented trade-off of one token serving map + UI. --color-shelter-
+     pick is brightened the same way as a safe superset (HC contrast audit,
+     2026-09-11): it is the only "unchanged (map context)" colour token and is
+     used today only as the /submit pin fill, but #ff8a80 keeps ≥4.5:1 on
+     every HC surface if it ever serves as text (the 2px border + the red hue
+     keep the pin identifiable on the light tiles). --color-map-placeholder
+     stays light: it IS the map surface (tiles about to paint).
      Leaflet's own core literals (attribution rgba(255,255,255,0.8), zoom
      buttons #fff, container #ddd) sit ON the light tiles — or are overridden
      by the component container backgrounds — so they stay readable in both
@@ -246,7 +258,7 @@
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
   --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
-  --color-shelter-pick: #d32f2f; /* unchanged — map context */
+  --color-shelter-pick: #ff8a80; /* brightened from #d32f2f — safe superset, see note above */
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
 
   /* Rating stars */
@@ -280,6 +292,32 @@ input:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* Global element colours (HC contrast audit, 2026-09-11): form controls and
+   links take their text colour from the token palette instead of the UA
+   stylesheet. The UA defaults (black control text, blue unvisited links) do
+   not follow [data-theme] — with the OS in light mode they land dark on the
+   high-contrast theme's dark surfaces: the bare .btn buttons on /submit
+   (1.06:1), the map filter chips (1.14:1), the auth pages' .auth-links links
+   (2.11:1) — the "dark text on dark background" report. Light-theme deltas
+   are a no-op (pure black -> --color-text control text, UA blue ->
+   --color-primary links, the value the app already uses for links). Scoped
+   rules (.btn variants, .chip, .shell-nav a, ...) keep winning by
+   specificity. */
+a {
+  color: var(--color-primary);
+}
+
+button,
+input,
+textarea {
+  color: inherit;
+}
+
+input,
+textarea {
+  background-color: var(--color-bg-surface);
 }
 
 /* Page titles */
@@ -341,6 +379,9 @@ textarea:focus-visible {
   cursor: pointer;
   text-decoration: none;
   font-family: inherit;
+  /* Block buttons (btn--block, e.g. "Add shelter") must centre their label;
+     a no-op for auto-width buttons. */
+  text-align: center;
 
   &:disabled {
     opacity: 0.55;

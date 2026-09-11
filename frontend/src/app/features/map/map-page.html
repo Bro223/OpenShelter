@@ -83,9 +83,12 @@
       } @else if (showEmpty()) {
         <p class="sidebar-state">No shelters match this filter.</p>
       } @else if (sorted().length) {
-        <ul class="shelter-list" aria-label="Shelters">
+        <ul #listEl class="shelter-list" aria-label="Shelters">
           @for (shelter of sorted(); track shelter.id) {
-            <li>
+            <!-- The li is the per-shelter row element: the scroll-snap
+                 target (map-page.scss) and the row scrollRowIntoView looks
+                 up by data-shelter-id (marker click / nearest). -->
+            <li [attr.data-shelter-id]="shelter.id">
               <!-- Row = button (a real action: select + zoom, keyboard
                    operable). It does NOT navigate — the click flies the
                    map to street level and the user stays on /map (design

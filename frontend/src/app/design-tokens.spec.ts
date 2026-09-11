@@ -211,6 +211,14 @@ describe('design tokens (M6)', () => {
     ['--color-shelter-user', '--color-badge-user'],
   ];
 
+  /** --color-shelter-pick × the HC surfaces it could sit on (HC-only, see
+   *  the note in CONTRAST_CHECKS). */
+  const HC_ONLY_TEXT_PAIRS: [string, string][] = [
+    ['--color-shelter-pick', '--color-bg'],
+    ['--color-shelter-pick', '--color-bg-surface'],
+    ['--color-shelter-pick', '--color-bg-subtle'],
+  ];
+
   const CONTRAST_CHECKS: ContrastPair[] = [
     // Text: WCAG AA 4.5:1.
     ...TEXT_PAIRS.flatMap(([fg, bg]) =>
@@ -227,6 +235,20 @@ describe('design tokens (M6)', () => {
     ).flatMap(([fg, bg]) =>
       (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
     ),
+    // HC-only text pairs (not checked in light, where the value is a
+    // graphical-object fill, not a text colour): --color-shelter-pick is the
+    // one "unchanged (map context)" token of the theme. The 2026-09-11 HC
+    // contrast audit brightened it to #ff8a80 as a safe superset so the
+    // token holds 4.5:1 on every HC surface if it ever serves as text (today
+    // it is used only as the /submit pin fill). The audit found no token pair
+    // below threshold — the user-reported dark-on-dark came from UA-default
+    // colours instead (see the "form controls and links" test below).
+    ...HC_ONLY_TEXT_PAIRS.map(([fg, bg]) => ({
+      theme: 'high-contrast' as const,
+      fg,
+      bg,
+      min: 4.5,
+    })),
   ];
 
   /** Documented sub-threshold tokens — the honest complement of the checks
@@ -406,5 +428,28 @@ describe('design tokens (M6)', () => {
 
   it('the .num-tabular utility exists for coordinate readouts (D6)', () => {
     expect(stylesCss).toMatch(/\.num-tabular \{\s*font-variant-numeric: tabular-nums;\s*\}/);
+  });
+
+  it('block buttons centre their label: .btn carries text-align: center', () => {
+    // The "Add shelter" fix: .btn--block is width: 100%, and an inline-block
+    // with padding leaves its label left-aligned. Centring the base rule is
+    // a no-op for auto-width buttons.
+    expect(stylesCss).toMatch(/\.btn \{[^}]*text-align: center;/);
+  });
+
+  it('form controls and links carry explicit token colours (UA defaults do not follow [data-theme])', () => {
+    // The "dark text on a dark background" bug class: <a>/<button>/<input>
+    // without a scoped colour rule fall back to the UA stylesheet (blue
+    // links, black control text), which ignores the theme attribute and
+    // lands dark on the HC dark surfaces while the OS is in light mode —
+    // 1.06:1 for the bare .btn buttons on /submit, 1.14:1 for the map filter
+    // chips, 2.11:1 for the auth pages' .auth-links links. Scoped rules
+    // (.btn variants, .chip, .shell-nav a, ...) keep winning by specificity;
+    // the light-theme delta is a no-op (#000 -> #1c1c1e, #0000EE -> #0b5cad).
+    expect(stylesCss).toMatch(/^a \{\s+color: var\(--color-primary\);\s+\}/m);
+    expect(stylesCss).toMatch(/button,\s*input,\s*textarea \{\s*color: inherit;\s*\}/);
+    expect(stylesCss).toMatch(
+      /input,\s*textarea \{\s*background-color: var\(--color-bg-surface\);\s*\}/,
+    );
   });
 });

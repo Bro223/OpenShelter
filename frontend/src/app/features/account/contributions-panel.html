@@ -10,9 +10,14 @@
       <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
     </div>
   } @else if ((shelterRows() ?? []).length === 0) {
-    <p class="contributions-state">You haven't submitted any shelters yet.</p>
-    <div class="contrib-actions">
-      <a routerLink="/submit" class="btn btn--ghost">Submit your first shelter</a>
+    <!-- Self-contained symmetric empty state: the wrapper carries the
+         vertical rhythm (equal whitespace above the line and below the
+         button), so the panel's flex gap applies once, to the block. -->
+    <div class="contributions-empty">
+      <p class="contributions-state">You haven't submitted any shelters yet.</p>
+      <div class="contrib-actions">
+        <a routerLink="/submit" class="btn btn--ghost">Submit your first shelter</a>
+      </div>
     </div>
   } @else {
     <!-- map-crisis-actions: the submission entry renders for EVERY

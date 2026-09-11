@@ -1,4 +1,5 @@
 import { Component, signal, type DebugElement } from '@angular/core';
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
@@ -201,9 +202,16 @@ describe('MapPage', () => {
   let leaflet: FakeLeafletService;
   let router: Router;
   let store: AuthStore;
+  let scrollSpy: ReturnType<typeof vi.fn>;
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
 
   beforeEach(() => {
     localStorage.clear();
+    // jsdom does not implement scrollIntoView — stub it (and restore after):
+    // the row-scroll specs spy on it, and the marker/nearest paths now reach
+    // it through afterNextRender, so it must exist for EVERY test here.
+    scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy as unknown as Element['scrollIntoView'];
     // Secure context by default (dev runs on localhost); individual tests
     // override it for the geo-insecure path (submit page spec's pattern).
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
@@ -232,6 +240,15 @@ describe('MapPage', () => {
     // root-level fake is the one the page injects.
     TestBed.overrideComponent(MapPage, { remove: { providers: [LeafletService] } });
     router = TestBed.inject(Router);
+  });
+
+  afterEach(() => {
+    const proto = Element.prototype as { scrollIntoView?: unknown };
+    if (originalScrollIntoView) {
+      proto.scrollIntoView = originalScrollIntoView;
+    } else {
+      delete proto.scrollIntoView;
+    }
   });
 
   /** The page instance once /map is rendered and settled. */
@@ -907,6 +924,94 @@ describe('MapPage', () => {
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
       expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Scroll the row into view: a marker click or a nearest success moves the
+  // accented row into view inside the sidebar list (the user sees WHAT was
+  // zoomed to, not just a zoomed-in point on the map).
+  // ---------------------------------------------------------------------------
+  describe('scroll the row into view (marker click / nearest)', () => {
+    beforeEach(() => {
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? ALL_ROWS : source === 'USER' ? [BASEMENT] : []),
+      );
+    });
+
+    it('a marker click scrolls the matching row into view with block: nearest (smooth)', async () => {
+      const { element, fixture } = await open('/map');
+
+      leaflet.markerClick!(TALLINN.id); // the LAST row in name sort — below the fold
+      await settle(fixture);
+
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+      // On the row element carrying the shelter's id — the per-shelter <li>.
+      expect(scrollSpy.mock.instances[0]).toBe(
+        element.querySelector<HTMLElement>('[data-shelter-id="1"]'),
+      );
+      // The selection accent is on that same row.
+      expect(element.querySelector('.shelter-row--selected')?.textContent).toContain(
+        'Tallinn Central Shelter',
+      );
+    });
+
+    it('a nearest success scrolls the emphasized row into view with block: nearest (smooth)', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR]);
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      (element.querySelector('.map-cta') as HTMLButtonElement).click();
+      await settle(fixture);
+
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
+      expect(scrollSpy.mock.instances[0]).toBe(
+        element.querySelector<HTMLElement>('[data-shelter-id="11"]'),
+      );
+      expect(element.querySelector('.shelter-row--nearest')?.textContent).toContain(
+        'Kalamaja Shelter',
+      );
+    });
+
+    it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
+      const { element, fixture } = await open('/map');
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User filter
+      await settle(fixture);
+      scrollSpy.mockClear();
+
+      leaflet.markerClick!(TALLINN.id); // TALLINN is not in the USER list
+      await settle(fixture);
+
+      expect(scrollSpy).not.toHaveBeenCalled();
+    });
+
+    it('a stray marker click after the page is destroyed does not throw and never scrolls', async () => {
+      const { fixture } = await open('/map');
+      await router.navigateByUrl('/login');
+      await settle(fixture);
+      scrollSpy.mockClear();
+
+      expect(() => leaflet.markerClick!(TALLINN.id)).not.toThrow();
+      await settle(fixture); // a scheduled hook must be gone with the page
+
+      expect(scrollSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Scroll snap (list CSS): jsdom cannot verify layout, so the acceptance is
+  // the mechanism in the stylesheet (the design-tokens.spec.ts pattern).
+  // ---------------------------------------------------------------------------
+  describe('scroll snap (list CSS)', () => {
+    it('snaps rows to the container edge with proximity, not mandatory (variable-height rows)', () => {
+      const scss = readFileSync(`${process.cwd()}/src/app/features/map/map-page.scss`, 'utf8');
+      expect(scss).toMatch(/scroll-snap-type:\s*y proximity/);
+      expect(scss).toMatch(/scroll-snap-align:\s*start/);
+      // mandatory would FIGHT the row height when the "View details" link
+      // grows the selected row — proximity settles instead.
+      expect(scss).not.toMatch(/scroll-snap-type:\s*y mandatory/);
     });
   });
 });

@@ -1,9 +1,11 @@
 import {
   type AfterViewInit,
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   type ElementRef,
+  EnvironmentInjector,
   inject,
   type OnDestroy,
   signal,
@@ -94,6 +96,14 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly store = inject(AuthStore);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
+  /** The sidebar's scroll container — the scrollRowIntoView target. Null
+   *  while the list is not rendered (loading / empty / error / destroyed). */
+  private readonly listEl = viewChild<ElementRef<HTMLElement>>('listEl');
+  /** The component's own environment injector — passed explicitly to
+   *  afterNextRender (scrollRowIntoView runs from Leaflet/geolocation
+   *  callbacks, outside an injection context) and ties the deferred
+   *  callback to the component's lifecycle (never fires after destroy). */
+  private readonly injector = inject(EnvironmentInjector);
 
   protected readonly sourceFilters = SOURCE_FILTERS;
   /** W24: the shared source/rating copy, exposed to the template (Angular's
@@ -134,6 +144,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
+  /** Set in ngOnDestroy — a stray callback after route leave (a Leaflet
+   *  marker event racing the destroy, the geolocation-callback bug class)
+   *  must not touch the DOM. */
+  private destroyed = false;
 
   /**
    * The map container only exists once the view is rendered; a null container
@@ -147,6 +161,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     // Cancel any in-flight response, then drop the map instance + listeners.
+    this.destroyed = true;
     this.fetchSeq++;
     this.leaflet.destroy();
   }
@@ -191,6 +206,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
       this.nearest.set(null); // an interaction outside the list still supersedes it
       this.selectedId.set(id);
     }
+    // The accent (selection ring) may have landed on a row below the fold in
+    // the list — scroll it into view so the user sees WHAT was zoomed to.
+    this.scrollRowIntoView(id);
   }
 
   /**
@@ -281,6 +299,43 @@ export class MapPage implements AfterViewInit, OnDestroy {
     }
     this.nearest.set(nearestShelter);
     this.leaflet.flyTo(nearestShelter.latitude, nearestShelter.longitude, SHELTER_ZOOM);
+    // The emphasis may have landed on a row below the fold — scroll it into
+    // view, the same way a marker click does.
+    this.scrollRowIntoView(nearestShelter.id);
+  }
+
+  /**
+   * Scroll the row for `id` into view inside the sidebar list — the accent
+   * (the selection ring from a marker click, the temporary emphasis from a
+   * nearest success) must land on a row the user can actually see.
+   *
+   * Deferred to afterNextRender: the signal write that triggered this call
+   * re-renders the row first (the selected row GROWS its "View details"
+   * link), so the scroll measures the final layout, not the pre-update one.
+   * block:'nearest' is deliberate: a no-op when the row is already visible
+   * (no jumpy re-scroll), the minimum scroll when it isn't. A missing list
+   * (loading / empty / destroyed) or a missing row (filtered out) is a
+   * no-op. Under the list's proximity scroll-snap, the smooth scroll simply
+   * settles on the nearest row edge after it finishes (proximity never
+   * forces a position).
+   */
+  private scrollRowIntoView(id: number): void {
+    if (this.destroyed) {
+      return; // a stray callback after route leave must not touch the DOM
+    }
+    afterNextRender(
+      () => {
+        const list = this.listEl()?.nativeElement;
+        if (!list) {
+          return; // the list is gone (or the page was destroyed mid-flight)
+        }
+        const row = list.querySelector<HTMLElement>(`[data-shelter-id="${id}"]`);
+        if (row) {
+          row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      },
+      { injector: this.injector },
+    );
   }
 
   private load(source: ShelterSourceFilter): void {
