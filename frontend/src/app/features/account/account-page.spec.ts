@@ -1,11 +1,12 @@
 import { Component, type DebugElement } from '@angular/core';
+import { HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
-import { ApiError } from '../../core/api-error';
+import { ApiError, toApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { AuthStore } from '../../session/auth-store';
 import type { MeResponse, MyReviewDto, ShelterDto, TokenResponse } from '../../core/models';
@@ -21,6 +22,9 @@ const PROFILE: MeResponse = {
   levels: [],
 };
 
+/** The ack body of a successful change request (the server's cooldown in seconds). */
+const ACK = { resendAvailableAfterSeconds: 60 };
+
 const SHELTER_ROW: ShelterDto = {
   id: 7,
   address: null,
@@ -35,6 +39,9 @@ const SHELTER_ROW: ShelterDto = {
   description: 'Naabruskonna kelder',
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
+  nonexistentReports: 0,
+  statusFlag: null,
+  occupancy: null,
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -397,7 +404,7 @@ describe('AccountPage', () => {
     // No surrounding whitespace: Validators.email rejects padded addresses
     // (M2 finding) — the gateway must receive the lowercased form.
     page.newEmail.setValue('New@Example.EE');
-    account.requestEmailChange.mockResolvedValue(undefined);
+    account.requestEmailChange.mockResolvedValue(ACK);
 
     await page.emailSend();
     fixture.detectChanges();
@@ -411,13 +418,14 @@ describe('AccountPage', () => {
       'We sent an SMS code to the phone number on your account.',
     );
     expect(element.textContent).toContain('Confirm new email');
-    expect(element.textContent).toContain('Resend code');
+    // The successful send immediately starts the per-change-type cooldown.
+    expect(element.textContent).toContain('Resend in 1m 00s');
   });
 
   it('the code phase locks the phone target input too (F5)', async () => {
     const { page, element, fixture } = await open();
     page.newPhone.setValue('+37250000002');
-    account.requestPhoneChange.mockResolvedValue(undefined);
+    account.requestPhoneChange.mockResolvedValue(ACK);
 
     await page.phoneSend();
     fixture.detectChanges();
@@ -429,7 +437,7 @@ describe('AccountPage', () => {
     const { page, element, fixture } = await open();
     // The user types a local phone form; the backend stores E.164.
     page.newPhone.setValue('50000003');
-    account.requestPhoneChange.mockResolvedValue(undefined);
+    account.requestPhoneChange.mockResolvedValue(ACK);
     await page.phoneSend();
 
     page.phoneCode.setValue('654321');
@@ -449,7 +457,7 @@ describe('AccountPage', () => {
   it('startOver clears a stale confirm error (N14)', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('new@example.ee');
-    account.requestEmailChange.mockResolvedValue(undefined);
+    account.requestEmailChange.mockResolvedValue(ACK);
     await page.emailSend();
 
     page.emailCode.setValue('000000');
@@ -475,7 +483,7 @@ describe('AccountPage', () => {
     await store.login('kontakt@example.ee', 's3cret');
 
     page.newEmail.setValue('new@example.ee');
-    account.requestEmailChange.mockResolvedValue(undefined);
+    account.requestEmailChange.mockResolvedValue(ACK);
     await page.emailSend();
 
     page.emailCode.setValue('123456');
@@ -576,6 +584,7 @@ describe('AccountPage', () => {
     // 64: at the boundary — the control is fully valid, the flow proceeds
     // to the code phase (the phone has no format validator beyond length).
     page.newPhone.setValue('+3725' + '0'.repeat(59)); // 64
+    account.requestPhoneChange.mockResolvedValue(ACK);
     await page.phoneSend();
     fixture.detectChanges();
 
@@ -616,7 +625,7 @@ describe('AccountPage', () => {
   it('a wrong/expired confirm code (400) shows generic copy, never the backend text', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('new@example.ee');
-    account.requestEmailChange.mockResolvedValue(undefined);
+    account.requestEmailChange.mockResolvedValue(ACK);
     await page.emailSend();
 
     page.emailCode.setValue('000000');
@@ -636,7 +645,7 @@ describe('AccountPage', () => {
   it('blocks a malformed 6-digit code client-side before hitting the gateway', async () => {
     const { page, fixture } = await open();
     page.newEmail.setValue('new@example.ee');
-    account.requestEmailChange.mockResolvedValue(undefined);
+    account.requestEmailChange.mockResolvedValue(ACK);
     await page.emailSend();
 
     page.emailCode.setValue('12AB34'); // letters — not a 6-digit OTP
@@ -651,7 +660,7 @@ describe('AccountPage', () => {
   it('phone flow: request by email code -> confirm updates the phone', async () => {
     const { page, element, fixture } = await open();
     page.newPhone.setValue('+37250000002');
-    account.requestPhoneChange.mockResolvedValue(undefined);
+    account.requestPhoneChange.mockResolvedValue(ACK);
     await page.phoneSend();
     fixture.detectChanges();
 
@@ -675,9 +684,9 @@ describe('AccountPage', () => {
   it('shows the loading state while a change request is in flight', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('new@example.ee');
-    let resolveRequest: () => void = () => {};
+    let resolveRequest: (ack: typeof ACK) => void = () => {};
     account.requestEmailChange.mockReturnValue(
-      new Promise<void>((resolve) => (resolveRequest = resolve)),
+      new Promise((resolve) => (resolveRequest = resolve)),
     );
 
     const inFlight = page.emailSend();
@@ -691,7 +700,7 @@ describe('AccountPage', () => {
     }
     expect(element.querySelector('.banner')).toBeNull();
 
-    resolveRequest();
+    resolveRequest(ACK);
     await inFlight;
     fixture.detectChanges();
     expect(element.textContent).not.toContain('Sending…');
@@ -719,5 +728,119 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain("You haven't submitted any shelters yet.");
     expect(element.querySelector('a[href="/submit"]')).not.toBeNull();
     expect(element.textContent).toContain("You haven't written any reviews yet.");
+  });
+
+  // ---- resend cooldowns (per change type) ----------------------------------
+
+  describe('per-change-type resend cooldown (independent e-mail vs phone)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Under fake timers the shared open() cannot be used: its whenStable()
+     *  wait is scheduled as a macrotask and would hang on the frozen clock.
+     *  Navigation itself is microtask-based, so detectChanges suffices. */
+    async function openInstant() {
+      const fixture = TestBed.createComponent(Host);
+      fixture.detectChanges();
+      await store.init();
+      await store.refreshProfile();
+      await router.navigateByUrl('/account');
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+
+      const debug: DebugElement = fixture.debugElement.query(By.directive(AccountPage));
+      if (!debug) {
+        throw new Error('AccountPage not rendered');
+      }
+      return {
+        page: debug.componentInstance,
+        element: debug.nativeElement as HTMLElement,
+        fixture,
+      };
+    }
+
+    function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null {
+      return (
+        [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+          (b) => (b.textContent ?? '').trim() === text,
+        ) ?? null
+      );
+    }
+
+    it('a successful email send disables its resend button with a live label until expiry', async () => {
+      vi.useFakeTimers();
+      const { page, element, fixture } = await openInstant();
+      page.newEmail.setValue('new@example.ee');
+      account.requestEmailChange.mockResolvedValue(ACK);
+
+      await page.emailSend();
+      fixture.detectChanges();
+
+      expect(buttonByText(element, 'Resend in 1m 00s')?.disabled).toBe(true);
+      // The phone panel is a different change type — its send button stays enabled.
+      expect(buttonByText(element, 'Send email code to my email')?.disabled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      fixture.detectChanges();
+      expect(buttonByText(element, 'Resend code')?.disabled).toBe(false);
+    });
+
+    it('a 429 with Retry-After runs the countdown on the send button and shows the banner', async () => {
+      vi.useFakeTimers();
+      const { page, element, fixture } = await openInstant();
+      page.newEmail.setValue('new@example.ee');
+      account.requestEmailChange.mockRejectedValue(
+        toApiError(
+          new HttpErrorResponse({
+            error: {
+              timestamp: 't',
+              status: 429,
+              error: 'Too Many Requests',
+              message: 'cooldown',
+              path: '/account/email-change/request',
+            },
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: new HttpHeaders({ 'Retry-After': '45' }),
+          }),
+        ),
+      );
+
+      await page.emailSend();
+      fixture.detectChanges();
+
+      expect(buttonByText(element, 'Send in 45s')?.disabled).toBe(true);
+      expect(text(fixture)).toContain('Too many requests');
+      expect(buttonByText(element, 'Send email code to my email')?.disabled).toBe(false);
+    });
+
+    it('a phone 429 only cools down the phone panel', async () => {
+      vi.useFakeTimers();
+      const { page, element, fixture } = await openInstant();
+      page.newPhone.setValue('+37250000002');
+      account.requestPhoneChange.mockRejectedValue(
+        toApiError(
+          new HttpErrorResponse({
+            error: {
+              timestamp: 't',
+              status: 429,
+              error: 'Too Many Requests',
+              message: 'cooldown',
+              path: '/account/phone-change/request',
+            },
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: new HttpHeaders({ 'Retry-After': '45' }),
+          }),
+        ),
+      );
+
+      await page.phoneSend();
+      fixture.detectChanges();
+
+      expect(buttonByText(element, 'Send in 45s')?.disabled).toBe(true);
+      expect(buttonByText(element, 'Send SMS code to my phone')?.disabled).toBe(false);
+    });
   });
 });

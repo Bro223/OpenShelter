@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -250,9 +251,26 @@ public class ApiErrorHandler {
         return error(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
     }
 
+    /**
+     * The verification / contact-change anti-spam throttle (→ 429, uniform
+     * ErrorResponse — the body is deliberately unchanged). When the thrower
+     * can compute when a retry may succeed, the client additionally gets an
+     * exact {@code Retry-After} countdown header; the token-bucket
+     * {@link RateLimitExceededException} cannot compute one and stays
+     * header-less.
+     */
     @ExceptionHandler(VerificationThrottledException.class)
     ResponseEntity<ErrorResponse> verificationThrottled(VerificationThrottledException ex, HttpServletRequest request) {
-        return error(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+        if (ex.retryAfterSeconds() != null) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
+        }
+        return builder.body(new ErrorResponse(
+                Instant.now(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI()));
     }
 
     @ExceptionHandler(Exception.class)

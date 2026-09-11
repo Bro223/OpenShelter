@@ -5,7 +5,10 @@ import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
@@ -61,7 +64,8 @@ public class VerificationService {
      * active code for the same user+level is invalidated (one code at a time).
      *
      * @throws VerificationThrottledException when the cooldown has not elapsed
-     *                                        or the daily cap is reached (→ 429)
+     *                                        or the daily cap is reached (→ 429,
+     *                                        with {@code Retry-After} when computable)
      */
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         if (user.levels().contains(level)) {
@@ -82,13 +86,47 @@ public class VerificationService {
                 userId, level, contactFor(user, level), now,
                 properties.cooldownSeconds(), properties.maxPerDay());
         if (decision != VerificationSendLog.SendDecision.OK) {
-            throw new VerificationThrottledException();
+            // Same generic message as before (which throttle fired is never
+            // revealed); the numeric retry-after is the new part — the client
+            // counts down instead of spam-clicking into repeated 429s.
+            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                    retryAfterSeconds(decision, userId, level, now));
         }
 
         PendingVerification pending = provider.request(user);
         pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
+    }
+
+    /**
+     * The honest "seconds until a resend is allowed" for a throttled
+     * decision, computed from the SAME clock the decision used: the cooldown
+     * path counts down from the last recorded send, the daily-cap path
+     * counts down to the next UTC midnight where the cap resets (rounded up
+     * — waiting that long guarantees the reset; the frontend formats long
+     * durations).
+     */
+    private int retryAfterSeconds(VerificationSendLog.SendDecision decision, long userId,
+                                  VerificationLevel level, Instant now) {
+        return switch (decision) {
+            case COOLDOWN -> {
+                Instant lastSentAt = sendLog.lastSentAt(userId, level);
+                long secondsSince = lastSentAt == null
+                        ? 0 : Duration.between(lastSentAt, now).getSeconds();
+                yield (int) Math.max(0, properties.cooldownSeconds() - secondsSince);
+            }
+            case DAILY_CAP -> (int) Math.max(0, secondsUntilNextUtcMidnight(now));
+            case OK -> throw new IllegalStateException("no retry-after for an allowed send");
+        };
+    }
+
+    /** Seconds from {@code now} to the next UTC midnight, rounded up. */
+    private static long secondsUntilNextUtcMidnight(Instant now) {
+        Instant nextMidnight = LocalDate.now(ZoneOffset.UTC).plusDays(1)
+                .atStartOfDay(ZoneOffset.UTC).toInstant();
+        long millis = nextMidnight.toEpochMilli() - now.toEpochMilli();
+        return (millis + 999) / 1000;
     }
 
     /**

@@ -71,14 +71,15 @@ describe('AuthGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/auth/logout', { refreshToken: 'refresh-1' });
   });
 
-  it('requestPasswordReset POSTs {email} to /auth/password-reset/request', async () => {
-    api.post.mockReturnValue(of(undefined));
+  it('requestPasswordReset POSTs {email} to /auth/password-reset/request and returns the cooldown ack', async () => {
+    api.post.mockReturnValue(of({ resendAvailableAfterSeconds: 60 }));
 
-    await gateway.requestPasswordReset('test@example.ee');
+    const ack = await gateway.requestPasswordReset('test@example.ee');
 
     expect(api.post).toHaveBeenCalledWith('/auth/password-reset/request', {
       email: 'test@example.ee',
     });
+    expect(ack).toEqual({ resendAvailableAfterSeconds: 60 });
   });
 
   it('resetPassword POSTs {email, code, newPassword} to /auth/password-reset/confirm', async () => {

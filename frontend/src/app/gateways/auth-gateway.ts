@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
+import type { ResendAck } from '../shared/resend-countdown';
 import type {
   LoginRequest,
   PasswordResetConfirmRequest,
@@ -45,11 +46,13 @@ export class AuthGateway {
 
   /**
    * POST /auth/password-reset/request -> always 200 (anti-enumeration:
-   * the UI must never distinguish "unknown email").
+   * the UI must never distinguish "unknown email"). The ack body carries
+   * the server's resend cooldown in seconds — the UI runs its countdown
+   * from it, because the server silently skips sends inside the cooldown.
    */
-  requestPasswordReset(email: string): Promise<void> {
+  requestPasswordReset(email: string): Promise<ResendAck> {
     const body: PasswordResetRequest = { email };
-    return lastValueFrom(this.api.post<void>('/auth/password-reset/request', body));
+    return lastValueFrom(this.api.post<ResendAck>('/auth/password-reset/request', body));
   }
 
   /**

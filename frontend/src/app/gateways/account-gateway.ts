@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
+import type { ResendAck } from '../shared/resend-countdown';
 import type {
   ChangeEmailRequest,
   ChangePhoneRequest,
@@ -17,7 +18,8 @@ import type {
  *  - changing EMAIL is proven by an SMS code sent to the CURRENT phone
  *  - changing PHONE is proven by an email code sent to the CURRENT email
  *
- * The change request/confirm responses are empty (202 request / 200 confirm).
+ * The change request responses carry the resend-cooldown ack (ResendAck);
+ * the confirms are empty (202 request / 200 confirm).
  * Profile reads/edits DO echo state: `me()` returns the real profile (the
  * backend's single source of truth for name/email/phone/national ID + claims)
  * and `updateProfile()` returns the fresh profile to adopt in one round trip.
@@ -36,10 +38,10 @@ export class AccountGateway {
     return lastValueFrom(this.api.put<MeResponse>('/account/profile', request));
   }
 
-  /** POST /account/email-change/request {newEmail} -> 202 (code via SMS to the current phone). */
-  requestEmailChange(newEmail: string): Promise<void> {
+  /** POST /account/email-change/request {newEmail} -> 202 + ResendAck (code via SMS to the current phone). */
+  requestEmailChange(newEmail: string): Promise<ResendAck> {
     const body: ChangeEmailRequest = { newEmail };
-    return lastValueFrom(this.api.post<void>('/account/email-change/request', body));
+    return lastValueFrom(this.api.post<ResendAck>('/account/email-change/request', body));
   }
 
   /** POST /account/email-change/confirm {code} -> 200. */
@@ -48,10 +50,10 @@ export class AccountGateway {
     return lastValueFrom(this.api.post<void>('/account/email-change/confirm', body));
   }
 
-  /** POST /account/phone-change/request {newPhone} -> 202 (code via email to the current address). */
-  requestPhoneChange(newPhone: string): Promise<void> {
+  /** POST /account/phone-change/request {newPhone} -> 202 + ResendAck (code via email to the current address). */
+  requestPhoneChange(newPhone: string): Promise<ResendAck> {
     const body: ChangePhoneRequest = { newPhone };
-    return lastValueFrom(this.api.post<void>('/account/phone-change/request', body));
+    return lastValueFrom(this.api.post<ResendAck>('/account/phone-change/request', body));
   }
 
   /** POST /account/phone-change/confirm {code} -> 200. */

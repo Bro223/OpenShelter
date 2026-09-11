@@ -35,8 +35,8 @@ import java.util.Objects;
  * <p>Rotation protection (S1b, V8 {@code created_at}): re-issuing a code is
  * throttled per user — a 60-second cooldown and a per-UTC-day cap of 5
  * reissues. Both skip paths are silent no-ops that leave the current
- * active code valid, so the endpoint still answers the identical empty
- * 200 (no enumeration, no rotation oracle). The confirm path is
+ * active code valid, so the endpoint still answers the identical 200 ack
+ * (no enumeration, no rotation oracle). The confirm path is
  * additionally rate-limited per (IP, e-mail) at the controller (S1a).
  */
 @Service
@@ -49,6 +49,11 @@ public class PasswordResetService {
     static final Duration REISSUE_COOLDOWN = Duration.ofSeconds(60);
     /** Max reissues per user per UTC day (S1b). */
     static final int MAX_REISSUES_PER_UTC_DAY = 5;
+
+    /** The reissue cooldown in whole seconds — the value the request ack body tells clients to count down. */
+    static int reissueCooldownSeconds() {
+        return (int) REISSUE_COOLDOWN.getSeconds();
+    }
 
     private static final Logger log = LoggerFactory.getLogger(PasswordResetService.class);
 
@@ -86,7 +91,7 @@ public class PasswordResetService {
      * <p>Rotation protection (S1b): a re-request inside the {@link
      * #REISSUE_COOLDOWN}, or beyond the {@link #MAX_REISSUES_PER_UTC_DAY}
      * per-UTC-day cap, is a silent no-op that leaves the current active
-     * code valid — the answer is the identical empty success, and a
+     * code valid — the answer is the identical ack success, and a
      * rotation brute-force window never opens.
      */
     @Transactional

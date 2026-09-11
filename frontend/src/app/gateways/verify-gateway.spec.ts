@@ -24,13 +24,14 @@ describe('VerifyGateway', () => {
     gateway = TestBed.inject(VerifyGateway);
   });
 
-  it('request(EMAIL) POSTs {level: EMAIL} to /verify/request', async () => {
-    api.post.mockReturnValue(of(undefined));
+  it('request(EMAIL) POSTs {level: EMAIL} to /verify/request and returns the cooldown ack', async () => {
+    api.post.mockReturnValue(of({ resendAvailableAfterSeconds: 60 }));
 
-    await gateway.request('EMAIL');
+    const ack = await gateway.request('EMAIL');
 
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/verify/request', { level: 'EMAIL' });
+    expect(ack).toEqual({ resendAvailableAfterSeconds: 60 });
   });
 
   it('request(PHONE) POSTs {level: PHONE} to /verify/request', async () => {

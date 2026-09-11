@@ -24,11 +24,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Anti-spam throttle over HTTP (Twilio plan): with a tight per-IP bucket and
- * a tight daily cap, the third verification request in a burst returns 429
- * with the uniform {@code ErrorResponse}. Which layer fired (IP bucket vs
- * daily cap vs cooldown) is attributed precisely in VerificationServiceTest —
- * here we prove the HTTP surface behaves.
+ * The service-level daily cap over HTTP: the per-IP bucket is raised so it
+ * never fires, the cooldown is disabled, and the cap is 2 per UTC day — the
+ * third request is rejected by the SEND LOG (not the bucket) and carries an
+ * honest {@code Retry-After}: seconds until the next UTC midnight, where the
+ * cap resets (always &gt; 0, so the client counts down instead of spaming).
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -36,24 +36,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0",
-        "app.ratelimit.verify-capacity=2",
+        "app.ratelimit.verify-capacity=1000",
         "app.ratelimit.verify-refill-per-second=0",
         "app.verification.cooldown-seconds=0",
         "app.verification.max-per-day=2",
         "app.mail.provider=dev"
 })
 @Transactional
-class VerificationThrottleIT extends AbstractPersistenceIT {
+class VerificationDailyCapIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
-            "{\"name\":\"Throttle Kasutaja\",\"email\":\"throttle@example.ee\",\"phone\":\"+37250007777\","
-                    + "\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}";
+            "{\"name\":\"Daily Cap Kasutaja\",\"email\":\"daily-cap@example.ee\",\"phone\":\"+37250006666\","
+                    + "\"nationalIdCode\":\"49001016666\",\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;
 
     @Autowired
     InMemoryVerificationSendLog sendLog;
+
+    @Autowired
+    RecordingSmtpSender smtp;
 
     @TestConfiguration
     static class Config {
@@ -73,20 +76,21 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
     @BeforeEach
     void clearFakes() {
         sendLog.clear();
+        smtp.clear();
     }
 
     @Test
-    void burstOfVerificationRequestsIsThrottledWith429() throws Exception {
+    void dailyCapThrottleCarriesRetryAfterUntilUtcMidnight() throws Exception {
         // register + login
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"throttle@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"daily-cap@example.ee\",\"password\":\"s3cret\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String token = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
 
-        // two requests pass (per-IP bucket capacity 2, daily cap 2)
+        // two requests pass (daily cap 2, cooldown disabled)
         for (int i = 0; i < 2; i++) {
             mvc.perform(post("/verify/request")
                             .header("Authorization", "Bearer " + token)
@@ -95,10 +99,9 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
                     .andExpect(status().isAccepted());
         }
 
-        // the third is throttled by the per-IP TOKEN BUCKET (capacity 2, no
-        // refill) — 429 with the uniform ErrorResponse shape. The bucket
-        // cannot compute a wait time, so no Retry-After header (unlike the
-        // service-level throttles, which the daily-cap IT covers).
+        // the third is rejected by the send log (DAILY CAP) — 429, uniform
+        // shape, message naming the verification throttle, and an honest
+        // Retry-After: seconds until the next UTC midnight, always > 0
         MvcResult throttled = mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -106,9 +109,14 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
-                .andExpect(jsonPath("$.message").value("Too many requests"))
+                .andExpect(jsonPath("$.message").value("Too many verification requests"))
                 .andExpect(jsonPath("$.path").value("/verify/request"))
                 .andReturn();
-        assertThat(throttled.getResponse().getHeader("Retry-After")).isNull();
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotBlank();
+        assertThat(Integer.parseInt(retryAfter)).isGreaterThan(0);
+
+        // the throttled request sent nothing
+        assertThat(smtp.sent()).hasSize(2);
     }
 }

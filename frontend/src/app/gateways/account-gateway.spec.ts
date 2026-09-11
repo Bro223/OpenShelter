@@ -23,14 +23,15 @@ describe('AccountGateway', () => {
     gateway = TestBed.inject(AccountGateway);
   });
 
-  it('requestEmailChange POSTs {newEmail} to /account/email-change/request', async () => {
-    api.post.mockReturnValue(of(undefined));
+  it('requestEmailChange POSTs {newEmail} to /account/email-change/request and returns the cooldown ack', async () => {
+    api.post.mockReturnValue(of({ resendAvailableAfterSeconds: 60 }));
 
-    await gateway.requestEmailChange('new@example.ee');
+    const ack = await gateway.requestEmailChange('new@example.ee');
 
     expect(api.post).toHaveBeenCalledWith('/account/email-change/request', {
       newEmail: 'new@example.ee',
     });
+    expect(ack).toEqual({ resendAvailableAfterSeconds: 60 });
   });
 
   it('confirmEmailChange POSTs {code} to /account/email-change/confirm', async () => {
@@ -41,14 +42,15 @@ describe('AccountGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/account/email-change/confirm', { code: '123456' });
   });
 
-  it('requestPhoneChange POSTs {newPhone} to /account/phone-change/request', async () => {
-    api.post.mockReturnValue(of(undefined));
+  it('requestPhoneChange POSTs {newPhone} to /account/phone-change/request and returns the cooldown ack', async () => {
+    api.post.mockReturnValue(of({ resendAvailableAfterSeconds: 60 }));
 
-    await gateway.requestPhoneChange('+37250000002');
+    const ack = await gateway.requestPhoneChange('+37250000002');
 
     expect(api.post).toHaveBeenCalledWith('/account/phone-change/request', {
       newPhone: '+37250000002',
     });
+    expect(ack).toEqual({ resendAvailableAfterSeconds: 60 });
   });
 
   it('confirmPhoneChange POSTs {code} to /account/phone-change/confirm', async () => {

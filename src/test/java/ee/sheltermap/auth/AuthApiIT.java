@@ -335,6 +335,28 @@ class AuthApiIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void resetRequestAcksTheReissueCooldownAndSilentSkipKeepsTheSameBody() throws Exception {
+        registerUser();
+
+        // known email -> 200 + ack with the reissue cooldown (60 s)
+        mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
+
+        // second request inside the cooldown: silent skip — still 200 with
+        // the SAME ack, never a 429 (no enumeration, no rotation oracle)
+        mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
+
+        // the skip really was silent: exactly ONE mail went out
+        assertThat(smtp.sent()).hasSize(1);
+        assertThat(smtp.last().email()).isEqualTo("mari@example.ee");
+    }
+
+    @Test
     void requestResetForUnknownEmailReturnsTheSame200AsAKnownEmail() throws Exception {
         registerUser();
 

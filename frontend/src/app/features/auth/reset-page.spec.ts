@@ -1,10 +1,14 @@
 import { Component, type DebugElement } from '@angular/core';
+import { HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AuthGateway } from '../../gateways/auth-gateway';
-import { ApiError } from '../../core/api-error';
+import { ApiError, toApiError } from '../../core/api-error';
 import { ResetPage } from './reset-page';
+
+/** The ack body of a successful send (the server's cooldown in seconds). */
+const ACK = { resendAvailableAfterSeconds: 60 };
 
 /** Hand-written fake gateway — the page never sees HTTP. */
 class FakeAuthGateway {
@@ -65,7 +69,7 @@ describe('ResetPage', () => {
     email = 'test@example.ee',
   ) {
     page.requestForm.setValue({ email });
-    gateway.requestPasswordReset.mockResolvedValue(undefined);
+    gateway.requestPasswordReset.mockResolvedValue(ACK);
     await page.requestReset();
     fixture.detectChanges();
   }
@@ -216,6 +220,122 @@ describe('ResetPage', () => {
       await page.confirmReset();
 
       expect(gateway.resetPassword).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resend cooldown (the server cooldown on the button)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    /** Under fake timers the shared open() cannot be used: its whenStable()
+     *  wait is scheduled as a macrotask and would hang on the frozen clock.
+     *  Navigation itself is microtask-based, so detectChanges suffices. */
+    async function openInstant() {
+      const fixture = TestBed.createComponent(Host);
+      fixture.detectChanges();
+      await router.navigateByUrl('/reset');
+      await vi.advanceTimersByTimeAsync(0);
+      fixture.detectChanges();
+
+      const debug: DebugElement = fixture.debugElement.query(By.directive(ResetPage));
+      if (!debug) {
+        throw new Error('ResetPage not rendered');
+      }
+      return { page: debug.componentInstance, fixture };
+    }
+
+    function buttonByText(
+      fixture: ReturnType<typeof TestBed.createComponent<Host>>,
+      text: string,
+    ): HTMLButtonElement | null {
+      const root = fixture.nativeElement as HTMLElement;
+      return (
+        [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+          (b) => (b.textContent ?? '').trim() === text,
+        ) ?? null
+      );
+    }
+
+    it('a successful send disables the resend button with a live label until it expires', async () => {
+      vi.useFakeTimers();
+      const { page, fixture } = await openInstant();
+
+      await request(page, fixture);
+
+      expect(buttonByText(fixture, 'Resend in 1m 00s')?.disabled).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(59_000);
+      fixture.detectChanges();
+      expect(buttonByText(fixture, 'Resend in 1s')?.disabled).toBe(true);
+
+      // Expired — the button is back as a plain resend.
+      await vi.advanceTimersByTimeAsync(1000);
+      fixture.detectChanges();
+      expect(buttonByText(fixture, 'Resend code')?.disabled).toBe(false);
+    });
+
+    it('a 429 with Retry-After runs the countdown on the send button and shows the banner', async () => {
+      vi.useFakeTimers();
+      const { page, fixture } = await openInstant();
+      gateway.requestPasswordReset.mockRejectedValue(
+        toApiError(
+          new HttpErrorResponse({
+            error: {
+              timestamp: 't',
+              status: 429,
+              error: 'Too Many Requests',
+              message: 'slow down',
+              path: '/auth/password-reset/request',
+            },
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: new HttpHeaders({ 'Retry-After': '45' }),
+          }),
+        ),
+      );
+      page.requestForm.setValue({ email: 'test@example.ee' });
+
+      await page.requestReset();
+      fixture.detectChanges();
+
+      // The existing banner copy...
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Too many attempts');
+      // ...and the send button runs the 45 s cooldown instead of a bare retry.
+      expect(buttonByText(fixture, 'Send in 45s')?.disabled).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(45_000);
+      fixture.detectChanges();
+      expect(buttonByText(fixture, 'Email me a reset code')?.disabled).toBe(false);
+    });
+
+    it('a 429 on resend restarts the countdown from Retry-After', async () => {
+      vi.useFakeTimers();
+      const { page, fixture } = await openInstant();
+      await request(page, fixture);
+      expect(buttonByText(fixture, 'Resend in 1m 00s')).not.toBeNull();
+
+      gateway.requestPasswordReset.mockRejectedValue(
+        toApiError(
+          new HttpErrorResponse({
+            error: {
+              timestamp: 't',
+              status: 429,
+              error: 'Too Many Requests',
+              message: 'cooldown',
+              path: '/auth/password-reset/request',
+            },
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: new HttpHeaders({ 'Retry-After': '45' }),
+          }),
+        ),
+      );
+
+      await page.resendCode();
+      fixture.detectChanges();
+
+      expect(buttonByText(fixture, 'Resend in 45s')?.disabled).toBe(true);
     });
   });
 });

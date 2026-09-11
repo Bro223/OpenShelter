@@ -94,25 +94,35 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isUnauthorized());
 
-        // request email verification -> 202, code delivered via the channel
+        // request email verification -> 202, code delivered via the channel,
+        // ack says when a resend is allowed (default cooldown: 60s)
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
         String message = smtp.last().message();
         assertThat(message).contains("verification code: ");
         String code = message.substring(message.lastIndexOf(' ') + 1);
 
         // resend within the cooldown window (default 60s) -> 429, uniform shape
-        mvc.perform(post("/verify/request")
+        // (all five fields) + an exact Retry-After countdown in 1..cooldown
+        MvcResult throttled = mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.error").value("Too Many Requests"));
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message").value("Too many verification requests"))
+                .andExpect(jsonPath("$.path").value("/verify/request"))
+                .andReturn();
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotBlank();
+        assertThat(Integer.parseInt(retryAfter)).isBetween(1, 60);
 
         // wrong code -> 400 with the uniform ErrorResponse shape
         mvc.perform(post("/verify/confirm")

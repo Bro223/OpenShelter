@@ -4,6 +4,7 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.verification.VerificationProperties;
 import ee.sheltermap.verification.VerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -35,7 +36,10 @@ import java.util.stream.Collectors;
  *
  * <p>Anti-spam (Twilio plan): the request endpoint is additionally throttled
  * per client IP (token bucket via {@link ClientIps}, X-Forwarded-For aware),
- * on top of the service-level cooldown + daily cap per (user, level).
+ * on top of the service-level cooldown + daily cap per (user, level). On
+ * success the endpoint acks with {@link CodeSentDto} — the cooldown a
+ * client should count down before resending; a throttled 429 carries the
+ * exact remaining seconds in {@code Retry-After}.
  *
  * <p>SMART_ID is rejected up front with 400 — the provider is a stub in v1.
  */
@@ -46,17 +50,20 @@ public class VerificationController {
     private final VerificationService verificationService;
     private final UserRepository userRepository;
     private final RateLimiter verifyRateLimiter;
+    private final VerificationProperties properties;
     private final Set<String> trustedProxies;
     private final boolean trustLoopback;
 
     public VerificationController(VerificationService verificationService,
                                   UserRepository userRepository,
                                   @Qualifier("verifyRateLimiter") RateLimiter verifyRateLimiter,
+                                  VerificationProperties properties,
                                   @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
                                   @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.verificationService = Objects.requireNonNull(verificationService, "verificationService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
+        this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
@@ -64,9 +71,14 @@ public class VerificationController {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * Requests a verification code. The ack body tells the client how long
+     * to wait before resending (the configured cooldown) — the frontend
+     * renders a countdown instead of letting the user spam-click.
+     */
     @PostMapping("/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
+    public CodeSentDto request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
         if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
             throw new RateLimitExceededException();
         }
@@ -78,6 +90,7 @@ public class VerificationController {
             throw new VerificationFailedException("eID verification is not available yet.");
         }
         verificationService.requestVerification(user, body.level());
+        return new CodeSentDto((int) properties.cooldownSeconds());
     }
 
     @PostMapping("/confirm")

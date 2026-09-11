@@ -48,7 +48,9 @@ import java.util.stream.Collectors;
  * are additionally throttled per client IP ({@link ClientIps},
  * X-Forwarded-For aware) — the confirm endpoints are code-verified and
  * attempt-limited instead, so they need no bucket; the profile read/edit are
- * cheap (no code issuance) and use the standard auth rule.
+ * cheap (no code issuance) and use the standard auth rule. The request
+ * endpoints ack with {@link CodeSentDto} — the cooldown a client should
+ * count down before resending.
  */
 @RestController
 @RequestMapping("/account")
@@ -58,6 +60,7 @@ public class AccountController {
     private final AccountService accountService;
     private final UserRepository userRepository;
     private final RateLimiter changeRequestRateLimiter;
+    private final ContactChangeProperties properties;
     private final Set<String> trustedProxies;
     private final boolean trustLoopback;
 
@@ -65,12 +68,14 @@ public class AccountController {
                              AccountService accountService,
                              UserRepository userRepository,
                              @Qualifier("changeRequestRateLimiter") RateLimiter changeRequestRateLimiter,
+                             ContactChangeProperties properties,
                              @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
                              @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.contactChangeService = Objects.requireNonNull(contactChangeService, "contactChangeService");
         this.accountService = Objects.requireNonNull(accountService, "accountService");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.changeRequestRateLimiter = Objects.requireNonNull(changeRequestRateLimiter, "changeRequestRateLimiter");
+        this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
@@ -95,9 +100,10 @@ public class AccountController {
 
     @PostMapping("/email-change/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void requestEmailChange(@Valid @RequestBody ChangeEmailRequest body, HttpServletRequest http) {
+    public CodeSentDto requestEmailChange(@Valid @RequestBody ChangeEmailRequest body, HttpServletRequest http) {
         requireRate(http);
         contactChangeService.requestEmailChange(currentUser(), body.newEmail());
+        return new CodeSentDto((int) properties.cooldownSeconds());
     }
 
     @PostMapping("/email-change/confirm")
@@ -114,9 +120,10 @@ public class AccountController {
 
     @PostMapping("/phone-change/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public void requestPhoneChange(@Valid @RequestBody ChangePhoneRequest body, HttpServletRequest http) {
+    public CodeSentDto requestPhoneChange(@Valid @RequestBody ChangePhoneRequest body, HttpServletRequest http) {
         requireRate(http);
         contactChangeService.requestPhoneChange(currentUser(), body.newPhone());
+        return new CodeSentDto((int) properties.cooldownSeconds());
     }
 
     @PostMapping("/phone-change/confirm")

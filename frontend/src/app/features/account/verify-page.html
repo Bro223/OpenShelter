@@ -60,9 +60,15 @@
             type="button"
             class="btn btn--ghost"
             (click)="request(level)"
-            [disabled]="confirming() !== null || sending() !== null"
+            [disabled]="confirming() !== null || sending() !== null || countdowns[level].active"
           >
-            {{ sending() === level ? 'Sending…' : 'Resend code' }}
+            {{
+              sending() === level
+                ? 'Sending…'
+                : countdowns[level].active
+                  ? `Resend in ${countdowns[level].label()}`
+                  : 'Resend code'
+            }}
           </button>
         </div>
       } @else {
@@ -70,9 +76,15 @@
           type="button"
           class="btn btn--primary"
           (click)="request(level)"
-          [disabled]="sending() !== null || confirming() !== null"
+          [disabled]="sending() !== null || confirming() !== null || countdowns[level].active"
         >
-          {{ sending() === level ? 'Sending…' : ch.sendLabel }}
+          {{
+            sending() === level
+              ? 'Sending…'
+              : countdowns[level].active
+                ? `Send in ${countdowns[level].label()}`
+                : ch.sendLabel
+          }}
         </button>
       }
     </section>

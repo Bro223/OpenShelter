@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { ApiError, toApiError } from './api-error';
 
 function errorResponse(status: number, reason: string, message: string) {
@@ -94,6 +94,57 @@ describe('ApiError', () => {
 
     it('maps arbitrary thrown values to a network ApiError', () => {
       expect(toApiError(new Error('boom')).isNetworkError).toBe(true);
+    });
+  });
+
+  describe('retryAfterSeconds (Retry-After header)', () => {
+    it('reads an integer Retry-After header on a 429', () => {
+      const httpError = new HttpErrorResponse({
+        error: errorResponse(429, 'Too Many Requests', 'verification cooldown active'),
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: new HttpHeaders({ 'Retry-After': '45' }),
+      });
+      const err = toApiError(httpError);
+      expect(err.status).toBe(429);
+      expect(err.retryAfterSeconds).toBe(45);
+    });
+
+    it('is null without the header (a token-bucket 429 sends none)', () => {
+      const httpError = new HttpErrorResponse({
+        error: errorResponse(429, 'Too Many Requests', 'slow down'),
+        status: 429,
+        statusText: 'Too Many Requests',
+      });
+      expect(toApiError(httpError).retryAfterSeconds).toBeNull();
+    });
+
+    it('is null for non-integer values (HTTP-date form, fractions, negatives, junk)', () => {
+      for (const value of ['Wed, 21 Oct 2025 07:28:00 GMT', '45.5', '-5', 'abc', '  ']) {
+        const err = ApiError.fromHttp(
+          429,
+          errorResponse(429, 'Too Many Requests', 'slow down'),
+          '/x',
+          new HttpHeaders({ 'Retry-After': value }),
+        );
+        expect(err.retryAfterSeconds, `header "${value}"`).toBeNull();
+      }
+    });
+
+    it('accepts a padded integer and a zero', () => {
+      expect(
+        ApiError.fromHttp(429, null, '/x', new HttpHeaders({ 'Retry-After': '  30  ' }))
+          .retryAfterSeconds,
+      ).toBe(30);
+      expect(
+        ApiError.fromHttp(429, null, '/x', new HttpHeaders({ 'Retry-After': '0' }))
+          .retryAfterSeconds,
+      ).toBe(0);
+    });
+
+    it('is null for fromHttp without headers and for network errors', () => {
+      expect(ApiError.fromHttp(400, null, '/x').retryAfterSeconds).toBeNull();
+      expect(ApiError.fromNetwork().retryAfterSeconds).toBeNull();
     });
   });
 });

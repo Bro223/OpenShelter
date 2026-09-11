@@ -210,9 +210,9 @@
               type="button"
               class="btn btn--ghost"
               (click)="emailResend()"
-              [disabled]="busy()"
+              [disabled]="busy() || emailCountdown.active"
             >
-              Resend code
+              {{ emailCountdown.active ? `Resend in ${emailCountdown.label()}` : 'Resend code' }}
             </button>
             <button
               type="button"
@@ -224,8 +224,19 @@
             </button>
           </div>
         } @else {
-          <button type="button" class="btn btn--primary" (click)="emailSend()" [disabled]="busy()">
-            {{ busy() ? 'Sending…' : 'Send SMS code to my phone' }}
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="emailSend()"
+            [disabled]="busy() || emailCountdown.active"
+          >
+            {{
+              busy()
+                ? 'Sending…'
+                : emailCountdown.active
+                  ? `Send in ${emailCountdown.label()}`
+                  : 'Send SMS code to my phone'
+            }}
           </button>
         }
       }
@@ -302,9 +313,9 @@
               type="button"
               class="btn btn--ghost"
               (click)="phoneResend()"
-              [disabled]="busy()"
+              [disabled]="busy() || phoneCountdown.active"
             >
-              Resend code
+              {{ phoneCountdown.active ? `Resend in ${phoneCountdown.label()}` : 'Resend code' }}
             </button>
             <button
               type="button"
@@ -316,8 +327,19 @@
             </button>
           </div>
         } @else {
-          <button type="button" class="btn btn--primary" (click)="phoneSend()" [disabled]="busy()">
-            {{ busy() ? 'Sending…' : 'Send email code to my email' }}
+          <button
+            type="button"
+            class="btn btn--primary"
+            (click)="phoneSend()"
+            [disabled]="busy() || phoneCountdown.active"
+          >
+            {{
+              busy()
+                ? 'Sending…'
+                : phoneCountdown.active
+                  ? `Send in ${phoneCountdown.label()}`
+                  : 'Send email code to my email'
+            }}
           </button>
         }
       }

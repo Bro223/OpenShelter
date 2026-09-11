@@ -247,7 +247,8 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newPhone\":\"55507777\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
         // cross-channel: the EMAIL goes to the current email
         assertThat(smtp.last()).isNotNull();
@@ -291,15 +292,25 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"uus@example.ee\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
-        // immediate second request -> 429 (cooldown anchored on the pending row)
-        mvc.perform(post("/account/email-change/request")
+        // immediate second request -> 429 (cooldown anchored on the pending row),
+        // uniform body (all five fields) + exact Retry-After countdown in 1..cooldown
+        MvcResult throttled = mvc.perform(post("/account/email-change/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"teine@example.ee\"}"))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("Too Many Requests"));
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message").value("Too many verification requests"))
+                .andExpect(jsonPath("$.path").value("/account/email-change/request"))
+                .andReturn();
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotBlank();
+        assertThat(Integer.parseInt(retryAfter)).isBetween(1, 60);
     }
 
     @Test

@@ -402,11 +402,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(shelterGateway.get).toHaveBeenCalledWith(7);
       expect(text(fixture)).toContain('Community Cellar');
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
-      // The anonymous prompt (no form) is now about the NEW shelter: its
-      // returnUrl must point at /shelters/7, not the previous id.
+      // The anonymous prompt (no form) is now about the NEW shelter — plain
+      // text only (no inline login button on the page).
       expect(text(fixture)).toContain('Log in to rate this shelter.');
-      const link = element.querySelector('a[href*="returnUrl"]') as HTMLAnchorElement;
-      expect(link?.getAttribute('href')).toBe('/login?returnUrl=%2Fshelters%2F7');
+      expect(element.querySelector('a[href*="returnUrl"]')).toBeNull();
     });
 
     it('a failed REVIEWS half keeps the loaded shelter and shows the reviews error (N11)', async () => {
@@ -454,14 +453,14 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       shelterGateway.rows.set(1, registryShelter());
     });
 
-    it('anonymous: a login prompt preserving the shelter as returnUrl, no form', async () => {
+    it('anonymous: a plain-text login prompt, no inline button, no form', async () => {
       const { element } = await open('/shelters/1');
 
       expect(element.querySelector('form')).toBeNull();
       expect(elText(element)).toContain('Log in to rate this shelter.');
-      const link = element.querySelector('a[href*="returnUrl"]') as HTMLAnchorElement;
-      expect(link).not.toBeNull();
-      expect(link.getAttribute('href')).toBe('/login?returnUrl=%2Fshelters%2F1');
+      // The header login is the single entry point — the detail page itself
+      // carries no inline login link.
+      expect(element.querySelector('a[href*="returnUrl"]')).toBeNull();
     });
 
     it('authenticated but unverified: a verify prompt with a /verify link, no form', async () => {

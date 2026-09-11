@@ -1,4 +1,4 @@
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 
 /**
  * The one uniform error body of the whole backend (ErrorResponse in
@@ -42,6 +42,23 @@ function reasonPhrase(status: number): string {
   }
 }
 
+/**
+ * Parse a Retry-After header value into whole seconds. Only a plain
+ * non-negative integer counts (the backend sends the cooldown in seconds);
+ * HTTP-date form, fractions, junk, or an absent header all give null.
+ */
+function parseRetryAfterSeconds(raw: string | null): number | null {
+  if (raw === null) {
+    return null;
+  }
+  const value = raw.trim();
+  if (!/^\d+$/.test(value)) {
+    return null;
+  }
+  const seconds = Number(value);
+  return Number.isSafeInteger(seconds) ? seconds : null;
+}
+
 function isErrorResponseBody(payload: unknown): payload is ErrorResponseBody {
   if (payload === null || typeof payload !== 'object') {
     return false;
@@ -68,7 +85,15 @@ export class ApiError extends Error {
   /** The request path that failed ('' for network errors). */
   readonly path: string;
 
-  private constructor(fields: ErrorResponseBody) {
+  /**
+   * Seconds until the server accepts the same request again — the
+   * `Retry-After` header of a cooldown 429. Null everywhere else: token-
+   * bucket 429s send no header, and neither do other statuses / network
+   * errors.
+   */
+  readonly retryAfterSeconds: number | null;
+
+  private constructor(fields: ErrorResponseBody, retryAfterSeconds: number | null = null) {
     super(fields.message);
     this.name = 'ApiError';
     this.timestamp = fields.timestamp;
@@ -76,24 +101,34 @@ export class ApiError extends Error {
     this.error = fields.error;
     this.message = fields.message;
     this.path = fields.path;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 
   /** Build from a real HTTP error response. Prefers the uniform ErrorResponse body. */
-  static fromHttp(status: number, payload: unknown, url?: string | null): ApiError {
+  static fromHttp(
+    status: number,
+    payload: unknown,
+    url?: string | null,
+    headers?: HttpHeaders | null,
+  ): ApiError {
+    const retryAfterSeconds = parseRetryAfterSeconds(headers?.get('Retry-After') ?? null);
     if (isErrorResponseBody(payload)) {
-      return new ApiError(payload);
+      return new ApiError(payload, retryAfterSeconds);
     }
     const message =
       typeof payload === 'string' && payload.length > 0
         ? payload
         : `Request failed with status ${status}`;
-    return new ApiError({
-      timestamp: new Date().toISOString(),
-      status,
-      error: reasonPhrase(status),
-      message,
-      path: url ?? '',
-    });
+    return new ApiError(
+      {
+        timestamp: new Date().toISOString(),
+        status,
+        error: reasonPhrase(status),
+        message,
+        path: url ?? '',
+      },
+      retryAfterSeconds,
+    );
   }
 
   /** Build for a network failure — the backend is unreachable (dev backend may be off). */
@@ -125,7 +160,7 @@ export function toApiError(error: unknown): ApiError {
     if (error.status === 0) {
       return ApiError.fromNetwork();
     }
-    return ApiError.fromHttp(error.status, error.error, error.url);
+    return ApiError.fromHttp(error.status, error.error, error.url, error.headers);
   }
   return ApiError.fromNetwork();
 }

@@ -87,10 +87,17 @@ public class AuthController {
         authService.logout(request.refreshToken());
     }
 
+    /**
+     * Requests a reset code. The ack body tells the client how long to wait
+     * before re-requesting (the service's reissue cooldown). The ack is
+     * identical for a known email, an unknown email and a cooldown skip —
+     * it must never reveal whether the email exists or a send happened.
+     */
     @PostMapping("/password-reset/request")
-    public void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
+    public CodeSentDto requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
         requireRate(resetRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
         authService.requestPasswordReset(request.email());
+        return new CodeSentDto(PasswordResetService.reissueCooldownSeconds());
     }
 
     @PostMapping("/password-reset/confirm")

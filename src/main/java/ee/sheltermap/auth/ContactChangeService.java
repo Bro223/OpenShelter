@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
@@ -187,9 +188,14 @@ public class ContactChangeService {
      */
     private void enforceCooldown(Long userId, ContactChangeType type) {
         changes.findByUserIdAndType(userId, type).ifPresent(existing -> {
+            Instant now = clock.instant();
             Instant earliest = existing.getCreatedAt().plusSeconds(properties.cooldownSeconds());
-            if (clock.instant().isBefore(earliest)) {
-                throw new VerificationThrottledException();
+            if (now.isBefore(earliest)) {
+                // Same generic message as before; the countdown is anchored on
+                // the pending row's creation (the cooldown anchor).
+                long remaining = Duration.between(now, earliest).getSeconds();
+                throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                        (int) Math.max(0, remaining));
             }
         });
     }

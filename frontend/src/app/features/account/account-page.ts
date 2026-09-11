@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
@@ -8,6 +8,7 @@ import { ContributionsPanel } from './contributions-panel';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage, COPY } from '../../shared/error-copy';
 import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
+import { ResendCountdown } from '../../shared/resend-countdown';
 import type { VerificationLevel } from '../../core/models';
 
 type ChangePhase = 'form' | 'code' | 'done';
@@ -36,6 +37,11 @@ type ChangePhase = 'form' | 'code' | 'done';
  *
  * Sessions survive a contact change (only a password reset revokes refresh
  * tokens) — nothing here logs the user out.
+ *
+ * Resend cooldowns: one countdown per change type (e-mail vs phone are
+ * independent). A successful request runs it from the ack body; a cooldown
+ * 429 runs it from Retry-After. The send/resend buttons show the live label
+ * and stay disabled until it expires — no spam-clicks into a bare 429.
  */
 @Component({
   selector: 'app-account-page',
@@ -44,7 +50,7 @@ type ChangePhase = 'form' | 'code' | 'done';
   styleUrl: './account-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AccountPage {
+export class AccountPage implements OnDestroy {
   private readonly account = inject(AccountGateway);
   protected readonly auth = inject(AuthStore);
 
@@ -97,6 +103,15 @@ export class AccountPage {
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly success = signal<string | null>(null);
+
+  /** One countdown per change type — the e-mail and phone cooldowns are independent. */
+  protected readonly emailCountdown = new ResendCountdown();
+  protected readonly phoneCountdown = new ResendCountdown();
+
+  ngOnDestroy(): void {
+    this.emailCountdown.stop();
+    this.phoneCountdown.stop();
+  }
 
   /** Verified for the level? Reads the REAL claim set from the fetched profile. */
   protected verified(level: VerificationLevel): boolean {
@@ -190,13 +205,15 @@ export class AccountPage {
     this.busy.set(true);
     try {
       const target = this.newEmail.value.trim().toLowerCase();
-      await this.account.requestEmailChange(target);
+      const ack = await this.account.requestEmailChange(target);
+      this.emailCountdown.start(ack.resendAvailableAfterSeconds ?? 60);
       this.emailPhase.set('code');
       // Reviewer F5: the backend pins the target at request time — lock the
       // target input for the rest of the flow via the control's disabled
       // state (FormControlDirective swallows a [disabled] property binding).
       this.newEmail.disable();
     } catch (error) {
+      this.startCountdownFromThrottle(error, this.emailCountdown);
       this.setChangeError(error);
     } finally {
       this.busy.set(false);
@@ -230,8 +247,9 @@ export class AccountPage {
     }
   }
 
-  /** Same request path as the initial send — the backend enforces the 60 s
-   *  resend cooldown and answers 429, which we surface (no retry storm). */
+  /** Same request path as the initial send — the backend enforces the
+   *  resend cooldown and answers 429, which we surface AND run as the
+   *  button countdown (no retry storm). */
   emailResend(): Promise<void> {
     return this.emailSend();
   }
@@ -262,12 +280,14 @@ export class AccountPage {
     this.busy.set(true);
     try {
       const target = this.newPhone.value.trim();
-      await this.account.requestPhoneChange(target);
+      const ack = await this.account.requestPhoneChange(target);
+      this.phoneCountdown.start(ack.resendAvailableAfterSeconds ?? 60);
       this.phonePhase.set('code');
       // Reviewer F5: same as the email flow — the target is pinned server-
       // side at request time and locked client-side for the rest of the flow.
       this.newPhone.disable();
     } catch (error) {
+      this.startCountdownFromThrottle(error, this.phoneCountdown);
       this.setChangeError(error);
     } finally {
       this.busy.set(false);
@@ -324,5 +344,17 @@ export class AccountPage {
   private setChangeError(error: unknown): void {
     const api = error instanceof ApiError ? error : toApiError(error);
     this.error.set(api.status === 400 ? COPY.accountSameValue : bannerMessage(error, 'account'));
+  }
+
+  /**
+   * A 429 from a change request means the backend cooldown is live — run
+   * the countdown (Retry-After when the server sent one, else the default
+   * 60 s) so the button shows the wait instead of only the banner.
+   */
+  private startCountdownFromThrottle(error: unknown, countdown: ResendCountdown): void {
+    const api = error instanceof ApiError ? error : toApiError(error);
+    if (api.status === 429) {
+      countdown.start(api.retryAfterSeconds ?? 60);
+    }
   }
 }

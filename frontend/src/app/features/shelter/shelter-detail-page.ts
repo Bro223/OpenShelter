@@ -60,7 +60,8 @@ import { ReviewForm } from './review-form';
  *
  * "My review" branching lives HERE (design decision 2 — the page owns the
  * auth/verification UX, forms stay dumb):
- *   anonymous -> login prompt (returnUrl preserves the shelter)
+ *   anonymous -> plain-text login prompt (no inline button — the header
+ *                 login is the single entry point; no returnUrl to preserve)
  *   unverified -> verify prompt + link to /verify
  *   verified   -> ReviewForm (add mode, or edit mode once the user's review
  *                 is known this session — the v1 DTO has no author identity,

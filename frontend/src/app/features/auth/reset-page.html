@@ -23,8 +23,18 @@
 
         <app-banner severity="error" [message]="error()" />
 
-        <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
-          {{ pending() ? 'Sending…' : 'Email me a reset code' }}
+        <button
+          type="submit"
+          class="btn btn--primary btn--block"
+          [disabled]="pending() || countdown.active"
+        >
+          {{
+            pending()
+              ? 'Sending…'
+              : countdown.active
+                ? `Send in ${countdown.label()}`
+                : 'Email me a reset code'
+          }}
         </button>
       </form>
     }
@@ -92,9 +102,9 @@
           type="button"
           class="btn btn--ghost btn--block"
           (click)="resendCode()"
-          [disabled]="pending()"
+          [disabled]="pending() || countdown.active"
         >
-          Resend code
+          {{ countdown.active ? `Resend in ${countdown.label()}` : 'Resend code' }}
         </button>
       </form>
 

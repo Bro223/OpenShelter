@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  OnDestroy,
+  signal,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
@@ -8,6 +15,7 @@ import { VerifyGateway } from '../../gateways/verify-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
 import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
+import { ResendCountdown } from '../../shared/resend-countdown';
 
 /** The two channels this page offers. SMART_ID is deliberately NOT offered —
  *  the backend rejects it with 400 (stub in v1), see 04-CONTEXT decision 1. */
@@ -78,7 +86,10 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
  * was sent (backend AlreadyVerifiedException) — the profile is re-fetched
  * (defensive net: the store can be stale after a failed fetch) and an
  * informational notice is shown. 429 (cooldown/daily cap) and 400
- * (wrong/expired code) use generic copy; no auto-retry anywhere.
+ * (wrong/expired code) use generic copy; no auto-retry anywhere. A cooldown
+ * 429 additionally carries Retry-After — the per-channel button countdown
+ * runs from it (and from the ack body after a successful send), so the user
+ * sees the wait on the button instead of spam-clicking into a bare 429.
  */
 @Component({
   selector: 'app-verify-page',
@@ -87,7 +98,7 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
   styleUrl: './verify-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class VerifyPage {
+export class VerifyPage implements OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly verify = inject(VerifyGateway);
   private readonly route = inject(ActivatedRoute);
@@ -125,6 +136,20 @@ export class VerifyPage {
     EMAIL: signal<'idle' | 'code'>('idle'),
     PHONE: signal<'idle' | 'code'>('idle'),
   };
+
+  /**
+   * One countdown PER CHANNEL — the e-mail and phone cooldowns are
+   * independent (a sent code does not consume the other channel's wait).
+   */
+  protected readonly countdowns: Record<VerifyChannel, ResendCountdown> = {
+    EMAIL: new ResendCountdown(),
+    PHONE: new ResendCountdown(),
+  };
+
+  ngOnDestroy(): void {
+    this.countdowns.EMAIL.stop();
+    this.countdowns.PHONE.stop();
+  }
 
   /** Per-channel code inputs (public so specs can drive them — M2 page convention). */
   readonly codes: Record<VerifyChannel, FormControl<string>> = {
@@ -168,7 +193,8 @@ export class VerifyPage {
     this.notice.set(null);
     this.sending.set(level);
     try {
-      await this.verify.request(level);
+      const ack = await this.verify.request(level);
+      this.countdowns[level].start(ack.resendAvailableAfterSeconds ?? 60);
       this.phases[level].set('code');
     } catch (error) {
       const api = error instanceof ApiError ? error : toApiError(error);
@@ -179,6 +205,11 @@ export class VerifyPage {
           text: `Your ${this.channel(level).noun} is already verified.`,
         });
       } else {
+        // A cooldown 429 carries Retry-After — run the per-channel
+        // countdown from it (the banner keeps its generic copy).
+        if (api.status === 429) {
+          this.countdowns[level].start(api.retryAfterSeconds ?? 60);
+        }
         this.error.set(bannerMessage(error, 'verify'));
       }
     } finally {
