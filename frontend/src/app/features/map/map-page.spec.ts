@@ -650,13 +650,32 @@ describe('MapPage', () => {
 
     it('the CTA renders for anonymous users too (the page is public)', async () => {
       const { element } = await open('/map');
-      expect(cta(element).textContent?.trim()).toBe('Nearest shelter');
+      expect(cta(element).textContent?.trim()).toBe('Nearest listed location');
       // Anonymous: no "Add shelter" entry (login lives in the header).
       expect(
         [...element.querySelectorAll<HTMLAnchorElement>('a')].some((a) =>
           (a.textContent ?? '').includes('Add shelter'),
         ),
       ).toBe(false);
+    });
+
+    it('the safety notice names 112 and the official sources (community list, not an emergency channel)', async () => {
+      const { element } = await open('/map');
+      const notice = element.querySelector('.safety-notice');
+      expect(notice).not.toBeNull();
+      expect(notice!.textContent).toContain('not an official emergency service');
+      expect(notice!.textContent).toContain('112');
+      // Raw attribute: the href property would punycode the non-ASCII host.
+      const links = [...notice!.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
+        a.getAttribute('href'),
+      );
+      expect(links).toContain('https://www.päästeamet.ee');
+      expect(links).toContain('https://www.maaamet.ee');
+      // New tab, no referrer leakage to the official sites.
+      for (const a of notice!.querySelectorAll<HTMLAnchorElement>('a')) {
+        expect(a.target).toBe('_blank');
+        expect(a.rel).toBe('noopener');
+      }
     });
 
     it('nearest found: flies to the closest shelter at street level and emphasizes its row', async () => {
@@ -670,7 +689,7 @@ describe('MapPage', () => {
       // at the street-level SHELTER_ZOOM convention.
       expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
       // The one-line state with the found shelter's name + address.
-      expect(text(fixture)).toContain('Nearest: Kalamaja Shelter');
+      expect(text(fixture)).toContain('Nearest listed location: Kalamaja Shelter');
       expect(text(fixture)).toContain('Sadama 2, Tallinn');
       // The matching row (and only it) carries the temporary emphasis.
       const emphasized = element.querySelectorAll('.shelter-row--nearest');
@@ -749,7 +768,7 @@ describe('MapPage', () => {
       cta(element).click();
       await settle(fixture);
 
-      expect(text(fixture)).toContain('No shelters near you yet.');
+      expect(text(fixture)).toContain('No listed locations near you yet.');
       expect(element.querySelector('.nearest-line a[href="/submit"]')).not.toBeNull();
       expect(leaflet.flyToCalls).toEqual([]);
 
@@ -757,7 +776,7 @@ describe('MapPage', () => {
       store.authenticated.set(false);
       await settle(fixture);
       expect(element.querySelector('.nearest-line a[href="/submit"]')).toBeNull();
-      expect(text(fixture)).toContain('No shelters near you yet.');
+      expect(text(fixture)).toContain('No listed locations near you yet.');
     });
 
     it('the "Add shelter" CTA renders for authenticated users and links to /submit', async () => {
@@ -829,7 +848,7 @@ describe('MapPage', () => {
       await settle(fixture);
 
       expect(button.disabled).toBe(false);
-      expect(button.textContent).toContain('Nearest shelter');
+      expect(button.textContent).toContain('Nearest listed location');
       expect(button.getAttribute('aria-busy')).toBe('false');
       // F10: the success line is an aria status (the error line already
       // carries role=alert — asserted in the denied test above).
@@ -843,11 +862,11 @@ describe('MapPage', () => {
       setGeolocation(geo.fake);
       const { element, fixture } = await open('/map');
 
-      // First locate: success — the "Nearest: …" line + row emphasis are up.
+      // First locate: success — the "Nearest listed location: …" line + row emphasis are up.
       cta(element).click();
       geo.settle(USER_POSITION);
       await settle(fixture);
-      expect(text(fixture)).toContain('Nearest: Kalamaja Shelter');
+      expect(text(fixture)).toContain('Nearest listed location: Kalamaja Shelter');
       expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
 
       // Second locate: permission denied.
@@ -863,7 +882,7 @@ describe('MapPage', () => {
       expect(errorLine?.getAttribute('role')).toBe('alert');
       // No stale success state: the line AND the emphasis are gone (the
       // template chain must not short-circuit on the previous success).
-      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
       // The map stays where the first success left it — untouched.
       expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
@@ -887,7 +906,7 @@ describe('MapPage', () => {
       geo.settle(USER_POSITION); // the locate settles against the failed list
       await settle(fixture);
 
-      expect(text(fixture)).not.toContain('No shelters near you yet.');
+      expect(text(fixture)).not.toContain('No listed locations near you yet.');
       expect(element.querySelector('.banner--error')).not.toBeNull();
       expect(leaflet.flyToCalls).toEqual([]);
     });
@@ -907,8 +926,8 @@ describe('MapPage', () => {
       fixture.detectChanges();
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      // The manual selection won the map (and the "Nearest: …" line is gone).
-      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+      // The manual selection won the map (and the "Nearest listed location: …" line is gone).
+      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
     });
 
     it('a filter change clears the Nearest emphasis (D2)', async () => {
@@ -926,7 +945,7 @@ describe('MapPage', () => {
       await settle(fixture);
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
     });
   });
 

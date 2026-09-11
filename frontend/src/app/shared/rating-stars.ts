@@ -87,6 +87,14 @@ export class RatingStars {
     return this.selected() === value;
   }
 
+  /** All stars up to and including the selection render filled — picking
+   *  4 fills stars 1–4, not just star 4. (aria-checked still marks only
+   *  the actual radio value.) */
+  protected isFilled(value: number): boolean {
+    const selected = this.selected();
+    return selected !== null && value <= selected;
+  }
+
   /** Roving tabindex: the selected star (or the first when none) is reachable. */
   protected tabIndexFor(value: number): number {
     if (!this.isInputMode()) {

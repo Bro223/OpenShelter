@@ -148,6 +148,18 @@ describe('RatingStars', () => {
         'false',
         'false',
       ]);
+      // Picking 3 fills stars 1–3 (glyph + active colour), not just star 3 —
+      // the radio VALUE stays star 3 only (aria-checked above).
+      expect(
+        btns.map((b) => (b.querySelector('.star-glyph') as HTMLElement).textContent?.trim()),
+      ).toEqual(['★', '★', '★', '☆', '☆']);
+      expect(btns.map((b) => b.classList.contains('star-btn--active'))).toEqual([
+        true,
+        true,
+        true,
+        false,
+        false,
+      ]);
       // Focus follows the selection (radio pattern).
       expect(document.activeElement).toBe(btns[2]);
 

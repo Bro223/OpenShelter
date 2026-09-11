@@ -46,7 +46,7 @@
           [disabled]="locating() || loading() || error() !== null"
           [attr.aria-busy]="locating()"
         >
-          {{ locating() ? 'Finding your location…' : 'Nearest shelter' }}
+          {{ locating() ? 'Finding your location…' : 'Nearest listed location' }}
         </button>
         @if (auth.initialized() && auth.authenticated()) {
           <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
@@ -55,14 +55,14 @@
 
       @if (nearest(); as n) {
         <p class="nearest-line" role="status">
-          Nearest: {{ n.name }}
+          Nearest listed location: {{ n.name }}
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
           }
         </p>
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
-          No shelters near you yet.
+          No listed locations near you yet.
           @if (auth.initialized() && auth.authenticated()) {
             <a routerLink="/submit">You can add the first one.</a>
           }
@@ -198,6 +198,18 @@
           }
         </ul>
       }
+
+      <!-- Safety notice: the list is community-maintained and NOT an
+           official emergency channel — the straight answer to the
+           "verified user ≠ verified shelter" trust gap. 112 first, then
+           the official sources. -->
+      <p class="safety-notice">
+        OpenShelter is a community-maintained list, not an official emergency service. In an
+        emergency, call 112. Official shelter information:
+        <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">Rescue Board</a>
+        and
+        <a href="https://www.maaamet.ee" target="_blank" rel="noopener">Maa-amet</a>.
+      </p>
     </aside>
   </div>
 </section>

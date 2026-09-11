@@ -380,3 +380,16 @@
        the rationale there). */
   }
 }
+
+/* Safety notice: the community-list disclaimer (112 + official sources)
+   at the foot of the sidebar — secondary text, never crisis orange. */
+.safety-notice {
+  margin: var(--space-10) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--color-muted);
+
+  a {
+    color: var(--color-primary);
+  }
+}

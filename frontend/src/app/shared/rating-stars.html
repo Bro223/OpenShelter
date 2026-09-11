@@ -14,12 +14,12 @@
         [attr.aria-checked]="isSelected(star)"
         [attr.aria-label]="'Rate ' + star + (star === 1 ? ' star' : ' stars')"
         [attr.tabindex]="tabIndexFor(star)"
-        [class.star-btn--active]="isSelected(star)"
+        [class.star-btn--active]="isFilled(star)"
         [attr.data-value]="star"
         (click)="pick(star)"
         (keydown)="onStarKeydown($event, star)"
       >
-        <span class="star-glyph" aria-hidden="true">{{ isSelected(star) ? '★' : '☆' }}</span>
+        <span class="star-glyph" aria-hidden="true">{{ isFilled(star) ? '★' : '☆' }}</span>
       </button>
     }
   </div>
