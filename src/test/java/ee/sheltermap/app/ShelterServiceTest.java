@@ -1,6 +1,6 @@
 package ee.sheltermap.app;
 
-import ee.sheltermap.api.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;

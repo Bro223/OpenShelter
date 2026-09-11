@@ -19,7 +19,15 @@ import java.util.function.LongSupplier;
  * <ul>
  *   <li>entry pinned — only a default-port {@code http(s)://maps.app.goo.gl}
  *       URL is ever fetched (the only host the client sends; a non-default
- *       port fails the entry check as well);</li>
+ *       port fails the entry check as well). The entry is then NORMALIZED
+ *       before the walk (S5 + S6, 2026-09-11 review): {@code http} is
+ *       upgraded to {@code https} — Google does exactly this on the first
+ *       hop anyway, and without the upgrade a legitimate pasted
+ *       {@code http://…} link would be rejected by the no-scheme-change hop
+ *       rule below (a 502 for a valid link; the FE passes user URLs raw) —
+ *       and any pasted {@code user:pass@} userInfo is DROPPED so it can
+ *       never be transmitted to Google as an {@code Authorization: Basic}
+ *       header. The https-only enforcement on HOPS is unchanged;</li>
  *   <li>≤3 redirect hops, followed manually — the {@link RedirectClient}
  *       never auto-follows, so the service reads each {@code Location}
  *       header and counts the hop itself. EVERY hop target is re-validated
@@ -100,8 +108,8 @@ public class LocationResolveService {
             return Outcome.NotFound.INSTANCE;
         }
 
-        String current = start.toString();
-        String currentScheme = start.getScheme().toLowerCase(Locale.ROOT);
+        String current = normalizeEntry(start);
+        String currentScheme = "https";
         long deadlineNanos = monotonicNanos.getAsLong() + budget.toNanos();
 
         for (int hop = 0; hop < MAX_REDIRECT_HOPS; hop++) {
@@ -138,6 +146,35 @@ public class LocationResolveService {
             return Outcome.NotFound.INSTANCE;
         }
         return new Outcome.Resolved(point.lat(), point.lng());
+    }
+
+    /**
+     * The normalized entry URL for the walk (S5 + S6, 2026-09-11 review):
+     * <ul>
+     *   <li>{@code http} is UPGRADED to {@code https} — Google upgrades the
+     *       same hop itself, and the no-scheme-change rule on HOPS would
+     *       reject that first hop for a pasted {@code http://…} entry, so
+     *       the walk is pinned to https up front (S5);</li>
+     *   <li>userInfo is DROPPED — a pasted {@code https://user:pass@…} entry
+     *       must not leak the pasted credentials to Google as an
+     *       {@code Authorization: Basic} header (S6).</li>
+     * </ul>
+     * The host is re-emitted canonical (lower-case whitelist host, default
+     * port); the raw path/query/fragment are preserved as-is (no
+     * re-encoding).
+     */
+    private static String normalizeEntry(URI entry) {
+        StringBuilder normalized = new StringBuilder("https://").append(WHITELISTED_HOST);
+        if (entry.getRawPath() != null) {
+            normalized.append(entry.getRawPath());
+        }
+        if (entry.getRawQuery() != null) {
+            normalized.append('?').append(entry.getRawQuery());
+        }
+        if (entry.getRawFragment() != null) {
+            normalized.append('#').append(entry.getRawFragment());
+        }
+        return normalized.toString();
     }
 
     /**

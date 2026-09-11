@@ -11,9 +11,10 @@ become a general accent.
 ## D2 — Geolocation locate reuses the submit-page pattern
 
 Same high-accuracy flow, same per-error copy map (denied / timeout /
-unsupported / unavailable) as `submit-shelter-page.ts` — extracted or
-duplicated per the codebase's existing W9/W15 duplication convention
-(documented, not shared across features). Result: nearest shelter computed
+unsupported / unavailable) as `submit-shelter-page.ts` — deliberately
+duplicated into the map page, not imported, per the frontend's
+no-cross-feature-imports rule (frontend/docs/agent/01-TASK.md §4:
+`features` never import other features). Result: nearest shelter computed
 client-side from the already-loaded list (Haversine, no new endpoint), map
 pans/zooms to it, the matching list row is highlighted (existing row style +
 a temporary emphasis class) and the row's "View details" stays the navigator
@@ -26,7 +27,8 @@ Detail page: `<a target="_blank" rel="noopener">` (or window.open) to
 `https://www.google.com/maps/dir/?api=1&destination=lat,lng&travelmode=walking`
 with `&dir_action=navigate` omitted (walking default is fine; the phone opens
 its own navigation app choice). Apple fallback link for iOS ("Open in Apple
-Maps", `maps://?daddr=lat,lng&q=name`). Both links labeled clearly; no
+Maps", `maps://?daddr=lat,lng&q=name`). Shipped form: `https://maps.apple.com/?daddr=…&q=…`
+(https URL, not the legacy `maps://` scheme). Both links labeled clearly; no
 third-party navigation library.
 
 ## D4 — Entry points: CTA + action, no nav item

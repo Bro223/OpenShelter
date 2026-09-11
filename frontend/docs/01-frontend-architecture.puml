@@ -56,6 +56,18 @@ package "core" {
     + clear()
   }
 
+  class ThemeStore {
+    - highContrast : signal<boolean>
+    ' localStorage, key 'openshelter-theme' - only 'high-contrast' is ever
+    ' stored, light = key absent (same persistence shape as TokenStore)
+    + toggle()
+    + set(highContrast : boolean)
+    ' accessibility-and-provenance D2: sets/removes <html> data-theme
+    ' (the [data-theme='high-contrast'] block in styles.scss is the seam);
+    ' applied PRE-PAINT by the inline index.html script (no flash) - the
+    ' constructor re-asserts it, an idempotent no-op on reload
+  }
+
   class ApiInterceptor {
     + intercept(req, next)
     ' functional interceptor, registered in app.config.ts via
@@ -242,8 +254,10 @@ package "shared" {
 note bottom of shared
   Non-component helpers: form-helpers.ts (readCoordinate, capacity /
   name validators, CODE_SIX_DIGITS), shelter-copy.ts (canonical
-  "User-submitted" / rating copy) and location-input.ts (pure
-  parseLocationInput + isGooShortLink / normalizeShortLinkUrl -
+  "User-submitted" / rating copy + provenanceLabel - the single-sourced
+  four-valued provenance badge: "Paasteamet registry" / "Municipal
+  registry" / "Verified user" / "User-submitted") and location-input.ts
+  (pure parseLocationInput + isGooShortLink / normalizeShortLinkUrl -
   fixture-table-tested, zero Angular imports).
 end note
 
@@ -309,6 +323,8 @@ SubmitShelterPage --> LeafletService
 SubmitShelterPage --> BannerComponent
 ReviewForm --> RatingStars
 PageShell --> AuthStore
+' high-contrast toggle lives in the shell header (bound to ThemeStore)
+PageShell --> ThemeStore
 PageShell --> Router
 
 note bottom of PageShell

@@ -149,6 +149,28 @@ class ContactChangeServiceTest {
     }
 
     @Test
+    void incrementAttemptsIsStoreAtomicAndStopsAtTheCap() {
+        // S2 (2026-09-11 review): the lockout counter is incremented IN THE
+        // STORE, not by a read-modify-write. At the cap the increment must
+        // affect 0 rows instead of writing past the counter.
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        service.requestEmailChange(user, "mari@new.ee");
+        PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE).orElseThrow();
+
+        int max = 5;
+        for (int i = 1; i <= max; i++) {
+            assertThat(changes.incrementAttempts(pending.getId(), max)).isEqualTo(1);
+            assertThat(pending.getAttempts()).isEqualTo(i);
+        }
+        // at the cap: 0 rows updated, counter untouched
+        assertThat(changes.incrementAttempts(pending.getId(), max)).isZero();
+        assertThat(pending.getAttempts()).isEqualTo(max);
+        // unknown id: 0 rows
+        assertThat(changes.incrementAttempts(999L, max)).isZero();
+    }
+
+    @Test
     void requestEmailChangeRejectsDuplicateAndSameAsCurrent() {
         user("taken@example.ee", "+37250000002");
         RegisteredUser user = user("mari@example.ee", "+37250000001");

@@ -172,6 +172,32 @@ class AuthApiIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void loginWithDummyPasswordIsIndistinguishableFromAWrongPassword() throws Exception {
+        // S1 (2026-09-11 review): the login timing equalizer verifies an
+        // UNKNOWN contact against the Argon2 hash of the literal password
+        // "dummy" — so "dummy" PASSES the verify for a ghost account, and
+        // only the post-verify null check keeps the answer a generic 401.
+        // Pre-fix the request reached tokens.issue(null) → NPE → 500, and
+        // one unauthenticated POST /auth/login enumerated account existence
+        // (unknown+"dummy" → 500 vs known+wrong → 401).
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"ghost@example.ee\",\"password\":\"dummy\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Invalid credentials"))
+                .andExpect(jsonPath("$.error").value("Unauthorized"));
+
+        // known contact + the literal "dummy" → the identical generic 401
+        registerUser();
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"dummy\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value("Invalid credentials"))
+                .andExpect(jsonPath("$.error").value("Unauthorized"));
+    }
+
+    @Test
     void refreshRotatesAndOldRefreshIsRejected() throws Exception {
         registerUser();
         String refreshToken = loginAndGetRefreshToken();

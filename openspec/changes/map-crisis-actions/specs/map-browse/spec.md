@@ -5,9 +5,11 @@
 ### Requirement: Nearest shelter action
 
 The map page SHALL provide a "Nearest shelter" button (styled with the
-`--color-cta` safety-orange token, the only consumer of that token) that
-requests high-accuracy geolocation, computes the closest shelter from the
-already-loaded list client-side, pans and zooms the map to it, and
+`--color-cta` safety-orange token — the token's only consumers are this
+CTA and its matching row emphasis (`.shelter-row--nearest`); orange is
+the single crisis affordance) that requests high-accuracy geolocation,
+computes the closest shelter from the already-loaded list client-side,
+pans and zooms the map to it, and
 highlights the matching list row. Per-error states SHALL show specific copy
 for permission denied, timeout, unsupported, and unavailable (same
 vocabulary as the submit page's geolocation errors). An empty shelter list

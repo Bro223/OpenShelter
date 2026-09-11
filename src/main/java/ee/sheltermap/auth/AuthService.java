@@ -92,6 +92,18 @@ public class AuthService {
     /**
      * Login by email or phone. One generic error for unknown user and wrong
      * password — the API never reveals which.
+     *
+     * <p>Two guards keep the answer opaque (S1, 2026-09-11 review): the
+     * dummy-hash verify (absent user/hash verifies against
+     * {@link #DUMMY_PASSWORD_HASH}) is the TIMING guard — every login runs
+     * exactly one Argon2 verify, so latency never reveals whether the
+     * account exists; the post-verify {@code user == null} check is the
+     * EXISTENCE guard — the literal password "dummy" PASSES the dummy verify
+     * for an unknown contact, so a passing verify alone is not proof of a
+     * real account. Without the null check, {@code tokens.issue(null)}
+     * surfaces as a 500 — distinct from the 401 of a known contact with a
+     * wrong password — and one unauthenticated request enumerates account
+     * existence.
      */
     public TokenResponse login(LoginRequest request) {
         // P2 fix: normalize the phone before lookup so "51234567" matches an
@@ -112,6 +124,16 @@ public class AuthService {
                 ? DUMMY_PASSWORD_HASH
                 : stored.getPasswordHash();
         if (!passwordHasher.verify(request.password(), hashToVerify)) {
+            throw new InvalidCredentialsException();
+        }
+        // Existence guard (S1, 2026-09-11 review): verify passing is NOT a
+        // credential check — for an unknown contact the literal password
+        // "dummy" verifies against the dummy hash (the timing equalizer).
+        // Refuse here with the SAME generic error; without this check
+        // tokens.issue(null) would NPE → 500 and an unauthenticated caller
+        // could enumerate account existence (unknown+"dummy" → 500 vs
+        // known+wrong → 401).
+        if (user == null) {
             throw new InvalidCredentialsException();
         }
         return tokens.issue(user);

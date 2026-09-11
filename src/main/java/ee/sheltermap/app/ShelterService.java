@@ -1,6 +1,5 @@
 package ee.sheltermap.app;
 
-import ee.sheltermap.api.ShelterNotFoundException;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;

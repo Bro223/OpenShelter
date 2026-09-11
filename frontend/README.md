@@ -46,7 +46,8 @@ milestone manual reviews used (backend `:8080` + frontend `:5173`).
 ```
 src/
 ├── app/
-│   ├── core/          # ApiClient, ApiError, TokenStore, guards (auth/guest/verified),
+│   ├── core/          # ApiClient, ApiError, TokenStore, ThemeStore (high-contrast theme
+│   │                  #   toggle, 'openshelter-theme' localStorage key), guards (auth/guest/verified),
 │   │                  #   ApiInterceptor, titleGuard (route titles), models
 │   ├── session/       # AuthStore (session state + REAL profile from /account/me)
 │   ├── gateways/      # auth / verify / account / shelter / review / geo-gateway.ts /
@@ -54,8 +55,10 @@ src/
 │   ├── features/
 │   │   ├── auth/      # login, register, reset (guestGuard)
 │   │   ├── account/   # verify (cross-channel), contact change, ContributionsPanel (M8)
-│   │   ├── map/       # browse: Leaflet map + list + source filter (default route)
-│   │   └── shelter/   # detail + reviews (review-form), submit
+│   │   ├── map/       # browse: Leaflet map + list + source filter (default route);
+│   │   │              #   crisis actions: "Nearest shelter" CTA + "Add shelter" entry (auth-only)
+│   │   └── shelter/   # detail + reviews (review-form), submit; detail header carries the
+│   │                  #   "Navigate" + "Open in Apple Maps" deep links
 │   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent,
 │   │                  #   LoadingIndicator (real component, role=status), RatingStars,
 │   │                  #   LeafletService, error-copy, form-helpers, shelter-copy,
@@ -63,7 +66,9 @@ src/
 │   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
-└── styles.scss        # design tokens (the single source of truth) + global rules
+└── styles.scss        # design tokens (the single source of truth) + global rules;
+                       #   also the persisted [data-theme='high-contrast'] token-override block
+                       #   (styles.scss:162-255 — accessibility-and-provenance D1/D2)
 ```
 
 Dependency rule (enforced by review, not tooling): `features` → `gateways` → `core`; `features`

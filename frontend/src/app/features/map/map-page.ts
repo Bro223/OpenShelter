@@ -208,6 +208,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return; // busy, or the list itself is loading/failed — an offer state
       // would mislead
     }
+    this.nearest.set(null); // F1: drop the LAST SUCCESS up front — a failed
+    // retry must not leave the stale "Nearest: X" line (and its row
+    // emphasis, driven by the same signal) rendered next to the error.
     this.nearestError.set(null);
     this.nearestEmpty.set(false);
     if (this.shelters().length === 0) {
@@ -268,7 +271,12 @@ export class MapPage implements AfterViewInit, OnDestroy {
       }
     }
     if (nearestShelter === null) {
-      this.nearestEmpty.set(true);
+      // F5: the list may have emptied (and FAILED to load) while the locate
+      // was in flight — the error banner is the state; offering "add the
+      // first one" beside it would mislead.
+      if (this.error() === null) {
+        this.nearestEmpty.set(true);
+      }
       return;
     }
     this.nearest.set(nearestShelter);

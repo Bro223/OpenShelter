@@ -4,6 +4,7 @@ import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;

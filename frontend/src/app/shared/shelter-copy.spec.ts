@@ -27,6 +27,14 @@ describe('provenanceLabel (D4 copy)', () => {
     expect(provenanceLabel({ source: 'USER', submitterVerified: false })).toBe('User-submitted');
   });
 
+  it('USER + submitterVerified: undefined -> "User-submitted" (truthy coercion, not `!== false`)', () => {
+    // A future "fix" to `submitterVerified !== false` would start labelling
+    // a missing flag "Verified user" — this pin guards the coercion.
+    expect(
+      provenanceLabel({ source: 'USER', submitterVerified: undefined as unknown as boolean }),
+    ).toBe('User-submitted');
+  });
+
   it('registry rows are false-verified by contract (D3) and never read the flag', () => {
     // submitterVerified is only meaningful for USER rows — a stray true on a
     // registry row must not change the copy.

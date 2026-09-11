@@ -471,6 +471,28 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         (form.querySelector('button[type="submit"]') as HTMLButtonElement).textContent,
       ).toContain('Save review');
     });
+
+    it('the authenticated variant waits for the auth boot to settle (F6)', async () => {
+      // A signed-in user mid-reload: the session signals say authenticated,
+      // but init() has not DECISIVELY settled (the shell's gate pattern).
+      // Without the initialized() gate the section flashes the un-
+      // authenticated variant (and, once authenticated flips but levels are
+      // still empty, the WRONG authenticated sub-variant — the verify
+      // prompt instead of the form).
+      store.authenticated.set(true);
+      store.levels.set(['EMAIL']);
+      store.initialized.set(false);
+      const { element, fixture } = await open('/shelters/1');
+
+      expect(elText(element)).toContain('Log in to rate this shelter.');
+      expect(element.querySelector('form')).toBeNull();
+      expect(elText(element)).not.toContain('Verify your email or phone');
+
+      store.initialized.set(true);
+      await settle(fixture);
+      expect(element.querySelector('form')).not.toBeNull();
+      expect(elText(element)).not.toContain('Log in to rate this shelter.');
+    });
   });
 
   describe('writes (verified only)', () => {
@@ -831,6 +853,26 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).toContain('Shelter not found');
       expect(leaflet.destroyed).toBe(1);
       expect(leaflet.created).toBe(1); // nothing was re-created
+    });
+
+    it('an id switch clears the previous pin before the new fetch settles (F9)', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      shelterGateway.rows.set(7, userShelter());
+      const { fixture, router } = await open('/shelters/1');
+      expect(leaflet.showShelterCalls).toEqual([expect.objectContaining({ id: 1 })]);
+
+      // Manual navigation within the same route (no page re-creation):
+      // the previous shelter's pin must not sit over the map while the new
+      // fetch is in flight — the reset block clears it, the new pin lands
+      // on settle.
+      await router.navigateByUrl('/shelters/7');
+      await settle(fixture);
+
+      expect(leaflet.showShelterCalls).toEqual([
+        expect.objectContaining({ id: 1 }),
+        null, // the id switch cleared the stale pin
+        expect.objectContaining({ id: 7 }),
+      ]);
     });
 
     it('a backend error keeps the map container mounted (placeholder) without a pin', async () => {

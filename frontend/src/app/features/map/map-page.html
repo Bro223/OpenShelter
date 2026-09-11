@@ -13,7 +13,7 @@
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
-          Registry (Päästeamet / municipality)
+          Registry (Paasteamet / municipality)
         </span>
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
@@ -34,16 +34,17 @@
           class="btn btn--block map-cta"
           (click)="findNearest()"
           [disabled]="locating() || loading() || error() !== null"
+          [attr.aria-busy]="locating()"
         >
           {{ locating() ? 'Finding your location…' : 'Nearest shelter' }}
         </button>
-        @if (auth.authenticated()) {
+        @if (auth.initialized() && auth.authenticated()) {
           <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
         }
       </div>
 
       @if (nearest(); as n) {
-        <p class="nearest-line">
+        <p class="nearest-line" role="status">
           Nearest: {{ n.name }}
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
@@ -52,7 +53,7 @@
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
           No shelters near you yet.
-          @if (auth.authenticated()) {
+          @if (auth.initialized() && auth.authenticated()) {
             <a routerLink="/submit">You can add the first one.</a>
           }
         </p>

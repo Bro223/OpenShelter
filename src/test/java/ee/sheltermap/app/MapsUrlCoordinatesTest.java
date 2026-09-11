@@ -59,6 +59,18 @@ class MapsUrlCoordinatesTest {
                     "https://maps.app.goo.gl/abc123"),
             Case.none("outside Estonia in both orders (Paris)",
                     "https://www.google.com/maps?q=48.858,2.294"),
+            // F2-BE (2026-09-11 review): Estonian decimal-comma parity with
+            // the FE H4 guard — a comma decimal with no point decimal in the
+            // coordinate-carrying segment is a decimal-mark misuse, NOT a
+            // pair. (58, 25) sits INSIDE the Estonia box, so these rows
+            // prove the guard, not the bbox. Case names mirror the FE spec
+            // fixtures exactly.
+            Case.none("url-param-decimal-comma",
+                    "https://www.google.com/maps?ll=58,25"),
+            Case.none("url-q-decimal-comma",
+                    "https://www.google.com/maps?q=58,25"),
+            Case.none("url-atpath-decimal-comma",
+                    "https://www.google.com/maps/place/@58,25,17z"),
             Case.none("garbage",
                     "https://maps.app.goo.gl/!!!"));
 

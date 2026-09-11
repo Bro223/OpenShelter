@@ -3,10 +3,10 @@ package ee.sheltermap.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Startup guard for the {@code /dev/*} diagnostic endpoints (wave-2, W17) —
@@ -20,13 +20,14 @@ import java.util.List;
  * would activate an authenticated e-mail/SMS relay on the public surface.
  *
  * <p>The rule is profile-keyed, not name-keyed (dev parity, like
- * {@link ProdJwtGuard}):
+ * {@link ProdJwtGuard}) — read from the resolved {@link Environment}
+ * active set, not the raw property (S3, 2026-09-11 review):
  *
  * <ul>
- *   <li>When the ENTIRE active profile set (comma list, trimmed) is a
+ *   <li>When the ENTIRE active profile set (the resolved set — S3) is a
  *       subset of exactly {@code dev} and {@code test} (and non-blank) →
  *       no check — the flags exist precisely to exercise the real channels
- *       locally. A mixed list like {@code production,dev} is NOT exempt
+ *       locally. A mixed set like {@code production,dev} is NOT exempt
  *       (2026-09-10 review M2: the old any-match let one stray entry
  *       disable the guard).</li>
  *   <li>Otherwise (blank profile, {@code production}, {@code prod-*},
@@ -41,29 +42,23 @@ public class DevEndpointsGuard {
 
     private static final Logger log = LoggerFactory.getLogger(DevEndpointsGuard.class);
 
-    public DevEndpointsGuard(@Value("${spring.profiles.active:}") String profiles,
+    public DevEndpointsGuard(Environment env,
                              @Value("${app.dev-email-test.enabled:false}") boolean emailTestEnabled,
                              @Value("${app.dev-sms-test.enabled:false}") boolean smsTestEnabled) {
-        List<String> active = Arrays.stream(profiles.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-        // M2: exempt only when the WHOLE active set is a subset of
-        // {dev, test} — "production,dev" is not a dev deploy.
-        boolean devLike = !active.isEmpty()
-                && active.stream().allMatch(p -> p.equals("dev") || p.equals("test"));
-        if (devLike || (!emailTestEnabled && !smsTestEnabled)) {
+        // S3: the resolved active profile set (groups/defaults only
+        // materialize in the ENVIRONMENT, not the raw property).
+        if (Profiles.isDevTestOnly(env) || (!emailTestEnabled && !smsTestEnabled)) {
             return; // dev/test parity, or no dev diagnostic surface is activated at all
         }
         String flags = enabledFlagNames(emailTestEnabled, smsTestEnabled);
         // Loud log + loud rejection — never boot with an authenticated
         // e-mail/SMS relay on a non-dev/test profile.
         log.error("REFUSING TO START — dev diagnostic endpoint(s) {} enabled on a non-dev/test "
-                        + "profile: active profiles=[{}].", flags, profiles);
+                        + "profile: active profiles={}.", flags, Arrays.toString(env.getActiveProfiles()));
         throw new IllegalStateException(
                 "PRODUCTION REFUSED TO START: dev diagnostic endpoint(s) " + flags
-                        + " enabled with active profiles=[" + profiles
-                        + "]. The /dev/* test endpoints are dev-only — unset DEV_EMAIL_TEST_ENABLED / "
+                        + " enabled with active profiles=" + Arrays.toString(env.getActiveProfiles())
+                        + ". The /dev/* test endpoints are dev-only — unset DEV_EMAIL_TEST_ENABLED / "
                         + "DEV_SMS_TEST_ENABLED, or run with SPRING_PROFILES_ACTIVE=dev/test for local "
                         + "development.");
     }

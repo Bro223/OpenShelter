@@ -3,28 +3,27 @@ package ee.sheltermap.config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.List;
 
 /**
  * Startup guard (hardening pass, reworked for the 2026-09-08 review W3) —
  * <strong>fails closed on the secret, not the profile name.</strong>
  *
- * <p>The old guard only refused to boot when a profile was literally
- * {@code prod}; a deploy that shipped with a BLANK profile (or any
- * non-{@code prod} name) and the dev-only default secret would still start
- * and silently sign forgeable tokens. The rule now is inverted:
+ * <p>The rule (S3, 2026-09-11 review: profile set read from the
+ * {@link Environment}, not the raw property string — groups/defaults are
+ * only visible in the resolved set) is inverted:
  *
  * <ul>
- *   <li>When the ENTIRE active profile set (comma list, trimmed) is a
- *       subset of exactly {@code dev} and {@code test} (and non-blank) →
- *       no check (dev parity — the published default secret is the point
- *       there). A mixed list like {@code production,dev} is NOT exempt
- *       (2026-09-10 review M2: the old any-match let one stray entry
- *       disable the guard).</li>
+ *   <li>When the ENTIRE active profile set (the ENVIRONMENT's resolved set
+ *       — S3) is a subset of exactly {@code dev} and {@code test} (and
+ *       non-blank) → no check (dev parity — the published default secret
+ *       is the point there). A mixed set like {@code production,dev} is
+ *       NOT exempt (2026-09-10 review M2: the old any-match let one stray
+ *       entry disable the guard).</li>
  *   <li>Otherwise (blank profile, {@code production}, {@code prod-*},
  *       anything else) → refuse to boot when {@code app.jwt.secret} equals
  *       the published dev default ({@link #DEV_DEFAULT_SECRET}) <em>or</em>
@@ -45,17 +44,13 @@ public class ProdJwtGuard {
 
     private static final Logger log = LoggerFactory.getLogger(ProdJwtGuard.class);
 
-    public ProdJwtGuard(@Value("${spring.profiles.active:}") String profiles,
+    public ProdJwtGuard(Environment env,
                         @Value("${app.jwt.secret:}") String secret) {
-        List<String> active = Arrays.stream(profiles.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-        // M2: exempt only when the WHOLE active set is a subset of
-        // {dev, test} — "production,dev" is not a dev deploy.
-        boolean devLike = !active.isEmpty()
-                && active.stream().allMatch(p -> p.equals("dev") || p.equals("test"));
-        if (devLike) {
+        // S3: the resolved active profile set (profile groups and
+        // spring.profiles.default only materialize in the ENVIRONMENT, not
+        // in the raw property). M2: exempt only when the WHOLE active set
+        // is a subset of {dev, test} — "production,dev" is not a dev deploy.
+        if (Profiles.isDevTestOnly(env)) {
             return; // dev/test parity: the published default secret is expected here
         }
         if (DEV_DEFAULT_SECRET.equals(secret)
@@ -65,9 +60,9 @@ public class ProdJwtGuard {
                     : "app.jwt.secret is shorter than " + MIN_SECRET_BYTES + " bytes (HS256 minimum)";
             // Loud log + loud rejection — a misconfigured deploy must fail the
             // boot, never run with a forgeable signing key.
-            log.error("REFUSING TO START — {}: active profiles=[{}]. Set JWT_SECRET to a strong random value "
-                    + "(>= {} bytes, not the published dev default) or run with SPRING_PROFILES_ACTIVE=dev.",
-                    reason, profiles, MIN_SECRET_BYTES);
+            log.error("REFUSING TO START — {}: active profiles={}. Set JWT_SECRET to a strong random value "
+                            + "(>= {} bytes, not the published dev default) or run with SPRING_PROFILES_ACTIVE=dev.",
+                    reason, Arrays.toString(env.getActiveProfiles()), MIN_SECRET_BYTES);
             throw new IllegalStateException(
                     "PRODUCTION REFUSED TO START: " + reason + ". Set JWT_SECRET to a strong random value "
                             + "(>= " + MIN_SECRET_BYTES + " bytes, not the published dev default), or run with "

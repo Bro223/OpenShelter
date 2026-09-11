@@ -76,6 +76,11 @@ const DECIMAL_COMMA_PATTERN = /\d+,\d+/;
 /** A point used as the decimal mark (58.25) — or a host/version like 212.50 / v1.2. */
 const POINT_DECIMAL_PATTERN = /\d+\.\d+/;
 
+/** One detail string for EVERY decimal-comma rejection (plain, DMS, mixed,
+ *  URL) so the page copy stays in sync (n2/H4). */
+const DECIMAL_COMMA_DETAIL =
+  'Estonian decimal-comma detected — the comma is the decimal mark, a point is required';
+
 /**
  * The Estonian decimal-comma guard (H4 — data integrity): the app's target
  * locale writes the decimal mark as a comma, but the pair grammar only
@@ -87,21 +92,45 @@ const POINT_DECIMAL_PATTERN = /\d+\.\d+/;
  *
  * The rule: a comma-decimal token is present AND no point-decimal anywhere
  * in the text. `59.4370, 24.7535` (comma as separator) carries a point ->
- * parses normally. `59,4370 24.75` (mixed) carries a point -> NOT flagged;
- * the plain scan takes the (59, 4370) separator pair, which the bbox gate
- * rejects as out-of-bounds. For URLs the host always carries dots, so the
- * caller passes the part of the URL that can carry coordinates (see
- * `urlPair`) and the same "no point at all" rule applies to that part.
+ * parses normally. A MIX of comma-decimals and point-decimals across tokens
+ * (`59,4370 24.75`) is caught by {@link hasMixedDecimalMarks} instead — same
+ * reason, and the guard's copy explains the fix where the bbox gate's
+ * "outside Estonia" would misdiagnose it (F7). For URLs the host always
+ * carries dots, so the caller runs this guard on the segment that can carry
+ * coordinates (see `urlPair`) rather than the whole URL.
  */
 function decimalCommaFailure(text: string): ParseLocationResult | null {
   if (DECIMAL_COMMA_PATTERN.test(text) && !POINT_DECIMAL_PATTERN.test(text)) {
-    return {
-      reason: 'decimal-comma',
-      detail:
-        'Estonian decimal-comma detected — the comma is the decimal mark, a point is required',
-    };
+    return { reason: 'decimal-comma', detail: DECIMAL_COMMA_DETAIL };
   }
   return null;
+}
+
+/**
+ * True when the text mixes the two decimal marks ACROSS tokens — a
+ * comma-decimal in one token and a point-decimal in another (F7, the input
+ * `59,4370 24.75`). The separator grammar would read (59, 4370) and the bbox
+ * gate would reject it as "outside Estonia" — a wrong diagnosis; the real
+ * problem is the mixed separators, which the decimal-comma copy names.
+ *
+ * A comma INSIDE a point-decimal pair (`59.4370, 24.7535` — comma as
+ * separator) is not a decimal mark: the comma-decimal match there starts
+ * immediately after a point (its left digits are the fractional part of the
+ * point-decimal), which the check excludes.
+ */
+function hasMixedDecimalMarks(text: string): boolean {
+  if (!POINT_DECIMAL_PATTERN.test(text)) {
+    return false;
+  }
+  const commaDecimal = /\d+,\d+/g;
+  let match: RegExpExecArray | null;
+  while ((match = commaDecimal.exec(text)) !== null) {
+    const before = match.index > 0 ? text.charAt(match.index - 1) : '';
+    if (before !== '.') {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -157,14 +186,6 @@ function toDecimalPair(text: string): [number, number] | null {
 }
 
 /** Extract the pair carried by one URL query param value (comma/space/'+'-separated). */
-function paramPair(url: string, pattern: RegExp): [number, number] | null {
-  const param = pattern.exec(url);
-  if (!param) {
-    return null;
-  }
-  return toDecimalPair(param[1]);
-}
-
 function dmsTokens(text: string): DmsToken[] {
   DMS_TOKEN_PATTERN.lastIndex = 0;
   const tokens: DmsToken[] = [];
@@ -216,11 +237,27 @@ function plainPair(text: string): [number, number] | null {
   return [Number(decimals[0]), Number(decimals[1])];
 }
 
-/** URL branch (design decision 2a): known patterns first, then the generic pair. */
+/** URL branch (design decision 2a): known patterns first, then the generic pair.
+ *  F2 (H4): every coordinate-carrying segment runs the decimal-comma guard
+ *  BEFORE the pair is trusted — the known-pattern paths used to extract the
+ *  pair ahead of the guard, so `?ll=58,25&q=x` pinned the integer (58, 25),
+ *  ~27 km off (a silent wrong pin, the app's declared top risk). */
 function urlPair(url: string): ParseLocationResult {
   for (const pattern of QUERY_PARAM_PATTERNS) {
-    const pair = paramPair(url, pattern);
+    const param = pattern.exec(url);
+    if (param === null) {
+      continue;
+    }
+    const pair = toDecimalPair(param[1]);
     if (pair !== null) {
+      // The guard runs on the segment that actually yields the pair — the
+      // raw param VALUE. A street+postal value such as `Kadriori 5,12345`
+      // that yields the (5, 12345) separator pair is labelled decimal-comma
+      // too: the rejection is the same, the copy just names the real fix.
+      const commaFailure = decimalCommaFailure(param[1]);
+      if (commaFailure !== null) {
+        return commaFailure;
+      }
       return gateWithSwap(pair[0], pair[1]);
     }
   }
@@ -230,6 +267,11 @@ function urlPair(url: string): ParseLocationResult {
   }
   const at = AT_COORD_PATTERN.exec(url);
   if (at !== null) {
+    // The same guard on the matched @lat,lng span.
+    const commaFailure = decimalCommaFailure(at[0]);
+    if (commaFailure !== null) {
+      return commaFailure;
+    }
     return gateWithSwap(Number(at[1]), Number(at[2]));
   }
   // Estonian decimal-comma in the generic fallback (H4): the scheme+host is
@@ -278,6 +320,17 @@ export function parseLocationInput(text: string): ParseLocationResult {
   const hasHemisphere = HEMISHERE_ADMONST_PATTERN.test(trimmed);
   if (hasDegree || hasHemisphere) {
     const tokens = dmsTokens(trimmed);
+    // F3 (H4): an Estonian comma-decimal anywhere in a DMS input
+    // (`59°26,5' 24°45'`) — the minutes/seconds groups only read POINT
+    // decimals, so without this the decimal part is silently DROPPED (the
+    // token shrinks to its degrees; hemisphere letters go unconsumed) and
+    // the remaining components can still pin a plausible point ~49 km off,
+    // inside the Estonia box. No guessing: decimal-comma. (The whole input
+    // is checked, not just the matched token spans: a comma-minute shrinks
+    // the span to the degree and would escape a span-only scan.)
+    if (DECIMAL_COMMA_PATTERN.test(trimmed)) {
+      return { reason: 'decimal-comma', detail: DECIMAL_COMMA_DETAIL };
+    }
     if (tokens.length >= 2) {
       return dmsToPair(tokens);
     }
@@ -310,10 +363,12 @@ export function parseLocationInput(text: string): ParseLocationResult {
   }
 
   // Estonian decimal-comma (H4): refuse BEFORE the separator grammar can
-  // read comma-decimals as an integer pair (no silent wrong pin).
-  const commaFailure = decimalCommaFailure(trimmed);
-  if (commaFailure !== null) {
-    return commaFailure;
+  // read comma-decimals as an integer pair (no silent wrong pin). A MIX of
+  // comma-decimals and point-decimals across tokens (F7, `59,4370 24.75`)
+  // is the same data problem — the guard's copy explains the fix where the
+  // bbox gate's "outside Estonia" would misdiagnose it.
+  if (decimalCommaFailure(trimmed) !== null || hasMixedDecimalMarks(trimmed)) {
+    return { reason: 'decimal-comma', detail: DECIMAL_COMMA_DETAIL };
   }
   const pair = plainPair(trimmed);
   if (pair !== null) {

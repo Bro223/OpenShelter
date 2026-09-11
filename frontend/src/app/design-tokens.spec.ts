@@ -131,6 +131,191 @@ describe('design tokens (M6)', () => {
     }
   });
 
+  /* --- F4: the theme is pinned HARD — name-set equality (both directions)
+     + the contrast math behind the styles.scss "verified for this palette"
+     comment. The math runs on the token LITERALS, so a value edit that
+     breaks a WCAG threshold fails the suite instead of drifting. --- */
+
+  /** WCAG 2.1 relative luminance of a #rrggbb / #rgb colour. */
+  function relativeLuminance(hex: string): number {
+    let value = hex.replace('#', '').trim();
+    if (value.length === 3) {
+      value = value
+        .split('')
+        .map((c) => c + c)
+        .join('');
+    }
+    const channel = (part: string): number => {
+      const c = Number.parseInt(part, 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+    return (
+      0.2126 * channel(value.slice(0, 2)) +
+      0.7152 * channel(value.slice(2, 4)) +
+      0.0722 * channel(value.slice(4, 6))
+    );
+  }
+
+  /** WCAG contrast ratio (>= 1) between two colours. */
+  function contrast(foreground: string, background: string): number {
+    const [hi, lo] = [relativeLuminance(foreground), relativeLuminance(background)].sort(
+      (a, b) => b - a,
+    );
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  /** --color* token name -> literal value, from one token block's lines. */
+  function colorTokens(lines: Set<number>): Map<string, string> {
+    const out = new Map<string, string>();
+    const css = stylesCss.split('\n');
+    for (const i of lines) {
+      const match = css[i].match(/(--color-[\w-]+)\s*:\s*([^;]+);/);
+      if (match !== null) {
+        out.set(match[1], match[2].trim());
+      }
+    }
+    return out;
+  }
+
+  const rootTokens = colorTokens(rootLines);
+  const themeTokens = colorTokens(themeLines);
+
+  type ContrastPair = { theme: 'light' | 'high-contrast'; fg: string; bg: string; min: number };
+
+  const TEXT_PAIRS: [string, string][] = [
+    // Body text on every surface it actually renders on.
+    ['--color-text', '--color-bg'],
+    ['--color-text', '--color-bg-surface'],
+    ['--color-text', '--color-bg-subtle'],
+    ['--color-text', '--color-surface-hover'],
+    ['--color-muted', '--color-bg'],
+    ['--color-muted', '--color-bg-surface'],
+    ['--color-muted', '--color-bg-subtle'],
+    ['--color-muted', '--color-surface-hover'],
+    // Banner text on its own fill (BannerComponent severity backgrounds).
+    ['--color-danger', '--color-danger-bg'],
+    ['--color-warning', '--color-warning-bg'],
+    ['--color-info', '--color-info-bg'],
+    ['--color-success', '--color-success-bg'],
+    // Review-form error text on the page surface.
+    ['--color-error', '--color-bg-surface'],
+    // Button text: btn--primary and the crisis CTA both set their text to
+    // --color-bg-surface (light: white on blue/orange; high-contrast flips
+    // to dark on the brightened fills — both directions checked).
+    ['--color-bg-surface', '--color-primary'],
+    ['--color-bg-surface', '--color-cta'],
+    // Provenance badge text on its fill (shelter-detail-page .badge). The
+    // map rows use the same pair over a 12% color-mix — that computed fill
+    // is covered by the styles.scss D1 note, not this literal-based check.
+    ['--color-shelter-registry', '--color-badge-registry'],
+    ['--color-shelter-user', '--color-badge-user'],
+  ];
+
+  const CONTRAST_CHECKS: ContrastPair[] = [
+    // Text: WCAG AA 4.5:1.
+    ...TEXT_PAIRS.flatMap(([fg, bg]) =>
+      (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 4.5 })),
+    ),
+    // Non-text (UI component boundary / graphical object): 3:1.
+    ...(
+      [
+        ['--color-border', '--color-bg-surface'],
+        ['--color-border', '--color-bg'],
+        ['--color-star-filled', '--color-bg-surface'],
+        ['--color-star-empty', '--color-bg-surface'],
+      ] as [string, string][]
+    ).flatMap(([fg, bg]) =>
+      (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
+    ),
+  ];
+
+  /** Documented sub-threshold tokens — the honest complement of the checks
+   *  above. The "exemptions are honest" test below verifies each pair
+   *  really is below its threshold, so a token that gets fixed MUST be
+   *  moved back into the checks (a stale exemption fails the suite). */
+  const CONTRAST_EXEMPTIONS: (ContrastPair & { reason: string })[] = [
+    {
+      theme: 'light',
+      fg: '--color-border',
+      bg: '--color-bg-surface',
+      min: 3,
+      reason:
+        'non-text input/card boundary (1.42:1) — borders are not text; the control is identified by its fill + label',
+    },
+    {
+      theme: 'light',
+      fg: '--color-border',
+      bg: '--color-bg',
+      min: 3,
+      reason: 'non-text card/list-row boundary (1.36:1) — same rationale as vs the surface',
+    },
+    {
+      theme: 'light',
+      fg: '--color-star-filled',
+      bg: '--color-bg-surface',
+      min: 3,
+      reason:
+        'decorative glyph (2.16:1) — the rating value is carried by the aria-label (rating-stars.spec)',
+    },
+    {
+      theme: 'light',
+      fg: '--color-star-empty',
+      bg: '--color-bg-surface',
+      min: 3,
+      reason: 'decorative glyph (1.58:1) — the unfilled star carries no information on its own',
+    },
+  ];
+
+  const isPlainHex = (v: string): boolean => /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v);
+
+  it('the high-contrast block overrides the SAME --color* name set as :root (both directions)', () => {
+    expect(rootTokens.size, ':root token set unexpectedly small').toBeGreaterThanOrEqual(30);
+    const missingInTheme = [...rootTokens.keys()].filter((t) => !themeTokens.has(t));
+    const missingInRoot = [...themeTokens.keys()].filter((t) => !rootTokens.has(t));
+    expect(missingInTheme, ':root tokens missing from the high-contrast block').toEqual([]);
+    expect(missingInRoot, 'high-contrast tokens missing from :root').toEqual([]);
+  });
+
+  it('every contrast-checked text pair meets 4.5:1 and border/star pairs 3:1, in both themes', () => {
+    const exempted = new Set(CONTRAST_EXEMPTIONS.map((e) => `${e.theme}:${e.fg}:${e.bg}`));
+    const offenders: string[] = [];
+    for (const check of CONTRAST_CHECKS) {
+      if (exempted.has(`${check.theme}:${check.fg}:${check.bg}`)) {
+        continue; // documented sub-threshold token — verified by the honesty test below
+      }
+      const tokens = check.theme === 'light' ? rootTokens : themeTokens;
+      const fg = tokens.get(check.fg);
+      const bg = tokens.get(check.bg);
+      if (fg === undefined || bg === undefined || !isPlainHex(fg) || !isPlainHex(bg)) {
+        offenders.push(
+          `${check.theme}: ${check.fg} on ${check.bg} — token missing or not a plain hex literal`,
+        );
+        continue;
+      }
+      const ratio = contrast(fg, bg);
+      if (ratio < check.min) {
+        offenders.push(
+          `${check.theme}: ${check.fg} on ${check.bg} = ${ratio.toFixed(2)}:1 (< ${check.min}:1)`,
+        );
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('every contrast exemption is honest (the pair really is below its threshold)', () => {
+    const stale: string[] = [];
+    for (const exempted of CONTRAST_EXEMPTIONS) {
+      const tokens = exempted.theme === 'light' ? rootTokens : themeTokens;
+      const ratio = contrast(tokens.get(exempted.fg)!, tokens.get(exempted.bg)!);
+      if (ratio >= exempted.min) {
+        stale.push(
+          `${exempted.theme}: ${exempted.fg} on ${exempted.bg} now = ${ratio.toFixed(2)}:1 — move it back into the checks`,
+        );
+      }
+    }
+    expect(stale).toEqual([]);
+  });
+
   it.each(audited)('%s — no literal colour values', (_name, css, isGlobal) => {
     if (isGlobal) {
       return; // the token block is allowed (checked above)

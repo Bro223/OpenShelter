@@ -2,7 +2,7 @@
 title Shelter Map - Shelter API (read + write + community reviews)
 ' Thin controllers (Ch 1: service providers for HTTP) - parse, validate, delegate, map. No business logic.
 ' DTO records are the versioned contract with the frontend (Vue/Angular).
-' Depends only on interfaces from other contexts (01): ShelterRepository, ShelterReviewRepository, ShelterService.
+' Depends only on interfaces from other contexts (01): ShelterRepository, ShelterReviewRepository, ShelterService, UserRepository.
 
 package "api" {
   class ShelterController {
@@ -78,7 +78,8 @@ package "api" {
     + capacity : Integer
     + submitterVerified : boolean  ' accessibility-and-provenance D3: creator
                                    ' exists + verification COMPLETED; false for
-                                   ' registry rows (no author)
+                                   ' registry rows (no author) and for deleted
+                                   ' creators (absent from the findByIds batch)
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
     ' the UI gets only what the map needs.
@@ -197,6 +198,7 @@ AccountController --> ShelterRepository : findByIds (batched names, 01)
 AccountController --> MyReviewDto : returns
 ShelterController --> ErrorResponse : 400/401/403/404/429
 ShelterQueryService --> ShelterRepository : reads (interface, 01)
+ShelterQueryService --> UserRepository : creator verification batch (interface, 01)
 ShelterQueryService --> Shelter : maps to DTO
 ShelterQueryService --> ShelterDto : returns
 

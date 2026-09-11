@@ -3,6 +3,7 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.auth.DuplicateAccountException;
 import ee.sheltermap.auth.InvalidContactChangeException;

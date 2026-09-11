@@ -207,7 +207,10 @@ public class ContactChangeService {
 
     /**
      * Checks the code against the pending change. A WRONG code increments
-     * the attempts and returns the user-facing message — the increment is
+     * the attempts ATOMICALLY at the store (a conditional UPDATE — S2,
+     * 2026-09-11 review: the old read-modify-write lost updates under a
+     * concurrent wrong-code burst, every request reading attempts=k and
+     * writing k+1) and returns the user-facing message — the failure is
      * then committed by the enclosing transaction (the method returns, it
      * never throws for it), which is what makes the lockout persist across
      * HTTP calls (2026-09-10 review H2: the old throw-inside-transaction
@@ -222,12 +225,18 @@ public class ContactChangeService {
         if (change.isExpired(now)) {
             return "Code expired, request a new one";
         }
+        // Fast path — the already-persisted counter decides before any write.
         if (change.isAttemptExhausted(properties.maxAttempts())) {
             return "Too many attempts, request a new code";
         }
         if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
-            change.registerFailedAttempt();
-            changes.save(change);
+            // The row-level UPDATE is the lock: 0 rows updated means another
+            // confirm already reached the cap (or the row is gone) — straight
+            // to the lockout message, never past the counter.
+            int updated = changes.incrementAttempts(change.getId(), properties.maxAttempts());
+            if (updated == 0) {
+                return "Too many attempts, request a new code";
+            }
             return "Invalid code";
         }
         return null;

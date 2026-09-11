@@ -5,7 +5,9 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,6 +89,38 @@ class LocationResolveServiceTest {
         // whitelist is host AND default port, not just host
         assertThatNotFound(service.resolve("http://maps.app.goo.gl:8080/abc"));
         assertThat(client.fetches).isZero();
+    }
+
+    @Test
+    void httpEntryIsUpgradedToHttpsBeforeTheFirstFetch() {
+        // S5 (2026-09-11 review): a pasted http://maps.app.goo.gl/… link is
+        // legitimate — Google upgrades it to https on the first hop, and
+        // the no-scheme-change rule would reject THAT hop without the entry
+        // upgrade (502 for a valid link). The walk must start on https.
+        client.hop(redirect("https://www.google.com/maps?q=59.437,24.753"))
+                .hop(new RedirectClient.RedirectHop(200, null));
+
+        assertThatResolved(service.resolve("http://maps.app.goo.gl/abc"), 59.437, 24.753);
+        assertThat(client.fetches).isEqualTo(2);
+        // the first fetch is the NORMALIZED entry — https, never http
+        assertThat(client.fetched.get(0)).isEqualTo("https://maps.app.goo.gl/abc");
+        // and the hop to https Google is accepted (no scheme change any more)
+        assertThat(client.fetched.get(1)).isEqualTo("https://www.google.com/maps?q=59.437,24.753");
+    }
+
+    @Test
+    void entryUserInfoIsStrippedBeforeTheFirstFetch() {
+        // S6 (2026-09-11 review): a pasted https://user:pass@maps.app.goo.gl/…
+        // entry passes the host check but must not transmit an
+        // Authorization: Basic header to Google — the userInfo is dropped
+        // when the entry is normalized.
+        client.hop(redirect("https://www.google.com/maps?q=59.437,24.753"))
+                .hop(new RedirectClient.RedirectHop(200, null));
+
+        assertThatResolved(service.resolve("https://user:pass@maps.app.goo.gl/abc"), 59.437, 24.753);
+        // no fetch may carry the pasted credentials
+        assertThat(client.fetched.get(0)).isEqualTo("https://maps.app.goo.gl/abc");
+        assertThat(client.fetched).noneMatch(url -> url.contains("user:pass@"));
     }
 
     @Test
@@ -272,6 +306,7 @@ class LocationResolveServiceTest {
         private final Deque<Object> script = new ArrayDeque<>(); // RedirectHop | IOException
         int fetches;
         String lastFetched;
+        final List<String> fetched = new ArrayList<>();
 
         ScriptedClient hop(RedirectHop hop) {
             script.add(hop);
@@ -287,6 +322,7 @@ class LocationResolveServiceTest {
         public RedirectHop fetch(String url) throws IOException {
             fetches++;
             lastFetched = url;
+            fetched.add(url);
             Object step = script.poll();
             if (step instanceof IOException ex) {
                 throw ex;

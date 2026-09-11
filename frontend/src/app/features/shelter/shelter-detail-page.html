@@ -113,7 +113,7 @@
 
       <section class="detail-section" aria-labelledby="my-review-heading">
         <h2 class="section-title" id="my-review-heading">Your review</h2>
-        @if (auth.authenticated()) {
+        @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <app-review-form
               [mode]="myReview() ? 'edit' : 'add'"

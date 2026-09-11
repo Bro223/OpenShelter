@@ -231,6 +231,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.reviewsError.set(null);
     this.myReview.set(null);
     this.notice.set(null);
+    // F9: clear the PREVIOUS shelter's pin (showShelter(null) is the
+    // service's clear API) — the new fetch's pin lands on settle; without
+    // this the stale marker sits over the map during the load.
+    this.leaflet.showShelter(null);
     this.load();
   }
 

@@ -56,7 +56,9 @@ The backend (Spring Boot, same repo, `src/`) is **complete and green (321 tests,
 | `features/shelter/`  `ShelterDetailPage` (header carries the coordinate line + the "Navigate" / "Open in Apple Maps" deep links; header badge = the four-valued provenance chip per D4), `SubmitShelterPage`, `ReviewForm` (`RatingStars` moved to `shared/`)                                                                                                                                                                                                                                                                                                         `01`+`05`      |
 | `shared/`            `PageShell` (brand + nav + shell actions, incl. the high-contrast theme toggle bound to `ThemeStore`), `BannerComponent`, `LoadingIndicator` (a REAL component now, `role=status`, tokens only), `RatingStars`, `LeafletService` — plus non-component helpers `form-helpers.ts` (readCoordinate, capacity/name validators, `CODE_SIX_DIGITS`), `shelter-copy.ts` (canonical source/rating copy + `provenanceLabel` — the single-sourced four-valued provenance badge: "Paasteamet registry" / "Municipal registry" / "Verified user" / "User-submitted"; legend/filter chip wording stays the two-valued `sourceLabel` copy) and `location-input.ts` (pure location-string parser: `parseLocationInput`, `isGooShortLink`, `normalizeShortLinkUrl` — fixture-table-tested, no Angular imports)                   `01`           |
 
-**Dependency rule (never break it):** `features` → `gateways` → `core`. Components never call
+**Dependency rule (never break it):** `features` → `gateways` → `core`; `features` also reach
+`shared/` and `session/` directly, and `shared/` may import `core/` (established:
+`leaflet-service.ts`, `error-copy.ts`). Components never call
 `HttpClient` or touch `TokenStore` internals; gateways are the only door to the API. No cycles.
 
 ## 5. Non-negotiable rules

@@ -17,12 +17,14 @@ shelter submission, community reviews); run/build docs in
 ## Status
 
 - ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
-  backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave).
+  backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave) —
+  2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
 - ✅ **2026-09-08 code-review fix campaign** — a 4-lead/13-child review found P0 security
   issues (reset-code brute force, XFF rate-limit spoofing, fail-open dev JWT secret) plus
   backend/frontend/architecture findings; all in-scope findings were fixed over 3 waves with
   tests (see [2026-09-08 code review — fix log](docs/code-review/2026-09-08-fix-log.md)).
-  Frontend: **513 tests green across 33 spec files** (counted 2026-09-10, pre-fix-wave).
+  Frontend: **513 tests green across 33 spec files** (counted 2026-09-10, pre-fix-wave) —
+  2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
@@ -239,7 +241,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 321 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; expect 360 green)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)

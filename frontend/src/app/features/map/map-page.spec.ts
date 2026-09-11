@@ -133,18 +133,37 @@ function stubGeolocation(behavior: {
   return getCurrentPosition;
 }
 
-/** A geolocation fake the test settles BY HAND (locating-state assertions). */
+/** A geolocation fake the test settles BY HAND (locating-state
+ *  assertions). Requests are QUEUED in call order — settle()/fail() resolve
+ *  them one by one, so a spec can run a first locate to success and a
+ *  second to a failure (the F1 regression: a stale `nearest` after a
+ *  failed retry). */
 function deferredGeolocation(): {
   fake: ReturnType<typeof vi.fn>;
   settle: (position: { latitude: number; longitude: number; accuracy: number }) => void;
+  fail: (errorCode: number) => void;
 } {
-  let success: (p: GeolocationPosition) => void = () => {};
-  const fake = vi.fn((s: (p: GeolocationPosition) => void): void => {
-    success = s;
-  });
+  interface Pending {
+    success: (p: GeolocationPosition) => void;
+    failure: (e: { code: number }) => void;
+  }
+  const pending: Pending[] = [];
+  const fake = vi.fn(
+    (success: (p: GeolocationPosition) => void, failure: (e: { code: number }) => void): void => {
+      pending.push({ success, failure });
+    },
+  );
+  const next = (): Pending => {
+    const request = pending.shift();
+    if (request === undefined) {
+      throw new Error('no pending geolocation request');
+    }
+    return request;
+  };
   return {
     fake,
-    settle: (p) => success({ coords: p } as unknown as GeolocationPosition),
+    settle: (position) => next().success({ coords: position } as unknown as GeolocationPosition),
+    fail: (errorCode: number) => next().failure({ code: errorCode }),
   };
 }
 
@@ -157,10 +176,12 @@ function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): v
 
 /** AuthStore-shaped fake — real signals so zoneless CD stays reactive
  *  (the detail page spec's pattern). */
-function fakeAuthStore(overrides: { authenticated?: boolean } = {}): AuthStore {
+function fakeAuthStore(
+  overrides: { authenticated?: boolean; initialized?: boolean } = {},
+): AuthStore {
   return {
     authenticated: signal(overrides.authenticated ?? false),
-    initialized: signal(true),
+    initialized: signal(overrides.initialized ?? true),
     levels: signal<VerificationLevel[]>([]),
     init: vi.fn(async (): Promise<void> => undefined),
     isVerified: () => false,
@@ -740,6 +761,29 @@ describe('MapPage', () => {
       ).toBe(false);
     });
 
+    it('the "Add shelter" CTA waits for the auth boot to settle (F6)', async () => {
+      // init() has not DECISIVELY decided the boot state yet: authenticated
+      // is true in the fake, but the gate (the shell's pattern) keeps the
+      // entry hidden until initialized flips — no CTA flicker.
+      store.authenticated.set(true);
+      store.initialized.set(false);
+      const { element, fixture } = await open('/map');
+
+      expect(
+        [...element.querySelectorAll<HTMLAnchorElement>('a')].some(
+          (a) => (a.textContent ?? '').trim() === 'Add shelter',
+        ),
+      ).toBe(false);
+
+      store.initialized.set(true);
+      await settle(fixture);
+      const add = [...element.querySelectorAll<HTMLAnchorElement>('a')].find(
+        (a) => (a.textContent ?? '').trim() === 'Add shelter',
+      );
+      expect(add).toBeDefined();
+      expect(add?.getAttribute('href')).toBe('/submit');
+    });
+
     it('locating: the button reads "Finding your location…" and is disabled until the settle', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
@@ -751,14 +795,81 @@ describe('MapPage', () => {
 
       expect(button.disabled).toBe(true);
       expect(button.textContent).toContain('Finding your location…');
+      // F10: the CTA signals its in-flight state to assistive tech.
+      expect(button.getAttribute('aria-busy')).toBe('true');
+      // The submit page's geolocation options, mirrored (read the real
+      // values off the page — a change here is a spec change).
+      expect(geo.fake).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
 
       geo.settle(USER_POSITION);
       await settle(fixture);
 
       expect(button.disabled).toBe(false);
       expect(button.textContent).toContain('Nearest shelter');
+      expect(button.getAttribute('aria-busy')).toBe('false');
+      // F10: the success line is an aria status (the error line already
+      // carries role=alert — asserted in the denied test above).
+      expect(element.querySelector('.nearest-line')?.getAttribute('role')).toBe('status');
       // The locate settled on the nearest row.
       expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+    });
+
+    it('a failed retry clears the stale Nearest line and row emphasis (F1)', async () => {
+      const geo = deferredGeolocation();
+      setGeolocation(geo.fake);
+      const { element, fixture } = await open('/map');
+
+      // First locate: success — the "Nearest: …" line + row emphasis are up.
+      cta(element).click();
+      geo.settle(USER_POSITION);
+      await settle(fixture);
+      expect(text(fixture)).toContain('Nearest: Kalamaja Shelter');
+      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+
+      // Second locate: permission denied.
+      cta(element).click();
+      fixture.detectChanges();
+      expect(geo.fake).toHaveBeenCalledTimes(2);
+      geo.fail(1);
+      await settle(fixture);
+
+      // The error line is the state — role=alert, the per-error copy.
+      const errorLine = element.querySelector<HTMLElement>('.nearest-line--error');
+      expect(errorLine?.textContent).toContain('Location permission is off');
+      expect(errorLine?.getAttribute('role')).toBe('alert');
+      // No stale success state: the line AND the emphasis are gone (the
+      // template chain must not short-circuit on the previous success).
+      expect(text(fixture)).not.toContain('Nearest: Kalamaja Shelter');
+      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      // The map stays where the first success left it — untouched.
+      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+    });
+
+    it('a locate settling after a failed filter refetch does not offer the empty state beside the banner (F5)', async () => {
+      const geo = deferredGeolocation();
+      setGeolocation(geo.fake);
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        source === 'ALL' ? Promise.resolve([NEAR, FAR]) : Promise.reject(ApiError.fromNetwork()),
+      );
+      const { element, fixture } = await open('/map');
+
+      cta(element).click(); // locate in flight
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry refetch
+      await settle(fixture);
+      // The refetch failed: the list is empty and the banner is up.
+      expect(element.querySelector('.banner--error')).not.toBeNull();
+      expect(element.querySelector('.shelter-list')).toBeNull();
+
+      geo.settle(USER_POSITION); // the locate settles against the failed list
+      await settle(fixture);
+
+      expect(text(fixture)).not.toContain('No shelters near you yet.');
+      expect(element.querySelector('.banner--error')).not.toBeNull();
+      expect(leaflet.flyToCalls).toEqual([]);
     });
 
     it('a row click clears the Nearest emphasis (temporary, D2)', async () => {

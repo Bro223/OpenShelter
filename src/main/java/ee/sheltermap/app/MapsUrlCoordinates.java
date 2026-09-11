@@ -18,7 +18,12 @@ import java.util.regex.Pattern;
  * {@code ?ll=}, Bing {@code bing.com/maps?q=}), then the Google share
  * path {@code !3d…!4d…}, then {@code /@lat,lng} (with an optional
  * {@code ,zoomz} suffix), then the generic first decimal pair anywhere
- * in the URL. The gate is {@link GeoPoint#inEstonia}: (a,b) is used when
+ * in the URL. A coordinate-carrying segment written with an Estonian
+ * decimal comma ({@code 58,25} — a comma decimal with no point decimal in
+ * the segment) carries NO pair (F2-BE, 2026-09-11 review: FE parity with
+ * the frontend H4 guard — never guess/convert; a naive parse would pin
+ * (58, 25), inside the box, about 27 km off). The gate is
+ * {@link GeoPoint#inEstonia}: (a,b) is used when
  * inside the box, otherwise (b,a) (a lng/lat paste), otherwise the URL
  * carries no usable pair.
  */
@@ -48,6 +53,16 @@ public final class MapsUrlCoordinates {
     private static final Pattern DECIMAL_PAIR = Pattern.compile(
             "^(-?\\d+(?:\\.\\d+)?)\\s*,\\s*(-?\\d+(?:\\.\\d+)?)$");
 
+    /** A comma used as the DECIMAL mark (the Estonian locale writes 58,25). */
+    private static final Pattern DECIMAL_COMMA = Pattern.compile("\\d+,\\d+");
+
+    /** A point used as the decimal mark (58.25) — or a host/version like 212.50 / v1.2. */
+    private static final Pattern POINT_DECIMAL = Pattern.compile("\\d+\\.\\d+");
+
+    /** scheme + authority — never carries coordinates (the generic fallback's
+     *  guard applies to the body, so host dots can't mask a comma-decimal). */
+    private static final Pattern URL_HEAD = Pattern.compile("^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*");
+
     private MapsUrlCoordinates() {
     }
 
@@ -75,13 +90,35 @@ public final class MapsUrlCoordinates {
         return null;
     }
 
+    /**
+     * Estonian decimal-comma guard (F2-BE, 2026-09-11 review — FE parity
+     * with the frontend H4 rule, {@code shared/location-input.ts}): the
+     * coordinate-carrying text contains a comma decimal ({@code 58,25}) and
+     * NO point decimal anywhere in that part → the comma is the decimal
+     * mark, not a separator. Never guess/convert the value: the segment
+     * carries no pair (a naive parse would pin (58, 25) — inside the
+     * Estonia box — about 27 km off).
+     */
+    private static boolean isDecimalComma(String coordinatePart) {
+        return DECIMAL_COMMA.matcher(coordinatePart).find()
+                && !POINT_DECIMAL.matcher(coordinatePart).find();
+    }
+
     /** The first pair in pattern order, or null when nothing parses. */
     private static double[] firstPair(String url) {
         // 1. known params — the first value that parses as a pair wins
         //    (a place-name q= falls through to ll=/daddr=/saddr=)
         Matcher params = PARAM_PAIR.matcher(url);
         while (params.find()) {
-            double[] pair = decimalPair(params.group(1));
+            String value = params.group(1);
+            // F2-BE: a comma-decimal value (58,25 — no point decimal in the
+            // value) is a decimal-mark misuse, not a pair — skip it, like a
+            // place-name q= (the FE refuses it with its decimal-comma
+            // reason; here: no pair from this segment).
+            if (isDecimalComma(value)) {
+                continue;
+            }
+            double[] pair = decimalPair(value);
             if (pair != null) {
                 return pair;
             }
@@ -92,7 +129,26 @@ public final class MapsUrlCoordinates {
         }
         Matcher at = AT_PAIR.matcher(url);
         if (at.find()) {
+            // F2-BE: /@58,25 is a comma-decimal, not a pair — the segment
+            // carries no pair; the generic fallback (with its own body
+            // guard) is given the chance, as with any skipped segment.
+            if (isDecimalComma(at.group(1) + "," + at.group(2))) {
+                return genericPair(url);
+            }
             return decimalPair(at.group(1), at.group(2));
+        }
+        return genericPair(url);
+    }
+
+    /**
+     * The generic first-decimal-pair fallback (F2-BE guard): the scheme+
+     * host always carries dots, so — exactly like the FE's {@code urlBody}
+     * check — the decimal-comma rule applies to the coordinate-carrying
+     * part (path + query + fragment), not to the whole URL.
+     */
+    private static double[] genericPair(String url) {
+        if (isDecimalComma(URL_HEAD.matcher(url).replaceFirst(""))) {
+            return null;
         }
         Matcher generic = GENERIC_PAIR.matcher(url);
         if (generic.find()) {

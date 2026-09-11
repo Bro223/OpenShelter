@@ -537,6 +537,67 @@ describe('AccountPage', () => {
     expect(field?.textContent).toContain('Phone must be 64 characters or fewer.');
   });
 
+  it('the email maxLength boundary is exactly 255, and the input pins maxlength="255" (M6)', async () => {
+    const { page, element } = await open();
+    const input = element.querySelector('#change-email-new') as HTMLInputElement;
+    expect(input.getAttribute('maxlength')).toBe('255');
+    expect(input.maxLength).toBe(255);
+
+    // 255: at the boundary — the maxLength validator must NOT fire (the
+    // control may still be invalid on the 254-char cap of the built-in
+    // email format, but that is a different validator).
+    page.newEmail.setValue('a'.repeat(244) + '@example.ee'); // 255
+    expect(page.newEmail.hasError('maxlength')).toBe(false);
+
+    // 256: one over — the boundary trips.
+    page.newEmail.setValue('a'.repeat(245) + '@example.ee'); // 256
+    expect(page.newEmail.hasError('maxlength')).toBe(true);
+  });
+
+  it('a 256-char new email is rejected inline, the request never goes out (M6)', async () => {
+    const { page, element, fixture } = await open();
+    page.newEmail.setValue('a'.repeat(245) + '@example.ee'); // 256 > 255
+
+    await page.emailSend();
+    fixture.detectChanges();
+
+    expect(account.requestEmailChange).not.toHaveBeenCalled();
+    expect(element.querySelector('.banner--error')).toBeNull();
+    const field = element.querySelector('#change-email-new')!.closest('.field') as HTMLElement;
+    expect(field?.textContent).toContain('Email must be 255 characters or fewer.');
+  });
+
+  it('the phone maxLength boundary is exactly 64, and the input pins maxlength="64" (M6)', async () => {
+    const { page, element, fixture } = await open();
+    const input = element.querySelector('#change-phone-new') as HTMLInputElement;
+    expect(input.getAttribute('maxlength')).toBe('64');
+    expect(input.maxLength).toBe(64);
+
+    // 64: at the boundary — the control is fully valid, the flow proceeds
+    // to the code phase (the phone has no format validator beyond length).
+    page.newPhone.setValue('+3725' + '0'.repeat(59)); // 64
+    await page.phoneSend();
+    fixture.detectChanges();
+
+    expect(page.newPhone.hasError('maxlength')).toBe(false);
+    expect(account.requestPhoneChange).toHaveBeenCalledTimes(1);
+    expect(element.querySelector('#change-phone-code')).not.toBeNull();
+  });
+
+  it('a 65-char new phone is rejected inline, the request never goes out (M6)', async () => {
+    const { page, element, fixture } = await open();
+    page.newPhone.setValue('+3725' + '0'.repeat(60)); // 65 > 64
+
+    await page.phoneSend();
+    fixture.detectChanges();
+
+    expect(page.newPhone.hasError('maxlength')).toBe(true);
+    expect(account.requestPhoneChange).not.toHaveBeenCalled();
+    expect(element.querySelector('.banner--error')).toBeNull();
+    const field = element.querySelector('#change-phone-new')!.closest('.field') as HTMLElement;
+    expect(field?.textContent).toContain('Phone must be 64 characters or fewer.');
+  });
+
   it('a request 409 (duplicate target) surfaces the backend message inline', async () => {
     const { page, element, fixture } = await open();
     page.newEmail.setValue('taken@example.ee');
