@@ -156,9 +156,11 @@
 
   /* ============ Layout ================================================ */
   /* Narrow-viewport breakpoint. Media queries cannot consume var()
-     (browser limitation), so @media rules use the literal 720px with a
-     reference comment — keep this token and those rules in sync. */
-  --bp-narrow: 720px;
+     (browser limitation), so @media rules use the literal 900px with a
+     reference comment — keep this token and those rules in sync.
+     900px (was 720px, 2026-09-12): tablet widths re-stack too, so the
+     map page's filter row and list never clip at mid widths. */
+  --bp-narrow: 900px;
   --content-max-width: 1080px; /* shell-body page width cap */
 }
 

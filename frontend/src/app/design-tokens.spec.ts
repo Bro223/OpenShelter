@@ -17,7 +17,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
  *     block too; its literals are the documented, contrast-verified values).
  *  2. Stylesheets outside styles.scss may not use literal font-size /
  *     font-weight — the type tokens must be used instead.
- *  3. @media queries must use the documented narrow breakpoint (720px,
+ *  3. @media queries must use the documented narrow breakpoint (900px,
  *     the --bp-narrow value — @media cannot consume var() in browsers).
  *
  * Documented literal exceptions kept in component styles (commented in
@@ -44,7 +44,7 @@ function collectScss(dir: string): string[] {
   return out;
 }
 
-const NARROW_BREAKPOINT = '720px';
+const NARROW_BREAKPOINT = '900px';
 const STYLE_FILES = collectScss(SRC_DIR);
 const STYLES_FILE = STYLE_FILES.find((f) => f.endsWith('src/styles.scss'));
 
@@ -399,7 +399,7 @@ describe('design tokens (M6)', () => {
    */
   it('map page re-stacks map + sidebar at the narrow breakpoint', () => {
     const map = readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8');
-    const media = map.match(/@media \(max-width: 720px\) \{[\s\S]*\n\}/);
+    const media = map.match(/@media \(max-width: 900px\) \{[\s\S]*\n\}/);
     expect(media, 'map-page.scss must contain a narrow-width @media block').not.toBeNull();
     expect(media![0]).toContain('flex-direction: column');
   });

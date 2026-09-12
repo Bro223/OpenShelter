@@ -51,3 +51,25 @@
   margin: 0 auto;
   padding: var(--space-24) var(--space-20) var(--space-48);
 }
+
+/* App-wide safety-notice footer (see page-shell.html): secondary text,
+   never crisis orange; the notice is the only content, so the footer hugs
+   the bottom of the page flow (min-height keeps it below the body). */
+.shell-footer {
+  width: 100%;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+
+  .shell-footer__notice {
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+    padding: var(--space-16) var(--space-20);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-primary);
+    }
+  }
+}

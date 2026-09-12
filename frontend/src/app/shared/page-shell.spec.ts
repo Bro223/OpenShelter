@@ -224,4 +224,26 @@ describe('PageShell', () => {
       expect(localStorage.getItem('openshelter-theme')).toBeNull();
     });
   });
+
+  describe('safety notice footer (app-wide, not map-only)', () => {
+    it('the footer names 112 and the official sources on every page', async () => {
+      await store.init();
+      fixture.detectChanges();
+      const notice = fixture.nativeElement.querySelector('.shell-footer__notice') as Element;
+      expect(notice).not.toBeNull();
+      expect(notice.textContent).toContain('not an official emergency service');
+      expect(notice.textContent).toContain('112');
+      // Raw attribute: the href property would punycode the non-ASCII host.
+      const links = [...notice.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
+        a.getAttribute('href'),
+      );
+      expect(links).toContain('https://www.päästeamet.ee');
+      expect(links).toContain('https://www.maaamet.ee');
+      // New tab, no referrer leakage to the official sites.
+      for (const a of notice.querySelectorAll<HTMLAnchorElement>('a')) {
+        expect(a.target).toBe('_blank');
+        expect(a.rel).toBe('noopener');
+      }
+    });
+  });
 });

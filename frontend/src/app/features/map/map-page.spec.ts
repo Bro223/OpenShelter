@@ -661,25 +661,6 @@ describe('MapPage', () => {
       ).toBe(false);
     });
 
-    it('the safety notice names 112 and the official sources (community list, not an emergency channel)', async () => {
-      const { element } = await open('/map');
-      const notice = element.querySelector('.safety-notice');
-      expect(notice).not.toBeNull();
-      expect(notice!.textContent).toContain('not an official emergency service');
-      expect(notice!.textContent).toContain('112');
-      // Raw attribute: the href property would punycode the non-ASCII host.
-      const links = [...notice!.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
-        a.getAttribute('href'),
-      );
-      expect(links).toContain('https://www.päästeamet.ee');
-      expect(links).toContain('https://www.maaamet.ee');
-      // New tab, no referrer leakage to the official sites.
-      for (const a of notice!.querySelectorAll<HTMLAnchorElement>('a')) {
-        expect(a.target).toBe('_blank');
-        expect(a.rel).toBe('noopener');
-      }
-    });
-
     it('nearest found: flies to the closest shelter at street level and emphasizes its row', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       const { element, fixture } = await open('/map');
