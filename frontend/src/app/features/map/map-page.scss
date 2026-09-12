@@ -16,11 +16,10 @@
   display: flex;
   gap: var(--space-20);
   align-items: stretch;
-  /* Flex-fill the remaining height; min keeps the map usable on short
-     laptops (below it the page scrolls). No max: the user asked for the
-     block to fill the viewport, so a tall monitor gets a tall map. */
+  /* Flex-fill the remaining height; the 725px min keeps the map at a
+     usable size on the typical desktop (below it the page scrolls). */
   flex: 1;
-  min-height: 520px;
+  min-height: 725px;
 }
 
 .map-page__map {

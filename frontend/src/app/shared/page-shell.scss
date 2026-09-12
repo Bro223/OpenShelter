@@ -56,6 +56,17 @@
      visually unchanged. */
   display: flex;
   flex-direction: column;
+
+  /* The <router-outlet> element stays in the DOM as the routed component's
+     wrapper — it must be a flex pass-through too, or the page root is a
+     block child of a plain inline element and its own flex: 1 has no
+     flex container to work against (the block that never grew). */
+  router-outlet {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
 }
 
 /* App-wide safety-notice footer (see page-shell.html): secondary text,
