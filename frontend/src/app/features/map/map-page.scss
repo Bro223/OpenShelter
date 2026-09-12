@@ -198,18 +198,20 @@
 
   .filter-rating {
     display: flex;
-    flex: 1;
+    /* Self-sized like the chips: no stretch (a stretched label squeezes the
+       select and clips its text) and no shrink (a shrinking label lets the
+       select clip the other way). When the row gets tight, the label wraps
+       to its own line instead of overflowing the sidebar. */
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--space-6);
-    min-width: 0;
     font-size: var(--text-md);
     color: var(--color-text);
 
     select {
-      flex: 1;
-      /* Floor wide enough for the longest label ("4+ stars") + padding:
-         flex-shrink below this is what clipped the text to "An"/"A". */
-      min-width: 112px;
+      /* Natural width = the longest option ("Any rating"): always fits its
+         own label, never clips, never pushes the row past the sidebar. */
+      min-width: 0;
       min-height: var(--space-48);
       padding: var(--space-4) var(--space-8);
       border: 1px solid var(--color-border);
