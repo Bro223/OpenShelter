@@ -387,11 +387,9 @@
     min-height: 0;
   }
 
-  /* Stacked layout: the row is full viewport width — space-between would
-     spread the three controls across the whole page; pack them left. */
-  .filter-trust {
-    justify-content: flex-start;
-  }
+  /* Stacked layout: the row is full viewport width — space-between (the
+     base rule, no override here) spreads the three controls evenly
+     across it. */
 
   /* Stacked map; selectors mirror the nested base rules' specificity — the
      previous bare single-class overrides lost the cascade to `.map-page__map
