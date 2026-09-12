@@ -77,6 +77,8 @@ apache-maven-*.tar.gz
 __pycache__/
 
 # ---- Runtime data ----
+# Pi agent runtime state (watchdog schedules, subagent scratch) — never repo content
+.pi/
 # File-backed verification send log (anti-spam daily cap) — survives restarts,
 # but must never be committed (contains contacts/timestamps).
 data/
