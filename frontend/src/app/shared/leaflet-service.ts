@@ -87,6 +87,15 @@ export class LeafletService {
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
   private pickMarker: L.Marker | null = null;
+  /**
+   * Keeps the map in sync with a flex-sized container: the /map layout
+   * stretches with the viewport (flex-height row), so the container's
+   * pixel size changes on window resizes — invalidateSize() re-measures
+   * the panes and re-centers. Guarded: environments without ResizeObserver
+   * (test DOMs) still get a correctly initialised map, just without live
+   * resize sync.
+   */
+  private resizeObserver: ResizeObserver | null = null;
 
   /**
    * Builds the single map instance on the given container, with OSM standard
@@ -112,6 +121,12 @@ export class LeafletService {
     this.map.on('click', (event: L.LeafletMouseEvent) => {
       this.mapClick?.(event.latlng.lat, event.latlng.lng);
     });
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => {
+        this.map?.invalidateSize();
+      });
+      this.resizeObserver.observe(el);
+    }
   }
 
   /**
@@ -243,6 +258,8 @@ export class LeafletService {
 
   /** Removes the map instance (panes, tile + marker layers, all listeners). */
   destroy(): void {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.map?.remove();
     this.map = null;
     this.markers = null;

@@ -1,7 +1,26 @@
+/* The page fills the shell body (flex chain: shell-body > map-page >
+   map-page__layout), so the map+sidebar block stretches to the viewport
+   instead of a fixed 560px block floating above the footer. */
+.map-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.map-page__header {
+  flex-shrink: 0;
+}
+
 .map-page__layout {
   display: flex;
   gap: var(--space-20);
   align-items: stretch;
+  /* Flex-fill the remaining height; min keeps the map usable on short
+     laptops (below it the page scrolls). No max: the user asked for the
+     block to fill the viewport, so a tall monitor gets a tall map. */
+  flex: 1;
+  min-height: 520px;
 }
 
 .map-page__map {
@@ -10,8 +29,10 @@
   min-width: 0;
 
   .map-page__leaflet {
-    /* page-specific layout dimension (documented exception, not spacing) */
-    height: 560px;
+    /* page-specific layout dimension (documented exception, not spacing):
+       fills the flex-height row (the 560px fixed value left dead space
+       between the block and the footer on tall desktops). */
+    height: 100%;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     background: var(--color-map-placeholder); /* visible before the first tiles paint */
@@ -362,6 +383,10 @@
 @media (max-width: 900px) {
   .map-page__layout {
     flex-direction: column;
+    /* Stacked: back to content height — the fixed 420px map + bounded
+       list define the block, so no dead space below it either. */
+    flex: none;
+    min-height: 0;
   }
 
   /* Stacked layout: the row is full viewport width — space-between would
