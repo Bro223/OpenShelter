@@ -107,8 +107,11 @@
           Has capacity
         </button>
         <label class="filter-rating">
-          Rating
-          <select [value]="minRating() ?? ''" (change)="setMinRating($event)">
+          <select
+            aria-label="Minimum rating"
+            [value]="minRating() ?? ''"
+            (change)="setMinRating($event)"
+          >
             @for (option of ratingFilters; track option.label) {
               <option [value]="option.value ?? ''">{{ option.label }}</option>
             }
