@@ -16,16 +16,16 @@ in `02-CONTEXT-API.md`.
 
 ## Folder map
 
-| File                           | Purpose                                                                                                |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| `00-README.md`                 | **This file.** How to run the agent, one milestone at a time.                                          |
-| `01-TASK.md`                   | **The task contract.** Read this first — project goal, stack, rules, conventions.                      |
-| `02-CONTEXT-API.md`            | Backend API contract: endpoints, DTO models (field-for-field), error shape, status semantics.          |
-| `03-CONTEXT-CORE-AUTH.md`      | Core layer + auth: ApiClient, ApiError, TokenStore/AuthStore, interceptor, guards, auth pages (M1–M2). |
-| `04-CONTEXT-ACCOUNT-VERIFY.md` | Verification + cross-channel contact change screens (M3).                                              |
-| `05-CONTEXT-MAP.md`            | Map & browse: Leaflet wrapper, public shelter list, source + trust filters, reported marker (M4).                                |
-| `06-CONTEXT-SHELTER.md`        | Shelter detail, reviews (upsert), community reports, verified-only submission (M5). Polish & prod build (M6) notes.       |
-| `07-STEPS.md`                  | The ordered build plan — milestones M0–M6 with acceptance criteria and stop points.                    |
+| File                           | Purpose                                                                                                             |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `00-README.md`                 | **This file.** How to run the agent, one milestone at a time.                                                       |
+| `01-TASK.md`                   | **The task contract.** Read this first — project goal, stack, rules, conventions.                                   |
+| `02-CONTEXT-API.md`            | Backend API contract: endpoints, DTO models (field-for-field), error shape, status semantics.                       |
+| `03-CONTEXT-CORE-AUTH.md`      | Core layer + auth: ApiClient, ApiError, TokenStore/AuthStore, interceptor, guards, auth pages (M1–M2).              |
+| `04-CONTEXT-ACCOUNT-VERIFY.md` | Verification + cross-channel contact change screens (M3).                                                           |
+| `05-CONTEXT-MAP.md`            | Map & browse: Leaflet wrapper, public shelter list, source + trust filters, reported marker (M4).                   |
+| `06-CONTEXT-SHELTER.md`        | Shelter detail, reviews (upsert), community reports, verified-only submission (M5). Polish & prod build (M6) notes. |
+| `07-STEPS.md`                  | The ordered build plan — milestones M0–M6 with acceptance criteria and stop points.                                 |
 
 ## Source-of-truth UML
 

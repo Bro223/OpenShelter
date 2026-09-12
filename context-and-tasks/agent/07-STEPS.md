@@ -13,6 +13,7 @@ Each step lists its **inputs** (puml + context files to read), **deliverables**,
 **Inputs:** `01-TASK.md` (sections 2 & 4 only).
 
 **Deliverables**
+
 - Maven project (`pom.xml`): Java 21, Spring Boot 3.3.x, starters (web, validation, data-jpa,
   security, actuator), Flyway, PostgreSQL driver, jjwt 0.12.x, spring-security-crypto,
   Testcontainers, JUnit 5.
@@ -22,6 +23,7 @@ Each step lists its **inputs** (puml + context files to read), **deliverables**,
 - Empty `SecurityFilterChain` config placeholder + `main` application class (no endpoints yet).
 
 **Acceptance**
+
 - `mvn -q compile` passes.
 - `docker compose up -d` starts Postgres; `mvn spring-boot:run` boots and actuator
   `/actuator/health` returns UP.
@@ -47,6 +49,7 @@ Each step lists its **inputs** (puml + context files to read), **deliverables**,
 data; `levels()` derived from non-revoked claims.
 
 **Acceptance**
+
 - Policy matrix test: `VIEW_MAP` allowed for `{}`; `SUBMIT_SHELTER` allowed for each single claim,
   denied for `{}`.
 - Bird-rule test: guest can watch / can't write; admin can write; `RegisteredUser.levels()`
@@ -78,6 +81,7 @@ persists pending + claims; codes hashed, attempts-limited, expiring; `ShelterSer
 checks `canWrite()` first, saves ACTIVE/USER.
 
 **Acceptance**
+
 - OTP flow: request → code sent (fake sender captured), hashed, expiring; wrong code → false;
   attempts exhausted → false; expired → false; correct code → claim persisted, `levels()` updated.
 - `addPlace`: guest → rejected; unverified → rejected; verified → saved ACTIVE/USER.
@@ -94,6 +98,7 @@ checks `canWrite()` first, saves ACTIVE/USER.
 **Inputs:** `01`, `02`, `03`, `04` context files (repository seams), `01-TASK.md` §4.
 
 **Deliverables**
+
 - Flyway migration `V1__schema.sql`: tables `users`, `verification_claims`, `pending_verifications`,
   `shelters`, `shelter_reviews`, `user_credentials`, `refresh_tokens`, `password_reset_tokens`;
   unique constraint on `shelter_reviews(shelter_id, user_id)`; indexes for lookups.
@@ -107,6 +112,7 @@ checks `canWrite()` first, saves ACTIVE/USER.
 - Integration tests with Testcontainers (Postgres).
 
 **Acceptance**
+
 - `mvn test` integration tests pass: save/find/delete for each repository; review uniqueness
   enforced; `deleteBySourceAndExternalIdNotIn` deletes only REGISTRY rows.
 - Flyway migrates a fresh database cleanly (`ddl-auto=validate` passes).
@@ -126,6 +132,7 @@ checks `canWrite()` first, saves ACTIVE/USER.
 `JwtTokenService`, `RefreshTokenRepository`, `RefreshTokenRecord`, `UserCredentialsRepository`,
 `PasswordResetTokenRepository`, `RateLimiter` (interface), `TokenBucketRateLimiter`, `AuthService`,
 `PasswordResetService`, `AuthController`, DTO records. Plus:
+
 - `SecurityFilterChain` + JWT authentication filter (`ee.sheltermap.config`).
 - `UserService.findByEmailOrPhone` / `findByEmail` implementations (contract from `03-auth.puml`).
 - Tests: unit (hasher, token service, reset, rate limiter) + MockMvc for the endpoints.
@@ -134,6 +141,7 @@ checks `canWrite()` first, saves ACTIVE/USER.
 all sessions; access 15 min / refresh 30 days hashed; rate limit login + reset-request.
 
 **Acceptance**
+
 - Register → login (wrong pwd → 401 generic, right pwd → TokenResponse) → refresh rotates →
   logout revokes.
 - Reset: unknown email still 200; token single-use; expired fails; after reset, old refresh token
@@ -161,6 +169,7 @@ all sessions; access 15 min / refresh 30 days hashed; rate limit login + reset-r
 USER rows; malformed rows skipped + counted; registry down → failed result, no crash.
 
 **Acceptance**
+
 - Parser: valid → mapped; out-of-range/outside-Estonia/blank-name → skipped + counted.
 - Import with fake client+repo: created/updated/removed counts correct; USER rows untouched;
   `RegistryUnavailableException` → `ImportResult.failed > 0`.
@@ -186,6 +195,7 @@ author-only update/delete, one review per user (upsert); uniform `ErrorResponse`
 paging documented as deferred, not built.
 
 **Acceptance**
+
 - `GET /api/shelters?source=USER` returns only USER rows as DTOs (with rating aggregates).
 - `POST /api/shelters` anonymous → 401; verified → 201 + Location.
 - Reviews: unverified → 403; duplicate review updates; non-author PUT/DELETE → 403; error body is
@@ -209,6 +219,7 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
 **Deliverables / fixes (all with tests):**
 
 *High*
+
 - Duplicate registration → **409** — `users.email`/`users.phone` UNIQUE (V3 migration) +
   `DuplicateAccountException` pre-check; DB constraint as the race-safe backstop.
 - Password-reset e-mails no longer carry a hardcoded `https://app/…` link — the base URL is
@@ -217,6 +228,7 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
   and `FRONTEND_BASE_URL` are gone.)*
 
 *Medium*
+
 - **Atomic password reset** — hash update + token mark-used + session revocation in ONE
   transaction (no replayable token on mid-way failure).
 - **Atomic registry import** — fetch outside the transaction, apply/upsert/delist in one
@@ -231,6 +243,7 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
   (SMTP reachability must not flip the app DOWN).
 
 *Low*
+
 - Review upsert is concurrency-safe (unique-constraint race → update, not 500).
 - One active claim per (user, level) (V3 unique index) — concurrent confirms can't dup.
 - Startup import and scheduler share one overlap guard.
@@ -261,7 +274,6 @@ Built after the Step 0–6 hardening pass; not a build step (see README for full
   `PendingContactChange` (V4 migration). Email change verified by SMS to the current phone;
   phone change by email to the current email. Also fixed a latent claim-save bug (bulk delete).
   `mvn test` → **218 tests**.
-
 
 ---
 
