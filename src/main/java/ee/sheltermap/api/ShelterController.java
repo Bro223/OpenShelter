@@ -168,12 +168,14 @@ public class ShelterController {
      * POST /api/shelters/{id}/reports — one typed report per user per
      * shelter per type (shelter-trust-and-reports D1). Verified users
      * only (same 403 vocabulary as submissions); 404 unknown shelter;
-     * 409 duplicate (shelter, user, type); 429 report throttle.
+     * 409 duplicate (shelter, user, type); 429 report throttle. The
+     * body answers the dampening outcome (community-self-moderation M9,
+     * D4): {@code {"damped": true|false}}.
      */
     @PostMapping("/{id}/reports")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void report(@PathVariable long id, @Valid @RequestBody ShelterReportRequest request) {
-        reportService.reportShelter(currentUser(), id, request.type(), request.detail());
+    public ShelterReportResult report(@PathVariable long id, @Valid @RequestBody ShelterReportRequest request) {
+        boolean damped = reportService.reportShelter(currentUser(), id, request.type(), request.detail());
+        return new ShelterReportResult(damped);
     }
 
     /**

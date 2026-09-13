@@ -30,11 +30,26 @@ public interface ShelterReportRepository {
     record ConfirmedAt(long shelterId, long userId, Instant latestAt) {
     }
 
+    /**
+     * One distinct reporter of a given type for one shelter, with the
+     * stored damp flag (community-self-moderation M9, D3) — the input of
+     * the weighted auto-hide tally. The (shelter, user, type) uniqueness
+     * makes one row per reporter.
+     */
+    record DampedReporter(long userId, boolean damped) {
+    }
+
     void save(ShelterReport report);
 
     boolean existsByShelterIdAndUserIdAndType(long shelterId, long userId, ShelterReportType type);
 
     long countByShelterIdAndType(long shelterId, ShelterReportType type);
+
+    /**
+     * The distinct reporters of one type for one shelter with their damp
+     * flag (M9, D3) — the weighted auto-hide tally input (one query).
+     */
+    List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type);
 
     /**
      * Report counts by type for all given shelter ids in ONE query.

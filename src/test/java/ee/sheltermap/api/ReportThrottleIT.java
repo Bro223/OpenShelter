@@ -85,7 +85,7 @@ class ReportThrottleIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"" + type + "\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 
     private void occupancy(String token, long shelterId, String band) throws Exception {

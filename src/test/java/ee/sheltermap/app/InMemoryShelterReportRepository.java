@@ -50,6 +50,15 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
+    public List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type) {
+        // (shelter, user, type) uniqueness ⇒ one row per reporter.
+        return store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId && r.getType() == type)
+                .map(r -> new DampedReporter(r.getUserId(), r.isDamped()))
+                .toList();
+    }
+
+    @Override
     public List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds) {
         return store.values().stream()
                 .filter(r -> shelterIds.contains(r.getShelterId()))

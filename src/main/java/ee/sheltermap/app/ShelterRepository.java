@@ -55,6 +55,13 @@ public interface ShelterRepository {
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
                                                     Instant createdAtAfter);
 
+    /**
+     * The user's USER submissions in one review state — the first input of
+     * the derived reporter trust weight (community-self-moderation M9, D1).
+     */
+    long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
+                                                  ReviewStatus reviewStatus);
+
     /** The oldest USER submission since {@code createdAtAfter} — Retry-After for the daily cap. */
     Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
             Long createdBy, ShelterSource source, Instant createdAtAfter);

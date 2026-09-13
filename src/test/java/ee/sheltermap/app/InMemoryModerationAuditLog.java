@@ -34,6 +34,14 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
+    public synchronized long countByModeratorAndAction(long moderatorId, Action action) {
+        return rows.stream()
+                .filter(r -> r.moderatorId() == moderatorId)
+                .filter(r -> r.action() == action)
+                .count();
+    }
+
+    @Override
     public synchronized List<Row> findLatest(int limit) {
         return rows.stream()
                 .sorted(Comparator.comparing(Row::createdAt).reversed()

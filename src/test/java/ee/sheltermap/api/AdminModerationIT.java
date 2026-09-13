@@ -234,17 +234,17 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Arendaja", "arendaja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + userId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Arendaja2", "arendaja2@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"CLOSED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + userId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Arendaja3", "arendaja3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         // a hidden USER shelter (auto-hidden by the trust layer's path)
         long hiddenId = createShelterViaApi(author, "Peidetud oma");
         Shelter hidden = shelters.findById(hiddenId).orElseThrow();
@@ -387,7 +387,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Esialgne" + i, "esialgne" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"type\":\"NON_EXISTENT\"}"))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
         // auto-hidden at the 5th
         assertThat(shelters.findById(id).orElseThrow().getStatus()).isEqualTo(ShelterStatus.INACTIVE);
@@ -409,7 +409,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Hilinen" + i, "hilinen" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"type\":\"NON_EXISTENT\"}"))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
         Shelter restored = shelters.findById(id).orElseThrow();
         assertThat(restored.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
@@ -487,7 +487,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Aru1", "aru1@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .put("/api/shelters/" + id + "/occupancy")
                         .header("Authorization", "Bearer " + verifiedToken("Aru2", "aru2@example.ee"))
@@ -527,17 +527,17 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja", "kolmeja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + a + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja2", "kolmeja2@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OTHER\",\"detail\":\"põhjutus siin\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + b + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja3", "kolmeja3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"CLOSED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         // explicit staggering — the queue order is by created_at, not by
         // luck: r2 newest, then r3, then r1
         Long r1 = reportId("Kolmeja", a);
@@ -586,7 +586,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja4", "kolmeja4@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         Long reportId = reportId("Kolmeja4", id);
         String token = adminToken();
 

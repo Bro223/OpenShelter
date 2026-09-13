@@ -57,6 +57,7 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
         entity.setDetail(report.getDetail());
         entity.setCreatedAt(report.getCreatedAt());
         entity.setDismissedAt(report.getDismissedAt());
+        entity.setDamped(report.isDamped());
     }
 
     @Override
@@ -70,6 +71,16 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
     @Transactional(readOnly = true)
     public long countByShelterIdAndType(long shelterId, ShelterReportType type) {
         return reports.countByShelterIdAndType(shelterId, type);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type) {
+        return reports.reportersByShelterAndType(shelterId, type).stream()
+                .map(row -> new DampedReporter(
+                        ((Number) row[0]).longValue(),
+                        (Boolean) row[1]))
+                .toList();
     }
 
     @Override
@@ -129,6 +140,9 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
         report.setId(entity.getId());
         if (entity.getDismissedAt() != null) {
             report.markDismissed(entity.getDismissedAt());
+        }
+        if (entity.isDamped()) {
+            report.markDamped();
         }
         return report;
     }

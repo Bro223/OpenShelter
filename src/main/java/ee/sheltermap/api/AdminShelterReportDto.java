@@ -10,7 +10,9 @@ import java.time.Instant;
  * reporter's identity (profile name + email) is admin-only data, never
  * exposed outside {@code /admin/*}. {@code dismissed} is the queue's
  * resolved marker ({@code dismissed_at != null}); dismissed rows stay in
- * the list, recorded as resolved.
+ * the list, recorded as resolved. {@code damped} flags the self-interested
+ * negative votes (community-self-moderation M9, D3) — recorded and shown,
+ * contributing 0 to the weighted auto-hide tally.
  */
 public record AdminShelterReportDto(
         Long id,
@@ -22,5 +24,6 @@ public record AdminShelterReportDto(
         String reporterName,
         String reporterEmail,
         Instant createdAt,
+        boolean damped,
         boolean dismissed) {
 }

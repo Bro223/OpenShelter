@@ -45,6 +45,11 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
+    public long countByModeratorAndAction(long moderatorId, Action action) {
+        return actions.countByModeratorIdAndAction(moderatorId, action);
+    }
+
+    @Override
     public List<Row> findLatest(int limit) {
         // Newest first; the id tie-break keeps same-timestamp rows
         // deterministic (the stable-order discipline, B7a).

@@ -157,6 +157,22 @@ export function hasTrustBadges(shelter: {
   );
 }
 
+// Report-submitted notices (shelter-trust-and-reports D6; the dampened
+// variant is community-self-moderation M9): the detail page banner picks
+// its text from the report's write outcome — single-sourced here, pinned
+// in shelter-copy.spec.ts.
+
+/** Plain success notice after a stored shelter report. */
+export const REPORT_SUBMITTED = 'Your report was submitted.';
+
+/**
+ * Dampened report notice (M9, D3/D4): the report was recorded with reduced
+ * weight because the reporter has their own other listing of a similar
+ * location — a self-interested vote that counts zero toward the hide.
+ */
+export const REPORT_SUBMITTED_DAMPED =
+  'Your report was recorded with reduced weight — you have your own listing of a similar location.';
+
 /** Firm band copy (D4) — >= 2 fresh reports agreeing with the latest band. */
 export const OCCUPANCY_FIRM_COPY: Record<OccupancyBand, string> = {
   SPACE: 'Space available',

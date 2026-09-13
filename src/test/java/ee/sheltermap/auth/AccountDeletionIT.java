@@ -130,7 +130,7 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + reporter.token())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 
     private void review(Auth user, long shelterId) throws Exception {

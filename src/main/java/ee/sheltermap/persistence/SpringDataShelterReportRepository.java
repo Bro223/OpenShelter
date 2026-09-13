@@ -15,6 +15,12 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
 
     long countByShelterIdAndType(Long shelterId, ee.sheltermap.domain.ShelterReportType type);
 
+    /** One row per (shelter, user): [userId, damped] of the given type (M9, D3). */
+    @Query("select r.userId, r.damped from ShelterReportEntity r " +
+            "where r.shelterId = :shelterId and r.type = :type")
+    List<Object[]> reportersByShelterAndType(@Param("shelterId") Long shelterId,
+                                              @Param("type") ee.sheltermap.domain.ShelterReportType type);
+
     /** One row per (shelter, type): [shelterId, type, count] — the batched projection input. */
     @Query("select r.shelterId, r.type, count(r) from ShelterReportEntity r " +
             "where r.shelterId in :ids group by r.shelterId, r.type")

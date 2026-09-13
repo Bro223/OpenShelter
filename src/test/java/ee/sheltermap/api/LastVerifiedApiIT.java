@@ -101,7 +101,7 @@ class LastVerifiedApiIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"" + type + "\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 
     // ---------- registry rows: the newest VERIFYING import wins ----------

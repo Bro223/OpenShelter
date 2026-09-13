@@ -212,6 +212,7 @@ public class AdminModerationService {
                             reporter == null ? "Unknown" : reporter.getData().name(),
                             reporter == null ? null : reporter.getData().email(),
                             report.getCreatedAt(),
+                            report.isDamped(),
                             report.isDismissed());
                 })
                 .toList();

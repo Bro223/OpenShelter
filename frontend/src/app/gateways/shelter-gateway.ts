@@ -10,6 +10,7 @@ import type {
   ReportShelterRequest,
   ShelterDetailDto,
   ShelterDto,
+  ShelterReportResult,
   ShelterTrustFilter,
   UpdateShelterRequest,
 } from '../core/models';
@@ -89,12 +90,16 @@ export class ShelterGateway {
   }
 
   /**
-   * POST /api/shelters/{id}/reports -> 2xx (shelter-trust-and-reports D1).
-   * Verified accounts only: 403 (the standard redirect vocabulary), 404
-   * unknown shelter, 409 when the caller already reported that type.
+   * POST /api/shelters/{id}/reports -> 200 {"damped": true|false}
+   * (shelter-trust-and-reports D1; community-self-moderation M9 damp
+   * flag). Verified accounts only: 403 (the standard redirect
+   * vocabulary), 404 unknown shelter, 409 when the caller already
+   * reported that type.
    */
-  report(id: number, request: ReportShelterRequest): Promise<void> {
-    return lastValueFrom(this.api.post<void>(`/api/shelters/${id}/reports`, request));
+  report(id: number, request: ReportShelterRequest): Promise<ShelterReportResult> {
+    return lastValueFrom(
+      this.api.post<ShelterReportResult>(`/api/shelters/${id}/reports`, request),
+    );
   }
 
   /**

@@ -99,6 +99,16 @@ public class InMemoryShelterRepository implements ShelterRepository {
     }
 
     @Override
+    public long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
+                                                         ReviewStatus reviewStatus) {
+        return store.values().stream()
+                .filter(s -> Objects.equals(s.getCreatedBy(), createdBy))
+                .filter(s -> s.getSource() == source)
+                .filter(s -> s.getReviewStatus() == reviewStatus)
+                .count();
+    }
+
+    @Override
     public Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
             Long createdBy, ShelterSource source, Instant createdAtAfter) {
         return store.values().stream()

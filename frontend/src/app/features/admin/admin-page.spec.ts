@@ -109,6 +109,7 @@ const REPORT_ROW: AdminShelterReportDto = {
   reporterName: 'Toomas T.',
   reporterEmail: 'toomas@example.ee',
   createdAt: ago(3_600_000),
+  damped: false,
   dismissed: false,
 };
 
@@ -498,6 +499,22 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Does not exist');
     expect(element.textContent).toContain('Toomas T. <toomas@example.ee>');
     expect(element.textContent).toContain('1 h ago');
+  });
+
+  it('a dampened report row (M9) renders the Dampened marker', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listShelterReports.mockResolvedValue([{ ...REPORT_ROW, id: 103, damped: true }]);
+    const { element, fixture } = await openAdmin();
+    buttonByText(element, 'Shelter reports')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    // the row is still fully present (evidence, never deleted) — flagged
+    const row = firstRow(element);
+    expect(row.textContent).toContain('Dampened');
+    expect(row.textContent).toContain('Does not exist');
+    expect(buttonByText(row, 'Dismiss')).not.toBeNull(); // dismissable like any row
   });
 
   it('Dismiss posts the report id; the row stays in the queue, dimmed with the Dismissed badge', async () => {

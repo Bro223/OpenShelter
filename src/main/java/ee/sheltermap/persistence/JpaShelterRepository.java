@@ -139,6 +139,13 @@ public class JpaShelterRepository implements ShelterRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
+                                                         ReviewStatus reviewStatus) {
+        return shelters.countByCreatedByAndSourceAndReviewStatus(createdBy, source, reviewStatus);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public java.util.Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
             Long createdBy, ShelterSource source, Instant createdAtAfter) {
         return shelters.findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(

@@ -46,6 +46,10 @@ public class ShelterReportEntity {
     @Column(name = "dismissed_at")
     private Instant dismissedAt;
 
+    /** Dampened flag (V16, community-self-moderation M9, D3). */
+    @Column(nullable = false)
+    private boolean damped;
+
     public Long getId() {
         return id;
     }
@@ -100,5 +104,13 @@ public class ShelterReportEntity {
 
     public void setDismissedAt(Instant dismissedAt) {
         this.dismissedAt = dismissedAt;
+    }
+
+    public boolean isDamped() {
+        return damped;
+    }
+
+    public void setDamped(boolean damped) {
+        this.damped = damped;
     }
 }

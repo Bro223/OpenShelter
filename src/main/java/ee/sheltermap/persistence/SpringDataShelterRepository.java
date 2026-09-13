@@ -31,6 +31,10 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
                                                     java.time.Instant createdAtAfter);
 
+    /** Derived reporter trust input (community-self-moderation M9, D1). */
+    long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
+                                                  ReviewStatus reviewStatus);
+
     /** Oldest USER submission since {@code createdAtAfter} — Retry-After for the daily cap. */
     java.util.Optional<ShelterEntity> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
             Long createdBy, ShelterSource source, java.time.Instant createdAtAfter);

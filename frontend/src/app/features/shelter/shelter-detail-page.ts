@@ -35,6 +35,8 @@ import {
   NO_RATINGS_YET,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
+  REPORT_SUBMITTED,
+  REPORT_SUBMITTED_DAMPED,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
@@ -571,9 +573,15 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.notice.set(null);
     this.reportDuplicate.set(null);
     try {
-      await this.gateway.report(id, request);
+      const result = await this.gateway.report(id, request);
       this.closeReport();
-      this.notice.set({ severity: 'success', text: 'Your report was submitted.' });
+      // The damp flag picks the notice (M9): a self-interested rival vote
+      // (the reporter's own similar listing) is recorded with reduced
+      // weight and says so — single-sourced copy.
+      this.notice.set({
+        severity: 'success',
+        text: result?.damped ? REPORT_SUBMITTED_DAMPED : REPORT_SUBMITTED,
+      });
       // The derived state (nonexistentReports, statusFlag) moved server-
       // side — refetch so the header badges reflect it (design decision 7).
       await this.load();

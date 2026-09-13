@@ -211,6 +211,17 @@ export interface ReportShelterRequest {
   detail?: string;
 }
 
+/**
+ * The write outcome of a shelter report (POST /api/shelters/{id}/reports)
+ * (community-self-moderation M9, D4): `damped` is true when the stored
+ * report is a self-interested rival vote (the reporter holds their own
+ * other USER listing of the same place) — recorded and flagged in the
+ * admin queue, counting zero toward the weighted auto-hide tally.
+ */
+export interface ShelterReportResult {
+  damped: boolean;
+}
+
 /** Review-report reasons (POST /api/shelters/{id}/reviews/{reviewId}/reports). */
 export type ReviewReportReason = 'FALSY_DATA' | 'NOT_RELEVANT' | 'SPAM' | 'OTHER';
 
@@ -483,6 +494,8 @@ export interface AdminShelterReportDto {
   reporterEmail: string | null;
   /** ISO-8601 instant. */
   createdAt: string;
+  /** Dampened self-interested negative vote (M9): stored + flagged, counts 0. */
+  damped: boolean;
   /** Dismissed rows stay in the queue, dimmed (the admin's audit trail). */
   dismissed: boolean;
 }

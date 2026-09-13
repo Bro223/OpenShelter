@@ -12,6 +12,9 @@ import java.util.List;
 /** Spring Data repository for {@link ModerationActionEntity} — internal to the persistence layer. */
 public interface SpringDataModerationActionRepository extends JpaRepository<ModerationActionEntity, Long> {
 
+    /** The reporter's own rows of one action — derived trust input (community-self-moderation M9, D1). */
+    long countByModeratorIdAndAction(Long moderatorId, ModerationAuditLog.Action action);
+
     /** Erasure redaction (legal-recovery M4 slice 2) — rows survive, only the free text goes. */
     @Modifying
     @Query("update ModerationActionEntity e set e.reason = null "

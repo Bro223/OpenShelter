@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
+import ee.sheltermap.domain.ReporterTrust;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReport;
@@ -10,6 +11,7 @@ import ee.sheltermap.domain.ShelterReportType;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,12 +30,18 @@ import java.util.Objects;
  * mirroring the verification already-verified guard). All report-type
  * actions count against the per-user rolling-hour throttle (429).
  *
- * <p>Auto-hide (D1): on the insert that brings the {@code NON_EXISTENT}
- * count from exactly 4 to 5, an {@code ACTIVE} shelter whose
- * {@code auto_hide_disarmed} is {@code false} becomes {@code INACTIVE}.
- * The trigger fires only on that one 4→5 insert; after a manual status
- * change (admin restore, later change) the count is already past 4, so
- * later reports increment it but never re-hide. No other path auto-hides.
+ * <p>Auto-hide (D1, trust-weighted since community-self-moderation M9):
+ * an {@code ACTIVE} shelter whose {@code auto_hide_disarmed} is
+ * {@code false} becomes {@code INACTIVE} on the {@code NON_EXISTENT}
+ * report insert that brings the shelter's trust-weighted hide tally —
+ * the sum of the distinct reporters' derived weights, dampened reports
+ * contributing 0 — from below {@code AUTO_HIDE_THRESHOLD} to at least
+ * that value. Five baseline (weight-1) reporters still hide on the
+ * fifth report; trusted reporters reach the consensus faster. The
+ * trigger fires only on the crossing insert; after a manual status
+ * change (admin restore, later change) the tally is already at or above
+ * the threshold, so later reports increment it but never re-hide. No
+ * other path auto-hides.
  *
  * <p>Auto-confirm (community-review-queue v2 D2): when an
  * {@code OPEN_CONFIRMED} report is successfully recorded for a USER row
@@ -42,7 +50,15 @@ import java.util.Objects;
  * AUTO_CONFIRM row is written to the moderation audit trail (the
  * reporting user is the actor of record). The submitter's own positive
  * report never promotes; registry and already-confirmed rows are
- * untouched. This is the primary trust flow — no human in the loop.
+ * untouched. This is the primary trust flow — no human in the loop —
+ * and trust weighting never gates the positive side (M9).
+ *
+ * <p>Duplicate dampening (M9, D3): a {@code NON_EXISTENT} report is
+ * stored {@code damped} when the reporter holds their own other USER
+ * listing of the same place (same normalized name within
+ * {@code app.limits.duplicate-coord-meters} haversine, any status) — a
+ * self-interested vote that contributes 0 to the tally. The report
+ * stays stored and visible in the admin queue (flagged), never deleted.
  */
 @Service
 public class ShelterReportService {
@@ -59,24 +75,31 @@ public class ShelterReportService {
     private final ReportActionLog actionLog;
     private final ModerationAuditLog audit;
     private final Clock clock;
+    /** The M3 near-duplicate haversine tolerance — one spelling of the duplicate rule (M9, D3). */
+    private final double duplicateCoordMeters;
 
     public ShelterReportService(ShelterRepository shelters,
                                 ShelterReportRepository reports,
                                 ShelterOccupancyRepository occupancy,
                                 ReportActionLog actionLog,
                                 ModerationAuditLog audit,
-                                Clock clock) {
+                                Clock clock,
+                                @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters) {
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.reports = Objects.requireNonNull(reports, "reports");
         this.occupancy = Objects.requireNonNull(occupancy, "occupancy");
         this.actionLog = Objects.requireNonNull(actionLog, "actionLog");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.duplicateCoordMeters = duplicateCoordMeters;
     }
 
     /**
      * Stores the user's report for a shelter.
      *
+     * @return {@code true} when the stored report was dampened (M9, D3)
+     *         — recorded, flagged in the admin queue, contributing 0 to
+     *         the weighted hide tally
      * @throws NotVerifiedException         guest or unverified registered user (→ 403)
      * @throws ShelterNotFoundException     unknown shelter id (→ 404)
      * @throws DuplicateReportException     the user already reported this
@@ -85,19 +108,31 @@ public class ShelterReportService {
      *                                      exhausted (→ 429)
      */
     @Transactional
-    public void reportShelter(User caller, long shelterId, ShelterReportType type, String detail) {
+    public boolean reportShelter(User caller, long shelterId, ShelterReportType type, String detail) {
         RegisteredUser user = requireVerified(caller);
         Shelter shelter = requireShelter(shelterId);
         if (reports.existsByShelterIdAndUserIdAndType(shelterId, user.getId(), type)) {
             throw new DuplicateReportException();
         }
         actionLog.record(user.getId(), ReportActionLog.Action.SHELTER_REPORT);
-        boolean reachesAutoHide = type == ShelterReportType.NON_EXISTENT
-                && reports.countByShelterIdAndType(shelterId, ShelterReportType.NON_EXISTENT)
-                == ShelterReport.AUTO_HIDE_THRESHOLD - 1;
+        boolean damped = false;
+        boolean reachesAutoHide = false;
+        if (type == ShelterReportType.NON_EXISTENT) {
+            // M9: the negative half of the self-moderation loop is
+            // trust-weighted and dampened; the positive half below is
+            // untouched (the locked auto-trust).
+            damped = isDampenedFor(user.getId(), shelter);
+            long tallyBefore = hideTally(shelterId);
+            long myPoints = damped ? 0 : trustWeight(user.getId());
+            reachesAutoHide = tallyBefore < ShelterReport.AUTO_HIDE_THRESHOLD
+                    && tallyBefore + myPoints >= ShelterReport.AUTO_HIDE_THRESHOLD;
+        }
+        ShelterReport report = new ShelterReport(shelterId, user.getId(), type, detailFor(type, detail));
+        if (damped) {
+            report.markDamped();
+        }
         try {
-            reports.save(new ShelterReport(
-                    shelterId, user.getId(), type, detailFor(type, detail)));
+            reports.save(report);
         } catch (DataIntegrityViolationException e) {
             // Lost a race with an identical concurrent report — the unique
             // constraint is the authority; same semantics as the pre-check.
@@ -109,6 +144,7 @@ public class ShelterReportService {
         if (type == ShelterReportType.OPEN_CONFIRMED) {
             autoConfirmIfEligible(shelter, user);
         }
+        return damped;
     }
 
     /**
@@ -140,9 +176,57 @@ public class ShelterReportService {
     }
 
     /**
-     * The 4→5 auto-hide, the ONLY path that auto-hides (D1): an ACTIVE
-     * shelter whose disarm flag is still {@code false} becomes INACTIVE.
-     * A manual status change or a disarmed flag leaves the shelter alone.
+     * The shelter's current trust-weighted hide tally (M9, D2) — the sum
+     * of the weights of its distinct {@code NON_EXISTENT} reporters,
+     * dampened reports contributing 0 (one row per reporter by the
+     * (shelter, user, type) uniqueness).
+     */
+    private long hideTally(long shelterId) {
+        return reports.reportersByShelterIdAndType(shelterId, ShelterReportType.NON_EXISTENT).stream()
+                .mapToLong(entry -> entry.damped() ? 0 : trustWeight(entry.userId()))
+                .sum();
+    }
+
+    /**
+     * The reporter's derived trust weight (M9, D1): re-derived from the
+     * rows that already exist — the reporter's own submissions and the
+     * moderation audit trail. No stored score, no drift; a rolled-back
+     * report leaves no score behind.
+     */
+    private int trustWeight(long userId) {
+        boolean crossVerifiedSubmission = shelters.countByCreatedByAndSourceAndReviewStatus(
+                userId, ShelterSource.USER, ReviewStatus.CONFIRMED) > 0;
+        int ownAutoConfirms = (int) audit.countByModeratorAndAction(userId,
+                ModerationAuditLog.Action.AUTO_CONFIRM);
+        return ReporterTrust.of(crossVerifiedSubmission, ownAutoConfirms).weight();
+    }
+
+    /**
+     * The duplicate dampening (M9, D3): {@code true} when the reporter
+     * holds their OWN other USER listing of the same place — the same
+     * normalized name within {@code duplicateCoordMeters} haversine of
+     * the reported shelter, the reporter's row in ANY status (a deleted
+     * row is simply gone, so it cannot damp), the target row itself
+     * excluded. Reuses the M3 duplicate rule's statics — one spelling of
+     * "duplicate" in the codebase.
+     */
+    private boolean isDampenedFor(long reporterId, Shelter target) {
+        return shelters.findByCreatedBy(reporterId).stream()
+                .filter(existing -> existing.getId() != null
+                        && !existing.getId().equals(target.getId()))
+                .filter(existing -> existing.getSource() == ShelterSource.USER)
+                .filter(existing -> ShelterService.normalizedNamesEqual(
+                        existing.getName(), target.getName()))
+                .filter(existing -> ShelterService.haversineMeters(
+                        existing.getLocation(), target.getLocation()) <= duplicateCoordMeters)
+                .findAny().isPresent();
+    }
+
+    /**
+     * The 4→5 auto-hide (M9: the weighted-tally crossing), the ONLY path
+     * that auto-hides (D1): an ACTIVE shelter whose disarm flag is still
+     * {@code false} becomes INACTIVE. A manual status change or a
+     * disarmed flag leaves the shelter alone.
      */
     private void autoHideIfEligible(Shelter shelter) {
         if (shelter.getStatus() == ShelterStatus.ACTIVE && !shelter.isAutoHideDisarmed()) {

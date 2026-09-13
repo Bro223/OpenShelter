@@ -4,6 +4,8 @@ import {
   OCCUPANCY_HEDGED_COPY,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
+  REPORT_SUBMITTED,
+  REPORT_SUBMITTED_DAMPED,
   isPrivateLocation,
   occupancyText,
   hasReports,
@@ -97,6 +99,22 @@ describe('statusFlagText (D1 netting, D6 badges)', () => {
 
   it('null flag -> null (render nothing)', () => {
     expect(statusFlagText(null)).toBeNull();
+  });
+});
+
+describe('report-submitted notices (D6; dampened variant M9)', () => {
+  it('plain notice is pinned', () => {
+    expect(REPORT_SUBMITTED).toBe('Your report was submitted.');
+  });
+
+  it('dampened notice says the vote was recorded with reduced weight (M9)', () => {
+    expect(REPORT_SUBMITTED_DAMPED).toBe(
+      'Your report was recorded with reduced weight — you have your own listing of a similar location.',
+    );
+  });
+
+  it('the two notices are distinct', () => {
+    expect(REPORT_SUBMITTED_DAMPED).not.toBe(REPORT_SUBMITTED);
   });
 });
 

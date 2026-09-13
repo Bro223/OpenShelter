@@ -361,7 +361,11 @@
                 }
               </span>
               <span class="admin-queue-row__meta">
-                {{ reportTypeLabel(row.type) }} · {{ reporterText(row) }} ·
+                {{ reportTypeLabel(row.type) }}
+                @if (row.damped) {
+                  <span class="badge badge--hidden">Dampened</span>
+                }
+                · {{ reporterText(row) }} ·
                 {{ ageText(row.createdAt) }}
               </span>
               @if (row.detail) {

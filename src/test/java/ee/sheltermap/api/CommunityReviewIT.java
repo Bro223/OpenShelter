@@ -210,7 +210,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Kinnitaja", "kinnitaja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // CONFIRMED: the row keeps its public visibility, the state moved
         entityManager.flush();
@@ -248,7 +248,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + author)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         entityManager.flush();
         assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
@@ -406,7 +406,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja", "kolmeja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + queue + "/reviews")
                         .header("Authorization", "Bearer " + verifiedToken("Arvustaja", "arvustaja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -420,7 +420,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Kinnitaja", "kinnitaja2@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"OPEN_CONFIRMED\"}"))
-                .andExpect(status().isNoContent()); // → AUTO_CONFIRM (NEW->CONFIRMED)
+                .andExpect(status().isOk()); // → AUTO_CONFIRM (NEW->CONFIRMED)
         mvc.perform(post("/admin/shelters/" + queue + "/status")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

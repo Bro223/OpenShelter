@@ -65,6 +65,13 @@ public interface ModerationAuditLog {
                 ReviewStatus previousStatus, ReviewStatus newStatus);
 
     /**
+     * The reporter's own rows of one action — the second input of the
+     * derived trust weight (community-self-moderation M9, D1): how many of
+     * the reporter's positive reports caused an AUTO_CONFIRM promotion.
+     */
+    long countByModeratorAndAction(long moderatorId, Action action);
+
+    /**
      * Erasure redaction (legal-recovery M4 slice 2): nulls the free-text
      * {@code reason} on the rows for the given shelters — the note is
      * written to the (possibly erased) submitter and may echo their

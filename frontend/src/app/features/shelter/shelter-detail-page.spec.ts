@@ -7,6 +7,7 @@ import { AuthStore } from '../../session/auth-store';
 import type {
   ShelterDetailDto,
   ShelterDto,
+  ShelterReportResult,
   ShelterReviewDto,
   VerificationLevel,
 } from '../../core/models';
@@ -39,8 +40,8 @@ class FakeShelterGateway {
   });
   list = vi.fn(async (): Promise<ShelterDto[]> => []);
   create = vi.fn();
-  /** Trust layer (shelter-trust-and-reports) — resolves void by default. */
-  report = vi.fn(async (): Promise<void> => undefined);
+  /** Trust layer (shelter-trust-and-reports) — resolves the M9 damp flag (plain by default). */
+  report = vi.fn(async (): Promise<ShelterReportResult> => ({ damped: false }));
   reportOccupancy = vi.fn(async (): Promise<void> => undefined);
 }
 
@@ -1202,6 +1203,31 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(text(fixture)).toContain('Your report was submitted.');
       expect(section.querySelector('form')).toBeNull(); // picker closed
       expect(section.querySelector('#report-detail')).toBeNull();
+    });
+
+    it('verified: a dampened report shows the reduced-weight notice (M9)', async () => {
+      // The reporter holds their own other listing of the same place — the
+      // server stores the vote dampened (counts 0 toward the hide) and
+      // answers {"damped": true}; the banner says so.
+      shelterGateway.report.mockResolvedValueOnce({ damped: true });
+      const { element, fixture } = await open('/shelters/1');
+      const section = sectionOf(element, 'report-shelter-heading')!;
+      [...section.querySelectorAll('button')]
+        .find((b) => (b.textContent ?? '').trim() === 'Report')!
+        .click();
+      fixture.detectChanges(); // zoneless: flush the picker-open signal update
+      const form = section.querySelector('form')!;
+
+      pickRadio(form, 'It does not exist');
+      form.requestSubmit();
+      await settle(fixture);
+
+      expect(shelterGateway.report).toHaveBeenCalledTimes(1);
+      expect(text(fixture)).toContain(
+        'Your report was recorded with reduced weight — you have your own listing of a similar location.',
+      );
+      expect(text(fixture)).not.toContain('Your report was submitted.');
+      expect(section.querySelector('form')).toBeNull(); // picker closed
     });
 
     it('verified: OTHER submits with the free-text detail (non-blank only)', async () => {

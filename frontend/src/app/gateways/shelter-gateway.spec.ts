@@ -271,20 +271,22 @@ describe('ShelterGateway', () => {
 
   // ---- trust layer (shelter-trust-and-reports D1/D4) ------------------------
 
-  it('report POSTs the typed body to /api/shelters/{id}/reports (detail omitted when blank)', async () => {
-    api.post.mockReturnValue(of(undefined));
+  it('report POSTs the typed body and answers the damp flag (M9)', async () => {
+    api.post.mockReturnValue(of({ damped: false }));
 
-    await expect(gateway.report(7, { type: 'NON_EXISTENT' })).resolves.toBeUndefined();
+    await expect(gateway.report(7, { type: 'NON_EXISTENT' })).resolves.toEqual({
+      damped: false,
+    });
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reports', { type: 'NON_EXISTENT' });
   });
 
   it('report carries the free-text detail for OTHER', async () => {
-    api.post.mockReturnValue(of(undefined));
+    api.post.mockReturnValue(of({ damped: false }));
 
     await expect(
       gateway.report(7, { type: 'OTHER', detail: 'The cellar entrance is bricked up' }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ damped: false });
     expect(api.post).toHaveBeenCalledWith('/api/shelters/7/reports', {
       type: 'OTHER',
       detail: 'The cellar entrance is bricked up',

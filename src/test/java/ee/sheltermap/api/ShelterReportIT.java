@@ -5,6 +5,7 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.TokenService;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -33,14 +34,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Trust layer acceptance (shelter-trust-and-reports D1/D2/D4/D5) — full-
- * stack MockMvc against the real services, security chain, JWT filter and
- * Postgres, covering EVERY scenario in specs/shelter-reports/spec.md plus
- * the map-browse filter scenarios and the shelter-submission cap: typed
- * reports + derived state, the exactly-on-5 auto-hide (and no re-hide
- * after a manual restore), the CLOSED/OPEN_CONFIRMED flag, review reports
- * + hidden-review exclusion, occupancy (upsert, hedge/firm, 2 h
- * staleness), the per-user submission cap and the trust list filters.
+ * Trust layer acceptance (shelter-trust-and-reports D1/D2/D4/D5,
+ * community-self-moderation M9) — full-stack MockMvc against the real
+ * services, security chain, JWT filter and Postgres, covering EVERY
+ * scenario in specs/shelter-reports/spec.md plus the map-browse filter
+ * scenarios and the shelter-submission cap: typed reports + derived
+ * state, the trust-weighted five-point auto-hide (five baseline
+ * reporters still hide on the fifth report; trusted reporters faster;
+ * dampened reports count zero; no re-hide after a manual restore),
+ * duplicate dampening of the self-interested rival's negative vote (the
+ * endpoint answers {"damped": true|false}), the CLOSED/OPEN_CONFIRMED
+ * flag, review reports + hidden-review exclusion, occupancy (upsert,
+ * hedge/firm, 2 h staleness), the per-user submission cap and the trust
+ * list filters.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -149,7 +155,8 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("NON_EXISTENT", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.damped").value(false));
 
         // the list fetch already carries the derived state (no extra calls)
         mvc.perform(get("/api/shelters").param("source", "USER"))
@@ -171,7 +178,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("NON_EXISTENT", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // same (shelter, user, type) again → 409, count stays at one
         expectError(mvc.perform(post("/api/shelters/" + shelterId + "/reports")
@@ -187,7 +194,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -269,7 +276,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Arendaja" + i, "arendaja" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(reportBody("NON_EXISTENT", null)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
 
         // hidden: INACTIVE, gone from the public list (any source filter),
@@ -302,7 +309,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Reporter" + i, "rep" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(reportBody("NON_EXISTENT", null)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
 
         // 1–4 reports: ACTIVE, public, flagged
@@ -321,7 +328,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Esialgne" + i, "esialgne" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(reportBody("NON_EXISTENT", null)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
         assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.INACTIVE);
@@ -337,18 +344,118 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Hilinen1", "hilinen1@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("NON_EXISTENT", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Hilinen2", "hilinen2@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("NON_EXISTENT", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.ACTIVE);
         mvc.perform(get("/api/shelters").param("source", "USER"))
                 .andExpect(jsonPath("$[?(@.name == 'Taastatud')].nonexistentReports")
                         .value(org.hamcrest.Matchers.contains(7)));
+    }
+
+    // ---------- trust-weighted auto-hide + duplicate dampening (M9) ----------
+
+    @Test
+    void aDampenedRivalReportCountsZeroInTheHideTally() throws Exception {
+        // The rival's own listing of the same place is rejected (INACTIVE) —
+        // the displaced-rival vector: M3's cross-user 409 no longer blocks
+        // the re-listing because only ACTIVE rows are scanned.
+        String rival = verifiedToken("Rivaleer", "rivaleer@example.ee");
+        long rivalRow = createShelterViaApi(rival, "Rivale varjend");
+        Shelter rejected = shelters.findById(rivalRow).orElseThrow();
+        rejected.setStatus(ShelterStatus.INACTIVE);
+        rejected.setReviewStatus(ReviewStatus.REJECTED);
+        shelters.save(rejected);
+
+        // the same place is re-listed by another user
+        String author = verifiedToken("Autor9", "autor9@example.ee");
+        long shelterId = createShelterViaApi(author, "Rivale varjend");
+
+        // the rival's self-interested NON_EXISTENT vote: stored, dampened,
+        // and it counts 0 — the endpoint says so
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + rival)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("NON_EXISTENT", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.damped").value(true));
+        Integer dampenedRows = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shelter_reports WHERE damped = TRUE", Integer.class);
+        assertThat(dampenedRows).isEqualTo(1);
+
+        // four baseline points: the dampened vote is not a fifth
+        for (int i = 1; i <= 4; i++) {
+            mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                            .header("Authorization", "Bearer " + verifiedToken("Haelija" + i, "haelija" + i + "@example.ee"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(reportBody("NON_EXISTENT", null)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.damped").value(false));
+        }
+        assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+
+        // the fifth FULL point crosses the tally
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Haelija5", "haelija5@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("NON_EXISTENT", null)))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
+    }
+
+    @Test
+    void trustedReportersReachTheFivePointTallyWithFewerReports() throws Exception {
+        long shelterId = seedShelter("Sihtvarjend", ShelterSource.USER);
+
+        // two reporters each get a cross-verified own submission (weight 2):
+        // their NEW row is promoted by a cross-user OPEN_CONFIRMED
+        String t1 = verifiedToken("Usaldat1", "usaldat1@example.ee");
+        long t1Row = createShelterViaApi(t1, "Usaldus row 1");
+        mvc.perform(post("/api/shelters/" + t1Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja1", "kinnitaja1@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
+        String t2 = verifiedToken("Usaldat2", "usaldat2@example.ee");
+        long t2Row = createShelterViaApi(t2, "Usaldus row 2");
+        mvc.perform(post("/api/shelters/" + t2Row + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Kinnitaja2", "kinnitaja2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("OPEN_CONFIRMED", null)))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(t1Row).orElseThrow().getReviewStatus())
+                .isEqualTo(ReviewStatus.CONFIRMED);
+
+        // 2 + 2 = 4 points: still ACTIVE
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + t1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("NON_EXISTENT", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.damped").value(false));
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + t2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("NON_EXISTENT", null)))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+
+        // the third (baseline) point crosses the five-point tally
+        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Punkt", "punkt@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reportBody("NON_EXISTENT", null)))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(shelterId).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
     }
 
     // ---------- CLOSED / OPEN_CONFIRMED flag (D1) ----------
@@ -360,12 +467,12 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Suletud1", "suletud1@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Suletud2", "suletud2@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
 
         // 2 CLOSED, 0 OPEN_CONFIRMED → "Reported closed" — and it stays mappable
         mvc.perform(get("/api/shelters").param("source", "USER"))
@@ -382,12 +489,12 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + verifiedToken("Suletud3", "suletud3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Suletud4", "suletud4@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk());
         mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(jsonPath("$.statusFlag").value("REPORTED_CLOSED"));
 
@@ -397,7 +504,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                             .header("Authorization", "Bearer " + verifiedToken("Avatud" + i, "avatud" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(reportBody("OPEN_CONFIRMED", null)))
-                    .andExpect(status().isNoContent());
+                    .andExpect(status().isOk());
         }
         mvc.perform(get("/api/shelters").param("source", "USER"))
                 .andExpect(jsonPath("$[?(@.name == 'Tagasiavatud')].statusFlag")

@@ -24,10 +24,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the shelter report + occupancy service
- * (shelter-trust-and-reports D1/D3/D4): the verified gate, 404s, the
- * per-target duplicate 409 (before any throttle budget is consumed), the
- * per-hour throttle 429, the exactly-on-5 auto-hide (and the no-re-hide
- * after a manual restore / disarmed flag), and the occupancy upsert.
+ * (shelter-trust-and-reports D1/D3/D4, community-self-moderation M9):
+ * the verified gate, 404s, the per-target duplicate 409 (before any
+ * throttle budget is consumed), the per-hour throttle 429, the
+ * trust-weighted 5-point auto-hide (five baseline reporters still hide
+ * on the fifth report; trusted reporters faster; dampened reports count
+ * zero; no re-hide after a manual restore / disarmed flag), the
+ * duplicate dampening of self-interested negative votes, and the
+ * occupancy upsert.
  */
 class ShelterReportServiceTest {
 
@@ -54,7 +58,7 @@ class ShelterReportServiceTest {
         actionLog = new InMemoryReportActionLog(FIXED);
         audit = new InMemoryModerationAuditLog(FIXED);
         users = new InMemoryUserRepository();
-        service = new ShelterReportService(shelters, reports, occupancy, actionLog, audit, FIXED);
+        service = new ShelterReportService(shelters, reports, occupancy, actionLog, audit, FIXED, 100.0);
 
         verified = user("Mari", true);
         unverified = user("Priit", false);
@@ -335,5 +339,151 @@ class ShelterReportServiceTest {
 
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(audit.rows()).isEmpty();
+    }
+
+    // ---------- trust-weighted auto-hide (community-self-moderation M9) ----------
+
+    /** A reporter with one CONFIRMED USER submission of their own (weight 2), far from the target. */
+    private RegisteredUser trustedUser(String name) {
+        RegisteredUser u = user(name, true);
+        Shelter own = new Shelter(name + " own row", new GeoPoint(58.9, 26.3),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+        own.setCreatedBy(u.getId());
+        own.setReviewStatus(ReviewStatus.CONFIRMED);
+        shelters.save(own);
+        return u;
+    }
+
+    @Test
+    void trustedReportersReachTheFivePointTallyWithFewerReports() {
+        // 2 + 2 + 1 = 5: the crossing happens on the THIRD report.
+        service.reportShelter(trustedUser("T1"), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        service.reportShelter(trustedUser("T2"), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+        service.reportShelter(user("Baseline", true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
+    }
+
+    @Test
+    void aWeightThreeReporterHidesWithOneBaselinePartner() {
+        // 3 + 1 = 4 → still ACTIVE; the next baseline point crosses 5.
+        RegisteredUser senior = trustedUser("Senior");
+        // second trust point: two own AUTO_CONFIRM actions
+        audit.record(1L, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
+        audit.record(2L, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
+
+        service.reportShelter(senior, shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        service.reportShelter(user("B1", true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+        service.reportShelter(user("B2", true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
+    }
+
+    /** The rival's own listing of the same place — the dampening vector (M9, D3). */
+    private RegisteredUser rivalWithOwnListing(String name, boolean ownRowActive) {
+        RegisteredUser u = user(name, true);
+        Shelter own = new Shelter("Kesklinna varjend", new GeoPoint(59.4001, 24.7001),
+                ownRowActive ? ShelterStatus.ACTIVE : ShelterStatus.INACTIVE, null, ShelterSource.USER);
+        own.setCreatedBy(u.getId());
+        shelters.save(own);
+        return u;
+    }
+
+    @Test
+    void aRivalsNonExistentReportIsDampenedAndCountsZero() {
+        RegisteredUser rival = rivalWithOwnListing("Rival", true);
+
+        // four baseline points: still below the five-point tally
+        for (int i = 0; i < 4; i++) {
+            service.reportShelter(user("Voter" + i, true), shelter.getId(),
+                    ShelterReportType.NON_EXISTENT, null);
+        }
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+
+        // the rival's self-interested vote is stored dampened and counts 0
+        boolean damped = service.reportShelter(rival, shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null);
+        assertThat(damped).isTrue();
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(reports.findByShelterId(shelter.getId()).stream()
+                        .filter(r -> r.getUserId() == rival.getId())
+                        .findFirst().orElseThrow().isDamped())
+                .isTrue();
+
+        // the fifth FULL point still hides — the dampened vote was not a vote
+        service.reportShelter(user("Voter5", true), shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
+    }
+
+    @Test
+    void anInactiveOwnListingStillDampens() {
+        // the displaced rival: their row was rejected/hidden, the place was
+        // re-listed by someone else, and they contest the new row
+        RegisteredUser rival = rivalWithOwnListing("RivalOff", false);
+
+        boolean damped = service.reportShelter(rival, shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null);
+
+        assertThat(damped).isTrue();
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+    }
+
+    @Test
+    void nonDuplicateReportersAreNotDampened() {
+        // same name, far away (outside the 100 m haversine): no damp
+        RegisteredUser far = user("Far", true);
+        Shelter farOwn = new Shelter("Kesklinna varjend", new GeoPoint(58.9, 26.3),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+        farOwn.setCreatedBy(far.getId());
+        shelters.save(farOwn);
+        // different name, close: no damp
+        RegisteredUser close = user("Close", true);
+        Shelter closeOwn = new Shelter("Muu varjend", new GeoPoint(59.4001, 24.7001),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+        closeOwn.setCreatedBy(close.getId());
+        shelters.save(closeOwn);
+
+        assertThat(service.reportShelter(far, shelter.getId(), ShelterReportType.NON_EXISTENT, null))
+                .isFalse();
+        assertThat(service.reportShelter(close, shelter.getId(), ShelterReportType.NON_EXISTENT, null))
+                .isFalse();
+    }
+
+    @Test
+    void reportingOwnRowIsNotDampenedAndPositiveReportsAreNeverDampened() {
+        // self is not a duplicate: the target row is excluded from the scan
+        RegisteredUser owner = user("Owner", true);
+        shelter.setCreatedBy(owner.getId());
+        assertThat(service.reportShelter(owner, shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null)).isFalse();
+
+        // a rival's positive report is stored plain (helping the map is not
+        // self-interested) and still auto-confirms a NEW row
+        RegisteredUser rival = rivalWithOwnListing("RivalPos", true);
+        shelter.setReviewStatus(ReviewStatus.NEW);
+        assertThat(service.reportShelter(rival, shelter.getId(),
+                ShelterReportType.OPEN_CONFIRMED, null)).isFalse();
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+    }
+
+    @Test
+    void aDeletedOwnListingCannotDamp() {
+        // a deleted row is simply gone — nothing to compare, nothing to damp
+        RegisteredUser rival = rivalWithOwnListing("RivalGone", true);
+        Shelter gone = shelters.findByCreatedBy(rival.getId()).get(0);
+        shelters.deleteById(gone.getId());
+
+        assertThat(service.reportShelter(rival, shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null)).isFalse();
     }
 }
