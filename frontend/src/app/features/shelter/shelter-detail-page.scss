@@ -146,6 +146,48 @@
       text-decoration: underline;
     }
   }
+
+  /* Distance-from-you action (location-navigation M12): styled EXACTLY
+     like the two deep links beside it (same size/colour/underline-on-
+     hover) — a third secondary link, not a new affordance class. The
+     resets undo the UA button defaults so it reads as a link. */
+  .shelter-detail__distance {
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--text-sm);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+}
+
+/* The distance-from-you result line (location-navigation M12) — the same
+   muted meta language as the coordinate line: a measured fact (the D6
+   straight-line honesty format + " from you"), not a caveat. */
+.shelter-detail__distance-line {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* The distance-from-you per-error line (location-navigation M12) — the
+   same danger language as the page's other inline errors; deliberately
+   NOT the crisis orange (--color-cta stays reserved). */
+.shelter-detail__distance-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
 }
 
 /* The coordinate line (D6) — .num-tabular (styles.scss) keeps the figures

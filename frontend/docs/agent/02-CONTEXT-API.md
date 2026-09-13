@@ -55,10 +55,13 @@
 > Frontend mirror: `GeoGateway.resolve(url)` in `gateways/geo-gateway.ts` (its own
 > gateway for its own controller group — kept separate from `ShelterGateway`).
 
-### External: OSM Nominatim (client-side only — shelter-address-search)
+### External: OSM Nominatim (client-side only — shelter-address-search + location-navigation)
 
-NOT a backend endpoint: the `/submit` location section's address search calls OSM
-Nominatim DIRECTLY from the browser (no JWT, no backend hop, no API key).
+NOT a backend endpoint: the `/submit` location section's address search (capture)
+and the `/map` address-search anchor (location-navigation M12 — the browse
+fallback for the geolocation CTA) call OSM Nominatim DIRECTLY from the browser
+(no JWT, no backend hop, no API key). Both consumers go through the same
+gateway, so the usage-policy contract is enforced once.
 
 | Method + URL                                     | Query                                               | Success                                                               | Errors                                                                         |
 | ------------------------------------------------ | --------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
@@ -68,9 +71,10 @@ Nominatim DIRECTLY from the browser (no JWT, no backend hop, no API key).
 > `GeocodeResult[]` (`core/models.ts`: `{ displayName, latitude, longitude, type }`,
 > numbers) and throws `ApiError` (429 / network) the page maps to inline copy.
 > The browser sends `Referer`/`Accept-Language` with every fetch (Nominatim's
-> app-identification expectation); the UI always renders the required attribution
-> "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to the search
-> box, success or failure. A search failure never blocks form submission.
+> app-identification expectation); every search box always renders the required
+> attribution "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to
+> it, success or failure. A failed /submit search never blocks form submission;
+> a failed /map search sets no anchor and changes nothing else.
 
 ### Shelter writes & author-scoped (`/api/shelters`) — JWT required
 

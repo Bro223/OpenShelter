@@ -4,13 +4,20 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import type { ShelterDto, ProvenanceFilter, VerificationLevel } from '../../core/models';
+import type {
+  GeocodeResult,
+  ShelterDto,
+  ProvenanceFilter,
+  VerificationLevel,
+} from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { AuthStore } from '../../session/auth-store';
 import { PageShell } from '../../shared/page-shell';
+import { straightLineText } from '../../shared/shelter-copy';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
-import { MapPage, straightLineText } from './map-page';
+import { MapPage } from './map-page';
 
 /**
  * Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). The
@@ -22,12 +29,17 @@ class FakeShelterGateway {
   get = vi.fn();
 }
 
+class FakeGeocodeGateway {
+  search = vi.fn();
+}
+
 class FakeLeafletService {
   created = 0;
   destroyed = 0;
   lastRendered: ShelterDto[] = [];
   flyToCalls: [number, number, number | undefined][] = [];
   showShelterCalls: unknown[] = [];
+  setAnchorCalls: [number | null, number | null][] = [];
   markerClick: ((shelterId: number) => void) | null = null;
 
   create = vi.fn((el: HTMLElement | null): void => {
@@ -44,6 +56,9 @@ class FakeLeafletService {
   });
   showShelter = vi.fn((shelter: unknown): void => {
     this.showShelterCalls.push(shelter);
+  });
+  setAnchor = vi.fn((latitude: number | null, longitude: number | null): void => {
+    this.setAnchorCalls.push([latitude, longitude]);
   });
   destroy = vi.fn((): void => {
     this.destroyed++;
@@ -221,6 +236,7 @@ class LoginStub {}
 
 describe('MapPage', () => {
   let gateway: FakeShelterGateway;
+  let geocode: FakeGeocodeGateway;
   let leaflet: FakeLeafletService;
   let router: Router;
   let store: AuthStore;
@@ -239,6 +255,7 @@ describe('MapPage', () => {
     Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
     setGeolocation(undefined);
     gateway = new FakeShelterGateway();
+    geocode = new FakeGeocodeGateway();
     leaflet = new FakeLeafletService();
     store = fakeAuthStore();
     TestBed.configureTestingModule({
@@ -254,6 +271,7 @@ describe('MapPage', () => {
           { path: 'shelters/:id', component: ShelterDetailStub },
         ]),
         { provide: ShelterGateway, useValue: gateway as unknown as ShelterGateway },
+        { provide: GeocodeGateway, useValue: geocode as unknown as GeocodeGateway },
         { provide: DataSourceGateway, useValue: { fetch: () => Promise.resolve(null) } },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
         { provide: AuthStore, useValue: store },
@@ -1092,6 +1110,240 @@ describe('MapPage', () => {
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Address-search anchor (location-navigation M12): the browse fallback for
+  // the geolocation CTA — the SAME gateway + contract as /submit (client-side
+  // Nominatim), rendered in the map sidebar; selecting a result anchors the
+  // per-row straight-line distances + the distance sort.
+  // ---------------------------------------------------------------------------
+  describe('address-search anchor (M12)', () => {
+    /** The geocoded point of the FAR fixture — anchoring HERE flips the
+     *  name sort (Kalamaja < Nõmme) into the distance sort (FAR 0 km,
+     *  NEAR ≈ 6.5 km), so the order change is the assertion. */
+    const ANCHOR_RESULT: GeocodeResult[] = [
+      {
+        displayName: 'Pikaliiva 5, Nõmme, Tallinn, Harjumaa, Estonia',
+        latitude: FAR.latitude,
+        longitude: FAR.longitude,
+        type: 'house',
+      },
+    ];
+
+    async function typeAndSearch(
+      element: HTMLElement,
+      fixture: ReturnType<typeof TestBed.createComponent<PageShell>>,
+      query: string,
+    ): Promise<void> {
+      const input = element.querySelector<HTMLInputElement>('#anchor-search-input');
+      expect(input).not.toBeNull();
+      input!.value = query;
+      input!.dispatchEvent(new Event('input'));
+      // The button's [disabled] tracks the query signal — run CD so the
+      // DOM disabled state matches before the click (a disabled button
+      // swallows the click in jsdom, exactly like a real browser).
+      fixture.detectChanges();
+      const button = element.querySelector<HTMLButtonElement>('.anchor-search__button');
+      expect(button).not.toBeNull();
+      button!.click();
+    }
+
+    it('renders the search box publicly with the attribution always shown, button disabled on an empty query', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      const { element } = await open('/map');
+      const input = element.querySelector<HTMLInputElement>('#anchor-search-input');
+      expect(input).not.toBeNull();
+      expect(input!.disabled).toBe(false);
+      const button = element.querySelector<HTMLButtonElement>('.anchor-search__button');
+      expect(button).not.toBeNull();
+      expect(button!.disabled).toBe(true); // empty query — no deliberate request
+      // Nominatim usage policy: the attribution is REQUIRED and rendered
+      // from the start (the /submit convention), success or failure.
+      const attribution = element.querySelector('.anchor-search__attribution a');
+      expect(attribution?.getAttribute('href')).toBe('https://www.openstreetmap.org/copyright');
+      expect(attribution?.textContent).toContain('OpenStreetMap contributors');
+      // No results, no anchor line, no error — the box is the only chrome.
+      expect(element.querySelector('.anchor-search__results')).toBeNull();
+      expect(element.querySelector('.anchor-line')).toBeNull();
+      expect(element.querySelector('.anchor-search__error')).toBeNull();
+    });
+
+    it('selecting a result anchors: pin + fly to neighbourhood scale + per-row distances + distance sort', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR]);
+      geocode.search.mockResolvedValue(ANCHOR_RESULT);
+      const { element, fixture } = await open('/map');
+
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+      // ONE deliberate request with the trimmed query; button pending state
+      // resolved (the promise settled), the result list rendered.
+      expect(geocode.search).toHaveBeenCalledTimes(1);
+      expect(geocode.search).toHaveBeenCalledWith('Pikaliiva 5');
+      const resultButton = element.querySelector<HTMLButtonElement>('.anchor-search__result');
+      expect(resultButton).not.toBeNull();
+      expect(resultButton!.textContent).toContain('Pikaliiva 5, Nõmme, Tallinn');
+      expect(resultButton!.textContent).toContain('house');
+
+      resultButton!.click();
+      await settle(fixture);
+
+      // The anchor state: the searched line + its single Clear action, the
+      // pin dropped at the result's point, the fly at neighbourhood zoom 14
+      // (not SHELTER_ZOOM 16 — the anchor is an address, not a shelter).
+      expect(leaflet.setAnchorCalls).toEqual([[FAR.latitude, FAR.longitude]]);
+      expect(leaflet.flyToCalls).toEqual([[FAR.latitude, FAR.longitude, 14]]);
+      expect(element.querySelector('.anchor-line')).not.toBeNull();
+      expect(element.querySelector('.anchor-line__clear')).not.toBeNull();
+      expect(element.querySelector('.anchor-search__results')).toBeNull(); // collapsed
+      // The list is now DISTANCE-sorted (FAR 0 km before NEAR ≈ 6.5 km) —
+      // the inverse of the stable name sort (Kalamaja < Nõmme).
+      const names = [...element.querySelectorAll<HTMLElement>('.shelter-row__name')].map((el) =>
+        el.textContent?.trim(),
+      );
+      expect(names).toEqual(['Nõmme Shelter', 'Kalamaja Shelter']);
+      // Every row carries its straight-line distance (the D6 honesty
+      // format). The 0 km edge renders too — the template keys the span on
+      // the anchor, not the distance's truthiness.
+      const distances = [
+        ...element.querySelectorAll<HTMLElement>('.shelter-row__anchor-distance'),
+      ].map((el) => el.textContent?.trim());
+      expect(distances).toEqual(['≈ 0 m straight line', '≈ 6.5 km straight line']);
+    });
+
+    it('clearing the anchor removes the pin, the distances and the distance sort', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR]);
+      geocode.search.mockResolvedValue(ANCHOR_RESULT);
+      const { element, fixture } = await open('/map');
+
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+      element.querySelector<HTMLButtonElement>('.anchor-search__result')!.click();
+      await settle(fixture);
+      expect(element.querySelectorAll('.shelter-row__anchor-distance')).toHaveLength(2);
+
+      element.querySelector<HTMLButtonElement>('.anchor-line__clear')!.click();
+      await settle(fixture);
+
+      expect(leaflet.setAnchorCalls).toEqual([
+        [FAR.latitude, FAR.longitude],
+        [null, null],
+      ]);
+      expect(element.querySelector('.anchor-line')).toBeNull();
+      expect(element.querySelectorAll('.shelter-row__anchor-distance')).toHaveLength(0);
+      // The stable name sort is back.
+      const names = [...element.querySelectorAll<HTMLElement>('.shelter-row__name')].map((el) =>
+        el.textContent?.trim(),
+      );
+      expect(names).toEqual(['Kalamaja Shelter', 'Nõmme Shelter']);
+    });
+
+    it('an empty result renders the no-results state and sets no anchor', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      geocode.search.mockResolvedValue([]);
+      const { element, fixture } = await open('/map');
+
+      await typeAndSearch(element, fixture, 'Kuressaare 9999');
+      await settle(fixture);
+
+      const error = element.querySelector('.anchor-search__error');
+      expect(error?.textContent).toContain('No Estonian address found');
+      // no-results is information, not an alarm (the /submit convention).
+      expect(error?.getAttribute('role')).toBeNull();
+      expect(element.querySelector('.anchor-line')).toBeNull();
+      expect(leaflet.setAnchorCalls).toEqual([]);
+      expect(element.querySelectorAll('.shelter-row__anchor-distance')).toHaveLength(0);
+    });
+
+    it('a 429 renders the rate-limited state with the alert role and sets no anchor', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      geocode.search.mockRejectedValue(ApiError.fromHttp(429, '', 'https://nominatim.example'));
+      const { element, fixture } = await open('/map');
+
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+
+      const error = element.querySelector('.anchor-search__error');
+      expect(error?.textContent).toContain('please wait a moment');
+      expect(error?.getAttribute('role')).toBe('alert');
+      expect(element.querySelector('.anchor-line')).toBeNull();
+      expect(leaflet.setAnchorCalls).toEqual([]);
+      // The box is usable again for the next deliberate press.
+      expect(element.querySelector<HTMLButtonElement>('.anchor-search__button')!.disabled).toBe(
+        false,
+      );
+    });
+
+    it('a network failure renders the unavailable state with the alert role', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      geocode.search.mockRejectedValue(ApiError.fromNetwork());
+      const { element, fixture } = await open('/map');
+
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+
+      const error = element.querySelector('.anchor-search__error');
+      expect(error?.textContent).toContain('unreachable');
+      expect(error?.getAttribute('role')).toBe('alert');
+      expect(element.querySelector('.anchor-line')).toBeNull();
+    });
+
+    it('Enter submits, and a press while a search is pending is ignored (one pending, never stacked)', async () => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+      // A search that never settles — the pending guard must swallow the
+      // second Enter (and the button is disabled meanwhile).
+      let settleSearch: ((results: GeocodeResult[]) => void) | undefined;
+      geocode.search.mockReturnValue(
+        new Promise<GeocodeResult[]>((resolve) => {
+          settleSearch = resolve;
+        }),
+      );
+      const { element, fixture } = await open('/map');
+
+      const input = element.querySelector<HTMLInputElement>('#anchor-search-input');
+      input!.value = 'Pikaliiva 5';
+      input!.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(geocode.search).toHaveBeenCalledTimes(1);
+      // Pending: the button is disabled + busy, so the second Enter is a
+      // no-op even if it landed (the anchorSearching guard is the backstop;
+      // the disabled button is the front).
+      expect(element.querySelector<HTMLButtonElement>('.anchor-search__button')!.disabled).toBe(
+        true,
+      );
+      input!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      fixture.detectChanges();
+      expect(geocode.search).toHaveBeenCalledTimes(1);
+
+      settleSearch!(ANCHOR_RESULT);
+      await settle(fixture);
+      expect(element.querySelector('.anchor-search__result')).not.toBeNull();
+    });
+
+    it('setting an anchor supersedes the nearest emphasis (the next-interaction convention)', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR]);
+      geocode.search.mockResolvedValue(ANCHOR_RESULT);
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      element.querySelector<HTMLButtonElement>('.map-cta')!.click();
+      await settle(fixture);
+      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
+
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+      element.querySelector<HTMLButtonElement>('.anchor-search__result')!.click();
+      await settle(fixture);
+
+      // The anchor is the new reference — the nearest emphasis + line are
+      // gone, the anchor line is up.
+      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelector('.anchor-line')).not.toBeNull();
     });
   });
 

@@ -550,3 +550,12 @@ textarea {
   background: var(--color-shelter-pick);
   border-color: var(--color-bg-surface);
 }
+
+/* Browse anchor pin on /map (location-navigation M12, leaflet-service
+ * setAnchor): the searched address the per-row distances are measured
+ * from. The user-picked-spot family — it is where the user asked, not a
+ * shelter, so it shares the pick tone (one token, two pin classes). */
+.shelter-marker--anchor {
+  background: var(--color-shelter-pick);
+  border-color: var(--color-bg-surface);
+}

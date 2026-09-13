@@ -327,3 +327,20 @@ export function communityReportsText(reportCount: number): string {
 export function hasCommunityReports(shelter: { reportCount: number }): boolean {
   return shelter.reportCount > 0;
 }
+
+/**
+ * The straight-line distance line (community-review-queue D6 — distance
+ * honesty): "≈ 2.4 km straight line" (1 decimal), whole metres below 1 km
+ * ("≈ 450 m straight line"). The copy NEVER claims a walking route or
+ * official status — it states what it measures. Moved here in M12 from
+ * map-page.ts (it is a pure formatter with two consumers — the map's
+ * nearest line / address-anchor rows and the detail page's distance-from-
+ * you line — so the shared copy module is its home; the geolocation ERROR
+ * copy stays mirrored per feature, the W9/W15 convention).
+ */
+export function straightLineText(km: number): string {
+  if (km < 1) {
+    return `≈ ${Math.round(km * 1000)} m straight line`;
+  }
+  return `≈ ${km.toFixed(1)} km straight line`;
+}

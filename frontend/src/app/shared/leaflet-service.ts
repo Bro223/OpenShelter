@@ -111,6 +111,10 @@ export class LeafletService {
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
   private pickMarker: L.Marker | null = null;
+  /** The browse anchor pin (location-navigation M12, /map address search):
+   *  its OWN field — it must coexist with the shelter markers, so it is
+   *  never added to (or cleared by) the markers layer group. */
+  private anchorMarker: L.Marker | null = null;
   /**
    * Keeps the map in sync with a flex-sized container: the /map layout
    * stretches with the viewport (flex-height row), so the container's
@@ -282,6 +286,51 @@ export class LeafletService {
     this.pickMarker = null;
   }
 
+  /**
+   * Drops (or moves) the single BROWSE ANCHOR pin (location-navigation
+   * M12, /map address search): the searched address the per-row
+   * distances are measured from. NON-draggable and non-interactive —
+   * unlike the /submit pick marker, the anchor is derived from a geocoded
+   * address, not freehand: dragging it would move the reference point to
+   * a place with no data behind it, so the pin is fixed and the anchor is
+   * removed by its Clear action instead. Tone: the user-picked-spot family
+   * (`.shelter-marker--anchor`, the `--color-shelter-pick` token). Null
+   * args remove the pin. No-ops before create / after destroy; NEVER
+   * touches the shelter markers layer group.
+   */
+  setAnchor(latitude: number | null, longitude: number | null): void {
+    if (!this.map) {
+      return;
+    }
+    if (latitude === null || longitude === null) {
+      this.removeAnchorMarker();
+      return;
+    }
+    if (this.anchorMarker === null) {
+      this.anchorMarker = L.marker([latitude, longitude], {
+        icon: L.divIcon({
+          className: 'shelter-marker shelter-marker--anchor',
+          iconSize: [14, 14],
+        }),
+        // The pin is a fixed reference point: interactive:false attaches
+        // no click handler (a click must not fight the shelter markers'),
+        // keyboard:false keeps it out of the tab order, and the title
+        // attribute still renders as the native browser tooltip.
+        interactive: false,
+        keyboard: false,
+        title: 'Searched address',
+      });
+      this.anchorMarker.addTo(this.map);
+    } else {
+      this.anchorMarker.setLatLng([latitude, longitude]);
+    }
+  }
+
+  private removeAnchorMarker(): void {
+    this.anchorMarker?.remove();
+    this.anchorMarker = null;
+  }
+
   /** Removes the map instance (panes, tile + marker layers, all listeners). */
   destroy(): void {
     this.resizeObserver?.disconnect();
@@ -290,6 +339,7 @@ export class LeafletService {
     this.map = null;
     this.markers = null;
     this.pickMarker = null;
+    this.anchorMarker = null;
     this.markerClick = null;
     this.mapClick = null;
   }

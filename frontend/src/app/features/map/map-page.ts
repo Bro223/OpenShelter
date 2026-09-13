@@ -13,8 +13,15 @@ import {
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import type { ShelterDto, ProvenanceFilter, ShelterTrustFilter } from '../../core/models';
+import type {
+  ShelterDto,
+  ProvenanceFilter,
+  ShelterTrustFilter,
+  GeocodeResult,
+} from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { GeocodeGateway } from '../../gateways/geocode-gateway';
+import { toApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
@@ -31,6 +38,7 @@ import {
   ratingText as ratingTextShared,
   reportedBadgeText as reportedBadgeTextShared,
   statusFlagText as statusFlagTextShared,
+  straightLineText,
 } from '../../shared/shelter-copy';
 import { bannerMessage } from '../../shared/error-copy';
 import {
@@ -71,8 +79,28 @@ const NEAREST_COPY = {
   insecure: 'Location access needs a secure (https) connection.',
 } as const;
 
+/** The inline states of the address search (location-navigation M12) —
+ *  MIRRORED from the /submit page's GEOCODE_ERROR_COPY (the W9/W15
+ *  duplication convention: documented, not shared across features); the
+ *  trailing alternatives differ — the browse page has no map-pick/link
+ *  fallback, its alternative is the geolocation CTA. A failed search
+ *  changes NOTHING else: no anchor, no pin, list untouched. */
+type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
+
+const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
+  'no-results': 'No Estonian address found — try another address, or “Show shelters around you”.',
+  'rate-limited': 'The address search is busy — please wait a moment and try again.',
+  network: 'Address search is unreachable right now. Try “Show shelters around you” instead.',
+};
+
+/** Neighbourhood scale for the anchor fly (M12): the anchor is a
+ *  searched ADDRESS, not a shelter — SHELTER_ZOOM 16 would hide the
+ *  surroundings the search exists to compare. */
+const ANCHOR_ZOOM = 14;
+
 /** Great-circle distance in kilometres (Haversine) — the client-side
- *  nearest-shelter computation (D2: no new endpoint). */
+ *  nearest-shelter + address-anchor distance computation (D2: no new
+ *  endpoint). */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const toRad = (deg: number): number => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
@@ -81,19 +109,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
-
-/**
- * The straight-line distance line of the nearest result (community-review-
- * queue D6 — distance honesty): "≈ 2.4 km straight line" (1 decimal),
- * whole metres below 1 km ("≈ 450 m straight line"). The copy NEVER claims
- * a walking route or official status — it states what it measures.
- */
-export function straightLineText(km: number): string {
-  if (km < 1) {
-    return `≈ ${Math.round(km * 1000)} m straight line`;
-  }
-  return `≈ ${km.toFixed(1)} km straight line`;
 }
 
 /**
@@ -132,6 +147,7 @@ export function straightLineText(km: number): string {
 })
 export class MapPage implements AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
+  private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
   private readonly store = inject(AuthStore);
 
@@ -171,6 +187,12 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  in code, not in the template expressions. */
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
+  /** The address-search inline state (location-navigation M12) — the
+   *  template renders the mapped copy, the kind stays in code. */
+  protected readonly anchorErrorText = (): string | null => {
+    const kind = this.anchorError();
+    return kind === null ? null : GEOCODE_ERROR_COPY[kind];
+  };
   protected readonly filter = signal<ProvenanceFilter>('ALL');
 
   // ---- trust filters (shelter-trust-and-reports D5/D6) ----------------------
@@ -203,10 +225,40 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** The last locate failure's per-error copy (null = none). */
   protected readonly nearestError = signal<string | null>(null);
 
-  /** Sidebar rows, sorted by name (05-CONTEXT-MAP: stable name sort). */
-  protected readonly sorted = computed<ShelterDto[]>(() =>
-    [...this.shelters()].sort((a, b) => a.name.localeCompare(b.name)),
-  );
+  // ---- address-search anchor (location-navigation M12) ------------------
+  /** The search input's content (a capture affordance, not a field). */
+  protected readonly anchorQuery = signal('');
+  /** True while the Nominatim search is in flight (button pending state). */
+  protected readonly anchorSearching = signal(false);
+  /** The result list (≤5) of the last successful search. */
+  protected readonly anchorResults = signal<GeocodeResult[]>([]);
+  /** The last search failure's kind (null = none). */
+  protected readonly anchorError = signal<GeocodeErrorKind | null>(null);
+  /** The active browse anchor — the searched point + its display label.
+   *  While set, rows carry its straight-line distance and the list sorts
+   *  by it (the name sort is the tiebreak); Clear restores the name sort. */
+  protected readonly anchor = signal<{
+    latitude: number;
+    longitude: number;
+    label: string;
+  } | null>(null);
+
+  /** Sidebar rows: stable name sort (05-CONTEXT-MAP) — EXCEPT while a
+   *  browse anchor is active (M12), when the list sorts by the anchor's
+   *  straight-line distance (name as the tiebreak). Clearing the anchor
+   *  restores the name sort. */
+  protected readonly sorted = computed<ShelterDto[]>(() => {
+    const rows = [...this.shelters()];
+    const anchor = this.anchor();
+    if (anchor === null) {
+      return rows.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return rows.sort((a, b) => {
+      const da = haversineKm(anchor.latitude, anchor.longitude, a.latitude, a.longitude);
+      const db = haversineKm(anchor.latitude, anchor.longitude, b.latitude, b.longitude);
+      return da - db || a.name.localeCompare(b.name);
+    });
+  });
 
   /** Zero rows for the current filter — only when the fetch settled cleanly. */
   protected readonly showEmpty = computed(
@@ -406,6 +458,95 @@ export class MapPage implements AfterViewInit, OnDestroy {
     // The emphasis may have landed on a row below the fold — scroll it into
     // view, the same way a marker click does.
     this.scrollRowIntoView(nearestShelter.id);
+  }
+
+  // ---- address-search anchor (location-navigation M12) -------------------
+
+  protected onAnchorQueryChange(event: Event): void {
+    this.anchorQuery.set((event.target as HTMLInputElement).value);
+  }
+
+  /** Enter in the search input searches (the /submit convention). */
+  protected onAnchorSearchKey(event: Event): void {
+    if (!(event instanceof KeyboardEvent) || event.key !== 'Enter') {
+      return;
+    }
+    event.preventDefault();
+    this.startAnchorSearch();
+  }
+
+  /**
+   * The "Search" button (and Enter): ONE deliberate Nominatim request per
+   * press — no autosuggest (Nominatim usage policy). A press while a
+   * search is pending is IGNORED, never stacked; if the press lands inside
+   * the gateway's 1000 ms spacing window it waits it out and the button
+   * stays pending the whole time (the shelter-address-search contract,
+   * mirrored). A failure NEVER sets an anchor and touches nothing else.
+   */
+  protected startAnchorSearch(): void {
+    if (this.anchorSearching()) {
+      return;
+    }
+    const query = this.anchorQuery().trim();
+    if (query === '') {
+      return;
+    }
+    this.anchorSearching.set(true);
+    this.anchorError.set(null);
+    this.anchorResults.set([]);
+    void this.geocode
+      .search(query)
+      .then((results) => {
+        if (results.length === 0) {
+          this.anchorError.set('no-results');
+          return;
+        }
+        this.anchorResults.set(results);
+      })
+      .catch((failure: unknown) => {
+        // 429 = the service throttles ("please wait a moment"); anything
+        // else (network/CORS/5xx) gets the generic unavailable copy.
+        const api = toApiError(failure);
+        this.anchorError.set(api.status === 429 ? 'rate-limited' : 'network');
+      })
+      .finally(() => this.anchorSearching.set(false));
+  }
+
+  /**
+   * Selecting a result sets the BROWSE ANCHOR (M12): the anchor pin, the
+   * fly to neighbourhood scale, and every row's straight-line distance
+   * follow this point. A selection supersedes the nearest emphasis (the
+   * next-interaction-supersedes convention) and collapses the result list.
+   */
+  protected selectAnchorResult(result: GeocodeResult): void {
+    this.nearest.set(null);
+    this.nearestKm.set(null);
+    this.anchor.set({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      label: result.displayName,
+    });
+    this.anchorResults.set([]);
+    this.anchorError.set(null);
+    this.leaflet.setAnchor(result.latitude, result.longitude);
+    this.leaflet.flyTo(result.latitude, result.longitude, ANCHOR_ZOOM);
+  }
+
+  /** Removes the anchor — pin, per-row distances, and the distance sort. */
+  protected clearAnchor(): void {
+    this.anchor.set(null);
+    this.leaflet.setAnchor(null, null);
+  }
+
+  /** The straight-line distance from the active anchor to the row (km),
+   *  or null when no anchor is set. Pure Haversine over already-loaded
+   *  rows — the D2 "no new endpoint" precedent (client-side only). */
+  protected anchorDistance(shelter: ShelterDto): number | null {
+    const anchor = this.anchor();
+    if (anchor === null) {
+      return null;
+    }
+    return haversineKm(anchor.latitude, anchor.longitude, shelter.latitude, shelter.longitude);
   }
 
   /**

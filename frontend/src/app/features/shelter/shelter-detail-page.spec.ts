@@ -966,6 +966,168 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     });
   });
 
+  // ---------------------------------------------------------------------------
+  // Distance from you (location-navigation M12): the page's ONLY
+  // geolocation trigger — client-side Haversine to the shelter's own point,
+  // the D6 straight-line honesty format, the map CTA's mirrored error copy.
+  // ---------------------------------------------------------------------------
+  describe('distance from you (M12)', () => {
+    beforeEach(() => {
+      shelterGateway.rows.set(1, registryShelter());
+    });
+
+    afterEach(() => {
+      // Never leak the stub into the other describes.
+      setGeolocation(undefined);
+    });
+
+    /** Geolocation seam (the map page spec's pattern): stub
+     *  navigator.geolocation with a hand-written fake. */
+    function stubGeolocation(behavior: {
+      position?: { latitude: number; longitude: number; accuracy: number };
+      errorCode?: number;
+    }): ReturnType<typeof vi.fn> {
+      const getCurrentPosition = vi.fn(
+        (
+          success: (p: GeolocationPosition) => void,
+          failure: (e: { code: number }) => void,
+        ): void => {
+          if (behavior.position === undefined) {
+            failure({ code: behavior.errorCode ?? 2 });
+          } else {
+            success({
+              coords: {
+                latitude: behavior.position.latitude,
+                longitude: behavior.position.longitude,
+                accuracy: behavior.position.accuracy,
+              },
+            } as unknown as GeolocationPosition);
+          }
+        },
+      );
+      return getCurrentPosition;
+    }
+
+    function setGeolocation(fake: ReturnType<typeof stubGeolocation> | undefined): void {
+      Object.defineProperty(navigator, 'geolocation', {
+        value: fake === undefined ? undefined : { getCurrentPosition: fake },
+        configurable: true,
+      });
+    }
+
+    it('renders the action as the third link-styled entry of the navigate group', async () => {
+      const { element } = await open('/shelters/1');
+      const button = element.querySelector<HTMLButtonElement>('.shelter-detail__distance');
+      expect(button).not.toBeNull();
+      expect(button!.textContent?.trim()).toBe('Distance from you');
+      // A button (an action that asks the browser), not a deep link — it
+      // sits inside the navigate group next to the two <a> links.
+      expect(
+        element.querySelector(
+          '.shelter-detail__header .shelter-detail__navigate .shelter-detail__distance',
+        ),
+      ).not.toBeNull();
+      // No distance line and no error before the first activation.
+      expect(element.querySelector('.shelter-detail__distance-line')).toBeNull();
+      expect(element.querySelector('.shelter-detail__distance-error')).toBeNull();
+    });
+
+    it('on success renders the straight-line distance line (km scale, 1 decimal) under the coordinates', async () => {
+      // The registry shelter sits at (59.437, 24.754); the user 0.01° north
+      // is 1.1118 km away — "≈ 1.1 km straight line from you" (D6 honesty:
+      // the line states what it measures, never a walking route).
+      setGeolocation(
+        stubGeolocation({ position: { latitude: 59.447, longitude: 24.754, accuracy: 10 } }),
+      );
+      const { element, fixture } = await open('/shelters/1');
+
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__distance-line');
+      expect(line).not.toBeNull();
+      expect(line?.getAttribute('role')).toBe('status');
+      expect(line?.textContent?.trim()).toBe('≈ 1.1 km straight line from you');
+      expect(line?.classList.contains('num-tabular')).toBe(true);
+      expect(element.querySelector('.shelter-detail__distance-error')).toBeNull();
+    });
+
+    it('below 1 km the line uses whole metres (the shared formatter)', async () => {
+      // 0.002° of latitude = 222.376 m → "≈ 222 m straight line from you".
+      setGeolocation(
+        stubGeolocation({ position: { latitude: 59.439, longitude: 24.754, accuracy: 10 } }),
+      );
+      const { element, fixture } = await open('/shelters/1');
+
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+
+      expect(
+        element.querySelector<HTMLElement>('.shelter-detail__distance-line')?.textContent?.trim(),
+      ).toBe('≈ 222 m straight line from you');
+    });
+
+    it('a denied locate renders the denied per-error line and NO distance line', async () => {
+      setGeolocation(stubGeolocation({ errorCode: 1 }));
+      const { element, fixture } = await open('/shelters/1');
+
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+
+      const error = element.querySelector<HTMLElement>('.shelter-detail__distance-error');
+      expect(error).not.toBeNull();
+      expect(error?.getAttribute('role')).toBe('alert');
+      expect(error?.textContent).toContain('Location permission is off');
+      expect(element.querySelector('.shelter-detail__distance-line')).toBeNull();
+    });
+
+    it('an unsupported browser renders the unsupported per-error line', async () => {
+      setGeolocation(undefined);
+      const { element, fixture } = await open('/shelters/1');
+
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+
+      const error = element.querySelector<HTMLElement>('.shelter-detail__distance-error');
+      expect(error?.textContent).toContain('does not support location access');
+      expect(element.querySelector('.shelter-detail__distance-line')).toBeNull();
+    });
+
+    it('a failed retry clears the last success (F1: no stale distance beside the error)', async () => {
+      const fake = vi.fn();
+      let success: ((p: GeolocationPosition) => void) | undefined;
+      let failure: ((e: { code: number }) => void) | undefined;
+      fake.mockImplementation(
+        (s: (p: GeolocationPosition) => void, f: (e: { code: number }) => void): void => {
+          success = s;
+          failure = f;
+        },
+      );
+      setGeolocation(fake);
+      const { element, fixture } = await open('/shelters/1');
+
+      // First locate: success.
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+      success!({
+        coords: { latitude: 59.447, longitude: 24.754, accuracy: 10 },
+      } as unknown as GeolocationPosition);
+      await settle(fixture);
+      expect(element.querySelector('.shelter-detail__distance-line')).not.toBeNull();
+
+      // Second locate: failure — the stale line must be gone.
+      element.querySelector<HTMLButtonElement>('.shelter-detail__distance')!.click();
+      await settle(fixture);
+      failure!({ code: 3 });
+      await settle(fixture);
+
+      expect(element.querySelector('.shelter-detail__distance-line')).toBeNull();
+      expect(
+        element.querySelector<HTMLElement>('.shelter-detail__distance-error')?.textContent,
+      ).toContain('timed out');
+    });
+  });
+
   describe('location map (static, zoomed to the shelter)', () => {
     it('on load success the map is created, flies to the shelter at street level, and pins it', async () => {
       shelterGateway.rows.set(1, registryShelter());

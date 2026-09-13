@@ -145,6 +145,132 @@
   color: var(--color-muted);
 }
 
+/* Address-search anchor (location-navigation M12): the fallback for the
+   geolocation CTA — the SAME Nominatim contract as /submit (one request
+   per deliberate press, attribution always rendered), styled on the
+   functional palette (the crisis orange stays reserved for the CTA). */
+.map-page__anchor-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+
+  .anchor-search__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .anchor-search__row {
+    display: flex;
+    gap: var(--space-6);
+  }
+
+  .anchor-search__input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--space-48);
+    padding: var(--space-6) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--text-md);
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 1px;
+    }
+  }
+
+  .anchor-search__button {
+    flex-shrink: 0;
+  }
+
+  .anchor-search__attribution {
+    margin: 0;
+    font-size: var(--text-2xs);
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-muted);
+      text-decoration: underline;
+    }
+  }
+
+  .anchor-search__error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-danger);
+  }
+
+  .anchor-search__results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+
+    .anchor-search__result {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      width: 100%;
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: var(--text-sm);
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        border-color: var(--color-primary);
+      }
+    }
+
+    .anchor-search__result-name {
+      font-weight: var(--font-weight-semibold);
+    }
+
+    .anchor-search__result-type {
+      color: var(--color-muted);
+      font-size: var(--text-2xs);
+    }
+  }
+}
+
+/* The active anchor line (location-navigation M12): the searched point
+   the per-row distances are measured from + its single Clear action.
+   Muted — a reference line, not an alarm (the .nearest-line family). */
+.anchor-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  .anchor-line__label {
+    color: var(--color-muted);
+  }
+
+  .anchor-line__clear {
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--text-2xs);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+  }
+}
+
 /* The one-line state under the CTA: the found shelter ("Nearest: …"), the
    empty-list offer, or the per-error copy (the submit page's vocabulary). */
 .nearest-line {
@@ -300,6 +426,13 @@
     justify-content: space-between;
     margin-top: var(--space-4);
     font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+
+  /* Address-anchor distance (location-navigation M12): the straight-line
+     distance from the searched point — the D6 honesty format, muted
+     (secondary to the badges), tabular figures like every distance line. */
+  .shelter-row__anchor-distance {
     color: var(--color-muted);
   }
 }

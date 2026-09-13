@@ -396,6 +396,53 @@ describe('LeafletService', () => {
     expect(() => uncreated.setPick(null, null)).not.toThrow();
   });
 
+  it('setAnchor drops one fixed anchor pin, re-centers on update, removes on null (M12)', () => {
+    // Coexists with the shelter markers — its own field, never the
+    // markers layer group (renderShelters keeps the anchor alive).
+    service.renderShelters([TALLINN, PERNU]);
+    service.setAnchor(58.8, 25.0);
+    const anchor = () => container.querySelectorAll<HTMLElement>('.shelter-marker--anchor');
+    expect(anchor()).toHaveLength(1);
+    expect(anchor()[0].classList.contains('leaflet-marker-icon')).toBe(true);
+    // 2 shelter markers + the 1 anchor pin.
+    expect(renderedMarkers(container)).toHaveLength(3);
+
+    // Moving the anchor never duplicates the pin…
+    service.setAnchor(59.1, 26.1);
+    expect(anchor()).toHaveLength(1);
+    // …and re-rendering the shelters never removes it either.
+    service.renderShelters([TALLINN]);
+    expect(anchor()).toHaveLength(1);
+    // 1 shelter marker + the 1 anchor pin.
+    expect(renderedMarkers(container)).toHaveLength(2);
+
+    // null args remove it.
+    service.setAnchor(null, null);
+    expect(anchor()).toHaveLength(0);
+  });
+
+  it('the anchor pin is fixed and non-interactive — no drag, no click handler, out of the tab order (M12)', () => {
+    service.setAnchor(58.8, 25.0);
+    const el = container.querySelector<HTMLElement>('.shelter-marker--anchor');
+    expect(el).not.toBeNull();
+    // interactive:false → leaflet adds no tabindex/role; the pin must not
+    // enter the tab order (it is a reference point, not a control).
+    expect(el?.getAttribute('tabindex')).toBeNull();
+    expect(el?.getAttribute('role')).toBeNull();
+    // The tooltip text (the native title) names what the pin is.
+    expect(el?.getAttribute('title')).toBe('Searched address');
+  });
+
+  it('setAnchor is a safe no-op before create and destroy clears the pin (M12)', () => {
+    const uncreated = new LeafletService();
+    expect(() => uncreated.setAnchor(58.8, 25.0)).not.toThrow();
+
+    service.setAnchor(58.8, 25.0);
+    expect(container.querySelector('.shelter-marker--anchor')).not.toBeNull();
+    service.destroy();
+    expect(container.querySelector('.shelter-marker--anchor')).toBeNull();
+  });
+
   it('destroy removes the map; a later visit gets a fresh map without stale markers', () => {
     service.renderShelters([TALLINN, PERNU, BASEMENT]);
     expect(renderedMarkers(container)).toHaveLength(3);

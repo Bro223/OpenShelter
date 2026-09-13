@@ -75,6 +75,19 @@
           <div class="shelter-detail__navigate">
             <a [href]="navigateUrl(s)" target="_blank" rel="noopener">Navigate</a>
             <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">Open in Apple Maps</a>
+            <!-- Distance from you (location-navigation M12): the page's
+                 ONLY geolocation trigger — browser asks first, the point
+                 never leaves the device, the result is the straight-line
+                 honesty line under the coordinates (never a route claim). -->
+            <button
+              type="button"
+              class="shelter-detail__distance"
+              (click)="distanceFromMe()"
+              [disabled]="distancePending()"
+              [attr.aria-busy]="distancePending()"
+            >
+              {{ distancePending() ? 'Measuring…' : 'Distance from you' }}
+            </button>
           </div>
         }
       }
@@ -87,6 +100,16 @@
                shifting (the submit page's readout uses the same class). -->
           <p class="shelter-detail__coords num-tabular">{{ coordinateLine(s) }}</p>
         }
+      }
+      @if (distanceKm() !== null) {
+        <!-- Distance honesty (location-navigation M12, the D6 format): the
+             straight line from the user's browser position — never a
+             walking-route or official claim. -->
+        <p class="shelter-detail__distance-line num-tabular" role="status">
+          {{ straightLineText(distanceKm()!) }} from you
+        </p>
+      } @else if (distanceError(); as msg) {
+        <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
       }
       @if (shelter(); as s) {
         <!-- Last verified (M8): the per-entry server-derived stamp. For

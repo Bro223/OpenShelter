@@ -50,6 +50,7 @@ import {
   communityReportsText as communityReportsTextShared,
   hasCommunityReports as hasCommunityReportsShared,
   statusFlagText as statusFlagTextShared,
+  straightLineText as straightLineTextShared,
 } from '../../shared/shelter-copy';
 import {
   ESTONIA_CENTER,
@@ -59,6 +60,35 @@ import {
 } from '../../shared/leaflet-service';
 import { RatingStars } from '../../shared/rating-stars';
 import { ReviewForm } from './review-form';
+
+/**
+ * Per-error copy for the "Distance from you" action (location-navigation
+ * M12) — the map page's NEAREST_COPY vocabulary, MIRRORED here, not shared
+ * (the W9/W15 duplication convention: documented, not shared across
+ * features). The trailing alternatives differ — the detail page has no
+ * retry-of-a-list: its alternatives are the two deep links beside the
+ * action.
+ */
+const DISTANCE_COPY = {
+  denied: 'Location permission is off. Allow location access in your browser, then try again.',
+  timeout: 'Finding your location timed out. Try again in a moment.',
+  unsupported: 'Your browser does not support location access. Check your browser settings.',
+  unavailable: 'Your location could not be determined right now. Try again in a moment.',
+  insecure: 'Location access needs a secure (https) connection.',
+} as const;
+
+/** Great-circle distance in kilometres (Haversine) — the client-side
+ *  distance-from-you computation (the map page's own copy, mirrored: the
+ *  W9/W15 convention, the D2 "no new endpoint" precedent). */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number): number => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(a));
+}
 
 /**
  * /shelters/:id — the public shelter detail page (M5), replacing the M4
@@ -164,7 +194,21 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly reportedBadgeText = reportedBadgeTextShared;
   protected readonly lastVerifiedText = lastVerifiedTextShared;
   protected readonly communityReportsText = communityReportsTextShared;
+  /** The shared straight-line distance formatter (location-navigation
+   *  M12: moved to the shared copy module — the map rows + this page's
+   *  distance line consume the same honesty format). */
+  protected readonly straightLineText = straightLineTextShared;
   protected readonly hasCommunityReports = hasCommunityReportsShared;
+
+  // ---- distance from you (location-navigation M12) -----------------------
+  /** True while the geolocation request for the distance is in flight. */
+  protected readonly distancePending = signal(false);
+  /** The last success's straight-line distance in km (null = none yet). */
+  protected readonly distanceKm = signal<number | null>(null);
+  /** The last locate failure's per-error copy (null = none). A failure
+   *  renders the error line and NO distance line (the success line clears
+   *  up front, the same F1 convention as the map CTA). */
+  protected readonly distanceError = signal<string | null>(null);
   /** The unverified warning for NEW community rows (community-review-
    *  queue): rendered in the header next to the provenance chip. */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
@@ -495,6 +539,69 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  pinShelter — a non-finite point must not render a broken link or line. */
   protected hasCoordinates(shelter: ShelterDto): boolean {
     return Number.isFinite(shelter.latitude) && Number.isFinite(shelter.longitude);
+  }
+
+  /**
+   * "Distance from you" (location-navigation M12): the map CTA's EXACT
+   * geolocation options ({ enableHighAccuracy: true, timeout: 10000,
+   * maximumAge: 0 }) + secure-context guard, then the Haversine distance
+   * to the shelter's own coordinates, computed CLIENT-SIDE — no backend
+   * call, no IP geolocation (locked). On success: the honesty line
+   * "≈ … straight line from you" (never a walking-route or official
+   * claim). On failure: per-error copy (the map CTA's mirrored
+   * vocabulary); the page stays otherwise untouched. Public so specs can
+   * drive it (page convention).
+   */
+  distanceFromMe(): void {
+    const shelter = this.shelter();
+    if (this.distancePending() || shelter === null || !this.hasCoordinates(shelter)) {
+      return; // busy, or no point to measure against
+    }
+    // F1 convention: drop the last success up front — a failed retry must
+    // not leave the stale distance line beside the error.
+    this.distanceKm.set(null);
+    this.distanceError.set(null);
+    if (window.isSecureContext === false) {
+      this.distanceError.set(DISTANCE_COPY.insecure);
+      return;
+    }
+    const geolocation = navigator.geolocation;
+    // jsdom leaves navigator.geolocation undefined — `!` covers null AND
+    // undefined (the map page's guard).
+    if (!geolocation || typeof geolocation.getCurrentPosition !== 'function') {
+      this.distanceError.set(DISTANCE_COPY.unsupported);
+      return;
+    }
+    this.distancePending.set(true);
+    geolocation.getCurrentPosition(
+      (position) => {
+        this.distancePending.set(false);
+        this.distanceKm.set(
+          haversineKm(
+            position.coords.latitude,
+            position.coords.longitude,
+            shelter.latitude,
+            shelter.longitude,
+          ),
+        );
+      },
+      (err) => {
+        this.distancePending.set(false);
+        // Duck-typed code read (the map page's pattern — jsdom does not
+        // define GeolocationPositionError).
+        const code = typeof err?.code === 'number' ? err.code : 2;
+        let kind: keyof typeof DISTANCE_COPY;
+        if (code === 1) {
+          kind = 'denied';
+        } else if (code === 3) {
+          kind = 'timeout';
+        } else {
+          kind = 'unavailable';
+        }
+        this.distanceError.set(DISTANCE_COPY[kind]);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
   }
 
   /**
