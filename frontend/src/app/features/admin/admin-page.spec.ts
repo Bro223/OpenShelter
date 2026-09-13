@@ -160,6 +160,7 @@ class FakeAdminGateway {
   restoreReview = vi.fn();
   reviewShelter = vi.fn();
   listAudit = vi.fn();
+  listAlerts = vi.fn();
 }
 
 class FakeAuthGateway {
@@ -211,6 +212,7 @@ describe('AdminPage', () => {
     admin.restoreReview.mockResolvedValue(undefined);
     admin.reviewShelter.mockResolvedValue({ ok: true });
     admin.listAudit.mockResolvedValue([]);
+    admin.listAlerts.mockResolvedValue([]);
     account.myReviews.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -747,6 +749,50 @@ describe('AdminPage', () => {
     expect(element.querySelectorAll('tr.admin-row').length).toBe(1);
   });
 
+  // ---- alerts tab (M3 slice 4) --------------------------------------------------
+
+  it('switching to the Alerts tab loads the ring lazily; rows render when/type/subject/detail/retry-after', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAlerts.mockResolvedValue([
+      {
+        id: 42,
+        kind: 'near-duplicate',
+        subject: 'user:77',
+        detail: 'Near-duplicate of shelter #12 (409)',
+        retryAfterSeconds: null,
+        at: ago(2 * 60_000),
+      },
+      {
+        id: 41,
+        kind: 'otp-contact-cap',
+        subject: 'contact:spam@hammer.ee',
+        detail: 'OTP contact cap reached (429)',
+        retryAfterSeconds: 24 * 3600 - 300,
+        at: ago(5 * 60_000),
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    expect(admin.listAlerts).not.toHaveBeenCalled(); // lazy — alerts tab only
+    buttonByText(element, 'Alerts')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.listAlerts).toHaveBeenCalledTimes(1);
+    expect(admin.listAlerts).toHaveBeenCalledWith();
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows.length).toBe(2);
+    // Newest first: the 2-min-old 409 row, then the 5-min-old 429 row.
+    expect(rows[0].textContent).toContain('Near-duplicate submission');
+    expect(rows[0].textContent).toContain('user:77');
+    expect(rows[0].textContent).toContain('shelter #12');
+    expect(rows[0].textContent).toContain('—'); // no retry-after on the 409
+    expect(rows[1].textContent).toContain('OTP contact cap');
+    expect(rows[1].textContent).toContain('contact:spam@hammer.ee');
+    expect(rows[1].textContent).toContain('23 h 55 min'); // human-formatted
+  });
+
   // ---- audit tab ----------------------------------------------------------------
 
   it('switching to the Audit tab loads the trail lazily; rows render when/moderator/shelter/action/change/reason', async () => {
@@ -832,6 +878,7 @@ describe('AdminPage', () => {
     admin.listShelterReports.mockResolvedValue([]);
     admin.listReviewReports.mockResolvedValue([]);
     admin.listAudit.mockResolvedValue([]);
+    admin.listAlerts.mockResolvedValue([]);
     const { element, fixture } = await openAdmin();
 
     // Default tab: the unconfirmed queue is empty (no shelters at all).
@@ -854,6 +901,12 @@ describe('AdminPage', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
     expect(element.textContent).toContain('No review reports.');
+
+    buttonByText(element, 'Alerts')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No throttled or abusive activity yet.');
 
     buttonByText(element, 'Audit log')!.click();
     await fixture.whenStable();

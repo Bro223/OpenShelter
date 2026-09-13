@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.ShelterSource;
@@ -40,20 +41,28 @@ import java.util.Map;
  * owned, 409), the shelter-report queue with idempotent dismiss, the
  * review-report queue with idempotent hide/restore, the community
  * review decisions (community-review-queue v2 D2: CONFIRM/REJECT — the
- * rare manual override), and the moderation audit trail (v2 D4).
- * All writes are single-row; no bulk endpoints. Reporter identity is
- * served from this API ONLY.
+ * rare manual override), the moderation audit trail (v2 D4), and the
+ * M3 throttle-abuse alerts (abuse-limits slice 4: the in-memory ring the
+ * caps + duplicate detector append to). All writes are single-row; no
+ * bulk endpoints. Reporter identity is served from this API ONLY.
  */
 @RestController
 @RequestMapping("/admin")
 public class AdminController {
 
+    /** {@code GET /admin/alerts} defaults: newest 50, max 200. */
+    static final int ALERTS_DEFAULT_LIMIT = 50;
+    static final int ALERTS_MAX_LIMIT = 200;
+
     private final AdminModerationService moderation;
     private final UserRepository userRepository;
+    private final ThrottleAlertRecorder alerts;
 
-    public AdminController(AdminModerationService moderation, UserRepository userRepository) {
+    public AdminController(AdminModerationService moderation, UserRepository userRepository,
+                           ThrottleAlertRecorder alerts) {
         this.moderation = moderation;
         this.userRepository = userRepository;
+        this.alerts = alerts;
     }
 
     /**
@@ -111,6 +120,27 @@ public class AdminController {
     public List<AdminAuditDto> listAudit(@RequestParam(required = false) Integer limit) {
         requireAdmin();
         return moderation.listAudit(limit);
+    }
+
+    /**
+     * The M3 throttle-abuse alerts (abuse-limits slice 4), newest first:
+     * the daily submission cap (429), the per-contact OTP cap (429) and the
+     * near-duplicate rejection (409). The ring is IN-MEMORY (W16 — it
+     * clears on a backend restart), so this is a triage view, not a durable
+     * log. {@code limit} is 1..200, default 50 (anything else 400 — same
+     * idiom as {@code /admin/audit}).
+     */
+    @GetMapping("/alerts")
+    public List<AdminAlertDto> listAlerts(@RequestParam(required = false) Integer limit) {
+        requireAdmin();
+        int size = limit == null ? ALERTS_DEFAULT_LIMIT : limit;
+        if (size < 1 || size > ALERTS_MAX_LIMIT) {
+            throw new InvalidShelterException("limit must be between 1 and 200");
+        }
+        return alerts.recent(size).stream()
+                .map(a -> new AdminAlertDto(a.id(), a.kind(), a.subject(), a.detail(),
+                        a.retryAfterSeconds(), a.at()))
+                .toList();
     }
 
     /** The shelter report queue, newest first (optional shelter filter). */

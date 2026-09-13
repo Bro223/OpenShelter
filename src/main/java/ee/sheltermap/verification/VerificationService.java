@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
@@ -39,6 +40,7 @@ public class VerificationService {
     private final RollingContactOtpLimiter contactLimiter;
     private final VerificationProperties properties;
     private final Clock clock;
+    private final ThrottleAlertRecorder alerts;
 
     /**
      * @param providers          provider per level; a level without a provider is rejected
@@ -48,13 +50,16 @@ public class VerificationService {
      *                           {@code maxPerWindow <= 0} disables it
      * @param properties         throttle config ({@code cooldownSeconds}, {@code maxPerDay})
      * @param clock              time source (injectable for deterministic tests)
+     * @param alerts             the admin alert ring (M3 slice 4) — the
+     *                           per-contact cap events land here
      */
     public VerificationService(Map<VerificationLevel, VerificationProvider> providers,
                                PendingVerificationRepository pendingRepository,
                                VerificationSendLog sendLog,
                                RollingContactOtpLimiter contactLimiter,
                                VerificationProperties properties,
-                               Clock clock) {
+                               Clock clock,
+                               ThrottleAlertRecorder alerts) {
         this.providers = new EnumMap<>(VerificationLevel.class);
         if (providers != null) {
             this.providers.putAll(providers);
@@ -64,6 +69,7 @@ public class VerificationService {
         this.contactLimiter = Objects.requireNonNull(contactLimiter, "contactLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.alerts = Objects.requireNonNull(alerts, "alerts");
     }
 
     /**
@@ -111,6 +117,9 @@ public class VerificationService {
         // contact's budget was spent by this same user's real sends).
         RollingContactOtpLimiter.Result contact = contactLimiter.tryAcquire("verify:" + contactFor(user, level));
         if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+            // M3 slice 4: the throttled contact lands in the admin alert
+            // ring (in-memory, W16) before the 429 goes out.
+            alerts.otpContactCap(contactFor(user, level), contact.retryAfterSeconds());
             throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
                     contact.retryAfterSeconds());
         }

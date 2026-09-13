@@ -8,9 +8,9 @@ abuse layer: per-user rate caps on submitting, OTP throttles per
 phone/IP/e-mail, duplicate-submission detection, admin alerting, and the
 secure-headers / HTTPS-only-cookie audit. No CAPTCHA (locked decision).
 
-This change is delivered in slices; **slices 1–3 are done** (per-user daily
-submission cap + per-contact OTP caps + duplicate-submission detection) —
-each the smallest complete, gate-green piece.
+This change is delivered in slices; **slices 1–4 are done** (per-user daily
+submission cap + per-contact OTP caps + duplicate-submission detection +
+admin alerts) — each the smallest complete, gate-green piece.
 
 ## What Changes
 
@@ -89,9 +89,37 @@ each the smallest complete, gate-green piece.
   ~50 m offset 409; different name / ~1 km 201; cross-user 409; admin
   exempt; hidden row re-addable).
 
+### Slice 4 — admin alerts (done)
+
+- **`ThrottleAlert` + `ThrottleAlertRecorder`** (new `alerts` package,
+  bean in `SecurityConfig`): a bounded in-memory ring
+  (`app.limits.alerts-retained: 200`, main + test yml; `<= 0` disables).
+  The three M3 mechanisms append their events at the throw site:
+  the daily submission cap (429, subject `user:<id>`), the per-contact
+  OTP cap on the verify AND register surfaces (429, subject
+  `contact:<normalized>` — normalized the same way as the limiter's
+  bucket key) and the near-duplicate rejection (409, subject
+  `user:<id>`, the detail names the existing row). `recent(limit)` is
+  newest-first with oldest-first eviction past the retention bound; the
+  ring-local `id` is a monotonic sequence (resets on restart).
+  **W16**: process memory — a restart clears it, N replicas see their own
+  share; accepted for a triage surface, a durable audit table is the
+  upgrade path. The pre-M3 token-bucket / per-(user, level) throttles
+  deliberately do NOT alert.
+- **`GET /admin/alerts?limit=`** on `AdminController`: newest-first
+  `AdminAlertDto[]` (`id, kind, subject, detail, retryAfterSeconds, at`)
+  behind the fresh-lookup admin guard (401/403 like the other routes);
+  `limit` 1..200 default 50, out of range 400.
+- **FE:** `AdminAlertRow` + `AdminGateway.listAlerts` + the admin page's
+  "Alerts" tab (lazy load, kind labels, human-formatted Retry-After;
+  audit stays the LAST tab).
+- **Tests:** `ThrottleAlertRecorderTest` 7/7 (ordering, eviction,
+  clamping, disabled mode, normalization, ids) + `AdminAlertsIT` 7/7 over
+  HTTP (401/403/400-limit; each kind lands with the right subject +
+  retry-after; newest-first).
+
 ### Remaining M3 scope (later slices — NOT in this pass)
 
-- Admin alerts on throttled/abusive accounts.
 - Secure headers + HTTPS-only cookies audit.
 
 ## Impact

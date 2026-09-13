@@ -207,6 +207,11 @@ app:
     # (OtpContactCapIT), same pattern as the per-class ratelimit overrides.
     otp-per-contact-max: 100
     otp-per-contact-window-hours: 24
+    # Admin alert ring size (abuse-limits M3 slice 4): how many throttle/
+    # abuse events the in-memory ring behind GET /admin/alerts keeps (the
+    # oldest evict first). W16: process memory — cleared on restart.
+    # <= 0 disables recording.
+    alerts-retained: 200
   registry:
     # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
     # Override with REGISTRY_BASE_URL if the service endpoint moves.

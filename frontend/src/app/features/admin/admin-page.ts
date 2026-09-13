@@ -12,6 +12,8 @@ import { DatePipe, registerLocaleData } from '@angular/common';
 import localeEnGB from '@angular/common/locales/en-GB';
 import { RouterLink } from '@angular/router';
 import type {
+  AdminAlertKind,
+  AdminAlertRow,
   AdminAuditAction,
   AdminAuditRow,
   AdminOccupancy,
@@ -42,9 +44,9 @@ import { RatingStars } from '../../shared/rating-stars';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
-/** The five moderation tabs: the review queue FIRST, the audit trail LAST
+/** The six moderation tabs: the review queue FIRST, the audit trail LAST
  *  (community-review-queue). */
-export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'audit';
+export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'alerts' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -80,10 +82,18 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   REJECT: 'Rejected',
 };
 
+/** M3 alert kind labels (abuse-limits slice 4): human copy for the
+ *  machine kind values. */
+export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
+  'submission-daily-cap': 'Daily submission cap',
+  'otp-contact-cap': 'OTP contact cap',
+  'near-duplicate': 'Near-duplicate submission',
+};
+
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
  * non-admins are redirected home by the guard, mirroring the backend's
- * 401/403 per request). Five tabs, each one queue:
+ * 401/403 per request). Six tabs, each one queue:
  *
  *  - UNCONFIRMED (first, default) — the community review queue: every USER
  *    row in the NEW state (client-side filter of the shelters list — the
@@ -102,6 +112,11 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
  *  - REVIEW REPORTS — the review-report queue: shelter, review excerpt
  *    (stars + comment, hidden badge), reason, reporters, Hide/Restore.
  *    The action targets the REVIEW id, not the report row's id.
+ *  - ALERTS — the M3 throttle-abuse ring (abuse-limits slice 4): the
+ *    daily submission cap (429), the per-contact OTP cap (429) and the
+ *    near-duplicate rejection (409), newest first. Read-only; the ring
+ *    is in-memory on the backend (cleared on a restart — a triage view,
+ *    not a durable log).
  *  - AUDIT (last) — the read-only moderation trail, newest 100 (lazy load
  *    on first switch): when / moderator / shelter / action / change /
  *    reason. Shelter names are resolved server-side (a deleted shelter
@@ -174,6 +189,11 @@ export class AdminPage implements OnInit {
   protected readonly auditRows = signal<AdminAuditRow[] | null>(null);
   protected readonly auditLoadError = signal<string | null>(null);
 
+  // ---- alerts tab ------------------------------------------------------------------
+  /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
+  protected readonly alertsRows = signal<AdminAlertRow[] | null>(null);
+  protected readonly alertsLoadError = signal<string | null>(null);
+
   // ---- shared UI state ---------------------------------------------------------
   /** One in-flight mutation at a time (the row buttons all share it). */
   protected readonly busy = signal(false);
@@ -226,6 +246,27 @@ export class AdminPage implements OnInit {
     return AUDIT_ACTION_LABEL[action];
   }
 
+  /** M3 alert kind label (the machine value → human copy). */
+  protected alertKindLabel(kind: AdminAlertKind): string {
+    return ALERT_KIND_LABEL[kind];
+  }
+
+  /** The 429 alert's Retry-After countdown, human-formatted (null → "—"). */
+  protected retryAfterText(seconds: number | null): string {
+    if (seconds === null) {
+      return '—';
+    }
+    const h = Math.floor(seconds / 3600);
+    const m = Math.round((seconds % 3600) / 60);
+    if (h > 0) {
+      return m > 0 ? `${h} h ${m} min` : `${h} h`;
+    }
+    if (m > 0) {
+      return `${m} min`;
+    }
+    return `${seconds} s`;
+  }
+
   /** Audit-log status change cell: "A → B", the single status when one side
    *  is null (delete/reject), or "—" when neither (e.g. report dismiss). */
   protected auditChangeText(previous: string | null, next: string | null): string {
@@ -266,6 +307,11 @@ export class AdminPage implements OnInit {
       case 'reviews':
         if (this.reviewRows() === null && this.reviewLoadError() === null) {
           this.loadReviews();
+        }
+        break;
+      case 'alerts':
+        if (this.alertsRows() === null && this.alertsLoadError() === null) {
+          this.loadAlerts();
         }
         break;
       case 'audit':
@@ -544,6 +590,18 @@ export class AdminPage implements OnInit {
     this.reviewRows.update((rows) =>
       (rows ?? []).map((r) => (r.id === reportRowId ? { ...r, ...patch } : r)),
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Alerts tab (M3 slice 4)
+  // -------------------------------------------------------------------------
+  loadAlerts(): void {
+    this.alertsRows.set(null);
+    this.alertsLoadError.set(null);
+    this.admin
+      .listAlerts()
+      .then((rows) => this.alertsRows.set(rows))
+      .catch((error: unknown) => this.alertsLoadError.set(bannerMessage(error, 'shelter')));
   }
 
   // -------------------------------------------------------------------------

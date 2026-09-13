@@ -271,4 +271,32 @@ describe('AdminGateway', () => {
     expect(api.get).toHaveBeenCalledWith('/admin/audit');
     expect(rows).toEqual([row]);
   });
+
+  // ---- GET /admin/alerts (abuse-limits slice 4) ----
+
+  it('listAlerts GETs the default newest-50 alert ring', async () => {
+    const row = {
+      id: 41,
+      kind: 'submission-daily-cap' as const,
+      subject: 'user:77',
+      detail: 'Daily shelter-submission cap reached (429)',
+      retryAfterSeconds: 8321,
+      at: '2026-09-13T08:00:00Z',
+    };
+    api.get.mockReturnValue(of([row]));
+
+    const rows = await gateway.listAlerts();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/alerts');
+    expect(rows).toEqual([row]);
+  });
+
+  it('listAlerts appends the limit query when given', async () => {
+    api.get.mockReturnValue(of([]));
+
+    await gateway.listAlerts(10);
+
+    expect(api.get).toHaveBeenCalledWith('/admin/alerts?limit=10');
+  });
 });

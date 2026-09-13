@@ -2,6 +2,7 @@ import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
 import type {
+  AdminAlertRow,
   AdminAuditRow,
   AdminShelterDto,
   AdminShelterFilters,
@@ -19,7 +20,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The ten endpoints, 1:1:
+ * The eleven endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -31,6 +32,7 @@ import type {
  *   POST   /admin/reviews/{id}/hide            -> 204 (idempotent)
  *   POST   /admin/reviews/{id}/restore         -> 204 (idempotent)
  *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
+ *   GET    /admin/alerts?limit=                -> AdminAlertRow[] (newest 50)
  *
  * The review hide/restore `{id}` is the REVIEW's id, not the review-report
  * row's id — callers pass `row.reviewId`.
@@ -89,6 +91,18 @@ export class AdminGateway {
    */
   listAudit(): Promise<AdminAuditRow[]> {
     return lastValueFrom(this.api.get<AdminAuditRow[]>('/admin/audit'));
+  }
+
+  /**
+   * GET /admin/alerts -> the M3 throttle-abuse alerts (abuse-limits slice
+   * 4), newest first: the daily submission cap (429), the per-contact OTP
+   * cap (429) and the near-duplicate rejection (409). Optional `limit`
+   * (1..200, default 50 — the backend answers 400 outside). The ring is
+   * in-memory on the backend, so it clears on a restart.
+   */
+  listAlerts(limit?: number): Promise<AdminAlertRow[]> {
+    const suffix = limit === undefined ? '' : `?limit=${limit}`;
+    return lastValueFrom(this.api.get<AdminAlertRow[]>(`/admin/alerts${suffix}`));
   }
 
   /**

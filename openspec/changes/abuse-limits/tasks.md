@@ -72,9 +72,40 @@
       409 with the original row untouched, admin exempt 201, hidden row
       re-addable 201)
 
-## Slice 4 — admin alerts
+## Slice 4 — admin alerts (done)
 
-- [ ] Alert surface for throttled/abusive accounts
+- [x] `ThrottleAlert` + `ThrottleAlertRecorder` (alerts package): a bounded
+      in-memory ring (`app.limits.alerts-retained: 200`, main + test yml;
+      `<= 0` disables) with oldest-first eviction, newest-first
+      `recent(limit)` (limit clamped to >= 1), a monotonic ring-local `id`
+      (the frontend row key), and contact subjects normalized the SAME way
+      as `RollingContactOtpLimiter` (trim + root-locale lowercase) so the
+      alert's subject matches the limiter's bucket key; the W16
+      single-instance constraint is documented on the class
+- [x] Hooks at the three M3 mechanisms — `ShelterService.addPlace` daily-cap
+      429 and near-duplicate 409 (both before the throw, so the event is
+      recorded even when the handler is bypassed in tests),
+      `VerificationService.requestVerification` contact-cap 429, and
+      `AuthController.register` contact-cap 429; the pre-M3 token-bucket /
+      per-(user, level) throttles deliberately do NOT alert (they are
+      IP/contact anti-spam valves, not account-abuse signals)
+- [x] `GET /admin/alerts?limit=` on `AdminController` behind the same
+      fresh-lookup D2 admin guard as the other `/admin/*` routes: newest-first
+      `AdminAlertDto[]`, `limit` 1..200 default 50 (out of range 400 — the
+      `/admin/audit` idiom)
+- [x] FE: `AdminAlertRow` model + `AdminGateway.listAlerts(limit?)` + the
+      admin page's "Alerts" tab (lazy load on first switch, kind labels,
+      human-formatted Retry-After, newest first; audit stays the LAST tab)
+- [x] Tests: `ThrottleAlertRecorderTest` 7/7 (newest-first ordering +
+      monotonic ids, oldest-first eviction, limit clamping, disabled mode,
+      subject normalization, user-scoped subjects + row-id detail, clear)
+      and `AdminAlertsIT` 7/7 over HTTP (401 anonymous, 403 non-admin,
+      400 for limit 0/201, each of the three kinds lands with the right
+      subject + retry-after, and the newest alert comes first); unit-test
+      constructor updates (ShelterServiceTest, VerificationFlowTest,
+      VerificationServiceTest)
+- [x] Gates green: `mvn -q test` 557/557 (75 classes) + `ng test` 767/767
+      (38 spec files)
 
 ## Slice 5 — secure headers + HTTPS-only cookies audit
 

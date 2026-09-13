@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
@@ -59,15 +60,18 @@ public class ShelterService {
     private final UserRepository userRepository;
     private final int dailySubmissionsPerUser;
     private final double duplicateCoordMeters;
+    private final ThrottleAlertRecorder alerts;
 
     public ShelterService(ShelterRepository shelterRepository,
                           UserRepository userRepository,
                           @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser,
-                          @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters) {
+                          @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters,
+                          ThrottleAlertRecorder alerts) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.dailySubmissionsPerUser = dailySubmissionsPerUser;
         this.duplicateCoordMeters = duplicateCoordMeters;
+        this.alerts = Objects.requireNonNull(alerts, "alerts");
     }
 
     /**
@@ -123,7 +127,11 @@ public class ShelterService {
             long submitted = shelterRepository.countByCreatedByAndSourceAndCreatedAtAfter(
                     user.getId(), ShelterSource.USER, windowStart);
             if (submitted >= dailySubmissionsPerUser) {
-                throw new ShelterSubmissionThrottledException(retryAfterSeconds(windowStart, user.getId()));
+                Integer retryAfter = retryAfterSeconds(windowStart, user.getId());
+                // M3 slice 4: the throttled account surfaces in the admin
+                // alerts ring (in-memory, W16) before the 429 goes out.
+                alerts.submissionDailyCap(user.getId(), retryAfter);
+                throw new ShelterSubmissionThrottledException(retryAfter);
             }
         }
         // Near-duplicate detection (abuse-limits M3 slice 3): an ACTIVE USER
@@ -135,6 +143,9 @@ public class ShelterService {
         if (!userRepository.isAdmin(user.getId())) {
             findNearDuplicate(place)
                     .ifPresent(existing -> {
+                        // M3 slice 4: the re-report vector is an alert row,
+                        // not just a 409 — the admin sees the repeat reporter.
+                        alerts.nearDuplicate(user.getId(), existing.getId());
                         throw new ShelterDuplicateException(existing.getId());
                     });
         }

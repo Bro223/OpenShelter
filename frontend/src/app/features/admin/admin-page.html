@@ -1,8 +1,8 @@
 <section class="admin">
   <h1 class="page-title">Admin</h1>
   <p class="page-subtitle">
-    Moderation: the community review queue, shelter visibility, the report queues and the audit
-    trail.
+    Moderation: the community review queue, shelter visibility, the report queues, the M3 abuse
+    alerts and the audit trail.
   </p>
 
   <app-banner severity="success" [message]="success()" />
@@ -50,6 +50,16 @@
       (click)="switchTab('reviews')"
     >
       Review reports
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'alerts'"
+      [attr.aria-selected]="tab() === 'alerts' ? 'true' : 'false'"
+      (click)="switchTab('alerts')"
+    >
+      Alerts
     </button>
     <button
       type="button"
@@ -446,6 +456,43 @@
           </li>
         }
       </ul>
+    }
+  }
+
+  <!-- =========================== Alerts (M3) =========================== -->
+  @if (tab() === 'alerts') {
+    @if (alertsRows() === null && alertsLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading alerts…" />
+    } @else if (alertsLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadAlerts()">Retry</button>
+    } @else if ((alertsRows() ?? []).length === 0) {
+      <p class="admin-state">No throttled or abusive activity yet.</p>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-table--audit">
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Type</th>
+              <th scope="col">Subject</th>
+              <th scope="col">Detail</th>
+              <th scope="col">Retry after</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of alertsRows() ?? []; track row.id) {
+              <tr class="admin-row">
+                <td class="admin-cell--nowrap">{{ row.at | date: 'medium' }}</td>
+                <td>{{ alertKindLabel(row.kind) }}</td>
+                <td class="admin-cell--nowrap">{{ row.subject }}</td>
+                <td class="admin-cell--name">{{ row.detail }}</td>
+                <td class="admin-cell--nowrap">{{ retryAfterText(row.retryAfterSeconds) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   }
 

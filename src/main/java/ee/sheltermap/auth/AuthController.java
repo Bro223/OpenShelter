@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationThrottledException;
@@ -26,7 +27,8 @@ import java.util.stream.Collectors;
  * for login/reset, per contact. Login additionally passes a per-IP aggregate
  * bucket (anti credential-stuffing, W5) and reset-confirm a per-(IP, email)
  * anti-guess bucket (W1). Registration additionally passes the rolling
- * per-e-mail cap (abuse-limits M3 slice 2).
+ * per-e-mail cap (abuse-limits M3 slice 2), and its 429s land in the
+ * admin alert ring (M3 slice 4).
  */
 @RestController
 @RequestMapping("/auth")
@@ -39,6 +41,7 @@ public class AuthController {
     private final RateLimiter resetConfirmRateLimiter;
     private final RateLimiter registerRateLimiter;
     private final RollingContactOtpLimiter contactOtpLimiter;
+    private final ThrottleAlertRecorder alerts;
     private final Set<String> trustedProxies;
     private final boolean trustLoopback;
 
@@ -49,6 +52,7 @@ public class AuthController {
                           @Qualifier("resetConfirmRateLimiter") RateLimiter resetConfirmRateLimiter,
                           @Qualifier("registerRateLimiter") RateLimiter registerRateLimiter,
                           RollingContactOtpLimiter contactOtpLimiter,
+                          ThrottleAlertRecorder alerts,
                           @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
                           @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.authService = authService;
@@ -58,6 +62,7 @@ public class AuthController {
         this.resetConfirmRateLimiter = resetConfirmRateLimiter;
         this.registerRateLimiter = registerRateLimiter;
         this.contactOtpLimiter = contactOtpLimiter;
+        this.alerts = alerts;
         this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
@@ -76,6 +81,9 @@ public class AuthController {
         // instead of a bare 409 loop once the window is full.
         RollingContactOtpLimiter.Result contact = contactOtpLimiter.tryAcquire("register:" + request.email());
         if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+            // M3 slice 4: the throttled contact lands in the admin alert
+            // ring (in-memory, W16) before the 429 goes out.
+            alerts.otpContactCap(request.email(), contact.retryAfterSeconds());
             throw new VerificationThrottledException("Too many registration attempts with this e-mail",
                     contact.retryAfterSeconds());
         }

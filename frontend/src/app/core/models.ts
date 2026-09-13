@@ -476,6 +476,35 @@ export interface AdminAuditRow {
 }
 
 /**
+ * The M3 throttle/abuse alert kinds (GET /admin/alerts, abuse-limits slice
+ * 4) — the closed backend vocabulary.
+ */
+export type AdminAlertKind =
+  | 'submission-daily-cap'
+  | 'otp-contact-cap'
+  | 'near-duplicate';
+
+/**
+ * One row of GET /admin/alerts (the M3 admin alerts, newest first).
+ * The ring is IN-MEMORY on the backend (W16 — cleared on a restart), so
+ * this is a triage view, not a durable log. `subject` is the flagged
+ * account or contact ('user:<id>' / 'contact:<value>');
+ * `retryAfterSeconds` is present only for the 429 alerts.
+ */
+export interface AdminAlertRow {
+  /** Ring-local monotonic id (row key; resets on backend restart). */
+  id: number;
+  kind: AdminAlertKind;
+  subject: string;
+  /** The plain-spoken event (the 409 row names the existing shelter id). */
+  detail: string;
+  /** The Retry-After the client received (429 alerts only). */
+  retryAfterSeconds: number | null;
+  /** ISO-8601 instant. */
+  at: string;
+}
+
+/**
  * One row of GET /admin/review-reports (review-report queue, newest first).
  * The action targets the REVIEW's id (`reviewId`), not this row's id.
  */

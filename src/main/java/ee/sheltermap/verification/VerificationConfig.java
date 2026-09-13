@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,11 +34,12 @@ public class VerificationConfig {
                                                    VerificationSendLog sendLog,
                                                    RollingContactOtpLimiter contactLimiter,
                                                    VerificationProperties properties,
-                                                   Clock clock) {
+                                                   Clock clock,
+                                                   ThrottleAlertRecorder alerts) {
         Map<VerificationLevel, VerificationProvider> byLevel = new EnumMap<>(VerificationLevel.class);
         for (VerificationProvider provider : providers) {
             byLevel.put(provider.level(), provider);
         }
-        return new VerificationService(byLevel, pendingRepository, sendLog, contactLimiter, properties, clock);
+        return new VerificationService(byLevel, pendingRepository, sendLog, contactLimiter, properties, clock, alerts);
     }
 }

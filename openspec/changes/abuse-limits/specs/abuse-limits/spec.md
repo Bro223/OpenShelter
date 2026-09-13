@@ -93,3 +93,39 @@ carry no address, so name + coordinates are the complete identity signal.
 - **WHEN** an ADMIN-kind account submits a shelter matching an existing
   USER row in name and point
 - **THEN** the submission is accepted (201)
+
+### Requirement: Admin throttle-abuse alerts
+
+The backend SHALL append an alert to a bounded in-memory ring
+(`app.limits.alerts-retained`, default **200**; `<= 0` disables
+recording) whenever an M3 mechanism throttles or flags an account:
+the per-user daily submission cap (429), the per-contact OTP cap on the
+verify or register surface (429), and a near-duplicate rejection (409,
+whose detail names the existing row). `GET /admin/alerts?limit=` SHALL
+serve them newest first behind the fresh-lookup admin guard (401
+anonymous, 403 non-admin), with `limit` 1..200 (default **50**; out of
+range 400). The ring is process memory (W16): a restart clears it and
+replicas see only their own share — a triage view, not a durable log.
+Contact subjects SHALL be normalized the same way as the limiter's
+bucket key (trim + root-locale lowercase).
+
+#### Scenario: A capped account becomes an alert
+
+- **WHEN** a user's 6th USER submission within 24 h is rejected with 429
+  and an admin calls `GET /admin/alerts`
+- **THEN** the list contains a row with kind `submission-daily-cap`,
+  subject `user:<id>`, and a non-null `retryAfterSeconds`
+
+#### Scenario: A repeat reporter becomes an alert
+
+- **WHEN** a second account's near-duplicate submission is rejected with
+  409 and an admin calls `GET /admin/alerts`
+- **THEN** the list contains a row with kind `near-duplicate`, subject
+  `user:<id>` of the re-reporter, and a detail naming the existing
+  shelter's id
+
+#### Scenario: Newest first, oldest evicted
+
+- **WHEN** more than the retention bound of alerts have been recorded
+- **THEN** the ring keeps only the newest `alerts-retained` rows and
+  `GET /admin/alerts` returns them newest first

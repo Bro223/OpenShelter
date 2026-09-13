@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ class VerificationServiceTest {
     private InMemoryPendingVerificationRepository pendingRepo;
     private InMemoryVerificationSendLog sendLog;
     private MutableClock clock;
+    private ThrottleAlertRecorder alerts;
     private VerificationService service;
     private RegisteredUser user;
 
@@ -33,6 +35,7 @@ class VerificationServiceTest {
         pendingRepo = new InMemoryPendingVerificationRepository();
         sendLog = new InMemoryVerificationSendLog();
         clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
+        alerts = new ThrottleAlertRecorder(128);
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
@@ -56,7 +59,7 @@ class VerificationServiceTest {
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
-        return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock);
+        return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock, alerts);
     }
 
     /** Contact cap off (M3 slice 2) — keeps the per-(user, level) throttle under test isolated. */
@@ -141,7 +144,7 @@ class VerificationServiceTest {
     @Test
     void requestVerificationForUnknownLevelThrows() {
         VerificationService bare = new VerificationService(
-                Map.of(), pendingRepo, sendLog, disabledContactLimiter(), new VerificationProperties(0, 0, "unused"), clock);
+                Map.of(), pendingRepo, sendLog, disabledContactLimiter(), new VerificationProperties(0, 0, "unused"), clock, alerts);
 
         assertThatThrownBy(() -> bare.requestVerification(user, VerificationLevel.PHONE))
                 .isInstanceOf(IllegalArgumentException.class)

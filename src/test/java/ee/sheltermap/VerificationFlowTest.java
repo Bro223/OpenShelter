@@ -1,5 +1,6 @@
 package ee.sheltermap;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ShelterService;
@@ -62,14 +63,15 @@ class VerificationFlowTest {
 
         userService = new UserService(users);
         Clock clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
+        ThrottleAlertRecorder alerts = new ThrottleAlertRecorder(128);
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         verificationService = new VerificationService(providers, pendings,
                 new InMemoryVerificationSendLog(),
                 new RollingContactOtpLimiter(0, Duration.ofHours(24), clock),
-                new VerificationProperties(0, 0, "unused"), clock);
-        shelterService = new ShelterService(shelters, users, 1_000, 100.0);
+                new VerificationProperties(0, 0, "unused"), clock, alerts);
+        shelterService = new ShelterService(shelters, users, 1_000, 100.0, alerts);
     }
 
     @Test

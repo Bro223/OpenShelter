@@ -1,6 +1,7 @@
 package ee.sheltermap.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.api.ErrorResponse;
 import ee.sheltermap.app.ReportProperties;
 import ee.sheltermap.auth.ContactChangeProperties;
@@ -120,6 +121,19 @@ public class SecurityConfig {
             @Value("${app.limits.otp-per-contact-window-hours:24}") int windowHours,
             Clock clock) {
         return new RollingContactOtpLimiter(maxPerWindow, Duration.ofHours(windowHours), clock);
+    }
+
+    /**
+     * The admin alert ring (abuse-limits M3 slice 4): the M3 cap +
+     * duplicate detectors append their throttled (429) and repeat-report
+     * (409) events here; {@code GET /admin/alerts} reads it newest first.
+     * In-memory, same single-instance constraint (W16) as the limiters;
+     * {@code retained <= 0} disables recording.
+     */
+    @Bean
+    public ThrottleAlertRecorder throttleAlertRecorder(
+            @Value("${app.limits.alerts-retained:200}") int retained) {
+        return new ThrottleAlertRecorder(retained);
     }
 
     /**
