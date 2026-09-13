@@ -192,6 +192,16 @@ app:
     # submissions per rolling 24 h — the next is a 429 with Retry-After.
     # Distinct from the per-user ACTIVE-shelter cap (10, a 409 conflict).
     daily-submissions-per-user: 5
+    # Per-contact OTP cap (abuse-limits M3 slice 2): max events (a real code
+    # send, or a registration attempt) per normalized e-mail / E.164 phone
+    # within a rolling window, ACROSS users — the volume valve on Twilio/SMTP
+    # cost on top of the per-(user, level) daily cap. 0 disables.
+    # High in the TEST profile: the IT harnesses reuse fixed e-mails across
+    # many tests in one shared context (e.g. AccountControllerIT registers
+    # kontakt@example.ee 15x). Cap-under-test ITs pin the value themselves
+    # (OtpContactCapIT), same pattern as the per-class ratelimit overrides.
+    otp-per-contact-max: 100
+    otp-per-contact-window-hours: 24
   registry:
     # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
     # Override with REGISTRY_BASE_URL if the service endpoint moves.

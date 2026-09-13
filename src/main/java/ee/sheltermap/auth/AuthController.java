@@ -1,6 +1,8 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.verification.PhoneNumbers;
+import ee.sheltermap.verification.RollingContactOtpLimiter;
+import ee.sheltermap.verification.VerificationThrottledException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -23,7 +25,8 @@ import java.util.stream.Collectors;
  * per real client IP (X-Forwarded-For aware — see {@link ClientIps}) and,
  * for login/reset, per contact. Login additionally passes a per-IP aggregate
  * bucket (anti credential-stuffing, W5) and reset-confirm a per-(IP, email)
- * anti-guess bucket (W1).
+ * anti-guess bucket (W1). Registration additionally passes the rolling
+ * per-e-mail cap (abuse-limits M3 slice 2).
  */
 @RestController
 @RequestMapping("/auth")
@@ -35,6 +38,7 @@ public class AuthController {
     private final RateLimiter resetRateLimiter;
     private final RateLimiter resetConfirmRateLimiter;
     private final RateLimiter registerRateLimiter;
+    private final RollingContactOtpLimiter contactOtpLimiter;
     private final Set<String> trustedProxies;
     private final boolean trustLoopback;
 
@@ -44,6 +48,7 @@ public class AuthController {
                           @Qualifier("resetRateLimiter") RateLimiter resetRateLimiter,
                           @Qualifier("resetConfirmRateLimiter") RateLimiter resetConfirmRateLimiter,
                           @Qualifier("registerRateLimiter") RateLimiter registerRateLimiter,
+                          RollingContactOtpLimiter contactOtpLimiter,
                           @Value("${app.ratelimit.trusted-proxies:}") String trustedProxies,
                           @Value("${app.ratelimit.trust-loopback:true}") boolean trustLoopback) {
         this.authService = authService;
@@ -52,6 +57,7 @@ public class AuthController {
         this.resetRateLimiter = resetRateLimiter;
         this.resetConfirmRateLimiter = resetConfirmRateLimiter;
         this.registerRateLimiter = registerRateLimiter;
+        this.contactOtpLimiter = contactOtpLimiter;
         this.trustLoopback = trustLoopback;
         this.trustedProxies = Arrays.stream(trustedProxies.split(","))
                 .map(String::trim)
@@ -63,6 +69,16 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     public void register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
         requireRate(registerRateLimiter, clientIp(http));
+        // M3 slice 2: per-e-mail rolling cap on registration ATTEMPTS
+        // ("register:" namespace — independent of the "verify:" send cap),
+        // every attempt counts (a duplicate-409 retry is still an attempt),
+        // the same semantics as the per-IP bucket above. 429 + Retry-After
+        // instead of a bare 409 loop once the window is full.
+        RollingContactOtpLimiter.Result contact = contactOtpLimiter.tryAcquire("register:" + request.email());
+        if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+            throw new VerificationThrottledException("Too many registration attempts with this e-mail",
+                    contact.retryAfterSeconds());
+        }
         authService.register(request);
     }
 

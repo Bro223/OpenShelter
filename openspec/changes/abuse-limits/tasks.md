@@ -17,11 +17,32 @@
 - [x] Gates green: `mvn -q test` (incl. unit fakes updated for the new
       constructor arg)
 
-## Slice 2 — OTP caps (next)
+## Slice 2 — OTP caps (done)
 
-- [ ] Per-phone OTP request cap (rolling window, 429 + Retry-After)
-- [ ] Per-IP + per-e-mail caps on the verify/register request endpoints
-- [ ] ITs for each cap
+- [x] `RollingContactOtpLimiter` (verification pkg): rolling-window cap per
+      normalized contact (e-mail / E.164 phone), 429-friendly verdict with
+      exact `Retry-After` (oldest in-window event), clock-injectable,
+      `maxPerWindow <= 0` disables; wired as a bean from
+      `app.limits.otp-per-contact-max` / `-window-hours` (main + test yml)
+- [x] Per-phone OTP request cap: enforced in `VerificationService.
+      requestVerification` AFTER the per-(user, level) gate, so a cooldown/
+      daily-cap reject records nothing; the contact cap counts only REAL
+      sends (Twilio/SMTP volume valve). Keys are namespaced per surface
+      (`verify:` vs `register:`) so registering an account does not consume
+      its verification-send budget
+- [x] Per-e-mail caps on the verify + register request endpoints:
+      `/verify/request` (EMAIL level, `verify:` seam, same rolling cap as the
+      phone) and `/auth/register` (`register:` seam, every attempt counts — a
+      duplicate-409 retry is still an attempt — 429 + Retry-After instead of
+      a 409 loop); per-IP stays on the existing verify/register token
+      buckets; test-yml runs the cap at 100 (IT harnesses reuse fixed
+      e-mails in one shared context) — cap-under-test ITs pin it themselves
+- [x] ITs for each cap: `OtpContactCapIT` (phone 3rd request 429 +
+      Retry-After + nothing sent; e-mail verify 3rd request 429 + nothing
+      sent; register 3rd attempt 429 after 201 + 409) +
+      `RollingContactOtpLimiterTest` (window expiry, isolation,
+      normalization, retry-after math, disabled mode) + service-level
+      `VerificationServiceTest` interaction test
 
 ## Slice 3 — duplicate-submission detection
 

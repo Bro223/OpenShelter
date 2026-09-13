@@ -31,12 +31,13 @@ public class VerificationConfig {
     public VerificationService verificationService(List<VerificationProvider> providers,
                                                    PendingVerificationRepository pendingRepository,
                                                    VerificationSendLog sendLog,
+                                                   RollingContactOtpLimiter contactLimiter,
                                                    VerificationProperties properties,
                                                    Clock clock) {
         Map<VerificationLevel, VerificationProvider> byLevel = new EnumMap<>(VerificationLevel.class);
         for (VerificationProvider provider : providers) {
             byLevel.put(provider.level(), provider);
         }
-        return new VerificationService(byLevel, pendingRepository, sendLog, properties, clock);
+        return new VerificationService(byLevel, pendingRepository, sendLog, contactLimiter, properties, clock);
     }
 }

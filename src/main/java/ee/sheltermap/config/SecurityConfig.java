@@ -8,6 +8,7 @@ import ee.sheltermap.auth.JwtProperties;
 import ee.sheltermap.auth.JwtTokenService;
 import ee.sheltermap.auth.RateLimiter;
 import ee.sheltermap.auth.TokenBucketRateLimiter;
+import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,6 +32,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -103,6 +105,21 @@ public class SecurityConfig {
     @Bean
     public RateLimiter verifyRateLimiter(RateLimitProperties properties) {
         return new TokenBucketRateLimiter(properties.verifyCapacity(), properties.verifyRefillPerSecond());
+    }
+
+    /**
+     * Rolling per-contact OTP cap (abuse-limits M3 slice 2): max OTP events
+     * (a real code send, or a registration attempt) per normalized e-mail /
+     * E.164 phone within a rolling window, across users — the volume valve
+     * on Twilio/SMTP cost on top of the per-(user, level) throttle. Binds
+     * {@code app.limits.otp-per-contact-*} ({@code max <= 0} disables).
+     */
+    @Bean
+    public RollingContactOtpLimiter rollingContactOtpLimiter(
+            @Value("${app.limits.otp-per-contact-max:5}") int maxPerWindow,
+            @Value("${app.limits.otp-per-contact-window-hours:24}") int windowHours,
+            Clock clock) {
+        return new RollingContactOtpLimiter(maxPerWindow, Duration.ofHours(windowHours), clock);
     }
 
     /**

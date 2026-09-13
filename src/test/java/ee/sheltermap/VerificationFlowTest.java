@@ -20,12 +20,14 @@ import ee.sheltermap.verification.EmailVerificationProvider;
 import ee.sheltermap.verification.InMemoryPendingVerificationRepository;
 import ee.sheltermap.verification.InMemoryVerificationSendLog;
 import ee.sheltermap.verification.PhoneVerificationProvider;
+import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProvider;
 import ee.sheltermap.verification.VerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.EnumMap;
@@ -64,7 +66,9 @@ class VerificationFlowTest {
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         verificationService = new VerificationService(providers, pendings,
-                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"), clock);
+                new InMemoryVerificationSendLog(),
+                new RollingContactOtpLimiter(0, Duration.ofHours(24), clock),
+                new VerificationProperties(0, 0, "unused"), clock);
         shelterService = new ShelterService(shelters, users, 1_000);
     }
 

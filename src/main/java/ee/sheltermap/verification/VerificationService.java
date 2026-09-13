@@ -25,7 +25,10 @@ import java.util.Objects;
  *
  * <p>Anti-spam (Twilio plan): every request is throttled per (user, level)
  * via the durable {@link VerificationSendLog} — a resend cooldown plus a
- * per-user daily cap. Violations raise {@link VerificationThrottledException}
+ * per-user daily cap — and per contact (e-mail / E.164 phone) via the
+ * rolling {@link RollingContactOtpLimiter} (abuse-limits M3 slice 2), which
+ * bounds the volume of REAL sends per address across the whole window.
+ * Violations raise {@link VerificationThrottledException}
  * (→ 429); the check deliberately says nothing about the contact's existence.
  */
 public class VerificationService {
@@ -33,6 +36,7 @@ public class VerificationService {
     private final Map<VerificationLevel, VerificationProvider> providers;
     private final PendingVerificationRepository pendingRepository;
     private final VerificationSendLog sendLog;
+    private final RollingContactOtpLimiter contactLimiter;
     private final VerificationProperties properties;
     private final Clock clock;
 
@@ -40,12 +44,15 @@ public class VerificationService {
      * @param providers          provider per level; a level without a provider is rejected
      * @param pendingRepository  persistence seam for pending codes
      * @param sendLog            durable send log behind the cooldown + daily cap
+     * @param contactLimiter     rolling per-contact cap (M3 slice 2);
+     *                           {@code maxPerWindow <= 0} disables it
      * @param properties         throttle config ({@code cooldownSeconds}, {@code maxPerDay})
      * @param clock              time source (injectable for deterministic tests)
      */
     public VerificationService(Map<VerificationLevel, VerificationProvider> providers,
                                PendingVerificationRepository pendingRepository,
                                VerificationSendLog sendLog,
+                               RollingContactOtpLimiter contactLimiter,
                                VerificationProperties properties,
                                Clock clock) {
         this.providers = new EnumMap<>(VerificationLevel.class);
@@ -54,6 +61,7 @@ public class VerificationService {
         }
         this.pendingRepository = Objects.requireNonNull(pendingRepository, "pendingRepository");
         this.sendLog = Objects.requireNonNull(sendLog, "sendLog");
+        this.contactLimiter = Objects.requireNonNull(contactLimiter, "contactLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -91,6 +99,20 @@ public class VerificationService {
             // counts down instead of spam-clicking into repeated 429s.
             throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
                     retryAfterSeconds(decision, userId, level, now));
+        }
+
+        // M3 slice 2: per-contact rolling cap — the volume valve on REAL
+        // sends (Twilio/SMTP cost). "verify:" namespace keeps it independent
+        // of the "register:" attempt cap (registering an account must not
+        // eat its verification-send budget). It runs AFTER the per-(user,
+        // level) gate so a cooldown/daily-cap reject records nothing here;
+        // if THIS cap fires, the user-level send-log entry stays (bounded
+        // over-count — e-mail and phone are unique per user, so the
+        // contact's budget was spent by this same user's real sends).
+        RollingContactOtpLimiter.Result contact = contactLimiter.tryAcquire("verify:" + contactFor(user, level));
+        if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                    contact.retryAfterSeconds());
         }
 
         PendingVerification pending = provider.request(user);

@@ -47,11 +47,21 @@ class VerificationServiceTest {
 
     /** Builds a service sharing this test's fakes, with the given throttle config. */
     private VerificationService newService(VerificationProperties properties) {
+        return newService(properties, disabledContactLimiter());
+    }
+
+    /** Builds a service sharing this test's fakes, with the given throttle config + contact cap. */
+    private VerificationService newService(VerificationProperties properties, RollingContactOtpLimiter contactLimiter) {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
-        return new VerificationService(providers, pendingRepo, sendLog, properties, clock);
+        return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock);
+    }
+
+    /** Contact cap off (M3 slice 2) — keeps the per-(user, level) throttle under test isolated. */
+    private RollingContactOtpLimiter disabledContactLimiter() {
+        return new RollingContactOtpLimiter(0, Duration.ofHours(24), clock);
     }
 
     @Test
@@ -131,7 +141,7 @@ class VerificationServiceTest {
     @Test
     void requestVerificationForUnknownLevelThrows() {
         VerificationService bare = new VerificationService(
-                Map.of(), pendingRepo, sendLog, new VerificationProperties(0, 0, "unused"), clock);
+                Map.of(), pendingRepo, sendLog, disabledContactLimiter(), new VerificationProperties(0, 0, "unused"), clock);
 
         assertThatThrownBy(() -> bare.requestVerification(user, VerificationLevel.PHONE))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -200,6 +210,25 @@ class VerificationServiceTest {
         other.setId(2L);
         throttled.requestVerification(other, VerificationLevel.PHONE); // different user, not throttled
         assertThat(sendLog.countToday(other.getId(), VerificationLevel.PHONE)).isEqualTo(1);
+    }
+
+    @Test
+    void perContactCapRejectsWithRetryAfterAndSendsNothing() {
+        // M3 slice 2: user-level throttle OFF (0, 0), rolling contact cap 1
+        // per 24 h — the second send to the same contact is rejected by the
+        // CONTACT cap (not the send log): same 429 exception, honest
+        // Retry-After (full window — the clock has not moved), no second SMS.
+        VerificationService capped = newService(new VerificationProperties(0, 0, "unused"),
+                new RollingContactOtpLimiter(1, Duration.ofHours(24), clock));
+
+        capped.requestVerification(user, VerificationLevel.PHONE);
+
+        assertThatThrownBy(() -> capped.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class)
+                .hasMessage(VerificationThrottledException.DEFAULT_MESSAGE)
+                .extracting(ex -> ((VerificationThrottledException) ex).retryAfterSeconds())
+                .isEqualTo(24 * 60 * 60);
+        assertThat(sms.getMessages()).hasSize(1);
     }
 
     @Test
