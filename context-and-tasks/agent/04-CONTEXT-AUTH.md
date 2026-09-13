@@ -31,7 +31,7 @@ logs in through the normal `POST /auth/login`; nothing here is admin-specific.
 | `RefreshTokenRecord` | record | `userId, tokenHash, expiresAt, revokedAt`. |
 | `UserCredentialsRepository` | interface | `save(credentials): void`, `findByUserId(userId): UserCredentials`, `updateHash(userId, newHash): void`. |
 | `PasswordResetTokenRepository` | interface | `save(token): void`, `findByTokenHash(tokenHash): PasswordResetToken`, `findActiveByUserId(userId, now): PasswordResetToken` (the user's single active code), `deleteActiveByUserId(userId, now): void` (one active code per user), `markUsed(id): void`. |
-| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(email, code, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (V3 unique indexes as race-safe backstop). |
+| `AuthService` | class | `register(RegisterRequest): void`, `login(LoginRequest): TokenResponse`, `refresh(RefreshRequest): TokenResponse`, `logout(refreshToken): void`, `requestPasswordReset(email): void`, `resetPassword(email, code, newPassword): void`. Register pre-checks email + phone and rejects duplicates with `DuplicateAccountException` → 409 (race-safe backstop: the V13 UNIQUE indexes on the blind hashes `email_hash` / `phone_hash` — the `email`/`phone` columns hold ciphertext, PII-at-rest M2). |
 | `PasswordResetService` | class | `requestReset(email): void`, `reset(email, code, newPassword): boolean`. **2026-09-08 hardening:** re-issues are throttled per user — 60 s rotation cooldown and a per-UTC-day cap of 5 (`REISSUE_COOLDOWN` / `MAX_REISSUES_PER_UTC_DAY`); a skipped re-issue is a silent no-op (still 200 — anti-enumeration preserved). |
 | `RateLimiter` | interface | `tryAcquire(key: String): boolean`. |
 | `TokenBucketRateLimiter` | class | Token-bucket impl (SDI Ch 4). **Single-instance per bucket set** (in-memory `Map` of buckets) — the app is a single instance; do not run the limiter across instances without a shared store. |
@@ -46,6 +46,18 @@ logs in through the normal `POST /auth/login`; nothing here is admin-specific.
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
 RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
 (duplicate-registration pre-check — hardening).
+
+**PII at rest (M2 — `pii-at-rest`):** the auth storage boundary is now encrypted.
+`users.email` / `users.phone` (plus the pending-* `contact`/`target` copy columns and the
+claim `external_ref`) store a `v1:` AES-256-GCM envelope; `users.email_hash` /
+`users.phone_hash` hold the domain-separated HMAC-SHA256 blind index of the canonical
+value (e-mail lower-cased + trimmed, phone E.164) and are what every lookup and the
+UNIQUE duplicate backstop run on. The crypto lives ONLY in the persistence layer
+(`ee.sheltermap.security.PiiCrypto`, applied by `UserMapper` + the pending-* JPA
+repositories) — `AuthService`/`AccountService`/`AdminSeeder` and the DTOs above keep
+their plaintext contracts. Keys: `PII_AES_KEY` / `PII_HMAC_KEY` (32-byte base64,
+env-only, fail-closed at boot, never committed, never logged). Full design:
+`openspec/changes/pii-at-rest/design.md`.
 
 ## Design decisions (from the puml notes — do not silently change)
 

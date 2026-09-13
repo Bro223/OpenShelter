@@ -409,6 +409,7 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `REGISTRY_CLIENT`                                                | `paasteamet`                                                                | `paasteamet` (real HTTP) or `dev` (local fixture)                                |
 | `CORS_ALLOWED_ORIGINS`                                           | `http://localhost:5173,http://localhost:3000`                               | Browser origins allowed to call the API                                          |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD`                                 | — (empty = no admin exists)                                                 | The env-provisioned admin (admin-moderation): both set + no user with that email → an ADMIN-kind account is created at startup (create-if-absent — never re-hashed; login through the normal `/auth/login`); either unset → no admin, `/admin/*` answers 403 for everyone. **No defaults are committed** — the dev values live in the gitignored `.env` |
+| `PII_AES_KEY` / `PII_HMAC_KEY`                                    | — (empty = **the app refuses to boot**)                                     | PII at rest (M2): 32-byte base64 AES-GCM data key + HMAC blind-index key. Generate: `openssl rand -base64 32` (once per key). Dev values live in the gitignored `.env`; **never committed, never logged** — see “PII at rest” below |
 | `RATELIMIT_TRUSTED_PROXIES`                                      | —                                                                           | IPs of trusted reverse proxies (for `X-Forwarded-For` rate-limit keys)           |
 | `DEV_EMAIL_TEST_ALLOWED_RECIPIENTS` / `DEV_EMAIL_TEST_ALLOW_ANY` | — / `false`                                                                 | E-mail-test recipient allowlist (spam-relay guard)                               |
 | `DEV_SMS_TEST_ENABLED`                                           | `false`                                                                     | Enables `POST /dev/sms-test` (SMS diagnostic, JWT required)                      |
@@ -502,6 +503,45 @@ prod `apiUrl ''`, banner warning variant, `--bp-narrow` token, copy-pasted fakes
 map-page.scss size budget; dev-endpoint CRLF/`@Size`; national-ID-at-rest — resolved by M1:
 the field no longer exists, `users.national_id_code` dropped in V12).
 
+## PII at rest (M2)
+
+User identity contacts (e-mail, phone) are stored **encrypted** — a stolen DB dump or
+backup alone no longer exposes account identities. Design: `openspec/changes/pii-at-rest/design.md`.
+
+- **What is encrypted where.** `users.email` / `users.phone`, `verification_claims.external_ref`,
+  `pending_verifications.contact` and `pending_contact_changes.target` store a `v1:` +
+  Base64URL(12-byte nonce ‖ AES-256-GCM ciphertext+tag) envelope. The `v1:` prefix is the
+  key-slot tag (the V13 migration's idempotency guard + the rotation hook). All crypto lives
+  in the persistence layer (`ee.sheltermap.security.PiiCrypto`, applied by `UserMapper` and
+  the pending-* JPA repositories) — the domain, the API and the frontend keep working with
+  plaintext in memory; no API contract changed.
+- **Lookups + uniqueness.** `users.email_hash` / `users.phone_hash` hold the domain-separated
+  HMAC-SHA256 blind index of the canonical value (e-mail lower-cased + trimmed, phone E.164).
+  Login, duplicate-check and admin lookups run on the hashes, under the UNIQUE indexes
+  `uq_users_email_hash` / `uq_users_phone_hash` (they replaced the V3/V8 plaintext indexes);
+  the ciphertext columns are never matched against.
+- **Keys (fail-closed).** `PII_AES_KEY` + `PII_HMAC_KEY` — 32-byte base64, env-only (dev:
+  the gitignored `.env`), **never committed, never logged**. Missing or malformed ⇒ the app
+  refuses to boot (same fail-closed pattern as the JWT guard). Generate: `openssl rand -base64 32`
+  (once per key).
+- **Existing rows.** V13 (a Flyway Java migration, bean-injected) re-encrypts every row in
+  place at startup and is rerun-safe after `flyway repair` (already-`v1:` rows are skipped,
+  DDL is idempotent). A pre-existing canonical-collision (e.g. `Foo@x.com` next to
+  `foo@x.com`) fails the migration loudly — dedupe, `flyway repair`, restart.
+- **Rotation (documented procedure, D6).** The `v1:` tag is the key slot. AES-key rotation:
+  (1) set the new key under the next slot and run a one-off re-encrypting migration that
+  rewrites each row as `v2:` — old rows stay decryptable under their slot tag until
+  rewritten; (2) once every row is re-encrypted, drop support for the old slot. The HMAC
+  key MUST rotate in the same migration pass (rehash every row atomically) — a blind-index
+  lookup against a stale hash fails, so the two keys rotate together, never independently.
+  The re-encryption tooling is deliberately NOT built until a rotation is scheduled.
+- **Lost key = unrecoverable PII.** Accounts become unloginable by contact. Keep an
+  **offline backup of both keys** — the DB dump itself no longer helps an attacker, so the
+  key is the single thing worth protecting.
+- **Out of scope here.** The file-backed `data/verification-send.log` TSV (anti-spam daily
+cap) keeps its format — residual item for the M15 security pass. JWTs carry no
+e-mail/phone claims (verified).
+
 ## Production deployment
 
 Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these server-side):
@@ -534,6 +574,9 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
    `RATELIMIT_TRUSTED_PROXIES` to the proxy IP(s) — otherwise every user behind it shares one
    bucket, and without it the `X-Forwarded-For` header is ignored entirely (safe default).
    Set `RATELIMIT_TRUST_LOOPBACK=false` behind a real load balancer.
+9. **PII keys (fail-closed).** `PII_AES_KEY` + `PII_HMAC_KEY` (32-byte base64, env/secret
+   store — never in the repo) MUST be set, or the app refuses to boot. Back up both keys
+   OFFLINE: a lost key makes the affected accounts unloginable by contact (see “PII at rest”).
 
 ## Current state & known gaps
 

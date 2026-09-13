@@ -74,8 +74,8 @@ class AdminSeederIT extends AbstractPersistenceIT {
     }
 
     private long adminId() {
-        return jdbc.queryForObject("SELECT id FROM users WHERE email = 'admin@example.ee'",
-                Long.class);
+        // PII-at-rest (M2): users.email holds ciphertext — look up by blind index.
+        return userIdByEmail("admin@example.ee");
     }
 
     @Test

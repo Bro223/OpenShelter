@@ -2,6 +2,7 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 
 /**
  * Base class for persistence integration tests (Step 3).
@@ -28,6 +30,16 @@ import java.nio.file.Path;
  */
 @SpringBootTest
 public abstract class AbstractPersistenceIT {
+
+    /**
+     * Fixed PII keys for the IT suite (M2) — TEST-ONLY values; production
+     * keys come from the environment and are never committed. All zeros:
+     * the tests exercise the encryption path, not key strength.
+     */
+    static final String TEST_PII_AES_KEY =
+            Base64.getEncoder().encodeToString(new byte[32]);
+    static final String TEST_PII_HMAC_KEY =
+            Base64.getEncoder().encodeToString(new byte[32]);
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16")
             .withDatabaseName("sheltermap_it");
@@ -56,6 +68,10 @@ public abstract class AbstractPersistenceIT {
         // @Transactional, so a small pool is plenty and keeps the suite green.
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "4");
         registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
+        // PII-at-rest (M2): the app is fail-closed without the keys — every
+        // IT context gets the fixed test keys here.
+        registry.add("app.pii.aes-key", () -> TEST_PII_AES_KEY);
+        registry.add("app.pii.hmac-key", () -> TEST_PII_HMAC_KEY);
     }
 
     /**
@@ -104,6 +120,20 @@ public abstract class AbstractPersistenceIT {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PiiCrypto piiCrypto;
+
+    /**
+     * PII-at-rest (M2): raw-JDBC user lookup by the e-mail's blind index —
+     * the {@code users.email} column holds ciphertext, never plaintext.
+     */
+    protected final long userIdByEmail(String email) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email_hash = ?",
+                Long.class,
+                piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(email)));
+    }
 
     /**
      * Wipes every table — for the ITs that are DELIBERATELY not

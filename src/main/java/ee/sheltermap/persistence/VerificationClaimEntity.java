@@ -35,7 +35,7 @@ public class VerificationClaimEntity {
     @Column(nullable = false, length = 32)
     private String provider;
 
-    @Column(name = "external_ref", nullable = false, length = 255)
+    @Column(name = "external_ref", nullable = false, length = 1024)
     private String externalRef;
 
     @Column(name = "verified_at", nullable = false)

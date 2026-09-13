@@ -3,6 +3,7 @@ package ee.sheltermap.persistence;
 import ee.sheltermap.auth.PendingContactChange;
 import ee.sheltermap.auth.PendingContactChangeRepository;
 import ee.sheltermap.domain.ContactChangeType;
+import ee.sheltermap.security.PiiCrypto;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,14 +13,19 @@ import java.util.Optional;
 /**
  * JPA implementation of {@link PendingContactChangeRepository} (approach B —
  * plain domain class + separate entity, mirroring {@code PendingVerification}).
+ * PII-at-rest (M2): the target contact is stored encrypted — the domain
+ * object keeps the plain value.
  */
 @Repository
 public class JpaPendingContactChangeRepository implements PendingContactChangeRepository {
 
     private final SpringDataPendingContactChangeRepository changes;
+    private final PiiCrypto piiCrypto;
 
-    public JpaPendingContactChangeRepository(SpringDataPendingContactChangeRepository changes) {
+    public JpaPendingContactChangeRepository(SpringDataPendingContactChangeRepository changes,
+                                             PiiCrypto piiCrypto) {
         this.changes = Objects.requireNonNull(changes, "changes");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
     }
 
     @Override
@@ -34,7 +40,7 @@ public class JpaPendingContactChangeRepository implements PendingContactChangeRe
     @Transactional(readOnly = true)
     public Optional<PendingContactChange> findByUserIdAndType(Long userId, ContactChangeType type) {
         return changes.findByUserIdAndType(userId, type)
-                .map(JpaPendingContactChangeRepository::toDomain);
+                .map(this::toDomain);
     }
 
     @Override
@@ -54,12 +60,12 @@ public class JpaPendingContactChangeRepository implements PendingContactChangeRe
         }
     }
 
-    private static PendingContactChangeEntity toEntity(PendingContactChange change) {
+    private PendingContactChangeEntity toEntity(PendingContactChange change) {
         PendingContactChangeEntity entity = new PendingContactChangeEntity();
         entity.setId(change.getId());
         entity.setUserId(change.getUserId());
         entity.setType(change.getType());
-        entity.setTarget(change.getTarget());
+        entity.setTarget(piiCrypto.encrypt(change.getTarget()));
         entity.setCodeHash(change.getCodeHash());
         entity.setAttempts(change.getAttempts());
         entity.setExpiresAt(change.getExpiresAt());
@@ -67,9 +73,9 @@ public class JpaPendingContactChangeRepository implements PendingContactChangeRe
         return entity;
     }
 
-    private static PendingContactChange toDomain(PendingContactChangeEntity entity) {
+    private PendingContactChange toDomain(PendingContactChangeEntity entity) {
         PendingContactChange change = new PendingContactChange(
-                entity.getUserId(), entity.getType(), entity.getTarget(),
+                entity.getUserId(), entity.getType(), piiCrypto.decrypt(entity.getTarget()),
                 entity.getCodeHash(), entity.getExpiresAt(), entity.getCreatedAt());
         change.setId(entity.getId());
         for (int i = 0; i < entity.getAttempts(); i++) {

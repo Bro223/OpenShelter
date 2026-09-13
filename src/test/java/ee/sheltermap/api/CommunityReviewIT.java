@@ -223,8 +223,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].reviewStatus").value("CONFIRMED"));
 
         // the AUTO_CONFIRM audit row: the REPORTING user is the actor
-        Long confirmerId = jdbc.queryForObject(
-                "SELECT id FROM users WHERE email = 'kinnitaja@example.ee'", Long.class);
+        Long confirmerId = userIdByEmail("kinnitaja@example.ee"); // PII-at-rest (M2): hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT action FROM moderation_actions WHERE shelter_id = ?", String.class, id))
                 .isEqualTo("AUTO_CONFIRM");
@@ -265,8 +264,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     void anAdminConfirmConfirmsWithoutTouchingTheStatus() throws Exception {
         String author = verifiedToken("Autor", "autor4@example.ee");
         long id = createShelterViaApi(author, "Manuaalselt");
-        long adminId = jdbc.queryForObject("SELECT id FROM users WHERE email = 'admin@example.ee'",
-                Long.class);
+        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
 
         mvc.perform(post("/admin/shelters/" + id + "/review")
                         .header("Authorization", "Bearer " + adminToken())
@@ -478,8 +476,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[6].previousStatus").value("NEW"))
                 .andExpect(jsonPath("$[6].newStatus").value("CONFIRMED"));
         // the AUTO_CONFIRM actor is the REPORTING user, not an admin
-        Long kinnitajaId = jdbc.queryForObject(
-                "SELECT id FROM users WHERE email = 'kinnitaja2@example.ee'", Long.class);
+        Long kinnitajaId = userIdByEmail("kinnitaja2@example.ee"); // PII-at-rest (M2): hash lookup
         entityManager.flush();
         assertThat(jdbc.queryForObject(
                         "SELECT moderator_id FROM moderation_actions WHERE action = 'AUTO_CONFIRM' "
@@ -499,8 +496,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 400, "Bad Request");
 
         // every row's actor is the acting user (admin or the reporter)
-        Long adminId = jdbc.queryForObject("SELECT id FROM users WHERE email = 'admin@example.ee'",
-                Long.class);
+        Long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM moderation_actions WHERE moderator_id = ?",
                         Integer.class, adminId)).isEqualTo(6);

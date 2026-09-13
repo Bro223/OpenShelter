@@ -5,6 +5,8 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.verification.PhoneNumbers;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,23 +23,31 @@ import java.util.stream.Collectors;
  * owned by the user and mapped diff-based (N10): unchanged rows keep their
  * ids across saves, only missing claims are inserted and only removed ones
  * deleted — so claim ids are stable for the lifetime of the claim.
+ *
+ * <p>PII-at-rest (M2): e-mail/phone resolution goes through the HMAC blind
+ * index — {@code findByEmail} canonicalizes lower-case (replacing the old
+ * {@code findByEmailIgnoreCase}), {@code findByPhone} expects the canonical
+ * E.164 form the login/register paths already produce.
  */
 @Repository
 public class JpaUserRepository implements UserRepository {
 
     private final SpringDataUserRepository users;
     private final SpringDataVerificationClaimRepository claims;
+    private final PiiCrypto piiCrypto;
 
     public JpaUserRepository(SpringDataUserRepository users,
-                             SpringDataVerificationClaimRepository claims) {
+                             SpringDataVerificationClaimRepository claims,
+                             PiiCrypto piiCrypto) {
         this.users = Objects.requireNonNull(users, "users");
         this.claims = Objects.requireNonNull(claims, "claims");
+        this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
     }
 
     @Override
     @Transactional
     public void save(User user) {
-        UserEntity entity = UserMapper.toEntity(user);
+        UserEntity entity = UserMapper.toEntity(user, piiCrypto);
         UserEntity saved = users.save(entity);
         user.setId(saved.getId());
         if (user instanceof RegisteredUser registered) {
@@ -60,9 +70,12 @@ public class JpaUserRepository implements UserRepository {
      * survive it.
      */
     private void saveClaims(Long userId, RegisteredUser registered) {
+        // PII-at-rest (M2): the stored external_ref is the v1: envelope —
+        // diff on the DECRYPTED contact so the (level, contact, revokedAt)
+        // identity matches the domain claim's plaintext ref (no id churn).
         Map<ClaimKey, VerificationClaimEntity> existingByKey = claims.findByUserId(userId).stream()
                 .collect(Collectors.toMap(
-                        e -> new ClaimKey(e.getLevel(), e.getExternalRef(), e.getRevokedAt()),
+                        e -> new ClaimKey(e.getLevel(), piiCrypto.decrypt(e.getExternalRef()), e.getRevokedAt()),
                         e -> e,
                         (first, second) -> first)); // defensive: a duplicate key keeps the older row
         List<VerificationClaim> toInsert = new ArrayList<>();
@@ -81,7 +94,7 @@ public class JpaUserRepository implements UserRepository {
                     .toList());
         }
         for (VerificationClaim claim : toInsert) {
-            VerificationClaimEntity savedClaim = claims.save(UserMapper.claimToEntity(userId, claim));
+            VerificationClaimEntity savedClaim = claims.save(UserMapper.claimToEntity(userId, claim, piiCrypto));
             claim.setId(savedClaim.getId());
         }
     }
@@ -97,20 +110,27 @@ public class JpaUserRepository implements UserRepository {
         if (entity == null) {
             return null;
         }
-        return UserMapper.toDomain(entity, claims.findByUserId(id));
+        return UserMapper.toDomain(entity, claims.findByUserId(id), piiCrypto);
     }
 
     @Override
     @Transactional(readOnly = true)
     public RegisteredUser findByEmail(String email) {
+        // Canonicalize lower-case (replaces the old findByEmailIgnoreCase —
+        // the blind index is only deterministic for the canonical form).
         // REGISTERED and ADMIN rows are returned (kind is restored by the
         // mapper): the admin logs in through the normal /auth/login
         // (admin-moderation D1), and the registration pre-check must see
         // the admin's email as in use (409), not as free. GUEST rows have
         // no email to begin with.
-        return users.findByEmailIgnoreCase(email)
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        String hash = piiCrypto.blindIndex(
+                PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(email));
+        return users.findByEmailHash(hash)
                 .filter(e -> e.getKind() != UserKind.GUEST)
-                .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId())))
+                .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId()), piiCrypto))
                 .orElse(null);
     }
 
@@ -126,15 +146,22 @@ public class JpaUserRepository implements UserRepository {
                 .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
         return entities.stream()
                 .collect(Collectors.toMap(UserEntity::getId,
-                        e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()))));
+                        e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public RegisteredUser findByPhone(String phone) {
-        return users.findByPhone(phone)
+        // Canonical E.164 (login/register already normalize; normalize again
+        // so every path resolves identically against the blind index).
+        if (phone == null || phone.isBlank()) {
+            return null;
+        }
+        String hash = piiCrypto.blindIndex(
+                PiiCrypto.DOMAIN_USER_PHONE, PhoneNumbers.normalizeE164(phone));
+        return users.findByPhoneHash(hash)
                 .filter(e -> e.getKind() != UserKind.GUEST)
-                .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId())))
+                .map(e -> (RegisteredUser) UserMapper.toDomain(e, claims.findByUserId(e.getId()), piiCrypto))
                 .orElse(null);
     }
 

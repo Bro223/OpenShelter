@@ -73,6 +73,13 @@ app:
     # capability. Values ONLY via env vars, never committed.
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
+  pii:
+    # PII-at-rest (M2): 32-byte base64 keys, env ONLY, never committed.
+    # Missing/invalid => the app fails closed at boot (PiiKeys — same
+    # fail-closed pattern as ProdJwtGuard). Generate: openssl rand -base64 32
+    # (once per key). Key management + rotation: README, 'PII at rest'.
+    aes-key: ${PII_AES_KEY:}
+    hmac-key: ${PII_HMAC_KEY:}
   cors:
     # Origins the browser frontend may call (preflight
     # handled by Spring Security).

@@ -6,6 +6,8 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.UserData;
 import ee.sheltermap.domain.VerificationClaim;
+import ee.sheltermap.security.PiiCrypto;
+import ee.sheltermap.verification.PhoneNumbers;
 
 import java.util.List;
 
@@ -13,42 +15,55 @@ import java.util.List;
  * Maps between the domain {@code User} hierarchy and {@link UserEntity} +
  * {@link VerificationClaimEntity} (approach B: domain stays pure Java, all
  * persistence concerns live in this package).
+ *
+ * <p>PII-at-rest (M2): this mapper is the crypto boundary for users and
+ * verification claims — {@code toEntity} encrypts e-mail/phone/claim ref
+ * and fills the blind indexes, {@code toDomain} decrypts back to plain
+ * values. The domain hierarchy above never sees ciphertext.
  */
 final class UserMapper {
 
     private UserMapper() {
     }
 
-    static UserEntity toEntity(User user) {
+    static UserEntity toEntity(User user, PiiCrypto pii) {
         UserEntity entity = new UserEntity();
         entity.setId(user.getId());
         entity.setKind(kindOf(user));
         if (user instanceof RegisteredUser registered) {
             UserData data = registered.getData();
             entity.setName(data.name());
-            entity.setEmail(data.email());
-            entity.setPhone(data.phone());
+            if (data.email() != null) {
+                entity.setEmail(pii.encrypt(data.email()));
+                entity.setEmailHash(
+                        pii.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(data.email())));
+            }
+            if (data.phone() != null) {
+                entity.setPhone(pii.encrypt(data.phone()));
+                entity.setPhoneHash(
+                        pii.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, PhoneNumbers.normalizeE164(data.phone())));
+            }
         }
         return entity;
     }
 
-    static User toDomain(UserEntity entity, List<VerificationClaimEntity> claimEntities) {
+    static User toDomain(UserEntity entity, List<VerificationClaimEntity> claimEntities, PiiCrypto pii) {
+        String email = entity.getEmail() == null ? null : pii.decrypt(entity.getEmail());
+        String phone = entity.getPhone() == null ? null : pii.decrypt(entity.getPhone());
         User user = switch (entity.getKind()) {
             case GUEST -> new GuestUser();
-            case REGISTERED -> new RegisteredUser(
-                    entity.getName(), entity.getEmail(), entity.getPhone());
+            case REGISTERED -> new RegisteredUser(entity.getName(), email, phone);
             // Admin-moderation D1: the ADMIN kind round-trips through
             // AdminUser — the claims are restored from storage below (a
             // reloaded admin reflects the stored claim state, revoked ones
             // included; the constructor does NOT pre-set them).
-            case ADMIN -> new AdminUser(
-                    entity.getName(), entity.getEmail(), entity.getPhone());
+            case ADMIN -> new AdminUser(entity.getName(), email, phone);
         };
         user.setId(entity.getId());
         if (user instanceof RegisteredUser registered) {
             for (VerificationClaimEntity ce : claimEntities) {
                 VerificationClaim claim = new VerificationClaim(
-                        ce.getLevel(), ce.getProvider(), ce.getExternalRef(),
+                        ce.getLevel(), ce.getProvider(), pii.decrypt(ce.getExternalRef()),
                         ce.getVerifiedAt(), ce.getRevokedAt());
                 claim.setId(ce.getId());
                 registered.addVerification(claim);
@@ -57,12 +72,14 @@ final class UserMapper {
         return user;
     }
 
-    static VerificationClaimEntity claimToEntity(Long userId, VerificationClaim claim) {
+    static VerificationClaimEntity claimToEntity(Long userId, VerificationClaim claim, PiiCrypto pii) {
         VerificationClaimEntity entity = new VerificationClaimEntity();
         entity.setUserId(userId);
         entity.setLevel(claim.getLevel());
         entity.setProvider(claim.getProvider());
-        entity.setExternalRef(claim.getExternalRef());
+        // The claim ref carries the contact that proved the level — encrypt
+        // it like any other stored contact (M2).
+        entity.setExternalRef(pii.encrypt(claim.getExternalRef()));
         entity.setVerifiedAt(claim.getVerifiedAt());
         entity.setRevokedAt(claim.getRevokedAt());
         return entity;

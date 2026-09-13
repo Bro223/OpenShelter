@@ -190,8 +190,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
     @Test
     void aDemotionTakesEffectImmediatelyOnTheNextRequest() throws Exception {
-        long adminId = jdbc.queryForObject("SELECT id FROM users WHERE email = 'admin@example.ee'",
-                Long.class);
+        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
         String token = adminToken();
 
         // the pre-demotion request works (the guard re-reads the kind)
@@ -681,8 +680,8 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(status().isCreated());
         Long reviewId = jdbc.queryForObject(
                 "SELECT r.id FROM shelter_reviews r JOIN users u ON u.id = r.user_id " +
-                        "WHERE r.shelter_id = ? AND u.name = 'Autor' AND u.email = 'autor4@example.ee'",
-                Long.class, id);
+                        "WHERE r.shelter_id = ? AND u.id = ?",
+                Long.class, id, userIdByEmail("autor4@example.ee"));
         String token = adminToken();
 
         // before: both count (average 3.0)
