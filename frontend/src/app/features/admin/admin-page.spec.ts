@@ -53,6 +53,10 @@ const USER_ROW: AdminShelterDto = {
   occupancy: null,
   capacity: 12,
   submitter: 'Kaja K.',
+  createdAt: ago(2 * 3_600_000), // the NEW queue's newest-first ordering
+  reviewStatus: 'NEW',
+  reviewNote: null,
+  locationKind: 'PUBLIC',
 };
 
 const USER_ROW_HIDDEN: AdminShelterDto = {
@@ -62,6 +66,8 @@ const USER_ROW_HIDDEN: AdminShelterDto = {
   status: 'INACTIVE',
   rating: null,
   reviewCount: 0,
+  createdAt: ago(3 * 3_600_000),
+  reviewStatus: 'CONFIRMED', // confirmed rows never appear in the queue
 };
 
 const REGISTRY_ROW: AdminShelterDto = {
@@ -77,6 +83,19 @@ const REGISTRY_ROW: AdminShelterDto = {
   occupancy: { band: 'FULL', reportedAt: ago(12 * 60_000), reportCount: 2 },
   capacity: 50,
   submitter: null,
+  createdAt: ago(7 * 3_600_000),
+  reviewStatus: 'CONFIRMED', // registry backfill (D3)
+  reviewNote: null,
+  locationKind: 'PUBLIC',
+};
+
+/** A second NEW community row, newer than USER_ROW — the queue ordering. */
+const USER_ROW_NEWER: AdminShelterDto = {
+  ...USER_ROW,
+  id: 10,
+  name: 'Uus Kelder',
+  submitter: 'Maret M.',
+  createdAt: ago(30 * 60_000),
 };
 
 const REPORT_ROW: AdminShelterReportDto = {
@@ -140,6 +159,8 @@ class FakeAdminGateway {
   listReviewReports = vi.fn();
   hideReview = vi.fn();
   restoreReview = vi.fn();
+  reviewShelter = vi.fn();
+  listAudit = vi.fn();
 }
 
 class FakeAuthGateway {
@@ -189,6 +210,8 @@ describe('AdminPage', () => {
     admin.dismissShelterReport.mockResolvedValue(undefined);
     admin.hideReview.mockResolvedValue(undefined);
     admin.restoreReview.mockResolvedValue(undefined);
+    admin.reviewShelter.mockResolvedValue({ ok: true });
+    admin.listAudit.mockResolvedValue([]);
     account.myReviews.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -250,6 +273,18 @@ describe('AdminPage', () => {
     return row as HTMLElement;
   }
 
+  /** The default tab is Unconfirmed — the shelters-tab tests switch over
+   *  first (the shelters list itself already loaded in ngOnInit). */
+  async function toShelters(
+    element: HTMLElement,
+    fx: ReturnType<typeof TestBed.createComponent<Host>>,
+  ): Promise<void> {
+    buttonByText(element, 'Shelters')!.click();
+    await fx.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fx.detectChanges();
+  }
+
   // ---- guard (admin-moderation D2) ------------------------------------------
 
   it('redirects an anonymous visitor to the home map (the page never loads)', async () => {
@@ -281,7 +316,8 @@ describe('AdminPage', () => {
 
   it('renders for an admin and loads the shelters table with all columns', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW, REGISTRY_ROW]);
-    const { element } = await openAdmin();
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     // Default call: no filters (the bare /admin/shelters).
     expect(admin.listShelters).toHaveBeenCalledWith(undefined);
@@ -299,7 +335,8 @@ describe('AdminPage', () => {
 
   it('a hidden USER row renders dimmed with the Hidden badge and offers Activate, not Hide', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW_HIDDEN]);
-    const { element } = await openAdmin();
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     const row = firstRow(element);
     expect(row.classList).toContain('admin-row--hidden');
@@ -311,6 +348,7 @@ describe('AdminPage', () => {
   it('Hide posts INACTIVE and updates the row in place (204 — no refetch)', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
     const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     buttonByText(firstRow(element), 'Hide')!.click();
     await fixture.whenStable();
@@ -329,6 +367,7 @@ describe('AdminPage', () => {
   it('Activate posts ACTIVE and clears the hidden state', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW_HIDDEN]);
     const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     buttonByText(firstRow(element), 'Activate')!.click();
     await fixture.whenStable();
@@ -344,6 +383,7 @@ describe('AdminPage', () => {
   it('Delete is a two-tap confirm: arming shows the strip, Confirm deletes the row', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
     const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     buttonByText(firstRow(element), 'Delete')!.click();
     fixture.detectChanges();
@@ -365,6 +405,7 @@ describe('AdminPage', () => {
   it('the delete confirm Cancel keeps the row and calls nothing', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
     const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     buttonByText(firstRow(element), 'Delete')!.click();
     fixture.detectChanges();
@@ -378,7 +419,8 @@ describe('AdminPage', () => {
 
   it('registry rows are read-only: the muted registry hint, zero action buttons', async () => {
     admin.listShelters.mockResolvedValue([REGISTRY_ROW]);
-    const { element } = await openAdmin();
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     const row = firstRow(element);
     expect(row.textContent).toContain('registry');
@@ -388,7 +430,8 @@ describe('AdminPage', () => {
 
   it('submitting the search box re-queries with the q filter (server-side substring)', async () => {
     admin.listShelters.mockResolvedValue([]);
-    const { page, element } = await openAdmin();
+    const { page, element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
     expect(admin.listShelters).toHaveBeenLastCalledWith(undefined);
 
     page.searchQuery.setValue('  kelder  ');
@@ -406,6 +449,7 @@ describe('AdminPage', () => {
       apiError(409, 'registry rows are import-owned', '/admin/shelters/7/status'),
     );
     const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
 
     buttonByText(firstRow(element), 'Hide')!.click();
     await fixture.whenStable();
@@ -577,16 +621,228 @@ describe('AdminPage', () => {
     expect(firstRow(element).textContent).not.toContain('Hidden');
   });
 
+  // ---- unconfirmed (review-queue) tab ------------------------------------------
+
+  it('opens on the Unconfirmed tab: only USER+NEW rows, with the queue columns', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW, USER_ROW_HIDDEN, REGISTRY_ROW]);
+    const { element } = await openAdmin();
+
+    // The default tab is Unconfirmed (the queue filters the shelters list —
+    // no extra endpoint call).
+    const active = element.querySelector<HTMLButtonElement>('.admin-tab--active');
+    expect(active?.textContent?.trim()).toBe('Unconfirmed');
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain('Kommunaali Varjend');
+    expect(rows[0].textContent).toContain('Kaja K.');
+    expect(rows[0].textContent).toContain('Mark confirmed');
+    expect(rows[0].textContent).toContain('Reject');
+    // The CONFIRMED community row and the registry row are NOT in the queue.
+    expect(element.textContent).not.toContain('Peidetud Kelder');
+    expect(element.textContent).not.toContain('Linna Varjend');
+  });
+
+  it('the queue is ordered by created, newest first', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW, USER_ROW_NEWER]);
+    const { element } = await openAdmin();
+
+    const names = [...element.querySelectorAll('.admin-row .admin-cell--name')].map(
+      (c) => c.textContent?.trim() ?? '',
+    );
+    expect(names[0]).toContain('Uus Kelder'); // 30 min ago — first
+    expect(names[1]).toContain('Kommunaali Varjend'); // 2 h ago — second
+  });
+
+  it('Mark confirmed posts CONFIRM (no reason) and refreshes the queue', async () => {
+    // First load: the row is NEW; after the action the refresh returns it
+    // CONFIRMED (dropped from the queue).
+    admin.listShelters
+      .mockResolvedValueOnce([USER_ROW])
+      .mockResolvedValueOnce([{ ...USER_ROW, reviewStatus: 'CONFIRMED' }]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(firstRow(element), 'Mark confirmed')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.reviewShelter).toHaveBeenCalledTimes(1);
+    expect(admin.reviewShelter).toHaveBeenCalledWith(7, { action: 'CONFIRM' });
+    expect(element.textContent).toContain('Location confirmed.');
+    // The queue recomputed from the refresh — now empty.
+    expect(element.querySelectorAll('tr.admin-row').length).toBe(0);
+    expect(element.textContent).toContain('No unconfirmed community locations.');
+  });
+
+  it('Reject requires a reason: the editor opens inline, empty/blank is blocked with an error', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(firstRow(element), 'Reject')!.click();
+    fixture.detectChanges();
+
+    const textarea = element.querySelector<HTMLTextAreaElement>('#reject-reason');
+    expect(textarea).not.toBeNull();
+    const rejectButton = buttonByText(firstRow(element), 'Reject');
+    expect(rejectButton).not.toBeNull();
+    expect(rejectButton?.disabled).toBe(true); // blank reason — disabled
+
+    // Type a blank reason: the guard rejects it WITHOUT calling the API.
+    const page = fixture.debugElement.query(By.directive(AdminPage))!
+      .componentInstance as AdminPage;
+    page.rejectReason.setValue('   ');
+    fixture.detectChanges();
+    expect(rejectButton?.disabled).toBe(true);
+
+    page.rejectRow(row7());
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(admin.reviewShelter).not.toHaveBeenCalled();
+    expect(element.textContent).toContain('A reason is required (max 500 characters).');
+
+    function row7(): typeof USER_ROW {
+      return USER_ROW;
+    }
+  });
+
+  it('Reject with a reason posts REJECT + reason, closes the editor, refreshes the queue', async () => {
+    admin.listShelters
+      .mockResolvedValueOnce([USER_ROW])
+      .mockResolvedValueOnce([{ ...USER_ROW, reviewStatus: 'REJECTED', status: 'INACTIVE' }]);
+    const { page, element, fixture } = await openAdmin();
+
+    buttonByText(firstRow(element), 'Reject')!.click();
+    fixture.detectChanges();
+    page.rejectReason.setValue('Could not verify the address');
+    fixture.detectChanges();
+
+    buttonByText(firstRow(element), 'Reject')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.reviewShelter).toHaveBeenCalledTimes(1);
+    expect(admin.reviewShelter).toHaveBeenCalledWith(7, {
+      action: 'REJECT',
+      reason: 'Could not verify the address',
+    });
+    expect(element.textContent).toContain('Location rejected.');
+    // The editor is gone and the queue recomputed (the row is no longer NEW).
+    expect(element.querySelector('#reject-reason')).toBeNull();
+    expect(element.textContent).toContain('No unconfirmed community locations.');
+  });
+
+  it('a 409 from the review endpoint surfaces the server message verbatim; the queue keeps the row', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.reviewShelter.mockRejectedValue(
+      apiError(409, 'shelter state changed, reload', '/admin/shelters/7/review'),
+    );
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(firstRow(element), 'Mark confirmed')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const banner = element.querySelector('.banner--error') as HTMLElement | null;
+    expect(banner?.textContent).toContain('shelter state changed, reload');
+    expect(element.querySelectorAll('tr.admin-row').length).toBe(1);
+  });
+
+  // ---- audit tab ----------------------------------------------------------------
+
+  it('switching to the Audit tab loads the trail lazily; rows render when/moderator/shelter/action/change/reason', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([
+      {
+        id: 9001,
+        createdAt: ago(5 * 60_000),
+        moderatorName: 'Anu T.',
+        shelterId: 7,
+        shelterName: 'Kommunaali Varjend',
+        action: 'CONFIRM',
+        previousStatus: 'NEW',
+        newStatus: 'CONFIRMED',
+        reason: null,
+      },
+      {
+        id: 9002,
+        createdAt: ago(10 * 60_000),
+        moderatorName: 'Anu T.',
+        shelterId: 12,
+        shelterName: 'Deleted shelter',
+        action: 'DELETE',
+        previousStatus: 'INACTIVE',
+        newStatus: null,
+        reason: null,
+      },
+      {
+        id: 9003,
+        createdAt: ago(15 * 60_000),
+        moderatorName: 'Bert B.',
+        shelterId: 8,
+        shelterName: 'Peidetud Kelder',
+        action: 'REJECT',
+        previousStatus: 'NEW',
+        newStatus: 'INACTIVE',
+        reason: 'Could not verify',
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    expect(admin.listAudit).not.toHaveBeenCalled(); // lazy — audit tab only
+    buttonByText(element, 'Audit log')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.listAudit).toHaveBeenCalledTimes(1);
+    expect(admin.listAudit).toHaveBeenCalledWith();
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows.length).toBe(3);
+    // Row 1: action label + the status transition + the null reason dash.
+    expect(rows[0].textContent).toContain('Confirmed');
+    expect(rows[0].textContent).toContain('NEW → CONFIRMED');
+    expect(rows[0].textContent).toContain('Anu T.');
+    expect(rows[0].textContent).toContain('Kommunaali Varjend');
+    // Row 2: the server-resolved name of a deleted shelter, one-sided change.
+    expect(rows[1].textContent).toContain('Deleted shelter');
+    expect(rows[1].textContent).toContain('Delete');
+    expect(rows[1].textContent).toContain('INACTIVE');
+    // Row 3: the reason cell is filled.
+    expect(rows[2].textContent).toContain('Rejected');
+    expect(rows[2].textContent).toContain('Could not verify');
+  });
+
+  it('an empty audit trail shows the empty state', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Audit log')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('No moderation actions yet.');
+  });
+
   // ---- empty states ---------------------------------------------------------------
 
   it('shows a plain empty state per tab when the queues are empty', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listShelterReports.mockResolvedValue([]);
     admin.listReviewReports.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([]);
     const { element, fixture } = await openAdmin();
 
+    // Default tab: the unconfirmed queue is empty (no shelters at all).
+    expect(element.textContent).toContain('No unconfirmed community locations.');
+
+    buttonByText(element, 'Shelters')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
     expect(element.textContent).toContain('No shelters.');
-    expect(element.textContent).not.toContain('No reports.');
 
     buttonByText(element, 'Shelter reports')!.click();
     await fixture.whenStable();
@@ -599,5 +855,11 @@ describe('AdminPage', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
     expect(element.textContent).toContain('No review reports.');
+
+    buttonByText(element, 'Audit log')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No moderation actions yet.');
   });
 });

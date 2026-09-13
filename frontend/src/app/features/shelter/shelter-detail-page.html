@@ -12,11 +12,15 @@
       <div class="shelter-detail__title-row">
         <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
         @if (shelter(); as s) {
-          <!-- Provenance (accessibility-and-provenance D4): small muted chip
-               next to the name — four-valued shared copy (D4). -->
-          <span class="badge" [class.badge--user]="s.source === 'USER'">
+          <!-- Provenance (accessibility-and-provenance D4) + trust state
+               (community-review-queue): registry chips unchanged; USER rows
+               carry "Newly added" / "Community-checked". -->
+          <span class="badge" [ngClass]="communityBadgeClass(s)">
             {{ provenanceLabel(s) }}
           </span>
+          @if (isPrivateLocation(s)) {
+            <span class="badge badge--private">{{ privateLocationBadge }}</span>
+          }
           <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
                as the map list row — reported / statusFlag / occupancy. -->
           @if (hasTrustBadges(s)) {
@@ -37,6 +41,21 @@
           }
         }
       </div>
+      @if (shelter(); as s) {
+        @if (s.source === 'USER' && s.reviewStatus === 'NEW') {
+          <!-- The unverified warning (community-review-queue): community
+               rows in the NEW state only — CONFIRMED rows keep the
+               "Community-checked" badge and NO warning. Subtle muted
+               styling next to the provenance chip — a caveat, NOT the
+               crisis orange. -->
+          <p class="community-warning">{{ communityUnverifiedWarning }}</p>
+        }
+        @if (isPrivateLocation(s)) {
+          <!-- The private-home declaration (D7): resident-offered, not an
+               official facility. Every PRIVATE row, on every visit. -->
+          <p class="private-note">{{ privateLocationNote }}</p>
+        }
+      }
       @if (shelter(); as s) {
         @if (hasCoordinates(s)) {
           <!-- Navigate actions (map-crisis-actions D3): small secondary

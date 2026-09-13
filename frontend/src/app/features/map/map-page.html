@@ -13,15 +13,20 @@
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
-          Registry (Paasteamet / municipality)
+          Registry
+        </span>
+        <!-- Trust palette (community-review-queue D5): NEW community rows
+             are amber, CONFIRMED stay green. -->
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
+          New community
         </span>
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
-          User-submitted
+          Confirmed community
         </span>
         <!-- Reported state (shelter-trust-and-reports D6): the single
-             orange "reported" affordance — provenance colours apply only to
-             unreported shelters. -->
+             orange "reported" affordance — beats the trust colour. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--reported legend-swatch"
@@ -46,7 +51,7 @@
           [disabled]="locating() || loading() || error() !== null"
           [attr.aria-busy]="locating()"
         >
-          {{ locating() ? 'Finding your location…' : 'Nearest listed location' }}
+          {{ locating() ? 'Finding your location…' : 'Show shelters around you' }}
         </button>
         @if (auth.initialized() && auth.authenticated()) {
           <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
@@ -55,14 +60,24 @@
 
       @if (nearest(); as n) {
         <p class="nearest-line" role="status">
-          Nearest listed location: {{ n.name }}
+          Show shelters around you: {{ n.name }}
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
           }
+          <!-- Distance honesty (community-review-queue D6): the straight-line
+               distance the ranking actually computed — never a route claim. -->
+          @if (nearestKm() !== null) {
+            <span class="nearest-line__distance"> · {{ straightLineText(nearestKm()!) }}</span>
+          }
         </p>
+        @if (n.source === 'USER') {
+          <!-- The unverified warning line: when the highlighted row is a
+               community row (any review status — map-browse delta). -->
+          <p class="nearest-line nearest-line--warning">{{ communityUnverifiedWarning }}</p>
+        }
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
-          No listed locations near you yet.
+          No listed locations around you yet.
           @if (auth.initialized() && auth.authenticated()) {
             <a routerLink="/submit">You can add the first one.</a>
           }
@@ -151,12 +166,16 @@
                   <span class="shelter-row__address">{{ shelter.address }}</span>
                 }
                 <span class="shelter-row__meta">
-                  <!-- Provenance (accessibility-and-provenance D4): the four-valued
-                       label from the shared helper — the legend/filter chips keep
-                       their own (untouched) wording. -->
-                  <span class="badge" [class.badge--user]="shelter.source === 'USER'">
+                  <!-- Provenance (accessibility-and-provenance D4) + trust
+                       state (community-review-queue): registry chips
+                       unchanged; USER rows say "Newly added" / "Community-
+                       checked" with the matching trust tone. -->
+                  <span class="badge" [ngClass]="communityBadgeClass(shelter)">
                     {{ provenanceLabel(shelter) }}
                   </span>
+                  @if (isPrivateLocation(shelter)) {
+                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                  }
                   <span class="shelter-row__rating">{{
                     ratingText(shelter.averageRating, shelter.reviewCount)
                   }}</span>

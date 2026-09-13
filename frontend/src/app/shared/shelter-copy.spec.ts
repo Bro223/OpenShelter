@@ -1,6 +1,11 @@
 import {
+  COMMUNITY_UNVERIFIED_WARNING,
   OCCUPANCY_FIRM_COPY,
   OCCUPANCY_HEDGED_COPY,
+  PRIVATE_LOCATION_BADGE,
+  PRIVATE_LOCATION_NOTE,
+  communityTrustLabel,
+  isPrivateLocation,
   occupancyText,
   hasReports,
   hasTrustBadges,
@@ -11,49 +16,62 @@ import {
 import type { ShelterOccupancy } from '../core/models';
 
 /**
- * The four provenance values are PINNED copy (accessibility-and-provenance
- * D4): the backend's three-valued source + the submitterVerified flag map
- * to exactly these strings, everywhere (map rows, detail header). A copy
- * change is a spec change — these assertions are the gate.
+ * The provenance values are PINNED copy (accessibility-and-provenance D4,
+ * community-review-queue): the backend's three-valued source maps to the
+ * registry chips plus the community trust-state label. A copy change is a
+ * spec change — these assertions are the gate.
  */
 describe('provenanceLabel (D4 copy)', () => {
-  it('PAASETEAMET -> "Paasteamet registry"', () => {
-    expect(provenanceLabel({ source: 'PAASETEAMET', submitterVerified: false })).toBe(
+  it('PAASETEAMET -> "Paasteamet registry" (never reads the trust state)', () => {
+    expect(provenanceLabel({ source: 'PAASETEAMET', reviewStatus: 'NEW' })).toBe(
       'Paasteamet registry',
     );
   });
 
-  it('MUNICIPALITY -> "Municipal registry"', () => {
-    expect(provenanceLabel({ source: 'MUNICIPALITY', submitterVerified: false })).toBe(
+  it('MUNICIPALITY -> "Municipal registry" (never reads the trust state)', () => {
+    expect(provenanceLabel({ source: 'MUNICIPALITY', reviewStatus: 'NEW' })).toBe(
       'Municipal registry',
     );
   });
 
-  it('USER + submitterVerified -> "Verified user"', () => {
-    expect(provenanceLabel({ source: 'USER', submitterVerified: true })).toBe('Verified user');
+  it('USER + NEW -> "Newly added"', () => {
+    expect(provenanceLabel({ source: 'USER', reviewStatus: 'NEW' })).toBe('Newly added');
   });
 
-  it('USER + !submitterVerified -> "User-submitted"', () => {
-    expect(provenanceLabel({ source: 'USER', submitterVerified: false })).toBe('User-submitted');
-  });
-
-  it('USER + submitterVerified: undefined -> "User-submitted" (truthy coercion, not `!== false`)', () => {
-    // A future "fix" to `submitterVerified !== false` would start labelling
-    // a missing flag "Verified user" — this pin guards the coercion.
-    expect(
-      provenanceLabel({ source: 'USER', submitterVerified: undefined as unknown as boolean }),
-    ).toBe('User-submitted');
-  });
-
-  it('registry rows are false-verified by contract (D3) and never read the flag', () => {
-    // submitterVerified is only meaningful for USER rows — a stray true on a
-    // registry row must not change the copy.
-    expect(provenanceLabel({ source: 'PAASETEAMET', submitterVerified: true })).toBe(
-      'Paasteamet registry',
+  it('USER + CONFIRMED -> "Community-checked"', () => {
+    expect(provenanceLabel({ source: 'USER', reviewStatus: 'CONFIRMED' })).toBe(
+      'Community-checked',
     );
-    expect(provenanceLabel({ source: 'MUNICIPALITY', submitterVerified: true })).toBe(
-      'Municipal registry',
+  });
+
+  it('USER + REJECTED -> "Rejected" (/mine + admin surfaces)', () => {
+    expect(provenanceLabel({ source: 'USER', reviewStatus: 'REJECTED' })).toBe('Rejected');
+  });
+
+  it('the trust labels are the exact pinned vocabulary', () => {
+    expect(communityTrustLabel('NEW')).toBe('Newly added');
+    expect(communityTrustLabel('CONFIRMED')).toBe('Community-checked');
+    expect(communityTrustLabel('REJECTED')).toBe('Rejected');
+  });
+});
+
+describe('community + private copy (community-review-queue)', () => {
+  it('the unverified warning is the exact pinned sentence', () => {
+    expect(COMMUNITY_UNVERIFIED_WARNING).toBe(
+      'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
     );
+  });
+
+  it('the private badge + note are the exact pinned strings', () => {
+    expect(PRIVATE_LOCATION_BADGE).toBe('Private location');
+    expect(PRIVATE_LOCATION_NOTE).toBe(
+      'This is a resident-offered location, not an official facility.',
+    );
+  });
+
+  it('isPrivateLocation: only the declared PRIVATE kind', () => {
+    expect(isPrivateLocation({ locationKind: 'PRIVATE' })).toBe(true);
+    expect(isPrivateLocation({ locationKind: 'PUBLIC' })).toBe(false);
   });
 });
 

@@ -115,6 +115,6 @@ public abstract class AbstractPersistenceIT {
         jdbcTemplate.execute(
                 "TRUNCATE shelter_reviews, password_reset_tokens, refresh_tokens, "
                         + "pending_contact_changes, pending_verifications, user_credentials, "
-                        + "verification_claims, shelters, users RESTART IDENTITY CASCADE");
+                        + "verification_claims, moderation_actions, shelters, users RESTART IDENTITY CASCADE");
     }
 }

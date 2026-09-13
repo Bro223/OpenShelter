@@ -11,6 +11,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -18,6 +19,10 @@ import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
+  COMMUNITY_UNVERIFIED_WARNING,
+  PRIVATE_LOCATION_BADGE,
+  communityBadgeClass,
+  isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
@@ -81,6 +86,19 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 /**
+ * The straight-line distance line of the nearest result (community-review-
+ * queue D6 — distance honesty): "≈ 2.4 km straight line" (1 decimal),
+ * whole metres below 1 km ("≈ 450 m straight line"). The copy NEVER claims
+ * a walking route or official status — it states what it measures.
+ */
+export function straightLineText(km: number): string {
+  if (km < 1) {
+    return `≈ ${Math.round(km * 1000)} m straight line`;
+  }
+  return `≈ ${km.toFixed(1)} km straight line`;
+}
+
+/**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience (M4): a Leaflet map with
  * divIcon markers (REGISTRY=blue, USER=green, REPORTED=orange) + a sidebar
@@ -104,7 +122,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  */
 @Component({
   selector: 'app-map-page',
-  imports: [RouterLink, BannerComponent, LoadingIndicator],
+  imports: [NgClass, RouterLink, BannerComponent, LoadingIndicator],
   providers: [LeafletService],
   templateUrl: './map-page.html',
   styleUrl: './map-page.scss',
@@ -135,6 +153,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly ratingText = ratingTextShared;
   protected readonly statusFlagText = statusFlagTextShared;
   protected readonly occupancyText = occupancyTextShared;
+  /** The nearest result's straight-line distance line (D6 honesty). */
+  protected readonly straightLineText = straightLineText;
+  /** The community unverified warning line (community-review-queue). */
+  protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
+  /** The private-home declaration badge (D7). */
+  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
+  /** The private-location predicate (D7) — the template stays branch-free. */
+  protected readonly isPrivateLocation = isPrivateLocation;
+  /** The community badge tone (trust palette, D5): NEW amber, CONFIRMED green. */
+  protected readonly communityBadgeClass = communityBadgeClass;
   /** Trust-badge predicates (D6) — the template keeps the `>` comparisons
    *  in code, not in the template expressions. */
   protected readonly hasReports = hasReportsShared;
@@ -163,6 +191,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** The nearest shelter (last success) — its row carries the temporary
    *  `shelter-row--nearest` emphasis while this is set. */
   protected readonly nearest = signal<ShelterDto | null>(null);
+  /** The Haversine distance to the nearest shelter in km (last success) —
+   *  shown as "≈ … straight line" (D6: distance honesty). Cleared with
+   *  `nearest` everywhere (the two signals move as one). */
+  protected readonly nearestKm = signal<number | null>(null);
   /** The loaded list was empty when the action ran — the "add the first one"
    *  offer (with the /submit link for authenticated users). */
   protected readonly nearestEmpty = signal(false);
@@ -260,6 +292,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     // A manual selection supersedes the Nearest emphasis (D2: the temporary
     // highlight clears on the next interaction).
     this.nearest.set(null);
+    this.nearestKm.set(null);
     this.selectedId.set(shelter.id);
     this.leaflet.flyTo(shelter.latitude, shelter.longitude, SHELTER_ZOOM);
   }
@@ -277,6 +310,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
       this.selectShelter(row);
     } else {
       this.nearest.set(null); // an interaction outside the list still supersedes it
+      this.nearestKm.set(null);
       this.selectedId.set(id);
     }
     // The accent (selection ring) may have landed on a row below the fold in
@@ -302,6 +336,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.nearest.set(null); // F1: drop the LAST SUCCESS up front — a failed
     // retry must not leave the stale "Nearest: X" line (and its row
     // emphasis, driven by the same signal) rendered next to the error.
+    this.nearestKm.set(null);
     this.nearestError.set(null);
     this.nearestEmpty.set(false);
     if (this.shelters().length === 0) {
@@ -371,6 +406,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return;
     }
     this.nearest.set(nearestShelter);
+    this.nearestKm.set(nearestKm);
     this.leaflet.flyTo(nearestShelter.latitude, nearestShelter.longitude, SHELTER_ZOOM);
     // The emphasis may have landed on a row below the fold — scroll it into
     // view, the same way a marker click does.
@@ -433,6 +469,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         // next interaction/filter change). nearestError survives: it describes
         // the user's browser, not the list.
         this.nearest.set(null);
+        this.nearestKm.set(null);
         this.nearestEmpty.set(false);
         this.leaflet.renderShelters(this.sorted());
         this.loading.set(false);
@@ -444,6 +481,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.shelters.set([]);
         this.selectedId.set(null);
         this.nearest.set(null);
+        this.nearestKm.set(null);
         this.nearestEmpty.set(false);
         this.leaflet.renderShelters([]);
         // Same banner/error-copy path as every other page (reviewer N9):

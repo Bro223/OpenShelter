@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * The admin moderation API (admin-moderation D3) — thin shell: parse,
@@ -34,11 +35,14 @@ import java.util.List;
  * convention as the other controllers.
  *
  * <p>Surface: shelter list (all statuses, filters, search), manual
- * hide/restore (restore disarms auto-hide), hard delete (USER rows only —
- * registry rows are import-owned, 409), the shelter-report queue with
- * idempotent dismiss, and the review-report queue with idempotent
- * hide/restore. All writes are single-row; no bulk endpoints. Reporter
- * identity is served from this API ONLY.
+ * hide/restore (restore disarms auto-hide and reverts a REJECTED row
+ * to NEW), hard delete (USER rows only — registry rows are import-
+ * owned, 409), the shelter-report queue with idempotent dismiss, the
+ * review-report queue with idempotent hide/restore, the community
+ * review decisions (community-review-queue v2 D2: CONFIRM/REJECT — the
+ * rare manual override), and the moderation audit trail (v2 D4).
+ * All writes are single-row; no bulk endpoints. Reporter identity is
+ * served from this API ONLY.
  */
 @RestController
 @RequestMapping("/admin")
@@ -71,16 +75,42 @@ public class AdminController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void setShelterStatus(@PathVariable long id,
                                  @Valid @RequestBody AdminShelterStatusRequest request) {
-        requireAdmin();
-        moderation.setShelterStatus(id, request.status());
+        moderation.setShelterStatus(requireAdmin(), id, request.status());
     }
 
     /** Hard delete of a USER shelter (cascade). 204; 404 unknown; 409 registry rows. */
     @DeleteMapping("/shelters/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteShelter(@PathVariable long id) {
+        moderation.deleteShelter(requireAdmin(), id);
+    }
+
+    /**
+     * The community review decision (community-review-queue v2 D2) —
+     * the rare manual override: CONFIRM promotes the row to CONFIRMED
+     * (status untouched, note cleared); REJECT hides it (REJECTED +
+     * INACTIVE, reason stored as the note). 200 {"ok":true}; 404
+     * unknown shelter; 409 registry rows (import-owned, same guard as
+     * the other admin writes).
+     */
+    @PostMapping("/shelters/{id}/review")
+    public Map<String, Boolean> reviewShelter(@PathVariable long id,
+                                              @Valid @RequestBody AdminShelterReviewRequest request) {
+        moderation.reviewShelter(requireAdmin(), id, request.action(), request.reason());
+        return Map.of("ok", true);
+    }
+
+    /**
+     * The moderation audit trail, newest first (community-review-queue
+     * v2 D4): every moderation-relevant action (admin AND automatic
+     * AUTO_CONFIRM) with the shelter name resolved at read time
+     * ("Deleted shelter" once the row is gone). {@code limit} is
+     * 1..200, default 100 (anything else 400).
+     */
+    @GetMapping("/audit")
+    public List<AdminAuditDto> listAudit(@RequestParam(required = false) Integer limit) {
         requireAdmin();
-        moderation.deleteShelter(id);
+        return moderation.listAudit(limit);
     }
 
     /** The shelter report queue, newest first (optional shelter filter). */
@@ -95,8 +125,7 @@ public class AdminController {
     @PostMapping("/reports/{id}/dismiss")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void dismissReport(@PathVariable long id) {
-        requireAdmin();
-        moderation.dismissReport(id);
+        moderation.dismissReport(requireAdmin(), id);
     }
 
     /** The review report queue (hidden reviews included), newest first. */
@@ -110,25 +139,25 @@ public class AdminController {
     @PostMapping("/reviews/{id}/hide")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void hideReview(@PathVariable long id) {
-        requireAdmin();
-        moderation.hideReview(id);
+        moderation.hideReview(requireAdmin(), id);
     }
 
     /** Clear the review's hidden state (restores rating participation) — idempotent. 204; 404 unknown. */
     @PostMapping("/reviews/{id}/restore")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void restoreReview(@PathVariable long id) {
-        requireAdmin();
-        moderation.restoreReview(id);
+        moderation.restoreReview(requireAdmin(), id);
     }
 
     /**
      * D2: fresh lookup per request — the kind column is the truth, never a
      * JWT claim. 401 (same fallback convention as the other controllers;
      * the security entry point answers this for anonymous requests first)
-     * or 403 for an authenticated non-admin.
+     * or 403 for an authenticated non-admin. Returns the moderator's user
+     * id — every admin WRITE is recorded in the moderation audit trail
+     * under it (community-review-queue D4); the read endpoints ignore it.
      */
-    private void requireAdmin() {
+    private long requireAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
             throw new InvalidAccessTokenException("Authentication required");
@@ -136,5 +165,6 @@ public class AdminController {
         if (!userRepository.isAdmin(userId)) {
             throw new AdminAccessException("Admin access required");
         }
+        return userId;
     }
 }

@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgClass } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/api-error';
@@ -31,7 +31,12 @@ import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
+  COMMUNITY_UNVERIFIED_WARNING,
   NO_RATINGS_YET,
+  PRIVATE_LOCATION_BADGE,
+  PRIVATE_LOCATION_NOTE,
+  communityBadgeClass,
+  isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
@@ -86,6 +91,7 @@ import { ReviewForm } from './review-form';
   selector: 'app-shelter-detail-page',
   imports: [
     RouterLink,
+    NgClass,
     DatePipe,
     ReactiveFormsModule,
     BannerComponent,
@@ -145,6 +151,17 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly occupancyText = occupancyTextShared;
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
+  /** The unverified warning for NEW community rows (community-review-
+   *  queue): rendered in the header next to the provenance chip. */
+  protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
+  /** The private-home declaration copy (D7): badge + the resident-offered
+   *  detail note. */
+  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
+  protected readonly privateLocationNote = PRIVATE_LOCATION_NOTE;
+  /** The private-location predicate (D7) — the template stays branch-free. */
+  protected readonly isPrivateLocation = isPrivateLocation;
+  /** The community badge tone (trust palette, D5): NEW amber, CONFIRMED green. */
+  protected readonly communityBadgeClass = communityBadgeClass;
 
   // ---- trust layer (shelter-trust-and-reports D1/D2/D4/D6) ------------------
   /** The five report types + their picker labels (D1). */

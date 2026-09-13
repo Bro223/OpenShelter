@@ -9,9 +9,9 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
-import type { CreateShelterRequest, GeocodeResult } from '../../core/models';
+import type { CreateShelterRequest, GeocodeResult, ShelterDto } from '../../core/models';
 import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -99,8 +99,9 @@ const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
 /**
  * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
  * (05-shelter-review-flow.puml, M5 + shelter-location-input). Name (≤200),
- * optional description (≤2000), optional capacity (1–100 000), and a
- * location captured five ways — smart text input (coordinate string /
+ * optional description (≤2000), optional capacity (1–100 000), the
+ * private-home declaration (community-review-queue D7: locationKind), and
+ * a location captured five ways — smart text input (coordinate string /
  * long-form map URL, parsed by shared/location-input.ts), "Use my location"
  * (browser geolocation), maps.app.goo.gl short links (POST /api/geo/resolve),
  * an Estonia address search (client-side OSM Nominatim via GeocodeGateway —
@@ -108,7 +109,10 @@ const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
  * and the mini-map click/drag — all writing ONE shared location signal
  * (design decision 1). Resolved coordinates are displayed read-only.
  *
- * On 201 the page navigates to the new shelter's detail. On 401/403/400 the
+ * On 201 the row is PUBLIC IMMEDIATELY as NEW (community-review-queue —
+ * no blocking queue): the page STAYS on /submit with a success panel
+ * ("listed now, marked as newly added, community reports confirm it")
+ * linking to the (already public) detail page. On 401/403/400 the
  * backend message shows through the banner (403 adds a /verify link — the
  * claim can lapse mid-session) and the form input is preserved.
  */
@@ -125,7 +129,6 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private readonly geo = inject(GeoGateway);
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
-  private readonly router = inject(Router);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
@@ -145,12 +148,20 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
       validators: [Validators.maxLength(2000)],
     }),
     capacity: new FormControl<number | null>(null, { validators: [capacityValidator] }),
+    // The private-home declaration (community-review-queue D7): maps to the
+    // payload's locationKind (PRIVATE when checked, PUBLIC by default).
+    privateLocation: new FormControl(false, { nonNullable: true }),
   });
 
   protected readonly pending = signal(false);
   protected readonly error = signal<string | null>(null);
   /** True when the last failure was a 403 — offer the /verify path. */
   protected readonly verifyLink = signal(false);
+  /** The created row (community-review-queue): set on 201 — the row is
+   *  public immediately as NEW, so the success panel links to the detail
+   *  page instead of navigating there (the form stays for a second
+   *  submission). */
+  protected readonly submitted = signal<ShelterDto | null>(null);
 
   /** The ONE shared location state (null = nothing picked yet). */
   protected readonly location = signal<PickedLocation | null>(null);
@@ -199,6 +210,10 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
 
   protected capacity(): FormControl<number | null> {
     return this.form.get('capacity') as FormControl<number | null>;
+  }
+
+  protected privateLocation(): FormControl<boolean> {
+    return this.form.get('privateLocation') as FormControl<boolean>;
   }
 
   /** The read-only coordinate readout under the map. */
@@ -490,8 +505,8 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   }
 
   // ---------------------------------------------------------------------
-  // Submit — payload shape unchanged (name + latitude/longitude numbers,
-  // optional description/capacity)
+  // Submit — payload: name + latitude/longitude numbers, optional
+  // description/capacity, locationKind (community-review-queue D7)
   // ---------------------------------------------------------------------
 
   async submit(): Promise<void> {
@@ -509,12 +524,16 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     this.pending.set(true);
     this.error.set(null);
     this.verifyLink.set(false);
+    this.submitted.set(null);
 
     const picked = this.location() as PickedLocation;
     const request: CreateShelterRequest = {
       name: this.name().value.trim(),
       latitude: picked.latitude,
       longitude: picked.longitude,
+      // Explicit on purpose: unchecked = PUBLIC (the contract default),
+      // checked = PRIVATE (the resident-offered declaration).
+      locationKind: this.privateLocation().value ? 'PRIVATE' : 'PUBLIC',
     };
     const description = this.description().value.trim();
     if (description !== '') {
@@ -527,7 +546,9 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
 
     try {
       const created = await this.gateway.create(request);
-      await this.router.navigate(['/shelters', created.id]);
+      // No navigation: the row is public NOW (NEW state) — the success
+      // panel links to the (already live) detail page.
+      this.submitted.set(created);
     } catch (failure: unknown) {
       // Input preserved on purpose — the user fixes the backend's complaint
       // and retries. 403 (claim lapsed since the guard ran) gets a /verify link.

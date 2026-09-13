@@ -493,3 +493,59 @@ dismiss/hide/restore). Frontend: `npx ng test` green — **723 tests across 38 s
 (counted 2026-09-12).
 
 **STOP — final review.**
+
+---
+
+## Post-step-7 additions (community-review-queue — the community trust lifecycle)
+
+Built as OpenSpec change `community-review-queue` (v2 — auto-trust lifecycle). The owner does
+NOT actively moderate, so nothing may wait on a human: community locations publish immediately
+as `NEW` (visibly "just added"), the existing community report mechanism is what moves a
+location from new toward checked, and the admin panel is a rare fallback with a full audit
+trail. Decisions D1–D7 in `openspec/changes/community-review-queue/design.md`.
+
+**Backend (V11, D1–D4):** `shelters.review_status` (CHECK `NEW`/`CONFIRMED`/`REJECTED`, NOT
+NULL DEFAULT `NEW`; backfill — USER rows `NEW`, registry rows `CONFIRMED`, D3),
+`shelters.review_note` (the REJECT reason, shown to the submitter in `/mine`),
+`shelters.location_kind` (CHECK `PUBLIC`/`PRIVATE`, D7) and the append-only
+`moderation_actions` table (D4 — `shelter_id` deliberately has NO FK: a delete records its
+audit row in the same transaction, the id dangles, the read-time join renders "Deleted
+shelter"). Domain: `ReviewStatus` + `LocationKind`. The `OPEN_CONFIRMED` report from a user
+OTHER than the submitter promotes `NEW → CONFIRMED` in the same transaction with an
+`AUTO_CONFIRM` audit row (D2 — the primary promotion path; the submitter's own positive
+report never promotes; registry / already-confirmed rows untouched). Admin:
+`POST /admin/shelters/{id}/review` (`CONFIRM` / `REJECT` — reason required, REJECT also flips
+`status = INACTIVE` via the existing hide mechanism; USER rows only, registry → 409) and
+`GET /admin/audit` (newest first, limit 1..200 default 100, read-time name resolution).
+Restoring a `REJECTED` row via the status endpoint reverts it to `NEW` (it starts over).
+`ModerationAuditLog` app interface + JPA impl + in-memory double — every action (status
+change, hard delete, report dismiss, review hide/restore, CONFIRM, AUTO_CONFIRM, REJECT)
+writes its row in the SAME transaction (D4). DTOs carry `reviewStatus` (+ `reviewNote` on
+`/mine` and admin rows) + `locationKind`; `CreateShelterRequest` accepts `locationKind`
+(default `PUBLIC`).
+
+**Frontend (D5–D7):** marker palette — community `NEW` rows render amber
+(`--color-new` token, documented in `styles.scss`; `shelter-marker--new` class), `CONFIRMED`
+rows green, registry + reported states unchanged — the map legend is now **Registry / New
+community / Confirmed community / Reported** (D5). List rows + detail show "Newly added" /
+"Community-checked" badges for USER rows (replacing the old "User-submitted" provenance text)
+- the "Private location" badge (D7) + the unverified warning on NEW detail pages. The map CTA
+reads **"Show shelters around you"** (button/result/empty) — never "nearest" — with the
+honest straight-line distance "≈ N km straight line" (metres under 1 km) and an unverified
+warning line when the nearest row is community (D6). Submission form: the private-home
+declaration checkbox → `locationKind` in the payload (D7 — declaration, not detection;
+private rows are NEVER hidden or demoted). Admin page: the "Unconfirmed" tab (USER `NEW`
+rows — name/address/submitter, Mark confirmed / Reject with required reason) + the "Audit
+log" tab (newest 100); gateway `reviewShelter` / `listAudit` + TS models. Contributions
+(`/mine`): `NEW`/`CONFIRMED`/`REJECTED` badges + the admin's `reviewNote`, and the
+submit-success copy ("listed, marked as newly added — community reports confirm it").
+
+**Acceptance:** `mvn test` green — **491 tests** (counted 2026-09-13; incl.
+`CommunityReviewIT`: public-as-NEW, cross-user promotion + AUTO_CONFIRM, own-report
+non-promotion, admin CONFIRM/REJECT, restore → NEW, audit rows, registry 409s,
+`locationKind` round-trip) and `npx tsc --noEmit` + prettier green. Frontend: `npx ng test`
+green — **764 tests across 38 spec files** (counted 2026-09-13). Live-verify (dev backend
+restart: submit → NEW/amber → confirm report → green; reject → hidden) is still owed — the
+watchdog pass that closed this change cannot restart the protected dev server.
+
+**STOP — final review.**

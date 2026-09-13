@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -89,6 +90,15 @@ public class InMemoryShelterRepository implements ShelterRepository {
     public List<Shelter> findByCreatedBy(Long userId) {
         return store.values().stream()
                 .filter(s -> Objects.equals(s.getCreatedBy(), userId))
+                .toList();
+    }
+
+    @Override
+    public List<Shelter> findActiveBySourceAndReviewStatus(ShelterSource source, ReviewStatus reviewStatus) {
+        return store.values().stream()
+                .filter(s -> s.getSource() == source)
+                .filter(s -> s.getReviewStatus() == reviewStatus)
+                .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
                 .toList();
     }
 

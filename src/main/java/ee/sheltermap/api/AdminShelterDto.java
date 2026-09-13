@@ -1,5 +1,7 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.domain.LocationKind;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.ShelterStatusFlag;
@@ -18,6 +20,12 @@ import ee.sheltermap.domain.ShelterStatusFlag;
  * fresh; {@code submitter} is the creator's profile name, {@code null} for
  * registry rows (no author) and for creators whose account no longer
  * exists.
+ *
+ * <p>Community trust (community-review-queue v2): {@code reviewStatus}
+ * is the row's trust state — the "Unconfirmed" tab filters USER + NEW —
+ * {@code reviewNote} is the admin's REJECT reason, and
+ * {@code locationKind} is the private-home declaration (the "Private
+ * location" badge renders on this surface too).
  */
 public record AdminShelterDto(
         Long id,
@@ -31,5 +39,8 @@ public record AdminShelterDto(
         ShelterStatusFlag statusFlag,
         ShelterDto.Occupancy occupancy,
         Integer capacity,
-        String submitter) {
+        String submitter,
+        ReviewStatus reviewStatus,
+        String reviewNote,
+        LocationKind locationKind) {
 }

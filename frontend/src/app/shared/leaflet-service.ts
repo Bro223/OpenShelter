@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { ShelterDto, ShelterSource } from '../core/models';
+import type { ReviewStatus, ShelterDto, ShelterSource } from '../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).
@@ -42,19 +42,25 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
- * The marker tone class suffix (shelter-trust-and-reports D1): reported
- * (nonexistentReports > 0) wins over provenance — the orange dot is the
- * single "reported" affordance, provenance colours only for unreported
- * rows.
+ * The marker tone class suffix. Reported state (shelter-trust-and-reports
+ * D1) wins over everything — the orange dot is the single "reported"
+ * affordance. Otherwise the trust palette (community-review-queue D5):
+ * community rows are amber while review_status is NEW ("just added") and
+ * green once CONFIRMED; registry rows stay blue. Reported beats trust
+ * colour; grey/hidden rows never reach the public map.
  */
 export function markerTone(shelter: {
   source: ShelterSource;
+  reviewStatus: ReviewStatus;
   nonexistentReports: number;
-}): 'reported' | 'user' | 'registry' {
+}): 'reported' | 'new' | 'user' | 'registry' {
   if (shelter.nonexistentReports > 0) {
     return 'reported';
   }
-  return shelter.source === 'USER' ? 'user' : 'registry';
+  if (shelter.source === 'USER') {
+    return shelter.reviewStatus === 'NEW' ? 'new' : 'user';
+  }
+  return 'registry';
 }
 
 /**
@@ -70,8 +76,9 @@ export function markerTone(shelter: {
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): REGISTRY rows (PAASETEAMET +
- * MUNICIPALITY) render blue, USER rows green. The legend reuses the same
- * classes, so the visual stays single-sourced.
+ * MUNICIPALITY) render blue, community rows render the trust tone (amber
+ * NEW / green CONFIRMED), reported rows keep the orange override.
+ * The legend reuses the same classes, so the visual stays single-sourced.
  */
 @Injectable()
 export class LeafletService {
@@ -135,8 +142,9 @@ export class LeafletService {
    *
    * Reported state (shelter-trust-and-reports D1): a shelter with
    * `nonexistentReports > 0` renders the ORANGE reported marker — the single
-   * "reported" affordance — regardless of source. Provenance colours
-   * (blue registry / green user) apply only to unreported shelters.
+   * "reported" affordance — regardless of source. Otherwise the trust tone
+   * (community-review-queue D5): amber for NEW community rows, green for
+   * CONFIRMED, blue for registry.
    */
   renderShelters(shelters: ShelterDto[]): void {
     if (!this.map || !this.markers) {
@@ -163,17 +171,18 @@ export class LeafletService {
    * omitted, keep the current zoom (the original M4 country-level behaviour).
    */
   flyTo(latitude: number, longitude: number, zoom?: number): void {
-    if (zoom !== undefined) {
-      this.map?.flyTo([latitude, longitude], zoom);
-    } else {
+    if (zoom === undefined) {
       this.map?.flyTo([latitude, longitude]);
+    } else {
+      this.map?.flyTo([latitude, longitude], zoom);
     }
   }
 
   /**
    * Shows ONE static shelter location (the /shelters/:id "Location" map):
-   * a single non-interactive divIcon pin, source-coloured exactly like
-   * `renderShelters`. Null clears the pin.
+   * a single non-interactive divIcon pin, toned exactly like
+   * `renderShelters` (reported override, then the trust palette). Null
+   * clears the pin.
    *
    * Idempotent: the markers layer group is cleared first, so re-calls (e.g.
    * the refetch after a review write) replace the pin instead of duplicating
@@ -189,6 +198,8 @@ export class LeafletService {
       latitude: number;
       longitude: number;
       source: ShelterSource;
+      reviewStatus: ReviewStatus;
+      nonexistentReports: number;
       name: string;
     } | null,
   ): void {
@@ -201,7 +212,7 @@ export class LeafletService {
     }
     const marker = L.marker([shelter.latitude, shelter.longitude], {
       icon: L.divIcon({
-        className: `shelter-marker ${shelter.source === 'USER' ? 'shelter-marker--user' : 'shelter-marker--registry'}`,
+        className: `shelter-marker shelter-marker--${markerTone(shelter)}`,
         iconSize: [14, 14],
       }),
       // interactive: false -> leaflet attaches NO click handler (and no

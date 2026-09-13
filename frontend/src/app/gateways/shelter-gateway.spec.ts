@@ -22,6 +22,8 @@ const REGISTRY_ROW: ShelterDto = {
   nonexistentReports: 0,
   statusFlag: null,
   occupancy: null,
+  reviewStatus: 'CONFIRMED', // registry backfill (D3)
+  locationKind: 'PUBLIC',
 };
 
 const USER_ROW: ShelterDto = {

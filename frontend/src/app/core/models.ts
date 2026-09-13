@@ -18,6 +18,28 @@ export type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
 /** Lifecycle of a shelter row. */
 export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
 
+/**
+ * Community trust state (community-review-queue D1/D2): where a USER row
+ * stands in the trust lifecycle. NEW rows are public IMMEDIATELY (amber
+ * "just added" treatment, unverified warning); CONFIRMED rows are the
+ * checked community rows (green); REJECTED rows are hidden (status
+ * INACTIVE) with the admin's reason in `reviewNote`. Registry rows carry
+ * CONFIRMED (the column is NOT NULL; the value is informational — the FE
+ * only reads review_status on USER rows). There is NO blocking queue:
+ * promotion is automatic (a positive community report, audited
+ * AUTO_CONFIRM) or the rare admin CONFIRM.
+ */
+export type ReviewStatus = 'NEW' | 'CONFIRMED' | 'REJECTED';
+
+/**
+ * Submitter-declared location kind (community-review-queue D7): PRIVATE =
+ * the submitter declared the location is a private home or private shelter offered
+ * as a refuge. PRIVATE rows are NOT demoted or hidden — every surface
+ * (list row, detail, admin list) shows a "Private location" badge and the
+ * detail page carries the resident-offered note. Default PUBLIC.
+ */
+export type LocationKind = 'PUBLIC' | 'PRIVATE';
+
 /** Where a shelter record came from. */
 export type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
 
@@ -119,6 +141,12 @@ export interface CreateShelterRequest {
   longitude: number;
   description?: string;
   capacity?: number;
+  /**
+   * The private-home declaration (community-review-queue D7): 'PRIVATE'
+   * when the submitter ticks the declaration checkbox, 'PUBLIC' otherwise
+   * (the default). Always sent explicitly.
+   */
+  locationKind?: LocationKind;
 }
 
 /**
@@ -269,6 +297,15 @@ export interface ShelterDto {
   statusFlag: ShelterStatusFlag | null;
   /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
   occupancy: ShelterOccupancy | null;
+  /**
+   * Community trust state (community-review-queue): NEW/CONFIRMED for USER
+   * rows (amber/green marker + "Newly added" / "Community-checked" badge);
+   * CONFIRMED for registry rows (informational — the label logic only reads
+   * it on USER rows). REJECTED rows are never in the public list (INACTIVE).
+   */
+  reviewStatus: ReviewStatus;
+  /** Submitter-declared: PRIVATE rows carry the "Private location" badge. */
+  locationKind: LocationKind;
 }
 
 /**
@@ -279,6 +316,36 @@ export interface ShelterDto {
  */
 export interface ShelterDetailDto extends ShelterDto {
   yourOccupancyBand: OccupancyBand | null;
+}
+
+/**
+ * The owner's view of one of their own shelters (GET /api/shelters/mine):
+ * the public list projection (incl. reviewStatus + locationKind) plus the
+ * admin's `reviewNote` — the REJECT reason, stored server-side and shown
+ * under the row's status badge (community-review-queue D2).
+ */
+export interface MineShelterDto extends ShelterDto {
+  /** The admin's REJECT reason; null when none. */
+  reviewNote: string | null;
+}
+
+/**
+ * POST /admin/shelters/{id}/review body (community-review-queue D2):
+ * the rare MANUAL override — the primary trust flow is the automatic
+ * community one (AUTO_CONFIRM). CONFIRM sets review_status=CONFIRMED
+ * (status untouched); REJECT sets review_status=REJECTED +
+ * status=INACTIVE and stores the reason as review_note. `reason` is
+ * optional at the wire level — the admin UI requires it for REJECT. 200
+ * `{ok:true}`; 404 unknown id; 409 for a non-USER (registry) row.
+ */
+export interface ReviewShelterRequest {
+  action: 'CONFIRM' | 'REJECT';
+  reason?: string;
+}
+
+/** POST /admin/shelters/{id}/review response body. */
+export interface ReviewShelterResponse {
+  ok: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,6 +389,20 @@ export interface AdminShelterDto {
   capacity: number | null;
   /** The submitting user's profile name (USER rows only). */
   submitter: string | null;
+  /** ISO creation instant — the Unconfirmed queue's "created (newest
+   *  first)" column (community-review-queue). */
+  createdAt: string;
+  /**
+   * Community trust state (community-review-queue): the Unconfirmed tab is
+   * the client-side `source === 'USER' && reviewStatus === 'NEW'` filter
+   * over this list. Registry rows carry CONFIRMED (backfill) — never
+   * unconfirmed.
+   */
+  reviewStatus: ReviewStatus;
+  /** The admin's REJECT reason; null when none. */
+  reviewNote: string | null;
+  /** PRIVATE rows carry the "Private location" badge on this surface too. */
+  locationKind: LocationKind;
 }
 
 /** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
@@ -351,6 +432,49 @@ export interface AdminShelterReportDto {
   createdAt: string;
   /** Dismissed rows stay in the queue, dimmed (the admin's audit trail). */
   dismissed: boolean;
+}
+
+/**
+ * The recorded moderation actions (GET /admin/audit, community-review-
+ * queue D4). The trust transitions are CONFIRM (admin manual) and
+ * AUTO_CONFIRM (the automatic promotion by a positive community report —
+ * the row's actor is the reporting user); the rest are the pre-existing
+ * admin actions that all write an audit row in the same transaction.
+ */
+export type AdminAuditAction =
+  | 'STATUS_CHANGE'
+  | 'DELETE'
+  | 'REPORT_DISMISS'
+  | 'REVIEW_HIDE'
+  | 'REVIEW_RESTORE'
+  | 'CONFIRM'
+  | 'AUTO_CONFIRM'
+  | 'REJECT';
+
+/**
+ * One row of GET /admin/audit (newest first; the backend returns the
+ * newest 100 by default, optional limit 1..200). `shelterName` is
+ * resolved at READ time by the backend — a deleted shelter's rows carry
+ * the resolved "Deleted shelter" text, so the field is a plain string.
+ * `previousStatus`/`newStatus` are the review_status transition (DELETE:
+ * previous = review_status, new = null) — null when the action has no
+ * status pair to show (e.g. report dismiss, review hide/restore).
+ */
+export interface AdminAuditRow {
+  id: number;
+  shelterId: number;
+  /** Resolved at read time ("Deleted shelter" when the row is gone). */
+  shelterName: string;
+  action: AdminAuditAction;
+  /** The reason given with the action (REJECT, status change). */
+  reason: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  /** The actor's profile name (the admin, or the reporting user for
+   * AUTO_CONFIRM). */
+  moderatorName: string;
+  /** ISO-8601 instant. */
+  createdAt: string;
 }
 
 /**

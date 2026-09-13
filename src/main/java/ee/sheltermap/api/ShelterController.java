@@ -9,6 +9,7 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
+import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
@@ -109,7 +110,10 @@ public class ShelterController {
     /**
      * The detail read — additionally carries {@code yourOccupancyBand}
      * (the caller's own live band for this shelter; null for guests,
-     * anonymous callers and callers without a report).
+     * anonymous callers and callers without a report). Rejected
+     * (INACTIVE) rows stay readable by id exactly as any other INACTIVE
+     * row — the review model adds no detail-read rule.
+     * (community-review-queue v2 D2).
      */
     @GetMapping("/{id}")
     public ShelterDto get(@PathVariable long id) {
@@ -134,6 +138,10 @@ public class ShelterController {
                 null, null, null, null, null, // no registry fields on USER rows
                 request.description(),
                 request.capacity());
+        // The private-home declaration (community-review-queue v2 D7):
+        // absent = PUBLIC.
+        shelter.setLocationKind(request.locationKind() == null
+                ? LocationKind.PUBLIC : request.locationKind());
         shelterService.addPlace(user, shelter);
         ShelterDto dto = queryService.findById(shelter.getId())
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
@@ -204,6 +212,17 @@ public class ShelterController {
         updated.setId(shelter.getId());
         updated.setCreatedAt(shelter.getCreatedAt());
         updated.setCreatedBy(shelter.getCreatedBy());
+        // Admin-owned state is preserved through the owner's edit (the
+        // save copies every domain field): the trust-layer disarm flag
+        // and the community trust state (a PUT must never let the owner
+        // reset review_status/review_note — including "self-confirming"
+        // a NEW row by editing it).
+        updated.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
+        updated.setReviewStatus(shelter.getReviewStatus());
+        updated.setReviewNote(shelter.getReviewNote());
+        // The private-home declaration is updatable; absent = keep current.
+        updated.setLocationKind(request.locationKind() == null
+                ? shelter.getLocationKind() : request.locationKind());
         shelterService.updatePlace(updated);
         return queryService.findById(id)
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));

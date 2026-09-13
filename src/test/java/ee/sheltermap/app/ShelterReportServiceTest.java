@@ -4,6 +4,7 @@ import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReportType;
@@ -36,6 +37,7 @@ class ShelterReportServiceTest {
     private InMemoryShelterReportRepository reports;
     private InMemoryShelterOccupancyRepository occupancy;
     private InMemoryReportActionLog actionLog;
+    private InMemoryModerationAuditLog audit;
     private InMemoryUserRepository users;
     private ShelterReportService service;
 
@@ -50,8 +52,9 @@ class ShelterReportServiceTest {
         reports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
         actionLog = new InMemoryReportActionLog(FIXED);
+        audit = new InMemoryModerationAuditLog(FIXED);
         users = new InMemoryUserRepository();
-        service = new ShelterReportService(shelters, reports, occupancy, actionLog, FIXED);
+        service = new ShelterReportService(shelters, reports, occupancy, actionLog, audit, FIXED);
 
         verified = user("Mari", true);
         unverified = user("Priit", false);
@@ -256,5 +259,81 @@ class ShelterReportServiceTest {
         service.reportOccupancy(user("Jaan", true), shelter.getId(), OccupancyBand.FULL);
 
         assertThat(occupancy.findAll()).hasSize(2);
+    }
+
+    // ---------- auto-confirm (community-review-queue v2 D2) ----------
+
+    @Test
+    void aPositiveReportFromAnotherUserConfirmsANewRow() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).hasSize(1);
+        ModerationAuditLog.Row row = audit.rows().get(0);
+        assertThat(row.action()).isEqualTo(ModerationAuditLog.Action.AUTO_CONFIRM);
+        assertThat(row.shelterId()).isEqualTo(shelter.getId());
+        assertThat(row.moderatorId()).isEqualTo(verified.getId());
+        assertThat(row.previousStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(row.newStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(row.reason()).isNull();
+    }
+
+    @Test
+    void theSubmittersOwnPositiveReportDoesNotConfirm() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.reportShelter(submitter, shelter.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void onlyNewUserRowsAreAutoConfirmed() {
+        // a registry row (CONFIRMED by default): untouched, no audit
+        Shelter registry = new Shelter("Registri", new GeoPoint(58.9, 26.3),
+                ShelterStatus.ACTIVE, "ext-reg", ShelterSource.PAASETEAMET,
+                "Pikakaevu 3", "Harjumaa", "Tallinn linn", "01.01.2026", "SMIT");
+        shelters.save(registry);
+        service.reportShelter(verified, registry.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(registry.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).isEmpty();
+
+        // an already-confirmed USER row: stays CONFIRMED, no audit
+        Shelter confirmed = new Shelter("Kinnitatud", new GeoPoint(59.4, 24.7),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+        confirmed.setCreatedBy(user("S2", true).getId());
+        shelters.save(confirmed);
+        service.reportShelter(verified, confirmed.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(confirmed.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).isEmpty();
+
+        // a REJECTED USER row: stays REJECTED, no audit
+        Shelter rejected = new Shelter("Keeldatud", new GeoPoint(59.4, 24.7),
+                ShelterStatus.INACTIVE, null, ShelterSource.USER);
+        rejected.setReviewStatus(ReviewStatus.REJECTED);
+        shelters.save(rejected);
+        service.reportShelter(verified, rejected.getId(), ShelterReportType.OPEN_CONFIRMED, null);
+        assertThat(rejected.getReviewStatus()).isEqualTo(ReviewStatus.REJECTED);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aNonPositiveReportNeverConfirms() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.CLOSED, null);
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.WRONG_LOCATION, null);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
     }
 }

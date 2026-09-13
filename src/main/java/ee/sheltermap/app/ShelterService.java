@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -12,10 +13,16 @@ import java.util.Objects;
 /**
  * User-submitted shelters.
  *
- * <p>No moderator: a submission is published immediately — {@code addPlace}
- * checks {@code canWrite()} first, then persists the place as
- * {@code ACTIVE}/{@code USER}. Quality is governed by community ratings
- * ({@code ShelterReview}, Step 6), not by approval.
+ * <p>Community trust lifecycle without a blocking queue
+ * (community-review-queue v2 D2): {@code addPlace} checks
+ * {@code canWrite()} first, then persists the place as
+ * {@code ACTIVE}/{@code USER}/{@code NEW} — the row is public
+ * IMMEDIATELY (the owner does not actively moderate); NEW simply carries
+ * the unverified treatment in the UI. Trust moves forward automatically
+ * in the report service (an {@code OPEN_CONFIRMED} report from a user
+ * other than the submitter promotes NEW→CONFIRMED, audited
+ * AUTO_CONFIRM) or via the rare admin CONFIRM; REJECT (admin) hides the
+ * row via status INACTIVE.
  */
 @Service
 public class ShelterService {
@@ -81,6 +88,10 @@ public class ShelterService {
             throw new ShelterLimitExceededException();
         }
         place.setCreatedBy(user.getId());
+        // community-review-queue v2 D2: new community rows publish
+        // immediately with the unverified trust state — the public list
+        // is unchanged, the UI shows the "newly added" treatment.
+        place.setReviewStatus(ReviewStatus.NEW);
         shelterRepository.save(place);
     }
 

@@ -14,10 +14,18 @@ import java.util.Objects;
  * registry rows and pre-V7 legacy USER rows have a {@code null} author and
  * are unmanageable by anyone.
  *
- * <p>{@code status} is the one mutable field: in this change only the
- * trust layer's auto-hide transitions a shelter to {@code INACTIVE}
- * (shelter-trust-and-reports D1); the admin restore (back to {@code ACTIVE})
- * lands with the admin-moderation change.
+ * <p>{@code status} is the lifecycle field (ACTIVE/INACTIVE): the trust
+ * layer's auto-hide, the community-report auto-hide and the admin
+ * hide/restore move it.
+ * {@code reviewStatus} is the community trust state
+ * (community-review-queue v2 D1/D2) — a separate dimension: there is no
+ * blocking queue, community rows publish immediately as NEW and move to
+ * CONFIRMED automatically (a positive community report from a
+ * non-submitter) or via the rare admin CONFIRM; REJECT hides via
+ * {@code status = INACTIVE}. Defaults {@code CONFIRMED}, matching the
+ * V11 backfill for registry rows; the submission service sets NEW on new
+ * USER rows. {@code locationKind} is the submitter's private-home
+ * declaration (D7).
  */
 public class Shelter {
 
@@ -44,6 +52,17 @@ public class Shelter {
      * the write path — the auto-hide condition honours it from day one).
      */
     private boolean autoHideDisarmed;
+    /**
+     * Community trust state (community-review-queue v2 D1/D2). Defaults
+     * {@code CONFIRMED} — matching the V11 backfill for registry rows
+     * (official data), so registry imports keep their exact state;
+     * only the submission service creates a NEW row.
+     */
+    private ReviewStatus reviewStatus = ReviewStatus.CONFIRMED;
+    /** The admin's note (the REJECT reason); {@code null} while nothing is said. */
+    private String reviewNote;
+    /** The submitter's private-home declaration (community-review-queue v2 D7). */
+    private LocationKind locationKind = LocationKind.PUBLIC;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -107,6 +126,30 @@ public class Shelter {
 
     public void setAutoHideDisarmed(boolean autoHideDisarmed) {
         this.autoHideDisarmed = autoHideDisarmed;
+    }
+
+    public ReviewStatus getReviewStatus() {
+        return reviewStatus;
+    }
+
+    public void setReviewStatus(ReviewStatus reviewStatus) {
+        this.reviewStatus = Objects.requireNonNull(reviewStatus, "reviewStatus");
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
+    }
+
+    public void setReviewNote(String reviewNote) {
+        this.reviewNote = reviewNote;
+    }
+
+    public LocationKind getLocationKind() {
+        return locationKind;
+    }
+
+    public void setLocationKind(LocationKind locationKind) {
+        this.locationKind = Objects.requireNonNull(locationKind, "locationKind");
     }
 
     /** Author user id ({@code null} for registry rows and pre-V7 legacy USER rows). */

@@ -2,6 +2,7 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -66,6 +67,9 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setCreatedAt(shelter.getCreatedAt());
         entity.setCreatedBy(shelter.getCreatedBy());
         entity.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
+        entity.setReviewStatus(shelter.getReviewStatus());
+        entity.setReviewNote(shelter.getReviewNote());
+        entity.setLocationKind(shelter.getLocationKind());
     }
 
     @Override
@@ -133,6 +137,15 @@ public class JpaShelterRepository implements ShelterRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Shelter> findActiveBySourceAndReviewStatus(ShelterSource source, ReviewStatus reviewStatus) {
+        return shelters.findAllBySourceAndReviewStatusAndStatusOrderByIdAsc(
+                        source, reviewStatus, ShelterStatus.ACTIVE).stream()
+                .map(JpaShelterRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Shelter> findByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
@@ -170,6 +183,9 @@ public class JpaShelterRepository implements ShelterRepository {
         shelter.setCreatedAt(entity.getCreatedAt());
         shelter.setCreatedBy(entity.getCreatedBy());
         shelter.setAutoHideDisarmed(entity.isAutoHideDisarmed());
+        shelter.setReviewStatus(entity.getReviewStatus());
+        shelter.setReviewNote(entity.getReviewNote());
+        shelter.setLocationKind(entity.getLocationKind());
         return shelter;
     }
 }

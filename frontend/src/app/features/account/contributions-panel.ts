@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgClass } from '@angular/common';
 import {
   type AbstractControl,
   type ValidationErrors,
@@ -8,14 +8,18 @@ import {
   Validators,
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import type { MyReviewDto, ShelterDto, UpdateShelterRequest } from '../../core/models';
+import type { MineShelterDto, MyReviewDto, UpdateShelterRequest } from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
 import { LoadingIndicator } from '../../shared/loading-indicator';
-import { ratingText as ratingTextShared } from '../../shared/shelter-copy';
+import {
+  communityBadgeClass as communityBadgeClassShared,
+  communityTrustLabel as communityTrustLabelShared,
+  ratingText as ratingTextShared,
+} from '../../shared/shelter-copy';
 import { RatingStars } from '../../shared/rating-stars';
 
 /** Coordinate controls are required and within the geographic bounds (backend
@@ -52,7 +56,7 @@ function coordinateValidator(min: number, max: number) {
  */
 @Component({
   selector: 'app-contributions-panel',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, RatingStars, LoadingIndicator],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, RatingStars, LoadingIndicator],
   templateUrl: './contributions-panel.html',
   styleUrl: './contributions-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -63,8 +67,9 @@ export class ContributionsPanel implements OnInit {
   private readonly account = inject(AccountGateway);
 
   // ---- shelters list -------------------------------------------------------
-  /** null = loading; [] = loaded and empty. */
-  protected readonly shelterRows = signal<ShelterDto[] | null>(null);
+  /** null = loading; [] = loaded and empty. The /mine projection carries the
+   *  review state (community-review-queue) — badges + the admin note. */
+  protected readonly shelterRows = signal<MineShelterDto[] | null>(null);
   /** Load failure (non-null -> error state with Retry). */
   protected readonly shelterLoadError = signal<string | null>(null);
 
@@ -91,14 +96,25 @@ export class ContributionsPanel implements OnInit {
 
   /** W24: the shared rating summary copy, exposed to the template. */
   protected readonly ratingText = ratingTextShared;
+  /** Trust-state badge copy (community-review-queue): "Newly added" /
+   *  "Community-checked" / "Rejected". */
+  protected readonly trustLabel = communityTrustLabelShared;
+  /** The trust-state badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
+  protected readonly communityBadgeClass = communityBadgeClassShared;
 
   /**
    * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
    * the owner's list includes INACTIVE (auto-hidden) rows, marked with the
    * community non-existence report count. Restore is admin-only — the user
    * UI offers no restore action, so the mark is the row's only new element.
+   * Suppressed for REJECTED rows (community-review-queue): a rejection
+   * also flips the status to INACTIVE, but the "Rejected" badge + the
+   * admin's reason explain the state — the auto-hide mark would be noise.
    */
-  protected hiddenText(row: ShelterDto): string {
+  protected hiddenText(row: MineShelterDto): string | null {
+    if (row.status !== 'INACTIVE' || row.reviewStatus === 'REJECTED') {
+      return null;
+    }
     const n = row.nonexistentReports;
     return `Hidden — reported by the community (${n} report${n === 1 ? '' : 's'})`;
   }
@@ -162,7 +178,7 @@ export class ContributionsPanel implements OnInit {
   // -------------------------------------------------------------------------
   // Shelter rows: view (routerLink in the template), inline edit, delete
   // -------------------------------------------------------------------------
-  startEditShelter(row: ShelterDto): void {
+  startEditShelter(row: MineShelterDto): void {
     this.editName.setValue(row.name);
     this.editDescription.setValue(row.description ?? '');
     this.editCapacity.setValue(row.capacity);
@@ -226,7 +242,11 @@ export class ContributionsPanel implements OnInit {
     this.busy.set(true);
     try {
       const updated = await this.shelters.update(id, request);
-      this.shelterRows.update((rows) => (rows ?? []).map((r) => (r.id === id ? updated : r)));
+      // The PUT response is the public projection (no reviewNote) — keep the
+      // row's review state from the /mine load.
+      this.shelterRows.update((rows) =>
+        (rows ?? []).map((r) => (r.id === id ? { ...updated, reviewNote: r.reviewNote } : r)),
+      );
       // a renamed shelter keeps its review rows in sync (self-review case)
       this.reviewRows.update((rows) =>
         (rows ?? []).map((r) => (r.shelterId === id ? { ...r, shelterName: updated.name } : r)),

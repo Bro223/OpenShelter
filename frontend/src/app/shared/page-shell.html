@@ -1,38 +1,65 @@
 <header class="shell-header">
   <a class="brand" routerLink="/map">OpenShelter</a>
-  <nav class="shell-nav" aria-label="Primary">
-    <a routerLink="/map" routerLinkActive="active">Shelter map</a>
-    @if (auth.initialized() && auth.authenticated()) {
-      <a routerLink="/account" routerLinkActive="active">Account</a>
-      <!-- Admin-kind only (admin-moderation D5): regular users see the
-           nav unchanged; a failed profile fetch leaves isAdmin false, so
-           the item hides itself fail-closed. -->
-      @if (auth.isAdmin()) {
-        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+  <!-- Mobile burger (hidden at >=900px): opens the .shell-menu panel below.
+       The three bars are CSS-drawn — no icon library, no unicode glyph. -->
+  <button
+    type="button"
+    class="shell-burger"
+    aria-label="Menu"
+    [attr.aria-expanded]="menuOpen()"
+    aria-controls="shell-mobile-menu"
+    (click)="toggleMenu()"
+  >
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+  </button>
+  <!-- Single source for nav + actions: at >=900 a normal flex row (the
+       flex: 1 keeps .shell-actions' margin-left: auto pushing the actions
+       to the header's right edge — the old inline layout, visually
+       unchanged); below 900 the same node is the dropdown panel (hidden
+       until opened). The (click) close covers every menu item in one
+       place: nav anchors, the high-contrast toggle, the auth controls. -->
+  <div
+    class="shell-menu"
+    id="shell-mobile-menu"
+    [class.shell-menu--open]="menuOpen()"
+    (click)="closeMenu()"
+  >
+    <nav class="shell-nav" aria-label="Primary">
+      <a routerLink="/map" routerLinkActive="active">Shelter map</a>
+      @if (auth.initialized() && auth.authenticated()) {
+        <a routerLink="/account" routerLinkActive="active">Account</a>
+        <!-- Admin-kind only (admin-moderation D5): regular users see the
+             nav unchanged; a failed profile fetch leaves isAdmin false, so
+             the item hides itself fail-closed. -->
+        @if (auth.isAdmin()) {
+          <a routerLink="/admin" routerLinkActive="active">Admin</a>
+        }
       }
-    }
-  </nav>
-  <div class="shell-actions">
-    <!-- High-contrast toggle (accessibility-and-provenance D2): always
-         visible (independent of auth), aria-pressed mirrors the theme
-         signal; the preference persists in localStorage and is applied
-         before first paint by the inline index.html script. -->
-    <button
-      type="button"
-      class="btn btn--ghost"
-      [attr.aria-pressed]="theme.highContrast()"
-      (click)="theme.toggle()"
-    >
-      High contrast
-    </button>
-    @if (auth.initialized()) {
-      @if (auth.authenticated()) {
-        <button type="button" class="btn btn--ghost" (click)="logout()">Log out</button>
-      } @else {
-        <a routerLink="/login" class="btn btn--ghost">Log in</a>
-        <a routerLink="/register" class="btn btn--primary">Create account</a>
+    </nav>
+    <div class="shell-actions">
+      <!-- High-contrast toggle (accessibility-and-provenance D2): always
+           visible (independent of auth), aria-pressed mirrors the theme
+           signal; the preference persists in localStorage and is applied
+           before first paint by the inline index.html script. -->
+      <button
+        type="button"
+        class="btn btn--ghost"
+        [attr.aria-pressed]="theme.highContrast()"
+        (click)="theme.toggle()"
+      >
+        High contrast
+      </button>
+      @if (auth.initialized()) {
+        @if (auth.authenticated()) {
+          <button type="button" class="btn btn--ghost" (click)="logout()">Log out</button>
+        } @else {
+          <a routerLink="/login" class="btn btn--ghost">Log in</a>
+          <a routerLink="/register" class="btn btn--primary">Create account</a>
+        }
       }
-    }
+    </div>
   </div>
 </header>
 

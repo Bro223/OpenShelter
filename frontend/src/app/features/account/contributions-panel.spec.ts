@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import type { MyReviewDto, ShelterDto, ShelterReviewDto } from '../../core/models';
+import type { MineShelterDto, MyReviewDto, ShelterDto, ShelterReviewDto } from '../../core/models';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ContributionsPanel } from './contributions-panel';
 
-const SHELTER_ROW: ShelterDto = {
+const SHELTER_ROW: MineShelterDto = {
   id: 7,
   address: null,
   name: 'Community Cellar',
@@ -24,6 +24,9 @@ const SHELTER_ROW: ShelterDto = {
   nonexistentReports: 0,
   statusFlag: null,
   occupancy: null,
+  reviewStatus: 'CONFIRMED',
+  reviewNote: null,
+  locationKind: 'PUBLIC',
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -412,7 +415,7 @@ describe('ContributionsPanel', () => {
   // ---- hidden own shelters (shelter-trust-and-reports / user-contributions) ----
 
   it('an auto-hidden own shelter is marked with the community report count and has no restore action', async () => {
-    const hiddenRow: ShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 5 };
+    const hiddenRow: MineShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 5 };
     shelters.mine.mockResolvedValue([hiddenRow]);
     const { element } = await open();
 
@@ -430,7 +433,7 @@ describe('ContributionsPanel', () => {
   });
 
   it('a hidden shelter with a single report singularizes the copy', async () => {
-    const hiddenRow: ShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 1 };
+    const hiddenRow: MineShelterDto = { ...SHELTER_ROW, status: 'INACTIVE', nonexistentReports: 1 };
     shelters.mine.mockResolvedValue([hiddenRow]);
     const { element } = await open();
 
@@ -443,5 +446,61 @@ describe('ContributionsPanel', () => {
 
     expect(element.querySelector('.contrib-row__hidden')).toBeNull();
     expect(element.textContent).not.toContain('Hidden');
+  });
+
+  // ---- trust-state badges + admin note (community-review-queue) --------------
+
+  it('each /mine shelter row carries its trust-state badge (Newly added / Community-checked / Rejected)', async () => {
+    shelters.mine.mockResolvedValue([
+      { ...SHELTER_ROW, id: 7, name: 'New Cellar', reviewStatus: 'NEW' },
+      { ...SHELTER_ROW, id: 8, name: 'Checked Cellar', reviewStatus: 'CONFIRMED' },
+      {
+        ...SHELTER_ROW,
+        id: 9,
+        name: 'Rejected Cellar',
+        reviewStatus: 'REJECTED',
+        status: 'INACTIVE',
+      },
+    ]);
+    const { element } = await open();
+
+    const rows = element.querySelectorAll<HTMLElement>('.contrib-row');
+    expect(rows.length).toBe(3);
+    const [newRow, checkedRow, rejectedRow] = rows;
+    expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe(
+      'Newly added',
+    );
+    expect(checkedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
+      'Community-checked',
+    );
+    expect(rejectedRow.querySelector('.contrib-badge.badge--rejected')?.textContent?.trim()).toBe(
+      'Rejected',
+    );
+  });
+
+  it('a rejected row shows the admin note and NO auto-hide mark (the badge carries the state)', async () => {
+    const rejectedRow: MineShelterDto = {
+      ...SHELTER_ROW,
+      reviewStatus: 'REJECTED',
+      status: 'INACTIVE',
+      nonexistentReports: 5,
+      reviewNote: 'Could not verify the address',
+    };
+    shelters.mine.mockResolvedValue([rejectedRow]);
+    const { element } = await open();
+
+    expect(element.querySelector('.contrib-row__hidden')).toBeNull();
+    expect(element.textContent).not.toContain('Hidden — reported by the community');
+    expect(element.querySelector('.contrib-row__note')?.textContent?.trim()).toBe(
+      'Admin note: Could not verify the address',
+    );
+  });
+
+  it('a row without a review note renders no note line', async () => {
+    shelters.mine.mockResolvedValue([SHELTER_ROW]);
+    const { element } = await open();
+
+    expect(element.querySelector('.contrib-row__note')).toBeNull();
+    expect(element.textContent).not.toContain('Admin note');
   });
 });

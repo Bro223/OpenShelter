@@ -76,6 +76,10 @@ const CREATED: ShelterDto = {
   nonexistentReports: 0,
   statusFlag: null,
   occupancy: null,
+  // Public DTO carries the trust state (community-review-queue): a fresh
+  // submission comes back NEW (public immediately, no blocking queue).
+  reviewStatus: 'NEW',
+  locationKind: 'PUBLIC',
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */
@@ -270,7 +274,7 @@ describe('SubmitShelterPage (/submit)', () => {
     pressEnterIn(el, 'shelter-location-input');
   }
 
-  it('a valid submit POSTs the SAME payload shape and navigates to the new shelter', async () => {
+  it('a valid submit POSTs the payload (locationKind PUBLIC) and shows the success panel — no navigation', async () => {
     gateway.create.mockResolvedValue(CREATED);
     const { element, fixture } = await open();
     fillValidForm(element);
@@ -280,7 +284,8 @@ describe('SubmitShelterPage (/submit)', () => {
     await settle(fixture);
 
     // Regression guard (shelter-location-input): latitude/longitude are plain
-    // numbers straight from the shared location state — same shape as before.
+    // numbers straight from the shared location state. locationKind is
+    // explicit: unchecked = PUBLIC (the contract default).
     expect(gateway.create).toHaveBeenCalledTimes(1);
     expect(gateway.create).toHaveBeenCalledWith({
       name: 'Kalamaja community shelter',
@@ -288,9 +293,41 @@ describe('SubmitShelterPage (/submit)', () => {
       longitude: 24.754,
       description: undefined,
       capacity: undefined,
+      locationKind: 'PUBLIC',
     });
-    expect(router.url).toBe('/shelters/42');
-    expect(fixture.nativeElement.textContent).toContain('detail stub');
+    // The row is public NOW (NEW) — the page stays on /submit with the
+    // success panel (community-review-queue) instead of navigating.
+    expect(router.url).toBe('/submit');
+    expect(element.textContent).toContain(
+      'Your location is now listed and marked as newly added. Community reports confirm it.',
+    );
+    expect(element.querySelector('.submit-success a[href="/shelters/42"]')).not.toBeNull();
+    expect(element.querySelector('.submit-success a[href="/account"]')).not.toBeNull();
+  });
+
+  it('the private-home declaration checkbox sends locationKind PRIVATE', async () => {
+    gateway.create.mockResolvedValue(CREATED);
+    const { element, fixture } = await open();
+    fillValidForm(element);
+    const checkbox = element.querySelector<HTMLInputElement>('#shelter-private');
+    if (!checkbox) {
+      throw new Error('#shelter-private not found');
+    }
+    checkbox.checked = true;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+    fixture.detectChanges();
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    await settle(fixture);
+
+    expect(gateway.create).toHaveBeenCalledWith({
+      name: 'Kalamaja community shelter',
+      latitude: 59.437,
+      longitude: 24.754,
+      description: undefined,
+      capacity: undefined,
+      locationKind: 'PRIVATE',
+    });
   });
 
   it('sends description and capacity when provided', async () => {
@@ -317,8 +354,12 @@ describe('SubmitShelterPage (/submit)', () => {
       longitude: 24.754,
       description: 'Basement with two exits',
       capacity: 40,
+      locationKind: 'PUBLIC',
     });
-    expect(router.url).toBe('/shelters/42');
+    // No navigation on success (community-review-queue) — the success panel
+    // stays on /submit.
+    expect(router.url).toBe('/submit');
+    expect(element.querySelector('.submit-success')).not.toBeNull();
   });
 
   it('a map pick writes the shared location state and drops the pick marker (no flyTo)', async () => {
@@ -1128,12 +1169,14 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(element.querySelector('.banner')).toBeNull(); // no error while loading
 
     resolveCreate(CREATED);
-    // Zoneless: the navigation's microtask chain needs more than one settle
-    // tick — poll (bounded) instead of asserting on a single settle.
-    for (let i = 0; i < 10 && router.url !== '/shelters/42'; i++) {
+    // Zoneless: the state update's microtask chain needs more than one
+    // settle tick — poll (bounded) for the success panel instead of
+    // asserting on a single settle.
+    for (let i = 0; i < 10 && element.querySelector('.submit-success') === null; i++) {
       await settle(fixture);
     }
-    expect(router.url).toBe('/shelters/42');
+    expect(element.querySelector('.submit-success')).not.toBeNull();
+    expect(router.url).toBe('/submit');
   });
 
   it('destroys the mini-map on route leave (no listener leaks)', async () => {

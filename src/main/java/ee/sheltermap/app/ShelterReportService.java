@@ -2,10 +2,12 @@ package ee.sheltermap.app;
 
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
+import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,6 +34,15 @@ import java.util.Objects;
  * The trigger fires only on that one 4→5 insert; after a manual status
  * change (admin restore, later change) the count is already past 4, so
  * later reports increment it but never re-hide. No other path auto-hides.
+ *
+ * <p>Auto-confirm (community-review-queue v2 D2): when an
+ * {@code OPEN_CONFIRMED} report is successfully recorded for a USER row
+ * in review state NEW, by a user who is NOT the row's submitter, the
+ * row is promoted NEW→CONFIRMED in the SAME transaction and an
+ * AUTO_CONFIRM row is written to the moderation audit trail (the
+ * reporting user is the actor of record). The submitter's own positive
+ * report never promotes; registry and already-confirmed rows are
+ * untouched. This is the primary trust flow — no human in the loop.
  */
 @Service
 public class ShelterReportService {
@@ -49,17 +60,20 @@ public class ShelterReportService {
     private final ShelterReportRepository reports;
     private final ShelterOccupancyRepository occupancy;
     private final ReportActionLog actionLog;
+    private final ModerationAuditLog audit;
     private final Clock clock;
 
     public ShelterReportService(ShelterRepository shelters,
                                 ShelterReportRepository reports,
                                 ShelterOccupancyRepository occupancy,
                                 ReportActionLog actionLog,
+                                ModerationAuditLog audit,
                                 Clock clock) {
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.reports = Objects.requireNonNull(reports, "reports");
         this.occupancy = Objects.requireNonNull(occupancy, "occupancy");
         this.actionLog = Objects.requireNonNull(actionLog, "actionLog");
+        this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -94,6 +108,9 @@ public class ShelterReportService {
         }
         if (reachesAutoHide) {
             autoHideIfEligible(shelter);
+        }
+        if (type == ShelterReportType.OPEN_CONFIRMED) {
+            autoConfirmIfEligible(shelter, user);
         }
     }
 
@@ -134,6 +151,28 @@ public class ShelterReportService {
         if (shelter.getStatus() == ShelterStatus.ACTIVE && !shelter.isAutoHideDisarmed()) {
             shelter.setStatus(ShelterStatus.INACTIVE);
             shelters.save(shelter);
+        }
+    }
+
+    /**
+     * The NEW→CONFIRMED promotion (community-review-queue v2 D2) — the
+     * ONLY automatic path: a USER row in review state NEW, confirmed by a
+     * positive report from a user other than the submitter (a legacy
+     * USER row without an author counts as unclaimed — any reporter
+     * qualifies). The promotion joins this report's transaction and the
+     * audit row's actor is the reporting user (AUTO_CONFIRM).
+     */
+    private void autoConfirmIfEligible(Shelter shelter, RegisteredUser reporter) {
+        boolean byOtherUser = shelter.getCreatedBy() == null
+                || !shelter.getCreatedBy().equals(reporter.getId());
+        if (shelter.getSource() == ShelterSource.USER
+                && shelter.getReviewStatus() == ReviewStatus.NEW
+                && byOtherUser) {
+            shelter.setReviewStatus(ReviewStatus.CONFIRMED);
+            shelters.save(shelter);
+            audit.record(shelter.getId(), reporter.getId(),
+                    ModerationAuditLog.Action.AUTO_CONFIRM, null,
+                    ReviewStatus.NEW, ReviewStatus.CONFIRMED);
         }
     }
 

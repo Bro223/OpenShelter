@@ -213,6 +213,9 @@ describe('design tokens (M6)', () => {
     // is covered by the styles.scss D1 note, not this literal-based check.
     ['--color-shelter-registry', '--color-badge-registry'],
     ['--color-shelter-user', '--color-badge-user'],
+    // Trust-state badge text on its fill (community-review-queue D5): the
+    // NEW community rows' "Newly added" badge on every surface.
+    ['--color-warning', '--color-badge-new'],
   ];
 
   /** --color-shelter-pick × the HC surfaces it could sit on (HC-only, see

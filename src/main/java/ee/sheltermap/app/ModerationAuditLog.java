@@ -1,0 +1,62 @@
+package ee.sheltermap.app;
+
+import ee.sheltermap.domain.ReviewStatus;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * The append-only moderation audit trail (community-review-queue v2
+ * D4) — one row per moderation-relevant action: admin status change,
+ * hard delete, shelter report dismiss, review hide/restore, the admin
+ * CONFIRM/REJECT decisions, and the automatic AUTO_CONFIRM promotion
+ * (the reporting user is its actor of record). The row is written in
+ * the SAME JPA transaction as the action it records (no separate call,
+ * no async) — a rolled-back action leaves no row, and a committed
+ * action always leaves exactly one.
+ *
+ * <p>Unlike {@link ReportActionLog} (the per-user throttle budget), this
+ * is a plain fact log — no check-and-record, no locking.
+ * {@code shelter_id} has no FK: a delete records its audit row first, and
+ * the id must dangle after the delete — the name is resolved at read time
+ * ("Deleted shelter" once the row is gone).
+ */
+public interface ModerationAuditLog {
+
+    /** Which moderation-relevant action a log row records. */
+    enum Action {
+        STATUS_CHANGE,
+        DELETE,
+        REPORT_DISMISS,
+        REVIEW_HIDE,
+        REVIEW_RESTORE,
+        CONFIRM,
+        AUTO_CONFIRM,
+        REJECT
+    }
+
+    /** One audit row as read by the admin projection. */
+    record Row(Long id, Long shelterId, Long moderatorId, Action action, String reason,
+               ReviewStatus previousStatus, ReviewStatus newStatus, Instant createdAt) {
+    }
+
+    /**
+     * Records one moderation-relevant action in the caller's
+     * transaction.
+     *
+     * <p>{@code previousStatus}/{@code newStatus} are the shelter's
+     * review_status before and after the action: equal for actions that
+     * do not move the review state (status change, dismiss, review
+     * hide/restore — the action string says what moved; a restore of a
+     * REJECTED row is the exception — REJECTED→NEW) and
+     * {@code newStatus = null} for DELETE (the row is gone).
+     */
+    void record(long shelterId, long moderatorId, Action action, String reason,
+                ReviewStatus previousStatus, ReviewStatus newStatus);
+
+    /**
+     * The newest rows first (created_at descending, id descending as the
+     * same-timestamp tie-break), at most {@code limit} of them.
+     */
+    List<Row> findLatest(int limit);
+}

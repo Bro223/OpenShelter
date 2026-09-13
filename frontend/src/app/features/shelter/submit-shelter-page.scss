@@ -37,6 +37,39 @@
   }
 }
 
+/* The private-home declaration (community-review-queue D7): a plain label +
+   checkbox row — the global 48px touch-target rule covers the input via
+   the form-control baseline; the label wraps for narrow widths. */
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+/* Success panel (community-review-queue): the success tint — the row is
+   public NOW (NEW state), so the copy is a confirmation, not a caveat. */
+.submit-success {
+  padding: var(--space-12) var(--space-16);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-base);
+
+  p {
+    margin: 0;
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4) var(--space-16);
+    margin-top: var(--space-8);
+  }
+}
+
 .location-field {
   margin: 0;
   padding: var(--space-12) var(--space-14) var(--space-14);

@@ -2,10 +2,13 @@ import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
 import type {
+  AdminAuditRow,
   AdminShelterDto,
   AdminShelterFilters,
   AdminShelterReportDto,
   AdminReviewReportDto,
+  ReviewShelterRequest,
+  ReviewShelterResponse,
   ShelterStatus,
 } from '../core/models';
 
@@ -16,16 +19,18 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The seven endpoints, 1:1:
+ * The ten endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
+ *   POST   /admin/shelters/{id}/review         -> 200 {ok} (USER rows only)
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
  *   GET    /admin/review-reports               -> AdminReviewReportDto[]
  *   POST   /admin/reviews/{id}/hide            -> 204 (idempotent)
  *   POST   /admin/reviews/{id}/restore         -> 204 (idempotent)
+ *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
  *
  * The review hide/restore `{id}` is the REVIEW's id, not the review-report
  * row's id — callers pass `row.reviewId`.
@@ -54,11 +59,36 @@ export class AdminGateway {
   }
 
   /**
+   * POST /admin/shelters/{id}/review {action, reason?} -> 200 {ok:true}.
+   * The rare MANUAL trust override (community-review-queue D2) — the
+   * primary flow is the automatic community one. CONFIRM sets
+   * review_status=CONFIRMED (status untouched); REJECT sets
+   * review_status=REJECTED + status=INACTIVE and stores the reason as the
+   * submitter's note. USER rows only — a registry row answers 409 and the
+   * page surfaces the server message (bannerMessage echoes 409); 404
+   * unknown id. Every decision also writes an audit row server-side.
+   */
+  reviewShelter(id: number, request: ReviewShelterRequest): Promise<ReviewShelterResponse> {
+    return lastValueFrom(
+      this.api.post<ReviewShelterResponse>(`/admin/shelters/${id}/review`, request),
+    );
+  }
+
+  /**
    * DELETE /admin/shelters/{id} -> 204. Hard delete; reviews, reports and
    * occupancy cascade (backend). USER rows only (409), 404 unknown.
    */
   deleteShelter(id: number): Promise<void> {
     return lastValueFrom(this.api.delete<void>(`/admin/shelters/${id}`));
+  }
+
+  /**
+   * GET /admin/audit -> the moderation audit trail, newest first (the
+   * backend's default newest-100 window). Shelter names are resolved at
+   * read time (a deleted shelter's rows carry the "Deleted shelter" text).
+   */
+  listAudit(): Promise<AdminAuditRow[]> {
+    return lastValueFrom(this.api.get<AdminAuditRow[]>('/admin/audit'));
   }
 
   /**

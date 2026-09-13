@@ -152,8 +152,22 @@
     color: var(--color-muted);
   }
 
+  /* The straight-line distance (D6 honesty) — muted, secondary to the name.
+     The '≈ … straight line' copy is pinned (community-review-queue). */
+  .nearest-line__distance {
+    color: var(--color-muted);
+  }
+
   &--error {
     color: var(--color-danger);
+  }
+
+  /* The community unverified warning under a community nearest row:
+     muted text on purpose — a caveat, NOT the crisis orange (the --color-cta
+     hue stays reserved for the CTA + the row emphasis). */
+  &--warning {
+    color: var(--color-muted);
+    margin-top: var(--space-4);
   }
 }
 
@@ -358,6 +372,22 @@
   }
 
   &.badge--occupancy {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* New community state (community-review-queue D5): the amber tint — the
+     --color-badge-new fill with the dark-amber --color-warning text (the
+     contrast pair is pinned in design-tokens.spec.ts). */
+  &.badge--new {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+
+  /* Private-home declaration (D7): the neutral chip — a description of
+     what the location is, not a state. */
+  &.badge--private {
     background: var(--color-bg-subtle);
     border: 1px solid var(--color-border);
     color: var(--color-muted);

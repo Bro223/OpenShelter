@@ -5,6 +5,8 @@
 }
 
 .shell-header {
+  /* position: relative anchors the <900px .shell-menu dropdown (top: 100%). */
+  position: relative;
   display: flex;
   align-items: center;
   flex-wrap: wrap; /* M6: brand/nav/actions reflow instead of overflowing at narrow widths */
@@ -19,6 +21,24 @@
     text-decoration: none;
     letter-spacing: var(--tracking-brand);
   }
+}
+
+/* Burger button — hidden at >=900 (the inline .shell-menu row shows
+   instead); the display + icon styles live in the narrow @media block. */
+.shell-burger {
+  display: none;
+}
+
+/* >=900: a normal flex row (brand | [nav ... actions]). flex: 1 fills the
+   remaining header width so .shell-actions' margin-left: auto still pushes
+   the actions to the header's right edge — visually the old inline layout.
+   Below 900 the same node becomes the absolutely-positioned dropdown
+   panel (see the narrow @media block). */
+.shell-menu {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-24);
 }
 
 .shell-nav {
@@ -87,6 +107,89 @@
 
     a {
       color: var(--color-primary);
+    }
+  }
+}
+
+/* Narrow-viewport breakpoint — the documented 900px literal (the
+   --bp-narrow value; @media cannot consume var() in browsers, see
+   styles.scss). The header collapses to brand + burger; .shell-menu
+   becomes the full-width dropdown panel, hidden until opened. */
+@media (max-width: 900px) {
+  .shell-burger {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    margin-left: auto; /* right-aligned in the header row */
+    /* 48px touch target — the same rule as the global .btn min-height. */
+    min-height: var(--space-48);
+    min-width: var(--space-48);
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+
+    .shell-burger__bar {
+      display: block;
+      width: var(--space-24);
+      height: var(--space-2);
+      border-radius: var(--radius-sm);
+      background: currentColor; /* follows the themed text colour */
+    }
+  }
+
+  .shell-menu {
+    /* Dropdown panel: directly under the header, full width, hidden until
+       opened (.shell-menu--open). */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    /* Above the page content — on /map that means above the only other
+       z-indices in the app: the leaflet panes (200-700) and the map
+       legend (1000). */
+    z-index: 1100;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--space-8) var(--space-20) var(--space-16);
+    background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border-subtle);
+
+    &.shell-menu--open {
+      display: flex;
+    }
+
+    .shell-nav {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+
+      a {
+        display: flex;
+        align-items: center;
+        /* 48px touch target per panel row. */
+        min-height: var(--space-48);
+      }
+    }
+
+    .shell-actions {
+      margin-left: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+
+      .btn {
+        width: 100%;
+        /* Left-aligned panel rows — the documented .btn exception (same
+           opt-out the shelter-row__details buttons use). */
+        justify-content: flex-start;
+      }
     }
   }
 }

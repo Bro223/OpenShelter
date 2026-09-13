@@ -1,6 +1,8 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.ShelterStatusFlag;
@@ -28,6 +30,15 @@ import java.time.Instant;
  * is the CALLER's own live band (detail endpoint only; null for guests,
  * anonymous callers and users without a report). All derivations are
  * computed server-side in the batched projection — never client-computed.
+ *
+ * <p>Community trust (community-review-queue v2 D2/D5/D7): every row
+ * carries {@code reviewStatus} — NEW (unverified community row, the
+ * amber "newly added" treatment), CONFIRMED (community-checked, or
+ * registry rows, which backfill CONFIRMED), REJECTED (hidden; only
+ * visible in /mine and the admin list) — and {@code locationKind}, the
+ * submitter's private-home declaration (PRIVATE rows are public results
+ * with the "Private location" badge). {@code reviewNote} is the admin's
+ * REJECT reason, {@code null} while nothing is said.
  */
 public record ShelterDto(
         Long id,
@@ -46,7 +57,10 @@ public record ShelterDto(
         int nonexistentReports,
         ShelterStatusFlag statusFlag,
         Occupancy occupancy,
-        OccupancyBand yourOccupancyBand) {
+        OccupancyBand yourOccupancyBand,
+        ReviewStatus reviewStatus,
+        String reviewNote,
+        LocationKind locationKind) {
 
     /**
      * The fresh occupancy block (D4): the latest fresh report's band, the

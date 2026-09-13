@@ -9,7 +9,7 @@ import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { AuthStore } from '../../session/auth-store';
 import { PageShell } from '../../shared/page-shell';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
-import { MapPage } from './map-page';
+import { MapPage, straightLineText } from './map-page';
 
 /**
  * Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). The
@@ -65,6 +65,8 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     nonexistentReports: 0,
     statusFlag: null,
     occupancy: null,
+    reviewStatus: 'CONFIRMED', // registry backfill (D3) — USER fixtures override
+    locationKind: 'PUBLIC', // D7 default — no private declaration
     ...overrides,
   };
 }
@@ -80,6 +82,7 @@ const BASEMENT = shelter({
   reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
+  reviewStatus: 'NEW', // D3: USER rows backfill NEW (amber marker)
 });
 const VERIFIED_BASEMENT = shelter({
   id: 8,
@@ -90,7 +93,8 @@ const VERIFIED_BASEMENT = shelter({
   reviewCount: 0,
   description: 'Verified submitter',
   capacity: 12,
-  submitterVerified: true,
+  submitterVerified: true, // a verified submitter is NOT a verified shelter
+  reviewStatus: 'CONFIRMED', // community-checked (green)
 });
 const ALL_ROWS = [TALLINN, PARNU, BASEMENT];
 
@@ -363,9 +367,10 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Source badges — the four-valued provenance copy (D4): the legend/
-      // filter chips keep their own short wording, the rows say it plainly.
-      expect(basementRow.textContent).toContain('User-submitted');
+      // Trust-state badges (D4 provenance + community-review-queue):
+      // the NEW USER row reads "Newly added", the registry rows keep their
+      // provenance chips.
+      expect(basementRow.textContent).toContain('Newly added');
       expect(rows[1].textContent).toContain('Municipal registry');
       expect(rows[2].textContent).toContain('Paasteamet registry');
       // Rating summary: real rating shown, null rating says "No ratings yet" (no invented zero).
@@ -376,32 +381,40 @@ describe('MapPage', () => {
       expect(text(fixture)).not.toContain('Loading shelters…');
     });
 
-    it('sidebar rows show the four-valued provenance badge (D4)', async () => {
+    it('sidebar rows show the trust-state badge: NEW is "Newly added", CONFIRMED is "Community-checked"', async () => {
       gateway.list.mockResolvedValue([TALLINN, PARNU, BASEMENT, VERIFIED_BASEMENT]);
       const { element } = await open('/map');
 
-      // One badge per row, in the name-sorted order — every D4 value lands
-      // on the row of the shelter that produces it.
+      // One badge per row, in the name-sorted order. The old
+      // "Verified user" / "User-submitted" split is gone — the label follows
+      // the trust state (community-review-queue): NEW → "Newly added",
+      // CONFIRMED → "Community-checked".
       const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
         b.textContent?.trim(),
       );
       expect(badges).toEqual([
-        'User-submitted', // Community Cellar (USER, unverified creator)
+        'Newly added', // Community Cellar (USER, NEW)
         'Municipal registry', // Pärnu Municipal Shelter (MUNICIPALITY)
         'Paasteamet registry', // Tallinn Central Shelter (PAASETEAMET)
-        'Verified user', // Verified Cellar (USER, verified creator)
+        'Community-checked', // Verified Cellar (USER, CONFIRMED)
       ]);
     });
 
-    it('renders a legend tied to the marker CSS classes (registry vs user)', async () => {
+    it('renders the four-entry legend: registry, new community, confirmed community, reported', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
       expect(legend?.textContent).toContain('Registry');
-      expect(legend?.textContent).toContain('User-submitted');
+      expect(legend?.textContent).toContain('New community');
+      expect(legend?.textContent).toContain('Confirmed community');
+      expect(legend?.textContent).toContain('Reported');
+      // The old "User-submitted" wording is gone.
+      expect(legend?.textContent).not.toContain('User-submitted');
     });
 
     it('shows a loading indicator while fetching (no empty/error state meanwhile)', async () => {
@@ -652,7 +665,7 @@ describe('MapPage', () => {
 
     it('the CTA renders for anonymous users too (the page is public)', async () => {
       const { element } = await open('/map');
-      expect(cta(element).textContent?.trim()).toBe('Nearest listed location');
+      expect(cta(element).textContent?.trim()).toBe('Show shelters around you');
       // Anonymous: no "Add shelter" entry (login lives in the header).
       expect(
         [...element.querySelectorAll<HTMLAnchorElement>('a')].some((a) =>
@@ -671,15 +684,75 @@ describe('MapPage', () => {
       // The map flew to the CLOSEST shelter (NEAR, ~250 m — not FAR, ~7 km)
       // at the street-level SHELTER_ZOOM convention.
       expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
-      // The one-line state with the found shelter's name + address.
-      expect(text(fixture)).toContain('Nearest listed location: Kalamaja Shelter');
+      // The one-line state with the found shelter's name + address, plus
+      // the straight-line distance (D6 honesty: the ranking's own Haversine
+      // — ~125 m for the NEAR fixture, whole metres below 1 km). The NEAR
+      // row is a REGISTRY row: no unverified warning.
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
       expect(text(fixture)).toContain('Sadama 2, Tallinn');
+      expect(text(fixture)).toContain('≈ 125 m straight line');
+      expect(element.querySelector('.nearest-line--warning')).toBeNull();
       // The matching row (and only it) carries the temporary emphasis.
       const emphasized = element.querySelectorAll('.shelter-row--nearest');
       expect(emphasized).toHaveLength(1);
       expect(emphasized[0].textContent).toContain('Kalamaja Shelter');
       // The CTA is usable again.
       expect(cta(element).disabled).toBe(false);
+    });
+
+    it('a community nearest row shows the unverified warning under the result', async () => {
+      // USER (community) row NEARER than the registry one: the warning line
+      // appears under the result and the km-scale distance formats with one
+      // decimal (FAR is ~6.4 km — here only the nearest's distance renders).
+      const USER_NEAR = shelter({
+        id: 31,
+        name: 'Community Cellar',
+        address: null,
+        source: 'USER',
+        latitude: 59.4385,
+        longitude: 24.7565,
+        averageRating: null,
+        reviewCount: 0,
+      });
+      gateway.list.mockResolvedValue([USER_NEAR, FAR]);
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(text(fixture)).toContain('Show shelters around you: Community Cellar');
+      expect(text(fixture)).toContain('≈ 62 m straight line');
+      const warning = element.querySelector<HTMLElement>('.nearest-line--warning');
+      expect(warning?.textContent).toBe(
+        'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
+      );
+    });
+
+    it('a registry nearest row shows the distance and NO unverified warning', async () => {
+      // FAR (MUNICIPALITY) is the nearest in this list — km-scale distance,
+      // no warning (the official scenario of the map-browse delta).
+      gateway.list.mockResolvedValue([FAR]);
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(text(fixture)).toContain('Show shelters around you: Nõmme Shelter');
+      expect(text(fixture)).toContain('≈ 6.4 km straight line');
+      expect(element.querySelector('.nearest-line--warning')).toBeNull();
+    });
+
+    it.each([
+      [0.001, '≈ 1 m straight line'],
+      [0.45, '≈ 450 m straight line'],
+      [0.999, '≈ 999 m straight line'],
+      [1, '≈ 1.0 km straight line'],
+      [2.4, '≈ 2.4 km straight line'],
+      [6.442, '≈ 6.4 km straight line'],
+    ])('straightLineText(%f) -> %s (pinned D6 copy)', (km, expected) => {
+      expect(straightLineText(km)).toBe(expected);
     });
 
     it('permission denied: the denied copy shows and list + map are untouched', async () => {
@@ -751,7 +824,7 @@ describe('MapPage', () => {
       cta(element).click();
       await settle(fixture);
 
-      expect(text(fixture)).toContain('No listed locations near you yet.');
+      expect(text(fixture)).toContain('No listed locations around you yet.');
       expect(element.querySelector('.nearest-line a[href="/submit"]')).not.toBeNull();
       expect(leaflet.flyToCalls).toEqual([]);
 
@@ -759,7 +832,7 @@ describe('MapPage', () => {
       store.authenticated.set(false);
       await settle(fixture);
       expect(element.querySelector('.nearest-line a[href="/submit"]')).toBeNull();
-      expect(text(fixture)).toContain('No listed locations near you yet.');
+      expect(text(fixture)).toContain('No listed locations around you yet.');
     });
 
     it('the "Add shelter" CTA renders for authenticated users and links to /submit', async () => {
@@ -831,7 +904,7 @@ describe('MapPage', () => {
       await settle(fixture);
 
       expect(button.disabled).toBe(false);
-      expect(button.textContent).toContain('Nearest listed location');
+      expect(button.textContent).toContain('Show shelters around you');
       expect(button.getAttribute('aria-busy')).toBe('false');
       // F10: the success line is an aria status (the error line already
       // carries role=alert — asserted in the denied test above).
@@ -845,11 +918,11 @@ describe('MapPage', () => {
       setGeolocation(geo.fake);
       const { element, fixture } = await open('/map');
 
-      // First locate: success — the "Nearest listed location: …" line + row emphasis are up.
+      // First locate: success — the "Show shelters around you: …" line + row emphasis are up.
       cta(element).click();
       geo.settle(USER_POSITION);
       await settle(fixture);
-      expect(text(fixture)).toContain('Nearest listed location: Kalamaja Shelter');
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
       expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
 
       // Second locate: permission denied.
@@ -865,7 +938,7 @@ describe('MapPage', () => {
       expect(errorLine?.getAttribute('role')).toBe('alert');
       // No stale success state: the line AND the emphasis are gone (the
       // template chain must not short-circuit on the previous success).
-      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
+      expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
       // The map stays where the first success left it — untouched.
       expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
@@ -889,7 +962,7 @@ describe('MapPage', () => {
       geo.settle(USER_POSITION); // the locate settles against the failed list
       await settle(fixture);
 
-      expect(text(fixture)).not.toContain('No listed locations near you yet.');
+      expect(text(fixture)).not.toContain('No listed locations around you yet.');
       expect(element.querySelector('.banner--error')).not.toBeNull();
       expect(leaflet.flyToCalls).toEqual([]);
     });
@@ -909,8 +982,8 @@ describe('MapPage', () => {
       fixture.detectChanges();
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      // The manual selection won the map (and the "Nearest listed location: …" line is gone).
-      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
+      // The manual selection won the map (and the "Show shelters around you: …" line is gone).
+      expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
     });
 
     it('a filter change clears the Nearest emphasis (D2)', async () => {
@@ -928,7 +1001,7 @@ describe('MapPage', () => {
       await settle(fixture);
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      expect(text(fixture)).not.toContain('Nearest listed location: Kalamaja Shelter');
+      expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
     });
   });
 
@@ -1221,8 +1294,10 @@ describe('MapPage', () => {
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
       expect(legend?.textContent).toContain('Reported');
-      // The two provenance entries stay (the orange one is ADDED, not swapped).
+      // The three provenance/trust entries stay (the orange one is ADDED, not
+      // swapped).
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
     });
 
@@ -1232,10 +1307,10 @@ describe('MapPage', () => {
 
       const badge = element.querySelector('.badge--reported');
       expect(badge?.textContent?.trim()).toBe('Reported');
-      // The row keeps its provenance badge too (the orange is the single
-      // marker affordance; the row text stays four-valued).
+      // The row keeps its trust badge too (the orange is the single
+      // marker affordance; the row text keeps the community label).
       expect(element.querySelector('.shelter-row .badge')?.textContent?.trim()).toBe(
-        'User-submitted',
+        'Community-checked',
       );
       // The reported row reaches the marker renderer (the orange CLASS on
       // the pin itself is asserted in leaflet-service.spec.ts).

@@ -43,6 +43,8 @@ const SHELTER_ROW: ShelterDto = {
   nonexistentReports: 0,
   statusFlag: null,
   occupancy: null,
+  reviewStatus: 'CONFIRMED',
+  locationKind: 'PUBLIC',
 };
 
 const REVIEW_ROW: MyReviewDto = {

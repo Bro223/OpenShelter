@@ -1,5 +1,6 @@
 package ee.sheltermap.persistence;
 
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,6 +29,13 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);
+
+    /**
+     * Admin "Unconfirmed" queue (V11, community-review-queue v2): one
+     * source in one review state, ACTIVE rows only, stable id order.
+     */
+    List<ShelterEntity> findAllBySourceAndReviewStatusAndStatusOrderByIdAsc(
+            ShelterSource source, ReviewStatus reviewStatus, ShelterStatus status);
 
     List<ShelterEntity> findByIdIn(Collection<Long> ids);
 

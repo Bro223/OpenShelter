@@ -3,6 +3,7 @@ import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
 import type {
   CreateShelterRequest,
+  MineShelterDto,
   OccupancyBand,
   ReportOccupancyRequest,
   ReportShelterRequest,
@@ -58,9 +59,16 @@ export class ShelterGateway {
     return lastValueFrom(this.api.post<ShelterDto>('/api/shelters', request));
   }
 
-  /** GET /api/shelters/mine -> the caller's own shelters (Bearer JWT). */
-  mine(): Promise<ShelterDto[]> {
-    return lastValueFrom(this.api.get<ShelterDto[]>('/api/shelters/mine'));
+  /**
+   * GET /api/shelters/mine -> the caller's own shelters (Bearer JWT), with
+   * the review state (community-review-queue): `reviewStatus` (NEW until
+   * confirmed by the community or an admin) + `reviewNote` (the admin's
+   * REJECT reason, when present). The public list/detail DTOs carry
+   * reviewStatus/locationKind too (v2 contract) — only reviewNote is
+   * owner-scoped.
+   */
+  mine(): Promise<MineShelterDto[]> {
+    return lastValueFrom(this.api.get<MineShelterDto[]>('/api/shelters/mine'));
   }
 
   /**

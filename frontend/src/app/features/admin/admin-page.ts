@@ -1,31 +1,54 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  OnInit,
+  computed,
+  signal,
+} from '@angular/core';
+import { NgClass } from '@angular/common';
+import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { DatePipe, registerLocaleData } from '@angular/common';
+import localeEnGB from '@angular/common/locales/en-GB';
 import { RouterLink } from '@angular/router';
 import type {
+  AdminAuditAction,
+  AdminAuditRow,
   AdminOccupancy,
   AdminShelterDto,
   AdminShelterReportDto,
   AdminReviewReportDto,
   ShelterOccupancy,
   ShelterReportType,
-  ShelterSource,
   ShelterStatus,
   ReviewReportReason,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { bannerMessage } from '../../shared/error-copy';
+import { nameBlankValidator } from '../../shared/form-helpers';
 import {
   occupancyText as occupancyTextShared,
   recencyText,
   ratingText as ratingTextShared,
   statusFlagText,
+  provenanceLabel as provenanceLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
+  PRIVATE_LOCATION_BADGE,
+  isPrivateLocation as isPrivateLocationShared,
 } from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import { RatingStars } from '../../shared/rating-stars';
 
-/** The three moderation tabs. */
-export type AdminTab = 'shelters' | 'reports' | 'reviews';
+registerLocaleData(localeEnGB, 'en-GB');
+
+/** The five moderation tabs: the review queue FIRST, the audit trail LAST
+ *  (community-review-queue). */
+export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'audit';
+
+/** The reject reason's hard limit — mirrored by the backend contract
+ *  (community-review-queue): required, at most 500 characters. */
+export const REJECT_REASON_MAX = 500;
 
 /** Shelter-report type labels (queue column + row meta). */
 export const SHELTER_REPORT_TYPE_LABEL: Record<ShelterReportType, string> = {
@@ -44,32 +67,30 @@ export const REVIEW_REPORT_REASON_LABEL: Record<ReviewReportReason, string> = {
   OTHER: 'Other',
 };
 
-/** The source column: the public provenance wording without the USER
- *  verified split (the admin sees the submitter's name in its own column). */
-export function adminSourceLabel(source: ShelterSource): string {
-  if (source === 'PAASETEAMET') {
-    return 'Paasteamet registry';
-  }
-  if (source === 'MUNICIPALITY') {
-    return 'Municipal registry';
-  }
-  return 'User';
-}
-
-/** Reporter identity for a queue row: name + e-mail, null-safe. */
-export function reporterText(row: {
-  reporterName: string | null;
-  reporterEmail: string | null;
-}): string {
-  const name = row.reporterName ?? 'Unknown';
-  return row.reporterEmail === null ? name : `${name} <${row.reporterEmail}>`;
-}
+/** Audit-log action labels (community-review-queue): human copy for the
+ *  machine action values. */
+export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
+  STATUS_CHANGE: 'Status change',
+  DELETE: 'Delete',
+  REPORT_DISMISS: 'Report dismissed',
+  REVIEW_HIDE: 'Review hidden',
+  REVIEW_RESTORE: 'Review restored',
+  CONFIRM: 'Confirmed',
+  AUTO_CONFIRM: 'Auto-confirmed',
+  REJECT: 'Rejected',
+};
 
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
  * non-admins are redirected home by the guard, mirroring the backend's
- * 401/403 per request). Three tabs, each one queue:
+ * 401/403 per request). Five tabs, each one queue:
  *
+ *  - UNCONFIRMED (first, default) — the community review queue: every USER
+ *    row in the NEW state (client-side filter of the shelters list — the
+ *    unconfirmed subset IS the queue, newest first). "Mark confirmed" is
+ *    direct; "Reject" requires a reason (≤500 chars). Confirm/reject hit
+ *    POST /admin/shelters/{id}/review and refresh the shelters list (the
+ *    queue recomputes from it; a 409 surfaces the server message verbatim).
  *  - SHELTERS — every row incl. hidden; USER rows actionable (Hide/Activate,
  *    Delete with a two-tap inline confirm), registry rows read-only (D4:
  *    import-owned — the UI never offers actions for them). Name/address
@@ -81,15 +102,29 @@ export function reporterText(row: {
  *  - REVIEW REPORTS — the review-report queue: shelter, review excerpt
  *    (stars + comment, hidden badge), reason, reporters, Hide/Restore.
  *    The action targets the REVIEW id, not the report row's id.
+ *  - AUDIT (last) — the read-only moderation trail, newest 100 (lazy load
+ *    on first switch): when / moderator / shelter / action / change /
+ *    reason. Shelter names are resolved server-side (a deleted shelter
+ *    reads "Deleted shelter").
  *
  * Mutations update the in-memory row in place (no full refetch — the backend
  * answers 204 with no body); a rejected mutation surfaces the server message
  * through the page-level error banner (bannerMessage: 403/409 echo the
- * backend message; 401 mid-session is the global interceptor's job).
+ * backend message; 401 mid-session is the global interceptor's job). The
+ * review actions are the exception: they refetch the shelters list so the
+ * unconfirmed queue and the Shelters tab both reflect the new state.
  */
 @Component({
   selector: 'app-admin-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent, LoadingIndicator, RatingStars],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    NgClass,
+    DatePipe,
+    BannerComponent,
+    LoadingIndicator,
+    RatingStars,
+  ],
   templateUrl: './admin-page.html',
   styleUrl: './admin-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -98,7 +133,24 @@ export class AdminPage implements OnInit {
   private readonly admin = inject(AdminGateway);
 
   // ---- tabs ----------------------------------------------------------------
-  protected readonly tab = signal<AdminTab>('shelters');
+  protected readonly tab = signal<AdminTab>('unconfirmed');
+
+  // ---- unconfirmed (review-queue) tab ------------------------------------------
+  /** The queue: USER rows in the NEW state (client-side filter of the
+   *  shelters list — no extra endpoint), newest first. */
+  protected readonly unconfirmedRows = computed(() =>
+    (this.shelterRows() ?? [])
+      .filter((row) => row.source === 'USER' && row.reviewStatus === 'NEW')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  );
+  /** The row whose reject-reason editor is open (null = closed). */
+  protected readonly rejectRowFor = signal<AdminShelterDto | null>(null);
+  /** The reject reason: required (non-blank — the shared blank validator,
+   *  whitespace-only passes Validators.required), at most 500 characters. */
+  readonly rejectReason = new FormControl<string>('', {
+    nonNullable: true,
+    validators: [Validators.required, nameBlankValidator, Validators.maxLength(REJECT_REASON_MAX)],
+  });
 
   // ---- shelters tab ----------------------------------------------------------
   /** null = loading; [] = loaded and empty. */
@@ -117,6 +169,11 @@ export class AdminPage implements OnInit {
   protected readonly reviewRows = signal<AdminReviewReportDto[] | null>(null);
   protected readonly reviewLoadError = signal<string | null>(null);
 
+  // ---- audit tab ---------------------------------------------------------------
+  /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
+  protected readonly auditRows = signal<AdminAuditRow[] | null>(null);
+  protected readonly auditLoadError = signal<string | null>(null);
+
   // ---- shared UI state ---------------------------------------------------------
   /** One in-flight mutation at a time (the row buttons all share it). */
   protected readonly busy = signal(false);
@@ -128,9 +185,14 @@ export class AdminPage implements OnInit {
 
   // ---- shared copy helpers (exposed to the template) ---------------------------
   protected readonly ratingText = ratingTextShared;
-  protected readonly sourceLabel = adminSourceLabel;
   protected readonly reporterText = reporterText;
   protected readonly flagText = statusFlagText;
+  /** Provenance + trust-state badge copy (community-review-queue): the Shelters
+   *  tab's source column reuses the public wording. */
+  protected readonly provenanceLabel = provenanceLabelShared;
+  protected readonly communityBadgeClass = communityBadgeClassShared;
+  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
+  protected readonly isPrivateLocation = isPrivateLocationShared;
 
   /** The admin occupancy block into the shared occupancy copy (its shape
    *  differs only in the field name: reportedAt vs lastReportedAt). */
@@ -159,10 +221,28 @@ export class AdminPage implements OnInit {
     return REVIEW_REPORT_REASON_LABEL[reason];
   }
 
+  /** Audit-log action label (the machine value → human copy). */
+  protected auditActionLabel(action: AdminAuditAction): string {
+    return AUDIT_ACTION_LABEL[action];
+  }
+
+  /** Audit-log status change cell: "A → B", the single status when one side
+   *  is null (delete/reject), or "—" when neither (e.g. report dismiss). */
+  protected auditChangeText(previous: string | null, next: string | null): string {
+    if (previous === null && next === null) {
+      return '—';
+    }
+    if (previous === null || next === null) {
+      return (previous ?? next) as string;
+    }
+    return `${previous} → ${next}`;
+  }
+
   ngOnInit(): void {
-    // The default tab loads immediately; the other tabs load lazily on
-    // first switch (a visit after a load keeps the in-memory rows — the
-    // queue does not refetch itself).
+    // The default tab (Unconfirmed) filters the shelters list, so that list
+    // loads immediately; reports/reviews/audit load lazily on first switch
+    // (a visit after a load keeps the in-memory rows — the queue does not
+    // refetch itself).
     this.loadShelters();
   }
 
@@ -188,6 +268,75 @@ export class AdminPage implements OnInit {
           this.loadReviews();
         }
         break;
+      case 'audit':
+        if (this.auditRows() === null && this.auditLoadError() === null) {
+          this.loadAudit();
+        }
+        break;
+      case 'unconfirmed':
+        break; // filters the shelters list, which loaded in ngOnInit
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Unconfirmed (review-queue) tab
+  // -------------------------------------------------------------------------
+  /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
+   *  The shelters list refetches so both this queue and the Shelters tab
+   *  show the new state. */
+  async confirmRow(row: AdminShelterDto): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.reviewShelter(row.id, { action: 'CONFIRM' });
+      this.success.set('Location confirmed.');
+      await this.refreshShelters();
+    } catch (error) {
+      // A 409 (the row moved since this list load) surfaces the server
+      // message verbatim — the admin reloads and re-acts.
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Open the inline reject-reason editor for the row. */
+  openRejectEditor(row: AdminShelterDto): void {
+    this.clearFeedback();
+    this.rejectReason.reset('');
+    this.rejectRowFor.set(row);
+  }
+
+  cancelReject(): void {
+    this.rejectRowFor.set(null);
+  }
+
+  /** "Reject": the reason is REQUIRED (non-blank, ≤500). On success the
+   *  editor closes and the shelters list refetches (the queue recomputes). */
+  async rejectRow(row: AdminShelterDto): Promise<void> {
+    const reason = this.rejectReason.value.trim();
+    if (reason === '' || reason.length > REJECT_REASON_MAX) {
+      this.rejectReason.markAsTouched();
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.reviewShelter(row.id, { action: 'REJECT', reason });
+      this.success.set('Location rejected.');
+      this.rejectRowFor.set(null);
+      await this.refreshShelters();
+    } catch (error) {
+      // The editor STAYS open on failure (the admin keeps the reason).
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
     }
   }
 
@@ -202,6 +351,14 @@ export class AdminPage implements OnInit {
       .listShelters(q === '' ? undefined : { q })
       .then((rows) => this.shelterRows.set(rows))
       .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  /** The review actions' refetch: same query as loadShelters, but kept
+   *  quiet (no loading flash over an already-rendered queue). */
+  private async refreshShelters(): Promise<void> {
+    const q = this.shelterQuery().trim();
+    const rows = await this.admin.listShelters(q === '' ? undefined : { q });
+    this.shelterRows.set(rows);
   }
 
   /** Search submit: capture the term and re-query (the server does the
@@ -389,8 +546,29 @@ export class AdminPage implements OnInit {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Audit tab
+  // -------------------------------------------------------------------------
+  loadAudit(): void {
+    this.auditRows.set(null);
+    this.auditLoadError.set(null);
+    this.admin
+      .listAudit()
+      .then((rows) => this.auditRows.set(rows))
+      .catch((error: unknown) => this.auditLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
   private clearFeedback(): void {
     this.error.set(null);
     this.success.set(null);
   }
+}
+
+/** Reporter identity for a queue row: name + e-mail, null-safe. */
+export function reporterText(row: {
+  reporterName: string | null;
+  reporterEmail: string | null;
+}): string {
+  const name = row.reporterName ?? 'Unknown';
+  return row.reporterEmail === null ? name : `${name} <${row.reporterEmail}>`;
 }

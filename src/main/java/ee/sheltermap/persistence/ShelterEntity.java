@@ -1,5 +1,7 @@
 package ee.sheltermap.persistence;
 
+import ee.sheltermap.domain.LocationKind;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import jakarta.persistence.Column;
@@ -92,6 +94,26 @@ public class ShelterEntity {
      */
     @Column(name = "auto_hide_disarmed", nullable = false)
     private boolean autoHideDisarmed;
+
+    /**
+     * Community trust state (V11, community-review-queue v2 D1/D2). NOT
+     * NULL with the DB default NEW; the V11 backfill is the authority for
+     * existing rows (USER → NEW, registry → CONFIRMED). The domain
+     * aggregate carries the CONFIRMED default (the registry side), so
+     * INSERTs are always explicit.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "review_status", nullable = false, length = 20)
+    private ReviewStatus reviewStatus;
+
+    /** The admin's note (the REJECT reason), V11. */
+    @Column(name = "review_note", length = 500)
+    private String reviewNote;
+
+    /** The submitter's private-home declaration (V11, community-review-queue v2 D7). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "location_kind", nullable = false, length = 10)
+    private LocationKind locationKind;
 
     public Long getId() {
         return id;
@@ -235,5 +257,29 @@ public class ShelterEntity {
 
     public void setAutoHideDisarmed(boolean autoHideDisarmed) {
         this.autoHideDisarmed = autoHideDisarmed;
+    }
+
+    public ReviewStatus getReviewStatus() {
+        return reviewStatus;
+    }
+
+    public void setReviewStatus(ReviewStatus reviewStatus) {
+        this.reviewStatus = reviewStatus;
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
+    }
+
+    public void setReviewNote(String reviewNote) {
+        this.reviewNote = reviewNote;
+    }
+
+    public LocationKind getLocationKind() {
+        return locationKind;
+    }
+
+    public void setLocationKind(LocationKind locationKind) {
+        this.locationKind = locationKind;
     }
 }

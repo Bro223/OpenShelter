@@ -168,6 +168,8 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     nonexistentReports: 0,
     statusFlag: null,
     occupancy: null,
+    reviewStatus: 'CONFIRMED', // registry backfill (D3)
+    locationKind: 'PUBLIC',
     yourOccupancyBand: null, // the detail projection's extra field (D5)
     ...overrides,
   };
@@ -184,6 +186,7 @@ function userShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDt
     reviewCount: 0,
     description: 'Neighbourhood basement',
     capacity: 12,
+    reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
     ...overrides,
   };
 }
@@ -338,10 +341,67 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('[role="img"]')).toBeNull(); // no star strip without ratings
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('User-submitted');
+      // The trust-state label (community-review-queue): NEW -> "Newly added"
+      // (replacing the old "User-submitted" provenance wording).
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
     });
 
-    it('header badge shows the other D4 values: MUNICIPALITY and verified USER', async () => {
+    it('a NEW community row carries the unverified warning block next to the provenance chip', async () => {
+      shelterGateway.rows.set(7, userShelter());
+      const { element } = await open('/shelters/7');
+
+      const warning = element.querySelector<HTMLElement>('.community-warning');
+      expect(warning?.textContent?.trim()).toBe(
+        'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
+      );
+      // It lives in the header, right under the title row (badge's row).
+      expect(warning?.closest('.shelter-detail__header')).not.toBeNull();
+    });
+
+    it('a CONFIRMED community row keeps the "Community-checked" badge and shows NO warning', async () => {
+      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED' }));
+      const { element } = await open('/shelters/8');
+
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-checked');
+      expect(element.querySelector('.community-warning')).toBeNull();
+      expect(element.textContent).not.toContain(
+        'This location was submitted by a community member',
+      );
+    });
+
+    it('a registry row shows NO unverified warning block', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { element } = await open('/shelters/1');
+
+      expect(element.querySelector('.community-warning')).toBeNull();
+      expect(element.textContent).not.toContain(
+        'This location was submitted by a community member',
+      );
+    });
+
+    it('a PRIVATE row shows the private badge and the resident-offered note (D7)', async () => {
+      shelterGateway.rows.set(9, userShelter({ id: 9, locationKind: 'PRIVATE' }));
+      const { element, fixture } = await open('/shelters/9');
+
+      const badge = element.querySelector<HTMLElement>('.badge--private');
+      expect(badge?.textContent?.trim()).toBe('Private location');
+      const note = element.querySelector<HTMLElement>('.private-note');
+      expect(note?.textContent?.trim()).toBe(
+        'This is a resident-offered location, not an official facility.',
+      );
+      // The NEW-state warning still renders alongside (independent).
+      expect(text(fixture)).toContain('This location was submitted by a community member');
+    });
+
+    it('a PUBLIC row shows no private badge or note', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { element } = await open('/shelters/1');
+
+      expect(element.querySelector('.badge--private')).toBeNull();
+      expect(element.querySelector('.private-note')).toBeNull();
+    });
+
+    it('header badge shows the other provenance values: MUNICIPALITY and CONFIRMED USER', async () => {
       shelterGateway.rows.set(
         2,
         registryShelter({ id: 2, name: 'Pärnu Municipal Shelter', source: 'MUNICIPALITY' }),
@@ -354,7 +414,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         userShelter({ id: 8, name: 'Verified Cellar', submitterVerified: true }),
       );
       const { element: el8 } = await open('/shelters/8');
-      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Verified user');
+      // A verified submitter is NOT a verified shelter — the label follows
+      // the trust state, not submitterVerified (community-review-queue).
+      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
+      expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
 
     it('shows a not-found state for an unknown id (404) — no error storm', async () => {

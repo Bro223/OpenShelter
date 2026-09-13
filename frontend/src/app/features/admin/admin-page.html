@@ -1,14 +1,26 @@
 <section class="admin">
   <h1 class="page-title">Admin</h1>
   <p class="page-subtitle">
-    Moderation: shelter visibility, the shelter-report queue and the review-report queue.
+    Moderation: the community review queue, shelter visibility, the report queues and the audit
+    trail.
   </p>
 
   <app-banner severity="success" [message]="success()" />
   <app-banner severity="error" [message]="error()" />
 
-  <!-- Tabs: the other two queues load lazily on first switch. -->
+  <!-- Tabs: the review queue FIRST, the audit trail LAST (community-review-queue).
+       The queues load lazily on first switch. -->
   <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'unconfirmed'"
+      [attr.aria-selected]="tab() === 'unconfirmed' ? 'true' : 'false'"
+      (click)="switchTab('unconfirmed')"
+    >
+      Unconfirmed
+    </button>
     <button
       type="button"
       role="tab"
@@ -39,7 +51,124 @@
     >
       Review reports
     </button>
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'audit'"
+      [attr.aria-selected]="tab() === 'audit' ? 'true' : 'false'"
+      (click)="switchTab('audit')"
+    >
+      Audit log
+    </button>
   </div>
+
+  <!-- =========================== Unconfirmed queue =========================== -->
+  @if (tab() === 'unconfirmed') {
+    @if (shelterRows() === null && shelterLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading community locations…" />
+    } @else if (shelterLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
+    } @else if (unconfirmedRows().length === 0) {
+      <p class="admin-state">No unconfirmed community locations.</p>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Address</th>
+              <th scope="col">Submitter</th>
+              <th scope="col">Created</th>
+              <th scope="col" class="admin-table__actions-head">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of unconfirmedRows(); track row.id) {
+              <tr class="admin-row">
+                <td class="admin-cell--name">
+                  <!-- Plain text: NEW rows are public, but the link goes to
+                       the Shelters tab's context, not a detail nav. -->
+                  {{ row.name }}
+                  @if (isPrivateLocation(row)) {
+                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                  }
+                </td>
+                <td>
+                  @if (row.address) {
+                    {{ row.address }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td>
+                  @if (row.submitter; as submitter) {
+                    {{ submitter }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td>{{ row.createdAt | date: 'medium' }}</td>
+                <td class="admin-cell--actions admin-cell--actions-review">
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="confirmRow(row)"
+                    [disabled]="busy()"
+                  >
+                    {{ busy() ? 'Working…' : 'Mark confirmed' }}
+                  </button>
+                  @if (rejectRowFor()?.id === row.id) {
+                    <div class="admin-reason">
+                      <label for="reject-reason">Reason (required)</label>
+                      <textarea
+                        id="reject-reason"
+                        [formControl]="rejectReason"
+                        placeholder="Why is this location rejected?"
+                      ></textarea>
+                      @if (rejectReason.invalid && rejectReason.touched) {
+                        <span class="admin-reason__error">
+                          A reason is required (max {{ 500 }} characters).
+                        </span>
+                      }
+                      <div class="admin-reason__actions">
+                        <button
+                          type="button"
+                          class="btn btn--ghost btn--danger"
+                          (click)="rejectRow(row)"
+                          [disabled]="busy() || rejectReason.invalid"
+                        >
+                          {{ busy() ? 'Working…' : 'Reject' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="cancelReject()"
+                          [disabled]="busy()"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      (click)="openRejectEditor(row)"
+                      [disabled]="busy()"
+                    >
+                      Reject
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
 
   <!-- ============================== Shelters ============================== -->
   @if (tab() === 'shelters') {
@@ -90,9 +219,15 @@
                   }
                 </td>
                 <td>
-                  <span class="badge" [class.badge--user]="row.source === 'USER'">
-                    {{ sourceLabel(row.source) }}
+                  <!-- Provenance + trust state (community-review-queue): the
+                       public wording — USER rows say "Newly added" /
+                       "Community-checked" / "Rejected". -->
+                  <span class="badge" [ngClass]="communityBadgeClass(row)">
+                    {{ provenanceLabel(row) }}
                   </span>
+                  @if (isPrivateLocation(row)) {
+                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                  }
                   <!-- D4: registry rows are import-owned — no actions, the
                        hint is the muted "registry" marker. -->
                   @if (row.source !== 'USER') {
@@ -311,6 +446,53 @@
           </li>
         }
       </ul>
+    }
+  }
+
+  <!-- ============================== Audit log ============================== -->
+  @if (tab() === 'audit') {
+    @if (auditRows() === null && auditLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading audit log…" />
+    } @else if (auditLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadAudit()">Retry</button>
+    } @else if ((auditRows() ?? []).length === 0) {
+      <p class="admin-state">No moderation actions yet.</p>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table admin-table--audit">
+          <thead>
+            <tr>
+              <th scope="col">When</th>
+              <th scope="col">Moderator</th>
+              <th scope="col">Shelter</th>
+              <th scope="col">Action</th>
+              <th scope="col">Change</th>
+              <th scope="col">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of auditRows() ?? []; track row.id) {
+              <tr class="admin-row">
+                <td class="admin-cell--nowrap">{{ row.createdAt | date: 'medium' }}</td>
+                <td>{{ row.moderatorName }}</td>
+                <!-- The server resolves the name (a deleted shelter reads
+                     "Deleted shelter") — plain text, no link. -->
+                <td class="admin-cell--name">{{ row.shelterName }}</td>
+                <td>{{ auditActionLabel(row.action) }}</td>
+                <td>{{ auditChangeText(row.previousStatus, row.newStatus) }}</td>
+                <td>
+                  @if (row.reason; as reason) {
+                    {{ reason }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
   }
 </section>

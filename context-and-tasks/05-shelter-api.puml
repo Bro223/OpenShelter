@@ -52,6 +52,8 @@ package "api" {
     + GET    /admin/review-reports : List<AdminReviewReportDto>  ' newest first; hidden reviews included
     + POST   /admin/reviews/{id}/hide : 204                 ' idempotent; {id} = the REVIEW's id
     + POST   /admin/reviews/{id}/restore : 204              ' idempotent; clears hidden_at
+    + POST   /admin/shelters/{id}/review (body : AdminShelterReviewRequest) : 204  ' V11: CONFIRM/REJECT (reason required for REJECT); USER rows only
+    + GET    /admin/audit?limit= : List<AdminAuditDto>      ' V11: newest-first moderation trail; limit 1..200 (default 100)
   }
 
   class AdminModerationService {
@@ -79,11 +81,42 @@ package "api" {
     + hideReview(reviewId : long) : void          ' idempotent; never deletes the row
     + restoreReview(reviewId : long) : void       ' idempotent; clears hidden_at,
                                                    ' re-joins rating/count/reviewed filter
+    ' ---- V11 (community-review-queue v2) ----
+    + reviewShelter(moderatorId : long, shelterId : long, action : ReviewDecision, reason : String) : void
+    ' USER rows only (registry -> 409); CONFIRM: review_status = CONFIRMED, note cleared,
+    ' status untouched (it does NOT un-hide); REJECT: reason REQUIRED (else 400),
+    ' review_status = REJECTED AND status = INACTIVE (the existing hide mechanism).
+    ' Both write their audit row (CONFIRM / REJECT) in the SAME transaction.
+    + listAudit(moderatorId : long, limit : int) : List<AdminAuditDto>
+    ' newest-first moderation_actions (default 100, 1..200); read-time shelter/moderator
+    ' name resolution - a deleted shelter renders "Deleted shelter" (shelter_id has no FK).
   }
 
   class AdminShelterStatusRequest <<record>> {
     + status : ShelterStatus   ' @NotNull - {"status": "ACTIVE" | "INACTIVE"};
                                ' missing/unknown -> 400 (standard vocabulary)
+  }
+
+  class AdminShelterReviewRequest <<record>> {
+    ' V11 (community-review-queue v2): the rare manual review decision.
+    + action : ReviewDecision    ' @NotNull - {"action": "CONFIRM" | "REJECT"}
+    + reason : String            ' @Size(max = 500) - REQUIRED for REJECT (blank -> 400);
+    ' optional for CONFIRM; stored on the shelter as review_note (shown in /mine)
+  }
+
+  class AdminAuditDto <<record>> {
+    ' V11 (community-review-queue v2): one row of GET /admin/audit (newest first,
+    ' newest 100 by default, limit 1..200).
+    + id : Long
+    + shelterId : Long           ' deliberately FK-free in the DB - dangling after a delete
+    + shelterName : String       ' read-time join; "Deleted shelter" when the row is gone
+    + moderatorName : String     ' read-time name resolution; "Deleted user" when gone
+    + action : String            ' STATUS_CHANGE | DELETE | REPORT_DISMISS | REVIEW_HIDE |
+    '                             ' REVIEW_RESTORE | CONFIRM | AUTO_CONFIRM | REJECT
+    + reason : String            ' the REJECT note, when set
+    + previousStatus : ReviewStatus  ' the review_status around the action
+    + newStatus : ReviewStatus       ' (DELETE: previous = the row's state, new = null)
+    + createdAt : Instant
   }
 
   class AdminShelterDto <<record>> {
@@ -103,6 +136,10 @@ package "api" {
     + capacity : Integer
     + submitter : String           ' the creator's profile name; null for registry
                                    ' rows and for deleted creators
+    + reviewStatus : ReviewStatus  ' V11 (community-review-queue v2): NEW / CONFIRMED /
+                                   ' REJECTED; the Unconfirmed tab = USER + NEW rows
+    + reviewNote : String          ' V11: the REJECT reason; null while nothing is said
+    + locationKind : LocationKind  ' V11: the private-home declaration (badge only)
   }
 
   class AdminShelterReportDto <<record>> {
@@ -201,6 +238,13 @@ package "api" {
                                    ' V9 (D5): the CALLER's own live band -
                                    ' DETAIL read only; null for guests,
                                    ' anonymous callers and no-report users
+    + reviewStatus : ReviewStatus  ' V11 (community-review-queue v2): the community
+                                   ' trust state; NEW rows are PUBLIC (amber "Newly
+                                   ' added" treatment + unverified warning on detail)
+    + reviewNote : String          ' V11: the admin's REJECT reason - /mine + admin rows
+                                   ' only; null on the public projection
+    + locationKind : LocationKind  ' V11: the private-home declaration (badge only -
+                                   ' never hidden or demoted)
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
     ' the UI gets only what the map needs. All V9 derivations are computed
@@ -238,6 +282,9 @@ package "api" {
     + longitude : double
     + description : String
     + capacity : Integer
+    + locationKind : LocationKind  ' V11 (optional; default PUBLIC) - the private-home
+                                   ' declaration checkbox; the created row is always
+                                   ' review_status = NEW server-side
   }
 
   class UpdateShelterRequest <<record>> {
@@ -317,6 +364,23 @@ package "api" {
     REPORTED_CLOSED
     CONFIRMED_OPEN
   }
+
+  ' V11 (community-review-queue v2): the community trust lifecycle.
+  enum ReviewStatus {
+    NEW         ' just added (public immediately, amber "Newly added")
+    CONFIRMED   ' community-checked (AUTO_CONFIRM promotion or admin CONFIRM)
+    REJECTED    ' admin REJECT (hides via status = INACTIVE; restore -> NEW)
+  }
+
+  enum ReviewDecision {
+    CONFIRM     ' admin manual promotion (the rare fallback)
+    REJECT      ' admin hide + reason (reason required)
+  }
+
+  enum LocationKind {
+    PUBLIC      ' the default
+    PRIVATE     ' submitter-declared private home/shelter (badge only, never hidden)
+  }
 }
 
 ' ============ LOCATION RESOLUTION (shelter-location-input, 8686b99) ============
@@ -370,6 +434,13 @@ package "app - location resolution (contracts only)" {
 ' report_actions (the durable throttle log), shelters.auto_hide_disarmed,
 ' shelter_reviews.hidden_at. Every report FK is ON DELETE CASCADE to
 ' shelters/users (a deleted shelter/user/review drops its reports with it).
+' V11 (community-review-queue v2) adds: shelters.review_status (CHECK NEW/
+' CONFIRMED/REJECTED, NOT NULL DEFAULT 'NEW'; USER rows backfilled NEW, registry
+' rows CONFIRMED), shelters.review_note (the REJECT reason), shelters.location_kind
+' (CHECK PUBLIC/PRIVATE, the private-home declaration) and moderation_actions
+' (the append-only audit trail - shelter_id deliberately has NO FK: a delete
+' records its row in the same transaction, the id dangles, the read-time join
+' renders "Deleted shelter").
 package "app - trust layer (contracts only)" {
   class ShelterReportService {
     + reportShelter(user : User, shelterId : long, type : ShelterReportType, detail : String) : void
@@ -395,6 +466,21 @@ package "app - trust layer (contracts only)" {
     ' ATOMIC per user: persistence.JpaReportActionLog serializes it with a
     ' transaction-scoped Postgres advisory lock (pg_advisory_xact_lock,
     ' released on commit - the exact critical section).
+  }
+
+  interface ModerationAuditLog {
+    ' V11 (community-review-queue v2 D4): the append-only moderation trail.
+    + record(shelterId : long, actorId : long, action : Action, reason : String,
+             previousStatus : ReviewStatus, newStatus : ReviewStatus) : void
+    ' Action = STATUS_CHANGE | DELETE | REPORT_DISMISS | REVIEW_HIDE |
+    ' REVIEW_RESTORE | CONFIRM | AUTO_CONFIRM | REJECT. ONE row per
+    ' moderation-relevant action, written in the SAME transaction as the
+    ' action it records (no separate call, no async). Table: moderation_actions
+    ' (V11); shelter_id has deliberately NO FK - a delete records its row in
+    ' the same transaction, so the id dangles after the delete and the
+    ' read-time name join renders "Deleted shelter". Actor = the acting user
+    ' (the reporting user for AUTO_CONFIRM). Impls: JpaModerationAuditLog
+    ' (persistence) + the in-memory test double.
   }
 
   interface ShelterReportRepository {
@@ -461,6 +547,7 @@ AdminModerationService ..> Shelter : the ONLY manual status path + the ONLY admi
 AdminModerationService ..> ReviewReportRepository : findAll (the queue, newest first)
 AdminModerationService ..> ShelterReview : hide/restore set/clear hidden_at (once, idempotent)
 AdminModerationService ..> ShelterReport : dismiss stamps dismissed_at (once, idempotent; the row is kept)
+AdminModerationService ..> ModerationAuditLog : V11 - one audit row per action, SAME transaction (append-only)
 AdminModerationService ..> ErrorResponse : 404 unknown id / 409 import-owned registry row (D4)
 
 ' ---- location resolution (POST /api/geo/resolve) ----
@@ -508,6 +595,14 @@ note bottom of AdminController
        can hide BEFORE the 5th-report threshold); {id} = the REVIEW's id
   POST /admin/reviews/{id}/restore             clear hidden_at (idempotent);
        the review re-joins the rating, the count and the reviewed filter
+  POST /admin/shelters/{id}/review             V11 (community-review-queue v2):
+       {"action": CONFIRM | REJECT, "reason"?} - CONFIRM sets review_status =
+       CONFIRMED (note cleared, status untouched); REJECT requires a reason and
+       sets review_status = REJECTED + status = INACTIVE (the existing hide).
+       USER rows only; 400 blank reason on REJECT
+  GET  /admin/audit?limit=                     V11: the append-only moderation
+       trail, newest first (limit 1..200, default 100); deleted shelters render
+       "Deleted shelter" (shelter_id FK-free by design)
 
   D4: registry rows (source != USER) are READ-ONLY for admins - the
   registry import owns their lifecycle and rebuilds them as ACTIVE on every
@@ -709,6 +804,10 @@ else
   alt type = NON_EXISTENT and the count goes 4 -> 5 (shelter ACTIVE, not disarmed)
     SRS -> DB : UPDATE shelters SET status = INACTIVE (auto-hide, exactly-once trigger)
   end
+  alt type = OPEN_CONFIRMED and the USER row is still review_status = NEW and reporter != submitter (V11)
+    SRS -> DB : UPDATE shelters SET review_status = 'CONFIRMED' (same transaction)
+    SRS -> DB : INSERT moderation_actions (AUTO_CONFIRM, actor = the reporting user)
+  end
   SRS --> Client : 204 No Content
 end
 note over SRS
@@ -717,6 +816,9 @@ note over SRS
   the count but never re-hide. CLOSED / OPEN_CONFIRMED net to a display
   flag only (closed > confirmed -> REPORTED_CLOSED; both >= 1 ->
   CONFIRMED_OPEN, a tie counts as confirmed open) - they never hide.
+  V11: OPEN_CONFIRMED additionally carries the NEW -> CONFIRMED promotion
+  (community-review-queue v2 D2) - in the SAME transaction, audited
+  AUTO_CONFIRM; the submitter's own positive report never promotes.
 end note
 
 == 11. POST /api/shelters/{id}/reviews/{reviewId}/reports (Bearer JWT, verified user) ==
@@ -790,9 +892,14 @@ else source != USER (a registry row - import-owned, D4)
   ADC --> Client : 409 "Registry shelters are import-owned and cannot be moderated here"
 else restore (INACTIVE -> ACTIVE)
   AMS -> DB : UPDATE shelters SET auto_hide_disarmed = true, status = 'ACTIVE'  ' the disarm is permanent (V9 D1)
+  alt the row's review_status = REJECTED (V11)
+    AMS -> DB : UPDATE shelters SET review_status = 'NEW'  ' it starts over - a rejected row does not come back as CONFIRMED
+  end
+  AMS -> DB : INSERT moderation_actions (STATUS_CHANGE, previous/new review_status)
   ADC --> Client : 204 No Content
 else hide (ACTIVE -> INACTIVE)
   AMS -> DB : UPDATE shelters SET status = 'INACTIVE'
+  AMS -> DB : INSERT moderation_actions (STATUS_CHANGE, previous/new review_status)
   ADC --> Client : 204 No Content
 end
 
@@ -816,9 +923,11 @@ alt absent
   ADC --> Client : 404
 else hide
   AMS -> DB : UPDATE shelter_reviews SET hidden_at = now()  (idempotent; never deletes; can fire BEFORE the 5th-report threshold)
+  AMS -> DB : INSERT moderation_actions (REVIEW_HIDE, same transaction)
   ADC --> Client : 204 No Content
 else restore
   AMS -> DB : UPDATE shelter_reviews SET hidden_at = NULL  (idempotent; the review re-joins the rating, the count and the reviewed filter)
+  AMS -> DB : INSERT moderation_actions (REVIEW_RESTORE, same transaction)
   ADC --> Client : 204 No Content
 end
 note over ADC, AMS
@@ -827,5 +936,38 @@ note over ADC, AMS
   /admin/*) and GET /admin/review-reports (newest first; hidden reviews INCLUDED
   with their marker + the review excerpt). Reporter identity is served from this
   API ONLY.
+  V11: EVERY action above (status change, delete, dismiss, hide/restore) writes its
+  moderation_actions audit row in the SAME transaction - see 13f/13g.
 end note
+
+== 13f. POST /admin/shelters/{id}/review {action: CONFIRM|REJECT, reason?} (V11) ==
+ADC -> AMS : reviewShelter(moderatorId, id, action, reason)
+AMS -> DB : findById(id)
+alt absent
+  ADC --> Client : 404
+else source != USER (a registry row - import-owned, D4)
+  ADC --> Client : 409 "Registry shelters are import-owned and cannot be moderated here"
+else action = REJECT and reason missing/blank
+  ADC --> Client : 400 (standard vocabulary - the reason is REQUIRED to reject)
+else action = CONFIRM
+  AMS -> DB : UPDATE shelters SET review_status = 'CONFIRMED', review_note = NULL  (status untouched - CONFIRM does not un-hide)
+  AMS -> DB : INSERT moderation_actions (CONFIRM, previous -> CONFIRMED)
+else action = REJECT
+  AMS -> DB : UPDATE shelters SET review_status = 'REJECTED', review_note = ?, status = 'INACTIVE'  (the existing hide mechanism)
+  AMS -> DB : INSERT moderation_actions (REJECT, reason, previous -> REJECTED)
+end
+AMS --> ADC : done (single-row transaction, audit row included)
+ADC --> Client : 204 No Content
+note over AMS
+  The rare manual fallback (community-review-queue v2 D2) - the PRIMARY promotion
+  path is automatic (the AUTO_CONFIRM in flow 10). A CONFIRM of an INACTIVE row
+  does NOT un-hide it - visibility is the status endpoint's job (13b).
+end note
+
+== 13g. GET /admin/audit?limit= (V11) ==
+ADC -> AMS : listAudit(moderatorId, limit)  ' default 100; 1..200 else 400
+AMS -> DB : SELECT ... FROM moderation_actions ORDER BY created_at DESC, id DESC LIMIT ?
+AMS -> DB : batched read-time joins: shelter names + moderator names (one lookup each - no N+1)
+AMS --> ADC : List<AdminAuditDto>  ' a deleted shelter renders "Deleted shelter" (shelter_id is FK-free by design)
+ADC --> Client : 200 [AdminAuditDto]
 @enduml

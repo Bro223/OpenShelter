@@ -246,4 +246,128 @@ describe('PageShell', () => {
       }
     });
   });
+
+  /* Mobile burger + dropdown panel (<900px, --bp-narrow): the nav links,
+     the high-contrast toggle and the auth controls all live once, inside
+     .shell-menu — at desktop widths a normal flex row, at narrow widths
+     the hidden-until-opened panel. jsdom cannot measure media queries, so
+     the acceptance is the DOM/aria/state wiring, not the CSS. */
+  describe('mobile menu (burger + .shell-menu panel)', () => {
+    function burger(): HTMLButtonElement {
+      const b = fixture.nativeElement.querySelector('.shell-burger') as HTMLButtonElement;
+      expect(b, 'burger button missing').not.toBeNull();
+      return b;
+    }
+
+    function panel(): HTMLElement {
+      const p = fixture.nativeElement.querySelector('.shell-menu') as HTMLElement;
+      expect(p, '.shell-menu panel missing').not.toBeNull();
+      return p;
+    }
+
+    function openPanel(): void {
+      // bubbles: real click events bubble (jsdom's MouseEvent does not by
+      // default) — the container-level (click) close relies on it too.
+      burger().dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+    }
+
+    it('renders a burger wired to the panel: aria-label, aria-controls, closed initially', () => {
+      fixture.detectChanges();
+      const b = burger();
+      expect(b.getAttribute('aria-label')).toBe('Menu');
+      expect(b.getAttribute('aria-controls')).toBe('shell-mobile-menu');
+      expect(b.getAttribute('aria-expanded')).toBe('false');
+      expect(panel().id).toBe('shell-mobile-menu');
+      expect(panel().classList).not.toContain('shell-menu--open');
+    });
+
+    it('clicking the burger toggles aria-expanded AND the panel open state', () => {
+      fixture.detectChanges();
+
+      openPanel();
+      expect(burger().getAttribute('aria-expanded')).toBe('true');
+      expect(panel().classList).toContain('shell-menu--open');
+
+      openPanel(); // second click closes
+      expect(burger().getAttribute('aria-expanded')).toBe('false');
+      expect(panel().classList).not.toContain('shell-menu--open');
+    });
+
+    it('the panel is the single source of the nav + auth + theme controls', () => {
+      fixture.detectChanges();
+      const nav = panel().querySelector('.shell-nav');
+      const actions = panel().querySelector('.shell-actions');
+      expect(nav, 'nav must live inside the panel').not.toBeNull();
+      expect(actions, 'actions must live inside the panel').not.toBeNull();
+      // One of each control, nowhere else in the shell.
+      expect(fixture.nativeElement.querySelectorAll('.shell-nav')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelectorAll('.shell-actions')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelectorAll('.shell-burger')).toHaveLength(1);
+    });
+
+    it('clicking a menu item closes the panel', () => {
+      fixture.detectChanges();
+      openPanel();
+      expect(panel().classList).toContain('shell-menu--open');
+
+      // The high-contrast toggle is the always-present menu item — no
+      // init/auth needed. (Its side effect: the theme flips — irrelevant
+      // to this assertion, localStorage is cleared per test.)
+      const toggle = [...panel().querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'High contrast',
+      )!;
+      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      expect(panel().classList).not.toContain('shell-menu--open');
+    });
+
+    it('Escape closes the panel (host keydown listener)', () => {
+      fixture.detectChanges();
+      openPanel();
+      expect(panel().classList).toContain('shell-menu--open');
+
+      (fixture.nativeElement as HTMLElement).dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape' }),
+      );
+      fixture.detectChanges();
+
+      expect(panel().classList).not.toContain('shell-menu--open');
+    });
+
+    it('a router navigation closes the panel (NavigationEnd)', async () => {
+      fixture.detectChanges();
+      openPanel();
+      expect(panel().classList).toContain('shell-menu--open');
+
+      // Clicking the nav anchor is the real user path: closeMenu() from
+      // the item click, then the completed navigation closes again.
+      const mapLink = panel().querySelector('a[href="/map"]') as HTMLAnchorElement;
+      mapLink.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(panel().classList).not.toContain('shell-menu--open');
+      expect(router.url).toBe('/map');
+    });
+
+    it('teardown unbinds the host keydown listener and unsubscribes the router subscription', () => {
+      fixture.detectChanges();
+      openPanel();
+      const host = fixture.nativeElement as HTMLElement;
+      const hostRemove = vi.spyOn(host, 'removeEventListener');
+      // The router subscription is a private field — reach it via a narrow
+      // cast to assert the cleanup wiring without depending on internals.
+      const subscription = (
+        fixture.componentInstance as unknown as { routerClose: { unsubscribe: () => void } }
+      ).routerClose;
+      const routerUnsubscribe = vi.spyOn(subscription, 'unsubscribe');
+
+      fixture.destroy();
+
+      expect(hostRemove).toHaveBeenCalledWith('keydown', expect.anything());
+      expect(routerUnsubscribe).toHaveBeenCalled();
+    });
+  });
 });

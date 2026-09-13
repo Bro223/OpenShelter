@@ -25,6 +25,8 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     nonexistentReports: 0,
     statusFlag: null,
     occupancy: null,
+    reviewStatus: 'CONFIRMED', // registry backfill; USER fixtures override
+    locationKind: 'PUBLIC',
     ...overrides,
   };
 }
@@ -40,6 +42,13 @@ const BASEMENT = shelter({
   reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
+  reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
+});
+const CONFIRMED_BASEMENT = shelter({
+  ...BASEMENT,
+  id: 8,
+  name: 'Checked Cellar',
+  reviewStatus: 'CONFIRMED',
 });
 
 /** divIcon markers leaflet creates in the container's overlay pane. */
@@ -96,17 +105,48 @@ describe('LeafletService', () => {
     expect(container.querySelector('img[src*="tile.openstreetmap.org"]') !== null).toBe(true);
   });
 
-  it('renders one divIcon per row — REGISTRY rows (both kinds) blue, USER green', () => {
-    service.renderShelters([TALLINN, PERNU, BASEMENT]);
+  it('renders one divIcon per row — registry blue, community trust tone', () => {
+    service.renderShelters([TALLINN, PERNU, BASEMENT, CONFIRMED_BASEMENT]);
 
     const markers = renderedMarkers(container);
-    expect(markers).toHaveLength(3);
+    expect(markers).toHaveLength(4);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(2);
+    // Trust palette (community-review-queue D5): NEW = amber, CONFIRMED =
+    // green. No reported state on the plain fixtures.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(1);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(1);
-    // No reported state on the plain fixtures — the orange class is absent.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported')).length).toBe(0);
     // Each pin keeps the leaflet positioning class alongside the marker class.
     expect(markers.every((m) => m.classList.contains('leaflet-marker-icon'))).toBe(true);
+  });
+
+  it('community marker tone: NEW amber, CONFIRMED green (D5)', () => {
+    service.renderShelters([BASEMENT, CONFIRMED_BASEMENT]);
+
+    const markers = renderedMarkers(container);
+    expect(
+      markers
+        .find((m) => m.title === 'Community Cellar')
+        ?.classList.contains('shelter-marker--new'),
+    ).toBe(true);
+    expect(
+      markers.find((m) => m.title === 'Checked Cellar')?.classList.contains('shelter-marker--user'),
+    ).toBe(true);
+  });
+
+  it('the reported override beats the trust tone (a reported NEW row is orange, not amber)', () => {
+    const reportedNew = shelter({
+      id: 9,
+      name: 'Reported New Row',
+      source: 'USER',
+      reviewStatus: 'NEW',
+      nonexistentReports: 1,
+    });
+    service.renderShelters([reportedNew]);
+
+    const markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--reported')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--new')).toBe(false);
   });
 
   it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of source (D1)', () => {
@@ -127,9 +167,10 @@ describe('LeafletService', () => {
     expect(markers).toHaveLength(4);
     // Both reported rows are orange — the single "reported" affordance…
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported'))).toHaveLength(2);
-    // …and provenance colours apply ONLY to the unreported rows.
+    // …and the trust/registry tones apply ONLY to the unreported rows.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry'))).toHaveLength(1); // TALLINN only
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(1); // BASEMENT only
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new'))).toHaveLength(1); // BASEMENT (NEW) only
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(0);
     // Clicks still resolve to the shelter id on reported markers.
     const onMarkerClick = vi.fn();
     service.markerClick = onMarkerClick;
@@ -152,7 +193,8 @@ describe('LeafletService', () => {
 
     const markers = renderedMarkers(container);
     expect(markers).toHaveLength(1);
-    expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
+    // BASEMENT is a NEW community row — the amber marker class.
+    expect(markers[0].classList.contains('shelter-marker--new')).toBe(true);
   });
 
   it('a marker click invokes the markerClick callback with the shelter id', () => {
@@ -196,11 +238,13 @@ describe('LeafletService', () => {
     flyToSpy.mockRestore();
   });
 
-  it('showShelter pins ONE static marker (source-coloured), replaces on re-call, clears on null', () => {
+  it('showShelter pins ONE static marker (trust-toned), replaces on re-call, clears on null', () => {
     service.showShelter({
       latitude: TALLINN.latitude,
       longitude: TALLINN.longitude,
       source: 'PAASETEAMET',
+      reviewStatus: TALLINN.reviewStatus,
+      nonexistentReports: 0,
       name: TALLINN.name,
     });
     let markers = renderedMarkers(container);
@@ -210,17 +254,18 @@ describe('LeafletService', () => {
     // interactivity).
     expect(markers[0].title).toBe(TALLINN.name);
 
-    // A second call replaces the pin (idempotent — the post-write refetch
-    // must not duplicate it).
+    // A NEW community row pins AMBER (the same tone as the browse map).
     service.showShelter({
       latitude: BASEMENT.latitude,
       longitude: BASEMENT.longitude,
       source: 'USER',
+      reviewStatus: 'NEW',
+      nonexistentReports: 0,
       name: BASEMENT.name,
     });
     markers = renderedMarkers(container);
     expect(markers).toHaveLength(1);
-    expect(markers[0].classList.contains('shelter-marker--user')).toBe(true);
+    expect(markers[0].classList.contains('shelter-marker--new')).toBe(true);
 
     // Null clears the pin.
     service.showShelter(null);
@@ -234,6 +279,8 @@ describe('LeafletService', () => {
       latitude: TALLINN.latitude,
       longitude: TALLINN.longitude,
       source: 'PAASETEAMET',
+      reviewStatus: TALLINN.reviewStatus,
+      nonexistentReports: 0,
       name: TALLINN.name,
     });
 
@@ -250,6 +297,8 @@ describe('LeafletService', () => {
         latitude: 59.437,
         longitude: 24.754,
         source: 'USER',
+        reviewStatus: 'NEW',
+        nonexistentReports: 0,
         name: 'Community Cellar',
       }),
     ).not.toThrow();

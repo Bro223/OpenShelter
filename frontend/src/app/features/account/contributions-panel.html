@@ -31,13 +31,27 @@
       @for (row of shelterRows() ?? []; track row.id) {
         <li class="contrib-row">
           <div class="contrib-row__info">
-            <span class="contrib-row__title">{{ row.name }}</span>
+            <span class="contrib-row__title">
+              {{ row.name }}
+              <!-- Trust state (community-review-queue): "Newly added" /
+                   "Community-checked" / "Rejected" — the /mine badge. -->
+              <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
+                {{ trustLabel(row.reviewStatus) }}
+              </span>
+            </span>
             <!-- Auto-hidden by five non-existence reports (user-
                  contributions): the owner's list keeps hidden rows, marked
-                 with the community report count. There is deliberately NO
-                 restore action — only an admin can restore. -->
-            @if (row.status === 'INACTIVE') {
-              <span class="contrib-row__hidden">{{ hiddenText(row) }}</span>
+                 with the community report count. Suppressed for REJECTED
+                 rows (the badge + the admin note carry that state). There
+                 is deliberately NO restore action — only an admin can
+                 restore. -->
+            @if (hiddenText(row); as hidden) {
+              <span class="contrib-row__hidden">{{ hidden }}</span>
+            }
+            <!-- The admin's review note (community-review-queue): set by a
+                 moderator when rejecting (or on a status change). -->
+            @if (row.reviewNote) {
+              <span class="contrib-row__note">Admin note: {{ row.reviewNote }}</span>
             }
             <span class="contrib-row__meta">
               {{ row.createdAt | date: 'medium' }} ·

@@ -52,6 +52,13 @@ import java.util.stream.Collectors;
  * {@code minRating}, {@code hasCapacity}) are applied in-memory over the
  * already-fetched list (Estonia-scale data; the ratings/counts are
  * computed here anyway — no new SQL surface).
+ *
+ * <p>Community trust (community-review-queue v2 D2): the public list and
+ * detail reads are UNCHANGED by the review model — there is no blocking
+ * queue. {@code reviewStatus} is display/trust data on the DTOs (NEW
+ * community rows are public, carrying the unverified treatment); only
+ * REJECTED rows are hidden, and that through the existing status
+ * INACTIVE mechanism.
  */
 @Service
 public class ShelterQueryService {
@@ -81,12 +88,14 @@ public class ShelterQueryService {
     }
 
     /**
-     * The public list: ACTIVE rows only (D5), with the optional trust
+     * The public list: ACTIVE rows only (D5) — with the optional trust
      * filters applied in-memory. {@code reviewed} keeps shelters with at
      * least one VISIBLE review (hidden ones don't count); {@code minRating}
      * compares the visible average — a shelter with 0 reviews never
      * matches (its average is null); {@code hasCapacity} keeps shelters
      * with capacity data. A {@code false} boolean is the negation.
+     * NEW community rows are listed like any other ACTIVE row
+     * (community-review-queue v2 D2 — no visibility gate).
      */
     public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean reviewed,
                                     Integer minRating, Boolean hasCapacity) {
@@ -103,14 +112,16 @@ public class ShelterQueryService {
      * The detail read: the same projection, additionally carrying the
      * caller's own live band ({@code yourOccupancyBand}) so the occupancy
      * picker can pre-select — null for guests, anonymous callers and
-     * callers without a report.
+     * callers without a report. Rejected (INACTIVE) rows stay readable
+     * by id exactly as any other INACTIVE row (ids are public); the
+     * review model adds no detail-read rule.
      */
     public Optional<ShelterDto> findById(long id, User caller) {
         return shelterRepository.findById(id)
                 .map(shelter -> toDtos(List.of(shelter), caller).get(0));
     }
 
-    /** The caller's own shelters, all statuses (D5: the owner list keeps hidden rows). */
+    /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows). */
     public List<ShelterDto> findByCreatedBy(long userId) {
         return toDtos(shelterRepository.findByCreatedBy(userId), null);
     }
@@ -212,7 +223,10 @@ public class ShelterQueryService {
                 (int) nonExistent,
                 statusFlagOf(typeCounts),
                 batches.occupancy().get(shelter.getId()),
-                yourOccupancyBand);
+                yourOccupancyBand,
+                shelter.getReviewStatus(),
+                shelter.getReviewNote(),
+                shelter.getLocationKind());
     }
 
     /**
@@ -270,7 +284,10 @@ public class ShelterQueryService {
                 statusFlagOf(typeCounts),
                 batches.occupancy().get(shelter.getId()),
                 shelter.getCapacity(),
-                author == null ? null : author.getData().name());
+                author == null ? null : author.getData().name(),
+                shelter.getReviewStatus(),
+                shelter.getReviewNote(),
+                shelter.getLocationKind());
     }
 
     /**

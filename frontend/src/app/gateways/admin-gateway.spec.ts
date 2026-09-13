@@ -18,6 +18,10 @@ const SHELTER_ROW: AdminShelterDto = {
   occupancy: { band: 'FULL', reportedAt: '2025-09-01T08:00:00Z', reportCount: 2 },
   capacity: 12,
   submitter: 'Kaja K.',
+  createdAt: '2025-09-01T08:00:00Z',
+  reviewStatus: 'NEW',
+  reviewNote: null,
+  locationKind: 'PUBLIC',
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
@@ -205,5 +209,66 @@ describe('AdminGateway', () => {
     api.get.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.listShelterReports()).rejects.toBe(failure);
+  });
+
+  // ---- POST /admin/shelters/{id}/review | GET /admin/audit (community-review-queue) ----
+
+  it('reviewShelter POSTs the review action to /admin/shelters/{id}/review', async () => {
+    api.post.mockReturnValue(of({ ok: true }));
+
+    const res = await gateway.reviewShelter(7, { action: 'CONFIRM' });
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/review', { action: 'CONFIRM' });
+    expect(res).toEqual({ ok: true });
+  });
+
+  it('reviewShelter includes the optional reason in the body', async () => {
+    api.post.mockReturnValue(of({ ok: true }));
+
+    await gateway.reviewShelter(7, { action: 'REJECT', reason: 'Could not verify' });
+
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/review', {
+      action: 'REJECT',
+      reason: 'Could not verify',
+    });
+  });
+
+  it('reviewShelter rejects with the 409 concurrency conflict', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 409,
+        error: 'Conflict',
+        message: 'shelter state changed, reload',
+        path: '/admin/shelters/7/review',
+      },
+      '/admin/shelters/7/review',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.reviewShelter(7, { action: 'CONFIRM' })).rejects.toBe(failure);
+  });
+
+  it('listAudit GETs the newest-100 moderation actions', async () => {
+    const row = {
+      id: 9001,
+      createdAt: '2026-07-18T12:00:00Z',
+      moderatorName: 'Anu T.',
+      shelterId: 7,
+      shelterName: 'Community Cellar',
+      action: 'CONFIRM' as const,
+      previousStatus: 'NEW' as const,
+      newStatus: 'CONFIRMED' as const,
+      reason: null,
+    };
+    api.get.mockReturnValue(of([row]));
+
+    const rows = await gateway.listAudit();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/audit');
+    expect(rows).toEqual([row]);
   });
 });

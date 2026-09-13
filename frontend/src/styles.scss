@@ -48,6 +48,15 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
+  /* New community state (community-review-queue D5) — the amber marker
+     tone for USER rows in review_status NEW. Vivid gold-amber on purpose,
+     distinct from the safety-orange reported token (#c2410c, hue ~19°;
+     this is ~40°): on the map a just-added community dot must read as
+     "new", not as "reported". Also the fill behind the "Newly added"
+     badge (its text uses the same token, 3.6:1 on white — a graphical
+     badge, not body text; the legend swatch reuses the marker class). */
+  --color-new: #f59f00;
+
   /* Borders */
   --color-border: #d8d8dd; /* inputs, cards, list rows */
   --color-border-subtle: #e3e3e3; /* shell header divider */
@@ -83,6 +92,10 @@
   /* Source badges (shelter detail page) */
   --color-badge-registry: #e8eef7;
   --color-badge-user: #e8f3ea;
+  /* New community state (community-review-queue D5): pale amber fill, text =
+     --color-warning (#7a4d00 on #f9e6b8 = 5.91:1) — the trust-state badge
+     for NEW rows. */
+  --color-badge-new: #f9e6b8;
 
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
@@ -247,6 +260,10 @@
      text is --color-bg-surface (dark on the bright fill, 9.7:1). */
   --color-reported: #ffa94d;
 
+  /* New community state — bright gold on the dark map surfaces, kept
+     clearly yellow-ward of the brightened reported/CTA oranges. */
+  --color-new: #ffd43b;
+
   /* Borders */
   --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
   --color-border-subtle: #4a4a4a;
@@ -270,6 +287,9 @@
   /* Source badges (dark tints; text = the brightened marker tokens below) */
   --color-badge-registry: #14263a;
   --color-badge-user: #11301d;
+  /* New community state (community-review-queue D5): dark olive fill, text =
+     the brightened --color-warning (#f0b429 on #332b12 = 7.53:1). */
+  --color-badge-new: #332b12;
 
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
@@ -476,6 +496,15 @@ textarea {
 
 .shelter-marker--user {
   background: var(--color-shelter-user);
+}
+
+/* New community state (community-review-queue D5): USER rows in
+ * review_status NEW render amber (CONFIRMED rows keep the green user
+ * tone). The reported override still wins over the trust colour —
+ * markerTone() picks the class, the map legend's amber swatch reuses
+ * it, keeping the visual single-sourced. */
+.shelter-marker--new {
+  background: var(--color-new);
 }
 
 /* Reported state (shelter-trust-and-reports D1): the single "reported"
