@@ -17,7 +17,6 @@ const PROFILE: MeResponse = {
   name: 'Test User',
   email: 'test@example.ee',
   phone: '+37250000001',
-  nationalIdCode: '49901019999',
   levels: [],
   isAdmin: false,
 };
@@ -26,7 +25,6 @@ const TEINE_PROFILE: MeResponse = {
   name: 'Teine Kasutaja',
   email: 'teine@example.ee',
   phone: '+37250000002',
-  nationalIdCode: '49901019998',
   levels: ['EMAIL'],
   isAdmin: false,
 };
@@ -35,7 +33,6 @@ const REGISTER: RegisterRequest = {
   name: 'Test User',
   email: 'test@example.ee',
   phone: '+37250000001',
-  nationalIdCode: '49901019999',
   password: 's3cret!',
 };
 
@@ -119,7 +116,6 @@ describe('AuthStore', () => {
       expect(store.name()).toBe('Test User');
       expect(store.email()).toBe('test@example.ee');
       expect(store.phone()).toBe('+37250000001');
-      expect(store.nationalIdCode()).toBe('49901019999');
     });
 
     it('profile fetch failure at boot is non-fatal — the session survives', async () => {
@@ -458,7 +454,6 @@ describe('AuthStore', () => {
       expect(store.name()).toBeNull();
       expect(store.email()).toBeNull();
       expect(store.phone()).toBeNull();
-      expect(store.nationalIdCode()).toBeNull();
       expect(store.levels()).toEqual([]);
       expect(store.isVerified()).toBe(false);
     });
@@ -475,7 +470,6 @@ describe('AuthStore', () => {
       expect(store.name()).toBe('Test User');
       expect(store.email()).toBe('test@example.ee');
       expect(store.phone()).toBe('+37250000001');
-      expect(store.nationalIdCode()).toBe('49901019999');
       expect(store.levels()).toEqual(['EMAIL', 'PHONE']);
       expect(store.isVerified()).toBe(true);
     });
@@ -530,7 +524,6 @@ describe('AuthStore', () => {
       expect(store.name()).toBeNull();
       expect(store.email()).toBeNull();
       expect(store.phone()).toBeNull();
-      expect(store.nationalIdCode()).toBeNull();
       expect(store.levels()).toEqual([]);
       expect(store.isAdmin()).toBe(false);
       expect(store.isVerified()).toBe(false);
@@ -576,7 +569,6 @@ describe('AuthStore', () => {
         name: 'Teine Kasutaja',
         email: 'teine@example.ee',
         phone: '+37250000002',
-        nationalIdCode: '49901019998',
         levels: [],
         isAdmin: false,
       });

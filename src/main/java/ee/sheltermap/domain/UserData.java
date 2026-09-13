@@ -9,7 +9,6 @@ public record UserData(
         String name,
         String email,
         String phone,
-        String nationalIdCode,
         Set<VerificationLevel> levels) {
 
     public UserData {

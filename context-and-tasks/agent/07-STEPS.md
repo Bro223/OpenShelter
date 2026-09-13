@@ -422,9 +422,10 @@ contract:
   account that holds the email string is still just a normal account — kind is the truth), and
   the app behaves exactly as without the capability.
 - **Both set + no user with that email → create:** kind `ADMIN`, name "Admin", the configured
-  email, **no phone** (null — outside the partial unique index, never a login route), national
-  ID `""`, **every verification claim pre-set** (EMAIL/PHONE/SMART_ID — `canWrite()` true from
-  the first request), password = Argon2 via the standard encoder.
+  email, **no phone** (null — outside the partial unique index, never a login route), no
+  national ID code stored (remove-national-id M1 — the pre-set SMART_ID claim carries the
+  e-mail as its external ref), **every verification claim pre-set** (EMAIL/PHONE/SMART_ID —
+  `canWrite()` true from the first request), password = Argon2 via the standard encoder.
 - **A user with that email already exists (any kind, case-insensitive) → do nothing.** Never
   re-hashes, never flips kind, never touches claims — an in-app password change survives
   restarts/deployments.
@@ -529,6 +530,7 @@ writes its row in the SAME transaction (D4). DTOs carry `reviewStatus` (+ `revie
 rows green, registry + reported states unchanged — the map legend is now **Registry / New
 community / Confirmed community / Reported** (D5). List rows + detail show "Newly added" /
 "Community-checked" badges for USER rows (replacing the old "User-submitted" provenance text)
+
 - the "Private location" badge (D7) + the unverified warning on NEW detail pages. The map CTA
 reads **"Show shelters around you"** (button/result/empty) — never "nearest" — with the
 honest straight-line distance "≈ N km straight line" (metres under 1 km) and an unverified

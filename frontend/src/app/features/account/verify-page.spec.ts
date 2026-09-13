@@ -15,7 +15,6 @@ const PROFILE: MeResponse = {
   name: 'Test User',
   email: 'test@example.ee',
   phone: '+37250000001',
-  nationalIdCode: '49901019999',
   levels: [],
   isAdmin: false,
 };

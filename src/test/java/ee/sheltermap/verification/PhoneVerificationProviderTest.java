@@ -27,7 +27,7 @@ class PhoneVerificationProviderTest {
         sender = new CapturingSmsSender();
         clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
         provider = new PhoneVerificationProvider(sender, clock);
-        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
+        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
 

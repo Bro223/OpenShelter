@@ -58,7 +58,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Kontakt Muutus\",\"email\":\"kontakt@example.ee\",\"phone\":\"+37250004444\","
-                    + "\"nationalIdCode\":\"49001014444\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;
@@ -160,7 +160,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
         // a DIFFERENT account's email -> 409 (already in use)
         RegisteredUser other = new RegisteredUser("Teine Kasutaja", "teine@example.ee",
-                "+37250005555", "49001015555");
+                "+37250005555");
         users.save(other);
         mvc.perform(post("/account/email-change/request")
                         .header("Authorization", "Bearer " + token)
@@ -227,7 +227,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
         // P2 race: another account claims that address before A confirms
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Konkurent\",\"email\":\"vaidlustatud@example.ee\","
-                                + "\"phone\":\"+37250007777\",\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"+37250007777\",\"password\":\"s3cret\"}"))
                 .andExpect(status().isCreated());
 
         // A's confirm must surface as 409 (uniform ErrorResponse), never 500
@@ -370,13 +370,12 @@ class AccountControllerIT extends AbstractPersistenceIT {
         // unauthenticated -> 401, no profile data leaks
         mvc.perform(get("/account/me")).andExpect(status().isUnauthorized());
 
-        // before any verification: all four fields, empty claim set
+        // before any verification: all three fields, empty claim set
         mvc.perform(get("/account/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Kontakt Muutus"))
                 .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
                 .andExpect(jsonPath("$.phone").value("+37250004444"))
-                .andExpect(jsonPath("$.nationalIdCode").value("49001014444"))
                 .andExpect(jsonPath("$.levels").isEmpty());
 
         // verify EMAIL via the dev sender: the real claim set comes back
@@ -402,17 +401,16 @@ class AccountControllerIT extends AbstractPersistenceIT {
     // ---- PUT /account/profile ---------------------------------------------
 
     @Test
-    void profileUpdatePersistsNameAndIdAndReturnsTheFreshProfile() throws Exception {
+    void profileUpdatePersistsNameAndReturnsTheFreshProfile() throws Exception {
         String token = registerAndLogin();
 
         mvc.perform(put("/account/profile")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Korrektitud Nimi\",\"nationalIdCode\":\"49001014445\","
+                        .content("{\"name\":\"Korrektitud Nimi\","
                                 + "\"currentPassword\":\"s3cret\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Korrektitud Nimi"))
-                .andExpect(jsonPath("$.nationalIdCode").value("49001014445"))
                 // untouched fields come back unchanged
                 .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
                 .andExpect(jsonPath("$.phone").value("+37250004444"));
@@ -421,7 +419,6 @@ class AccountControllerIT extends AbstractPersistenceIT {
         RegisteredUser stored = users.findByEmail("kontakt@example.ee");
         assertThat(stored).isNotNull();
         assertThat(stored.getData().name()).isEqualTo("Korrektitud Nimi");
-        assertThat(stored.getData().nationalIdCode()).isEqualTo("49001014445");
     }
 
     @Test
@@ -431,31 +428,23 @@ class AccountControllerIT extends AbstractPersistenceIT {
         mvc.perform(put("/account/profile")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Väline Isik\",\"nationalIdCode\":\"49001019999\","
+                        .content("{\"name\":\"Väline Isik\","
                                 + "\"currentPassword\":\"not-the-password\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Current password is incorrect"));
 
         RegisteredUser stored = users.findByEmail("kontakt@example.ee");
         assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
-        assertThat(stored.getData().nationalIdCode()).isEqualTo("49001014444");
     }
 
     @Test
-    void profileUpdateRejectsBlankNameOrNationalIdWith400() throws Exception {
+    void profileUpdateRejectsBlankNameWith400() throws Exception {
         String token = registerAndLogin();
 
         mvc.perform(put("/account/profile")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"   \",\"nationalIdCode\":\"49001014444\","
-                                + "\"currentPassword\":\"s3cret\"}"))
-                .andExpect(status().isBadRequest());
-
-        mvc.perform(put("/account/profile")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Kontakt Muutus\",\"nationalIdCode\":\"\","
+                        .content("{\"name\":\"   \","
                                 + "\"currentPassword\":\"s3cret\"}"))
                 .andExpect(status().isBadRequest());
 
@@ -469,15 +458,14 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
         mvc.perform(put("/account/profile")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Väline Isik\",\"nationalIdCode\":\"49001019999\","
+                        .content("{\"name\":\"Väline Isik\","
                                 + "\"currentPassword\":\"s3cret\"}"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void profileIdChangeDoesNotClearVerificationClaims() throws Exception {
-        // SMART-ID is a stub: today an ID edit must leave existing claims
-        // intact (the follow-up invalidates SMART-ID claims when it lands).
+    void profileNameChangeDoesNotClearVerificationClaims() throws Exception {
+        // A name edit must leave existing verification claims intact.
         String token = registerAndLogin();
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
@@ -495,7 +483,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
         mvc.perform(put("/account/profile")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Kontakt Muutus\",\"nationalIdCode\":\"49001014445\","
+                        .content("{\"name\":\"Kontakt Muutus\","
                                 + "\"currentPassword\":\"s3cret\"}"))
                 .andExpect(status().isOk());
 

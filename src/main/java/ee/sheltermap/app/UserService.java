@@ -25,8 +25,8 @@ public class UserService {
     }
 
     /** Creates a {@link RegisteredUser} with no verification claims and persists it. */
-    public RegisteredUser register(String name, String email, String phone, String nationalIdCode) {
-        RegisteredUser user = new RegisteredUser(name, email, phone, nationalIdCode);
+    public RegisteredUser register(String name, String email, String phone) {
+        RegisteredUser user = new RegisteredUser(name, email, phone);
         userRepository.save(user);
         return user;
     }

@@ -26,8 +26,8 @@ public class AdminUser extends RegisteredUser {
      * for provisioned admins (no phone route — see the admin-only
      * {@link RegisteredUser} constructor).
      */
-    public AdminUser(String name, String email, String phone, String nationalIdCode) {
-        super(name, email, phone, nationalIdCode, true);
+    public AdminUser(String name, String email, String phone) {
+        super(name, email, phone, true);
     }
 
     /**
@@ -37,14 +37,19 @@ public class AdminUser extends RegisteredUser {
      * mailbox could never pass. No phone: the account is not a phone-login
      * route (the PHONE claim's ref carries the e-mail, which is the
      * account's real contact).
+     *
+     * <p>The SMART_ID claim's {@code external_ref} also carries the e-mail:
+     * no ID code is stored anywhere (remove-national-id D4), and the column
+     * is NOT NULL — the e-mail is a stable, non-sensitive placeholder until
+     * the real PKI flow lands and supplies its own external reference.
      */
-    public static AdminUser provisioned(String name, String email, String nationalIdCode) {
-        AdminUser admin = new AdminUser(name, email, null, nationalIdCode);
+    public static AdminUser provisioned(String name, String email) {
+        AdminUser admin = new AdminUser(name, email, null);
         Instant now = Instant.now();
         admin.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "system", email, now));
         admin.addVerification(new VerificationClaim(VerificationLevel.PHONE, "system", email, now));
         admin.addVerification(new VerificationClaim(
-                VerificationLevel.SMART_ID, "system", nationalIdCode, now));
+                VerificationLevel.SMART_ID, "system", email, now));
         return admin;
     }
 }

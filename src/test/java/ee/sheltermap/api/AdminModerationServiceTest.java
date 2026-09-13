@@ -71,7 +71,7 @@ class AdminModerationServiceTest {
     }
 
     private long saveUser(String name, String email) {
-        RegisteredUser user = new RegisteredUser(name, email, "+372500" + nextPhone(), "49001010007");
+        RegisteredUser user = new RegisteredUser(name, email, "+372500" + nextPhone());
         users.save(user);
         return user.getId();
     }

@@ -101,7 +101,7 @@ class AdminSeederTest {
     @Test
     void preExistingUserWithSameEmailIsNeverTouched() {
         // a normal account registered through the app holds the email first
-        RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001", "49001010001");
+        RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(normal);
         credentials.save(new UserCredentials(normal.getId(), hasher.hash("mari-password")));
 
@@ -122,7 +122,7 @@ class AdminSeederTest {
 
     @Test
     void caseVariantOfTheSameEmailIsTreatedAsExisting() {
-        RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001", "49001010001");
+        RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(normal);
 
         // env var with different casing (the email lookup is case-insensitive)

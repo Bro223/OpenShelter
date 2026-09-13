@@ -17,8 +17,8 @@ import java.util.stream.Collectors;
 /**
  * The account surface behind {@code GET /account/me} +
  * {@code PUT /account/profile} (04-CONTEXT-AUTH.md): the authenticated
- * user's real profile (name, email, phone, national ID + the real verified
- * claim set) and the password-confirmed identity edit. Also the cross-
+ * user's real profile (name, email, phone + the real verified
+ * claim set) and the password-confirmed name edit. Also the cross-
  * shelter "my reviews" listing ({@code GET /account/reviews/mine},
  * user-contributions) — it lives on the {@code /account} group because the
  * list has no per-shelter parent.
@@ -58,16 +58,12 @@ public class AccountService {
     /**
      * PUT /account/profile: verifies the current password BEFORE any update
      * (wrong → {@link InvalidProfilePasswordException} → 401, nothing is
-     * written), then replaces name + nationalIdCode and returns the fresh
+     * written), then replaces the name and returns the fresh
      * {@link MeResponse} so the client adopts it in one round trip.
      *
      * <p>Validation is deliberately identical to registration (blank-only,
-     * values stored as given — see {@link ProfileUpdateRequest}); no
-     * checksum is re-invented here.
-     *
-     * <p>Updating the national ID does NOT clear or add verification claims:
-     * SMART-ID is a stub in v1. Follow-up — when SMART-ID lands, a code
-     * change must invalidate any pending/active SMART-ID claim.
+     * values stored as given — see {@link ProfileUpdateRequest}). No
+     * national ID code is collected or editable (remove-national-id M1).
      */
     @Transactional
     public MeResponse updateProfile(RegisteredUser user, ProfileUpdateRequest request) {
@@ -77,7 +73,6 @@ public class AccountService {
             throw new InvalidProfilePasswordException();
         }
         user.changeName(request.name());
-        user.changeNationalIdCode(request.nationalIdCode());
         userRepository.save(user);
         return MeResponse.from(user);
     }

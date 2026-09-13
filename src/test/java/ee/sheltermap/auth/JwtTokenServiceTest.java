@@ -24,7 +24,7 @@ class JwtTokenServiceTest {
     private final JwtTokenService tokens = new JwtTokenService(PROPS, clock, refreshTokens, users);
 
     private RegisteredUser savedUser() {
-        RegisteredUser user = new RegisteredUser("Mari", "mari@example.ee", "+37250000001", "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari", "mari@example.ee", "+37250000001");
         users.save(user);
         return user;
     }

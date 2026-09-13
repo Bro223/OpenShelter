@@ -80,7 +80,7 @@ class ShelterQueryServiceTest {
     }
 
     private long saveUser(String name, String email, boolean verified) {
-        RegisteredUser user = new RegisteredUser(name, email, "+3725100" + (1 + users.findAll().size()), "37001010001");
+        RegisteredUser user = new RegisteredUser(name, email, "+3725100" + (1 + users.findAll().size()));
         if (verified) {
             user.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp", email, Instant.now()));
         }

@@ -133,7 +133,6 @@ package "session" {
     - name : signal<string|null>
     - email : signal<string|null>
     - phone : signal<string|null>
-    - nationalIdCode : signal<string|null>
     - levels : signal<VerificationLevel[]>   ' REAL claims (EMAIL/PHONE)
     - isAdmin : signal<boolean>              ' admin-moderation: from GET
                                              ' /account/me (always present,

@@ -54,7 +54,6 @@ export interface RegisterRequest {
   name: string;
   email: string;
   phone: string;
-  nationalIdCode: string;
   password: string;
 }
 
@@ -101,11 +100,11 @@ export interface ConfirmChangeRequest {
   code: string;
 }
 
-/** Profile edit (PUT /account/profile): identity only, password-confirmed.
- *  Email/phone are deliberately absent — they stay on the cross-channel flows. */
+/** Profile edit (PUT /account/profile): name only, password-confirmed.
+ *  Email/phone are deliberately absent — they stay on the cross-channel flows.
+ *  No national ID code is collected anywhere (remove-national-id M1). */
 export interface ProfileUpdateRequest {
   name: string;
-  nationalIdCode: string;
   currentPassword: string;
 }
 
@@ -252,7 +251,6 @@ export interface MeResponse {
   name: string;
   email: string;
   phone: string;
-  nationalIdCode: string;
   levels: VerificationLevel[];
   /**
    * True for the ADMIN-kind account (admin-moderation D1/D2). The kind is

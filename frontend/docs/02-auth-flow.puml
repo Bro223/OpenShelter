@@ -13,7 +13,7 @@ participant "AuthGuard" as G
 database "Spring Boot /auth" as API
 
 == Register ==
-Person -> PG : name, email, phone, nationalIdCode, password
+Person -> PG : name, email, phone, password
 PG -> AS : register(...)
 AS -> AG : register(request)
 AG -> AC : post<void>('/auth/register', body)

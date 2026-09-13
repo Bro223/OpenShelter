@@ -48,7 +48,7 @@ class EmailTestControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Mail Testija\",\"email\":\"mailtest@example.ee\",\"phone\":\"+37250007777\","
-                    + "\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;

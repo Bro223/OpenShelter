@@ -29,10 +29,10 @@ import java.util.stream.Collectors;
  * parse, validate, rate-limit, delegate):
  * <ul>
  *   <li>{@code GET /account/me} — the user's real profile + verified claims
- *       (the frontend's single source of truth for name/email/phone/national
- *       ID and verification labels)</li>
- *   <li>{@code PUT /account/profile} — password-confirmed edit of name +
- *       national ID (so a registration typo is fixable without re-registering)</li>
+ *       (the frontend's single source of truth for name/email/phone and
+ *       verification labels)</li>
+ *   <li>{@code PUT /account/profile} — password-confirmed edit of the name
+ *       (no national ID code is collected anywhere — remove-national-id M1)</li>
  *   <li>{@code POST /account/email-change/request} — SMS code to the current
  *       phone (an email thief alone cannot change the email)</li>
  *   <li>{@code POST /account/phone-change/request} — email code to the current
@@ -90,8 +90,8 @@ public class AccountController {
     }
 
     /**
-     * Password-confirmed edit of name + national ID. Wrong current password
-     * → 401 (nothing updated); blank fields → 400 (registration validations).
+     * Password-confirmed edit of the name. Wrong current password
+     * → 401 (nothing updated); blank name → 400 (registration validations).
      */
     @PutMapping("/profile")
     public MeResponse updateProfile(@Valid @RequestBody ProfileUpdateRequest body) {

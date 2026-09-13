@@ -81,7 +81,7 @@ class ShelterReviewServiceTest {
     }
 
     private RegisteredUser user(String name, String email) {
-        return new RegisteredUser(name, email, "+37250000000", "49001010001");
+        return new RegisteredUser(name, email, "+37250000000");
     }
 
     private VerificationClaim claim(String provider) {
@@ -351,7 +351,7 @@ class ShelterReviewServiceTest {
 
     /** The user factory with an explicit verification state (report-report tests). */
     private RegisteredUser user(String name, String email, boolean verified) {
-        RegisteredUser u = new RegisteredUser(name, email, "+3725000" + (20 + users.findAll().size()), "49001010009");
+        RegisteredUser u = new RegisteredUser(name, email, "+3725000" + (20 + users.findAll().size()));
         if (verified) {
             u.addVerification(claim("smtp"));
         }

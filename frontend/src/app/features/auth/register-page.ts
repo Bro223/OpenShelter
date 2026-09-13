@@ -34,7 +34,6 @@ export class RegisterPage {
       validators: [Validators.required, Validators.email],
     }),
     phone: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    nationalIdCode: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
@@ -62,7 +61,6 @@ export class RegisterPage {
       name: values.name.trim(),
       email: values.email.trim().toLowerCase(),
       phone: values.phone.trim(),
-      nationalIdCode: values.nationalIdCode.trim(),
       password: values.password,
     };
     try {

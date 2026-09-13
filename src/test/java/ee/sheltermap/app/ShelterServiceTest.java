@@ -46,7 +46,7 @@ class ShelterServiceTest {
 
     private static RegisteredUser verifiedUser(long id) {
         RegisteredUser user = new RegisteredUser(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
         user.setId(id);
         user.addVerification(new VerificationClaim(
                 VerificationLevel.PHONE, "twilio", "+37250000000", Instant.now()));
@@ -64,7 +64,7 @@ class ShelterServiceTest {
     @Test
     void unverifiedRegisteredUserCannotAddPlace() {
         RegisteredUser user = new RegisteredUser(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
 
         assertThatThrownBy(() -> service.addPlace(user, userPlace()))

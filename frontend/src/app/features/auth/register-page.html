@@ -56,21 +56,6 @@
       </div>
 
       <div class="field">
-        <label for="register-idcode">National ID code</label>
-        <input
-          id="register-idcode"
-          type="text"
-          formControlName="nationalIdCode"
-          autocomplete="off"
-          inputmode="numeric"
-          placeholder="11-digit Estonian ID code"
-        />
-        @if (form.controls.nationalIdCode.touched && form.controls.nationalIdCode.invalid) {
-          <p class="field-error">National ID code is required.</p>
-        }
-      </div>
-
-      <div class="field">
         <label for="register-password">Password</label>
         <input
           id="register-password"

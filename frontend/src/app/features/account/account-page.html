@@ -1,8 +1,8 @@
 <section class="account-card">
   <h1 class="page-title">Account</h1>
   <p class="page-subtitle">
-    Your profile and verification. Name and national ID can be corrected with a password
-    confirmation; email and phone changes are proven cross-channel.
+    Your profile and verification. The name can be corrected with a password confirmation; email and
+    phone changes are proven cross-channel.
   </p>
 
   @if (success(); as text) {
@@ -46,10 +46,6 @@
               }
             </dd>
           </div>
-          <div class="identity-row">
-            <dt>National ID code</dt>
-            <dd>{{ auth.nationalIdCode() }}</dd>
-          </div>
         </dl>
         <p class="panel-copy">
           A typo at registration never forces a new account — the edit is confirmed with your
@@ -66,20 +62,6 @@
           <input id="profile-name" type="text" [formControl]="editName" autocomplete="name" />
           @if (editName.touched && editName.invalid) {
             <p class="field-error">A name is required.</p>
-          }
-        </div>
-
-        <div class="field">
-          <label for="profile-national-id">National ID code</label>
-          <input
-            id="profile-national-id"
-            type="text"
-            [formControl]="editNationalIdCode"
-            inputmode="numeric"
-            autocomplete="off"
-          />
-          @if (editNationalIdCode.touched && editNationalIdCode.invalid) {
-            <p class="field-error">A national ID code is required.</p>
           }
         </div>
 

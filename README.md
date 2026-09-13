@@ -90,8 +90,9 @@ auth, verification, shelter submission, community reviews and reports); run/buil
   change per (user, type), 60 s resend cooldown, 15-min code TTL, 5-attempt limit, duplicate
   target → 409, per-IP rate limit on the request endpoints.
 - **Account profile**: `GET /account/me` (the user's REAL profile + REAL verified claims — the
-  frontend's single source of truth) and `PUT /account/profile` (password-confirmed edit of
-  name + national ID; wrong current password → 401, nothing updated).
+  frontend's single source of truth) and `PUT /account/profile` (password-confirmed edit of the
+  name; wrong current password → 401, nothing updated). No national ID code is collected or
+  stored (M1 — the SMART_ID level stays a stub until an external PKI flow lands).
 - **Anti-spam throttle (verification)**: resend cooldown (`app.verification.cooldown-seconds`),
   per-user daily cap (`app.verification.max-per-day`) backed by a file-based send log
   (`app.verification.send-log-path`, survives restarts), and a per-IP token bucket on
@@ -223,14 +224,14 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 
 | Method | Path                                       | Auth                    | Description                                                                                                                                                                                                 |
 | ------ | ------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/auth/register`                           | —                       | Register (name, email, phone, national ID, password)                                                                                                                                                        |
+| POST   | `/auth/register`                           | —                       | Register (name, email, phone, password)                                                                                   |
 | POST   | `/auth/login`                              | —                       | Login → access + refresh tokens                                                                                                                                                                             |
 | POST   | `/auth/refresh`                            | refresh                 | Rotate refresh token → new token pair                                                                                                                                                                       |
 | POST   | `/auth/logout`                             | refresh                 | Revoke session                                                                                                                                                                                              |
 | POST   | `/auth/password-reset/request`             | —                       | Always 200 ("if the account exists, we emailed a 6-digit code")                                                                                                                                             |
 | POST   | `/auth/password-reset/confirm`             | —                       | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions                                                                                                                 |
 | GET    | `/account/me`                              | JWT                     | The caller's real profile + real verified claims + `isAdmin` (admin-moderation: always present, true only for the ADMIN-kind account — the frontend's gate for the nav item and the `/admin` route) (`MeResponse` — the frontend's single source of truth)                                                                                                     |
-| PUT    | `/account/profile`                         | JWT                     | Update name + national ID with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                                                   |
+| PUT    | `/account/profile`                         | JWT                     | Update the name with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                   |
 | POST   | `/account/email-change/request`            | JWT                     | Start email change → **SMS code to current phone** (202)                                                                                                                                                    |
 | POST   | `/account/email-change/confirm`            | JWT                     | Complete email change with the SMS code (200/400)                                                                                                                                                           |
 | POST   | `/account/phone-change/request`            | JWT                     | Start phone change → **email code to current email** (202)                                                                                                                                                  |
@@ -498,7 +499,8 @@ Deliberately deferred (recorded in the fix log): reset-token global prune schedu
 sweep race, send-log UTC-midnight assumption, 403-vs-401 deleted-user inconsistency,
 unreachable `NotAuthor` guards, first-validation-field-only messages, test nits; frontend
 prod `apiUrl ''`, banner warning variant, `--bp-narrow` token, copy-pasted fakes,
-map-page.scss size budget; dev-endpoint CRLF/`@Size`; national-ID-at-rest doc).
+map-page.scss size budget; dev-endpoint CRLF/`@Size`; national-ID-at-rest — resolved by M1:
+the field no longer exists, `users.national_id_code` dropped in V12).
 
 ## Production deployment
 
@@ -569,10 +571,12 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
    deleted-user inconsistency, unreachable `NotAuthor` guards, first-validation-field-only
    messages, test nits; frontend prod `apiUrl ''`, banner warning variant, `--bp-narrow`
    token, copy-pasted fakes, map-page.scss size budget; dev-endpoint CRLF/`@Size`;
-   national-ID-at-rest) is recorded per-issue in the fix log's deferred list.
-6. **`national_id_code` is stored plaintext** — privacy consideration for launch:
-   the Estonian personal ID is treated as an account key, not encrypted at rest
-   (documented decision; encrypting it is a schema + service change, deferred).
+   national-ID-at-rest — resolved by M1, the column is dropped) is recorded per-issue in the
+   fix log's deferred list.
+6. **`national_id_code` is no longer stored (M1, V12)** — the former plaintext privacy
+   consideration is closed: registration no longer collects the field, the column is dropped,
+   and the SMART_ID verification level stays a stub that, when it lands, proves identity via
+   an external PKI flow without storing any code.
 7. **Live Twilio send is not yet proven end-to-end** — the sender, E.164
    normalization and fail-fast are tested with fakes/fixtures; a real SMS from a
    production Twilio account is the one thing only a live run confirms (use

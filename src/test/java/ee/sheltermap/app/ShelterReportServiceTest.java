@@ -67,7 +67,7 @@ class ShelterReportServiceTest {
     private RegisteredUser user(String name, boolean verified) {
         phoneCounter++;
         RegisteredUser user = new RegisteredUser(name, name.toLowerCase() + "@example.ee",
-                "+372500" + String.format("%04d", phoneCounter), "49001010009");
+                "+372500" + String.format("%04d", phoneCounter));
         if (verified) {
             user.addVerification(new VerificationClaim(
                     VerificationLevel.EMAIL, "smtp", user.getData().email(), Instant.now()));

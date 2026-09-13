@@ -28,7 +28,6 @@ final class UserMapper {
             entity.setName(data.name());
             entity.setEmail(data.email());
             entity.setPhone(data.phone());
-            entity.setNationalIdCode(data.nationalIdCode());
         }
         return entity;
     }
@@ -37,13 +36,13 @@ final class UserMapper {
         User user = switch (entity.getKind()) {
             case GUEST -> new GuestUser();
             case REGISTERED -> new RegisteredUser(
-                    entity.getName(), entity.getEmail(), entity.getPhone(), entity.getNationalIdCode());
+                    entity.getName(), entity.getEmail(), entity.getPhone());
             // Admin-moderation D1: the ADMIN kind round-trips through
             // AdminUser — the claims are restored from storage below (a
             // reloaded admin reflects the stored claim state, revoked ones
             // included; the constructor does NOT pre-set them).
             case ADMIN -> new AdminUser(
-                    entity.getName(), entity.getEmail(), entity.getPhone(), entity.getNationalIdCode());
+                    entity.getName(), entity.getEmail(), entity.getPhone());
         };
         user.setId(entity.getId());
         if (user instanceof RegisteredUser registered) {

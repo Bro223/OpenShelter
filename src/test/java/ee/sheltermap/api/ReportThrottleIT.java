@@ -66,7 +66,7 @@ class ReportThrottleIT extends AbstractPersistenceIT {
 
     private String verifiedToken(String email) {
         RegisteredUser user = new RegisteredUser("Throttle" + nextUser, email,
-                "+3725100000" + nextUser, "4900202000" + nextUser);
+                "+3725100000" + nextUser);
         user.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp", email, Instant.now()));
         users.save(user);
         nextUser++;

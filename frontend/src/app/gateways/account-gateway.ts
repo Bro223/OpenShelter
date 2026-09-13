@@ -21,7 +21,7 @@ import type {
  * The change request responses carry the resend-cooldown ack (ResendAck);
  * the confirms are empty (202 request / 200 confirm).
  * Profile reads/edits DO echo state: `me()` returns the real profile (the
- * backend's single source of truth for name/email/phone/national ID + claims)
+ * backend's single source of truth for name/email/phone + claims)
  * and `updateProfile()` returns the fresh profile to adopt in one round trip.
  */
 @Injectable({ providedIn: 'root' })
@@ -33,7 +33,7 @@ export class AccountGateway {
     return lastValueFrom(this.api.get<MeResponse>('/account/me'));
   }
 
-  /** PUT /account/profile {name, nationalIdCode, currentPassword} -> the fresh MeResponse. */
+  /** PUT /account/profile {name, currentPassword} -> the fresh MeResponse. */
   updateProfile(request: ProfileUpdateRequest): Promise<MeResponse> {
     return lastValueFrom(this.api.put<MeResponse>('/account/profile', request));
   }

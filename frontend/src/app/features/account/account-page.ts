@@ -16,8 +16,8 @@ type ChangePhase = 'form' | 'code' | 'done';
 /**
  * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
  * 03 puml):
- *  - IDENTITY: name + national ID with a password-confirmed inline edit form
- *    (so a registration typo in the ID code is fixable without re-registering)
+ *  - IDENTITY: name with a password-confirmed inline edit form (no national
+ *    ID code is collected anywhere — remove-national-id M1)
  *  - CONTACTS: email + phone rows showing the REAL value from the fetched
  *    profile, a verified label when the level is in the real claim set, or a
  *    "Complete verification" CTA deep-linking /verify
@@ -61,10 +61,6 @@ export class AccountPage implements OnDestroy {
   /** New-value controls are public so specs can drive them (page convention:
    *  forms public, signals protected + asserted via the DOM). */
   readonly editName = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required],
-  });
-  readonly editNationalIdCode = new FormControl('', {
     nonNullable: true,
     validators: [Validators.required],
   });
@@ -136,14 +132,12 @@ export class AccountPage implements OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Identity: open the inline edit form pre-filled with the current values.
+  // Identity: open the inline edit form pre-filled with the current value.
   // -------------------------------------------------------------------------
   startEdit(): void {
     this.editName.setValue(this.auth.name() ?? '');
-    this.editNationalIdCode.setValue(this.auth.nationalIdCode() ?? '');
     this.editPassword.setValue('');
     this.editName.markAsUntouched();
-    this.editNationalIdCode.markAsUntouched();
     this.editPassword.markAsUntouched();
     this.editing.set(true);
   }
@@ -154,18 +148,17 @@ export class AccountPage implements OnDestroy {
   }
 
   /**
-   * PUT /account/profile {name, nationalIdCode, currentPassword}. The backend
-   * verifies the current password first (wrong -> 401, nothing updated) and
-   * validates the fields exactly like registration (blank -> 400). On success
-   * the real profile is re-fetched, so the card shows the server state.
+   * PUT /account/profile {name, currentPassword}. The backend verifies the
+   * current password first (wrong -> 401, nothing updated) and validates
+   * the field exactly like registration (blank -> 400). On success the real
+   * profile is re-fetched, so the card shows the server state.
    */
   async saveProfile(): Promise<void> {
     if (this.busy()) {
       return;
     }
-    if (this.editName.invalid || this.editNationalIdCode.invalid || this.editPassword.invalid) {
+    if (this.editName.invalid || this.editPassword.invalid) {
       this.editName.markAsTouched();
-      this.editNationalIdCode.markAsTouched();
       this.editPassword.markAsTouched();
       return;
     }
@@ -175,7 +168,6 @@ export class AccountPage implements OnDestroy {
     try {
       await this.account.updateProfile({
         name: this.editName.value,
-        nationalIdCode: this.editNationalIdCode.value,
         currentPassword: this.editPassword.value,
       });
       await this.auth.refreshProfile();

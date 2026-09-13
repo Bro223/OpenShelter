@@ -17,14 +17,12 @@ public class RegisteredUser extends User {
     private String name;
     private String email;
     private String phone;
-    private String nationalIdCode;
     private final Set<VerificationClaim> verifications = new LinkedHashSet<>();
 
-    public RegisteredUser(String name, String email, String phone, String nationalIdCode) {
+    public RegisteredUser(String name, String email, String phone) {
         this.name = Objects.requireNonNull(name, "name");
         this.email = Objects.requireNonNull(email, "email");
         this.phone = Objects.requireNonNull(phone, "phone");
-        this.nationalIdCode = Objects.requireNonNull(nationalIdCode, "nationalIdCode");
     }
 
     /**
@@ -35,14 +33,13 @@ public class RegisteredUser extends User {
      * login contact. Every other path keeps the public constructor's
      * non-null guarantee.
      */
-    protected RegisteredUser(String name, String email, String phone, String nationalIdCode, boolean admin) {
+    protected RegisteredUser(String name, String email, String phone, boolean admin) {
         this.name = Objects.requireNonNull(name, "name");
         this.email = Objects.requireNonNull(email, "email");
         if (!admin) {
             Objects.requireNonNull(phone, "phone");
         }
         this.phone = phone;
-        this.nationalIdCode = Objects.requireNonNull(nationalIdCode, "nationalIdCode");
     }
 
     /** Adds a verified claim (called by the verification service on success). */
@@ -86,19 +83,6 @@ public class RegisteredUser extends User {
         this.name = Objects.requireNonNull(newName, "newName");
     }
 
-    /**
-     * Replaces the national ID code (corrects a registration typo). Stored as
-     * given, exactly like registration — no checksum validation (registration
-     * has none, so editing must not be stricter).
-     *
-     * <p>Does NOT touch verification claims: SMART-ID is a stub in v1; when it
-     * lands, a code change must invalidate any pending/active SMART-ID claim
-     * (documented follow-up — see {@code ee.sheltermap.auth.AccountService}).
-     */
-    public void changeNationalIdCode(String newNationalIdCode) {
-        this.nationalIdCode = Objects.requireNonNull(newNationalIdCode, "newNationalIdCode");
-    }
-
     /** Revokes the active claim for {@code level}, if any. No-op otherwise. */
     public void revoke(VerificationLevel level) {
         verifications.stream()
@@ -123,7 +107,7 @@ public class RegisteredUser extends User {
 
     @Override
     public UserData getData() {
-        return new UserData(name, email, phone, nationalIdCode, levels());
+        return new UserData(name, email, phone, levels());
     }
 
     @Override

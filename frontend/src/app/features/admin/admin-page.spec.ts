@@ -23,7 +23,6 @@ const ADMIN_PROFILE: MeResponse = {
   name: 'Admin',
   email: 'admin@example.ee',
   phone: '+37250000009',
-  nationalIdCode: '49901010001',
   levels: ['EMAIL'],
   isAdmin: true,
 };

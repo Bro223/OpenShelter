@@ -24,7 +24,7 @@ class UserServiceTest {
     @Test
     void registerCreatesPersistedUserWithEmptyLevels() {
         RegisteredUser user = service.register(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
 
         assertThat(user.getId()).isNotNull();
         assertThat(user.levels()).isEmpty();
@@ -34,13 +34,12 @@ class UserServiceTest {
     @Test
     void getDataReturnsImmutableSnapshot() {
         RegisteredUser user = service.register(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
 
         UserData data = service.getData(user);
         assertThat(data.name()).isEqualTo("Aleks");
         assertThat(data.email()).isEqualTo("aleks@example.com");
         assertThat(data.phone()).isEqualTo("+37250000000");
-        assertThat(data.nationalIdCode()).isEqualTo("39001010001");
         assertThat(data.levels()).isEmpty();
 
         // snapshot is frozen — callers cannot mutate entity internals through it

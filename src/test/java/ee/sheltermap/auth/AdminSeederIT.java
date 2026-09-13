@@ -151,7 +151,7 @@ class AdminSeederIT extends AbstractPersistenceIT {
     @Test
     void aRepeatedRunLeavesOtherUsersAlone() {
         RegisteredUser normal = new RegisteredUser("Mari Maasikas", "mari@example.ee",
-                "+37250000001", "49001010001");
+                "+37250000001");
         users.save(normal);
         long before = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM verification_claims WHERE user_id = ?", Integer.class, normal.getId());

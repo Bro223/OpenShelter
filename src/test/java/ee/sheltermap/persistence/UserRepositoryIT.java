@@ -37,7 +37,6 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         assertThat(data.name()).isEqualTo("Mari Maasikas");
         assertThat(data.email()).isEqualTo("mari@example.ee");
         assertThat(data.phone()).isEqualTo("+37250000001");
-        assertThat(data.nationalIdCode()).isEqualTo("49001010001");
         assertThat(data.levels()).containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.PHONE);
     }
 

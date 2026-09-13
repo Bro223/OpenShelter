@@ -81,7 +81,7 @@ public class AuthService {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         try {
-            RegisteredUser user = users.register(request.name(), email, phone, request.nationalIdCode());
+            RegisteredUser user = users.register(request.name(), email, phone);
             credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
         } catch (DataIntegrityViolationException e) {
             // concurrent duplicate slipped past the pre-check — same 409

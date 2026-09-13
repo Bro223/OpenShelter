@@ -34,9 +34,6 @@ public class UserEntity {
     @Column(length = 64)
     private String phone;
 
-    @Column(name = "national_id_code", length = 32)
-    private String nationalIdCode;
-
     public Long getId() {
         return id;
     }
@@ -75,13 +72,5 @@ public class UserEntity {
 
     public void setPhone(String phone) {
         this.phone = phone;
-    }
-
-    public String getNationalIdCode() {
-        return nationalIdCode;
-    }
-
-    public void setNationalIdCode(String nationalIdCode) {
-        this.nationalIdCode = nationalIdCode;
     }
 }

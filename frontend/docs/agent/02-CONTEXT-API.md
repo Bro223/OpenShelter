@@ -151,7 +151,7 @@ runs first). `ShelterGateway.report` / `ShelterGateway.reportOccupancy` and
 
 | Method + path     | Body | Success                                                                                                                                                                | Errors |
 | ----------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `GET /account/me` | —    | 200 `MeResponse` — the REAL profile + REAL verified claims + `isAdmin` (the frontend's single source of truth for name/email/phone/nationalId/levels + the admin gate) | 401    |
+| `GET /account/me` | —    | 200 `MeResponse` — the REAL profile + REAL verified claims + `isAdmin` (the frontend's single source of truth for name/email/phone/levels + the admin gate) | 401    |
 
 ### Admin moderation (`/admin`) — JWT + ADMIN kind required (admin-moderation)
 
@@ -184,7 +184,6 @@ interface RegisterRequest {
   name: string;
   email: string;
   phone: string;
-  nationalIdCode: string;
   password: string;
 }
 interface LoginRequest {
@@ -220,7 +219,6 @@ interface ConfirmChangeRequest {
 }
 interface ProfileUpdateRequest {
   name: string;
-  nationalIdCode: string;
   currentPassword: string;
 }
 interface CreateShelterRequest {
@@ -279,7 +277,6 @@ interface MeResponse {
   name: string;
   email: string;
   phone: string;
-  nationalIdCode: string;
   levels: VerificationLevel[]; // REAL verified claims, enum order (empty = none)
   isAdmin: boolean; // admin-moderation: always present — true only for the ADMIN-kind
   // account (the backend's fresh kind, never a token claim); gates the nav item

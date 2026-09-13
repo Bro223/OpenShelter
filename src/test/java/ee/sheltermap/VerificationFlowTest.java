@@ -78,7 +78,7 @@ class VerificationFlowTest {
 
         // == 1. Register ==
         RegisteredUser user = userService.register(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
         assertThat(user.getId()).isNotNull();
         assertThat(user.levels()).isEmpty();
 

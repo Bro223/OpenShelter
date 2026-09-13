@@ -73,7 +73,7 @@ class ContactChangeServiceTest {
     }
 
     private RegisteredUser user(String email, String phone) {
-        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone);
         users.save(user);
         return user;
     }

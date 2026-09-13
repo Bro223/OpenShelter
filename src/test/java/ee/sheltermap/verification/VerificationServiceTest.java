@@ -41,7 +41,7 @@ class VerificationServiceTest {
 
         service = newService(new VerificationProperties(0, 0, "unused"));
 
-        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
+        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
 
@@ -196,7 +196,7 @@ class VerificationServiceTest {
         throttled.requestVerification(user, VerificationLevel.EMAIL);
         assertThat(sendLog.countToday(user.getId(), VerificationLevel.EMAIL)).isEqualTo(1);
 
-        RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111", "49001011111");
+        RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111");
         other.setId(2L);
         throttled.requestVerification(other, VerificationLevel.PHONE); // different user, not throttled
         assertThat(sendLog.countToday(other.getId(), VerificationLevel.PHONE)).isEqualTo(1);

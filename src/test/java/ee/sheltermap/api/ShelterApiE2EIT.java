@@ -82,7 +82,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
         // 1. register
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"E2E Kasutaja\",\"email\":\"e2e@example.ee\","
-                                + "\"phone\":\"+37250009999\",\"nationalIdCode\":\"49001019999\","
+                                + "\"phone\":\"+37250009999\","
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isCreated());
 

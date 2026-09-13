@@ -192,7 +192,7 @@ describe('apiInterceptor', () => {
 
     let error: unknown;
     http
-      .put('/account/profile', { name: 'N', nationalIdCode: 'x', currentPassword: 'typo' })
+      .put('/account/profile', { name: 'N', currentPassword: 'typo' })
       .subscribe({ error: (e) => (error = e) });
 
     const req = httpMock.expectOne((r) => r.url.endsWith('/account/profile'));

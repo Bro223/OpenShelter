@@ -24,7 +24,7 @@ class PasswordResetServiceTest {
             users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock);
 
     private RegisteredUser savedUser() {
-        RegisteredUser user = new RegisteredUser("Mari", EMAIL, "+37250000001", "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(user);
         credentials.save(new UserCredentials(user.getId(), "h(oldpass)"));
         return user;

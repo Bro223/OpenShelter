@@ -41,7 +41,7 @@ logs in through the normal `POST /auth/login`; nothing here is admin-specific.
 | `AuthController` | class | Thin shell — `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset/request`, `/auth/password-reset/confirm`. |
 | `AccountService` | class | Account surface: `profile(user): MeResponse` (real profile + real claim set + `isAdmin` — true iff the freshly loaded user's kind is `ADMIN`, never a token claim) and `updateProfile(user, ProfileUpdateRequest): MeResponse` (current-password verified against the Argon2 hash BEFORE any write — wrong → 401, nothing updated). |
 | `AdminSeeder` | class | The env-provisioned admin (admin-moderation D1): an `ApplicationRunner` — runs ONCE at startup, transactional. **Create-if-absent, the whole contract:** (1) either `app.admin.email`/`app.admin.password` blank → no-op, no admin exists; (2) a user with that email ALREADY exists (any kind, case-insensitive lookup) → no-op — the seeder NEVER re-hashes, flips kind or touches claims; (3) otherwise create: `AdminUser.provisioned("Admin", email, "")` (kind `ADMIN`, no phone, every verification claim pre-set so `canWrite()` is true without the email/SMS flow) + `UserCredentials` with the Argon2 hash of `ADMIN_PASSWORD` (the same `PasswordHasher` registration uses). Env: `app.admin.email: ${ADMIN_EMAIL:}` / `app.admin.password: ${ADMIN_PASSWORD:}` (bare names, empty defaults — no values committed). |
-| DTO records | records | `RegisterRequest {name, email, phone, nationalIdCode, password}`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, nationalIdCode, levels, isAdmin}` (admin-moderation D2: `isAdmin` always present — `true` only for the ADMIN-kind account), `ProfileUpdateRequest {name, nationalIdCode, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). |
+| DTO records | records | `RegisterRequest {name, email, phone, password} (no national ID code is collected — remove-national-id M1)`, `LoginRequest {emailOrPhone, password}`, `RefreshRequest {refreshToken}`, `TokenResponse {accessToken, refreshToken, expiresIn}`, `PasswordResetRequest {email}`, `PasswordResetConfirmRequest {email, code, newPassword}`, `MeResponse {name, email, phone, levels, isAdmin}` (admin-moderation D2: `isAdmin` always present — `true` only for the ADMIN-kind account), `ProfileUpdateRequest {name, currentPassword}` (validations mirror registration exactly — `@NotBlank` only, no checksum). No national ID code is collected or stored anywhere (remove-national-id M1). |
 
 `UserService` gains (contract only, implemented in the app package): `findByEmailOrPhone(contact):
 RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`
@@ -144,14 +144,14 @@ violated the V3 unique index `uq_verification_claims_user_level_active`. It is n
 
 | Endpoint | Behavior |
 |---|---|
-| `GET /account/me` | 200 + `MeResponse {name, email, phone, nationalIdCode, levels, isAdmin}` — the REAL profile, the REAL verified claim set (levels in enum order) and `isAdmin` (admin-moderation D2: always present; the freshly loaded user's KIND — true only for the ADMIN-kind row, never a token claim; the frontend's gate for the admin nav item and the `/admin` route). The frontend's single source of truth (replaces its session-only optimistic mirror). 401 unauthenticated. |
-| `PUT /account/profile` | Body `{name, nationalIdCode, currentPassword}` — verifies the current password against the stored Argon2 hash BEFORE any update (wrong → 401 `InvalidProfilePasswordException`, message "current password is incorrect", nothing written); validates name/nationalIdCode exactly like registration (`@NotBlank` — blank → 400, no checksum, values stored as given); persists via `RegisteredUser.changeName`/`changeNationalIdCode` + `JpaUserRepository.save`; returns the fresh `MeResponse`. 401 unauthenticated. |
+| `GET /account/me` | 200 + `MeResponse {name, email, phone, levels, isAdmin}` — the REAL profile (no national ID code — M1), the REAL verified claim set (levels in enum order) and `isAdmin` (admin-moderation D2: always present; the freshly loaded user's KIND — true only for the ADMIN-kind row, never a token claim; the frontend's gate for the admin nav item and the `/admin` route). The frontend's single source of truth (replaces its session-only optimistic mirror). 401 unauthenticated. |
+| `PUT /account/profile` | Body `{name, currentPassword}` — verifies the current password against the stored Argon2 hash BEFORE any update (wrong → 401 `InvalidProfilePasswordException`, message "current password is incorrect", nothing written); validates the name exactly like registration (`@NotBlank` — blank → 400, value stored as given); persists via `RegisteredUser.changeName` + `JpaUserRepository.save`; returns the fresh `MeResponse`. No national ID code is collected or editable (remove-national-id M1). 401 unauthenticated. |
 
-**Decisions:** identity fields have no cross-channel second factor, so current-password
-possession is the v1 gate for name/ID edits (email/phone stay on the cross-channel flows).
-Updating the national ID does NOT clear or add verification claims — SMART-ID is a stub; when it
-lands, a code change must invalidate any pending/active SMART-ID claim (documented follow-up in
-`AccountService`). Both endpoints are cheap (no code issuance) and need no rate bucket.
+**Decisions:** the name edit has no cross-channel second factor, so current-password
+possession is the v1 gate (email/phone stay on the cross-channel flows). Both endpoints are
+cheap (no code issuance) and need no rate bucket. No national ID code is collected or
+editable (remove-national-id M1) — when SMART-ID lands, its claim will carry the external
+reference from the PKI flow; nothing stored here is invalidated by any profile edit.
 `GET /account/me` carries **`isAdmin`** (admin-moderation D2): the frontend gates the admin
 route and the admin-only nav item on it — it is the freshly loaded user's KIND (true iff
 ADMIN), never derived from any token claim.
@@ -193,8 +193,8 @@ ADMIN), never derived from any token claim.
   claim set (seeded claims come back; none → empty list) + `isAdmin` (false for registered users,
   true for the ADMIN-kind row); unauthenticated → 401. `PUT
   /account/profile`: happy path persists + returns the fresh profile; wrong current password → 401
-  "current password is incorrect" with nothing updated; blank name / nationalIdCode → 400;
-  unauthenticated → 401; an ID change leaves verification claims intact.
+  "current password is incorrect" with nothing updated; blank name → 400;
+  unauthenticated → 401; a name change leaves verification claims intact.
 
 - `AdminSeederTest` + `AdminSeederIT` (admin-moderation D1): both vars set + no user with the
   email → the admin row is created (kind `ADMIN`, all three claims present, `canWrite()` true)

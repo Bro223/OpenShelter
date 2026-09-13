@@ -115,7 +115,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     // ---------- helpers ----------
 
     private String verifiedToken(String name, String email) {
-        RegisteredUser user = new RegisteredUser(name, email, "+3725000000" + nextUser++, "4900101000" + nextUser);
+        RegisteredUser user = new RegisteredUser(name, email, "+3725000000" + nextUser++);
         user.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp", email, Instant.now()));
         users.save(user);
         return tokens.issue(user).accessToken();

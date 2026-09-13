@@ -47,7 +47,7 @@ class VerificationDailyCapIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Daily Cap Kasutaja\",\"email\":\"daily-cap@example.ee\",\"phone\":\"+37250006666\","
-                    + "\"nationalIdCode\":\"49001016666\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;

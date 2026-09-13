@@ -46,7 +46,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Mari\",\"email\":\"mari@example.ee\",\"phone\":\"+37250000001\","
-                    + "\"nationalIdCode\":\"49001010001\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;
@@ -90,7 +90,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         // Same phone, different email -> also 409
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"mari2@example.ee\","
-                                + "\"phone\":\"+37250000001\",\"nationalIdCode\":\"49001010002\","
+                                + "\"phone\":\"+37250000001\","
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isConflict());
     }
@@ -105,14 +105,14 @@ class AuthApiIT extends AbstractPersistenceIT {
         // race-safe backstop)
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"MARI@EXAMPLE.EE\",\"phone\":\"+37250000002\","
-                                + "\"nationalIdCode\":\"49001010002\",\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
 
         // phone-variant twin: national format of the registered E.164 -> 409
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"mari3@example.ee\",\"phone\":\"50000001\","
-                                + "\"nationalIdCode\":\"49001010003\",\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -135,7 +135,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         String longName = "x".repeat(300);
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + longName + "\",\"email\":\"big@example.ee\","
-                                + "\"phone\":\"+37250000010\",\"nationalIdCode\":\"49001010010\","
+                                + "\"phone\":\"+37250000010\","
                                 + "\"password\":\"s3cret\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));

@@ -97,7 +97,7 @@ public abstract class AbstractPersistenceIT {
      * so a second call must use different contacts).
      */
     protected final RegisteredUser saveUser(UserRepository users, String email, String phone) {
-        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone);
         users.save(user);
         return user;
     }

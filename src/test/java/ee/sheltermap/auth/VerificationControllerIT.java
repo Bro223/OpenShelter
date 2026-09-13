@@ -49,7 +49,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Veri Kasutaja\",\"email\":\"veri@example.ee\",\"phone\":\"+37250008888\","
-                    + "\"nationalIdCode\":\"49001018888\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret\"}";
 
     @Autowired
     MockMvc mvc;

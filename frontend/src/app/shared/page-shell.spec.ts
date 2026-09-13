@@ -46,7 +46,6 @@ describe('PageShell', () => {
       name: 'Test User',
       email: 'user@example.ee',
       phone: '+37250000001',
-      nationalIdCode: '49901019999',
       levels: [],
       isAdmin: false,
     });
@@ -122,7 +121,6 @@ describe('PageShell', () => {
       name: 'Test User',
       email: 'user@example.ee',
       phone: '+37250000001',
-      nationalIdCode: '49901019999',
       levels: [],
       isAdmin: true,
     });

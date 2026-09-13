@@ -20,7 +20,7 @@ import { TokenStore } from '../core/token-store';
  * mid-session 401 single-flight refresh).
  *
  * Profile: the backend answers `GET /account/me` with the REAL profile —
- * name, email, phone, nationalIdCode and the REAL verified claim set. The
+ * name, email, phone and the REAL verified claim set. The
  * store fetches it once at boot (after a successful silent refresh) and
  * after login, and keeps it in signals. `refreshProfile()` re-fetches it
  * after every claims-changing event (verify-confirm, contact change,
@@ -60,7 +60,6 @@ export class AuthStore {
   readonly name = signal<string | null>(null);
   readonly email = signal<string | null>(null);
   readonly phone = signal<string | null>(null);
-  readonly nationalIdCode = signal<string | null>(null);
 
   /**
    * The REAL verified levels (EMAIL/PHONE) from the fetched profile. Read via
@@ -330,7 +329,6 @@ export class AuthStore {
     this.name.set(profile.name);
     this.email.set(profile.email);
     this.phone.set(profile.phone);
-    this.nationalIdCode.set(profile.nationalIdCode);
     this.levels.set(profile.levels);
     this.isAdmin.set(profile.isAdmin);
   }
@@ -358,7 +356,6 @@ export class AuthStore {
     this.name.set(null);
     this.email.set(null);
     this.phone.set(null);
-    this.nationalIdCode.set(null);
     this.levels.set([]);
     this.isAdmin.set(false);
   }

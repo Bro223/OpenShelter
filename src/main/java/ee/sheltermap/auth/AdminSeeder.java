@@ -79,8 +79,9 @@ public class AdminSeeder implements ApplicationRunner {
         }
         // No phone on the account (null — it is outside the unique
         // uq_users_phone index, so it can never collide with any other user
-        // or be a login route); national ID stays "" (kept non-null).
-        AdminUser admin = AdminUser.provisioned("Admin", email, "");
+        // or be a login route); no national ID code is stored (M1) — the
+        // pre-set SMART_ID claim carries the e-mail as its external ref.
+        AdminUser admin = AdminUser.provisioned("Admin", email);
         users.save(admin);
         credentials.save(new UserCredentials(admin.getId(), passwordHasher.hash(password)));
         log.info("Seeded admin account {}", email);

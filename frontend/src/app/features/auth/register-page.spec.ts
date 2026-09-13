@@ -46,7 +46,6 @@ describe('RegisterPage', () => {
       name: 'Test User',
       email: 'test@example.ee',
       phone: '+37250000001',
-      nationalIdCode: '49901019999',
       levels: [],
     });
     TestBed.configureTestingModule({
@@ -86,7 +85,6 @@ describe('RegisterPage', () => {
       name: 'Test User',
       email: 'test@example.ee',
       phone: '+37250000001',
-      nationalIdCode: '49901019999',
       password: 's3cret!',
     });
   }
@@ -95,15 +93,9 @@ describe('RegisterPage', () => {
     return (gateway.register.mock.calls.at(-1) as [RegisterRequest])[0];
   }
 
-  it('renders all five fields with real labels', async () => {
+  it('renders all four fields with real labels', async () => {
     const { element } = await open();
-    for (const id of [
-      'register-name',
-      'register-email',
-      'register-phone',
-      'register-idcode',
-      'register-password',
-    ]) {
+    for (const id of ['register-name', 'register-email', 'register-phone', 'register-password']) {
       expect(element.querySelector(`label[for="${id}"]`)).not.toBeNull();
     }
   });
@@ -118,7 +110,6 @@ describe('RegisterPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Name is required.');
     expect(text).toContain('A valid email is required.');
-    expect(text).toContain('National ID code is required.');
   });
 
   it('normalises email before sending the register request', async () => {
@@ -127,7 +118,6 @@ describe('RegisterPage', () => {
       name: ' Test User ',
       email: 'Test@Example.EE',
       phone: ' +37250000001 ',
-      nationalIdCode: '49901019999',
       password: 's3cret!',
     });
     gateway.register.mockResolvedValue(undefined);

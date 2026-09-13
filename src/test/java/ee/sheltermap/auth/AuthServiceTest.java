@@ -26,7 +26,7 @@ class AuthServiceTest {
     private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset);
 
     private void registerMari() {
-        auth.register(new RegisterRequest("Mari", "mari@example.ee", "+37250000001", "49001010001", "s3cret"));
+        auth.register(new RegisterRequest("Mari", "mari@example.ee", "+37250000001", "s3cret"));
     }
 
     private Long mariId() {

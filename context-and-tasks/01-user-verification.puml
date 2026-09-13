@@ -41,10 +41,9 @@ package "domain" {
     - name : String
     - email : String
     - phone : String
-    - nationalIdCode : String
     - verifications : Set<VerificationClaim>
     --
-    + RegisteredUser(name, email, phone, nationalIdCode)
+    + RegisteredUser(name, email, phone)
     + levels() : Set<VerificationLevel>
     + canWrite() : boolean
     + deleteAccount() : void
@@ -56,12 +55,12 @@ package "domain" {
     ' class, is the authorization truth (fresh kind lookup per /admin/*
     ' request, no JWT claim - D2).
     --
-    + AdminUser(name, email, phone, nationalIdCode)
+    + AdminUser(name, email, phone)
     ' persistence ctor: the stored claims are restored by UserMapper
     ' (NOT pre-set - a reload reflects the stored claim state); phone
     ' is null for provisioned admins (no phone route)
-    + {static} provisioned(name, email, nationalIdCode) : AdminUser
-    ' AdminSeeder factory ONLY: phone = null, nationalIdCode = "", EVERY
+    + {static} provisioned(name, email) : AdminUser
+    ' AdminSeeder factory ONLY: phone = null (no ID code stored - M1), EVERY
     ' verification claim pre-set (EMAIL/PHONE/SMART_ID) - the mailbox does
     ' not exist by design, so canWrite() is true from the first request
   }
@@ -70,7 +69,6 @@ package "domain" {
     + name : String
     + email : String
     + phone : String
-    + nationalIdCode : String
     + levels : Set<VerificationLevel>
   }
 
@@ -274,7 +272,7 @@ package "verification" {
 
 package "app" {
   class UserService {
-    + register(name : String, email : String, phone : String, nationalIdCode : String) : RegisteredUser
+    + register(name : String, email : String, phone : String) : RegisteredUser
     + getData(user : User) : UserData
     + findByEmailOrPhone(contact : String) : RegisteredUser
     + findByEmail(email : String) : RegisteredUser

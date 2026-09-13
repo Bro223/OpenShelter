@@ -66,7 +66,6 @@ describe('AccountGateway', () => {
       name: 'Aino Test',
       email: 'aino@example.ee',
       phone: '+37250000002',
-      nationalIdCode: '50001020002',
       levels: ['EMAIL'],
     };
     api.get.mockReturnValue(of(profile));
@@ -80,7 +79,6 @@ describe('AccountGateway', () => {
   it('updateProfile PUTs the profile request and returns the fresh MeResponse', async () => {
     const request = {
       name: 'Aino Test',
-      nationalIdCode: '50001020002',
       currentPassword: 'correct-horse',
     };
     const fresh = { ...request, email: 'aino@example.ee', phone: '+37250000002', levels: [] };

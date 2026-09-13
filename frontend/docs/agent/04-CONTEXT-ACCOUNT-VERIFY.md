@@ -25,7 +25,7 @@ unmistakable.
 | `VerifyGateway`  | service (`gateways/`)                                        | `request(level: VerificationLevel)`, `confirm(level, code)`. Paths `/verify/request`, `/verify/confirm` (JWT added by the interceptor).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `AccountGateway` | service (`gateways/`)                                        | `me()`, `updateProfile(request)`, `requestEmailChange(newEmail)`, `confirmEmailChange(code)`, `requestPhoneChange(newPhone)`, `confirmPhoneChange(code)`. Paths `/account/*`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `VerifyPage`     | component (`features/account/`, route `/verify`, AuthGuard)  | Shows each unverified level (EMAIL, PHONE; SMART_ID hidden — backend rejects with 400 "stub"). Per level: "send code" → "enter code" → success. Reads the REAL claim state from `AuthStore.levels()` (fetched from `GET /account/me`) and re-fetches the profile after a confirm (decision 3).                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `AccountPage`    | component (`features/account/`, route `/account`, AuthGuard) | The full profile page (M7): identity card (name — with the provenance-style **"Admin" badge next to it, rendered only when `AuthStore.isAdmin()` is true** (admin-moderation D5; the store's value comes from the fetched profile, so it's server state, and a failed profile fetch hides the badge fail-closed) — + national ID, editable via the password-confirmed form), contact rows (real email/phone value + Verified label / "Complete verification" CTA to `/verify`), and the two cross-channel change sections: change email, change phone. Each: show current value → enter new value → **"we sent a code to your current phone/email"** state → enter code → success. (M3 name: `ContactChangePage` — contact-only; replaced in M7.) |
+| `AccountPage`    | component (`features/account/`, route `/account`, AuthGuard) | The full profile page (M7): identity card (name — with the provenance-style **"Admin" badge next to it, rendered only when `AuthStore.isAdmin()` is true** (admin-moderation D5; the store's value comes from the fetched profile, so it's server state, and a failed profile fetch hides the badge fail-closed) — editable via the password-confirmed form (no national ID code — M1), contact rows (real email/phone value + Verified label / "Complete verification" CTA to `/verify`), and the two cross-channel change sections: change email, change phone. Each: show current value → enter new value → **"we sent a code to your current phone/email"** state → enter code → success. (M3 name: `ContactChangePage` — contact-only; replaced in M7.) |
 
 ## Key decisions
 
@@ -36,7 +36,7 @@ unmistakable.
    On 429 show the backend message and a "wait before retrying" hint — never an auto-retry loop.
    Keep a visible countdown for the cooldown if cheap (nice-to-have, not required).
 3. **Session/claim refresh (REVERSED in M7).** The backend now HAS `GET /account/me` —
-   `AuthStore` fetches the real profile (name/email/phone/nationalIdCode + the REAL
+   `AuthStore` fetches the real profile (name/email/phone + the REAL
    claim set) at boot (after the silent refresh) and after login, and
    `refreshProfile()` re-fetches it after every claims-changing event (verify-confirm,
    contact change, profile edit). The M3 optimistic `addLevel()` mirror is GONE —
@@ -63,8 +63,8 @@ unmistakable.
 
 ## Contracts with other contexts
 
-- M2's `AuthStore` exposes the REAL profile (`name`/`email`/`phone`/
-  `nationalIdCode` signals) and `levels()` (fetched claims) with
+- M2's `AuthStore` exposes the REAL profile (`name`/`email`/`phone`
+  signals) and `levels()` (fetched claims) with
   `refreshProfile()` for re-fetch — used by `VerifyPage` and `AccountPage`.
   (M3's optimistic `addLevel()` was removed in M7.)
 - M5's submit-shelter gate (`VerifiedGuard` on `/submit`) and review flows depend on the verified

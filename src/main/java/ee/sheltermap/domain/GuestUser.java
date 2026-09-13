@@ -7,7 +7,7 @@ public class GuestUser extends User {
 
     @Override
     public UserData getData() {
-        return new UserData(null, null, null, null, Set.of());
+        return new UserData(null, null, null, Set.of());
     }
 
     @Override

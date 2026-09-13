@@ -15,7 +15,6 @@ class UserHierarchyTest {
     private static final String NAME = "Aleks";
     private static final String EMAIL = "aleks@example.com";
     private static final String PHONE = "+37250000000";
-    private static final String NATIONAL_ID = "12345678901";
 
     private static VerificationClaim claim(VerificationLevel level, String externalRef) {
         return new VerificationClaim(level, "dev-" + level.name().toLowerCase(), externalRef, Instant.now());
@@ -30,7 +29,7 @@ class UserHierarchyTest {
 
     @Test
     void registeredUserLevelsReflectAddAndRevoke() {
-        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
 
         assertThat(user.levels()).isEmpty();
         assertThat(user.canWrite()).isFalse();
@@ -39,7 +38,9 @@ class UserHierarchyTest {
         assertThat(user.levels()).containsExactly(VerificationLevel.EMAIL);
         assertThat(user.canWrite()).isTrue();
 
-        user.addVerification(claim(VerificationLevel.SMART_ID, NATIONAL_ID));
+        // SMART_ID claim: the external ref is what the (future) PKI flow
+        // supplies — no ID code is stored on the user.
+        user.addVerification(claim(VerificationLevel.SMART_ID, "smart-id-ext-ref"));
         assertThat(user.levels()).containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.SMART_ID);
 
         user.revoke(VerificationLevel.EMAIL);
@@ -49,7 +50,7 @@ class UserHierarchyTest {
 
     @Test
     void revokingTheOnlyClaimDisablesWrite() {
-        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
         user.addVerification(claim(VerificationLevel.PHONE, PHONE));
 
         user.revoke(VerificationLevel.PHONE);
@@ -60,13 +61,12 @@ class UserHierarchyTest {
 
     @Test
     void userDataIsAnImmutableSnapshot() {
-        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
         UserData snapshot = user.getData();
 
         assertThat(snapshot.name()).isEqualTo(NAME);
         assertThat(snapshot.email()).isEqualTo(EMAIL);
         assertThat(snapshot.phone()).isEqualTo(PHONE);
-        assertThat(snapshot.nationalIdCode()).isEqualTo(NATIONAL_ID);
         assertThat(snapshot.levels()).isEmpty();
 
         // snapshot is frozen; later claims only show up in a fresh snapshot
@@ -76,24 +76,21 @@ class UserHierarchyTest {
     }
 
     @Test
-    void nameAndNationalIdCodeAreEditableWithoutTouchingClaims() {
-        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+    void nameIsEditableWithoutTouchingClaims() {
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
         user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
 
         user.changeName("Uus Nimi");
-        user.changeNationalIdCode("00000000000");
 
         assertThat(user.getData().name()).isEqualTo("Uus Nimi");
-        assertThat(user.getData().nationalIdCode()).isEqualTo("00000000000");
-        // an ID edit leaves the claim set untouched (SMART-ID invalidation is a follow-up)
         assertThat(user.levels()).containsExactly(VerificationLevel.EMAIL);
     }
 
     @Test
     void deleteAccountClearsVerifications() {
-        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE, NATIONAL_ID);
+        RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
         user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
-        user.addVerification(claim(VerificationLevel.SMART_ID, NATIONAL_ID));
+        user.addVerification(claim(VerificationLevel.SMART_ID, "smart-id-ext-ref"));
 
         user.deleteAccount();
 

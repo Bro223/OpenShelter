@@ -26,7 +26,6 @@ public record MeResponse(
         String name,
         String email,
         String phone,
-        String nationalIdCode,
         List<VerificationLevel> levels,
         boolean isAdmin) {
 
@@ -36,7 +35,7 @@ public record MeResponse(
         List<VerificationLevel> levels = Stream.of(VerificationLevel.values())
                 .filter(data.levels()::contains)
                 .toList();
-        return new MeResponse(data.name(), data.email(), data.phone(), data.nationalIdCode(),
+        return new MeResponse(data.name(), data.email(), data.phone(),
                 levels, user instanceof AdminUser);
     }
 }

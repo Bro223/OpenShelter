@@ -18,7 +18,6 @@ const PROFILE: MeResponse = {
   name: 'Kontakt Muutus',
   email: 'kontakt@example.ee',
   phone: '+37250004444',
-  nationalIdCode: '49001014444',
   levels: [],
   isAdmin: false,
 };
@@ -171,12 +170,12 @@ describe('AccountPage', () => {
 
   // ---- identity card -------------------------------------------------------
 
-  it('renders the fetched identity (name + national ID) in the identity card', async () => {
+  it('renders the fetched identity (name) in the identity card — no national ID row', async () => {
     const { element } = await open();
 
     expect(element.textContent).toContain('Identity');
     expect(element.textContent).toContain('Kontakt Muutus');
-    expect(element.textContent).toContain('49001014444');
+    expect(element.textContent).not.toContain('National ID');
     expect(element.querySelector('#profile-name')).toBeNull(); // closed form
   });
 
@@ -304,10 +303,8 @@ describe('AccountPage', () => {
     fixture.detectChanges();
 
     expect(element.querySelector('#profile-name')).not.toBeNull();
-    expect(element.querySelector('#profile-national-id')).not.toBeNull();
     expect(element.querySelector('#profile-password')).not.toBeNull();
     expect(page.editName.value).toBe('Kontakt Muutus');
-    expect(page.editNationalIdCode.value).toBe('49001014444');
     expect(page.editPassword.value).toBe('');
   });
 
@@ -315,7 +312,6 @@ describe('AccountPage', () => {
     const { page, fixture } = await open();
     page.startEdit();
     page.editName.setValue('');
-    page.editNationalIdCode.setValue('');
     page.editPassword.setValue('');
 
     await page.saveProfile();
@@ -323,7 +319,6 @@ describe('AccountPage', () => {
 
     expect(account.updateProfile).not.toHaveBeenCalled();
     expect(text(fixture)).toContain('A name is required.');
-    expect(text(fixture)).toContain('A national ID code is required.');
     expect(text(fixture)).toContain('Your current password is required.');
   });
 
@@ -331,14 +326,12 @@ describe('AccountPage', () => {
     const { page, element, fixture } = await open();
     page.startEdit();
     page.editName.setValue('Korrektitud Nimi');
-    page.editNationalIdCode.setValue('49001014445');
     page.editPassword.setValue('s3cret');
 
     // The backend persists and the re-fetch reflects it.
     const UPDATED: MeResponse = {
       ...PROFILE,
       name: 'Korrektitud Nimi',
-      nationalIdCode: '49001014445',
     };
     account.updateProfile.mockResolvedValue(UPDATED);
     account.me.mockResolvedValue(UPDATED);
@@ -348,13 +341,11 @@ describe('AccountPage', () => {
 
     expect(account.updateProfile).toHaveBeenCalledWith({
       name: 'Korrektitud Nimi',
-      nationalIdCode: '49001014445',
       currentPassword: 's3cret',
     });
     // the form closed, the card shows the server state
     expect(element.querySelector('#profile-password')).toBeNull();
     expect(element.textContent).toContain('Korrektitud Nimi');
-    expect(element.textContent).toContain('49001014445');
     expect(element.textContent).toContain('Your profile has been updated.');
     expect(page.editPassword.value).toBe('');
   });
@@ -377,7 +368,6 @@ describe('AccountPage', () => {
     expect(element.querySelector('#profile-password')).not.toBeNull();
     // the store is untouched
     expect(store.name()).toBe('Kontakt Muutus');
-    expect(store.nationalIdCode()).toBe('49001014444');
   });
 
   it('a validation 400 (blank field) echoes the backend message', async () => {
@@ -386,14 +376,14 @@ describe('AccountPage', () => {
     page.editPassword.setValue('s3cret');
 
     account.updateProfile.mockRejectedValue(
-      apiError(400, 'nationalIdCode must not be blank', '/account/profile'),
+      apiError(400, 'name must not be blank', '/account/profile'),
     );
 
     await page.saveProfile();
     fixture.detectChanges();
 
     const banner = element.querySelector('.banner--error') as HTMLElement | null;
-    expect(banner?.textContent).toContain('nationalIdCode must not be blank');
+    expect(banner?.textContent).toContain('name must not be blank');
     expect(element.querySelector('#profile-password')).not.toBeNull();
   });
 
