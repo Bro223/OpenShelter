@@ -51,7 +51,7 @@ const PROVENANCE_FILTERS: { value: ProvenanceFilter; label: string }[] = [
   { value: 'OFFICIAL', label: 'Official' },
   { value: 'PARTNER_VERIFIED', label: 'Partner' },
   { value: 'COMMUNITY_REPORTED', label: 'Community' },
-  { value: 'UNDER_REVIEW', label: 'New community' },
+  { value: 'UNDER_REVIEW', label: 'Proposed' },
 ];
 
 /**

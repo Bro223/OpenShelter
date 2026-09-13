@@ -19,15 +19,15 @@ export const NO_RATINGS_YET = 'No ratings yet';
 /**
  * The provenance label (shelter-provenance-taxonomy M6, superseding
  * accessibility-and-provenance D4 and the community-review-queue
- * trust-label split): the text for each taxonomy value. The four values
- * reachable in the public list keep their established copy —
- * "Paasteamet registry" / "Municipal registry" / "Community-checked" /
- * "Newly added"; the two hidden values (visible only on /mine, the detail
- * read and the admin list) get their own: "Reported inactive" /
- * "Rejected". Single-sourced: map rows, detail header, /mine badges,
- * the admin list and the legend all call this. The input is the
- * server-derived `Provenance` — the FE never re-derives it from
- * source/reviewStatus.
+ * trust-label split; proposed-community-wording M7 renamed the two
+ * community states): the text for each taxonomy value. The four values
+ * reachable in the public list — "Paasteamet registry" / "Municipal
+ * registry" / "Community-reported" / "Proposed"; the two hidden values
+ * (visible only on /mine, the detail read and the admin list) get their
+ * own: "Reported inactive" / "Rejected". Single-sourced: map rows,
+ * detail header, /mine badges, the admin list and the legend all call
+ * this. The input is the server-derived `Provenance` — the FE never
+ * re-derives it from source/reviewStatus.
  */
 export function provenanceText(provenance: Provenance): string {
   switch (provenance) {
@@ -36,9 +36,9 @@ export function provenanceText(provenance: Provenance): string {
     case 'PARTNER_VERIFIED':
       return 'Municipal registry';
     case 'COMMUNITY_REPORTED':
-      return 'Community-checked';
+      return 'Community-reported';
     case 'UNDER_REVIEW':
-      return 'Newly added';
+      return 'Proposed';
     case 'REPORTED_INACTIVE':
       return 'Reported inactive';
     case 'REJECTED':
@@ -48,7 +48,7 @@ export function provenanceText(provenance: Provenance): string {
 
 /**
  * The provenance badge tone (M6): the badge follows the marker palette —
- * UNDER_REVIEW gets the amber "newly added" tone, COMMUNITY_REPORTED the
+ * UNDER_REVIEW gets the amber "proposed" tone, COMMUNITY_REPORTED the
  * green one, REJECTED the danger one, REPORTED_INACTIVE the muted grey;
  * OFFICIAL / PARTNER_VERIFIED rows get no modifier (their base badge fill
  * already says registry). Applied on every surface that renders the
@@ -88,10 +88,11 @@ export const PRIVATE_LOCATION_NOTE =
 
 /**
  * The unverified warning for community rows (community-review-queue, map-
- * browse delta): shown as a block on the detail page of community rows in
- * the NEW state (CONFIRMED rows keep the "Community-checked" badge and no
- * warning), and as a line under the around-you result when the highlighted
- * row is community (any review status). Exact copy is spec-pinned — a copy
+ * browse delta; surfaces re-pinned by proposed-community-wording M7):
+ * shown as a block on the detail page of community rows in the NEW state
+ * (CONFIRMED rows keep the "Community-reported" badge and no warning),
+ * and as a line under the around-you result when the highlighted row is
+ * community (any review status). Exact copy is spec-pinned — a copy
  * change is a spec change. Muted styling at the point of use: this is a
  * caveat, not the crisis orange.
  */

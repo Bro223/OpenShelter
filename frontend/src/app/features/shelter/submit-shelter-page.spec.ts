@@ -300,7 +300,7 @@ describe('SubmitShelterPage (/submit)', () => {
     // success panel (community-review-queue) instead of navigating.
     expect(router.url).toBe('/submit');
     expect(element.textContent).toContain(
-      'Your location is now listed and marked as newly added. Community reports confirm it.',
+      'Your location is now listed and marked as proposed. Community reports confirm it.',
     );
     expect(element.querySelector('.submit-success a[href="/shelters/42"]')).not.toBeNull();
     expect(element.querySelector('.submit-success a[href="/account"]')).not.toBeNull();

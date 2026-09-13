@@ -102,7 +102,7 @@ const VERIFIED_BASEMENT = shelter({
   description: 'Verified submitter',
   capacity: 12,
   submitterVerified: true, // a verified submitter is NOT a verified shelter
-  reviewStatus: 'CONFIRMED', // community-checked (green)
+  reviewStatus: 'CONFIRMED', // community-reported (green)
   provenance: 'COMMUNITY_REPORTED',
 });
 const ALL_ROWS = [TALLINN, PARNU, BASEMENT];
@@ -386,10 +386,10 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Trust-state badges (D4 provenance + community-review-queue):
-      // the NEW USER row reads "Newly added", the registry rows keep their
-      // provenance chips.
-      expect(basementRow.textContent).toContain('Newly added');
+      // Trust-state badges (D4 provenance + community-review-queue; M7
+      // wording): the NEW USER row reads "Proposed", the registry rows
+      // keep their provenance chips.
+      expect(basementRow.textContent).toContain('Proposed');
       expect(rows[1].textContent).toContain('Municipal registry');
       expect(rows[2].textContent).toContain('Paasteamet registry');
       // Rating summary: real rating shown, null rating says "No ratings yet" (no invented zero).
@@ -400,26 +400,26 @@ describe('MapPage', () => {
       expect(text(fixture)).not.toContain('Loading shelters…');
     });
 
-    it('sidebar rows show the trust-state badge: NEW is "Newly added", CONFIRMED is "Community-checked"', async () => {
+    it('sidebar rows show the trust-state badge: NEW is "Proposed", CONFIRMED is "Community-reported"', async () => {
       gateway.list.mockResolvedValue([TALLINN, PARNU, BASEMENT, VERIFIED_BASEMENT]);
       const { element } = await open('/map');
 
       // One badge per row, in the name-sorted order. The old
       // "Verified user" / "User-submitted" split is gone — the label follows
-      // the trust state (community-review-queue): NEW → "Newly added",
-      // CONFIRMED → "Community-checked".
+      // the trust state (community-review-queue; M7 wording): NEW →
+      // "Proposed", CONFIRMED → "Community-reported".
       const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
         b.textContent?.trim(),
       );
       expect(badges).toEqual([
-        'Newly added', // Community Cellar (USER, NEW)
+        'Proposed', // Community Cellar (USER, NEW)
         'Municipal registry', // Pärnu Municipal Shelter (MUNICIPALITY)
         'Paasteamet registry', // Tallinn Central Shelter (PAASETEAMET)
-        'Community-checked', // Verified Cellar (USER, CONFIRMED)
+        'Community-reported', // Verified Cellar (USER, CONFIRMED)
       ]);
     });
 
-    it('renders the five-entry provenance legend (M6): official, partner, community, new, reported', async () => {
+    it('renders the five-entry provenance legend (M6; M7 wording): official, partner, community, proposed, reported', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
@@ -432,7 +432,7 @@ describe('MapPage', () => {
       expect(legend?.textContent).toContain('Official');
       expect(legend?.textContent).toContain('Partner');
       expect(legend?.textContent).toContain('Community');
-      expect(legend?.textContent).toContain('New community');
+      expect(legend?.textContent).toContain('Proposed');
       expect(legend?.textContent).toContain('Reported');
       // The old source-chip wording is gone.
       expect(legend?.textContent).not.toContain('Registry');
@@ -463,7 +463,7 @@ describe('MapPage', () => {
         'Official',
         'Partner',
         'Community',
-        'New community',
+        'Proposed',
       ]);
       expect(chips[0].classList.contains('chip--active')).toBe(true);
 
@@ -486,7 +486,7 @@ describe('MapPage', () => {
       ]);
       expect(leaflet.lastRendered).toEqual([PARNU]);
 
-      chips[4].click(); // New community
+      chips[4].click(); // Proposed
       await settle(fixture);
       expect(gateway.list.mock.calls.map((c) => c[0])).toEqual([
         'ALL',
@@ -999,7 +999,9 @@ describe('MapPage', () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
       gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        provenance === 'ALL' ? Promise.resolve([NEAR, FAR]) : Promise.reject(ApiError.fromNetwork()),
+        provenance === 'ALL'
+          ? Promise.resolve([NEAR, FAR])
+          : Promise.reject(ApiError.fromNetwork()),
       );
       const { element, fixture } = await open('/map');
 
@@ -1064,7 +1066,9 @@ describe('MapPage', () => {
   describe('scroll the row into view (marker click / nearest)', () => {
     beforeEach(() => {
       gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(provenance === 'ALL' ? ALL_ROWS : provenance === 'UNDER_REVIEW' ? [BASEMENT] : []),
+        Promise.resolve(
+          provenance === 'ALL' ? ALL_ROWS : provenance === 'UNDER_REVIEW' ? [BASEMENT] : [],
+        ),
       );
     });
 
@@ -1219,7 +1223,7 @@ describe('MapPage', () => {
         'Official',
         'Partner',
         'Community',
-        'New community',
+        'Proposed',
       ]);
     });
 
@@ -1377,7 +1381,7 @@ describe('MapPage', () => {
       // The row keeps its trust badge too (the orange is the single
       // marker affordance; the row text keeps the community label).
       expect(element.querySelector('.shelter-row .badge')?.textContent?.trim()).toBe(
-        'Community-checked',
+        'Community-reported',
       );
       // The reported row reaches the marker renderer (the orange CLASS on
       // the pin itself is asserted in leaflet-service.spec.ts).

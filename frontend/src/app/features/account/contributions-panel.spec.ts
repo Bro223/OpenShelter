@@ -491,10 +491,10 @@ describe('ContributionsPanel', () => {
     expect(rows.length).toBe(4);
     const [newRow, checkedRow, reportedRow, rejectedRow] = rows;
     expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe(
-      'Newly added',
+      'Proposed',
     );
     expect(checkedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
-      'Community-checked',
+      'Community-reported',
     );
     expect(reportedRow.querySelector('.contrib-badge.badge--inactive')?.textContent?.trim()).toBe(
       'Reported inactive',

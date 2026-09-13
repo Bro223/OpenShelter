@@ -18,7 +18,8 @@ import type { ShelterOccupancy } from '../core/models';
 /**
  * The provenance values are PINNED copy (shelter-provenance-taxonomy M6,
  * superseding accessibility-and-provenance D4 + community-review-queue
- * D5): the server-derived taxonomy value maps to the badge text and tone.
+ * D5; proposed-community-wording M7 renamed the two community states):
+ * the server-derived taxonomy value maps to the badge text and tone.
  * A copy change is a spec change — these assertions are the gate.
  */
 describe('provenanceText (M6 copy)', () => {
@@ -30,12 +31,12 @@ describe('provenanceText (M6 copy)', () => {
     expect(provenanceText('PARTNER_VERIFIED')).toBe('Municipal registry');
   });
 
-  it('COMMUNITY_REPORTED -> "Community-checked"', () => {
-    expect(provenanceText('COMMUNITY_REPORTED')).toBe('Community-checked');
+  it('COMMUNITY_REPORTED -> "Community-reported" (M7)', () => {
+    expect(provenanceText('COMMUNITY_REPORTED')).toBe('Community-reported');
   });
 
-  it('UNDER_REVIEW -> "Newly added"', () => {
-    expect(provenanceText('UNDER_REVIEW')).toBe('Newly added');
+  it('UNDER_REVIEW -> "Proposed" (M7)', () => {
+    expect(provenanceText('UNDER_REVIEW')).toBe('Proposed');
   });
 
   it('REPORTED_INACTIVE -> "Reported inactive" (/mine + admin surfaces)', () => {

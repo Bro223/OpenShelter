@@ -345,9 +345,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('[role="img"]')).toBeNull(); // no star strip without ratings
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
-      // The trust-state label (community-review-queue): NEW -> "Newly added"
-      // (replacing the old "User-submitted" provenance wording).
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
+      // The trust-state label (community-review-queue; M7 wording): NEW ->
+      // "Proposed" (replacing the old "User-submitted" provenance wording).
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Proposed');
     });
 
     it('a NEW community row carries the unverified warning block next to the provenance chip', async () => {
@@ -362,14 +362,14 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(warning?.closest('.shelter-detail__header')).not.toBeNull();
     });
 
-    it('a CONFIRMED community row keeps the "Community-checked" badge and shows NO warning', async () => {
+    it('a CONFIRMED community row keeps the "Community-reported" badge and shows NO warning', async () => {
       shelterGateway.rows.set(
         8,
         userShelter({ id: 8, reviewStatus: 'CONFIRMED', provenance: 'COMMUNITY_REPORTED' }),
       );
       const { element } = await open('/shelters/8');
 
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-checked');
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-reported');
       expect(element.querySelector('.community-warning')).toBeNull();
       expect(element.textContent).not.toContain(
         'This location was submitted by a community member',
@@ -427,8 +427,9 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element: el8 } = await open('/shelters/8');
       // A verified submitter is NOT a verified shelter — the label follows
-      // the trust state, not submitterVerified (community-review-queue).
-      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
+      // the trust state, not submitterVerified (community-review-queue; M7
+      // wording).
+      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Proposed');
       expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
 

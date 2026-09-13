@@ -324,7 +324,7 @@ export interface ShelterDto {
   occupancy: ShelterOccupancy | null;
   /**
    * Community trust state (community-review-queue): NEW/CONFIRMED for USER
-   * rows (amber/green marker + "Newly added" / "Community-checked" badge);
+   * rows (amber/green marker + "Proposed" / "Community-reported" badge);
    * CONFIRMED for registry rows (informational — the label logic only reads
    * it on USER rows). REJECTED rows are never in the public list (INACTIVE).
    */

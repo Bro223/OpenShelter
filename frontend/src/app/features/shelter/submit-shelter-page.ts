@@ -111,7 +111,7 @@ const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
  *
  * On 201 the row is PUBLIC IMMEDIATELY as NEW (community-review-queue —
  * no blocking queue): the page STAYS on /submit with a success panel
- * ("listed now, marked as newly added, community reports confirm it")
+ * ("listed now, marked as proposed, community reports confirm it")
  * linking to the (already public) detail page. On 401/403/400 the
  * backend message shows through the banner (403 adds a /verify link — the
  * claim can lapse mid-session) and the form input is preserved.
