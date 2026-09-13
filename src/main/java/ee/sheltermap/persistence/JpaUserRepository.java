@@ -109,6 +109,17 @@ public class JpaUserRepository implements UserRepository {
     }
 
     @Override
+    @Transactional
+    public void delete(Long userId) {
+        users.deleteById(userId);
+        // Force the SQL DELETE (and its ON DELETE CASCADE / SET NULL onto
+        // the child tables) to run NOW: the erasure must be visible to any
+        // follow-up read in the same transaction (the delete alone would
+        // not trigger an auto-flush — the queries do not read users).
+        users.flush();
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public User findById(Long id) {
         UserEntity entity = users.findById(id).orElse(null);

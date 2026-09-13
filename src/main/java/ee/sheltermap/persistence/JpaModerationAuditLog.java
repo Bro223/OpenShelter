@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,5 +54,14 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
                         entity.getAction(), entity.getReason(), entity.getPreviousStatus(),
                         entity.getNewStatus(), entity.getCreatedAt()))
                 .toList();
+    }
+
+    @Override
+    public int clearReasonByShelterIds(Collection<Long> shelterIds) {
+        if (shelterIds == null || shelterIds.isEmpty()) {
+            return 0;
+        }
+        // Runs in the caller's transaction (the erasure service is @Transactional).
+        return actions.clearReasonByShelterIds(shelterIds);
     }
 }

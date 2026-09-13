@@ -27,13 +27,23 @@
       flows (anchor download name asserted, nothing downloaded on error)
 - [x] Gates green: `npx ng test` + `mvn -q test`
 
-## Slice 2 — account deletion (not started)
+## Slice 2 — account deletion (this pass)
 
-- [ ] `DELETE /account` (verified-user gate): purge own data — USER-source
-      shelters, reviews, verification claims, pending changes — keep audit
-      rows with dangling ids (admin-delete convention)
-- [ ] FE: two-step delete on the account page (type-to-confirm)
-- [ ] ITs + gates
+- [x] `DELETE /account` (verified-user gate, idempotent 204): SPLIT rule
+      — PURGE the user's PRIVATE rows, ORPHAN the PUBLIC rows
+      (`created_by -> NULL`, `review_note` redacted, trust state
+      untouched), redact `moderation_actions.reason` on the user's
+      shelters, erase the user row (DB cascades the rest — admin-delete
+      convention, audit rows keep dangling ids)
+- [x] V14 migration: `moderation_actions.moderator_id` nullable +
+      `ON DELETE SET NULL` (erased AUTO_CONFIRM actors dangle, render
+      "Unknown"; entity column + admin read already null-safe)
+- [x] FE: type-to-confirm delete on the account page (type DELETE),
+      then local session end + navigate to the map
+- [x] ITs + gates: `AccountDeletionIT` 5/5 (anon 401, unverified 403,
+      private-purged/public-orphaned + cascade + blind-index-free +
+      re-register, idempotent second delete, export-after-delete yields
+      no data) + BE/FE gates green
 
 ## Slice 3 — privacy policy + terms (not started)
 

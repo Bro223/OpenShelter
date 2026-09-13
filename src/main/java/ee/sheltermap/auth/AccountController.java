@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -43,6 +45,9 @@ import java.util.stream.Collectors;
  *       list has no per-shelter parent, so it sits on this group)</li>
  *   <li>{@code GET /account/export} — the caller's own data (profile +
  *       shelters + reviews) as one JSON document (legal-recovery M4)</li>
+ *   <li>{@code DELETE /account} — the account erasure (legal-recovery M4):
+ *       purge the declared private homes, orphan the public community rows,
+ *       cascade the rest via the DB FK policy (V14)</li>
  * </ul>
  *
  * <p>All endpoints require a Bearer JWT (default security rule). The user is
@@ -158,6 +163,34 @@ public class AccountController {
     @GetMapping("/export")
     public DataExportResponse dataExport() {
         return accountService.dataExport(currentUser());
+    }
+
+    /**
+     * DELETE /account (legal-recovery M4, slice 2) — the account erasure:
+     * the declared private homes are purged, the public community rows are
+     * orphaned (map data outlives accounts — V7), and the DB cascades
+     * credentials, claims, pending changes, tokens, reviews and reports.
+     * The verified-user gate matches the review/submission gates (403
+     * without a claim); a repeat call is an idempotent no-op — the JWT is
+     * valid until its expiry, but the account is already gone.
+     */
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAccount() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
+            // Unreachable in practice: /account/** requires a valid JWT —
+            // 401, not a 400, like the rest of the group's fallback.
+            throw new InvalidAccessTokenException("Authentication required");
+        }
+        User user = userRepository.findById(userId);
+        if (!(user instanceof RegisteredUser registered)) {
+            return; // already erased — idempotent no-op
+        }
+        if (!registered.canWrite()) {
+            throw new NotVerifiedException(AccountService.DELETE_ACCOUNT_MESSAGE);
+        }
+        accountService.deleteAccount(registered);
     }
 
     private void requireRate(HttpServletRequest http) {

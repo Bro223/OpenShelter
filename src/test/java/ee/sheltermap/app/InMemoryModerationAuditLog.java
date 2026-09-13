@@ -5,6 +5,7 @@ import ee.sheltermap.domain.ReviewStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -37,6 +38,23 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
                         .thenComparing(Row::id, Comparator.reverseOrder()))
                 .limit(limit)
                 .toList();
+    }
+
+    @Override
+    public synchronized int clearReasonByShelterIds(Collection<Long> shelterIds) {
+        if (shelterIds == null || shelterIds.isEmpty()) {
+            return 0;
+        }
+        int redacted = 0;
+        for (int i = 0; i < rows.size(); i++) {
+            Row row = rows.get(i);
+            if (shelterIds.contains(row.shelterId()) && row.reason() != null) {
+                rows.set(i, new Row(row.id(), row.shelterId(), row.moderatorId(), row.action(),
+                        null, row.previousStatus(), row.newStatus(), row.createdAt()));
+                redacted++;
+            }
+        }
+        return redacted;
     }
 
     /** Every recorded row, in recording order (for assertions). */

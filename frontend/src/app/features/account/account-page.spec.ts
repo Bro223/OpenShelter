@@ -76,10 +76,18 @@ class FakeAccountGateway {
   myReviews = vi.fn();
   /** M4 slice 1 — the export document; default to an empty document. */
   exportData = vi.fn();
+  /** M4 slice 2 — the account erasure (204, empty body). */
+  deleteAccount = vi.fn();
   constructor() {
     this.myReviews.mockResolvedValue([]);
+    this.deleteAccount.mockResolvedValue(undefined);
     this.exportData.mockResolvedValue({
-      profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+      profile: {
+        name: 'Kontakt Muutus',
+        email: 'kontakt@example.ee',
+        phone: '+37250004444',
+        levels: [],
+      },
       shelters: [],
       reviews: [],
     });
@@ -871,7 +879,12 @@ describe('AccountPage', () => {
   describe('your data (export)', () => {
     it('the export button fetches /account/export and downloads a JSON file', async () => {
       const doc = {
-        profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+        profile: {
+          name: 'Kontakt Muutus',
+          email: 'kontakt@example.ee',
+          phone: '+37250004444',
+          levels: [],
+        },
         shelters: [],
         reviews: [],
       };
@@ -881,7 +894,9 @@ describe('AccountPage', () => {
       Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true });
       Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true });
       const clickedRef: { el: HTMLAnchorElement | null } = { el: null };
-      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
         clickedRef.el = this;
       });
 
@@ -915,6 +930,63 @@ describe('AccountPage', () => {
       expect(click).not.toHaveBeenCalled();
       expect(text(fixture)).toContain('Something went wrong. Please try again.');
       click.mockRestore();
+    });
+  });
+
+  describe('delete account (M4 slice 2)', () => {
+    it('the delete button stays disarmed until DELETE is typed', async () => {
+      const { page, element, fixture } = await open();
+      const button = element.querySelector<HTMLButtonElement>('#delete-account');
+      expect(button).not.toBeNull();
+      expect(button?.disabled).toBe(true);
+
+      page.deleteConfirm.setValue('del');
+      fixture.detectChanges();
+      expect(button?.disabled).toBe(true);
+
+      page.deleteConfirm.setValue('DELETE');
+      fixture.detectChanges();
+      expect(button?.disabled).toBe(false);
+    });
+
+    it('a confirmed delete erases the account, ends the session and leaves for the map', async () => {
+      const { page, fixture } = await open();
+      expect(store.name()).toBe('Kontakt Muutus');
+      page.deleteConfirm.setValue('DELETE');
+      fixture.detectChanges();
+
+      await page.deleteAccount();
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(account.deleteAccount).toHaveBeenCalledTimes(1);
+      expect(store.name()).toBeNull(); // the local session is cleared
+      expect(router.url).toBe('/map');
+    });
+
+    it('a failed delete shows the banner and keeps the session', async () => {
+      account.deleteAccount.mockRejectedValue(apiError(500, 'boom', '/account'));
+      const { page, fixture } = await open();
+      page.deleteConfirm.setValue('DELETE');
+      fixture.detectChanges();
+
+      await page.deleteAccount();
+      fixture.detectChanges();
+
+      expect(store.name()).toBe('Kontakt Muutus'); // session intact
+      expect(router.url).toBe('/account');
+      expect(text(fixture)).toContain('Something went wrong. Please try again.');
+    });
+
+    it('an untyped confirm is a no-op — no request, no logout', async () => {
+      const { page, fixture } = await open();
+
+      await page.deleteAccount();
+      fixture.detectChanges();
+
+      expect(account.deleteAccount).not.toHaveBeenCalled();
+      expect(store.name()).toBe('Kontakt Muutus');
+      expect(router.url).toBe('/account');
     });
   });
 });

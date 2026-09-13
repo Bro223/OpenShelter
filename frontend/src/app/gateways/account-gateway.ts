@@ -80,4 +80,14 @@ export class AccountGateway {
   exportData(): Promise<DataExportResponse> {
     return lastValueFrom(this.api.get<DataExportResponse>('/account/export'));
   }
+
+  /**
+   * DELETE /account -> 204 (M4 legal/recovery, slice 2): the account
+   * erasure — the backend purges the declared private-home shelters,
+   * orphans the public community rows and cascades the rest. A repeat
+   * call is a no-op, so a double click never hard-fails.
+   */
+  deleteAccount(): Promise<void> {
+    return lastValueFrom(this.api.delete<void>('/account'));
+  }
 }

@@ -37,12 +37,44 @@ complete, gate-green piece.
   decrypted profile + the user's own shelters/reviews (another user's row
   stays out); user without contributions gets empty lists.
 
-### Slice 2 — account deletion (not started)
+### Slice 2 — account deletion (split erasure rule — owner decision 2026-09-13)
 
-- `DELETE /account` (verified-user gate): purges the account's own data —
-  USER-source shelters, reviews, verification claims — keeping audit rows
-  with dangling ids (the admin-delete convention). Purge-vs-anonymize is
-  decided as: purge own data, keep audit rows.
+- `DELETE /account` (verified-user gate, 403 without a claim; a repeat
+  call is an idempotent 204 no-op). One transaction:
+  1. **PURGE** every shelter row where `created_by = user` AND
+     `location_kind = 'PRIVATE'` (hard delete, reviews cascade). A
+     declared private home is the submitter's personal data and must not
+     outlive the erasure request.
+  2. **ORPHAN** the rest: `created_by = NULL` on the user's PUBLIC rows
+     (map data outlives accounts — the V7 `created_by ON DELETE SET NULL`
+     comment is the authority), plus the submitter-facing `review_note`
+     redacted. Trust state is untouched: a CONFIRMED row stays CONFIRMED
+     with no author; a newly-NULL creator is not a re-review signal.
+     Registry rows have no creator and are untouched.
+  3. Redact the free-text `moderation_actions.reason` on the user's
+     shelters (the note is written to the erased submitter and may echo
+     their contacts); the action rows survive — the admin-delete
+     convention (dangling ids, "Unknown" moderator).
+  4. Erase the user row: the DB cascades credentials, verification
+     claims, pending verifications + contact changes, refresh +
+     password-reset tokens, reviews, reports, report actions
+     (every `user_id` FK is `ON DELETE CASCADE`); V14 relaxes
+     `moderation_actions.moderator_id` to nullable + `ON DELETE SET NULL`
+     (AUTO_CONFIRM rows name the REPORTING user, who may be the erased
+     account). The M2 blind-index columns die with the row — the erased
+     e-mail/phone can be re-registered.
+- The blanket "purge own data" reading is superseded by the split above:
+  purge PRIVATE rows, orphan PUBLIC rows.
+- **FE** — a "Delete account" panel on the account page: type-to-confirm
+  (type DELETE), then the local session ends and the page leaves for the
+  map.
+- **IT** — `AccountDeletionIT`: anonymous 401; unverified 403; private
+  row hard-deleted, public row kept with NULL `created_by` AND unchanged
+  review status; reviews/claims/tokens/reports gone (re-login 401,
+  refresh 401); audit rows retained (surviving moderator kept, erased
+  moderator dangling); second DELETE idempotent; export → delete →
+  export yields no user data; no blind-index entry remains matchable for
+  the erased contact (re-registration with it succeeds).
 
 ### Slice 3 — privacy policy + terms (not started)
 

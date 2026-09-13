@@ -24,6 +24,11 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public void delete(Long userId) {
+        store.remove(userId);
+    }
+
+    @Override
     public User findById(Long id) {
         return store.get(id);
     }

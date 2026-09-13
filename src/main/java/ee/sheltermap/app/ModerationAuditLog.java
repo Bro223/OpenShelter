@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.ReviewStatus;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -53,6 +54,15 @@ public interface ModerationAuditLog {
      */
     void record(long shelterId, long moderatorId, Action action, String reason,
                 ReviewStatus previousStatus, ReviewStatus newStatus);
+
+    /**
+     * Erasure redaction (legal-recovery M4 slice 2): nulls the free-text
+     * {@code reason} on the rows for the given shelters — the note is
+     * written to the (possibly erased) submitter and may echo their
+     * contacts. The action rows themselves survive (audit integrity).
+     * Returns the number of redacted rows.
+     */
+    int clearReasonByShelterIds(Collection<Long> shelterIds);
 
     /**
      * The newest rows first (created_at descending, id descending as the

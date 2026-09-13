@@ -31,8 +31,11 @@ public class ModerationActionEntity {
     @Column(name = "shelter_id", nullable = false)
     private Long shelterId;
 
-    /** The acting admin's user id. */
-    @Column(name = "moderator_id", nullable = false)
+    /** The acting user (V11, D4). Nullable since V14 (legal-recovery M4
+     *  slice 2): when the actor's account is erased the audit row survives
+     *  and this reference dangles (ON DELETE SET NULL) — the admin read
+     *  renders "Unknown" for it, like a deleted shelter. */
+    @Column(name = "moderator_id")
     private Long moderatorId;
 
     @Enumerated(EnumType.STRING)

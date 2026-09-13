@@ -14,6 +14,15 @@ public interface UserRepository {
 
     void save(User user);
 
+    /**
+     * Deletes the user row (legal-recovery M4 slice 2 — account erasure).
+     * The JPA implementation relies on the DB FK policy — every child
+     * {@code user_id} is ON DELETE CASCADE and {@code shelters.created_by}
+     * is ON DELETE SET NULL (the erasure service orphans the public rows
+     * explicitly first); the in-memory fake removes the user row only.
+     */
+    void delete(Long userId);
+
     /** {@code null} if no user has this id (contract from 01-user-verification.puml). */
     User findById(Long id);
 

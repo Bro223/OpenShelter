@@ -348,8 +348,8 @@
     <section class="change-panel">
       <h2 class="panel-title">Your data</h2>
       <p class="panel-copy">
-        Download a JSON file with everything tied to your account — your profile
-        (name, email, phone), the shelters you submitted and the reviews you wrote.
+        Download a JSON file with everything tied to your account — your profile (name, email,
+        phone), the shelters you submitted and the reviews you wrote.
       </p>
       <button
         type="button"
@@ -360,6 +360,37 @@
       >
         {{ busy() ? 'Preparing…' : 'Download my data (JSON)' }}
       </button>
+    </section>
+
+    <!-- ============================== Delete account (M4) ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Delete account</h2>
+      <p class="panel-copy">
+        Erases your account and everything tied to it. Shelters you declared as a private home
+        are removed; public shelters you submitted stay on the map without a submitter; your
+        reviews are removed. This cannot be undone.
+      </p>
+      <div class="field">
+        <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>
+        <input
+          id="delete-confirm"
+          type="text"
+          [formControl]="deleteConfirm"
+          autocomplete="off"
+          placeholder="DELETE"
+        />
+      </div>
+      <div class="panel-actions">
+        <button
+          type="button"
+          id="delete-account"
+          class="btn btn--ghost btn--danger"
+          (click)="deleteAccount()"
+          [disabled]="busy() || !deleteArmed()"
+        >
+          {{ busy() ? 'Deleting…' : 'Delete my account' }}
+        </button>
+      </div>
     </section>
   }
 </section>

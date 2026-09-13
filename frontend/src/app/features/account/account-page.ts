@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
@@ -53,6 +53,7 @@ type ChangePhase = 'form' | 'code' | 'done';
 export class AccountPage implements OnDestroy {
   private readonly account = inject(AccountGateway);
   protected readonly auth = inject(AuthStore);
+  private readonly router = inject(Router);
 
   // ---- identity section ----------------------------------------------------
   /** True while the password-confirmed edit form is open. */
@@ -347,6 +348,50 @@ export class AccountPage implements OnDestroy {
     const api = error instanceof ApiError ? error : toApiError(error);
     if (api.status === 429) {
       countdown.start(api.retryAfterSeconds ?? 60);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Delete account (M4 legal/recovery, slice 2): type-to-confirm erasure.
+  // -------------------------------------------------------------------------
+
+  /** The confirm word the user must type to arm the delete (no window.confirm). */
+  readonly deleteConfirm = new FormControl('', {
+    nonNullable: true,
+  });
+
+  /** Armed once the confirm word is exactly typed. Mirrored into a signal
+   *  (the FormControl value is not a signal) so the OnPush view refreshes
+   *  when it flips — the template reads the signal, never the control. */
+  protected readonly deleteArmed = signal(false);
+
+  constructor() {
+    this.deleteConfirm.valueChanges.subscribe((value) => this.deleteArmed.set(value === 'DELETE'));
+  }
+
+  /**
+   * "Delete my account" — the two-step type-to-confirm erasure. The
+   * button stays disarmed until DELETE is typed; on success the backend
+   * has already erased everything (private homes purged, public rows
+   * orphaned, the rest cascaded), so the local session ends and the page
+   * leaves for the map — the best-effort /auth/logout revocation is a
+   * no-op server-side (the refresh tokens died with the account).
+   */
+  async deleteAccount(): Promise<void> {
+    if (this.busy() || !this.deleteArmed()) {
+      return;
+    }
+    this.error.set(null);
+    this.success.set(null);
+    this.busy.set(true);
+    try {
+      await this.account.deleteAccount();
+      await this.auth.logout();
+      this.router.navigateByUrl('/map');
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'account'));
+    } finally {
+      this.busy.set(false);
     }
   }
 

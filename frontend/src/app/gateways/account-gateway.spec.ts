@@ -129,7 +129,12 @@ describe('AccountGateway', () => {
 
   it('exportData GETs /account/export and returns the document (M4 slice 1)', async () => {
     const doc = {
-      profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+      profile: {
+        name: 'Kontakt Muutus',
+        email: 'kontakt@example.ee',
+        phone: '+37250004444',
+        levels: [],
+      },
       shelters: [],
       reviews: [],
     };
@@ -139,5 +144,13 @@ describe('AccountGateway', () => {
 
     expect(api.get).toHaveBeenCalledWith('/account/export');
     expect(result).toEqual(doc);
+  });
+
+  it('deleteAccount DELETEs /account (M4 slice 2)', async () => {
+    api.delete.mockReturnValue(of(undefined));
+
+    await gateway.deleteAccount();
+
+    expect(api.delete).toHaveBeenCalledWith('/account');
   });
 });
