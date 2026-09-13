@@ -27,9 +27,17 @@ public class ModerationActionEntity {
     private Long id;
 
     /** The target shelter — NO FK in the DB (deliberate): after a shelter
-     *  delete the id dangles and the name resolves to "Deleted shelter". */
-    @Column(name = "shelter_id", nullable = false)
+     *  delete the id dangles and the name resolves to "Deleted shelter".
+     *  Nullable since V17 (M10 slice 1): user-scoped rows (USER_SUSPEND /
+     *  USER_UNSUSPEND) have no shelter. */
+    @Column(name = "shelter_id")
     private Long shelterId;
+
+    /** The target account of a user-scoped row (M10 slice 1); NULL for
+     *  shelter-scoped actions. NO FK in the DB: an account erasure must
+     *  not erase the audit — the id dangles and renders "Deleted account". */
+    @Column(name = "subject_user_id")
+    private Long subjectUserId;
 
     /** The acting user (V11, D4). Nullable since V14 (legal-recovery M4
      *  slice 2): when the actor's account is erased the audit row survives
@@ -71,6 +79,14 @@ public class ModerationActionEntity {
 
     public void setShelterId(Long shelterId) {
         this.shelterId = shelterId;
+    }
+
+    public Long getSubjectUserId() {
+        return subjectUserId;
+    }
+
+    public void setSubjectUserId(Long subjectUserId) {
+        this.subjectUserId = subjectUserId;
     }
 
     public Long getModeratorId() {

@@ -554,7 +554,7 @@ class ShelterQueryServiceTest {
         reportAt(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED,
                 NOW.minus(Duration.ofDays(2)));
         // the fixed audit clock stamps NOW — later than the report
-        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.CONFIRM, null,
+        audit.record(userShelter.getId(), null, 9L, ModerationAuditLog.Action.CONFIRM, null,
                 ReviewStatus.NEW, ReviewStatus.CONFIRMED);
 
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
@@ -565,7 +565,7 @@ class ShelterQueryServiceTest {
     void aStaleAdminConfirmAloneVerifiesUntilACommunityCheckSupersedes() {
         userShelter.setCreatedBy(1L);
         // the fixed audit clock stamps NOW; a later community check wins
-        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.CONFIRM, null,
+        audit.record(userShelter.getId(), null, 9L, ModerationAuditLog.Action.CONFIRM, null,
                 ReviewStatus.NEW, ReviewStatus.CONFIRMED);
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
                 .isEqualTo(NOW);
@@ -578,9 +578,9 @@ class ShelterQueryServiceTest {
     @Test
     void nonConfirmingAuditActionsNeverVerify() {
         userShelter.setCreatedBy(1L);
-        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.REJECT, null,
+        audit.record(userShelter.getId(), null, 9L, ModerationAuditLog.Action.REJECT, null,
                 ReviewStatus.NEW, ReviewStatus.REJECTED);
-        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.REPORT_DISMISS, null,
+        audit.record(userShelter.getId(), null, 9L, ModerationAuditLog.Action.REPORT_DISMISS, null,
                 ReviewStatus.CONFIRMED, ReviewStatus.CONFIRMED);
 
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();

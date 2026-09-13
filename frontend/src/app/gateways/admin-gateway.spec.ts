@@ -302,4 +302,41 @@ describe('AdminGateway', () => {
 
     expect(api.get).toHaveBeenCalledWith('/admin/alerts?limit=10');
   });
+
+  // ---- user suspension (M10 slice 1) ----------------------------------------
+
+  it('listUsers GETs the bare /admin/users', async () => {
+    const row = {
+      id: 301,
+      name: 'Siht',
+      email: 'siht@example.ee',
+      kind: 'REGISTERED' as const,
+      suspendedAt: null,
+    };
+    api.get.mockReturnValue(of([row]));
+
+    const rows = await gateway.listUsers();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/users');
+    expect(rows).toEqual([row]);
+  });
+
+  it('suspendUser POSTs /admin/users/{id}/suspend and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.suspendUser(301);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/users/301/suspend');
+  });
+
+  it('unsuspendUser POSTs /admin/users/{id}/unsuspend and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.unsuspendUser(301);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/users/301/unsuspend');
+  });
 });

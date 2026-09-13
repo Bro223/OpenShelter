@@ -65,6 +65,16 @@
       type="button"
       role="tab"
       class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'users'"
+      [attr.aria-selected]="tab() === 'users' ? 'true' : 'false'"
+      (click)="switchTab('users')"
+    >
+      Users
+    </button>
+    <button
+      type="button"
+      role="tab"
+      class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'audit'"
       [attr.aria-selected]="tab() === 'audit' ? 'true' : 'false'"
       (click)="switchTab('audit')"
@@ -501,6 +511,126 @@
   }
 
   <!-- ============================== Audit log ============================== -->
+  <!-- =========================== Users (M10 slice 1) =========================== -->
+  @if (tab() === 'users') {
+    @if (userRows() === null && userLoadError() === null) {
+      <app-loading-indicator class="admin-state" message="Loading accounts…" />
+    } @else if (userLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadUsers()">Retry</button>
+    } @else if ((userRows() ?? []).length === 0) {
+      <p class="admin-state">No accounts yet.</p>
+    } @else {
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">E-mail</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="admin-table__actions-head">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of userRows() ?? []; track row.id) {
+              <tr class="admin-row" [class.admin-row--dismissed]="row.suspendedAt !== null">
+                <td class="admin-cell--name">
+                  @if (row.name; as name) {
+                    {{ name }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td>
+                  @if (row.email; as email) {
+                    {{ email }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td>
+                  <span class="badge" [class.badge--user]="row.kind === 'REGISTERED'">{{
+                    row.kind
+                  }}</span>
+                </td>
+                <td>
+                  @if (row.suspendedAt; as suspendedAt) {
+                    <span class="badge badge--hidden">Suspended</span>
+                    <span class="admin-muted"> {{ suspendedAt | date: 'medium' }}</span>
+                  } @else {
+                    <span class="admin-muted">Active</span>
+                  }
+                </td>
+                <td class="admin-cell--actions">
+                  @if (row.kind === 'REGISTERED') {
+                    @if (confirmingUserAction() !== null && confirmingUserAction()!.id === row.id) {
+                      <!-- two-tap confirm (no window.confirm, the app's inline
+                           style — same as the shelter delete). -->
+                      <span class="admin-confirm">
+                        @if (confirmingUserAction()!.action === 'suspend') {
+                          Suspend this account? It loses login, refresh and its open session; its
+                          shelters stay on the map.
+                        } @else {
+                          Restore this account's access?
+                        }
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        [class.btn--danger]="confirmingUserAction()!.action === 'suspend'"
+                        (click)="confirmUserAction(row.id, confirmingUserAction()!.action)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy()
+                            ? 'Working…'
+                            : confirmingUserAction()!.action === 'suspend'
+                              ? 'Confirm suspend'
+                              : 'Confirm unsuspend'
+                        }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="cancelUserAction()"
+                        [disabled]="busy()"
+                      >
+                        Cancel
+                      </button>
+                    } @else if (row.suspendedAt === null) {
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        (click)="requestUserAction(row.id, 'suspend')"
+                        [disabled]="busy()"
+                      >
+                        Suspend
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="requestUserAction(row.id, 'unsuspend')"
+                        [disabled]="busy()"
+                      >
+                        Unsuspend
+                      </button>
+                    }
+                  } @else {
+                    <!-- ADMIN kind: listed for visibility, not suspendable
+                         (lockout vector — the backend answers 409). -->
+                    <span class="admin-muted">Not suspendable</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
   @if (tab() === 'audit') {
     @if (auditRows() === null && auditLoadError() === null) {
       <app-loading-indicator class="admin-state" message="Loading audit log…" />
@@ -516,7 +646,10 @@
             <tr>
               <th scope="col">When</th>
               <th scope="col">Moderator</th>
-              <th scope="col">Shelter</th>
+              <!-- "Subject" since M10 slice 1: a shelter row's name OR the
+                   suspended account ("Account: name (email)" / "Deleted
+                   account") — the server resolves both into one text. -->
+              <th scope="col">Subject</th>
               <th scope="col">Action</th>
               <th scope="col">Change</th>
               <th scope="col">Reason</th>

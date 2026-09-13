@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.time.Instant;
+
 /**
  * JPA entity for the single {@code users} table. Separate from the domain
  * {@code User} hierarchy (approach B) — the kind column discriminates.
@@ -48,6 +50,10 @@ public class UserEntity {
 
     @Column(name = "phone_hash", length = 64)
     private String phoneHash;
+
+    /** Suspension stamp (M10 slice 1); NULL while the account is active. */
+    @Column(name = "suspended_at")
+    private Instant suspendedAt;
 
     public Long getId() {
         return id;
@@ -107,5 +113,13 @@ public class UserEntity {
 
     public void setPhoneHash(String phoneHash) {
         this.phoneHash = phoneHash;
+    }
+
+    public Instant getSuspendedAt() {
+        return suspendedAt;
+    }
+
+    public void setSuspendedAt(Instant suspendedAt) {
+        this.suspendedAt = suspendedAt;
     }
 }

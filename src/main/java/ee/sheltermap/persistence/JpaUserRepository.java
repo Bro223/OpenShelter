@@ -188,4 +188,31 @@ public class JpaUserRepository implements UserRepository {
                 .map(e -> e.getKind() == UserKind.ADMIN)
                 .orElse(false);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isSuspended(long userId) {
+        // Column-only on purpose (M10 slice 1): the filter runs on EVERY
+        // token-bearing request, so it must not pay the domain mapping
+        // (PII decrypt, claims load) — and a demoted admin's null phone
+        // must not surface as a mapping NPE on a per-request path.
+        return users.findById(userId)
+                .map(e -> e.getSuspendedAt() != null)
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> findAll() {
+        List<UserEntity> entities = users.findAllByOrderByIdAsc();
+        // One batched claims query for all users — no per-user N+1 (the
+        // findByIds idiom).
+        Map<Long, List<VerificationClaimEntity>> claimsByUser =
+                entities.isEmpty() ? Map.of()
+                        : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()
+                                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
+        return entities.stream()
+                .map(e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto))
+                .toList();
+    }
 }

@@ -31,10 +31,11 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
-    public void record(long shelterId, long moderatorId, Action action, String reason,
+    public void record(Long shelterId, Long subjectUserId, long moderatorId, Action action, String reason,
                        ReviewStatus previousStatus, ReviewStatus newStatus) {
         ModerationActionEntity entity = new ModerationActionEntity();
         entity.setShelterId(shelterId);
+        entity.setSubjectUserId(subjectUserId);
         entity.setModeratorId(moderatorId);
         entity.setAction(action);
         entity.setReason(reason);
@@ -56,7 +57,8 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
         var page = actions.findAll(
                 PageRequest.of(0, limit, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
         return page.getContent().stream()
-                .map(entity -> new Row(entity.getId(), entity.getShelterId(), entity.getModeratorId(),
+                .map(entity -> new Row(entity.getId(), entity.getShelterId(), entity.getSubjectUserId(),
+                        entity.getModeratorId(),
                         entity.getAction(), entity.getReason(), entity.getPreviousStatus(),
                         entity.getNewStatus(), entity.getCreatedAt()))
                 .toList();

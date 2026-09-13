@@ -164,6 +164,9 @@ class FakeAdminGateway {
   reviewShelter = vi.fn();
   listAudit = vi.fn();
   listAlerts = vi.fn();
+  listUsers = vi.fn();
+  suspendUser = vi.fn();
+  unsuspendUser = vi.fn();
 }
 
 class FakeAuthGateway {
@@ -216,6 +219,9 @@ describe('AdminPage', () => {
     admin.reviewShelter.mockResolvedValue({ ok: true });
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue([]);
+    admin.suspendUser.mockResolvedValue(undefined);
+    admin.unsuspendUser.mockResolvedValue(undefined);
     account.myReviews.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -890,6 +896,129 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('No moderation actions yet.');
   });
 
+  // ---- users tab (M10 slice 1) -------------------------------------------------
+
+  it('switching to the Users tab loads accounts lazily; rows render name/e-mail/kind/status', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue([
+      { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
+      { id: 302, name: 'Admin', email: 'admin@example.ee', kind: 'ADMIN', suspendedAt: null },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    expect(admin.listUsers).not.toHaveBeenCalled(); // lazy — users tab only
+    buttonByText(element, 'Users')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.listUsers).toHaveBeenCalledTimes(1);
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain('Siht');
+    expect(rows[0].textContent).toContain('siht@example.ee');
+    expect(rows[0].textContent).toContain('REGISTERED');
+    expect(rows[0].textContent).toContain('Active');
+    // the suspend action is offered on the active registered row
+    expect(rows[0].textContent).toContain('Suspend');
+    // the admin row is listed (visible) but not suspendable
+    expect(rows[1].textContent).toContain('ADMIN');
+    expect(rows[1].textContent).toContain('Not suspendable');
+  });
+
+  it('suspending is two-tap: the confirm strip arms, confirms, and patches the row in place', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue([
+      { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Users')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    const row = firstRow(element);
+    buttonByText(row, 'Suspend')!.click();
+    fixture.detectChanges();
+    // armed: the confirm strip replaces the action buttons
+    expect(row.textContent).toContain('Suspend this account?');
+    expect(row.textContent).toContain('Confirm suspend');
+
+    buttonByText(row, 'Confirm suspend')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.suspendUser).toHaveBeenCalledTimes(1);
+    expect(admin.suspendUser).toHaveBeenCalledWith(301);
+    // patched in place: the badge + dimmed row, the action flips to Unsuspend
+    expect(firstRow(element).textContent).toContain('Suspended');
+    expect(firstRow(element).textContent).toContain('Unsuspend');
+    expect(firstRow(element).classList).toContain('admin-row--dismissed');
+  });
+
+  it('unsuspending flips the row back to Active', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue([
+      {
+        id: 301,
+        name: 'Siht',
+        email: 'siht@example.ee',
+        kind: 'REGISTERED',
+        suspendedAt: ago(60_000),
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Users')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    const row = firstRow(element);
+    buttonByText(row, 'Unsuspend')!.click();
+    fixture.detectChanges();
+    expect(row.textContent).toContain("Restore this account's access?");
+    buttonByText(row, 'Confirm unsuspend')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    expect(admin.unsuspendUser).toHaveBeenCalledWith(301);
+    expect(firstRow(element).textContent).toContain('Active');
+  });
+
+  it('the audit trail renders user-scoped rows with the account subject and new labels', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([
+      {
+        id: 9101,
+        createdAt: ago(2 * 60_000),
+        moderatorName: 'Admin',
+        shelterId: null,
+        shelterName: 'Account: Siht (siht@example.ee)',
+        action: 'USER_SUSPEND',
+        previousStatus: null,
+        newStatus: null,
+        reason: null,
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Audit log')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain('User suspended');
+    expect(rows[0].textContent).toContain('Account: Siht (siht@example.ee)');
+    // the column header is "Subject" since user rows share the trail
+    expect(element.textContent).toContain('Subject');
+  });
+
   // ---- empty states ---------------------------------------------------------------
 
   it('shows a plain empty state per tab when the queues are empty', async () => {
@@ -898,6 +1027,7 @@ describe('AdminPage', () => {
     admin.listReviewReports.mockResolvedValue([]);
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue([]);
     const { element, fixture } = await openAdmin();
 
     // Default tab: the unconfirmed queue is empty (no shelters at all).
@@ -926,6 +1056,12 @@ describe('AdminPage', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
     expect(element.textContent).toContain('No throttled or abusive activity yet.');
+
+    buttonByText(element, 'Users')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No accounts yet.');
 
     buttonByText(element, 'Audit log')!.click();
     await fixture.whenStable();

@@ -1,5 +1,8 @@
 package ee.sheltermap.domain;
 
+import java.time.Instant;
+import java.util.Objects;
+
 /**
  * Abstract base of ALL users — every kind IS-A {@code User} (the "Bird",
  * TIJ Ch 1). Kinds are fixed at creation; verification is claims (data),
@@ -11,6 +14,16 @@ package ee.sheltermap.domain;
 public abstract class User {
 
     private Long id;
+
+    /**
+     * Suspension stamp (moderation-dashboard-completion M10 slice 1) —
+     * non-null while the account is suspended. An INDEFINITE suspension
+     * an admin lifts manually (no expiry policy exists); the state is a
+     * plain account attribute, enforced by fresh lookups at the three
+     * credential doors (login, refresh, JWT filter), never a JWT claim.
+     */
+    private Instant suspendedAt;
+
 
     public Long getId() {
         return id;
@@ -27,4 +40,35 @@ public abstract class User {
     public abstract boolean canWrite();
 
     public abstract void deleteAccount();
+
+    /** The suspension stamp; {@code null} while the account is active. */
+    public Instant getSuspendedAt() {
+        return suspendedAt;
+    }
+
+    /**
+     * Persistence boundary only (the mapper restores the stored stamp on
+     * load); business code uses {@link #suspend(Instant)} /
+     * {@link #unsuspend()}.
+     */
+    public void setSuspendedAt(Instant suspendedAt) {
+        this.suspendedAt = suspendedAt;
+    }
+
+    /** Whether the account is suspended (login/refresh/tokens refuse it). */
+    public boolean isSuspended() {
+        return suspendedAt != null;
+    }
+
+    /** Suspends the account (idempotent — an already-set stamp is kept). */
+    public void suspend(Instant when) {
+        if (this.suspendedAt == null) {
+            this.suspendedAt = Objects.requireNonNull(when, "when");
+        }
+    }
+
+    /** Lifts the suspension (a no-op on an active account). */
+    public void unsuspend() {
+        this.suspendedAt = null;
+    }
 }

@@ -9,7 +9,9 @@ import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewDecision;
@@ -68,8 +70,14 @@ class AdminModerationServiceTest {
         service = new AdminModerationService(queryService, shelters, shelterReports,
                 new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED, audit);
 
-        adminId = saveUser("Admin", "admin@example.ee");
+        adminId = saveAdmin("Admin", "admin@example.ee");
         submitterId = saveUser("Autor", "autor@example.ee");
+    }
+
+    private long saveAdmin(String name, String email) {
+        ee.sheltermap.domain.AdminUser user = new ee.sheltermap.domain.AdminUser(name, email, null);
+        users.save(user);
+        return user.getId();
     }
 
     private long saveUser(String name, String email) {
@@ -114,7 +122,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getReviewNote()).isNull();
         assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
-                1L, shelter.getId(), adminId, ModerationAuditLog.Action.CONFIRM, null,
+                1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.CONFIRM, null,
                 ReviewStatus.NEW, ReviewStatus.CONFIRMED, NOW));
     }
 
@@ -141,7 +149,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.INACTIVE);
         assertThat(shelter.getReviewNote()).isEqualTo("Pole varjend");
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
-                1L, shelter.getId(), adminId, ModerationAuditLog.Action.REJECT, "Pole varjend",
+                1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.REJECT, "Pole varjend",
                 ReviewStatus.CONFIRMED, ReviewStatus.REJECTED, NOW));
     }
 
@@ -183,7 +191,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(shelter.isAutoHideDisarmed()).isTrue(); // the restore disarms, as before
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
-                1L, shelter.getId(), adminId, ModerationAuditLog.Action.STATUS_CHANGE, null,
+                1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.STATUS_CHANGE, null,
                 ReviewStatus.REJECTED, ReviewStatus.NEW, NOW));
     }
 
@@ -219,7 +227,7 @@ class AdminModerationServiceTest {
 
         assertThat(shelters.findById(shelter.getId())).isEmpty();
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
-                1L, shelter.getId(), adminId, ModerationAuditLog.Action.DELETE, null,
+                1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.DELETE, null,
                 ReviewStatus.NEW, null, NOW));
     }
 
@@ -296,5 +304,104 @@ class AdminModerationServiceTest {
         assertThat(service.listAudit(1)).hasSize(1);
         assertThatThrownBy(() -> service.listAudit(0)).isInstanceOf(InvalidShelterException.class);
         assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(InvalidShelterException.class);
+    }
+
+    // ---------- user suspension (M10 slice 1) ----------
+
+    @Test
+    void suspendingARegisteredUserSetsTheStampAndAuditsWithTheAccountAsSubject() {
+        service.suspendUser(adminId, submitterId);
+
+        assertThat(users.findById(submitterId).isSuspended()).isTrue();
+        assertThat(users.findById(submitterId).getSuspendedAt()).isEqualTo(NOW);
+        List<ModerationAuditLog.Row> rows = audit.rows();
+        assertThat(rows).hasSize(1);
+        ModerationAuditLog.Row row = rows.get(0);
+        assertThat(row.action()).isEqualTo(ModerationAuditLog.Action.USER_SUSPEND);
+        assertThat(row.shelterId()).isNull();
+        assertThat(row.subjectUserId()).isEqualTo(submitterId);
+        assertThat(row.moderatorId()).isEqualTo(adminId);
+
+        // The audit list renders the account in the subject slot.
+        List<AdminAuditDto> dtos = service.listAudit(null);
+        assertThat(dtos).hasSize(1);
+        assertThat(dtos.get(0).shelterName()).isEqualTo("Account: Autor (autor@example.ee)");
+        assertThat(dtos.get(0).moderatorName()).isEqualTo("Admin");
+    }
+
+    @Test
+    void reSuspendingAnAlreadySuspendedUserIsANoOpWithoutAnAuditRow() {
+        service.suspendUser(adminId, submitterId);
+        Instant first = users.findById(submitterId).getSuspendedAt();
+
+        service.suspendUser(adminId, submitterId);
+
+        assertThat(users.findById(submitterId).getSuspendedAt()).isEqualTo(first);
+        assertThat(audit.rows()).hasSize(1);
+    }
+
+    @Test
+    void unsuspendingClearsTheStampAndAudits() {
+        service.suspendUser(adminId, submitterId);
+        service.unsuspendUser(adminId, submitterId);
+
+        assertThat(users.findById(submitterId).isSuspended()).isFalse();
+        List<ModerationAuditLog.Row> rows = audit.rows();
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(1).action()).isEqualTo(ModerationAuditLog.Action.USER_UNSUSPEND);
+        assertThat(rows.get(1).subjectUserId()).isEqualTo(submitterId);
+    }
+
+    @Test
+    void unsuspendingAnActiveUserIsANoOpWithoutAnAuditRow() {
+        service.unsuspendUser(adminId, submitterId);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void suspendingAnAdminAccountIsRefusedWith409() {
+        assertThatThrownBy(() -> service.suspendUser(adminId, adminId))
+                .isInstanceOf(NonSuspendableUserException.class)
+                .hasMessage(AdminModerationService.NON_REGISTERED_SUSPENSION_MESSAGE);
+        assertThat(users.findById(adminId).isSuspended()).isFalse();
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void suspendingAnUnknownUserIsA404() {
+        assertThatThrownBy(() -> service.suspendUser(adminId, 999L))
+                .isInstanceOf(UserNotFoundException.class);
+        assertThatThrownBy(() -> service.unsuspendUser(adminId, 999L))
+                .isInstanceOf(UserNotFoundException.class);
+    }
+
+    @Test
+    void theUserListCarriesTheSuspensionStateAndSkipsGuests() {
+        // A guest row (no email) must not appear in the list.
+        users.save(new ee.sheltermap.domain.GuestUser());
+
+        List<AdminUserDto> rows = service.listUsers();
+
+        assertThat(rows).hasSize(2); // admin + submitter, id-ordered
+        assertThat(rows.get(0).id()).isEqualTo(adminId);
+        assertThat(rows.get(0).kind()).isEqualTo("ADMIN");
+        assertThat(rows.get(1).id()).isEqualTo(submitterId);
+        assertThat(rows.get(1).kind()).isEqualTo("REGISTERED");
+        assertThat(rows.get(1).email()).isEqualTo("autor@example.ee");
+        assertThat(rows.get(1).suspendedAt()).isNull();
+
+        service.suspendUser(adminId, submitterId);
+        AdminUserDto suspended = service.listUsers().get(1);
+        assertThat(suspended.suspendedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void theAuditListRendersADeletedAccountSubject() {
+        service.suspendUser(adminId, submitterId);
+        users.delete(submitterId);
+
+        List<AdminAuditDto> rows = service.listAudit(null);
+        assertThat(rows.get(0).shelterName())
+                .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
     }
 }

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.api.ErrorResponse;
 import ee.sheltermap.app.ReportProperties;
+import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.ContactChangeProperties;
 import ee.sheltermap.auth.JwtProperties;
 import ee.sheltermap.auth.JwtTokenService;
@@ -179,6 +180,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTokenService tokenService,
+                                                   UserRepository userRepository,
                                                    ObjectMapper objectMapper,
                                                    CorsConfigurationSource corsConfigurationSource) throws Exception {
         // M3 slice 5: the hardening headers go BEFORE the JWT filter (the
@@ -186,7 +188,7 @@ public class SecurityConfig {
         // headers are present on the 401/403 error bodies too — the entry
         // point writes those after both filters have run.
         SecurityHeadersFilter headersFilter = new SecurityHeadersFilter();
-        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenService);
+        JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenService, userRepository);
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource))

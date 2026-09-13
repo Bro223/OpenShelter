@@ -372,8 +372,8 @@ class ShelterReportServiceTest {
         // 3 + 1 = 4 → still ACTIVE; the next baseline point crosses 5.
         RegisteredUser senior = trustedUser("Senior");
         // second trust point: two own AUTO_CONFIRM actions
-        audit.record(1L, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
-        audit.record(2L, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
+        audit.record(1L, null, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
+        audit.record(2L, null, senior.getId(), ModerationAuditLog.Action.AUTO_CONFIRM, null, null, null);
 
         service.reportShelter(senior, shelter.getId(), ShelterReportType.NON_EXISTENT, null);
         service.reportShelter(user("B1", true), shelter.getId(), ShelterReportType.NON_EXISTENT, null);

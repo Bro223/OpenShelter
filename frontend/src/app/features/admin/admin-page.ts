@@ -20,6 +20,7 @@ import type {
   AdminShelterDto,
   AdminShelterReportDto,
   AdminReviewReportDto,
+  AdminUserDto,
   ShelterOccupancy,
   ShelterReportType,
   ShelterStatus,
@@ -44,9 +45,11 @@ import { RatingStars } from '../../shared/rating-stars';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
-/** The six moderation tabs: the review queue FIRST, the audit trail LAST
- *  (community-review-queue). */
-export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'alerts' | 'audit';
+/** The seven moderation tabs: the review queue FIRST, the audit trail LAST
+ *  (community-review-queue); the Users tab sits before the audit (M10
+ *  slice 1). */
+export type AdminTab =
+  'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'alerts' | 'users' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -80,6 +83,8 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   CONFIRM: 'Confirmed',
   AUTO_CONFIRM: 'Auto-confirmed',
   REJECT: 'Rejected',
+  USER_SUSPEND: 'User suspended',
+  USER_UNSUSPEND: 'User unsuspended',
 };
 
 /** M3 alert kind labels (abuse-limits slice 4): human copy for the
@@ -128,6 +133,14 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  * backend message; 401 mid-session is the global interceptor's job). The
  * review actions are the exception: they refetch the shelters list so the
  * unconfirmed queue and the Shelters tab both reflect the new state.
+ *
+ *  - USERS (before the audit, M10 slice 1) — the account list: name, e-mail,
+ *    kind, suspension state. Suspend is two-tap (arm + confirm, like the
+ *    shelter delete) and idempotent server-side; a suspended row is dimmed
+ *    with a "Suspended" badge and an Unsuspend action. Admin-kind rows are
+ *    listed (the provisioned account is visible) but the Suspend action is
+ *    never offered for them (backend 409 — lockout vector). Suspension
+ *    stops the ACCOUNT (login/refresh/tokens), not its shelters.
  */
 @Component({
   selector: 'app-admin-page',
@@ -193,6 +206,16 @@ export class AdminPage implements OnInit {
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly alertsRows = signal<AdminAlertRow[] | null>(null);
   protected readonly alertsLoadError = signal<string | null>(null);
+
+  // ---- users tab (M10 slice 1) ----------------------------------------------------
+  /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
+  protected readonly userRows = signal<AdminUserDto[] | null>(null);
+  protected readonly userLoadError = signal<string | null>(null);
+  /** Two-tap suspend/unsuspend confirm: the armed target (null = closed). */
+  protected readonly confirmingUserAction = signal<{
+    id: number;
+    action: 'suspend' | 'unsuspend';
+  } | null>(null);
 
   // ---- shared UI state ---------------------------------------------------------
   /** One in-flight mutation at a time (the row buttons all share it). */
@@ -314,6 +337,11 @@ export class AdminPage implements OnInit {
       case 'alerts':
         if (this.alertsRows() === null && this.alertsLoadError() === null) {
           this.loadAlerts();
+        }
+        break;
+      case 'users':
+        if (this.userRows() === null && this.userLoadError() === null) {
+          this.loadUsers();
         }
         break;
       case 'audit':
@@ -604,6 +632,60 @@ export class AdminPage implements OnInit {
       .listAlerts()
       .then((rows) => this.alertsRows.set(rows))
       .catch((error: unknown) => this.alertsLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  // -------------------------------------------------------------------------
+  // Users tab (M10 slice 1)
+  // -------------------------------------------------------------------------
+  loadUsers(): void {
+    this.userRows.set(null);
+    this.userLoadError.set(null);
+    this.confirmingUserAction.set(null);
+    this.admin
+      .listUsers()
+      .then((rows) => this.userRows.set(rows))
+      .catch((error: unknown) => this.userLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  /** Step 1 of the two-tap confirm: arm the confirm strip for the row. */
+  requestUserAction(id: number, action: 'suspend' | 'unsuspend'): void {
+    this.clearFeedback();
+    this.confirmingUserAction.set({ id, action });
+  }
+
+  cancelUserAction(): void {
+    this.confirmingUserAction.set(null);
+  }
+
+  /**
+   * Step 2: POST /admin/users/{id}/suspend | unsuspend (204, idempotent).
+   * The row patches in place (suspendedAt set/cleared) so the badge and the
+   * action label flip without a refetch.
+   */
+  async confirmUserAction(id: number, action: 'suspend' | 'unsuspend'): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      if (action === 'suspend') {
+        await this.admin.suspendUser(id);
+      } else {
+        await this.admin.unsuspendUser(id);
+      }
+      this.patchUser(id, { suspendedAt: action === 'suspend' ? new Date().toISOString() : null });
+      this.success.set(action === 'suspend' ? 'User suspended.' : 'User unsuspended.');
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.confirmingUserAction.set(null);
+      this.busy.set(false);
+    }
+  }
+
+  private patchUser(id: number, patch: Partial<AdminUserDto>): void {
+    this.userRows.update((rows) => (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   // -------------------------------------------------------------------------

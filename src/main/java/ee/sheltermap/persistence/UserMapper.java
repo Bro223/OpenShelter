@@ -44,6 +44,9 @@ final class UserMapper {
                         pii.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, PhoneNumbers.normalizeE164(data.phone())));
             }
         }
+        // Suspension state (M10 slice 1) round-trips on every kind — it is
+        // account state, not a registered-user attribute.
+        entity.setSuspendedAt(user.getSuspendedAt());
         return entity;
     }
 
@@ -64,6 +67,7 @@ final class UserMapper {
             case ADMIN -> new AdminUser(entity.getName(), email, phone);
         };
         user.setId(entity.getId());
+        user.setSuspendedAt(entity.getSuspendedAt());
         if (user instanceof RegisteredUser registered) {
             for (VerificationClaimEntity ce : claimEntities) {
                 VerificationClaim claim = new VerificationClaim(

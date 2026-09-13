@@ -251,7 +251,7 @@ public class ShelterReportService {
                 && byOtherUser) {
             shelter.setReviewStatus(ReviewStatus.CONFIRMED);
             shelters.save(shelter);
-            audit.record(shelter.getId(), reporter.getId(),
+            audit.record(shelter.getId(), null, reporter.getId(),
                     ModerationAuditLog.Action.AUTO_CONFIRM, null,
                     ReviewStatus.NEW, ReviewStatus.CONFIRMED);
         }

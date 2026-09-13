@@ -425,6 +425,20 @@ export interface AdminOccupancy {
 }
 
 /**
+ * The admin's view of one account (GET /admin/users, M10 slice 1):
+ * REGISTERED + ADMIN rows only (guests have no credentials to suspend,
+ * so the backend skips them). `suspendedAt` null = active. E-mail is
+ * admin-only data — never rendered outside the /admin feature.
+ */
+export interface AdminUserDto {
+  id: number;
+  name: string | null;
+  email: string | null;
+  kind: 'GUEST' | 'REGISTERED' | 'ADMIN';
+  suspendedAt: string | null;
+}
+
+/**
  * The admin's view of one shelter row (GET /admin/shelters): the public
  * projection's trust fields plus what the public list hides — INACTIVE rows
  * included, the submitter's name, and the raw capacity.
@@ -515,7 +529,9 @@ export type AdminAuditAction =
   | 'REVIEW_RESTORE'
   | 'CONFIRM'
   | 'AUTO_CONFIRM'
-  | 'REJECT';
+  | 'REJECT'
+  | 'USER_SUSPEND'
+  | 'USER_UNSUSPEND';
 
 /**
  * One row of GET /admin/audit (newest first; the backend returns the
@@ -528,8 +544,11 @@ export type AdminAuditAction =
  */
 export interface AdminAuditRow {
   id: number;
-  shelterId: number;
-  /** Resolved at read time ("Deleted shelter" when the row is gone). */
+  /** null on user-scoped rows (USER_SUSPEND / USER_UNSUSPEND — M10 slice 1). */
+  shelterId: number | null;
+  /** Resolved at read time: a shelter row's name ("Deleted shelter" when
+   *  the row is gone) OR the suspended account ("Account: name (email)" /
+   *  "Deleted account") — the tab's "Subject" column. */
   shelterName: string;
   action: AdminAuditAction;
   /** The reason given with the action (REJECT, status change). */

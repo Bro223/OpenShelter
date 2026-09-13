@@ -3,13 +3,17 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReviewReportRepository;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReviewRepository;
+import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.domain.AdminUser;
+import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewDecision;
 import ee.sheltermap.domain.ReviewReport;
 import ee.sheltermap.domain.ReviewStatus;
@@ -78,6 +82,13 @@ public class AdminModerationService {
 
     /** The read-time rendering of a gone shelter's name in the audit trail (D4). */
     public static final String DELETED_SHELTER_NAME = "Deleted shelter";
+
+    /** The read-time rendering of a gone subject account in the audit trail (M10 slice 1). */
+    public static final String DELETED_ACCOUNT_NAME = "Deleted account";
+
+    /** Plain-spoken 409 for a suspend/unsuspend of a non-REGISTERED account (M10 slice 1). */
+    public static final String NON_REGISTERED_SUSPENSION_MESSAGE =
+            "Only registered user accounts can be suspended";
 
     private final ShelterQueryService queryService;
     private final ShelterRepository shelters;
@@ -152,7 +163,7 @@ public class AdminModerationService {
             // v2 D4). previous/new carry the review_status — it moves only
             // on a restore of a REJECTED row; otherwise the action string
             // says what moved.
-            audit.record(shelterId, moderatorId, ModerationAuditLog.Action.STATUS_CHANGE, null,
+            audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.STATUS_CHANGE, null,
                     previousReview, shelter.getReviewStatus());
         }
     }
@@ -171,7 +182,7 @@ public class AdminModerationService {
     public void deleteShelter(long moderatorId, long shelterId) {
         Shelter shelter = requireShelter(shelterId);
         requireUserOwned(shelter);
-        audit.record(shelterId, moderatorId, ModerationAuditLog.Action.DELETE, null,
+        audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
         shelters.deleteById(shelterId);
     }
@@ -232,7 +243,7 @@ public class AdminModerationService {
             report.markDismissed(clock.instant());
             shelterReports.save(report);
             ReviewStatus reviewStatus = reviewStatusOf(report.getShelterId());
-            audit.record(report.getShelterId(), moderatorId,
+            audit.record(report.getShelterId(), null, moderatorId,
                     ModerationAuditLog.Action.REPORT_DISMISS, null, reviewStatus, reviewStatus);
         }
     }
@@ -297,7 +308,7 @@ public class AdminModerationService {
             review.markHidden(clock.instant());
             reviews.save(review);
             ReviewStatus reviewStatus = reviewStatusOf(review.getShelterId());
-            audit.record(review.getShelterId(), moderatorId,
+            audit.record(review.getShelterId(), null, moderatorId,
                     ModerationAuditLog.Action.REVIEW_HIDE, null, reviewStatus, reviewStatus);
         }
     }
@@ -315,7 +326,7 @@ public class AdminModerationService {
             review.markVisible();
             reviews.save(review);
             ReviewStatus reviewStatus = reviewStatusOf(review.getShelterId());
-            audit.record(review.getShelterId(), moderatorId,
+            audit.record(review.getShelterId(), null, moderatorId,
                     ModerationAuditLog.Action.REVIEW_RESTORE, null, reviewStatus, reviewStatus);
         }
     }
@@ -361,7 +372,7 @@ public class AdminModerationService {
         shelters.save(shelter);
         // The audit reason is the stored note — only REJECT stores one
         // (CONFIRM clears the note and ignores the reason).
-        audit.record(shelterId, moderatorId, auditAction(decision),
+        audit.record(shelterId, null, moderatorId, auditAction(decision),
                 decision == ReviewDecision.REJECT ? note : null, previous,
                 shelter.getReviewStatus());
     }
@@ -385,18 +396,26 @@ public class AdminModerationService {
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<Long, String> shelterNames = shelters.findByIds(rows.stream()
-                        .map(ModerationAuditLog.Row::shelterId).collect(Collectors.toSet()))
+        // User-scoped rows (M10 slice 1) carry a null shelterId + a
+        // subjectUserId; both reference sets are resolved in ONE batched
+        // lookup each (no N+1), dangling ids included (rendered at read
+        // time — "Deleted shelter" / "Deleted account").
+        Set<Long> shelterIds = rows.stream()
+                .map(ModerationAuditLog.Row::shelterId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> subjectIds = rows.stream()
+                .map(ModerationAuditLog.Row::subjectUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> shelterNames = shelters.findByIds(shelterIds)
                 .stream().collect(Collectors.toMap(Shelter::getId, Shelter::getName));
+        Map<Long, User> subjects = users.findByIds(subjectIds);
         Map<Long, User> moderators = users.findByIds(rows.stream()
-                .map(ModerationAuditLog.Row::moderatorId).collect(Collectors.toSet()));
+                .map(ModerationAuditLog.Row::moderatorId).filter(Objects::nonNull).collect(Collectors.toSet()));
         return rows.stream()
                 .map(row -> {
                     User moderator = moderators.get(row.moderatorId());
                     return new AdminAuditDto(
                             row.id(),
                             row.shelterId(),
-                            shelterNames.getOrDefault(row.shelterId(), DELETED_SHELTER_NAME),
+                            auditSubjectName(row, shelterNames, subjects),
                             row.action(),
                             row.reason(),
                             row.previousStatus(),
@@ -405,6 +424,115 @@ public class AdminModerationService {
                             row.createdAt());
                 })
                 .toList();
+    }
+
+    /**
+     * The audit row's subject text (M10 slice 1): a shelter row renders
+     * the shelter name (or "Deleted shelter" once the row is gone); a
+     * user-scoped row renders "Account: name (email)" (or "Deleted
+     * account" after the target's erasure). The DTO shape is unchanged —
+     * this text occupies the existing shelter-name slot, which the
+     * frontend labels "Subject".
+     */
+    private static String auditSubjectName(ModerationAuditLog.Row row,
+                                           Map<Long, String> shelterNames,
+                                           Map<Long, User> subjects) {
+        if (row.shelterId() != null) {
+            return shelterNames.getOrDefault(row.shelterId(), DELETED_SHELTER_NAME);
+        }
+        User subject = subjects.get(row.subjectUserId());
+        if (subject == null) {
+            return DELETED_ACCOUNT_NAME;
+        }
+        String name = subject.getData().name();
+        String email = subject.getData().email();
+        String base = (name == null || name.isBlank()) ? "Unknown" : name;
+        return "Account: " + base + (email == null || email.isBlank() ? "" : " (" + email + ")");
+    }
+
+    /**
+     * GET /admin/users — the account list behind the Users tab (M10
+     * slice 1): every REGISTERED and ADMIN account, id-ordered, with its
+     * suspension state. GUEST rows are filtered out (no credentials to
+     * suspend); the ADMIN row is listed so the provisioned account is
+     * visible but not suspendable. One pass over the whole table — the
+     * account population is small and the tab is a triage surface, not a
+     * paginated index.
+     */
+    @Transactional(readOnly = true)
+    public List<AdminUserDto> listUsers() {
+        return users.findAll().stream()
+                .filter(user -> user.getData().email() != null)
+                .map(user -> AdminUserDto.of(user.getData(), kindName(user), user.getSuspendedAt(), user.getId()))
+                .toList();
+    }
+
+    /**
+     * POST /admin/users/{id}/suspend (M10 slice 1) — set the suspension
+     * stamp on a REGISTERED account (idempotent: re-suspending an
+     * already-suspended account is a no-op that records no audit row).
+     * Unknown id → 404; ADMIN/GUEST → 409 (the provisioned admin is a
+     * lockout vector, a guest has no credentials). The audit row joins
+     * this transaction with the account as subject (shelterless row).
+     */
+    @Transactional
+    public void suspendUser(long moderatorId, long userId) {
+        User user = requireUser(userId);
+        if (!isRegistered(user)) {
+            throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
+        }
+        if (!user.isSuspended()) {
+            user.suspend(clock.instant());
+            users.save(user);
+            audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_SUSPEND,
+                    null, null, null);
+        }
+    }
+
+    /**
+     * POST /admin/users/{id}/unsuspend (M10 slice 1) — clear the stamp
+     * (idempotent: unsuspending an active account is a no-op that records
+     * no audit row). The same 404/409 guards as {@link #suspendUser}.
+     */
+    @Transactional
+    public void unsuspendUser(long moderatorId, long userId) {
+        User user = requireUser(userId);
+        if (!isRegistered(user)) {
+            throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
+        }
+        if (user.isSuspended()) {
+            user.unsuspend();
+            users.save(user);
+            audit.record(null, userId, moderatorId, ModerationAuditLog.Action.USER_UNSUSPEND,
+                    null, null, null);
+        }
+    }
+
+    private User requireUser(long userId) {
+        User user = users.findById(userId);
+        if (user == null) {
+            throw new UserNotFoundException(userId);
+        }
+        return user;
+    }
+
+    /**
+     * REGISTERED only — the kind truth is the domain class (the in-memory
+     * fake mirrors the JPA impl's users.kind column the same way).
+     * AdminUser IS-A RegisteredUser, so it is excluded explicitly.
+     */
+    private static boolean isRegistered(User user) {
+        return user instanceof RegisteredUser && !(user instanceof AdminUser);
+    }
+
+    private static String kindName(User user) {
+        if (user instanceof AdminUser) {
+            return "ADMIN";
+        }
+        if (user instanceof RegisteredUser) {
+            return "REGISTERED";
+        }
+        return "GUEST";
     }
 
     private Shelter requireShelter(long shelterId) {

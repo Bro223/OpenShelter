@@ -27,10 +27,10 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
-    public synchronized void record(long shelterId, long moderatorId, Action action, String reason,
-                                    ReviewStatus previousStatus, ReviewStatus newStatus) {
-        rows.add(new Row(nextId++, shelterId, moderatorId, action, reason, previousStatus, newStatus,
-                clock.instant()));
+    public synchronized void record(Long shelterId, Long subjectUserId, long moderatorId, Action action,
+                                    String reason, ReviewStatus previousStatus, ReviewStatus newStatus) {
+        rows.add(new Row(nextId++, shelterId, subjectUserId, moderatorId, action, reason,
+                previousStatus, newStatus, clock.instant()));
     }
 
     @Override
@@ -58,9 +58,9 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
         int redacted = 0;
         for (int i = 0; i < rows.size(); i++) {
             Row row = rows.get(i);
-            if (shelterIds.contains(row.shelterId()) && row.reason() != null) {
-                rows.set(i, new Row(row.id(), row.shelterId(), row.moderatorId(), row.action(),
-                        null, row.previousStatus(), row.newStatus(), row.createdAt()));
+            if (row.shelterId() != null && shelterIds.contains(row.shelterId()) && row.reason() != null) {
+                rows.set(i, new Row(row.id(), row.shelterId(), row.subjectUserId(), row.moderatorId(),
+                        row.action(), null, row.previousStatus(), row.newStatus(), row.createdAt()));
                 redacted++;
             }
         }

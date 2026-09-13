@@ -33,11 +33,16 @@ public interface ModerationAuditLog {
         REVIEW_RESTORE,
         CONFIRM,
         AUTO_CONFIRM,
-        REJECT
+        REJECT,
+        // User-scoped rows (moderation-dashboard-completion M10 slice 1):
+        // the action has no shelter (shelterId null) and names the target
+        // account in subjectUserId.
+        USER_SUSPEND,
+        USER_UNSUSPEND
     }
 
     /** One audit row as read by the admin projection. */
-    record Row(Long id, Long shelterId, Long moderatorId, Action action, String reason,
+    record Row(Long id, Long shelterId, Long subjectUserId, Long moderatorId, Action action, String reason,
                ReviewStatus previousStatus, ReviewStatus newStatus, Instant createdAt) {
     }
 
@@ -60,8 +65,13 @@ public interface ModerationAuditLog {
      * hide/restore — the action string says what moved; a restore of a
      * REJECTED row is the exception — REJECTED→NEW) and
      * {@code newStatus = null} for DELETE (the row is gone).
+     *
+     * <p>User-scoped rows (M10 slice 1): {@code shelterId} is null and
+     * {@code subjectUserId} names the target account (USER_SUSPEND /
+     * USER_UNSUSPEND); shelter-scoped rows pass a non-null {@code
+     * shelterId} and a null {@code subjectUserId}.
      */
-    void record(long shelterId, long moderatorId, Action action, String reason,
+    void record(Long shelterId, Long subjectUserId, long moderatorId, Action action, String reason,
                 ReviewStatus previousStatus, ReviewStatus newStatus);
 
     /**

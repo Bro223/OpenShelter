@@ -84,6 +84,13 @@ public class JwtTokenService implements TokenService {
         if (!(user instanceof RegisteredUser registered)) {
             throw new InvalidRefreshTokenException();
         }
+        // Suspension (M10 slice 1): a suspended account cannot rotate — the
+        // check is on the freshly loaded user (immediate, no token claim).
+        // The refresh row was already claimed (revoke above), so the
+        // suspended user's old refresh token is spent either way.
+        if (registered.isSuspended()) {
+            throw new SuspendedAccountException();
+        }
         return issue(registered);
     }
 

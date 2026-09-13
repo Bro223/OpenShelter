@@ -4,6 +4,7 @@ import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -50,4 +51,24 @@ public interface UserRepository {
      * unknown ids are {@code false}.
      */
     boolean isAdmin(long userId);
+
+    /**
+     * Whether the row behind {@code userId} is suspended (M10 slice 1) —
+     * the COLUMN-ONLY read the JWT filter uses per token-bearing request
+     * (no domain mapping, no PII decrypt; unknown ids are {@code false},
+     * the same convention as {@link #isAdmin} — a deleted account's token
+     * keeps authenticating, the erasure contract from legal-recovery M4
+     * slice 2: the JWT stays valid until expiry). Suspension is the only
+     * case where a valid token authenticates nothing.
+     */
+    boolean isSuspended(long userId);
+
+    /**
+     * Every user row (moderation-dashboard-completion M10 slice 1 — the
+     * admin Users tab lists REGISTERED + ADMIN accounts; the projection
+     * filters the kinds, the seam returns all of them so the "the list is
+     * the whole account population" invariant stays in one place).
+     * Ordered by id for a stable tab.
+     */
+    List<User> findAll();
 }

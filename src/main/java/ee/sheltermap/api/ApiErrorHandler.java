@@ -4,12 +4,14 @@ import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.OwnReviewReportException;
+import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
 import ee.sheltermap.app.ShelterDuplicateException;
 import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterSubmissionThrottledException;
+import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.DuplicateReportException;
 import ee.sheltermap.app.ImportOwnedShelterException;
@@ -21,6 +23,7 @@ import ee.sheltermap.auth.InvalidRefreshTokenException;
 import ee.sheltermap.auth.InvalidProfilePasswordException;
 import ee.sheltermap.auth.InvalidResetTokenException;
 import ee.sheltermap.auth.RateLimitExceededException;
+import ee.sheltermap.auth.SuspendedAccountException;
 import ee.sheltermap.auth.VerificationFailedException;
 import ee.sheltermap.verification.AlreadyVerifiedException;
 import ee.sheltermap.verification.VerificationThrottledException;
@@ -158,6 +161,16 @@ public class ApiErrorHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
+    /**
+     * A suspend/unsuspend of an account kind that cannot be suspended
+     * (M10 slice 1: ADMIN lockout vector, GUEST has no credentials) —
+     * 409, plain-spoken.
+     */
+    @ExceptionHandler(NonSuspendableUserException.class)
+    ResponseEntity<ErrorResponse> nonSuspendableUser(NonSuspendableUserException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({
             InvalidCredentialsException.class,
             InvalidAccessTokenException.class,
@@ -239,13 +252,15 @@ public class ApiErrorHandler {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }
 
-    @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class, AdminAccessException.class})
+    @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class, AdminAccessException.class,
+            SuspendedAccountException.class})
     ResponseEntity<ErrorResponse> forbidden(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }
 
     @ExceptionHandler({
             ShelterNotFoundException.class,
+            UserNotFoundException.class,
             ShelterReviewNotFoundException.class,
             ReportNotFoundException.class,
             NoResourceFoundException.class})

@@ -8,6 +8,7 @@ import type {
   AdminShelterFilters,
   AdminShelterReportDto,
   AdminReviewReportDto,
+  AdminUserDto,
   ReviewShelterRequest,
   ReviewShelterResponse,
   ShelterStatus,
@@ -20,7 +21,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The eleven endpoints, 1:1:
+ * The fourteen endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -33,6 +34,9 @@ import type {
  *   POST   /admin/reviews/{id}/restore         -> 204 (idempotent)
  *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
  *   GET    /admin/alerts?limit=                -> AdminAlertRow[] (newest 50)
+ *   GET    /admin/users                        -> AdminUserDto[] (M10 slice 1)
+ *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
+ *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
  *
  * The review hide/restore `{id}` is the REVIEW's id, not the review-report
  * row's id — callers pass `row.reviewId`.
@@ -137,6 +141,33 @@ export class AdminGateway {
    */
   restoreReview(reviewId: number): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/reviews/${reviewId}/restore`));
+  }
+
+  /**
+   * GET /admin/users -> the account list behind the Users tab (M10 slice
+   * 1): every REGISTERED + ADMIN account, id-ordered, with its
+   * suspension state (null = active).
+   */
+  listUsers(): Promise<AdminUserDto[]> {
+    return lastValueFrom(this.api.get<AdminUserDto[]>('/admin/users'));
+  }
+
+  /**
+   * POST /admin/users/{id}/suspend -> 204 (idempotent). Suspension stops
+   * the account at the credential doors (login 403, refresh 403, in-flight
+   * tokens 401); its shelters stay on the map. REGISTERED accounts only —
+   * an admin/guest target answers 409, an unknown id 404.
+   */
+  suspendUser(id: number): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/users/${id}/suspend`));
+  }
+
+  /**
+   * POST /admin/users/{id}/unsuspend -> 204 (idempotent). Restores login,
+   * refresh rotation and in-flight tokens immediately (fresh lookups).
+   */
+  unsuspendUser(id: number): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/users/${id}/unsuspend`));
   }
 }
 

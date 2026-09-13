@@ -136,6 +136,13 @@ public class AuthService {
         if (user == null) {
             throw new InvalidCredentialsException();
         }
+        // Suspension check (M10 slice 1) — AFTER the verify + existence
+        // guard: a wrong password still gets the generic 401, so the 403
+        // can only ever leak "suspended" to someone who already proved the
+        // password (no unauthenticated account-state oracle).
+        if (user.isSuspended()) {
+            throw new SuspendedAccountException();
+        }
         return tokens.issue(user);
     }
 

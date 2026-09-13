@@ -165,6 +165,35 @@ public class AdminController {
         return moderation.listReviewReports();
     }
 
+    /**
+     * The account list behind the Users tab (M10 slice 1): every REGISTERED
+     * and ADMIN account with its suspension state, id-ordered.
+     */
+    @GetMapping("/users")
+    public List<AdminUserDto> listUsers() {
+        requireAdmin();
+        return moderation.listUsers();
+    }
+
+    /**
+     * Suspend a registered account (M10 slice 1): login, refresh rotation
+     * and every in-flight token stop working immediately. 204 (idempotent);
+     * 404 unknown id; 409 admin/guest targets (lockout vector / no
+     * credentials). Audited as USER_SUSPEND with the account as subject.
+     */
+    @PostMapping("/users/{id}/suspend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void suspendUser(@PathVariable long id) {
+        moderation.suspendUser(requireAdmin(), id);
+    }
+
+    /** Lift a suspension (M10 slice 1) — idempotent, audited. Same 204/404/409. */
+    @PostMapping("/users/{id}/unsuspend")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsuspendUser(@PathVariable long id) {
+        moderation.unsuspendUser(requireAdmin(), id);
+    }
+
     /** Immediate review hide — idempotent. 204; 404 unknown review. */
     @PostMapping("/reviews/{id}/hide")
     @ResponseStatus(HttpStatus.NO_CONTENT)
