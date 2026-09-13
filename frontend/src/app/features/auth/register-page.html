@@ -32,6 +32,11 @@
           autocomplete="email"
           placeholder="you@example.ee"
         />
+        <!-- legal-recovery (roadmap M4): why-we-collect copy — verification
+             + account recovery, the only two uses (see /privacy). -->
+        <p class="field-note">
+          We send you a verification code here and use it later for password resets.
+        </p>
         @if (duplicate()?.field === 'email') {
           <p class="field-error">{{ duplicate()?.message }}</p>
         } @else if (form.controls.email.touched && form.controls.email.invalid) {
@@ -48,6 +53,9 @@
           autocomplete="tel"
           placeholder="+3725… or 5xxxxxxx"
         />
+        <p class="field-note">
+          We send you a verification code here; you can log in with it later too.
+        </p>
         @if (duplicate()?.field === 'phone') {
           <p class="field-error">{{ duplicate()?.message }}</p>
         } @else if (form.controls.phone.touched && form.controls.phone.invalid) {

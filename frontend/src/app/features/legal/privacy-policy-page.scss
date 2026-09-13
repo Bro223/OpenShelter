@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+/* Static legal document: one readable column, app-wide tokens only. */
+.legal-page {
+  max-width: 46rem;
+  margin: var(--space-32) auto 0;
+  padding: 0 var(--space-16) var(--space-32);
+
+  section {
+    margin-bottom: var(--space-24);
+  }
+
+  h2 {
+    margin: 0 0 var(--space-8);
+    font-size: var(--text-lg);
+  }
+
+  p,
+  ul {
+    margin: 0 0 var(--space-8);
+  }
+
+  ul {
+    padding-left: var(--space-16);
+    list-style: disc;
+  }
+}

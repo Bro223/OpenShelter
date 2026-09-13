@@ -53,6 +53,14 @@
         >
           {{ locating() ? 'Finding your location…' : 'Show shelters around you' }}
         </button>
+        <!-- legal-recovery (roadmap M4 slice 4): the explicit consent line —
+             the CTA is the only geolocation trigger and the browser prompt
+             is the consent; the nearest ranking is client-side (no backend
+             call), so the promise "never sent" is the actual behavior. -->
+        <p class="map-page__geo-note">
+          Your browser asks first — your location is never sent to our servers and is used only to
+          find the nearest shelter.
+        </p>
         @if (auth.initialized() && auth.authenticated()) {
           <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
         }

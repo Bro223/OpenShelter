@@ -58,6 +58,21 @@ export const routes: Routes = [
     data: { title: 'Account' },
     canActivate: [titleGuard, authGuard],
   },
+  // legal-recovery (roadmap M4): static legal pages, no backend — lazy for
+  // the same bundle-budget reason as the other rare routes.
+  {
+    path: 'privacy',
+    loadComponent: () =>
+      import('./features/legal/privacy-policy-page').then((m) => m.PrivacyPolicyPage),
+    data: { title: 'Privacy policy' },
+    canActivate: [titleGuard],
+  },
+  {
+    path: 'terms',
+    loadComponent: () => import('./features/legal/terms-page').then((m) => m.TermsPage),
+    data: { title: 'Terms of use' },
+    canActivate: [titleGuard],
+  },
   // Public: anonymous visitors see the detail without the review controls;
   // the page itself branches on auth/verification (design decision 2).
   {

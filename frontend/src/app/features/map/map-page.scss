@@ -137,6 +137,14 @@
   }
 }
 
+/* Geolocation consent line under the CTA (legal-recovery M4 slice 4):
+   muted, secondary — it explains the consent, not an action. */
+.map-page__geo-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
 /* The one-line state under the CTA: the found shelter ("Nearest: …"), the
    empty-list offer, or the per-error copy (the submit page's vocabulary). */
 .nearest-line {

@@ -45,14 +45,31 @@
       re-register, idempotent second delete, export-after-delete yields
       no data) + BE/FE gates green
 
-## Slice 3 — privacy policy + terms (not started)
+## Slice 3 — privacy policy + terms (this pass)
 
-- [ ] Static FE pages (no backend) + routes + nav/footer links
-- [ ] "Why we collect e-mail/phone" copy (verification + account recovery)
+- [x] Static FE pages (no backend): `features/legal/privacy-policy-page`
+      + `features/legal/terms-page` (OnPush, no state, app tokens only),
+      lazy routes `/privacy` + `/terms` (titleGuard, bundle budget)
+- [x] Footer links on EVERY page via the shell (`.shell-footer__legal`
+      under the safety notice) + page specs pinning the claims the copy
+      makes (verification+recovery reasons, encryption facts, client-side
+      location, no IP inference, self-service rights, 112 framing,
+      verified-user ≠ verified-shelter)
+- [x] "Why we collect e-mail/phone" copy on the register form (`.field-note`
+      under the e-mail field: verification code + password resets; under
+      the phone field: verification code + later login)
 
-## Slice 4 — retention rules + explicit geolocation consent (not started)
+## Slice 4 — retention rules + explicit geolocation consent (partial — retention owner-owed)
 
-- [ ] Retention documentation/decisions (owner product call candidates —
-      LOG, do not decide)
-- [ ] Geolocation consent: keep the "Show shelters around you" CTA fully
-      user-initiated (browser prompt IS the consent; never IP geolocation)
+- [x] Geolocation consent: the "Show shelters around you" CTA stays the
+      ONLY user-initiated trigger; a standing consent line under it now
+      states the browser asks first and the location is never sent to the
+      servers (the nearest ranking is client-side — no backend call);
+      never IP geolocation (no such code path exists — verified in review)
+- [ ] Retention rules — **OWNER PRODUCT CALL (logged 2026-09-13, not
+      decided)**: whether to run any calendar-based retention (e.g. auto-
+      deletion of inactive accounts, or a data-prune schedule). The
+      privacy policy states the CURRENT behavior only (data kept for the
+      life of the account, no automatic deletion today) and flags that it
+      will be updated if that changes. M15 (security/backups/monitoring)
+      is the natural place to revisit this with the owner.

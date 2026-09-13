@@ -76,17 +76,27 @@ complete, gate-green piece.
   export yields no user data; no blind-index entry remains matchable for
   the erased contact (re-registration with it succeeds).
 
-### Slice 3 — privacy policy + terms (not started)
+### Slice 3 — privacy policy + terms (this pass)
 
-- Static FE pages (no backend) + the "why we collect e-mail/phone" copy
-  (verification + account recovery).
+- Static FE pages (no backend): `/privacy` + `/terms` (lazy routes,
+  titleGuard, public) + the "why we collect e-mail/phone" copy on the
+  register form (e-mail: verification code + password resets; phone:
+  verification code + later login). Footer links on every page via the
+  shell. The copy states the app's ACTUAL behavior (encryption at rest +
+  one-way index/hash, client-side nearest, no IP geolocation,
+  self-service export/deletion) and does NOT assert a retention schedule
+  (owner product call — see slice 4).
 
-### Slice 4 — retention rules + explicit geolocation consent (not started)
+### Slice 4 — retention rules + explicit geolocation consent (partial — retention owner-owed)
 
-- Retention documentation/decisions (owner product call candidates —
-  e.g. how long inactive accounts are kept — LOG IT, do not decide).
-- Geolocation consent = the user-initiated "Show shelters around you" CTA
-  (the browser prompt IS the consent); never IP geolocation.
+- Geolocation consent (done): the user-initiated "Show shelters around
+  you" CTA stays the only trigger and is now paired with a standing
+  consent line (browser asks first; location never sent to the servers —
+  the nearest ranking is client-side); never IP geolocation.
+- Retention rules (owner product call, logged, not decided): whether to
+  run any calendar-based retention / auto-deletion. The privacy policy
+  states the current behavior only (life of the account, no auto-deletion
+  today).
 
 ## Non-goals (this change)
 

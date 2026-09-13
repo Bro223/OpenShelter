@@ -107,3 +107,76 @@ JWT SHALL be an idempotent 204 no-op.
   export again with the same JWT
 - **THEN** no data document is returned (the account no longer exists
   behind the token) and the erased contact can be re-registered
+
+### Requirement: Legal pages (privacy policy + terms of use)
+
+The frontend SHALL serve a static privacy policy at `/privacy` and a
+static terms of use at `/terms` (no backend endpoints; both public, no
+auth guard, browser-tab titles via the standard title guard). Both pages
+SHALL be reachable from every page via the app shell footer. The privacy
+policy SHALL state, matching the implementation: what is collected
+(name, e-mail, phone, password, submitted content); why e-mail and phone
+are collected (identity verification + account recovery, and only those
+uses); that e-mail/phone are encrypted at rest with a one-way lookup
+index and passwords one-way hashed; that location is used only on
+user-initiated actions, that the map's nearest ranking is computed in the
+browser (live position never sent to the servers), and that IP
+geolocation is never performed; who sees the data (no sale or
+advertising; e-mail/SMS delivery providers see the destination contact);
+the self-service rights (JSON export, account deletion with its
+private-purged/public-orphaned consequence, code-verified contact change,
+password reset); and that retention is for the life of the account with
+no automatic deletion of inactive accounts yet (the retention schedule
+itself is an owner product call — logged, not asserted).
+
+#### Scenario: Privacy policy page
+
+- **WHEN** an anonymous visitor opens `/privacy`
+- **THEN** the policy renders with the sections: what we collect, why we
+  collect e-mail/phone (verification + recovery), storage facts
+  (encrypted at rest, one-way index/hash), location (user-initiated,
+  in-browser ranking, no IP inference), sharing (no sale; delivery
+  providers only), self-service rights, retention (life of account, no
+  auto-deletion yet) and contact/changes
+
+#### Scenario: Terms of use page
+
+- **WHEN** an anonymous visitor opens `/terms`
+- **THEN** the terms render with the app's safety framing (community
+  list, not an official emergency service, 112 first, official sources),
+  the account/verification rules, the contribution rules (accuracy duty,
+  the M3 caps framed as limits-with-wait not bans, reviewability), the
+  trust-label gap (a verified user is not a verified shelter), a pointer
+  to the privacy policy for personal data, the no-warranty clause and the
+  changes clause
+
+#### Scenario: Footer links on every page
+
+- **WHEN** any page renders the app shell
+- **THEN** the footer contains links to "Privacy policy" (`/privacy`)
+  and "Terms of use" (`/terms`) below the safety notice
+
+### Requirement: Contact-collection disclosure and geolocation consent
+
+The register form SHALL explain under the e-mail field and the phone
+field why each contact is collected (one-time verification code now,
+recovery/login uses later). The map's "Show shelters around you" CTA
+SHALL remain the ONLY geolocation trigger and SHALL be paired with a
+standing consent line stating that the browser asks first and that the
+location is never sent to the servers (the nearest ranking is
+client-side). IP geolocation SHALL NOT be performed anywhere.
+
+#### Scenario: Register form why-we-collect notes
+
+- **WHEN** an anonymous visitor opens the register form
+- **THEN** the e-mail field carries a note naming the verification code
+  and password resets, and the phone field carries a note naming the
+  verification code and later login
+
+#### Scenario: Geolocation is user-initiated and disclosed
+
+- **WHEN** an anonymous visitor is on the map page before any location
+  request
+- **THEN** no geolocation request has been made, the CTA is the only
+  trigger, and the consent line under it states the browser asks first
+  and the location is never sent to the servers

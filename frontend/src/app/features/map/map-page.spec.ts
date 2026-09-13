@@ -672,6 +672,12 @@ describe('MapPage', () => {
           (a.textContent ?? '').includes('Add shelter'),
         ),
       ).toBe(false);
+      // Geolocation consent line (legal-recovery M4 slice 4): the CTA is
+      // always paired with the "browser asks first / never sent" promise.
+      const geoNote = element.querySelector('.map-page__geo-note') as Element | null;
+      expect(geoNote).not.toBeNull();
+      expect(geoNote?.textContent).toContain('Your browser asks first');
+      expect(geoNote?.textContent).toContain('never sent to our servers');
     });
 
     it('nearest found: flies to the closest shelter at street level and emphasizes its row', async () => {

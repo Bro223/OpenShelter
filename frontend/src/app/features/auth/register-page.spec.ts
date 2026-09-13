@@ -100,6 +100,18 @@ describe('RegisterPage', () => {
     }
   });
 
+  it('explains why e-mail and phone are collected (verification + account recovery)', async () => {
+    const { element } = await open();
+    const notes = [...element.querySelectorAll('.field-note')].map((p) => p.textContent?.trim());
+    expect(notes).toHaveLength(2);
+    // e-mail note: the code + the recovery use.
+    expect(notes[0]).toContain('verification code');
+    expect(notes[0]).toContain('password reset');
+    // phone note: the code + the later login use.
+    expect(notes[1]).toContain('verification code');
+    expect(notes[1]).toContain('log in');
+  });
+
   it('does not submit an empty form (all fields required)', async () => {
     const { page, fixture } = await open();
 

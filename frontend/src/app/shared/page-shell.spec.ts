@@ -243,6 +243,18 @@ describe('PageShell', () => {
         expect(a.rel).toBe('noopener');
       }
     });
+
+    it('the legal links (privacy + terms) sit under the notice, app-wide', () => {
+      fixture.detectChanges();
+      const legal = fixture.nativeElement.querySelector('.shell-footer__legal') as Element;
+      expect(legal).not.toBeNull();
+      const links = [...legal.querySelectorAll<HTMLAnchorElement>('a')].map((a) => ({
+        href: a.getAttribute('href'),
+        label: a.textContent?.trim(),
+      }));
+      expect(links).toContainEqual({ href: '/privacy', label: 'Privacy policy' });
+      expect(links).toContainEqual({ href: '/terms', label: 'Terms of use' });
+    });
   });
 
   /* Mobile burger + dropdown panel (<900px, --bp-narrow): the nav links,

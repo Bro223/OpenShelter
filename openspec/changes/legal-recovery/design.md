@@ -89,3 +89,43 @@ chose a SPLIT, not a blanket purge or a blanket orphan:
 - Retention periods for dormant accounts — owner product call (slice 4).
 - Privacy policy / terms copy (slice 3).
 - No e-mail "your account was deleted" notification (non-goal).
+
+## Slice 3 — legal pages, disclosure and consent (decisions)
+
+- **Static, no backend.** `/privacy` and `/terms` are plain Angular pages
+  (`features/legal/`, OnPush, no services) behind `loadComponent` lazy
+  routes — the bundle-budget rule from M6 applies (rare routes, no first
+  paint cost). Both public: a guest reading the policy must not be
+  bounced to a login screen.
+- **Footer is the only global entry point.** Legal pages are not
+  navigation: the shell footer carries the two links under the safety
+  notice (every page, one place). No header nav item, no burger entry.
+- **Copy discipline: the policy may only state what is true in code.**
+  Every claim was checked against the implementation before writing:
+  AES-256-GCM at rest + HMAC blind index (M2 `pii-at-rest`), Argon2id
+  password hash, the register/verify/reset flows, the export + deletion
+  endpoints (slices 1–2). Where the app has no behavior yet (a calendar
+  retention schedule, a public contact inbox) the copy states the
+  CURRENT behavior and says it will be updated — it does not invent a
+  schedule or an address.
+- **Retention is an owner product call (logged, not decided).** Whether
+  to auto-delete inactive accounts or prune data on a schedule is a
+  product/legal decision the owner must make; the policy's honest
+  statement today is "kept for the life of the account, no automatic
+  deletion yet". M15 (security/backups) is the revisit point.
+- **Geolocation consent = disclosure on the existing trigger.** The
+  locked decision stands: the "Show shelters around you" CTA is the only
+  geolocation trigger and the browser prompt is the consent. What slice 4
+  adds is the standing consent LINE under the CTA ("your browser asks
+  first — your location is never sent to our servers"), which is a true
+  statement: `findNearest` ranks the already-loaded list client-side and
+  makes no backend call (`map-page.ts`), and no IP-geolocation code path
+  exists.
+- **Register-form why-we-collect notes.** One `.field-note` under the
+  e-mail field (verification code + password resets) and one under the
+  phone field (verification code + later login) — the same two uses the
+  policy section names, so the form and the policy cannot drift apart.
+- **Contact point (residual).** There is no public inbox yet; the policy
+  routes users to the account flows (the codes land on the registered
+  e-mail). When the owner provisions a general address, the "Contact and
+  changes" section of `/privacy` is the one place to add it.

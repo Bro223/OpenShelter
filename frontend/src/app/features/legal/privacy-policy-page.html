@@ -1,0 +1,112 @@
+<article class="legal-page">
+  <h1 class="page-title">Privacy policy</h1>
+
+  <section>
+    <h2>What we collect</h2>
+    <p>
+      When you create an account we store your <strong>full name</strong>,
+      <strong>e-mail address</strong>, <strong>phone number</strong> and <strong>password</strong>.
+      When you contribute to the map we store what you submit: shelters, reviews and reports. We do
+      not collect anything else about you — there is no advertising and no tracking.
+    </p>
+  </section>
+
+  <section>
+    <h2>Why we collect your e-mail and phone</h2>
+    <p>
+      We ask for both an e-mail address and a phone number because an account is only useful after
+      you prove it is yours. We send a one-time code to each of them to
+      <strong>verify your identity</strong>; until both are verified you can log in but not submit.
+      The same two contacts are how you <strong>recover your account</strong> — password reset uses
+      your e-mail, and changing either contact is confirmed with a code to the new value. We use
+      them for these purposes only.
+    </p>
+  </section>
+
+  <section>
+    <h2>How we store and protect your data</h2>
+    <ul>
+      <li>
+        Your e-mail address and phone number are <strong>encrypted at rest</strong>
+        (AES-256-GCM). Lookups such as login and duplicate checks run on a separate one-way index
+        that cannot be turned back into your contact — the encrypted values themselves are never
+        compared.
+      </li>
+      <li>
+        Your password is stored as a <strong>one-way hash</strong>. Nobody, including us, can read
+        it back; recovery is always by code, never by asking us.
+      </li>
+      <li>
+        The encryption keys are kept outside the database, are never written into the code or the
+        logs.
+      </li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Your location</h2>
+    <p>
+      We only ever see location when <em>you</em> ask for it. The “Show shelters around you” button
+      and the “Use my location” option on the submit form first show your browser’s own permission
+      prompt — declining leaves you exactly where you were. On the map, the nearest shelter is
+      worked out <strong>inside your browser</strong>; your live position is never sent to our
+      servers. If you submit a shelter at your position, only the coordinate you chose is stored, as
+      part of that submission. We never infer your location from your IP address.
+    </p>
+  </section>
+
+  <section>
+    <h2>Who sees your data</h2>
+    <p>
+      We do not sell your personal data and do not share it for advertising or any other commercial
+      purpose. The only third parties involved are the e-mail and SMS services that deliver the
+      one-time verification and reset codes; they see the destination contact in order to send the
+      message. Shelter data you submit becomes part of the public community list, attributed to no
+      one once any account is deleted.
+    </p>
+  </section>
+
+  <section>
+    <h2>Your choices</h2>
+    <p>
+      Every right below works from the <a routerLink="/account">account page</a> — no request
+      needed:
+    </p>
+    <ul>
+      <li>
+        <strong>Download your data</strong> — a JSON export of your profile and everything you
+        submitted.
+      </li>
+      <li>
+        <strong>Delete your account</strong> — your declared private shelters are removed, your
+        public submissions stay on the map without attribution, your reviews are removed, and you
+        are logged out everywhere.
+      </li>
+      <li>
+        <strong>Change your e-mail or phone</strong> — confirmed with a one-time code to the new
+        value.
+      </li>
+      <li><strong>Reset your password</strong> — by code to your e-mail.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>How long we keep your data</h2>
+    <p>
+      Your account data is kept for as long as your account exists; deleting the account removes it.
+      We do not currently run automatic deletion of inactive accounts, and we will update this
+      policy if that changes.
+    </p>
+  </section>
+
+  <section>
+    <h2>Contact and changes</h2>
+    <p>
+      There is no general inbox yet — the ways to reach us are the account flows above (the
+      password-reset and contact-change codes are sent to your registered e-mail). We may update
+      this policy as the app evolves; the version you read on this page is the one in force when you
+      read it. OpenShelter is governed by the
+      <a routerLink="/terms">terms of use</a> as well.
+    </p>
+  </section>
+</article>
