@@ -29,7 +29,7 @@ class ShelterServiceTest {
     void setUp() {
         repo = new InMemoryShelterRepository();
         users = new InMemoryUserRepository();
-        service = new ShelterService(repo, users, 1_000);
+        service = new ShelterService(repo, users, 1_000, 100.0);
     }
 
     private static Shelter userPlace() {
@@ -159,7 +159,7 @@ class ShelterServiceTest {
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
-        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000);
+        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000, 100.0);
         Shelter place = userPlace("Original");
         guarded.addPlace(verifiedUser(), place);
         Long id = place.getId();
@@ -191,7 +191,7 @@ class ShelterServiceTest {
                 super.save(shelter);
             }
         };
-        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000);
+        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000, 100.0);
         Shelter place = userPlace("Original");
         failing.addPlace(verifiedUser(), place);
 
@@ -277,12 +277,124 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0);
 
         // 11 in a row — the admin is never capped
         for (int i = 1; i <= 11; i++) {
             adminService.addPlace(verifiedUser(), userPlace("Admin varjend " + i));
         }
         assertThat(repo.findAll()).hasSize(11);
+    }
+
+    // ---------- near-duplicate detection (abuse-limits M3 slice 3) ----------
+
+    @Test
+    void sameNameSamePointIsRejectedWithTheExistingRowId() {
+        Shelter first = userPlace("Kadriorg shelter");
+        service.addPlace(verifiedUser(), first);
+        long firstId = first.getId();
+
+        assertThatThrownBy(() -> service.addPlace(verifiedUser(), userPlace("Kadriorg shelter")))
+                .isInstanceOf(ShelterDuplicateException.class)
+                .hasMessageContaining("shelter #" + firstId);
+        // the rejected row was NOT created
+        assertThat(repo.findAll()).hasSize(1);
+    }
+
+    @Test
+    void duplicateDetectionIsCrossUser() {
+        service.addPlace(verifiedUser(), userPlace("Teise varjend"));
+
+        // a throwaway account re-reporting the known place: same 409
+        assertThatThrownBy(() -> service.addPlace(verifiedUser(2L), userPlace("Teise varjend")))
+                .isInstanceOf(ShelterDuplicateException.class);
+        assertThat(repo.findAll()).hasSize(1);
+    }
+
+    @Test
+    void nameComparisonIgnoresCaseAndWhitespace() {
+        service.addPlace(verifiedUser(), userPlace("  Kadriorg   Shelter "));
+
+        assertThatThrownBy(() -> service.addPlace(verifiedUser(2L), userPlace("kadriorg shelter")))
+                .isInstanceOf(ShelterDuplicateException.class);
+        assertThat(repo.findAll()).hasSize(1);
+    }
+
+    @Test
+    void differentNameAtTheSamePointIsAllowed() {
+        service.addPlace(verifiedUser(), userPlace("A-bri"));
+        service.addPlace(verifiedUser(2L), userPlace("B-bri"));
+
+        assertThat(repo.findAll()).hasSize(2);
+    }
+
+    @Test
+    void sameNameFarAwayIsAllowed() {
+        service.addPlace(verifiedUser(), userPlace("Kaugel varjend"));
+        // ~1 km north (0.009° lat) — outside the 100 m tolerance
+        Shelter far = new Shelter("Kaugel varjend", new GeoPoint(POINT.lat() + 0.009, POINT.lng()),
+                ShelterStatus.ACTIVE, null, ShelterSource.USER);
+
+        service.addPlace(verifiedUser(2L), far);
+        assertThat(repo.findAll()).hasSize(2);
+    }
+
+    @Test
+    void anInactiveRowIsNotADuplicate() {
+        service.addPlace(verifiedUser(), userPlace("Peidetud varjend"));
+        // the admin (or auto-hide) deactivates the row — re-adding is legal again
+        Shelter row = repo.findAll().get(0);
+        row.setStatus(ShelterStatus.INACTIVE);
+        repo.save(row);
+
+        service.addPlace(verifiedUser(2L), userPlace("Peidetud varjend"));
+        assertThat(repo.findAll()).hasSize(2);
+    }
+
+    @Test
+    void adminKindIsExemptFromDuplicateDetection() {
+        InMemoryUserRepository adminUsers = new InMemoryUserRepository() {
+            @Override
+            public boolean isAdmin(long userId) {
+                return true;
+            }
+        };
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0);
+
+        adminService.addPlace(verifiedUser(), userPlace("Admini kopeer"));
+        adminService.addPlace(verifiedUser(2L), userPlace("Admini kopeer"));
+        assertThat(repo.findAll()).hasSize(2);
+    }
+
+    @Test
+    void theDailyCapPrecedesTheDuplicateCheck() {
+        ShelterService capped = new ShelterService(repo, users, 1, 100.0);
+        Shelter first = userPlace("Kapi varjend");
+        capped.addPlace(verifiedUser(), first);
+        // created_at is DB-owned (DEFAULT now()) — the in-memory fake does
+        // not mimic that, so seed it for the window count
+        first.setCreatedAt(Instant.now());
+
+        // the 2nd submission is BOTH a duplicate of the user's own row and
+        // past the (daily cap = 1) rate limit — the 429 cap is checked first
+        assertThatThrownBy(() -> capped.addPlace(verifiedUser(), userPlace("Kapi varjend")))
+                .isInstanceOf(ShelterSubmissionThrottledException.class);
+        assertThat(repo.findAll()).hasSize(1);
+    }
+
+    @Test
+    void nameNormalizationIsCaseAndWhitespaceInsensitive() {
+        assertThat(ShelterService.normalizedNamesEqual("  Varjend  ja  abri ", "varjend ja abri")).isTrue();
+        assertThat(ShelterService.normalizedNamesEqual("Varjend", "Varjend 2")).isFalse();
+    }
+
+    @Test
+    void haversineMatchesKnownDistances() {
+        assertThat(ShelterService.haversineMeters(POINT, POINT)).isZero();
+        // ~0.001° latitude ≈ 111 m at any latitude (longitude spacing shrinks
+        // with cos, latitude spacing does not)
+        double oneMillidegreeLat =
+                ShelterService.haversineMeters(POINT, new GeoPoint(POINT.lat() + 0.001, POINT.lng()));
+        assertThat(oneMillidegreeLat).isBetween(110.0, 113.0);
     }
 }

@@ -8,9 +8,9 @@ abuse layer: per-user rate caps on submitting, OTP throttles per
 phone/IP/e-mail, duplicate-submission detection, admin alerting, and the
 secure-headers / HTTPS-only-cookie audit. No CAPTCHA (locked decision).
 
-This change is delivered in slices; **slices 1–2 are done** (per-user daily
-submission cap + per-contact OTP caps) — each the smallest complete,
-gate-green piece.
+This change is delivered in slices; **slices 1–3 are done** (per-user daily
+submission cap + per-contact OTP caps + duplicate-submission detection) —
+each the smallest complete, gate-green piece.
 
 ## What Changes
 
@@ -62,16 +62,43 @@ gate-green piece.
   (window expiry, isolation, normalization, retry-after math, disabled
   mode), service-level interaction test in `VerificationServiceTest`.
 
+### Slice 3 — duplicate-submission detection (done)
+
+- **Near-duplicate rule:** an `ACTIVE` USER row with the same normalized
+  name (lowercase, trim, collapsed whitespace) AND within
+  **`app.limits.duplicate-coord-meters`** (**100** m, main + test yml)
+  haversine is the same place re-submitted. USER rows carry no address
+  (a registry-only field), so name + coordinates are the whole identity
+  signal; fuzzier re-reports (same place, reworded name) stay bounded by
+  the daily cap.
+- **Detection at submit time:** `ShelterService.addPlace` checks it AFTER
+  the active/daily caps (a capped resubmit is 429, not 409), **cross-user**
+  (the throwaway-account re-report vector — and an author re-POSTing their
+  own row gets the same 409; editing goes through PUT), **ADMIN kind
+  exempt** (like the caps). INACTIVE rows don't match — admin reject /
+  auto-hide free the place for a fresh row.
+- **409 with the existing row id:** new `ShelterDuplicateException` — the
+  uniform `ErrorResponse` shape is kept, the plain-spoken message carries
+  the pointer (`... (shelter #<id>)`) so the client can point at or edit
+  the colliding row. The scan is Java-side over
+  `findAllActiveBySourceIn([USER])` (one indexed query; the USER table is
+  small) — no new repository method.
+- **Tests:** `ShelterServiceTest` +9 unit cases (rule, normalization,
+  cross-user, INACTIVE, admin, cap precedence, haversine math) +
+  `ShelterDuplicateIT` 7/7 over HTTP (409 + row id + no row created;
+  ~50 m offset 409; different name / ~1 km 201; cross-user 409; admin
+  exempt; hidden row re-addable).
+
 ### Remaining M3 scope (later slices — NOT in this pass)
 
-- Duplicate-submission detection (near-identical name/address/coords).
 - Admin alerts on throttled/abusive accounts.
 - Secure headers + HTTPS-only cookies audit.
 
 ## Impact
 
-- Affected specs: shelter submission API (429 on the capped account);
-  verify-request + register APIs (429 when the per-contact window is full).
+- Affected specs: shelter submission API (429 on the capped account; 409
+  near-duplicate with the existing row id); verify-request + register APIs
+  (429 when the per-contact window is full).
 - No schema change (slice 1 counts over `shelters.created_by`/`source`/
   `created_at`, all present since V5/V7; slice 2 keeps the window in
   process memory).

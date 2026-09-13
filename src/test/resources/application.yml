@@ -192,6 +192,11 @@ app:
     # submissions per rolling 24 h — the next is a 429 with Retry-After.
     # Distinct from the per-user ACTIVE-shelter cap (10, a 409 conflict).
     daily-submissions-per-user: 5
+    # Near-duplicate submission tolerance (abuse-limits M3 slice 3): max
+    # haversine metres at which an ACTIVE USER row with the same normalized
+    # name counts as the same place re-submitted (the next is a 409 with
+    # the existing row id; ADMIN kind exempt).
+    duplicate-coord-meters: 100
     # Per-contact OTP cap (abuse-limits M3 slice 2): max events (a real code
     # send, or a registration attempt) per normalized e-mail / E.164 phone
     # within a rolling window, ACROSS users — the volume valve on Twilio/SMTP

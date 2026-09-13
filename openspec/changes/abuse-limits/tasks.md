@@ -44,11 +44,33 @@
       normalization, retry-after math, disabled mode) + service-level
       `VerificationServiceTest` interaction test
 
-## Slice 3 — duplicate-submission detection
+## Slice 3 — duplicate-submission detection (done)
 
-- [ ] Near-duplicate definition (name/coords/address thresholds)
-- [ ] Detection at submit time (409 with the existing row id?)
-- [ ] ITs
+- [x] Near-duplicate definition: an ACTIVE USER row with the same
+      NORMALIZED name (lowercase, trim, collapsed whitespace — USER rows
+      carry no address, a registry-only field, so name + coordinates are
+      the whole identity signal) AND within `app.limits.duplicate-coord-meters`
+      (default **100**, main + test yml) haversine. Fuzzier re-reports
+      (same place, reworded name) stay bounded by the daily cap
+- [x] Detection at submit time: `ShelterService.addPlace` checks it AFTER
+      the active/daily caps (429 precedes 409), **cross-user** (the
+      throwaway-account re-report vector; own re-POST also 409s — editing
+      goes through PUT), ADMIN kind exempt (like the caps); INACTIVE rows
+      don't match (admin reject / auto-hide free the place). New
+      `ShelterDuplicateException` → **409**, plain-spoken message carries
+      the existing row id (`shelter #<id>`) — uniform `ErrorResponse` shape
+      kept. Java-side scan over `findAllActiveBySourceIn([USER])` (one
+      indexed query, the USER table is small) — no new repository method.
+      `haversineMeters` / `normalizeName` / `normalizedNamesEqual` are
+      package-private statics, unit-tested directly
+- [x] ITs: `ShelterServiceTest` +9 (same-name-same-point 409 with the row
+      id, cross-user, case/whitespace, different-name-same-point allowed,
+      1 km away allowed, INACTIVE not a duplicate, admin exempt,
+      daily-cap precedence, normalization + haversine math) and
+      `ShelterDuplicateIT` 7/7 over HTTP (resubmit 409 + row id + no row
+      created, ~50 m offset 409, different name 201, ~1 km 201, cross-user
+      409 with the original row untouched, admin exempt 201, hidden row
+      re-addable 201)
 
 ## Slice 4 — admin alerts
 

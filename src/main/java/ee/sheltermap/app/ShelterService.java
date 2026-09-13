@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -11,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * User-submitted shelters.
@@ -49,16 +52,22 @@ public class ShelterService {
     /** The daily submission window (abuse-limits M3): a rolling 24 h. */
     static final Duration DAILY_SUBMISSION_WINDOW = Duration.ofHours(24);
 
+    /** Earth mean radius in metres (haversine, abuse-limits M3 slice 3). */
+    static final double EARTH_RADIUS_METERS = 6_371_000;
+
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
     private final int dailySubmissionsPerUser;
+    private final double duplicateCoordMeters;
 
     public ShelterService(ShelterRepository shelterRepository,
                           UserRepository userRepository,
-                          @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser) {
+                          @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser,
+                          @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.dailySubmissionsPerUser = dailySubmissionsPerUser;
+        this.duplicateCoordMeters = duplicateCoordMeters;
     }
 
     /**
@@ -80,6 +89,11 @@ public class ShelterService {
      *                                  submitted {@code app.limits.daily-submissions-per-user}
      *                                  USER shelters in the last 24 h (→ 429 + Retry-After;
      *                                  ADMIN kind is exempt, like the active cap)
+     * @throws ShelterDuplicateException when an ACTIVE USER row with the same
+     *                                  normalized name lies within
+     *                                  {@code app.limits.duplicate-coord-meters} haversine
+     *                                  (→ 409, message carries the existing row id;
+     *                                  ADMIN kind is exempt, like the caps)
      * @throws IllegalArgumentException if the place is not already
      *                                  {@code ACTIVE}/{@code USER} — user submissions must be
      *                                  created ACTIVE immediately, never imported as USER
@@ -112,6 +126,18 @@ public class ShelterService {
                 throw new ShelterSubmissionThrottledException(retryAfterSeconds(windowStart, user.getId()));
             }
         }
+        // Near-duplicate detection (abuse-limits M3 slice 3): an ACTIVE USER
+        // row with the same normalized name within the coordinate tolerance
+        // means the place is already on the map — 409 with the existing row
+        // id (the client can point at it or edit it via PUT). Cross-user by
+        // design (the throwaway-account re-report vector); ADMIN kind is
+        // exempt, like the caps above.
+        if (!userRepository.isAdmin(user.getId())) {
+            findNearDuplicate(place)
+                    .ifPresent(existing -> {
+                        throw new ShelterDuplicateException(existing.getId());
+                    });
+        }
         place.setCreatedBy(user.getId());
         // community-review-queue v2 D2: new community rows publish
         // immediately with the unverified trust state — the public list
@@ -123,6 +149,44 @@ public class ShelterService {
     /** The user's own shelters (the author-scoped "my shelters" list). */
     public List<Shelter> findMine(long userId) {
         return shelterRepository.findByCreatedBy(userId);
+    }
+
+    /**
+     * The first ACTIVE USER row that is a near-duplicate of
+     * {@code candidate} (abuse-limits M3 slice 3): the same normalized name
+     * AND within {@code duplicateCoordMeters} haversine. USER rows carry no
+     * address (a registry-only field), so name + coordinates are the whole
+     * identity signal; fuzzier re-reports (same place, reworded name) stay
+     * bounded by the daily cap. The USER table is small, so a Java-side
+     * scan over the ACTIVE USER rows (one indexed query) is the seam — no
+     * new repository method.
+     */
+    Optional<Shelter> findNearDuplicate(Shelter candidate) {
+        return shelterRepository.findAllActiveBySourceIn(List.of(ShelterSource.USER)).stream()
+                .filter(existing -> normalizedNamesEqual(existing.getName(), candidate.getName()))
+                .filter(existing -> haversineMeters(existing.getLocation(), candidate.getLocation())
+                        <= duplicateCoordMeters)
+                .findFirst();
+    }
+
+    /** Case/whitespace-insensitive name comparison (the duplicate rule). */
+    static boolean normalizedNamesEqual(String a, String b) {
+        return normalizeName(a).equals(normalizeName(b));
+    }
+
+    /** Lowercase, trim, collapse internal whitespace runs to one space. */
+    static String normalizeName(String name) {
+        return name.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
+    }
+
+    /** Haversine great-circle distance in metres. */
+    static double haversineMeters(GeoPoint a, GeoPoint b) {
+        double dLat = Math.toRadians(b.lat() - a.lat());
+        double dLng = Math.toRadians(b.lng() - a.lng());
+        double h = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(a.lat())) * Math.cos(Math.toRadians(b.lat()))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        return 2 * EARTH_RADIUS_METERS * Math.asin(Math.min(1.0, Math.sqrt(h)));
     }
 
     /**

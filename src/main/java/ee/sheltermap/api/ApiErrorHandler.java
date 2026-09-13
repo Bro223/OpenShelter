@@ -6,6 +6,7 @@ import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.OwnReviewReportException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
+import ee.sheltermap.app.ShelterDuplicateException;
 import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterSubmissionThrottledException;
@@ -127,6 +128,18 @@ public class ApiErrorHandler {
      */
     @ExceptionHandler(ShelterLimitExceededException.class)
     ResponseEntity<ErrorResponse> shelterLimit(ShelterLimitExceededException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * Near-duplicate shelter submission (abuse-limits M3 slice 3): an
+     * ACTIVE USER row with the same normalized name within the configured
+     * coordinate tolerance already exists. 409 — the message carries the
+     * existing row id so the client can point at it (the uniform
+     * {@code ErrorResponse} shape is kept).
+     */
+    @ExceptionHandler(ShelterDuplicateException.class)
+    ResponseEntity<ErrorResponse> shelterDuplicate(ShelterDuplicateException ex, HttpServletRequest request) {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
