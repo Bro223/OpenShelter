@@ -187,6 +187,11 @@ app:
     # disable behind a real load balancer if loopback is not your proxy.
     trusted-proxies: ${RATELIMIT_TRUSTED_PROXIES:}
     trust-loopback: ${RATELIMIT_TRUST_LOOPBACK:true}
+  limits:
+    # Per-user shelter-submission rate cap (abuse-limits M3): max USER
+    # submissions per rolling 24 h — the next is a 429 with Retry-After.
+    # Distinct from the per-user ACTIVE-shelter cap (10, a 409 conflict).
+    daily-submissions-per-user: 5
   registry:
     # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
     # Override with REGISTRY_BASE_URL if the service endpoint moves.

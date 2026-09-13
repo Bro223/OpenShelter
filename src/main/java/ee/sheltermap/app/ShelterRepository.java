@@ -5,6 +5,7 @@ import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,19 @@ public interface ShelterRepository {
      * the per-user active-shelter cap (shelter-trust-and-reports D3).
      */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
+
+    /**
+     * The user's USER submissions created since {@code createdAtAfter}
+     * (abuse-limits M3) — the input of the per-user DAILY submission cap.
+     * Deletions free the count (rows are gone); the active cap and the
+     * admin surface cover the churn vector.
+     */
+    long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
+                                                    Instant createdAtAfter);
+
+    /** The oldest USER submission since {@code createdAtAfter} — Retry-After for the daily cap. */
+    Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, Instant createdAtAfter);
 
     /** All shelters created by {@code userId} — the author-scoped "my shelters" query (V7). */
     List<Shelter> findByCreatedBy(Long userId);

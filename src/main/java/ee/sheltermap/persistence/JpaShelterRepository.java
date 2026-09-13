@@ -9,6 +9,7 @@ import ee.sheltermap.domain.ShelterStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -127,6 +128,22 @@ public class JpaShelterRepository implements ShelterRepository {
     public long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source,
                                                    ShelterStatus status) {
         return shelters.countByCreatedByAndSourceAndStatus(createdBy, source, status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
+                                                            Instant createdAtAfter) {
+        return shelters.countByCreatedByAndSourceAndCreatedAtAfter(createdBy, source, createdAtAfter);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, Instant createdAtAfter) {
+        return shelters.findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+                        createdBy, source, createdAtAfter)
+                .map(JpaShelterRepository::toDomain);
     }
 
     @Override

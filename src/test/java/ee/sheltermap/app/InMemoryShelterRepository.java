@@ -5,12 +5,14 @@ import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Comparator;
 
 /** In-memory fake of {@link ShelterRepository} for tests. */
 public class InMemoryShelterRepository implements ShelterRepository {
@@ -84,6 +86,26 @@ public class InMemoryShelterRepository implements ShelterRepository {
                 .filter(s -> s.getSource() == source)
                 .filter(s -> s.getStatus() == status)
                 .count();
+    }
+
+    @Override
+    public long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
+                                                            Instant createdAtAfter) {
+        return store.values().stream()
+                .filter(s -> Objects.equals(s.getCreatedBy(), createdBy))
+                .filter(s -> s.getSource() == source)
+                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isAfter(createdAtAfter))
+                .count();
+    }
+
+    @Override
+    public Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, Instant createdAtAfter) {
+        return store.values().stream()
+                .filter(s -> Objects.equals(s.getCreatedBy(), createdBy))
+                .filter(s -> s.getSource() == source)
+                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isAfter(createdAtAfter))
+                .min(Comparator.comparing(Shelter::getCreatedAt));
     }
 
     @Override

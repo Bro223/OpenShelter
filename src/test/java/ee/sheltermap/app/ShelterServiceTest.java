@@ -29,7 +29,7 @@ class ShelterServiceTest {
     void setUp() {
         repo = new InMemoryShelterRepository();
         users = new InMemoryUserRepository();
-        service = new ShelterService(repo, users);
+        service = new ShelterService(repo, users, 1_000);
     }
 
     private static Shelter userPlace() {
@@ -159,7 +159,7 @@ class ShelterServiceTest {
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
-        ShelterService guarded = new ShelterService(guardedRepo, users);
+        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000);
         Shelter place = userPlace("Original");
         guarded.addPlace(verifiedUser(), place);
         Long id = place.getId();
@@ -191,7 +191,7 @@ class ShelterServiceTest {
                 super.save(shelter);
             }
         };
-        ShelterService failing = new ShelterService(alwaysFailing, users);
+        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000);
         Shelter place = userPlace("Original");
         failing.addPlace(verifiedUser(), place);
 
@@ -277,7 +277,7 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000);
 
         // 11 in a row — the admin is never capped
         for (int i = 1; i <= 11; i++) {

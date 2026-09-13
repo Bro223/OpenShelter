@@ -65,7 +65,7 @@ class VerificationFlowTest {
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         verificationService = new VerificationService(providers, pendings,
                 new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"), clock);
-        shelterService = new ShelterService(shelters, users);
+        shelterService = new ShelterService(shelters, users, 1_000);
     }
 
     @Test

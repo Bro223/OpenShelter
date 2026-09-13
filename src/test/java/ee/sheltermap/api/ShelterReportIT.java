@@ -49,7 +49,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.reset-capacity=1000",
         "app.ratelimit.reset-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
-        "app.ratelimit.register-refill-per-second=0"
+        "app.ratelimit.register-refill-per-second=0",
+        // The active-cap tests submit 11 shelters in one window — lift the
+        // daily submission cap (abuse-limits M3) so it cannot fire first.
+        "app.limits.daily-submissions-per-user=100"
 })
 @Transactional
 class ShelterReportIT extends AbstractPersistenceIT {

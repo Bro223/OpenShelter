@@ -8,6 +8,7 @@ import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
 import ee.sheltermap.app.ShelterLimitExceededException;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterSubmissionThrottledException;
 import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.DuplicateReportException;
 import ee.sheltermap.app.ImportOwnedShelterException;
@@ -275,6 +276,26 @@ public class ApiErrorHandler {
      */
     @ExceptionHandler(VerificationThrottledException.class)
     ResponseEntity<ErrorResponse> verificationThrottled(VerificationThrottledException ex, HttpServletRequest request) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
+        if (ex.retryAfterSeconds() != null) {
+            builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
+        }
+        return builder.body(new ErrorResponse(
+                Instant.now(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI()));
+    }
+
+    /**
+     * The per-user DAILY shelter-submission cap (abuse-limits M3): 429,
+     * with the exact {@code Retry-After} countdown when the thrower knows
+     * when the oldest in-window submission leaves the 24 h window.
+     */
+    @ExceptionHandler(ShelterSubmissionThrottledException.class)
+    ResponseEntity<ErrorResponse> shelterSubmissionThrottled(ShelterSubmissionThrottledException ex,
+                                                             HttpServletRequest request) {
         ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS);
         if (ex.retryAfterSeconds() != null) {
             builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));

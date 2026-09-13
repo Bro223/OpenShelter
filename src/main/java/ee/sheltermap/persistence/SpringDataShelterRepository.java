@@ -27,6 +27,14 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     /** Per-user active-shelter cap count (V9, D3). */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
+    /** Per-user daily submission cap count (abuse-limits M3). */
+    long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
+                                                    java.time.Instant createdAtAfter);
+
+    /** Oldest USER submission since {@code createdAtAfter} — Retry-After for the daily cap. */
+    java.util.Optional<ShelterEntity> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, java.time.Instant createdAtAfter);
+
     /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);
 

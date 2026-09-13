@@ -5,8 +5,11 @@ import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,13 +46,19 @@ public class ShelterService {
      */
     public static final int MAX_ACTIVE_SHELTERS_PER_USER = 10;
 
+    /** The daily submission window (abuse-limits M3): a rolling 24 h. */
+    static final Duration DAILY_SUBMISSION_WINDOW = Duration.ofHours(24);
+
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
+    private final int dailySubmissionsPerUser;
 
     public ShelterService(ShelterRepository shelterRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.dailySubmissionsPerUser = dailySubmissionsPerUser;
     }
 
     /**
@@ -67,6 +76,10 @@ public class ShelterService {
      *                                  {@link #MAX_ACTIVE_SHELTERS_PER_USER}
      *                                  active USER shelters (→ 409; ADMIN
      *                                  kind is exempt — D3)
+     * @throws ShelterSubmissionThrottledException when the user has already
+     *                                  submitted {@code app.limits.daily-submissions-per-user}
+     *                                  USER shelters in the last 24 h (→ 429 + Retry-After;
+     *                                  ADMIN kind is exempt, like the active cap)
      * @throws IllegalArgumentException if the place is not already
      *                                  {@code ACTIVE}/{@code USER} — user submissions must be
      *                                  created ACTIVE immediately, never imported as USER
@@ -87,6 +100,18 @@ public class ShelterService {
                 >= MAX_ACTIVE_SHELTERS_PER_USER) {
             throw new ShelterLimitExceededException();
         }
+        // Daily rate cap (abuse-limits M3): sliding 24 h window on the
+        // SUBMITTING act, independent of the active count. Deleting a row
+        // frees its slot (the row is gone) — the churn vector stays bounded
+        // by the active cap + the admin surface.
+        if (!userRepository.isAdmin(user.getId())) {
+            Instant windowStart = Instant.now().minus(DAILY_SUBMISSION_WINDOW);
+            long submitted = shelterRepository.countByCreatedByAndSourceAndCreatedAtAfter(
+                    user.getId(), ShelterSource.USER, windowStart);
+            if (submitted >= dailySubmissionsPerUser) {
+                throw new ShelterSubmissionThrottledException(retryAfterSeconds(windowStart, user.getId()));
+            }
+        }
         place.setCreatedBy(user.getId());
         // community-review-queue v2 D2: new community rows publish
         // immediately with the unverified trust state — the public list
@@ -98,6 +123,24 @@ public class ShelterService {
     /** The user's own shelters (the author-scoped "my shelters" list). */
     public List<Shelter> findMine(long userId) {
         return shelterRepository.findByCreatedBy(userId);
+    }
+
+    /**
+     * Seconds until the oldest in-window submission leaves the 24 h window
+     * (the exact Retry-After for the daily cap); {@code null} when the
+     * window is somehow empty (the handler then omits the header).
+     */
+    private Integer retryAfterSeconds(Instant windowStart, long userId) {
+        return shelterRepository
+                .findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+                        userId, ShelterSource.USER, windowStart)
+                .map(Shelter::getCreatedAt)
+                .filter(Objects::nonNull)
+                .map(oldest -> Duration.between(Instant.now(),
+                        oldest.plus(DAILY_SUBMISSION_WINDOW)).getSeconds())
+                .filter(seconds -> seconds > 0)
+                .map(seconds -> (int) Math.min(seconds, Integer.MAX_VALUE))
+                .orElse(null);
     }
 
     /**
