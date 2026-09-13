@@ -54,6 +54,14 @@ package "api" {
     + POST   /admin/reviews/{id}/restore : 204              ' idempotent; clears hidden_at
     + POST   /admin/shelters/{id}/review (body : AdminShelterReviewRequest) : 204  ' V11: CONFIRM/REJECT (reason required for REJECT); USER rows only
     + GET    /admin/audit?limit= : List<AdminAuditDto>      ' V11: newest-first moderation trail; limit 1..200 (default 100)
+    + GET    /admin/alerts?limit= : List<AdminAlertDto>     ' M3 s4: in-memory throttle/abuse alert ring; limit 1..200 (default 50)
+    + GET    /admin/shelters/{id}/history : List<AdminShelterHistoryDto>  ' M10 s2: CREATED/EDITED/DELETED trail (server-parsed diffs); 404 only absent + no history
+    + POST   /admin/shelters/{id}/request-info (body : AdminInfoRequestRequest) : 204  ' M10 s3: moderator -> submitter info request; one exchange per shelter; reply via POST /api/shelters/{id}/info-request/reply
+    + POST   /admin/shelters/{id}/mark-inaccurate (body : AdminMarkInaccurateRequest) : 204  ' M10 s4: public inaccurate flag (row STAYS visible); idempotent; audited
+    + POST   /admin/shelters/{id}/clear-inaccurate : 204   ' M10 s4: clears the flag; idempotent; audited
+    + GET    /admin/users : List<AdminUserDto>             ' M10 s1: REGISTERED + ADMIN accounts (id, name, email, kind, suspendedAt); GUEST absent
+    + POST   /admin/users/{id}/suspend : 204               ' M10 s1: REGISTERED only (409 else); idempotent; audited, account as subject; enforced at login/refresh/JWT doors
+    + POST   /admin/users/{id}/unsuspend : 204             ' M10 s1: clears suspended_at; idempotent; audited
   }
 
   class AdminModerationService {

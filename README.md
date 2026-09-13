@@ -163,10 +163,18 @@ auth, verification, shelter submission, community reviews and reports); run/buil
     reporter's name + email — idempotent dismiss keeps the row, recorded as resolved);
     **hide/restore reviews** from the review-report queue (immediate, idempotent — a hide can
     land before the 5th-report threshold; a restore re-joins the review to the rating,
-    count and `reviewed` filter). **Registry rows are read-only** — the registry import owns
-    their lifecycle (it rebuilds them as `ACTIVE` on every run), so status/delete on them
-    answers 409 and the UI offers no actions for them. The admin is also exempt from the
-    10-active-shelter submission cap.
+    count and `reviewed` filter); **suspend/unsuspend a registered user** (idempotent,
+    audited with the account as subject — while suspended, login, refresh and every
+    token-bearing request are refused; the user's shelters stay on the map); **view a
+    shelter's edit history** (who created/edited/deleted it and which field moved where —
+    it survives both shelter and account deletion); **ask the submitter for details**
+    (one exchange per shelter, answered once from the submitter's contributions list);
+    **mark a listing inaccurate / clear the mark** (the row STAYS visible with the
+    "Reported inaccurate" warning — idempotent, audited). **Registry rows are read-only**
+    — the registry import owns their lifecycle (it rebuilds them as `ACTIVE` on every
+    run), so every shelter-scoped write (status, info request, inaccurate mark, delete)
+    on them answers 409 and the UI offers no actions for them. The admin is also exempt
+    from the 10-active-shelter submission cap.
 
 ## Stack
 

@@ -62,9 +62,9 @@
 
 ## Slice 5 — Wrap-up
 
-- [ ] "Delete abusive content" verified as carried-over (admin
+- [x] "Delete abusive content" verified as carried-over (admin
       hard delete + two-tap confirm) — spec delta marks it
       satisfied-by-existing
-- [ ] Docs/diagrams sync (06-CONTEXT-API endpoint table, admin puml
+- [x] Docs/diagrams sync (06-CONTEXT-API endpoint table, admin puml
       section if warranted), README if ops-relevant
-- [ ] OpenSpec archive-ready state (all tasks ticked)
+- [x] OpenSpec archive-ready state (all tasks ticked)
