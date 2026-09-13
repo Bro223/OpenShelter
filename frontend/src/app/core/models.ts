@@ -379,11 +379,17 @@ export interface ShelterDetailDto extends ShelterDto {
  * The owner's view of one of their own shelters (GET /api/shelters/mine):
  * the public list projection (incl. reviewStatus + locationKind) plus the
  * admin's `reviewNote` — the REJECT reason, stored server-side and shown
- * under the row's status badge (community-review-queue D2).
+ * under the row's status badge (community-review-queue D2) — and the row's
+ * moderator→submitter information request (M10 slice 3, `infoRequest`;
+ * null when none). The exchange is private: the public list/detail DTOs
+ * carry it as null and this surface is the only place it renders for the
+ * submitter.
  */
 export interface MineShelterDto extends ShelterDto {
   /** The admin's REJECT reason; null when none. */
   reviewNote: string | null;
+  /** The pending (or answered) moderator question; null when none. */
+  infoRequest: InfoRequestDto | null;
 }
 
 /**
@@ -403,6 +409,33 @@ export interface ReviewShelterRequest {
 /** POST /admin/shelters/{id}/review response body. */
 export interface ReviewShelterResponse {
   ok: boolean;
+}
+
+/**
+ * The moderator→submitter information request of a row (M10 slice 3):
+ * the admin asks a question on a USER shelter, the submitter answers ONCE
+ * on their own row, and the row is kept after the reply (audit posture —
+ * never deleted). `replyMessage`/`repliedAt` are null while the request is
+ * still open.
+ */
+export interface InfoRequestDto {
+  /** The moderator's question (≤ 2000 chars). */
+  message: string;
+  /** ISO-8601 instant the admin asked. */
+  requestedAt: string;
+  /** The submitter's one-time answer; null = still open. */
+  replyMessage: string | null;
+  /** ISO-8601 instant of the answer; null = still open. */
+  repliedAt: string | null;
+}
+
+/**
+ * The admin's view of the information request (GET /admin/shelters):
+ * the exchange plus the asking admin's profile name ("Unknown" after the
+ * account's erasure — no FK server-side).
+ */
+export interface AdminInfoRequestDto extends InfoRequestDto {
+  requestedByName: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +514,10 @@ export interface AdminShelterDto {
    * REPORTED_INACTIVE / REJECTED tones here.
    */
   provenance: Provenance;
+  /** The row's moderator→submitter information request (M10 slice 3);
+   *  null when none. Carries the submitter's reply once given (the row is
+   *  kept after the reply — audit posture). */
+  infoRequest: AdminInfoRequestDto | null;
 }
 
 /** Optional filters for GET /admin/shelters (absent = omitted from the URL). */

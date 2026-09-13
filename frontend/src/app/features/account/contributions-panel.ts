@@ -88,6 +88,17 @@ export class ContributionsPanel implements OnInit {
   protected readonly confirmingShelterDelete = signal<number | null>(null);
   protected readonly confirmingReviewDelete = signal<number | null>(null);
 
+  // ---- info request (M10 slice 3) ---------------------------------------------
+  /** The row whose inline info-request panel is open (null = closed) —
+   *  one inline panel at a time, like the edit forms. */
+  protected readonly infoFor = signal<number | null>(null);
+  /** The reply editor: required (non-blank — the shared blank validator),
+   *  at most 2000 characters (the V19 bound). */
+  readonly replyMessage = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, nameBlankValidator, Validators.maxLength(2000)],
+  });
+
   // ---- row-level mutation errors (backend rejected an edit/delete) ---------
   protected readonly shelterRowError = signal<{ id: number; message: string } | null>(null);
   protected readonly reviewRowError = signal<{ shelterId: number; message: string } | null>(null);
@@ -181,6 +192,7 @@ export class ContributionsPanel implements OnInit {
   // Shelter rows: view (routerLink in the template), inline edit, delete
   // -------------------------------------------------------------------------
   startEditShelter(row: MineShelterDto): void {
+    this.infoFor.set(null);
     this.editName.setValue(row.name);
     this.editDescription.setValue(row.description ?? '');
     this.editCapacity.setValue(row.capacity);
@@ -244,10 +256,13 @@ export class ContributionsPanel implements OnInit {
     this.busy.set(true);
     try {
       const updated = await this.shelters.update(id, request);
-      // The PUT response is the public projection (no reviewNote) — keep the
-      // row's review state from the /mine load.
+      // The PUT response is the public projection (no reviewNote / no
+      // infoRequest) — keep the row's review state + exchange from the
+      // /mine load.
       this.shelterRows.update((rows) =>
-        (rows ?? []).map((r) => (r.id === id ? { ...updated, reviewNote: r.reviewNote } : r)),
+        (rows ?? []).map((r) =>
+          r.id === id ? { ...updated, reviewNote: r.reviewNote, infoRequest: r.infoRequest } : r,
+        ),
       );
       // a renamed shelter keeps its review rows in sync (self-review case)
       this.reviewRows.update((rows) =>
@@ -287,7 +302,83 @@ export class ContributionsPanel implements OnInit {
     } catch (error: unknown) {
       this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
     } finally {
+      if (this.infoFor() === id) {
+        this.closeInfo();
+      }
       this.confirmingShelterDelete.set(null);
+      this.busy.set(false);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Info request (M10 slice 3): the moderator's question + the one-time reply
+  // -------------------------------------------------------------------------
+  /**
+   * Toggle the inline info-request panel for a row that carries a request.
+   * An OPEN request shows the question + the reply form (the answer is
+   * one-time); an ANSWERED request shows the question + your reply
+   * read-only (the row is kept after the reply — audit posture, and a
+   * second reply is a server-side 409).
+   */
+  toggleInfo(row: MineShelterDto): void {
+    if (this.infoFor() === row.id) {
+      this.closeInfo();
+      return;
+    }
+    this.replyMessage.reset('');
+    this.replyMessage.markAsUntouched();
+    // one inline panel at a time, across the shelter list
+    this.editingShelterId.set(null);
+    this.infoFor.set(row.id);
+  }
+
+  /** Close the open info panel (toggle, edit form, delete, tab leave). */
+  closeInfo(): void {
+    this.infoFor.set(null);
+  }
+
+  /**
+   * POST /api/shelters/{id}/info-request/reply (204, the one-time answer).
+   * Success patches the row in place — the 204 body is empty, so the reply
+   * text is the form value and the timestamp local "now" (the review edit's
+   * local updatedAt bump precedent); a 409 (answered meanwhile) or 400/403
+   * shows the row error and the row stays as it was.
+   */
+  async sendInfoReply(row: MineShelterDto): Promise<void> {
+    const request = row.infoRequest;
+    if (request === null || request.replyMessage !== null) {
+      return; // nothing open to answer (the form only renders while open)
+    }
+    const message = this.replyMessage.value.trim();
+    if (message === '' || message.length > 2000) {
+      this.replyMessage.markAsTouched();
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.shelters.replyInfoRequest(row.id, message);
+      this.shelterRows.update((rows) =>
+        (rows ?? []).map((r) =>
+          r.id === row.id && r.infoRequest !== null
+            ? {
+                ...r,
+                infoRequest: {
+                  ...r.infoRequest,
+                  replyMessage: message,
+                  repliedAt: new Date().toISOString(),
+                },
+              }
+            : r,
+        ),
+      );
+      this.shelterRowError.update((e) => (e && e.id === row.id ? null : e));
+      this.closeInfo();
+    } catch (error: unknown) {
+      this.shelterRowError.set({ id: row.id, message: bannerMessage(error, 'shelter') });
+    } finally {
       this.busy.set(false);
     }
   }

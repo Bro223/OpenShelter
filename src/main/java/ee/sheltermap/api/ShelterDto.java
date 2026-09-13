@@ -58,6 +58,13 @@ import java.time.Instant;
  * non-submitter OPEN_CONFIRMED report or CONFIRM/AUTO_CONFIRM moderation
  * action. {@code null} = never verified (the UNDER_REVIEW "not yet verified"
  * signal on the UI).
+ *
+ * <p>Information request (moderation-dashboard-completion M10 slice 3):
+ * {@code infoRequest} is the moderator→submitter exchange for this row —
+ * set on the {@code /mine} projection ONLY (the submitter's own surface);
+ * {@code null} on the public list and detail reads (the exchange is
+ * private between the admin and the author). The admin's own view carries
+ * it on {@link AdminShelterDto} instead, with the requester's name.
  */
 public record ShelterDto(
         Long id,
@@ -82,7 +89,8 @@ public record ShelterDto(
         LocationKind locationKind,
         Provenance provenance,
         int reportCount,
-        Instant lastVerifiedAt) {
+        Instant lastVerifiedAt,
+        InfoRequest infoRequest) {
 
     /**
      * The fresh occupancy block (D4): the latest fresh report's band, the
@@ -93,5 +101,18 @@ public record ShelterDto(
             OccupancyBand band,
             int reportCount,
             Instant lastReportedAt) {
+    }
+
+    /**
+     * The moderator→submitter information request of this row (M10 slice 3)
+     * — the {@code /mine} projection only (null on the public list and
+     * detail reads). {@code replyMessage}/{@code repliedAt} are null until
+     * the submitter has answered (one-time reply; the row is kept after).
+     */
+    public record InfoRequest(
+            String message,
+            Instant requestedAt,
+            String replyMessage,
+            Instant repliedAt) {
     }
 }

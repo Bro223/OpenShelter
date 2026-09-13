@@ -25,6 +25,7 @@ const SHELTER_ROW: AdminShelterDto = {
   // INACTIVE + NEW + only 3 reports: the derivation falls through to the
   // trust-state value (M6 — below the auto-hide threshold).
   provenance: 'UNDER_REVIEW',
+  infoRequest: null, // M10 slice 3 — no moderator question on this row
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
@@ -368,5 +369,18 @@ describe('AdminGateway', () => {
     expect(api.get).toHaveBeenCalledTimes(1);
     expect(api.get).toHaveBeenCalledWith('/admin/shelters/7/history');
     expect(rows).toEqual(events);
+  });
+
+  // ---- POST /admin/shelters/{id}/request-info (M10 slice 3) ----
+
+  it('requestInfo POSTs the message to /admin/shelters/{id}/request-info and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.requestInfo(7, 'Kas varjund on avatud?');
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/request-info', {
+      message: 'Kas varjund on avatud?',
+    });
   });
 });

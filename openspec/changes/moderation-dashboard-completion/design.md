@@ -123,17 +123,60 @@ exist — a deleted shelter with history still serves it.
 
 Slices commit green, one gate pair each, milestone id M10:
 
-1. **suspend user** (this pass target) — V17, three doors, Users tab.
+1. **suspend user** — V17, three doors, Users tab. (done, 3042674)
 2. **edit-history viewer** — V18, `shelter_history`, Shelters-tab
-   dialog.
+   dialog. (done, c7e9748)
 3. **request-info** — V19 `shelter_info_requests`, submitter reply
-   on the contribution surface.
+   on the contribution surface. (done — D6)
 4. **mark inaccurate** — V20 `shelters.inaccurate_marked_*`, public
-   `inaccurate` flag + single-sourced warning.
+   `inaccurate` flag + single-sourced warning. (next pass target)
 
 "Delete abusive content" is already shipped (admin-moderation hard
 delete + two-tap confirm) and is NOT re-done — the M10 spec delta
 marks it satisfied-by-existing.
+
+## D6 — Request-info: one exchange per shelter, kept after the reply
+
+`shelter_info_requests` (V19) holds the moderator→submitter
+information request: the admin asks on a USER row, the submitter sees
+it on their own row and answers ONCE.
+
+- **One exchange per shelter** — `UNIQUE (shelter_id)`. The submitter's
+  answer is one-time (`replied_at` set once, a second reply → 409), and
+  the row is KEPT after the reply (audit posture — never deleted), so a
+  second request for the same shelter is a 409 too (replied or not).
+  The spec delta's "answer ONCE" is the contract; re-asking would
+  require deleting the audit row, which the posture forbids.
+- **`shelter_id` is referential (ON DELETE CASCADE)** — unlike
+  `shelter_history` (V18, dangling by design), a deleted shelter has
+  no surface left to render the exchange on, so the row goes with the
+  shelter (the V1 child-table convention). The FK is also what makes
+  the admin write's 404-vs-409 ordering clean (unknown shelter 404
+  before the source guard 409).
+- **`requested_by` / `replied_by` are ON DELETE SET NULL** (the V14
+  moderation_actions convention) — an account erasure must not erase
+  the exchange; dangling ids render "Unknown" at read time.
+- **Visibility**: the exchange is private between the admin and the
+  author. `ShelterDto.infoRequest` is set on the `/mine` projection
+  ONLY (null on the public list + detail reads); `AdminShelterDto.
+  infoRequest` (with the requester's name) rides on the admin list —
+  no dedicated read endpoint (the list already batch-projects every
+  row; a new endpoint would be a second SQL surface for one field).
+  Both are fetched in the shared batched projection, and ONLY for the
+  two projections that need them (public reads never touch the table).
+- **Guard vocabulary**: request — 404 unknown shelter, 409 registry
+  row (import-owned, the existing admin-write guard), 409 duplicate,
+  400 blank message (@NotBlank, the request-record vocabulary). Reply
+  — 404/403 (author-only, the exact PUT/DELETE vocabulary via
+  `requireOwnedShelter`), 404 no request on the row, 409 answered.
+- **Deliberately NOT audited** (the spec delta requires no audit row
+  for it): the request row itself is the record. The moderation trail
+  stays reserved for moderation decisions. No e-mail/notify either
+  (M4's public-inbox leftover — owner-owed): the /mine badge is the
+  submitter's only signal.
+- The reply write's find + stamp is ONE transaction (the seam's
+  `@Transactional` — the admin write joins the service's, the reply
+  opens its own from the controller).
 
 ## Risks / notes
 

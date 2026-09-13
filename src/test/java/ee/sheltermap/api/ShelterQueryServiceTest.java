@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.InMemoryDataImportLog;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
+import ee.sheltermap.app.InMemoryShelterInfoRequestLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
@@ -55,6 +56,7 @@ class ShelterQueryServiceTest {
     private InMemoryShelterOccupancyRepository occupancy;
     private InMemoryDataImportLog importLog;
     private InMemoryModerationAuditLog audit;
+    private InMemoryShelterInfoRequestLog infoRequests;
     private ShelterQueryService service;
 
     private Shelter userShelter;
@@ -70,8 +72,9 @@ class ShelterQueryServiceTest {
         occupancy = new InMemoryShelterOccupancyRepository();
         importLog = new InMemoryDataImportLog();
         audit = new InMemoryModerationAuditLog(FIXED);
+        infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
         service = new ShelterQueryService(shelters, reviews, users, reports, occupancy,
-                importLog, audit, FIXED);
+                importLog, audit, infoRequests, FIXED);
 
         userShelter = save("User House", ShelterSource.USER);
         registryShelter = save("Paasteamet House", ShelterSource.PAASETEAMET);
@@ -399,6 +402,50 @@ class ShelterQueryServiceTest {
     @Test
     void findByCreatedByReturnsEmptyWhenTheUserHasNoShelters() {
         assertThat(service.findByCreatedBy(99L)).isEmpty();
+    }
+
+    // ---------- information request on the /mine projection (M10 slice 3) ----------
+
+    @Test
+    void theMineProjectionCarriesTheInfoRequestButThePublicReadsDoNot() {
+        long authorId = saveUser("Mari", "mari@example.ee", true);
+        userShelter.setCreatedBy(authorId);
+        infoRequests.request(userShelter.getId(), "Kas varjend on avatud?", 9L);
+
+        ShelterDto mine = service.findByCreatedBy(authorId).get(0);
+        assertThat(mine.infoRequest()).isNotNull();
+        assertThat(mine.infoRequest().message()).isEqualTo("Kas varjend on avatud?");
+        assertThat(mine.infoRequest().requestedAt()).isEqualTo(NOW);
+        assertThat(mine.infoRequest().replyMessage()).isNull();
+
+        // The exchange is private between the admin and the author — it must
+        // not leak on the public list or the detail read.
+        ShelterDto publicRow = service.findAll(ShelterSourceFilter.ALL, null, null, null, null)
+                .stream().filter(dto -> dto.id().equals(userShelter.getId())).findFirst().orElseThrow();
+        assertThat(publicRow.infoRequest()).isNull();
+        assertThat(service.findById(userShelter.getId()).orElseThrow().infoRequest()).isNull();
+    }
+
+    @Test
+    void theMineProjectionShowsTheReplyOnceAnswered() {
+        long authorId = saveUser("Priit", "priit@example.ee", true);
+        userShelter.setCreatedBy(authorId);
+        infoRequests.request(userShelter.getId(), "Kas varjend on avatud?", 9L);
+        infoRequests.reply(userShelter.getId(), "Jah, avatud on.", authorId);
+
+        ShelterDto mine = service.findByCreatedBy(authorId).get(0);
+        assertThat(mine.infoRequest().replyMessage()).isEqualTo("Jah, avatud on.");
+        assertThat(mine.infoRequest().repliedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void aRowWithoutARequestCarriesNullInfoRequest() {
+        long authorId = saveUser("Kaja", "kaja@example.ee", true);
+        userShelter.setCreatedBy(authorId);
+
+        ShelterDto mine = service.findByCreatedBy(authorId).get(0);
+
+        assertThat(mine.infoRequest()).isNull();
     }
 
     @Test

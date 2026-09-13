@@ -30,6 +30,7 @@ const SHELTER_ROW: MineShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
   lastVerifiedAt: null, // M8 — null = never verified
+  infoRequest: null, // M10 slice 3 — no moderator question on this row
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -49,6 +50,7 @@ class FakeShelterGateway {
   mine = vi.fn();
   update = vi.fn();
   remove = vi.fn();
+  replyInfoRequest = vi.fn();
   constructor() {
     this.mine.mockResolvedValue([]);
   }
@@ -277,6 +279,108 @@ describe('ContributionsPanel', () => {
     // row unchanged and still present, form still open
     expect(element.textContent).toContain('Community Cellar');
     expect(element.querySelector('#contrib-name')).not.toBeNull();
+  });
+
+  // ---- info request (M10 slice 3) ---------------------------------------------
+
+  const OPEN_REQUEST = {
+    message: 'Kas varjund on avatud?',
+    requestedAt: '2026-09-13T10:00:00Z',
+    replyMessage: null,
+    repliedAt: null,
+  };
+
+  it('an open info request shows the amber chip and the Info button', async () => {
+    shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, infoRequest: OPEN_REQUEST }]);
+    const { element } = await open();
+
+    expect(element.textContent).toContain('Info request');
+    expect(buttonByText(element, 'Info')).not.toBeNull();
+  });
+
+  it('a row without an info request renders no chip and no Info button', async () => {
+    shelters.mine.mockResolvedValue([SHELTER_ROW]);
+    const { element } = await open();
+
+    expect(element.textContent).not.toContain('Info request');
+    expect(buttonByText(element, 'Info')).toBeFalsy();
+  });
+
+  it('the Info panel shows the open question with the reply form', async () => {
+    shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, infoRequest: OPEN_REQUEST }]);
+    const { element, fixture } = await open();
+
+    buttonByText(element, 'Info')!.click();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('A moderator is asking:');
+    expect(element.textContent).toContain(OPEN_REQUEST.message);
+    expect(element.querySelector('#contrib-info-reply')).not.toBeNull();
+  });
+
+  it('sending the reply POSTs the one-time answer and patches the row in place', async () => {
+    shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, infoRequest: OPEN_REQUEST }]);
+    shelters.replyInfoRequest.mockResolvedValue(undefined);
+    const { element, fixture } = await open();
+
+    buttonByText(element, 'Info')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#contrib-info-reply')!;
+    textarea.value = 'Jah, avatud on.';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Send reply')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(shelters.replyInfoRequest).toHaveBeenCalledWith(7, 'Jah, avatud on.');
+    // the row flips to answered: the chip disappears and the panel closed
+    expect(element.textContent).not.toContain('Info request');
+    expect(element.querySelector('#contrib-info-reply')).toBeNull();
+  });
+
+  it('an answered request stays viewable read-only (no reply form)', async () => {
+    shelters.mine.mockResolvedValue([
+      {
+        ...SHELTER_ROW,
+        infoRequest: {
+          ...OPEN_REQUEST,
+          replyMessage: 'Jah, avatud on.',
+          repliedAt: '2026-09-13T11:00:00Z',
+        },
+      },
+    ]);
+    const { element, fixture } = await open();
+
+    // answered: no chip, but the exchange is still reachable
+    expect(element.textContent).not.toContain('Info request');
+    buttonByText(element, 'Info')!.click();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Your reply');
+    expect(element.textContent).toContain('Jah, avatud on.');
+    expect(element.querySelector('#contrib-info-reply')).toBeNull();
+  });
+
+  it('a rejected reply (409) shows the row error and keeps the form open', async () => {
+    shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, infoRequest: OPEN_REQUEST }]);
+    shelters.replyInfoRequest.mockRejectedValue(
+      apiError(409, 'already been answered', '/api/shelters/7/info-request/reply'),
+    );
+    const { element, fixture } = await open();
+
+    buttonByText(element, 'Info')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#contrib-info-reply')!;
+    textarea.value = 'Uuesti?';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Send reply')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('already been answered');
+    expect(element.querySelector('#contrib-info-reply')).not.toBeNull();
   });
 
   // ---- shelter rows: two-step delete ----------------------------------------

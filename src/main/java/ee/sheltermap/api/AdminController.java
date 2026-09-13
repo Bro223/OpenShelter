@@ -109,6 +109,21 @@ public class AdminController {
     }
 
     /**
+     * The moderator→submitter information request (M10 slice 3): stores the
+     * question on the shelter; the submitter sees it on their own row and
+     * answers once — the admin sees the request with the reply on the
+     * shelter list. 204; 404 unknown shelter; 409 registry rows
+     * (import-owned) and a second request for the same row (one exchange
+     * per shelter — the replied row is kept).
+     */
+    @PostMapping("/shelters/{id}/request-info")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void requestInfo(@PathVariable long id,
+                            @Valid @RequestBody AdminInfoRequestRequest request) {
+        moderation.requestInfo(requireAdmin(), id, request.message());
+    }
+
+    /**
      * The community review decision (community-review-queue v2 D2) —
      * the rare manual override: CONFIRM promotes the row to CONFIRMED
      * (status untouched, note cleared); REJECT hides it (REJECTED +

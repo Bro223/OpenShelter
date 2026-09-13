@@ -6,6 +6,7 @@ import ee.sheltermap.app.ShelterOccupancyRepository;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReportRepository.ReportTypeCount;
+import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.ShelterReviewRepository.RatingAggregate;
 import ee.sheltermap.app.UserRepository;
@@ -85,6 +86,7 @@ public class ShelterQueryService {
     private final ShelterOccupancyRepository occupancyRepository;
     private final DataImportLog dataImportLog;
     private final ModerationAuditLog moderationAudit;
+    private final ShelterInfoRequestLog infoRequests;
     private final Clock clock;
 
     public ShelterQueryService(ShelterRepository shelterRepository,
@@ -94,6 +96,7 @@ public class ShelterQueryService {
                                ShelterOccupancyRepository occupancyRepository,
                                DataImportLog dataImportLog,
                                ModerationAuditLog moderationAudit,
+                               ShelterInfoRequestLog infoRequests,
                                Clock clock) {
         this.shelterRepository = shelterRepository;
         this.reviewRepository = reviewRepository;
@@ -102,6 +105,7 @@ public class ShelterQueryService {
         this.occupancyRepository = occupancyRepository;
         this.dataImportLog = dataImportLog;
         this.moderationAudit = moderationAudit;
+        this.infoRequests = infoRequests;
         this.clock = clock;
     }
 
@@ -139,17 +143,24 @@ public class ShelterQueryService {
                 .map(shelter -> toDtos(List.of(shelter), caller).get(0));
     }
 
-    /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows). */
+    /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows).
+     *  The /mine projection additionally carries each row's moderator→submitter
+     *  information request (M10 slice 3) — the exchange is private, so the
+     *  public list and detail reads never fetch it. */
     public List<ShelterDto> findByCreatedBy(long userId) {
-        return toDtos(shelterRepository.findByCreatedBy(userId), null);
+        return toDtos(shelterRepository.findByCreatedBy(userId), null, true);
     }
 
     /** Maps a batch of shelters in ONE aggregate pass (no N+1). */
     private List<ShelterDto> toDtos(List<Shelter> shelters, User caller) {
+        return toDtos(shelters, caller, false);
+    }
+
+    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withInfoRequests) {
         if (shelters.isEmpty()) {
             return List.of();
         }
-        Batches batches = batchesFor(shelters);
+        Batches batches = batchesFor(shelters, withInfoRequests);
         // The caller's own band is a DETAIL-only field (D5): one indexed
         // lookup, and only for the single-shelter read — the list paths
         // (public + /mine) pass a null caller and stay pure batch queries.
@@ -166,6 +177,10 @@ public class ShelterQueryService {
      * type, the fresh occupancy rows, and the last-verified stamp (M8).
      */
     private Batches batchesFor(List<Shelter> shelters) {
+        return batchesFor(shelters, false);
+    }
+
+    private Batches batchesFor(List<Shelter> shelters, boolean withInfoRequests) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
         Map<Long, RatingAggregate> aggregates = reviewRepository.findRatingAggregates(ids).stream()
                 .collect(Collectors.toMap(RatingAggregate::shelterId, Function.identity()));
@@ -190,7 +205,21 @@ public class ShelterQueryService {
         // Last verified (M8): the per-shelter verification stamp (see the
         // lastVerifiedFor derivation comment).
         Map<Long, Instant> lastVerified = lastVerifiedFor(shelters, ids);
-        return new Batches(aggregates, authors, reportCounts, occupancy, lastVerified);
+        // Information request (M10 slice 3): the per-shelter exchange row
+        // (at most one per shelter — the UNIQUE bound) + the requesting
+        // admin (batched — the admin projection renders the name; /mine
+        // ignores it). Fetched ONLY for the /mine and admin projections.
+        Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequestRows = withInfoRequests
+                ? infoRequests.findByShelterIds(ids)
+                : Map.of();
+        Map<Long, User> infoRequesters = withInfoRequests
+                ? userRepository.findByIds(infoRequestRows.values().stream()
+                        .map(ShelterInfoRequestLog.InfoRequest::requestedBy)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                : Map.of();
+        return new Batches(aggregates, authors, reportCounts, occupancy, lastVerified,
+                infoRequestRows, infoRequesters);
     }
 
     /** The shared batched inputs of both shelter projections. */
@@ -199,7 +228,9 @@ public class ShelterQueryService {
             Map<Long, User> authors,
             Map<Long, Map<ShelterReportType, Long>> reportCounts,
             Map<Long, ShelterDto.Occupancy> occupancy,
-            Map<Long, Instant> lastVerified) {
+            Map<Long, Instant> lastVerified,
+            Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequests,
+            Map<Long, User> infoRequesters) {
     }
 
     /**
@@ -318,7 +349,15 @@ public class ShelterQueryService {
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
                         shelter.getStatus(), nonExistent),
                 reportTotal,
-                batches.lastVerified().get(shelter.getId()));
+                batches.lastVerified().get(shelter.getId()),
+                toInfoRequest(batches.infoRequests().get(shelter.getId())));
+    }
+
+    /** The /mine projection's info-request field (null when the row has none). */
+    private static ShelterDto.InfoRequest toInfoRequest(ShelterInfoRequestLog.InfoRequest request) {
+        return request == null ? null
+                : new ShelterDto.InfoRequest(request.message(), request.requestedAt(),
+                        request.replyMessage(), request.repliedAt());
     }
 
     /**
@@ -340,7 +379,7 @@ public class ShelterQueryService {
         if (shelters.isEmpty()) {
             return List.of();
         }
-        Batches batches = batchesFor(shelters);
+        Batches batches = batchesFor(shelters, true);
         List<AdminShelterDto> dtos = shelters.stream()
                 .map(shelter -> toAdminDto(shelter, batches))
                 .toList();
@@ -381,7 +420,23 @@ public class ShelterQueryService {
                 shelter.getReviewNote(),
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
-                        shelter.getStatus(), nonExistent));
+                        shelter.getStatus(), nonExistent),
+                toAdminInfoRequest(batches.infoRequests().get(shelter.getId()),
+                        batches.infoRequesters()));
+    }
+
+    /** The admin projection's info-request field (null when the row has none);
+     *  the requesting admin's profile name — "Unknown" after the account's
+     *  erasure (no FK on requested_by). */
+    private static AdminShelterDto.InfoRequest toAdminInfoRequest(
+            ShelterInfoRequestLog.InfoRequest request, Map<Long, User> requesters) {
+        if (request == null) {
+            return null;
+        }
+        User requester = request.requestedBy() == null ? null : requesters.get(request.requestedBy());
+        return new AdminShelterDto.InfoRequest(request.message(), request.requestedAt(),
+                requester == null ? "Unknown" : requester.getData().name(),
+                request.replyMessage(), request.repliedAt());
     }
 
     /**

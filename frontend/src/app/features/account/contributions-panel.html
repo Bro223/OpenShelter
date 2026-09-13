@@ -38,6 +38,12 @@
               <span class="contrib-badge" [ngClass]="provenanceBadgeClass(row.provenance)">
                 {{ provenanceText(row.provenance) }}
               </span>
+              <!-- Info request (M10 slice 3): an OPEN moderator question —
+                   the amber action chip; answered requests carry no chip
+                   (the exchange stays viewable via the Info button). -->
+              @if (row.infoRequest && row.infoRequest.replyMessage === null) {
+                <span class="contrib-badge contrib-badge--info">Info request</span>
+              }
             </span>
             <!-- Auto-hidden by five non-existence reports (user-
                  contributions): the owner's list keeps hidden rows, marked
@@ -60,6 +66,16 @@
           </div>
           <div class="contrib-row__actions">
             <a [routerLink]="['/shelters', row.id]" class="btn btn--ghost">View</a>
+            @if (row.infoRequest) {
+              <button
+                type="button"
+                class="btn btn--ghost"
+                (click)="toggleInfo(row)"
+                [disabled]="busy()"
+              >
+                {{ infoFor() === row.id ? 'Close info' : 'Info' }}
+              </button>
+            }
             @if (editingShelterId() !== row.id) {
               <button
                 type="button"
@@ -193,6 +209,59 @@
                 </button>
               </div>
             </div>
+          }
+
+          <!-- Info request (M10 slice 3): the moderator's question + the
+               one-time reply (open) or the stored reply (answered — the row
+               is kept after the reply, audit posture). -->
+          @if (infoFor() === row.id) {
+            @if (row.infoRequest; as req) {
+              <div class="contrib-info">
+                <p class="contrib-info__q">
+                  <span class="contrib-info__label">A moderator is asking:</span>
+                  {{ req.message }}
+                </p>
+                <span class="contrib-row__meta">{{ req.requestedAt | date: 'medium' }}</span>
+                @if (req.replyMessage === null) {
+                  <div class="field">
+                    <label for="contrib-info-reply">Your reply (required, one-time)</label>
+                    <textarea
+                      id="contrib-info-reply"
+                      rows="2"
+                      maxlength="2000"
+                      [formControl]="replyMessage"
+                    ></textarea>
+                    @if (replyMessage.touched && replyMessage.invalid) {
+                      <p class="field-error">A reply (up to 2000 characters) is required.</p>
+                    }
+                  </div>
+                  <div class="contrib-actions">
+                    <button
+                      type="button"
+                      class="btn btn--primary"
+                      (click)="sendInfoReply(row)"
+                      [disabled]="busy() || replyMessage.invalid"
+                    >
+                      {{ busy() ? 'Sending…' : 'Send reply' }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="closeInfo()"
+                      [disabled]="busy()"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                } @else {
+                  <p class="contrib-info__a">
+                    <span class="contrib-info__label">Your reply</span>
+                    {{ req.replyMessage }}
+                  </p>
+                  <span class="contrib-row__meta">{{ req.repliedAt | date: 'medium' }}</span>
+                }
+              </div>
+            }
           }
         </li>
       }

@@ -22,13 +22,14 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The fifteen endpoints, 1:1:
+ * The sixteen endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/review         -> 200 {ok} (USER rows only)
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
  *   GET    /admin/shelters/{id}/history        -> AdminShelterHistoryEvent[] (M10 slice 2)
+ *   POST   /admin/shelters/{id}/request-info   -> 204 (USER rows only; M10 slice 3)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
  *   GET    /admin/review-reports               -> AdminReviewReportDto[]
@@ -101,6 +102,18 @@ export class AdminGateway {
    */
   listShelterHistory(id: number): Promise<AdminShelterHistoryEvent[]> {
     return lastValueFrom(this.api.get<AdminShelterHistoryEvent[]>(`/admin/shelters/${id}/history`));
+  }
+
+  /**
+   * POST /admin/shelters/{id}/request-info {message} -> 204 (M10 slice 3).
+   * The moderator→submitter information request: the submitter sees it on
+   * their own row and answers once; the admin sees the request with the
+   * reply on the shelter list. USER rows only (409 registry — import-
+   * owned); 404 unknown id; 409 when the row already has a request (one
+   * exchange per shelter — the replied row is kept).
+   */
+  requestInfo(id: number, message: string): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/shelters/${id}/request-info`, { message }));
   }
 
   /**

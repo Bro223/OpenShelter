@@ -4,6 +4,7 @@ import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.InMemoryDataImportLog;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterHistoryLog;
+import ee.sheltermap.app.InMemoryShelterInfoRequestLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
@@ -14,8 +15,10 @@ import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
+import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterService;
+import ee.sheltermap.app.DuplicateInfoRequestException;
 import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
@@ -59,6 +62,7 @@ class AdminModerationServiceTest {
     private InMemoryUserRepository users;
     private InMemoryModerationAuditLog audit;
     private InMemoryShelterHistoryLog history;
+    private InMemoryShelterInfoRequestLog infoRequests;
     private AdminModerationService service;
 
     private long adminId;
@@ -73,15 +77,17 @@ class AdminModerationServiceTest {
         users = new InMemoryUserRepository();
         audit = new InMemoryModerationAuditLog(FIXED);
         history = new InMemoryShelterHistoryLog(FIXED);
+        infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
         ShelterQueryService queryService =
                 new ShelterQueryService(shelters, reviews, users, shelterReports, occupancy,
-                        new InMemoryDataImportLog(), audit, FIXED);
+                        new InMemoryDataImportLog(), audit, infoRequests, FIXED);
         service = new AdminModerationService(queryService, shelters, shelterReports,
                 new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED,
                 audit,
                 new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
                         history),
-                history);
+                history,
+                infoRequests);
 
         adminId = saveAdmin("Admin", "admin@example.ee");
         submitterId = saveUser("Autor", "autor@example.ee");
@@ -494,5 +500,47 @@ class AdminModerationServiceTest {
             moved.put((String) pair[0], (Object[]) pair[1]);
         }
         return moved;
+    }
+
+    // ---------- request-info (M10 slice 3) ----------
+
+    @Test
+    void aRequestInfoStoresTheExchangeOnTheRow() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+
+        service.requestInfo(adminId, shelter.getId(), "  Kas varjend on avatud?  ");
+
+        ShelterInfoRequestLog.InfoRequest row = infoRequests.findByShelterId(shelter.getId())
+                .orElseThrow();
+        assertThat(row.message()).isEqualTo("Kas varjend on avatud?");
+        assertThat(row.requestedBy()).isEqualTo(adminId);
+        assertThat(row.requestedAt()).isEqualTo(NOW);
+        assertThat(row.replyMessage()).isNull();
+        assertThat(row.repliedBy()).isNull();
+        // Deliberately NOT audited (the spec delta requires no audit row —
+        // the request row itself is the record).
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aSecondRequestForTheSameShelterIsAConflict() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        service.requestInfo(adminId, shelter.getId(), "Esimene");
+
+        assertThatThrownBy(() -> service.requestInfo(adminId, shelter.getId(), "Teine"))
+                .isInstanceOf(DuplicateInfoRequestException.class);
+        assertThat(infoRequests.findByShelterId(shelter.getId()).orElseThrow().message())
+                .isEqualTo("Esimene");
+    }
+
+    @Test
+    void requestsOnRegistryRowsAreConflictsAndUnknownIdsAre404() {
+        Shelter registry = registryShelter();
+
+        assertThatThrownBy(() -> service.requestInfo(adminId, registry.getId(), "Kust?"))
+                .isInstanceOf(ImportOwnedShelterException.class);
+        assertThatThrownBy(() -> service.requestInfo(adminId, 999_999L, "Kust?"))
+                .isInstanceOf(ShelterNotFoundException.class);
+        assertThat(infoRequests.rows()).isEmpty();
     }
 }

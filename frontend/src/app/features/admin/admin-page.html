@@ -300,6 +300,19 @@
                     >
                       {{ historyFor() === row.id ? 'Close history' : 'History' }}
                     </button>
+                    <!-- Info-request toggle (M10 slice 3): the moderator→
+                         submitter exchange — question editor for rows
+                         without a request, the exchange (with the answer
+                         once given) for rows with one. USER rows only,
+                         like the History button. -->
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="toggleInfo(row)"
+                      [disabled]="busy()"
+                    >
+                      {{ infoFor() === row.id ? 'Close info' : 'Info' }}
+                    </button>
                     @if (confirmingDelete() !== row.id) {
                       @if (row.status === 'ACTIVE') {
                         <button
@@ -384,6 +397,71 @@
                           </li>
                         }
                       </ul>
+                    }
+                  </td>
+                </tr>
+              }
+              <!-- Inline info-request panel (M10 slice 3): a row WITHOUT a
+                   request gets the question editor (required, ≤2000); a row
+                   WITH one shows the exchange read-only — the row is kept
+                   after the reply (audit posture). -->
+              @if (infoFor() === row.id) {
+                <tr class="admin-history-row">
+                  <td class="admin-history" colspan="9">
+                    @if (row.infoRequest; as req) {
+                      <p class="admin-history__event">
+                        <span class="admin-history__action">Info request</span>
+                        <span class="admin-history__actor">{{ req.requestedByName }}</span>
+                        <span class="admin-history__time">{{
+                          req.requestedAt | date: 'medium'
+                        }}</span>
+                      </p>
+                      <p class="admin-history__change">{{ req.message }}</p>
+                      @if (req.replyMessage; as reply) {
+                        <p class="admin-history__event">
+                          <span class="admin-history__action">Answer</span>
+                          <span class="admin-history__time">{{
+                            req.repliedAt | date: 'medium'
+                          }}</span>
+                        </p>
+                        <p class="admin-history__change">{{ reply }}</p>
+                      } @else {
+                        <p class="admin-muted">Waiting for the submitter's answer.</p>
+                      }
+                    } @else {
+                      <div class="admin-reason">
+                        <label for="info-request-message"
+                          >Question for the submitter (required)</label
+                        >
+                        <textarea
+                          id="info-request-message"
+                          [formControl]="requestMessage"
+                          placeholder="What do you need from the submitter?"
+                        ></textarea>
+                        @if (requestMessage.invalid && requestMessage.touched) {
+                          <span class="admin-reason__error">
+                            A question is required (max {{ 2000 }} characters).
+                          </span>
+                        }
+                        <div class="admin-reason__actions">
+                          <button
+                            type="button"
+                            class="btn btn--primary"
+                            (click)="sendInfoRequest(row)"
+                            [disabled]="busy() || requestMessage.invalid"
+                          >
+                            {{ busy() ? 'Sending…' : 'Send' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            (click)="closeInfo()"
+                            [disabled]="busy()"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
                     }
                   </td>
                 </tr>

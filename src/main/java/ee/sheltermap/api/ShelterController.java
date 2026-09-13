@@ -4,6 +4,7 @@ import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportService;
+import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
@@ -78,17 +79,20 @@ public class ShelterController {
     private final ShelterReportService reportService;
     private final UserRepository userRepository;
     private final ShelterRepository shelterRepository;
+    private final ShelterInfoRequestLog infoRequests;
 
     public ShelterController(ShelterQueryService queryService,
                              ShelterService shelterService,
                              ShelterReportService reportService,
                              UserRepository userRepository,
-                             ShelterRepository shelterRepository) {
+                             ShelterRepository shelterRepository,
+                             ShelterInfoRequestLog infoRequests) {
         this.queryService = queryService;
         this.shelterService = shelterService;
         this.reportService = reportService;
         this.userRepository = userRepository;
         this.shelterRepository = shelterRepository;
+        this.infoRequests = infoRequests;
     }
 
     /**
@@ -162,6 +166,21 @@ public class ShelterController {
     @GetMapping("/mine")
     public List<ShelterDto> mine() {
         return queryService.findByCreatedBy(currentUser().getId());
+    }
+
+    /**
+     * POST /api/shelters/{id}/info-request/reply — the submitter's ONE-TIME
+     * answer to the admin's information request (M10 slice 3): 204. Author
+     * only — the same 404/403 vocabulary as the other author-scoped
+     * mutations (PUT/DELETE); 404 when the row has no request; 409 on a
+     * second answer (the row is kept after the reply — audit posture).
+     */
+    @PostMapping("/{id}/info-request/reply")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void replyInfoRequest(@PathVariable long id, @Valid @RequestBody InfoRequestReplyRequest request) {
+        RegisteredUser user = requireVerifiedRegisteredUser();
+        requireOwnedShelter(id, user);
+        infoRequests.reply(id, request.message().trim(), user.getId());
     }
 
     /**

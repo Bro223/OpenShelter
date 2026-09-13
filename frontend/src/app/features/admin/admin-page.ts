@@ -57,6 +57,10 @@ export type AdminTab =
  *  (community-review-queue): required, at most 500 characters. */
 export const REJECT_REASON_MAX = 500;
 
+/** The info-request question's hard limit — mirrored by the backend
+ *  contract (M10 slice 3, V19 column bound): required, at most 2000. */
+export const INFO_REQUEST_MAX = 2000;
+
 /** Shelter-report type labels (queue column + row meta). */
 export const SHELTER_REPORT_TYPE_LABEL: Record<ShelterReportType, string> = {
   NON_EXISTENT: 'Does not exist',
@@ -204,6 +208,16 @@ export class AdminPage implements OnInit {
   /** The open panel's events — null = loading, [] = loaded and empty. */
   protected readonly historyEvents = signal<AdminShelterHistoryEvent[] | null>(null);
 
+  // ---- info request (M10 slice 3) -------------------------------------------------
+  /** The row whose inline info-request panel is open (null = closed). */
+  protected readonly infoFor = signal<number | null>(null);
+  /** The question editor: required (non-blank — the shared blank validator),
+   *  at most 2000 characters (the V19 bound). */
+  readonly requestMessage = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, nameBlankValidator, Validators.maxLength(INFO_REQUEST_MAX)],
+  });
+
   // ---- shelter-report tab ----------------------------------------------------
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
   protected readonly reportLoadError = signal<string | null>(null);
@@ -334,6 +348,7 @@ export class AdminPage implements OnInit {
     this.tab.set(tab);
     this.clearFeedback();
     this.closeHistory();
+    this.closeInfo();
     switch (tab) {
       case 'shelters':
         if (this.shelterRows() === null && this.shelterLoadError() === null) {
@@ -460,6 +475,7 @@ export class AdminPage implements OnInit {
     this.clearFeedback();
     this.confirmingDelete.set(null);
     this.closeHistory();
+    this.closeInfo();
     this.loadShelters();
   }
 
@@ -519,7 +535,66 @@ export class AdminPage implements OnInit {
       if (this.historyFor() === id) {
         this.closeHistory();
       }
+      if (this.infoFor() === id) {
+        this.closeInfo();
+      }
       this.confirmingDelete.set(null);
+      this.busy.set(false);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Info request (M10 slice 3)
+  // -------------------------------------------------------------------------
+  /**
+   * Toggle the inline info-request panel for a USER row. A row WITHOUT a
+   * request shows the question editor (required, ≤2000) and the send
+   * action; a row WITH one shows the exchange read-only — the question
+   * with the requester, and the submitter's answer once given (the row is
+   * kept after the reply — audit posture; a second request is a server-
+   * side 409, one exchange per shelter).
+   */
+  toggleInfo(row: AdminShelterDto): void {
+    if (this.infoFor() === row.id) {
+      this.closeInfo();
+      return;
+    }
+    this.clearFeedback();
+    this.requestMessage.reset('');
+    this.infoFor.set(row.id);
+  }
+
+  /** Close the open info panel (tab switch, search, delete, toggle). */
+  closeInfo(): void {
+    this.infoFor.set(null);
+  }
+
+  /**
+   * "Send": POST /admin/shelters/{id}/request-info (204). The shelters
+   * list refetches afterwards — the server resolves the requester name
+   * and the timestamp, which the 204 body does not carry (the
+   * review-action refetch precedent).
+   */
+  async sendInfoRequest(row: AdminShelterDto): Promise<void> {
+    const message = this.requestMessage.value.trim();
+    if (message === '' || message.length > INFO_REQUEST_MAX) {
+      this.requestMessage.markAsTouched();
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.requestInfo(row.id, message);
+      this.success.set('Question sent to the submitter.');
+      await this.refreshShelters();
+      this.closeInfo();
+    } catch (error) {
+      // The panel STAYS open on failure (the admin keeps the question).
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
       this.busy.set(false);
     }
   }

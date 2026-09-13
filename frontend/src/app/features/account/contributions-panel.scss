@@ -103,6 +103,14 @@
     border: 1px solid var(--color-border);
     color: var(--color-muted);
   }
+
+  /* Info request (M10 slice 3): an OPEN moderator question — the amber
+     action chip (needs the submitter's one-time reply); answered requests
+     carry no chip. */
+  &.contrib-badge--info {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
 }
 
 /* The admin's review note (community-review-queue): muted inline copy
@@ -185,6 +193,32 @@
   padding: var(--space-12);
   background: var(--color-bg-subtle);
   border-radius: var(--radius-md);
+}
+
+/* Info-request panel (M10 slice 3): the moderator's question + the reply
+   form / stored reply — the same subtle card as the edit form. */
+.contrib-info {
+  margin-top: var(--space-12);
+  padding: var(--space-12);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+
+  .contrib-info__label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-muted);
+    margin-right: var(--space-6);
+  }
+
+  .contrib-info__q,
+  .contrib-info__a {
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-md);
+    overflow-wrap: anywhere;
+  }
+
+  .field {
+    margin-top: var(--space-8);
+  }
 }
 
 .contrib-edit__coords {

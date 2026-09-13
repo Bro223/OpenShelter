@@ -58,6 +58,7 @@ const USER_ROW: AdminShelterDto = {
   reviewNote: null,
   locationKind: 'PUBLIC',
   provenance: 'UNDER_REVIEW', // USER + NEW (M6)
+  infoRequest: null, // M10 slice 3 — no moderator question on this row
 };
 
 const USER_ROW_HIDDEN: AdminShelterDto = {
@@ -89,6 +90,7 @@ const REGISTRY_ROW: AdminShelterDto = {
   reviewNote: null,
   locationKind: 'PUBLIC',
   provenance: 'OFFICIAL', // PAASETEAMET row (M6)
+  infoRequest: null, // M10 slice 3
 };
 
 /** A second NEW community row, newer than USER_ROW — the queue ordering. */
@@ -190,6 +192,7 @@ class FakeAdminGateway {
   listAudit = vi.fn();
   listAlerts = vi.fn();
   listShelterHistory = vi.fn();
+  requestInfo = vi.fn();
   listUsers = vi.fn();
   suspendUser = vi.fn();
   unsuspendUser = vi.fn();
@@ -515,6 +518,148 @@ describe('AdminPage', () => {
 
     expect(element.querySelector('.admin-history')).toBeNull();
     expect(element.textContent).toContain('Gone');
+  });
+
+  // ---- info request (M10 slice 3) ------------------------------------------------
+
+  it('a USER row gets an Info button that opens the question editor', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('#info-request-message')).not.toBeNull();
+    expect(element.textContent).toContain('Question for the submitter');
+  });
+
+  it('sending the question POSTs it, refetches the list, and closes the panel', async () => {
+    const askedRow = {
+      ...USER_ROW,
+      infoRequest: {
+        message: 'Kas varjend on avatud?',
+        requestedAt: ago(60_000),
+        requestedByName: 'Admin',
+        replyMessage: null,
+        repliedAt: null,
+      },
+    };
+    admin.listShelters.mockResolvedValueOnce([USER_ROW]).mockResolvedValueOnce([askedRow]);
+    admin.requestInfo.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#info-request-message')!;
+    textarea.value = 'Kas varjend on avatud?';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Send')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(admin.requestInfo).toHaveBeenCalledWith(7, 'Kas varjend on avatud?');
+    // the 204 carries no body — the list refetches (the server resolves the
+    // requester name + timestamp) and the panel closes
+    expect(admin.listShelters).toHaveBeenCalledTimes(2);
+    expect(element.querySelector('#info-request-message')).toBeNull();
+    expect(element.textContent).toContain('Question sent to the submitter.');
+  });
+
+  it('a blank question does not POST and shows the field error', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    const { page, element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+    // whitespace-only passes Validators.required — the blank validator is the pin
+    const textarea = element.querySelector<HTMLTextAreaElement>('#info-request-message')!;
+    textarea.value = '   ';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    const send = buttonByText(element, 'Send');
+    expect(send?.disabled).toBe(true);
+    // the disabled button is the guard — touch the control to pin the error copy
+    page.requestMessage.markAsTouched();
+    fixture.detectChanges();
+
+    expect(admin.requestInfo).not.toHaveBeenCalled();
+    expect(element.textContent).toContain('A question is required');
+  });
+
+  it('a row with an answered request shows the exchange read-only (no editor)', async () => {
+    const row = {
+      ...USER_ROW,
+      infoRequest: {
+        message: 'Kas varjund on avatud?',
+        requestedAt: ago(3 * 3_600_000),
+        requestedByName: 'Admin',
+        replyMessage: 'Jah, avatud on.',
+        repliedAt: ago(600_000),
+      },
+    };
+    admin.listShelters.mockResolvedValue([row]);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('Info request');
+    expect(element.textContent).toContain('Jah, avatud on.');
+    expect(element.querySelector('#info-request-message')).toBeNull();
+  });
+
+  it('a row with a pending request shows the waiting note (no answer yet)', async () => {
+    const row = {
+      ...USER_ROW,
+      infoRequest: {
+        message: 'Kas varjund on avatud?',
+        requestedAt: ago(3_600_000),
+        requestedByName: 'Admin',
+        replyMessage: null,
+        repliedAt: null,
+      },
+    };
+    admin.listShelters.mockResolvedValue([row]);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain("Waiting for the submitter's answer.");
+    expect(element.querySelector('#info-request-message')).toBeNull();
+  });
+
+  it('a 409 from request-info (re-request) keeps the panel open with the question', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.requestInfo.mockRejectedValue(
+      apiError(
+        409,
+        'This shelter already has an information request',
+        '/admin/shelters/7/request-info',
+      ),
+    );
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Info')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#info-request-message')!;
+    textarea.value = 'Uus küsimus?';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Send')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('This shelter already has an information request');
+    // the editor stays open (the admin keeps the question)
+    expect(element.querySelector('#info-request-message')).not.toBeNull();
   });
 
   it('submitting the search box re-queries with the q filter (server-side substring)', async () => {

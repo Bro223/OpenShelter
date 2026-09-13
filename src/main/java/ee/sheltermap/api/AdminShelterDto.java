@@ -7,6 +7,8 @@ import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.ShelterStatusFlag;
 
+import java.time.Instant;
+
 /**
  * One row of the admin shelter list (admin-moderation D3) — every shelter,
  * ALL statuses (auto-hidden rows included), id-ordered, with the same
@@ -33,6 +35,13 @@ import ee.sheltermap.domain.ShelterStatusFlag;
  * one surface where all six values are reachable (the list keeps hidden
  * rows), so the admin badge renders REPORTED_INACTIVE / REJECTED tones
  * here.
+ *
+ * <p>Information request (moderation-dashboard-completion M10 slice 3):
+ * {@code infoRequest} is the moderator→submitter exchange for this row —
+ * null when none exists. The admin sees the request together with the
+ * submitter's reply here (audit posture: the row is kept after the reply),
+ * with the requesting admin's profile name ("Unknown" after erasure —
+ * no FK on requested_by).
  */
 public record AdminShelterDto(
         Long id,
@@ -50,5 +59,21 @@ public record AdminShelterDto(
         ReviewStatus reviewStatus,
         String reviewNote,
         LocationKind locationKind,
-        Provenance provenance) {
+        Provenance provenance,
+        InfoRequest infoRequest) {
+
+    /**
+     * The moderator→submitter information request of this row (M10 slice 3);
+     * null when none exists. {@code replyMessage}/{@code repliedAt} are null
+     * until the submitter has answered (one-time reply; the row is kept
+     * after). {@code requestedByName} is the asking admin's profile name —
+     * "Unknown" after the account's erasure.
+     */
+    public record InfoRequest(
+            String message,
+            Instant requestedAt,
+            String requestedByName,
+            String replyMessage,
+            Instant repliedAt) {
+    }
 }

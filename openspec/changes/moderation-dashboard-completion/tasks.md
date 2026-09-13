@@ -43,12 +43,12 @@
 
 ## Slice 3 — Request-info
 
-- [ ] V19 `shelter_info_requests`
-- [ ] `POST /admin/shelters/{id}/request-info`, admin read of
+- [x] V19 `shelter_info_requests`
+- [x] `POST /admin/shelters/{id}/request-info`, admin read of
       request+reply
-- [ ] Submitter surface: pending request on own rows + one-time
+- [x] Submitter surface: pending request on own rows + one-time
       reply endpoint (author only, 409 on re-reply)
-- [ ] BE + FE tests; gate both; commit `M10: request-info (slice 3)`
+- [x] BE + FE tests; gate both; commit `M10: request-info (slice 3)`
 
 ## Slice 4 — Mark inaccurate
 

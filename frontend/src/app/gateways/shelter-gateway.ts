@@ -67,12 +67,25 @@ export class ShelterGateway {
    * GET /api/shelters/mine -> the caller's own shelters (Bearer JWT), with
    * the review state (community-review-queue): `reviewStatus` (NEW until
    * confirmed by the community or an admin) + `reviewNote` (the admin's
-   * REJECT reason, when present). The public list/detail DTOs carry
-   * reviewStatus/locationKind too (v2 contract) — only reviewNote is
-   * owner-scoped.
+   * REJECT reason, when present) + `infoRequest` (the moderator→submitter
+   * information request, M10 slice 3 — null when none). The public
+   * list/detail DTOs carry reviewStatus/locationKind too (v2 contract) —
+   * only reviewNote + infoRequest are owner-scoped.
    */
   mine(): Promise<MineShelterDto[]> {
     return lastValueFrom(this.api.get<MineShelterDto[]>('/api/shelters/mine'));
+  }
+
+  /**
+   * POST /api/shelters/{id}/info-request/reply {message} -> 204 (M10 slice
+   * 3). The submitter's ONE-TIME answer to the admin's information
+   * request: author only (403), 404 when the row has no request, 409 on a
+   * second answer (the row is kept after the reply — audit posture).
+   */
+  replyInfoRequest(id: number, message: string): Promise<void> {
+    return lastValueFrom(
+      this.api.post<void>(`/api/shelters/${id}/info-request/reply`, { message }),
+    );
   }
 
   /**

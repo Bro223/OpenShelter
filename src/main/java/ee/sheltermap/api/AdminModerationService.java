@@ -9,6 +9,7 @@ import ee.sheltermap.app.ReviewReportRepository;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
+import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReviewRepository;
@@ -103,6 +104,7 @@ public class AdminModerationService {
     private final ModerationAuditLog audit;
     private final ShelterService shelterService;
     private final ShelterHistoryLog history;
+    private final ShelterInfoRequestLog infoRequests;
 
     public AdminModerationService(ShelterQueryService queryService,
                                   ShelterRepository shelters,
@@ -113,7 +115,8 @@ public class AdminModerationService {
                                   Clock clock,
                                   ModerationAuditLog audit,
                                   ShelterService shelterService,
-                                  ShelterHistoryLog history) {
+                                  ShelterHistoryLog history,
+                                  ShelterInfoRequestLog infoRequests) {
         this.queryService = Objects.requireNonNull(queryService, "queryService");
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.shelterReports = Objects.requireNonNull(shelterReports, "shelterReports");
@@ -124,6 +127,7 @@ public class AdminModerationService {
         this.audit = Objects.requireNonNull(audit, "audit");
         this.shelterService = Objects.requireNonNull(shelterService, "shelterService");
         this.history = Objects.requireNonNull(history, "history");
+        this.infoRequests = Objects.requireNonNull(infoRequests, "infoRequests");
     }
 
     /**
@@ -197,6 +201,28 @@ public class AdminModerationService {
         audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
         shelterService.deletePlace(shelterId, moderatorId);
+    }
+
+    /**
+     * POST /admin/shelters/{id}/request-info (M10 slice 3) — store the
+     * moderator→submitter information request on a USER shelter: the
+     * submitter sees it on their own row (/mine) and answers ONCE; the
+     * admin sees the request with the reply on this list. USER rows only
+     * (registry → 409, import-owned, same guard as the other admin
+     * writes); unknown id → 409 is impossible here — a shelter without a
+     * row is a 404. One exchange per shelter: a second request for the
+     * same row (replied or not — the row is KEPT after the reply, audit
+     * posture) answers 409.
+     *
+     * <p>Deliberately NOT audited (the spec delta requires no audit row
+     * for it — the request row itself is the record; the moderation trail
+     * stays reserved for moderation decisions).
+     */
+    @Transactional
+    public void requestInfo(long moderatorId, long shelterId, String message) {
+        Shelter shelter = requireShelter(shelterId);
+        requireUserOwned(shelter);
+        infoRequests.request(shelterId, message.trim(), moderatorId);
     }
 
     /**

@@ -220,6 +220,17 @@ describe('ShelterGateway', () => {
     expect(rows).toEqual([]);
   });
 
+  it('replyInfoRequest POSTs the answer to /api/shelters/{id}/info-request/reply and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.replyInfoRequest(7, 'Jah, avatud on.');
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/api/shelters/7/info-request/reply', {
+      message: 'Jah, avatud on.',
+    });
+  });
+
   it('update PUTs the typed body to /api/shelters/{id} and returns the fresh row', async () => {
     api.put.mockReturnValue(of({ ...USER_ROW, name: 'Renamed Cellar', capacity: 20 }));
 

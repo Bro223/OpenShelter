@@ -1,5 +1,8 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.DuplicateInfoRequestException;
+import ee.sheltermap.app.InfoRequestAlreadyAnsweredException;
+import ee.sheltermap.app.InfoRequestNotFoundException;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
@@ -171,6 +174,23 @@ public class ApiErrorHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
+    /**
+     * A second information request for a shelter that already has one
+     * (M10 slice 3 — one exchange per shelter; the replied row is kept,
+     * so a re-request collides). 409, plain-spoken.
+     */
+    @ExceptionHandler(DuplicateInfoRequestException.class)
+    ResponseEntity<ErrorResponse> duplicateInfoRequest(DuplicateInfoRequestException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /** A second reply to an already-answered information request (M10 slice 3). 409. */
+    @ExceptionHandler(InfoRequestAlreadyAnsweredException.class)
+    ResponseEntity<ErrorResponse> infoRequestAlreadyAnswered(InfoRequestAlreadyAnsweredException ex,
+                                                              HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
     @ExceptionHandler({
             InvalidCredentialsException.class,
             InvalidAccessTokenException.class,
@@ -263,6 +283,7 @@ public class ApiErrorHandler {
             UserNotFoundException.class,
             ShelterReviewNotFoundException.class,
             ReportNotFoundException.class,
+            InfoRequestNotFoundException.class,
             NoResourceFoundException.class})
     ResponseEntity<ErrorResponse> notFound(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, ex.getMessage(), request);
