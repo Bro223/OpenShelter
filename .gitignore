@@ -85,3 +85,11 @@ data/
 
 # JVM attach artifacts (JDK tools; never repo content)
 .attach_pid*
+
+# ---- Repo-root tooling artifacts (never repo content) ----
+# Root-level node toolchain + vitest cache (frontend/node_modules is covered
+# by frontend/.gitignore; these top-level dirs are NOT and must stay untracked)
+/node_modules/
+/vitest_node_modules/
+/test_node_modules/
+.vitest/

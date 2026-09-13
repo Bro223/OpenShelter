@@ -4,54 +4,55 @@ import {
   OCCUPANCY_HEDGED_COPY,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
-  communityTrustLabel,
   isPrivateLocation,
   occupancyText,
   hasReports,
   hasTrustBadges,
-  provenanceLabel,
+  provenanceBadgeClass,
+  provenanceText,
   recencyText,
   statusFlagText,
 } from './shelter-copy';
 import type { ShelterOccupancy } from '../core/models';
 
 /**
- * The provenance values are PINNED copy (accessibility-and-provenance D4,
- * community-review-queue): the backend's three-valued source maps to the
- * registry chips plus the community trust-state label. A copy change is a
- * spec change — these assertions are the gate.
+ * The provenance values are PINNED copy (shelter-provenance-taxonomy M6,
+ * superseding accessibility-and-provenance D4 + community-review-queue
+ * D5): the server-derived taxonomy value maps to the badge text and tone.
+ * A copy change is a spec change — these assertions are the gate.
  */
-describe('provenanceLabel (D4 copy)', () => {
-  it('PAASETEAMET -> "Paasteamet registry" (never reads the trust state)', () => {
-    expect(provenanceLabel({ source: 'PAASETEAMET', reviewStatus: 'NEW' })).toBe(
-      'Paasteamet registry',
-    );
+describe('provenanceText (M6 copy)', () => {
+  it('OFFICIAL -> "Paasteamet registry"', () => {
+    expect(provenanceText('OFFICIAL')).toBe('Paasteamet registry');
   });
 
-  it('MUNICIPALITY -> "Municipal registry" (never reads the trust state)', () => {
-    expect(provenanceLabel({ source: 'MUNICIPALITY', reviewStatus: 'NEW' })).toBe(
-      'Municipal registry',
-    );
+  it('PARTNER_VERIFIED -> "Municipal registry"', () => {
+    expect(provenanceText('PARTNER_VERIFIED')).toBe('Municipal registry');
   });
 
-  it('USER + NEW -> "Newly added"', () => {
-    expect(provenanceLabel({ source: 'USER', reviewStatus: 'NEW' })).toBe('Newly added');
+  it('COMMUNITY_REPORTED -> "Community-checked"', () => {
+    expect(provenanceText('COMMUNITY_REPORTED')).toBe('Community-checked');
   });
 
-  it('USER + CONFIRMED -> "Community-checked"', () => {
-    expect(provenanceLabel({ source: 'USER', reviewStatus: 'CONFIRMED' })).toBe(
-      'Community-checked',
-    );
+  it('UNDER_REVIEW -> "Newly added"', () => {
+    expect(provenanceText('UNDER_REVIEW')).toBe('Newly added');
   });
 
-  it('USER + REJECTED -> "Rejected" (/mine + admin surfaces)', () => {
-    expect(provenanceLabel({ source: 'USER', reviewStatus: 'REJECTED' })).toBe('Rejected');
+  it('REPORTED_INACTIVE -> "Reported inactive" (/mine + admin surfaces)', () => {
+    expect(provenanceText('REPORTED_INACTIVE')).toBe('Reported inactive');
   });
 
-  it('the trust labels are the exact pinned vocabulary', () => {
-    expect(communityTrustLabel('NEW')).toBe('Newly added');
-    expect(communityTrustLabel('CONFIRMED')).toBe('Community-checked');
-    expect(communityTrustLabel('REJECTED')).toBe('Rejected');
+  it('REJECTED -> "Rejected" (/mine + admin surfaces)', () => {
+    expect(provenanceText('REJECTED')).toBe('Rejected');
+  });
+
+  it('the badge tone follows the marker palette', () => {
+    expect(provenanceBadgeClass('OFFICIAL')).toBe('');
+    expect(provenanceBadgeClass('PARTNER_VERIFIED')).toBe('');
+    expect(provenanceBadgeClass('UNDER_REVIEW')).toBe('badge--new');
+    expect(provenanceBadgeClass('COMMUNITY_REPORTED')).toBe('badge--user');
+    expect(provenanceBadgeClass('REPORTED_INACTIVE')).toBe('badge--inactive');
+    expect(provenanceBadgeClass('REJECTED')).toBe('badge--rejected');
   });
 });
 

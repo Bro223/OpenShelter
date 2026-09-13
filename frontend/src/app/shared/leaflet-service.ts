@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { ReviewStatus, ShelterDto, ShelterSource } from '../core/models';
+import type { Provenance, ShelterDto } from '../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).
@@ -42,25 +42,41 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
- * The marker tone class suffix. Reported state (shelter-trust-and-reports
- * D1) wins over everything — the orange dot is the single "reported"
- * affordance. Otherwise the trust palette (community-review-queue D5):
- * community rows are amber while review_status is NEW ("just added") and
- * green once CONFIRMED; registry rows stay blue. Reported beats trust
- * colour; grey/hidden rows never reach the public map.
+ * The marker tone class suffix (shelter-provenance-taxonomy M6): the tone
+ * follows the server-derived `provenance` — blue OFFICIAL (the `--registry`
+ * class, kept as the blue registry-family pin), yellow PARTNER_VERIFIED,
+ * green COMMUNITY_REPORTED (the `--user` class, kept as the green
+ * community-family pin), amber UNDER_REVIEW, grey REPORTED_INACTIVE,
+ * red REJECTED. The reported state (shelter-trust-and-reports D1) still
+ * wins over the provenance colour — an ACTIVE row with
+ * `nonexistentReports > 0` renders the single orange "reported"
+ * affordance. The two hidden tones (grey/red) never appear on the public
+ * map (the list is ACTIVE-only); the detail page's static pin can render
+ * them for a hidden row.
  */
 export function markerTone(shelter: {
-  source: ShelterSource;
-  reviewStatus: ReviewStatus;
+  provenance: Provenance;
   nonexistentReports: number;
-}): 'reported' | 'new' | 'user' | 'registry' {
+}): 'rejected' | 'inactive' | 'reported' | 'partner' | 'new' | 'user' | 'registry' {
+  if (shelter.provenance === 'REJECTED') {
+    return 'rejected';
+  }
+  if (shelter.provenance === 'REPORTED_INACTIVE') {
+    return 'inactive';
+  }
   if (shelter.nonexistentReports > 0) {
     return 'reported';
   }
-  if (shelter.source === 'USER') {
-    return shelter.reviewStatus === 'NEW' ? 'new' : 'user';
+  switch (shelter.provenance) {
+    case 'OFFICIAL':
+      return 'registry';
+    case 'PARTNER_VERIFIED':
+      return 'partner';
+    case 'UNDER_REVIEW':
+      return 'new';
+    case 'COMMUNITY_REPORTED':
+      return 'user';
   }
-  return 'registry';
 }
 
 /**
@@ -75,10 +91,11 @@ export function markerTone(shelter: {
  * receives marker clicks through the `markerClick` callback.
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
- * assets, no bundler asset-path pitfall): REGISTRY rows (PAASETEAMET +
- * MUNICIPALITY) render blue, community rows render the trust tone (amber
- * NEW / green CONFIRMED), reported rows keep the orange override.
- * The legend reuses the same classes, so the visual stays single-sourced.
+ * assets, no bundler asset-path pitfall): the tone follows the
+ * server-derived provenance — OFFICIAL blue (registry family),
+ * PARTNER_VERIFIED yellow, UNDER_REVIEW amber, COMMUNITY_REPORTED green
+ * (user family); reported rows keep the orange override. The legend
+ * reuses the same classes, so the visual stays single-sourced.
  */
 @Injectable()
 export class LeafletService {
@@ -140,11 +157,10 @@ export class LeafletService {
    * Replaces ALL markers with one divIcon per shelter row — the layer group
    * is cleared first, so a filter refetch never duplicates markers.
    *
-   * Reported state (shelter-trust-and-reports D1): a shelter with
-   * `nonexistentReports > 0` renders the ORANGE reported marker — the single
-   * "reported" affordance — regardless of source. Otherwise the trust tone
-   * (community-review-queue D5): amber for NEW community rows, green for
-   * CONFIRMED, blue for registry.
+   * Provenance palette (shelter-provenance-taxonomy M6): the tone follows
+   * the server-derived `provenance`; a shelter with `nonexistentReports > 0`
+   * renders the ORANGE reported marker — the single "reported" affordance —
+   * regardless of provenance.
    */
   renderShelters(shelters: ShelterDto[]): void {
     if (!this.map || !this.markers) {
@@ -197,8 +213,7 @@ export class LeafletService {
     shelter: {
       latitude: number;
       longitude: number;
-      source: ShelterSource;
-      reviewStatus: ReviewStatus;
+      provenance: Provenance;
       nonexistentReports: number;
       name: string;
     } | null,

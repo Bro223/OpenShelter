@@ -102,6 +102,13 @@
   --color-shelter-registry: #0b5cad; /* registry (Päästeamet / municipality) */
   --color-shelter-user: #2e7d32; /* user-submitted */
   --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
+  /* Provenance palette (shelter-provenance-taxonomy M6): partner yellow is
+     kept a step darker than the amber "new" tone (--color-new #f59f00) so
+     the two read apart on light map tiles; grey = reported-away, red =
+     rejected (hidden rows — detail pin / badge only). */
+  --color-shelter-partner: #d4a017;
+  --color-shelter-inactive: #6b7280;
+  --color-shelter-rejected: #c92a2a;
   --color-map-placeholder: #e9eef2; /* map container before the first tiles */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
 
@@ -295,6 +302,10 @@
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
   --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
   --color-shelter-pick: #ff8a80; /* brightened from #d32f2f — safe superset, see note above */
+  /* Provenance palette (M6) — brightened per the map-context note above. */
+  --color-shelter-partner: #ffe066;
+  --color-shelter-inactive: #9aa5b1;
+  --color-shelter-rejected: #ff8787;
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
 
   /* Rating stars */
@@ -513,6 +524,23 @@ textarea {
  * unreported shelters. The map legend's third swatch reuses this class. */
 .shelter-marker--reported {
   background: var(--color-reported);
+}
+
+/* Provenance palette (shelter-provenance-taxonomy M6): PARTNER_VERIFIED
+ * (municipal/partner rows — the yellow pin), REPORTED_INACTIVE (grey — a
+ * hidden row's static detail pin) and REJECTED (red — same). The grey and
+ * red tones never reach the public map (ACTIVE-only list); the detail
+ * page's static pin can render them. */
+.shelter-marker--partner {
+  background: var(--color-shelter-partner);
+}
+
+.shelter-marker--inactive {
+  background: var(--color-shelter-inactive);
+}
+
+.shelter-marker--rejected {
+  background: var(--color-shelter-rejected);
 }
 
 /* Selected-location pin on the /submit mini-map (leaflet-service setPick).

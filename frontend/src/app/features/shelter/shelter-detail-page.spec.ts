@@ -171,6 +171,7 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3)
     locationKind: 'PUBLIC',
+    provenance: 'OFFICIAL', // server-derived (M6) — follows the PAASETEAMET row
     yourOccupancyBand: null, // the detail projection's extra field (D5)
     ...overrides,
   };
@@ -188,6 +189,7 @@ function userShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDt
     description: 'Neighbourhood basement',
     capacity: 12,
     reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
+    provenance: 'UNDER_REVIEW', // M6: USER + NEW
     ...overrides,
   };
 }
@@ -361,7 +363,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     });
 
     it('a CONFIRMED community row keeps the "Community-checked" badge and shows NO warning', async () => {
-      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED' }));
+      shelterGateway.rows.set(
+        8,
+        userShelter({ id: 8, reviewStatus: 'CONFIRMED', provenance: 'COMMUNITY_REPORTED' }),
+      );
       const { element } = await open('/shelters/8');
 
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-checked');
@@ -406,7 +411,12 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     it('header badge shows the other provenance values: MUNICIPALITY and CONFIRMED USER', async () => {
       shelterGateway.rows.set(
         2,
-        registryShelter({ id: 2, name: 'Pärnu Municipal Shelter', source: 'MUNICIPALITY' }),
+        registryShelter({
+          id: 2,
+          name: 'Pärnu Municipal Shelter',
+          source: 'MUNICIPALITY',
+          provenance: 'PARTNER_VERIFIED',
+        }),
       );
       const { element } = await open('/shelters/2');
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Municipal registry');

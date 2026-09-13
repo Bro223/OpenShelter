@@ -89,6 +89,14 @@
     background: var(--color-badge-new);
     color: var(--color-warning);
   }
+
+  /* Reported-away (shelter-provenance-taxonomy M6): the NEUTRAL grey chip —
+     a hidden row's factual state, not an alarm. */
+  &.badge--inactive {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
 }
 
 .shelter-detail__address {

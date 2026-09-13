@@ -14,6 +14,14 @@ import java.util.Objects;
 public class ShelterReport {
 
     public static final int MAX_DETAIL_LENGTH = 500;
+    /**
+     * The {@code NON_EXISTENT} report count at which an ACTIVE shelter is
+     * auto-hidden (shelter-trust-and-reports D1 — the 4→5 transition). A
+     * domain fact: the trust service enforces it, and the provenance
+     * taxonomy (shelter-provenance-taxonomy) derives REPORTED_INACTIVE
+     * from it.
+     */
+    public static final int AUTO_HIDE_THRESHOLD = 5;
 
     private Long id;
     private final Long shelterId;

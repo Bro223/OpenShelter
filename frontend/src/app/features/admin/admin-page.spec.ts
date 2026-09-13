@@ -56,6 +56,7 @@ const USER_ROW: AdminShelterDto = {
   reviewStatus: 'NEW',
   reviewNote: null,
   locationKind: 'PUBLIC',
+  provenance: 'UNDER_REVIEW', // USER + NEW (M6)
 };
 
 const USER_ROW_HIDDEN: AdminShelterDto = {
@@ -86,6 +87,7 @@ const REGISTRY_ROW: AdminShelterDto = {
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   reviewNote: null,
   locationKind: 'PUBLIC',
+  provenance: 'OFFICIAL', // PAASETEAMET row (M6)
 };
 
 /** A second NEW community row, newer than USER_ROW — the queue ordering. */

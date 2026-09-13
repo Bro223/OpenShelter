@@ -80,6 +80,7 @@ const CREATED: ShelterDto = {
   // submission comes back NEW (public immediately, no blocking queue).
   reviewStatus: 'NEW',
   locationKind: 'PUBLIC',
+  provenance: 'UNDER_REVIEW', // USER + NEW (M6)
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */

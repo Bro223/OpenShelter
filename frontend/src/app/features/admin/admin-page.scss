@@ -203,6 +203,14 @@
     color: var(--color-muted);
   }
 
+  /* Reported-away (shelter-provenance-taxonomy M6): the NEUTRAL grey chip —
+     the admin list keeps hidden rows, so the factual state renders here. */
+  &.badge--inactive {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
   /* Trust flags: the map/detail-page classes, same copy, same tokens. */
   &.badge--closed {
     background: var(--color-warning-bg);

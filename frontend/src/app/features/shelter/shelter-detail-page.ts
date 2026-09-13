@@ -35,12 +35,12 @@ import {
   NO_RATINGS_YET,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
-  communityBadgeClass,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
-  provenanceLabel as provenanceLabelShared,
+  provenanceBadgeClass as provenanceBadgeClassShared,
+  provenanceText as provenanceTextShared,
   reviewCountText as reviewCountTextShared,
   statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
@@ -140,11 +140,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly auth = this.store;
 
-  /** W24: the shared source/rating copy, exposed to the template (Angular's
-   *  template scope is the component class). The header badge shows the
-   *  four-valued provenance (accessibility-and-provenance D4) and, from
-   *  shelter-trust-and-reports, the trust badges (D6). */
-  protected readonly provenanceLabel = provenanceLabelShared;
+  /** W24: the shared provenance/rating copy, exposed to the template
+   *  (Angular's template scope is the component class). The header badge
+   *  shows the server-derived provenance (shelter-provenance-taxonomy M6)
+   *  and, from shelter-trust-and-reports, the trust badges (D6). */
+  protected readonly provenanceText = provenanceTextShared;
+  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
   protected readonly reviewCountText = reviewCountTextShared;
   protected readonly noRatingsYet = NO_RATINGS_YET;
   protected readonly statusFlagText = statusFlagTextShared;
@@ -160,8 +161,6 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly privateLocationNote = PRIVATE_LOCATION_NOTE;
   /** The private-location predicate (D7) — the template stays branch-free. */
   protected readonly isPrivateLocation = isPrivateLocation;
-  /** The community badge tone (trust palette, D5): NEW amber, CONFIRMED green. */
-  protected readonly communityBadgeClass = communityBadgeClass;
 
   // ---- trust layer (shelter-trust-and-reports D1/D2/D4/D6) ------------------
   /** The five report types + their picker labels (D1). */

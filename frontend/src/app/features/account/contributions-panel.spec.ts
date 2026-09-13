@@ -27,6 +27,7 @@ const SHELTER_ROW: MineShelterDto = {
   reviewStatus: 'CONFIRMED',
   reviewNote: null,
   locationKind: 'PUBLIC',
+  provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -450,28 +451,53 @@ describe('ContributionsPanel', () => {
 
   // ---- trust-state badges + admin note (community-review-queue) --------------
 
-  it('each /mine shelter row carries its trust-state badge (Newly added / Community-checked / Rejected)', async () => {
+  it('each /mine shelter row carries its provenance badge (M6: all six values)', async () => {
     shelters.mine.mockResolvedValue([
-      { ...SHELTER_ROW, id: 7, name: 'New Cellar', reviewStatus: 'NEW' },
-      { ...SHELTER_ROW, id: 8, name: 'Checked Cellar', reviewStatus: 'CONFIRMED' },
+      {
+        ...SHELTER_ROW,
+        id: 7,
+        name: 'New Cellar',
+        reviewStatus: 'NEW',
+        provenance: 'UNDER_REVIEW',
+      },
+      {
+        ...SHELTER_ROW,
+        id: 8,
+        name: 'Checked Cellar',
+        reviewStatus: 'CONFIRMED',
+        provenance: 'COMMUNITY_REPORTED',
+      },
       {
         ...SHELTER_ROW,
         id: 9,
+        name: 'Reported Cellar',
+        reviewStatus: 'CONFIRMED',
+        status: 'INACTIVE',
+        nonexistentReports: 5,
+        provenance: 'REPORTED_INACTIVE',
+      },
+      {
+        ...SHELTER_ROW,
+        id: 10,
         name: 'Rejected Cellar',
         reviewStatus: 'REJECTED',
         status: 'INACTIVE',
+        provenance: 'REJECTED',
       },
     ]);
     const { element } = await open();
 
     const rows = element.querySelectorAll<HTMLElement>('.contrib-row');
-    expect(rows.length).toBe(3);
-    const [newRow, checkedRow, rejectedRow] = rows;
+    expect(rows.length).toBe(4);
+    const [newRow, checkedRow, reportedRow, rejectedRow] = rows;
     expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe(
       'Newly added',
     );
     expect(checkedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
       'Community-checked',
+    );
+    expect(reportedRow.querySelector('.contrib-badge.badge--inactive')?.textContent?.trim()).toBe(
+      'Reported inactive',
     );
     expect(rejectedRow.querySelector('.contrib-badge.badge--rejected')?.textContent?.trim()).toBe(
       'Rejected',

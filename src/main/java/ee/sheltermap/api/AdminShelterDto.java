@@ -1,6 +1,7 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.domain.LocationKind;
+import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -26,6 +27,12 @@ import ee.sheltermap.domain.ShelterStatusFlag;
  * {@code reviewNote} is the admin's REJECT reason, and
  * {@code locationKind} is the private-home declaration (the "Private
  * location" badge renders on this surface too).
+ *
+ * <p>Provenance taxonomy (shelter-provenance-taxonomy M6): {@code provenance}
+ * is the same server-derived value as on {@link ShelterDto} — this is the
+ * one surface where all six values are reachable (the list keeps hidden
+ * rows), so the admin badge renders REPORTED_INACTIVE / REJECTED tones
+ * here.
  */
 public record AdminShelterDto(
         Long id,
@@ -42,5 +49,6 @@ public record AdminShelterDto(
         String submitter,
         ReviewStatus reviewStatus,
         String reviewNote,
-        LocationKind locationKind) {
+        LocationKind locationKind,
+        Provenance provenance) {
 }

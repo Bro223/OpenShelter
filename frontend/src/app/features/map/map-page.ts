@@ -13,7 +13,7 @@ import {
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../../core/models';
+import type { ShelterDto, ProvenanceFilter, ShelterTrustFilter } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
@@ -21,12 +21,12 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   COMMUNITY_UNVERIFIED_WARNING,
   PRIVATE_LOCATION_BADGE,
-  communityBadgeClass,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
-  provenanceLabel as provenanceLabelShared,
+  provenanceText as provenanceTextShared,
+  provenanceBadgeClass as provenanceBadgeClassShared,
   ratingText as ratingTextShared,
   statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
@@ -38,11 +38,20 @@ import {
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
 
-/** The three source-filter chips (server-side `?source=` refetch, design 4). */
-const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
+/**
+ * The provenance-filter chips (shelter-provenance-taxonomy M6 — server-side
+ * `?provenance=` refetch, replacing the old source chips: provenance
+ * strictly subdivides source, so the finer filter supersedes the coarser
+ * one). The two hidden taxonomy values (REPORTED_INACTIVE / REJECTED)
+ * have no chip — the public list is ACTIVE-only, so they would always
+ * filter to empty.
+ */
+const PROVENANCE_FILTERS: { value: ProvenanceFilter; label: string }[] = [
   { value: 'ALL', label: 'All' },
-  { value: 'REGISTRY', label: 'Registry' },
-  { value: 'USER', label: 'User' },
+  { value: 'OFFICIAL', label: 'Official' },
+  { value: 'PARTNER_VERIFIED', label: 'Partner' },
+  { value: 'COMMUNITY_REPORTED', label: 'Community' },
+  { value: 'UNDER_REVIEW', label: 'New community' },
 ];
 
 /**
@@ -101,8 +110,10 @@ export function straightLineText(km: number): string {
 /**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience (M4): a Leaflet map with
- * divIcon markers (REGISTRY=blue, USER=green, REPORTED=orange) + a sidebar
- * list, source-filter chips that refetch server-side, trust filters
+ * divIcon markers toned by the server-derived provenance (M6: OFFICIAL
+ * blue, PARTNER_VERIFIED yellow, COMMUNITY_REPORTED green, UNDER_REVIEW
+ * amber, plus the reported-state orange override) + a sidebar list,
+ * provenance-filter chips that refetch server-side, trust filters
  * (shelter-trust-and-reports D6: Reviewed / Has capacity toggle chips + a
  * rating select — all composable, all server-side), a legend, and
  * loading/empty/error states.
@@ -143,13 +154,14 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  callback to the component's lifecycle (never fires after destroy). */
   private readonly injector = inject(EnvironmentInjector);
 
-  protected readonly sourceFilters = SOURCE_FILTERS;
+  protected readonly provenanceFilters = PROVENANCE_FILTERS;
   protected readonly ratingFilters = RATING_FILTERS;
-  /** W24: the shared source/rating copy, exposed to the template (Angular's
+  /** W24: the shared provenance copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
-   *  four-valued provenance (accessibility-and-provenance D4); the trust
+   *  server-derived provenance (shelter-provenance-taxonomy M6); the trust
    *  badges (D6) reuse the shared statusFlag/occupancy copy. */
-  protected readonly provenanceLabel = provenanceLabelShared;
+  protected readonly provenanceText = provenanceTextShared;
+  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
   protected readonly ratingText = ratingTextShared;
   protected readonly statusFlagText = statusFlagTextShared;
   protected readonly occupancyText = occupancyTextShared;
@@ -161,13 +173,11 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   /** The private-location predicate (D7) — the template stays branch-free. */
   protected readonly isPrivateLocation = isPrivateLocation;
-  /** The community badge tone (trust palette, D5): NEW amber, CONFIRMED green. */
-  protected readonly communityBadgeClass = communityBadgeClass;
   /** Trust-badge predicates (D6) — the template keeps the `>` comparisons
    *  in code, not in the template expressions. */
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
-  protected readonly filter = signal<ShelterSourceFilter>('ALL');
+  protected readonly filter = signal<ProvenanceFilter>('ALL');
 
   // ---- trust filters (shelter-trust-and-reports D5/D6) ----------------------
   /** Reviewed toggle chip -> `reviewed=true` (>= 1 visible review). */
@@ -227,7 +237,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
     this.load('ALL');
   }
-
   ngOnDestroy(): void {
     // Cancel any in-flight response, then drop the map instance + listeners.
     this.destroyed = true;
@@ -235,15 +244,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.destroy();
   }
 
-  /** Chip click — refetch with the server-side source param (no client filter).
-   *  Public so specs can drive it (M2 page convention). Re-selecting the
-   *  ACTIVE chip retries the last failed refetch — the equality guard must
-   *  not swallow that click while an error banner is up (reviewer N8). */
-  setFilter(source: ShelterSourceFilter): void {
-    if (source === this.filter() && this.error() === null) {
+  /** Chip click — refetch with the server-side provenance param (no client
+   *  filter, M6). Public so specs can drive it (M2 page convention).
+   *  Re-selecting the ACTIVE chip retries the last failed refetch — the
+   *  equality guard must not swallow that click while an error banner is
+   *  up (reviewer N8). */
+  setFilter(provenance: ProvenanceFilter): void {
+    if (provenance === this.filter() && this.error() === null) {
       return;
     }
-    this.load(source);
+    this.load(provenance);
   }
 
   /** Reviewed toggle chip (D6) — flip + refetch with the current source. */
@@ -447,16 +457,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
     );
   }
 
-  private load(source: ShelterSourceFilter): void {
+  private load(provenance: ProvenanceFilter): void {
     const seq = ++this.fetchSeq;
-    this.filter.set(source);
+    this.filter.set(provenance);
     this.error.set(null);
     this.loading.set(true);
-    // Trust filters compose with the source (D5); with none active the call
-    // is the plain M4 shape — list(source), no second argument at all.
+    // Trust filters compose with the provenance (D5 + M6); with none active
+    // the call is the plain list(provenance) shape — no second argument.
     const trust = this.activeTrustFilter();
     const request =
-      trust === undefined ? this.gateway.list(source) : this.gateway.list(source, trust);
+      trust === undefined ? this.gateway.list(provenance) : this.gateway.list(provenance, trust);
     void request.then(
       (rows) => {
         if (seq !== this.fetchSeq) {

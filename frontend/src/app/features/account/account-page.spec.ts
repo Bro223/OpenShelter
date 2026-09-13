@@ -44,6 +44,7 @@ const SHELTER_ROW: ShelterDto = {
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   locationKind: 'PUBLIC',
+  provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
 };
 
 const REVIEW_ROW: MyReviewDto = {

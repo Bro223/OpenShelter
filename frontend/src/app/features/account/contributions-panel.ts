@@ -16,8 +16,8 @@ import { bannerMessage } from '../../shared/error-copy';
 import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
-  communityBadgeClass as communityBadgeClassShared,
-  communityTrustLabel as communityTrustLabelShared,
+  provenanceBadgeClass as provenanceBadgeClassShared,
+  provenanceText as provenanceTextShared,
   ratingText as ratingTextShared,
 } from '../../shared/shelter-copy';
 import { RatingStars } from '../../shared/rating-stars';
@@ -96,11 +96,13 @@ export class ContributionsPanel implements OnInit {
 
   /** W24: the shared rating summary copy, exposed to the template. */
   protected readonly ratingText = ratingTextShared;
-  /** Trust-state badge copy (community-review-queue): "Newly added" /
-   *  "Community-checked" / "Rejected". */
-  protected readonly trustLabel = communityTrustLabelShared;
-  /** The trust-state badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
-  protected readonly communityBadgeClass = communityBadgeClassShared;
+  /** Provenance badge copy (shelter-provenance-taxonomy M6): the server-
+   *  derived taxonomy value — the hidden rows (REPORTED_INACTIVE /
+   *  REJECTED) say what happened to them on the owner's list. */
+  protected readonly provenanceText = provenanceTextShared;
+  /** The provenance badge tone: UNDER_REVIEW amber, REJECTED danger,
+   *  COMMUNITY_REPORTED green, REPORTED_INACTIVE grey. */
+  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
 
   /**
    * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):

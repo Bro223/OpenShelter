@@ -33,8 +33,8 @@ import {
   recencyText,
   ratingText as ratingTextShared,
   statusFlagText,
-  provenanceLabel as provenanceLabelShared,
-  communityBadgeClass as communityBadgeClassShared,
+  provenanceBadgeClass as provenanceBadgeClassShared,
+  provenanceText as provenanceTextShared,
   PRIVATE_LOCATION_BADGE,
   isPrivateLocation as isPrivateLocationShared,
 } from '../../shared/shelter-copy';
@@ -207,10 +207,12 @@ export class AdminPage implements OnInit {
   protected readonly ratingText = ratingTextShared;
   protected readonly reporterText = reporterText;
   protected readonly flagText = statusFlagText;
-  /** Provenance + trust-state badge copy (community-review-queue): the Shelters
-   *  tab's source column reuses the public wording. */
-  protected readonly provenanceLabel = provenanceLabelShared;
-  protected readonly communityBadgeClass = communityBadgeClassShared;
+  /** Provenance badge copy (shelter-provenance-taxonomy M6): the Shelters
+   *  tab's source column shows the server-derived taxonomy value — the
+   *  admin list keeps hidden rows, so REPORTED_INACTIVE / REJECTED render
+   *  their own tones here. */
+  protected readonly provenanceText = provenanceTextShared;
+  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   protected readonly isPrivateLocation = isPrivateLocationShared;
 

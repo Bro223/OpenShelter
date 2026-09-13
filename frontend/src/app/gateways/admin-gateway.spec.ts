@@ -22,6 +22,9 @@ const SHELTER_ROW: AdminShelterDto = {
   reviewStatus: 'NEW',
   reviewNote: null,
   locationKind: 'PUBLIC',
+  // INACTIVE + NEW + only 3 reports: the derivation falls through to the
+  // trust-state value (M6 — below the auto-hide threshold).
+  provenance: 'UNDER_REVIEW',
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */

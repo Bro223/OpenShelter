@@ -12,11 +12,10 @@
       <div class="shelter-detail__title-row">
         <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
         @if (shelter(); as s) {
-          <!-- Provenance (accessibility-and-provenance D4) + trust state
-               (community-review-queue): registry chips unchanged; USER rows
-               carry "Newly added" / "Community-checked". -->
-          <span class="badge" [ngClass]="communityBadgeClass(s)">
-            {{ provenanceLabel(s) }}
+          <!-- Provenance (shelter-provenance-taxonomy M6): the badge shows
+               the server-derived taxonomy value with the matching tone. -->
+          <span class="badge" [ngClass]="provenanceBadgeClass(s.provenance)">
+            {{ provenanceText(s.provenance) }}
           </span>
           @if (isPrivateLocation(s)) {
             <span class="badge badge--private">{{ privateLocationBadge }}</span>
@@ -42,12 +41,13 @@
         }
       </div>
       @if (shelter(); as s) {
-        @if (s.source === 'USER' && s.reviewStatus === 'NEW') {
+        @if (s.provenance === 'UNDER_REVIEW') {
           <!-- The unverified warning (community-review-queue): community
                rows in the NEW state only — CONFIRMED rows keep the
-               "Community-checked" badge and NO warning. Subtle muted
-               styling next to the provenance chip — a caveat, NOT the
-               crisis orange. -->
+               "Community-checked" badge and NO warning. M6: the condition
+               reads the server-derived provenance (UNDER_REVIEW = USER +
+               NEW — the same set). Subtle muted styling next to the
+               provenance chip — a caveat, NOT the crisis orange. -->
           <p class="community-warning">{{ communityUnverifiedWarning }}</p>
         }
         @if (isPrivateLocation(s)) {

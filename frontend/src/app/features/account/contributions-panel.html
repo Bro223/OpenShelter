@@ -35,8 +35,8 @@
               {{ row.name }}
               <!-- Trust state (community-review-queue): "Newly added" /
                    "Community-checked" / "Rejected" — the /mine badge. -->
-              <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
-                {{ trustLabel(row.reviewStatus) }}
+              <span class="contrib-badge" [ngClass]="provenanceBadgeClass(row.provenance)">
+                {{ provenanceText(row.provenance) }}
               </span>
             </span>
             <!-- Auto-hidden by five non-existence reports (user-

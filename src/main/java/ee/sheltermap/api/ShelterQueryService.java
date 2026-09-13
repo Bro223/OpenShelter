@@ -8,6 +8,7 @@ import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.ShelterReviewRepository.RatingAggregate;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReportType;
@@ -98,9 +99,9 @@ public class ShelterQueryService {
      * (community-review-queue v2 D2 — no visibility gate).
      */
     public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean reviewed,
-                                    Integer minRating, Boolean hasCapacity) {
+                                    Integer minRating, Boolean hasCapacity, Provenance provenance) {
         List<ShelterDto> dtos = toDtos(shelterRepository.findAllActiveBySourceIn(source.sources()), null);
-        return applyTrustFilters(dtos, reviewed, minRating, hasCapacity);
+        return applyTrustFilters(dtos, reviewed, minRating, hasCapacity, provenance);
     }
 
     /** The single-shelter read without a caller (internal projections). */
@@ -226,7 +227,9 @@ public class ShelterQueryService {
                 yourOccupancyBand,
                 shelter.getReviewStatus(),
                 shelter.getReviewNote(),
-                shelter.getLocationKind());
+                shelter.getLocationKind(),
+                Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
+                        shelter.getStatus(), nonExistent));
     }
 
     /**
@@ -287,7 +290,9 @@ public class ShelterQueryService {
                 author == null ? null : author.getData().name(),
                 shelter.getReviewStatus(),
                 shelter.getReviewNote(),
-                shelter.getLocationKind());
+                shelter.getLocationKind(),
+                Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
+                        shelter.getStatus(), nonExistent));
     }
 
     /**
@@ -337,10 +342,14 @@ public class ShelterQueryService {
         return result;
     }
 
-    /** D5: the trust filters over the projected list (absent = no filter). */
+    /** D5: the trust filters over the projected list (absent = no filter).
+     *  {@code provenance} (shelter-provenance-taxonomy M6) keeps the rows
+     *  whose derived taxonomy value matches — in-memory over the projected
+     *  list, the same Estonia-scale precedent as the trust filters. */
     private static List<ShelterDto> applyTrustFilters(List<ShelterDto> dtos, Boolean reviewed,
-                                                      Integer minRating, Boolean hasCapacity) {
-        if (reviewed == null && minRating == null && hasCapacity == null) {
+                                                      Integer minRating, Boolean hasCapacity,
+                                                      Provenance provenance) {
+        if (reviewed == null && minRating == null && hasCapacity == null && provenance == null) {
             return dtos;
         }
         return dtos.stream()
@@ -348,6 +357,7 @@ public class ShelterQueryService {
                 .filter(dto -> minRating == null
                         || (dto.averageRating() != null && dto.averageRating() >= minRating))
                 .filter(dto -> hasCapacity == null || (dto.capacity() != null) == hasCapacity)
+                .filter(dto -> provenance == null || dto.provenance() == provenance)
                 .toList();
     }
 }

@@ -8,25 +8,36 @@
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
       <div class="map-legend" role="group" aria-label="Marker legend">
+        <!-- Provenance palette (shelter-provenance-taxonomy M6): the swatch
+             reuses the marker class, so the visual stays single-sourced.
+             Grey (reported-inactive) and red (rejected) never appear on
+             this map — the public list is ACTIVE-only. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
-          Registry
+          Official
         </span>
-        <!-- Trust palette (community-review-queue D5): NEW community rows
-             are amber, CONFIRMED stay green. -->
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--partner legend-swatch"
+            aria-hidden="true"
+          ></span>
+          Partner
+        </span>
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
+          Community
+        </span>
+        <!-- New community state (community-review-queue D5): the amber pin
+             for rows the trust lifecycle has not confirmed yet. -->
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
           New community
         </span>
-        <span class="legend-item">
-          <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
-          Confirmed community
-        </span>
         <!-- Reported state (shelter-trust-and-reports D6): the single
-             orange "reported" affordance — beats the trust colour. -->
+             orange "reported" affordance — beats the provenance colour. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--reported legend-swatch"
@@ -94,8 +105,8 @@
         <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg }}</p>
       }
 
-      <div class="filter-chips" role="group" aria-label="Filter shelters by source">
-        @for (chip of sourceFilters; track chip.value) {
+      <div class="filter-chips" role="group" aria-label="Filter shelters by provenance">
+        @for (chip of provenanceFilters; track chip.value) {
           <button
             type="button"
             class="chip"
@@ -174,12 +185,12 @@
                   <span class="shelter-row__address">{{ shelter.address }}</span>
                 }
                 <span class="shelter-row__meta">
-                  <!-- Provenance (accessibility-and-provenance D4) + trust
-                       state (community-review-queue): registry chips
-                       unchanged; USER rows say "Newly added" / "Community-
-                       checked" with the matching trust tone. -->
-                  <span class="badge" [ngClass]="communityBadgeClass(shelter)">
-                    {{ provenanceLabel(shelter) }}
+                  <!-- Provenance (shelter-provenance-taxonomy M6): the badge
+                       shows the server-derived taxonomy value with the
+                       matching tone (OFFICIAL / PARTNER_VERIFIED base fill,
+                       UNDER_REVIEW amber, COMMUNITY_REPORTED green). -->
+                  <span class="badge" [ngClass]="provenanceBadgeClass(shelter.provenance)">
+                    {{ provenanceText(shelter.provenance) }}
                   </span>
                   @if (isPrivateLocation(shelter)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>

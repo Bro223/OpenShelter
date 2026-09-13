@@ -11,6 +11,7 @@ import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReportType;
@@ -97,14 +98,23 @@ public class ShelterController {
      * review; {@code false} = the negation), {@code minRating} 1..5
      * (anything else 400; shelters with no reviews never match),
      * {@code hasCapacity} (capacity data present).
+     *
+     * <p>{@code provenance} (shelter-provenance-taxonomy M6): optional
+     * taxonomy filter — keeps rows whose server-derived provenance matches
+     * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW are
+     * the only values reachable in the ACTIVE-only list; REPORTED_INACTIVE
+     * and REJECTED filter to an empty list by construction). Absent = no
+     * provenance filter; combines with every other filter. A value outside
+     * the enum is a 400 (Spring enum binding, same as {@code source}).
      */
     @GetMapping
     public List<ShelterDto> list(@RequestParam(defaultValue = "ALL") ShelterSourceFilter source,
                                  @RequestParam(required = false) Boolean reviewed,
                                  @RequestParam(required = false) Integer minRating,
-                                 @RequestParam(required = false) Boolean hasCapacity) {
+                                 @RequestParam(required = false) Boolean hasCapacity,
+                                 @RequestParam(required = false) Provenance provenance) {
         requireValidMinRating(minRating);
-        return queryService.findAll(source, reviewed, minRating, hasCapacity);
+        return queryService.findAll(source, reviewed, minRating, hasCapacity, provenance);
     }
 
     /**

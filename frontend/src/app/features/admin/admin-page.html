@@ -232,8 +232,8 @@
                   <!-- Provenance + trust state (community-review-queue): the
                        public wording — USER rows say "Newly added" /
                        "Community-checked" / "Rejected". -->
-                  <span class="badge" [ngClass]="communityBadgeClass(row)">
-                    {{ provenanceLabel(row) }}
+                  <span class="badge" [ngClass]="provenanceBadgeClass(row.provenance)">
+                    {{ provenanceText(row.provenance) }}
                   </span>
                   @if (isPrivateLocation(row)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>

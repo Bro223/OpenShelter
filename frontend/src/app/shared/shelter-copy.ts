@@ -1,14 +1,13 @@
 import type {
   LocationKind,
   OccupancyBand,
-  ReviewStatus,
+  Provenance,
   ShelterOccupancy,
-  ShelterSource,
   ShelterStatusFlag,
 } from '../core/models';
 
 /**
- * The shared shelter copy (W24): source-badge labels + the rating-summary
+ * The shared shelter copy (W24): provenance labels + the rating-summary
  * phrasing, single-sourced for the consumers that used to carry divergent
  * inline copies — the map sidebar, the shelter detail header, the admin
  * list, and the contributions panel.
@@ -18,50 +17,57 @@ import type {
 export const NO_RATINGS_YET = 'No ratings yet';
 
 /**
- * The community trust-state label (community-review-queue D5): the trust
- * lifecycle replaces the old provenance wording for USER rows — a row
- * that was "User-submitted" (or "Verified user") now says what it IS in
- * the lifecycle: just added, or checked by the community.
- *   NEW       -> "Newly added"      (amber marker treatment)
- *   CONFIRMED -> "Community-checked" (green marker treatment)
- *   REJECTED  -> "Rejected"         (hidden; /mine + admin surfaces only)
+ * The provenance label (shelter-provenance-taxonomy M6, superseding
+ * accessibility-and-provenance D4 and the community-review-queue
+ * trust-label split): the text for each taxonomy value. The four values
+ * reachable in the public list keep their established copy —
+ * "Paasteamet registry" / "Municipal registry" / "Community-checked" /
+ * "Newly added"; the two hidden values (visible only on /mine, the detail
+ * read and the admin list) get their own: "Reported inactive" /
+ * "Rejected". Single-sourced: map rows, detail header, /mine badges,
+ * the admin list and the legend all call this. The input is the
+ * server-derived `Provenance` — the FE never re-derives it from
+ * source/reviewStatus.
  */
-export function communityTrustLabel(reviewStatus: ReviewStatus): string {
-  switch (reviewStatus) {
-    case 'NEW':
-      return 'Newly added';
-    case 'CONFIRMED':
+export function provenanceText(provenance: Provenance): string {
+  switch (provenance) {
+    case 'OFFICIAL':
+      return 'Paasteamet registry';
+    case 'PARTNER_VERIFIED':
+      return 'Municipal registry';
+    case 'COMMUNITY_REPORTED':
       return 'Community-checked';
+    case 'UNDER_REVIEW':
+      return 'Newly added';
+    case 'REPORTED_INACTIVE':
+      return 'Reported inactive';
     case 'REJECTED':
       return 'Rejected';
   }
 }
 
 /**
- * The provenance label (accessibility-and-provenance D4, replaced for USER
- * rows by community-review-queue): registry rows keep their provenance
- * chips; USER rows carry the trust-state label instead (NEW = "Newly
- * added", CONFIRMED = "Community-checked" — REJECTED rows are not public,
- * the label exists for the /mine + admin surfaces). The old
- * "Verified user" / "User-submitted" split is gone: a verified submitter
- * does not make a verified shelter, and the trust state (confirmed by the
- * community, not by the submitter's claims) is what the viewer needs.
- * `submitterVerified` stays on the DTO (backend-computed, unchanged) — the
- * UI simply no longer branches on it. Single-sourced: map rows, detail
- * header, /mine badges and the admin list all call this. The legend/filter
- * chip wording is a different (untouched) copy — inline in map-page.html.
+ * The provenance badge tone (M6): the badge follows the marker palette —
+ * UNDER_REVIEW gets the amber "newly added" tone, COMMUNITY_REPORTED the
+ * green one, REJECTED the danger one, REPORTED_INACTIVE the muted grey;
+ * OFFICIAL / PARTNER_VERIFIED rows get no modifier (their base badge fill
+ * already says registry). Applied on every surface that renders the
+ * provenance badge (map row, detail header, admin list, /mine).
  */
-export function provenanceLabel(shelter: {
-  source: ShelterSource;
-  reviewStatus: ReviewStatus;
-}): string {
-  if (shelter.source === 'PAASETEAMET') {
-    return 'Paasteamet registry';
+export function provenanceBadgeClass(provenance: Provenance): string {
+  switch (provenance) {
+    case 'OFFICIAL':
+    case 'PARTNER_VERIFIED':
+      return '';
+    case 'UNDER_REVIEW':
+      return 'badge--new';
+    case 'COMMUNITY_REPORTED':
+      return 'badge--user';
+    case 'REPORTED_INACTIVE':
+      return 'badge--inactive';
+    case 'REJECTED':
+      return 'badge--rejected';
   }
-  if (shelter.source === 'MUNICIPALITY') {
-    return 'Municipal registry';
-  }
-  return communityTrustLabel(shelter.reviewStatus);
 }
 
 /**
@@ -95,30 +101,6 @@ export const COMMUNITY_UNVERIFIED_WARNING =
 /** True for rows carrying the private-home declaration. */
 export function isPrivateLocation(shelter: { locationKind: LocationKind }): boolean {
   return shelter.locationKind === 'PRIVATE';
-}
-
-/**
- * The community row's badge tone (community-review-queue D5): the badge
- * follows the marker's trust palette — NEW rows get the amber
- * "Newly added" badge, REJECTED the danger one, CONFIRMED the green one.
- * Registry rows get no modifier (their base badge fill already says
- * registry). Applied on every surface that renders the provenance badge
- * (map row, detail header, admin list, /mine).
- */
-export function communityBadgeClass(shelter: {
-  source: ShelterSource;
-  reviewStatus: ReviewStatus;
-}): string {
-  if (shelter.source !== 'USER') {
-    return '';
-  }
-  if (shelter.reviewStatus === 'NEW') {
-    return 'badge--new';
-  }
-  if (shelter.reviewStatus === 'REJECTED') {
-    return 'badge--rejected';
-  }
-  return 'badge--user';
 }
 
 /** The review count in singular/plural ("1 review" / "2 reviews"). */

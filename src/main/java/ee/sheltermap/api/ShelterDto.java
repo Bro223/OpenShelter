@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -39,6 +40,14 @@ import java.time.Instant;
  * submitter's private-home declaration (PRIVATE rows are public results
  * with the "Private location" badge). {@code reviewNote} is the admin's
  * REJECT reason, {@code null} while nothing is said.
+ *
+ * <p>Provenance taxonomy (shelter-provenance-taxonomy M6): {@code provenance}
+ * is the server-derived single answer to "where does this row come from"
+ * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW /
+ * REPORTED_INACTIVE / REJECTED — see {@link Provenance} for the derivation
+ * precedence). Only the first four values are reachable in the ACTIVE-only
+ * public list; the hidden two ride on the detail, {@code /mine} and admin
+ * projections. The UI never re-derives it.
  */
 public record ShelterDto(
         Long id,
@@ -60,7 +69,8 @@ public record ShelterDto(
         OccupancyBand yourOccupancyBand,
         ReviewStatus reviewStatus,
         String reviewNote,
-        LocationKind locationKind) {
+        LocationKind locationKind,
+        Provenance provenance) {
 
     /**
      * The fresh occupancy block (D4): the latest fresh report's band, the

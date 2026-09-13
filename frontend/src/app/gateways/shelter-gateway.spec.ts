@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
-import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../core/models';
+import type { ShelterDto, ProvenanceFilter, ShelterTrustFilter } from '../core/models';
 import { ShelterGateway } from './shelter-gateway';
 
 const REGISTRY_ROW: ShelterDto = {
@@ -24,6 +24,7 @@ const REGISTRY_ROW: ShelterDto = {
   occupancy: null,
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   locationKind: 'PUBLIC',
+  provenance: 'OFFICIAL',
 };
 
 const USER_ROW: ShelterDto = {
@@ -37,6 +38,7 @@ const USER_ROW: ShelterDto = {
   description: 'Neighbourhood basement',
   capacity: 12,
   submitterVerified: true, // creator has a completed verification
+  provenance: 'COMMUNITY_REPORTED',
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */
@@ -60,13 +62,15 @@ describe('ShelterGateway', () => {
   });
 
   it.each([
-    ['ALL', '/api/shelters?source=ALL'],
-    ['REGISTRY', '/api/shelters?source=REGISTRY'],
-    ['USER', '/api/shelters?source=USER'],
-  ] as const)('list(%s) GETs %s and returns the typed rows', async (source, path) => {
+    ['ALL', '/api/shelters'],
+    ['OFFICIAL', '/api/shelters?provenance=OFFICIAL'],
+    ['PARTNER_VERIFIED', '/api/shelters?provenance=PARTNER_VERIFIED'],
+    ['COMMUNITY_REPORTED', '/api/shelters?provenance=COMMUNITY_REPORTED'],
+    ['UNDER_REVIEW', '/api/shelters?provenance=UNDER_REVIEW'],
+  ] as const)('list(%s) GETs %s and returns the typed rows', async (provenance, path) => {
     api.get.mockReturnValue(of([REGISTRY_ROW, USER_ROW]));
 
-    const rows = await gateway.list(source);
+    const rows = await gateway.list(provenance);
 
     expect(api.get).toHaveBeenCalledTimes(1);
     expect(api.get).toHaveBeenCalledWith(path);
@@ -76,47 +80,48 @@ describe('ShelterGateway', () => {
   it('list supports an empty result set (no shelters for the filter)', async () => {
     api.get.mockReturnValue(of([]));
 
-    const rows = await gateway.list('USER');
+    const rows = await gateway.list('UNDER_REVIEW');
 
-    expect(api.get).toHaveBeenCalledWith('/api/shelters?source=USER');
+    expect(api.get).toHaveBeenCalledWith('/api/shelters?provenance=UNDER_REVIEW');
     expect(rows).toEqual([]);
   });
 
   // ---- trust filters (shelter-trust-and-reports D5) ------------------------
 
   it.each([
-    ['ALL', { reviewed: true }, '/api/shelters?source=ALL&reviewed=true'],
-    ['ALL', { minRating: 4 }, '/api/shelters?source=ALL&minRating=4'],
-    ['ALL', { hasCapacity: true }, '/api/shelters?source=ALL&hasCapacity=true'],
+    ['ALL', { reviewed: true }, '/api/shelters?reviewed=true'],
+    ['ALL', { minRating: 4 }, '/api/shelters?minRating=4'],
+    ['ALL', { hasCapacity: true }, '/api/shelters?hasCapacity=true'],
     [
-      'USER',
+      'COMMUNITY_REPORTED',
       { reviewed: true, minRating: 3 },
-      '/api/shelters?source=USER&reviewed=true&minRating=3',
+      '/api/shelters?provenance=COMMUNITY_REPORTED&reviewed=true&minRating=3',
     ],
     [
-      'REGISTRY',
+      'OFFICIAL',
       { reviewed: true, minRating: 3, hasCapacity: true },
-      '/api/shelters?source=REGISTRY&reviewed=true&minRating=3&hasCapacity=true',
+      '/api/shelters?provenance=OFFICIAL&reviewed=true&minRating=3&hasCapacity=true',
     ],
-  ] as [ShelterSourceFilter, ShelterTrustFilter, string][])(
+  ] as [ProvenanceFilter, ShelterTrustFilter, string][])(
     'list composes %j for %s into %s',
-    async (source, trust, path) => {
+    async (provenance, trust, path) => {
       api.get.mockReturnValue(of([REGISTRY_ROW]));
 
-      await gateway.list(source, trust);
+      await gateway.list(provenance, trust);
 
       expect(api.get).toHaveBeenCalledTimes(1);
       expect(api.get).toHaveBeenCalledWith(path);
     },
   );
 
-  it('list omits inactive trust filters (false/undefined -> no param, legacy shape)', async () => {
+  it('list omits inactive trust filters (false/undefined -> no param)', async () => {
     api.get.mockReturnValue(of([REGISTRY_ROW]));
 
     await gateway.list('ALL', { reviewed: false, hasCapacity: false, minRating: undefined });
 
-    // Byte-identical to the M4 shape when nothing is active.
-    expect(api.get).toHaveBeenCalledWith('/api/shelters?source=ALL');
+    // The bare list path when nothing is active (the M4 `?source=ALL`
+    // response, byte-identical server-side).
+    expect(api.get).toHaveBeenCalledWith('/api/shelters');
   });
 
   it('get(id) GETs /api/shelters/{id} and returns one typed row', async () => {

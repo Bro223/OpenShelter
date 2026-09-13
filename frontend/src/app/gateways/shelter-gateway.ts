@@ -5,11 +5,11 @@ import type {
   CreateShelterRequest,
   MineShelterDto,
   OccupancyBand,
+  ProvenanceFilter,
   ReportOccupancyRequest,
   ReportShelterRequest,
   ShelterDetailDto,
   ShelterDto,
-  ShelterSourceFilter,
   ShelterTrustFilter,
   UpdateShelterRequest,
 } from '../core/models';
@@ -33,16 +33,19 @@ export class ShelterGateway {
   private readonly api = inject(ApiClient);
 
   /**
-   * GET /api/shelters?source=ALL|REGISTRY|USER -> ShelterDto[] (ACTIVE rows
-   * only, no paging — Estonia-scale fetch-all). REGISTRY = PAASETEAMET +
-   * MUNICIPALITY rows; USER = community submissions.
+   * GET /api/shelters?provenance=… -> ShelterDto[] (ACTIVE rows only, no
+   * paging — Estonia-scale fetch-all). The provenance filter (shelter-
+   * provenance-taxonomy M6) replaces the old source chips — provenance
+   * strictly subdivides source, and `ALL` omits the param entirely (the
+   * backend keeps `?source=` for compatibility).
    *
-   * `trust` (optional, D5) composes with the source filter: reviewed=true,
-   * minRating=1..5, hasCapacity=true. Inactive filters are omitted from the
-   * query string entirely (the default call is byte-identical to M4).
+   * `trust` (optional, D5) composes with the provenance filter: reviewed=
+   * true, minRating=1..5, hasCapacity=true. Inactive filters are omitted
+   * from the query string entirely (the default call is `/api/shelters`,
+   * byte-identical to M4's default `?source=ALL` response).
    */
-  list(source: ShelterSourceFilter, trust?: ShelterTrustFilter): Promise<ShelterDto[]> {
-    return lastValueFrom(this.api.get<ShelterDto[]>(listPath(source, trust)));
+  list(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): Promise<ShelterDto[]> {
+    return lastValueFrom(this.api.get<ShelterDto[]>(listPath(provenance, trust)));
   }
 
   /** GET /api/shelters/{id} -> the detail projection, or a 404 ApiError. */
@@ -106,12 +109,16 @@ export class ShelterGateway {
 }
 
 /**
- * The list query string (D5): `source` always first, trust filters appended
+ * The list query string: `provenance` first, only when not ALL (M6 — the
+ * old `source` param is no longer sent by the FE), trust filters appended
  * in a fixed order (reviewed, minRating, hasCapacity) — only when active.
- * No filters -> exactly `/api/shelters?source=…` (byte-identical to M4).
+ * No filters -> exactly `/api/shelters`.
  */
-function listPath(source: ShelterSourceFilter, trust?: ShelterTrustFilter): string {
-  const params = [`source=${source}`];
+function listPath(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): string {
+  const params: string[] = [];
+  if (provenance !== 'ALL') {
+    params.push(`provenance=${provenance}`);
+  }
   if (trust?.reviewed === true) {
     params.push('reviewed=true');
   }
@@ -121,5 +128,5 @@ function listPath(source: ShelterSourceFilter, trust?: ShelterTrustFilter): stri
   if (trust?.hasCapacity === true) {
     params.push('hasCapacity=true');
   }
-  return `/api/shelters?${params.join('&')}`;
+  return params.length === 0 ? '/api/shelters' : `/api/shelters?${params.join('&')}`;
 }

@@ -53,9 +53,6 @@ public class ShelterReportService {
      */
     public static final String REPORTING_MESSAGE = "Reporting requires a verified account";
 
-    /** NON_EXISTENT reports that trigger the auto-hide (D1). */
-    public static final int AUTO_HIDE_THRESHOLD = 5;
-
     private final ShelterRepository shelters;
     private final ShelterReportRepository reports;
     private final ShelterOccupancyRepository occupancy;
@@ -97,7 +94,7 @@ public class ShelterReportService {
         actionLog.record(user.getId(), ReportActionLog.Action.SHELTER_REPORT);
         boolean reachesAutoHide = type == ShelterReportType.NON_EXISTENT
                 && reports.countByShelterIdAndType(shelterId, ShelterReportType.NON_EXISTENT)
-                == AUTO_HIDE_THRESHOLD - 1;
+                == ShelterReport.AUTO_HIDE_THRESHOLD - 1;
         try {
             reports.save(new ShelterReport(
                     shelterId, user.getId(), type, detailFor(type, detail)));

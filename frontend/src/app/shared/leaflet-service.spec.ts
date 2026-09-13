@@ -27,12 +27,18 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill; USER fixtures override
     locationKind: 'PUBLIC',
+    provenance: 'OFFICIAL', // default follows the PAASETEAMET default row
     ...overrides,
   };
 }
 
 const TALLINN = shelter({ id: 1, name: 'Tallinn Central Shelter' });
-const PERNU = shelter({ id: 2, name: 'Pärnu Municipal Shelter', source: 'MUNICIPALITY' });
+const PERNU = shelter({
+  id: 2,
+  name: 'Pärnu Municipal Shelter',
+  source: 'MUNICIPALITY',
+  provenance: 'PARTNER_VERIFIED',
+});
 const BASEMENT = shelter({
   id: 7,
   name: 'Community Cellar',
@@ -43,12 +49,14 @@ const BASEMENT = shelter({
   description: 'Neighbourhood basement',
   capacity: 12,
   reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
+  provenance: 'UNDER_REVIEW',
 });
 const CONFIRMED_BASEMENT = shelter({
   ...BASEMENT,
   id: 8,
   name: 'Checked Cellar',
   reviewStatus: 'CONFIRMED',
+  provenance: 'COMMUNITY_REPORTED',
 });
 
 /** divIcon markers leaflet creates in the container's overlay pane. */
@@ -105,19 +113,58 @@ describe('LeafletService', () => {
     expect(container.querySelector('img[src*="tile.openstreetmap.org"]') !== null).toBe(true);
   });
 
-  it('renders one divIcon per row — registry blue, community trust tone', () => {
+  it('renders one divIcon per row — the provenance palette (M6)', () => {
     service.renderShelters([TALLINN, PERNU, BASEMENT, CONFIRMED_BASEMENT]);
 
     const markers = renderedMarkers(container);
     expect(markers).toHaveLength(4);
-    expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(2);
-    // Trust palette (community-review-queue D5): NEW = amber, CONFIRMED =
+    // OFFICIAL blue (the registry-family pin) + PARTNER_VERIFIED yellow.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--registry')).length).toBe(1);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--partner')).length).toBe(1);
+    // Community tones (community-review-queue D5): NEW = amber, CONFIRMED =
     // green. No reported state on the plain fixtures.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(1);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(1);
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported')).length).toBe(0);
     // Each pin keeps the leaflet positioning class alongside the marker class.
     expect(markers.every((m) => m.classList.contains('leaflet-marker-icon'))).toBe(true);
+  });
+
+  it('the hidden provenance tones: reported-inactive grey, rejected red (M6)', () => {
+    const reportedInactive = shelter({
+      id: 20,
+      name: 'Reported Away Row',
+      source: 'USER',
+      status: 'INACTIVE',
+      provenance: 'REPORTED_INACTIVE',
+    });
+    const rejected = shelter({
+      id: 21,
+      name: 'Rejected Row',
+      source: 'USER',
+      status: 'INACTIVE',
+      reviewStatus: 'REJECTED',
+      provenance: 'REJECTED',
+    });
+    service.showShelter({
+      latitude: reportedInactive.latitude,
+      longitude: reportedInactive.longitude,
+      provenance: reportedInactive.provenance,
+      nonexistentReports: 5,
+      name: reportedInactive.name,
+    });
+    let markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--inactive')).toBe(true);
+
+    service.showShelter({
+      latitude: rejected.latitude,
+      longitude: rejected.longitude,
+      provenance: rejected.provenance,
+      nonexistentReports: 0,
+      name: rejected.name,
+    });
+    markers = renderedMarkers(container);
+    expect(markers[0].classList.contains('shelter-marker--rejected')).toBe(true);
   });
 
   it('community marker tone: NEW amber, CONFIRMED green (D5)', () => {
@@ -134,12 +181,13 @@ describe('LeafletService', () => {
     ).toBe(true);
   });
 
-  it('the reported override beats the trust tone (a reported NEW row is orange, not amber)', () => {
+  it('the reported override beats the provenance tone (a reported NEW row is orange, not amber)', () => {
     const reportedNew = shelter({
       id: 9,
       name: 'Reported New Row',
       source: 'USER',
       reviewStatus: 'NEW',
+      provenance: 'UNDER_REVIEW',
       nonexistentReports: 1,
     });
     service.renderShelters([reportedNew]);
@@ -149,7 +197,7 @@ describe('LeafletService', () => {
     expect(markers[0].classList.contains('shelter-marker--new')).toBe(false);
   });
 
-  it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of source (D1)', () => {
+  it('a reported shelter (nonexistentReports > 0) renders the orange marker regardless of provenance (D1)', () => {
     const reportedRegistry = shelter({
       id: 3,
       name: 'Reported Registry Row',
@@ -159,6 +207,7 @@ describe('LeafletService', () => {
       id: 4,
       name: 'Reported User Row',
       source: 'USER',
+      provenance: 'COMMUNITY_REPORTED',
       nonexistentReports: 5,
     });
     service.renderShelters([reportedRegistry, reportedUser, TALLINN, BASEMENT]);
@@ -167,7 +216,7 @@ describe('LeafletService', () => {
     expect(markers).toHaveLength(4);
     // Both reported rows are orange — the single "reported" affordance…
     expect(markers.filter((m) => m.classList.contains('shelter-marker--reported'))).toHaveLength(2);
-    // …and the trust/registry tones apply ONLY to the unreported rows.
+    // …and the provenance tones apply ONLY to the unreported rows.
     expect(markers.filter((m) => m.classList.contains('shelter-marker--registry'))).toHaveLength(1); // TALLINN only
     expect(markers.filter((m) => m.classList.contains('shelter-marker--new'))).toHaveLength(1); // BASEMENT (NEW) only
     expect(markers.filter((m) => m.classList.contains('shelter-marker--user'))).toHaveLength(0);
@@ -238,12 +287,11 @@ describe('LeafletService', () => {
     flyToSpy.mockRestore();
   });
 
-  it('showShelter pins ONE static marker (trust-toned), replaces on re-call, clears on null', () => {
+  it('showShelter pins ONE static marker (provenance-toned), replaces on re-call, clears on null', () => {
     service.showShelter({
       latitude: TALLINN.latitude,
       longitude: TALLINN.longitude,
-      source: 'PAASETEAMET',
-      reviewStatus: TALLINN.reviewStatus,
+      provenance: TALLINN.provenance,
       nonexistentReports: 0,
       name: TALLINN.name,
     });
@@ -258,8 +306,7 @@ describe('LeafletService', () => {
     service.showShelter({
       latitude: BASEMENT.latitude,
       longitude: BASEMENT.longitude,
-      source: 'USER',
-      reviewStatus: 'NEW',
+      provenance: BASEMENT.provenance,
       nonexistentReports: 0,
       name: BASEMENT.name,
     });
@@ -278,8 +325,7 @@ describe('LeafletService', () => {
     service.showShelter({
       latitude: TALLINN.latitude,
       longitude: TALLINN.longitude,
-      source: 'PAASETEAMET',
-      reviewStatus: TALLINN.reviewStatus,
+      provenance: TALLINN.provenance,
       nonexistentReports: 0,
       name: TALLINN.name,
     });
@@ -296,8 +342,7 @@ describe('LeafletService', () => {
       uncreated.showShelter({
         latitude: 59.437,
         longitude: 24.754,
-        source: 'USER',
-        reviewStatus: 'NEW',
+        provenance: 'UNDER_REVIEW',
         nonexistentReports: 0,
         name: 'Community Cellar',
       }),

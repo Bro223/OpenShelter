@@ -43,8 +43,35 @@ export type LocationKind = 'PUBLIC' | 'PRIVATE';
 /** Where a shelter record came from. */
 export type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
 
-/** Frontend-facing source filter for GET /api/shelters?source=... */
-export type ShelterSourceFilter = 'ALL' | 'REGISTRY' | 'USER';
+/**
+ * Provenance taxonomy (shelter-provenance-taxonomy M6): the server-derived
+ * single answer to "where does this row come from, and what is its
+ * standing?" — computed on the backend (`ShelterDto.provenance`), never
+ * re-derived in the FE. Only OFFICIAL / PARTNER_VERIFIED /
+ * COMMUNITY_REPORTED / UNDER_REVIEW are reachable in the ACTIVE-only public
+ * list; the hidden two (REPORTED_INACTIVE / REJECTED) ride on the detail
+ * read, /mine and the admin list.
+ */
+export type Provenance =
+  | 'OFFICIAL'
+  | 'PARTNER_VERIFIED'
+  | 'COMMUNITY_REPORTED'
+  | 'UNDER_REVIEW'
+  | 'REPORTED_INACTIVE'
+  | 'REJECTED';
+
+/**
+ * The map's provenance filter (M6) — the server-side `?provenance=` param,
+ * restricted to the four values reachable in the ACTIVE-only public list
+ * (the hidden two would always filter to empty, so no chip offers them).
+ * Replaces the old source chips: provenance strictly subdivides source
+ * (REGISTRY = OFFICIAL ∪ PARTNER_VERIFIED, USER = COMMUNITY_REPORTED ∪
+ * UNDER_REVIEW), so the finer filter supersedes the coarser one. The
+ * backend keeps `?source=` for compatibility — the FE simply no longer
+ * sends it.
+ */
+export type ProvenanceFilter =
+  'ALL' | 'OFFICIAL' | 'PARTNER_VERIFIED' | 'COMMUNITY_REPORTED' | 'UNDER_REVIEW';
 
 // ---------------------------------------------------------------------------
 // Request bodies (records on the backend, `interface`s here)
@@ -304,6 +331,12 @@ export interface ShelterDto {
   reviewStatus: ReviewStatus;
   /** Submitter-declared: PRIVATE rows carry the "Private location" badge. */
   locationKind: LocationKind;
+  /**
+   * Provenance taxonomy (M6) — server-derived (see the `Provenance` type).
+   * Drives the marker tone, the row badge text/tone and the legend; the FE
+   * never re-derives it from source/reviewStatus.
+   */
+  provenance: Provenance;
 }
 
 /**
@@ -401,6 +434,13 @@ export interface AdminShelterDto {
   reviewNote: string | null;
   /** PRIVATE rows carry the "Private location" badge on this surface too. */
   locationKind: LocationKind;
+  /**
+   * Provenance taxonomy (M6) — the same server-derived value as on the
+   * public DTO; this is the one surface where all six values are reachable
+   * (the list keeps hidden rows), so the badge can render the
+   * REPORTED_INACTIVE / REJECTED tones here.
+   */
+  provenance: Provenance;
 }
 
 /** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
