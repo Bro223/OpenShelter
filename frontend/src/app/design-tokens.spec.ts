@@ -414,6 +414,22 @@ describe('design tokens (M6)', () => {
     expect(header![0]).toContain('flex-wrap: wrap');
   });
 
+  it('the /submit private-home checkbox keeps its native glyph size (M13 mobile-responsive-polish)', () => {
+    // Regression guard: the global `.field input { width: 100% }` form rule
+    // stretched the D7 checkbox into a ~112px flex item at 360px (the label
+    // text was displaced to the middle of the row). The checkbox must carry
+    // an explicit native size — the same escape as the detail page's report
+    // radios (.report-option input) — or the row breaks again on any width.
+    const submit = readFileSync(`${SRC_DIR}/app/features/shelter/submit-shelter-page.scss`, 'utf8');
+    const checkbox = submit.match(/\.checkbox-field \{[\s\S]*?\n\}/);
+    expect(checkbox, 'submit-shelter-page.scss must style .checkbox-field').not.toBeNull();
+    const inputRule = checkbox![0].match(/input \{[\s\S]*?\n  \}/);
+    expect(inputRule, '.checkbox-field must size its input explicitly').not.toBeNull();
+    expect(inputRule![0]).toMatch(/width: 18px/);
+    expect(inputRule![0]).toMatch(/height: 18px/);
+    expect(inputRule![0]).toContain('flex-shrink: 0');
+  });
+
   it('styles.scss provides a global :focus-visible rule (keyboard-operable nav)', () => {
     // M6 a11y audit: every interactive element (links, buttons, inputs,
     // textareas) gets a visible focus ring even without component-scoped

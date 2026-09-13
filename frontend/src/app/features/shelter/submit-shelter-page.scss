@@ -38,14 +38,27 @@
 }
 
 /* The private-home declaration (community-review-queue D7): a plain label +
-   checkbox row — the global 48px touch-target rule covers the input via
-   the form-control baseline; the label wraps for narrow widths. */
+   checkbox row — the label wraps for narrow widths.
+
+   The checkbox escapes the global `.field input { width: 100% }` form rule:
+   as a flex child, width: 100% stretched it into a ~112px item at 360px
+   and displaced the label text (M13 mobile-responsive-polish — the same
+   explicit native-size escape the detail page's report radios use in
+   `.report-option input`). */
 .checkbox-field {
   display: flex;
   align-items: center;
   gap: var(--space-8);
   font-size: var(--text-base);
   cursor: pointer;
+
+  input {
+    margin: 0;
+    width: 18px; /* checkbox glyph size, not spacing */
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--color-primary);
+  }
 }
 
 /* Success panel (community-review-queue): the success tint — the row is
