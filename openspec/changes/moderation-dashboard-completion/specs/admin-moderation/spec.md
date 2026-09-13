@@ -67,8 +67,11 @@ name/description/capacity/latitude/longitude/locationKind (a no-op
 PUT records nothing; the row stores a `{"field": [old, new]}` JSON of
 exactly the moved fields), and DELETED on a user or admin hard
 delete. The row SHALL snapshot the shelter name and name the actor
-(submitter or moderating admin); `shelter_id` SHALL be ON DELETE SET
-NULL and `actor_user_id` SHALL carry no FK, so the history of a
+(submitter or moderating admin); `shelter_id` SHALL carry no FK (a
+referential action cannot keep the delete's own row findable by the
+shelter id — SET NULL would orphan it, NO ACTION would block the
+delete; the id dangles legally, the V11 moderation_actions convention)
+and `actor_user_id` SHALL carry no FK, so the history of a
 deleted shelter and of a deleted account survives. `GET
 /admin/shelters/{id}/history` SHALL return a row's events ascending
 with batched actor names and server-parsed field changes; it SHALL

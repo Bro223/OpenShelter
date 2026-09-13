@@ -12,8 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -61,17 +63,20 @@ public class ShelterService {
     private final int dailySubmissionsPerUser;
     private final double duplicateCoordMeters;
     private final ThrottleAlertRecorder alerts;
+    private final ShelterHistoryLog history;
 
     public ShelterService(ShelterRepository shelterRepository,
                           UserRepository userRepository,
                           @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser,
                           @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters,
-                          ThrottleAlertRecorder alerts) {
+                          ThrottleAlertRecorder alerts,
+                          ShelterHistoryLog history) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.dailySubmissionsPerUser = dailySubmissionsPerUser;
         this.duplicateCoordMeters = duplicateCoordMeters;
         this.alerts = Objects.requireNonNull(alerts, "alerts");
+        this.history = Objects.requireNonNull(history, "history");
     }
 
     /**
@@ -155,6 +160,10 @@ public class ShelterService {
         // is unchanged, the UI shows the "newly added" treatment.
         place.setReviewStatus(ReviewStatus.NEW);
         shelterRepository.save(place);
+        // Edit history (moderation-dashboard-completion M10 slice 2, D4):
+        // CREATED joins this transaction, actor = the submitting account.
+        history.record(place.getId(), place.getName(), user.getId(),
+                ShelterHistoryLog.Action.CREATED, null);
     }
 
     /** The user's own shelters (the author-scoped "my shelters" list). */
@@ -230,9 +239,20 @@ public class ShelterService {
      * HERE (the service boundary) to the same 404 as a plain not-found,
      * never a 500. Mapped by re-reading the row (observable state, not
      * message parsing); the repository keeps its internal guard.
+     *
+     * <p>Edit history (moderation-dashboard-completion M10 slice 2, D4):
+     * the old row is read FIRST (the diff needs it) — which tightens the
+     * race: an absent row is a plain 404 before any diff, not only at the
+     * save-time guard. An EDITED row is appended (this transaction) only
+     * when at least one editable field MOVED — a no-op PUT saves the same
+     * values but records nothing (no edit-spam history). The actor is the
+     * author link (legacy rows have none — the actor renders "Unknown").
      */
     public void updatePlace(Shelter place) {
         Objects.requireNonNull(place, "place");
+        Shelter current = shelterRepository.findById(place.getId())
+                .orElseThrow(() -> new ShelterNotFoundException(place.getId()));
+        Map<String, Object[]> moved = diffFields(current, place);
         try {
             shelterRepository.save(place);
         } catch (IllegalStateException unknownId) {
@@ -241,10 +261,56 @@ public class ShelterService {
             }
             throw unknownId;
         }
+        if (!moved.isEmpty()) {
+            history.record(place.getId(), current.getName(), current.getCreatedBy(),
+                    ShelterHistoryLog.Action.EDITED, ShelterHistoryChanges.toJson(moved));
+        }
     }
 
-    /** Deletes a shelter row; its reviews cascade via the DB constraint. */
-    public void deletePlace(long shelterId) {
+    /**
+     * The editable fields that MOVED between {@code current} and {@code
+     * next} (D4), in canonical order: name, description, capacity,
+     * latitude, longitude, locationKind. Empty = a no-op PUT (records no
+     * history row).
+     */
+    private static Map<String, Object[]> diffFields(Shelter current, Shelter next) {
+        Map<String, Object[]> moved = new LinkedHashMap<>();
+        if (!Objects.equals(current.getName(), next.getName())) {
+            moved.put("name", new Object[]{current.getName(), next.getName()});
+        }
+        if (!Objects.equals(current.getDescription(), next.getDescription())) {
+            moved.put("description", new Object[]{current.getDescription(), next.getDescription()});
+        }
+        if (!Objects.equals(current.getCapacity(), next.getCapacity())) {
+            moved.put("capacity", new Object[]{current.getCapacity(), next.getCapacity()});
+        }
+        if (Double.compare(current.getLocation().lat(), next.getLocation().lat()) != 0) {
+            moved.put("latitude", new Object[]{current.getLocation().lat(), next.getLocation().lat()});
+        }
+        if (Double.compare(current.getLocation().lng(), next.getLocation().lng()) != 0) {
+            moved.put("longitude", new Object[]{current.getLocation().lng(), next.getLocation().lng()});
+        }
+        if (current.getLocationKind() != next.getLocationKind()) {
+            moved.put("locationKind", new Object[]{current.getLocationKind().name(),
+                    next.getLocationKind().name()});
+        }
+        return moved;
+    }
+
+    /**
+     * Deletes a shelter row; its reviews cascade via the DB constraint.
+     *
+     * <p>Edit history (M10 slice 2, D4): a DELETED row is appended BEFORE
+     * the delete in the same transaction (the moderation-audit convention
+     * — the row is written first, then its shelter_id dangles legally via
+     * the no-FK column, so the deleted shelter's history stays findable).
+     * {@code actorUserId} is the acting account — the submitter for the
+     * author route, the moderating admin for the admin hard delete.
+     */
+    public void deletePlace(long shelterId, Long actorUserId) {
+        shelterRepository.findById(shelterId)
+                .ifPresent(existing -> history.record(shelterId, existing.getName(), actorUserId,
+                        ShelterHistoryLog.Action.DELETED, null));
         shelterRepository.deleteById(shelterId);
     }
 }

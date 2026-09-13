@@ -125,6 +125,46 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* Inline edit-history panel (M10 slice 2): a muted, small, read-only
+   expansion under the shelter row — one line per event, the field
+   changes wrap under their event on narrow widths. */
+.admin-history {
+  background: var(--color-bg-subtle);
+  padding: var(--space-4);
+}
+
+.admin-history__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-history__event {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  padding: var(--space-2) 0;
+}
+
+.admin-history__event + .admin-history__event {
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-history__action {
+  font-weight: var(--font-weight-medium);
+}
+
+.admin-history__actor,
+.admin-history__time {
+  color: var(--color-muted);
+}
+
+.admin-history__change {
+  flex-basis: 100%;
+  color: var(--color-muted);
+}
+
 /* Audit table: the timestamp column never wraps (the row stays one line
    tall next to the reason cell). */
 .admin-cell--nowrap {

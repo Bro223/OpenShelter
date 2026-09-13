@@ -11,6 +11,7 @@ import { AuthStore } from '../../session/auth-store';
 import type {
   AdminReviewReportDto,
   AdminShelterDto,
+  AdminShelterHistoryEvent,
   AdminShelterReportDto,
   MeResponse,
   TokenResponse,
@@ -150,6 +151,30 @@ const REVIEW_ROW_HIDDEN: AdminReviewReportDto = {
   detail: 'The shelter never existed',
 };
 
+/** The edit-history fixture (M10 slice 2): ascending, snapshot-named, the
+ *  EDITED row's changes parsed server-side (capacity first set: from null). */
+const HISTORY_EVENTS: AdminShelterHistoryEvent[] = [
+  {
+    id: 1,
+    shelterName: 'Kommunaali Varjend',
+    actorName: 'Kaja K.',
+    action: 'CREATED',
+    changes: [],
+    createdAt: ago(2 * 3_600_000),
+  },
+  {
+    id: 2,
+    shelterName: 'Kommunaali Varjend',
+    actorName: 'Kaja K.',
+    action: 'EDITED',
+    changes: [
+      { field: 'name', from: 'Vananimi', to: 'Kommunaali Varjend' },
+      { field: 'capacity', from: null, to: '12' },
+    ],
+    createdAt: ago(3_600_000),
+  },
+];
+
 // ---- hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics) ----
 
 class FakeAdminGateway {
@@ -164,6 +189,7 @@ class FakeAdminGateway {
   reviewShelter = vi.fn();
   listAudit = vi.fn();
   listAlerts = vi.fn();
+  listShelterHistory = vi.fn();
   listUsers = vi.fn();
   suspendUser = vi.fn();
   unsuspendUser = vi.fn();
@@ -219,6 +245,7 @@ describe('AdminPage', () => {
     admin.reviewShelter.mockResolvedValue({ ok: true });
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
+    admin.listShelterHistory.mockResolvedValue([]);
     admin.listUsers.mockResolvedValue([]);
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
@@ -436,6 +463,58 @@ describe('AdminPage', () => {
     expect(row.textContent).toContain('registry');
     expect(row.textContent).toContain('read-only');
     expect(row.querySelectorAll('button').length).toBe(0);
+  });
+
+  // ---- shelter history (M10 slice 2) -------------------------------------------
+
+  it('a USER row gets a History button that opens the inline event list', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.listShelterHistory.mockResolvedValue(HISTORY_EVENTS);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'History')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(admin.listShelterHistory).toHaveBeenCalledWith(7);
+    // ascending events: action label, actor, and the parsed field changes
+    // (absent side renders as —, the first-set capacity)
+    expect(element.textContent).toContain('Created');
+    expect(element.textContent).toContain('Edited');
+    expect(element.textContent).toContain('Kaja K.');
+    expect(element.textContent).toContain('name: Vananimi → Kommunaali Varjend');
+    expect(element.textContent).toContain('capacity: — → 12');
+  });
+
+  it('the History toggle closes the panel on a second click', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.listShelterHistory.mockResolvedValue(HISTORY_EVENTS);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'History')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(element.querySelector('.admin-history')).not.toBeNull();
+
+    buttonByText(element, 'Close history')!.click();
+    fixture.detectChanges();
+    expect(element.querySelector('.admin-history')).toBeNull();
+  });
+
+  it('a failed history load closes the panel and surfaces the server message', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.listShelterHistory.mockRejectedValue(apiError(404, 'Gone', '/admin/shelters/7/history'));
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'History')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('.admin-history')).toBeNull();
+    expect(element.textContent).toContain('Gone');
   });
 
   it('submitting the search box re-queries with the q filter (server-side substring)', async () => {

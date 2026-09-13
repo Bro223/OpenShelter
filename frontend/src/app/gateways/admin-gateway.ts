@@ -6,6 +6,7 @@ import type {
   AdminAuditRow,
   AdminShelterDto,
   AdminShelterFilters,
+  AdminShelterHistoryEvent,
   AdminShelterReportDto,
   AdminReviewReportDto,
   AdminUserDto,
@@ -21,12 +22,13 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The fourteen endpoints, 1:1:
+ * The fifteen endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/review         -> 200 {ok} (USER rows only)
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
+ *   GET    /admin/shelters/{id}/history        -> AdminShelterHistoryEvent[] (M10 slice 2)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
  *   GET    /admin/review-reports               -> AdminReviewReportDto[]
@@ -86,6 +88,19 @@ export class AdminGateway {
    */
   deleteShelter(id: number): Promise<void> {
     return lastValueFrom(this.api.delete<void>(`/admin/shelters/${id}`));
+  }
+
+  /**
+   * GET /admin/shelters/{id}/history -> the shelter's edit history, ASCENDING
+   * (M10 slice 2, D4): CREATED / EDITED (server-parsed field changes — the
+   * UI renders, never parses JSON) / DELETED, with snapshot names and
+   * resolved actor names. The history of a deleted shelter still serves
+   * (404 only when the shelter is absent AND has no history rows); registry
+   * import rows answer an empty list (the import keeps its own
+   * data_imports audit).
+   */
+  listShelterHistory(id: number): Promise<AdminShelterHistoryEvent[]> {
+    return lastValueFrom(this.api.get<AdminShelterHistoryEvent[]>(`/admin/shelters/${id}/history`));
   }
 
   /**

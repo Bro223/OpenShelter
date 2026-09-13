@@ -7,9 +7,12 @@ import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReviewReportRepository;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterHistoryChanges;
+import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReviewRepository;
+import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.AdminUser;
@@ -98,6 +101,8 @@ public class AdminModerationService {
     private final UserRepository users;
     private final Clock clock;
     private final ModerationAuditLog audit;
+    private final ShelterService shelterService;
+    private final ShelterHistoryLog history;
 
     public AdminModerationService(ShelterQueryService queryService,
                                   ShelterRepository shelters,
@@ -106,7 +111,9 @@ public class AdminModerationService {
                                   ShelterReviewRepository reviews,
                                   UserRepository users,
                                   Clock clock,
-                                  ModerationAuditLog audit) {
+                                  ModerationAuditLog audit,
+                                  ShelterService shelterService,
+                                  ShelterHistoryLog history) {
         this.queryService = Objects.requireNonNull(queryService, "queryService");
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.shelterReports = Objects.requireNonNull(shelterReports, "shelterReports");
@@ -115,6 +122,8 @@ public class AdminModerationService {
         this.users = Objects.requireNonNull(users, "users");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.shelterService = Objects.requireNonNull(shelterService, "shelterService");
+        this.history = Objects.requireNonNull(history, "history");
     }
 
     /**
@@ -176,7 +185,10 @@ public class AdminModerationService {
      *
      * <p>The audit row is recorded BEFORE the delete (D4): the same
      * transaction commits both, and the dangling shelter_id keeps the row
-     * readable — the name renders "Deleted shelter" at read time.
+     * readable — the name renders "Deleted shelter" at read time. The
+     * delete also appends the DELETED edit-history row (M10 slice 2)
+     * actor-attributed to the moderating admin, through the same service
+     * choke point as the author route.
      */
     @Transactional
     public void deleteShelter(long moderatorId, long shelterId) {
@@ -184,7 +196,7 @@ public class AdminModerationService {
         requireUserOwned(shelter);
         audit.record(shelterId, null, moderatorId, ModerationAuditLog.Action.DELETE, null,
                 shelter.getReviewStatus(), null);
-        shelters.deleteById(shelterId);
+        shelterService.deletePlace(shelterId, moderatorId);
     }
 
     /**
@@ -422,6 +434,46 @@ public class AdminModerationService {
                             row.newStatus(),
                             moderator == null ? "Unknown" : moderator.getData().name(),
                             row.createdAt());
+                })
+                .toList();
+    }
+
+    /**
+     * GET /admin/shelters/{id}/history — the shelter's edit history, ASCENDING
+     * (moderation-dashboard-completion M10 slice 2, D4): CREATED on
+     * submission, EDITED on an owner PUT that moved fields (server-parsed
+     * {@code {field, from, to}} tuples — the FE renders, never parses),
+     * DELETED on a user or admin hard delete. Actor names resolve in ONE
+     * batched user lookup (dangling actors render "Unknown").
+     *
+     * <p>404 ONLY when the shelter is absent AND no history rows exist — a
+     * deleted shelter's history still serves (the rows' shelter_id dangles
+     * legally; every row carries its own name snapshot). Registry import
+     * rows answer an empty list (the import keeps its own data_imports
+     * audit and writes no history rows).
+     */
+    @Transactional(readOnly = true)
+    public List<AdminShelterHistoryDto> shelterHistory(long shelterId) {
+        List<ShelterHistoryLog.Event> events = history.findByShelterId(shelterId);
+        if (events.isEmpty() && shelters.findById(shelterId).isEmpty()) {
+            throw new ShelterNotFoundException(shelterId);
+        }
+        if (events.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, User> actors = users.findByIds(events.stream()
+                .map(ShelterHistoryLog.Event::actorUserId).filter(Objects::nonNull)
+                .collect(Collectors.toSet()));
+        return events.stream()
+                .map(event -> {
+                    User actor = event.actorUserId() == null ? null : actors.get(event.actorUserId());
+                    return new AdminShelterHistoryDto(
+                            event.id(),
+                            event.shelterName(),
+                            actor == null ? "Unknown" : actor.getData().name(),
+                            event.action(),
+                            ShelterHistoryChanges.parse(event.changes()),
+                            event.createdAt());
                 })
                 .toList();
     }

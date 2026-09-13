@@ -13,7 +13,9 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,9 +23,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ShelterServiceTest {
 
     private static final GeoPoint POINT = new GeoPoint(59.438861, 24.754472);
+    private static final Clock CLOCK =
+            Clock.fixed(Instant.parse("2026-09-13T08:00:00Z"), ZoneOffset.UTC);
 
     private InMemoryShelterRepository repo;
     private InMemoryUserRepository users;
+    private InMemoryShelterHistoryLog history;
     private ShelterService service;
     /** The M3 slice-4 alert ring under test's services (the alerts
      *  themselves are unit-tested in ThrottleAlertRecorderTest). */
@@ -33,7 +38,8 @@ class ShelterServiceTest {
     void setUp() {
         repo = new InMemoryShelterRepository();
         users = new InMemoryUserRepository();
-        service = new ShelterService(repo, users, 1_000, 100.0, alerts);
+        history = new InMemoryShelterHistoryLog(CLOCK);
+        service = new ShelterService(repo, users, 1_000, 100.0, alerts, history);
     }
 
     private static Shelter userPlace() {
@@ -163,7 +169,7 @@ class ShelterServiceTest {
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
-        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000, 100.0, alerts);
+        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000, 100.0, alerts, history);
         Shelter place = userPlace("Original");
         guarded.addPlace(verifiedUser(), place);
         Long id = place.getId();
@@ -195,7 +201,7 @@ class ShelterServiceTest {
                 super.save(shelter);
             }
         };
-        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000, 100.0, alerts);
+        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000, 100.0, alerts, history);
         Shelter place = userPlace("Original");
         failing.addPlace(verifiedUser(), place);
 
@@ -214,10 +220,100 @@ class ShelterServiceTest {
         Shelter place = userPlace();
         service.addPlace(verifiedUser(), place);
 
-        service.deletePlace(place.getId());
+        service.deletePlace(place.getId(), 1L);
 
         assertThat(repo.findById(place.getId())).isEmpty();
         assertThat(service.findMine(1L)).isEmpty();
+    }
+
+    // ---------- edit history (moderation-dashboard-completion M10 slice 2, D4) ----------
+
+    @Test
+    void addPlaceRecordsCreatedHistoryAttributedToTheSubmitter() {
+        Shelter place = userPlace("Kadriorg kelder");
+
+        service.addPlace(verifiedUser(), place);
+
+        assertThat(history.rows()).hasSize(1);
+        ShelterHistoryLog.Event created = history.rows().get(0);
+        assertThat(created.shelterId()).isEqualTo(place.getId());
+        assertThat(created.shelterName()).isEqualTo("Kadriorg kelder");
+        assertThat(created.actorUserId()).isEqualTo(1L);
+        assertThat(created.action()).isEqualTo(ShelterHistoryLog.Action.CREATED);
+        assertThat(created.changes()).isNull();
+        assertThat(history.findByShelterId(place.getId())).containsExactly(created);
+    }
+
+    @Test
+    void ownerEditRecordsEditedHistoryWithExactlyTheMovedFields() {
+        Shelter place = userPlace("Algus");
+        service.addPlace(verifiedUser(), place);
+
+        // only name + capacity move (description stays null, location and
+        // locationKind untouched) — the diff must hold exactly those two
+        Shelter updated = new Shelter(
+                "Uus nimi", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, 40);
+        updated.setId(place.getId());
+        service.updatePlace(updated);
+
+        assertThat(history.rows()).hasSize(2);
+        ShelterHistoryLog.Event edited = history.rows().get(1);
+        assertThat(edited.action()).isEqualTo(ShelterHistoryLog.Action.EDITED);
+        assertThat(edited.shelterName()).isEqualTo("Algus"); // snapshot at event time
+        assertThat(edited.actorUserId()).isEqualTo(1L);
+        assertThat(ShelterHistoryChanges.parse(edited.changes()))
+                .containsExactly(
+                        new ShelterHistoryLog.FieldChange("name", "Algus", "Uus nimi"),
+                        new ShelterHistoryLog.FieldChange("capacity", null, "40"));
+    }
+
+    @Test
+    void aNoOpPutRecordsNoHistoryRow() {
+        Shelter place = userPlace("Samasamane");
+        service.addPlace(verifiedUser(), place);
+
+        Shelter same = new Shelter(
+                "Samasamane", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, null);
+        same.setId(place.getId());
+        service.updatePlace(same);
+
+        assertThat(history.rows()).hasSize(1); // still only the CREATED row
+        assertThat(history.rows().get(0).action()).isEqualTo(ShelterHistoryLog.Action.CREATED);
+    }
+
+    @Test
+    void deletePlaceRecordsDeletedHistoryAttributedToTheActingAccount() {
+        Shelter place = userPlace("Kõrvale");
+        service.addPlace(verifiedUser(), place);
+
+        service.deletePlace(place.getId(), 2L);
+
+        assertThat(history.rows()).hasSize(2);
+        ShelterHistoryLog.Event deleted = history.rows().get(1);
+        assertThat(deleted.action()).isEqualTo(ShelterHistoryLog.Action.DELETED);
+        assertThat(deleted.shelterId()).isEqualTo(place.getId()); // dangles after the delete
+        assertThat(deleted.shelterName()).isEqualTo("Kõrvale");
+        assertThat(deleted.actorUserId()).isEqualTo(2L);
+        assertThat(deleted.changes()).isNull();
+        // a deleted shelter's history stays findable by the (dangling) id
+        assertThat(history.findByShelterId(place.getId())).hasSize(2);
+    }
+
+    @Test
+    void updatePlaceOfAnAbsentShelterIsNotFoundBeforeAnyHistoryRow() {
+        // D4: the old-row read precedes the diff — an absent row is a plain
+        // 404 before any diff, not a save-time guard hit.
+        Shelter stale = new Shelter(
+                "Uus nimi", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, 40);
+        stale.setId(999L);
+
+        assertThatThrownBy(() -> service.updatePlace(stale))
+                .isInstanceOf(ShelterNotFoundException.class)
+                .hasMessageContaining("999");
+        assertThat(history.rows()).isEmpty();
     }
 
     @Test
@@ -267,7 +363,7 @@ class ShelterServiceTest {
         for (int i = 1; i <= 10; i++) {
             service.addPlace(verifiedUser(), userPlace("Varjend " + i));
         }
-        service.deletePlace(repo.findAll().get(0).getId());
+        service.deletePlace(repo.findAll().get(0).getId(), 1L);
 
         service.addPlace(verifiedUser(), userPlace("Vaba"));
         assertThat(repo.findAll()).hasSize(10);
@@ -281,7 +377,7 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history);
 
         // 11 in a row — the admin is never capped
         for (int i = 1; i <= 11; i++) {
@@ -363,7 +459,7 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history);
 
         adminService.addPlace(verifiedUser(), userPlace("Admini kopeer"));
         adminService.addPlace(verifiedUser(2L), userPlace("Admini kopeer"));
@@ -372,7 +468,7 @@ class ShelterServiceTest {
 
     @Test
     void theDailyCapPrecedesTheDuplicateCheck() {
-        ShelterService capped = new ShelterService(repo, users, 1, 100.0, alerts);
+        ShelterService capped = new ShelterService(repo, users, 1, 100.0, alerts, history);
         Shelter first = userPlace("Kapi varjend");
         capped.addPlace(verifiedUser(), first);
         // created_at is DB-owned (DEFAULT now()) — the in-memory fake does

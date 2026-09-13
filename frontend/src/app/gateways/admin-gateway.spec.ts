@@ -339,4 +339,34 @@ describe('AdminGateway', () => {
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/admin/users/301/unsuspend');
   });
+
+  // ---- GET /admin/shelters/{id}/history (M10 slice 2) ----
+
+  it('listShelterHistory GETs /admin/shelters/{id}/history (ascending, server-parsed)', async () => {
+    const events = [
+      {
+        id: 1,
+        shelterName: 'Kommunaali Varjend',
+        actorName: 'Kaja K.',
+        action: 'CREATED' as const,
+        changes: [],
+        createdAt: '2026-09-01T09:00:00Z',
+      },
+      {
+        id: 2,
+        shelterName: 'Kommunaali Varjend',
+        actorName: 'Kaja K.',
+        action: 'EDITED' as const,
+        changes: [{ field: 'capacity', from: null, to: '12' }],
+        createdAt: '2026-09-02T09:00:00Z',
+      },
+    ];
+    api.get.mockReturnValue(of(events));
+
+    const rows = await gateway.listShelterHistory(7);
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/shelters/7/history');
+    expect(rows).toEqual(events);
+  });
 });

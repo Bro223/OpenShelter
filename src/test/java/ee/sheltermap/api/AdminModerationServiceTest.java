@@ -1,7 +1,9 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.app.InMemoryDataImportLog;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
+import ee.sheltermap.app.InMemoryShelterHistoryLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
@@ -10,7 +12,10 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.ShelterHistoryChanges;
+import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.RegisteredUser;
@@ -28,7 +33,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +58,7 @@ class AdminModerationServiceTest {
     private InMemoryShelterOccupancyRepository occupancy;
     private InMemoryUserRepository users;
     private InMemoryModerationAuditLog audit;
+    private InMemoryShelterHistoryLog history;
     private AdminModerationService service;
 
     private long adminId;
@@ -64,11 +72,16 @@ class AdminModerationServiceTest {
         occupancy = new InMemoryShelterOccupancyRepository();
         users = new InMemoryUserRepository();
         audit = new InMemoryModerationAuditLog(FIXED);
+        history = new InMemoryShelterHistoryLog(FIXED);
         ShelterQueryService queryService =
                 new ShelterQueryService(shelters, reviews, users, shelterReports, occupancy,
                         new InMemoryDataImportLog(), audit, FIXED);
         service = new AdminModerationService(queryService, shelters, shelterReports,
-                new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED, audit);
+                new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED,
+                audit,
+                new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
+                        history),
+                history);
 
         adminId = saveAdmin("Admin", "admin@example.ee");
         submitterId = saveUser("Autor", "autor@example.ee");
@@ -403,5 +416,83 @@ class AdminModerationServiceTest {
         List<AdminAuditDto> rows = service.listAudit(null);
         assertThat(rows.get(0).shelterName())
                 .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
+    }
+
+    // ---------- edit-history projection (M10 slice 2, D4) ----------
+
+    @Test
+    void historyOfAnAbsentShelterWithNoRowsIsA404() {
+        assertThatThrownBy(() -> service.shelterHistory(999L))
+                .isInstanceOf(ShelterNotFoundException.class);
+    }
+
+    @Test
+    void historyOfAnExistingShelterWithoutRowsIsEmpty() {
+        // a registry import row: present, but the import writes no history
+        // (it keeps its own data_imports audit)
+        Shelter registry = registryShelter();
+
+        assertThat(service.shelterHistory(registry.getId())).isEmpty();
+    }
+
+    @Test
+    void aDeletedSheltersHistoryStillServesTheDanglingRows() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        long id = shelter.getId();
+        history.record(id, "Oma varjend", submitterId, ShelterHistoryLog.Action.CREATED, null);
+        history.record(id, "Uus nimi", submitterId, ShelterHistoryLog.Action.EDITED, null);
+        history.record(id, "Uus nimi", adminId, ShelterHistoryLog.Action.DELETED, null);
+        shelters.deleteById(id);
+
+        List<AdminShelterHistoryDto> rows = service.shelterHistory(id);
+
+        assertThat(rows).extracting(AdminShelterHistoryDto::action)
+                .containsExactly(ShelterHistoryLog.Action.CREATED,
+                        ShelterHistoryLog.Action.EDITED, ShelterHistoryLog.Action.DELETED);
+        // snapshot names per event — the rename does not rewrite the CREATED row
+        assertThat(rows).extracting(AdminShelterHistoryDto::shelterName)
+                .containsExactly("Oma varjend", "Uus nimi", "Uus nimi");
+        assertThat(rows).extracting(AdminShelterHistoryDto::actorName)
+                .containsExactly("Autor", "Autor", "Admin");
+    }
+
+    @Test
+    void editedRowChangesAreParsedServerSideIntoFieldTuples() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        history.record(shelter.getId(), "Oma varjend", submitterId, ShelterHistoryLog.Action.EDITED,
+                ShelterHistoryChanges.toJson(movedFields(
+                        new Object[]{"name", new Object[]{"Oma varjend", "Uus nimi"}},
+                        new Object[]{"capacity", new Object[]{null, 40}})));
+
+        List<AdminShelterHistoryDto> rows = service.shelterHistory(shelter.getId());
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).changes()).containsExactly(
+                new ShelterHistoryLog.FieldChange("name", "Oma varjend", "Uus nimi"),
+                new ShelterHistoryLog.FieldChange("capacity", null, "40"));
+        assertThat(rows.get(0).createdAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void aDanglingActorRendersUnknownInTheHistory() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        history.record(shelter.getId(), "Oma varjend", submitterId, ShelterHistoryLog.Action.CREATED, null);
+        history.record(shelter.getId(), "Oma varjend", 999_999L, ShelterHistoryLog.Action.DELETED, null);
+
+        List<AdminShelterHistoryDto> rows = service.shelterHistory(shelter.getId());
+
+        assertThat(rows.get(0).actorName()).isEqualTo("Autor");
+        assertThat(rows.get(1).actorName()).isEqualTo("Unknown");
+    }
+
+    /** An ordered moved-field map (canonical order — Map.of is unordered). */
+    @SafeVarargs
+    private static Map<String, Object[]> movedFields(Object[]... pairs) {
+        // pairs: [fieldName, value], [fieldName, value], ...
+        Map<String, Object[]> moved = new LinkedHashMap<>();
+        for (Object[] pair : pairs) {
+            moved.put((String) pair[0], (Object[]) pair[1]);
+        }
+        return moved;
     }
 }

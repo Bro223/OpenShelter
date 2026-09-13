@@ -95,6 +95,20 @@ public class AdminController {
     }
 
     /**
+     * The shelter's edit history (M10 slice 2), ascending: CREATED / EDITED
+     * (server-parsed field changes) / DELETED, with snapshot names and
+     * batched actor names. 404 only when the shelter is absent AND has no
+     * history rows (a deleted shelter's history still serves — the
+     * dangling shelter_id); registry import rows answer an empty list
+     * (they keep their own data_imports audit).
+     */
+    @GetMapping("/shelters/{id}/history")
+    public List<AdminShelterHistoryDto> shelterHistory(@PathVariable long id) {
+        requireAdmin();
+        return moderation.shelterHistory(id);
+    }
+
+    /**
      * The community review decision (community-review-queue v2 D2) —
      * the rare manual override: CONFIRM promotes the row to CONFIRMED
      * (status untouched, note cleared); REJECT hides it (REJECTED +

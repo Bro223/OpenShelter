@@ -240,13 +240,14 @@ public class ShelterController {
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
     }
 
-    /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reviews cascade. */
+    /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reviews cascade.
+     *  The DELETED history row (M10 slice 2) is actor-attributed to the submitter. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long id) {
         RegisteredUser user = requireVerifiedRegisteredUser();
         requireOwnedShelter(id, user);
-        shelterService.deletePlace(id);
+        shelterService.deletePlace(id, user.getId());
     }
 
     /** Resolve + author check, shared by PUT/DELETE: 404 if absent, 403 if not the author. */

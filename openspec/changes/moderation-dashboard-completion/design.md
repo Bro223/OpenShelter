@@ -80,11 +80,17 @@ column header "Shelter" → "Subject" and gains the two audit labels.
 lifecycle event (the moderation-audit idiom — a rolled-back edit
 leaves no row):
 
-- `shelter_id BIGINT NULL REFERENCES shelters(id) ON DELETE SET NULL`
-  — a hard delete nulls the reference on the row it just appended, so
-  the history of a deleted shelter survives and stays findable by the
-  (now dangling) id; every row snapshots `shelter_name` at event time
-  (renames don't rewrite history),
+- `shelter_id BIGINT NULL` with **NO FK** — a hard delete must leave the
+  delete's own DELETED row findable by the shelter id (the spec scenario:
+  a deleted shelter's history still serves, 404 only when the shelter is
+  absent AND no history exists). A referential action cannot serve that:
+  `ON DELETE SET NULL` (the first draft of this bullet) would orphan the
+  row from its shelter exactly when it is most needed, and `NO ACTION`
+  would block the delete — so the id dangles legally, the V11
+  `moderation_actions` convention ("shelter_id deliberately has NO FK").
+  The app only ever writes it for an existing shelter in the same
+  transaction. Every row snapshots `shelter_name` at event time (renames
+  don't rewrite history),
 - `actor_user_id BIGINT NULL` with NO FK — user erasure orphans the
   actor (renders "Unknown", the existing projection convention),
 - `changes TEXT NULL` — compact JSON `{"field": [old, new], ...}` over

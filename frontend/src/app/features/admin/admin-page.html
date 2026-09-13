@@ -289,6 +289,17 @@
                 </td>
                 <td class="admin-cell--actions">
                   @if (row.source === 'USER') {
+                    <!-- Edit-history toggle (M10 slice 2): USER rows only —
+                         registry import rows keep their own data_imports
+                         audit and write no history rows. -->
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="openHistory(row)"
+                      [disabled]="busy()"
+                    >
+                      {{ historyFor() === row.id ? 'Close history' : 'History' }}
+                    </button>
                     @if (confirmingDelete() !== row.id) {
                       @if (row.status === 'ACTIVE') {
                         <button
@@ -343,6 +354,40 @@
                   }
                 </td>
               </tr>
+              <!-- Inline edit-history panel (M10 slice 2): the row's
+                   lifecycle events ascending — action label, actor, time,
+                   and "field: old → new" per moved field. The name
+                   snapshot is not repeated (the changes carry it). -->
+              @if (historyFor() === row.id) {
+                <tr class="admin-history-row">
+                  <td class="admin-history" colspan="9">
+                    @if (historyEvents() === null) {
+                      <p class="admin-muted">Loading history…</p>
+                    } @else if ((historyEvents() ?? []).length === 0) {
+                      <p class="admin-muted">No history yet.</p>
+                    } @else {
+                      <ul class="admin-history__list">
+                        @for (event of historyEvents() ?? []; track event.id) {
+                          <li class="admin-history__event">
+                            <span class="admin-history__action">{{
+                              historyActionLabel(event.action)
+                            }}</span>
+                            <span class="admin-history__actor">{{ event.actorName }}</span>
+                            <span class="admin-history__time">{{
+                              event.createdAt | date: 'medium'
+                            }}</span>
+                            @for (change of event.changes; track change.field) {
+                              <span class="admin-history__change">{{
+                                historyChangeText(change)
+                              }}</span>
+                            }
+                          </li>
+                        }
+                      </ul>
+                    }
+                  </td>
+                </tr>
+              }
             }
           </tbody>
         </table>

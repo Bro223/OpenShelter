@@ -18,6 +18,8 @@ import type {
   AdminAuditRow,
   AdminOccupancy,
   AdminShelterDto,
+  AdminShelterHistoryEvent,
+  AdminShelterHistoryFieldChange,
   AdminShelterReportDto,
   AdminReviewReportDto,
   AdminUserDto,
@@ -85,6 +87,13 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   REJECT: 'Rejected',
   USER_SUSPEND: 'User suspended',
   USER_UNSUSPEND: 'User unsuspended',
+};
+
+/** Shelter-history action labels (M10 slice 2 — the Shelters-tab panel). */
+export const SHELTER_HISTORY_ACTION_LABEL: Record<AdminShelterHistoryEvent['action'], string> = {
+  CREATED: 'Created',
+  EDITED: 'Edited',
+  DELETED: 'Deleted',
 };
 
 /** M3 alert kind labels (abuse-limits slice 4): human copy for the
@@ -188,6 +197,12 @@ export class AdminPage implements OnInit {
   protected readonly shelterQuery = signal('');
   /** Search input (public so specs can drive it — page convention). */
   readonly searchQuery = new FormControl('', { nonNullable: true });
+
+  // ---- shelter history (M10 slice 2, D4) ---------------------------------------
+  /** The row whose inline history panel is open (null = closed). */
+  protected readonly historyFor = signal<number | null>(null);
+  /** The open panel's events — null = loading, [] = loaded and empty. */
+  protected readonly historyEvents = signal<AdminShelterHistoryEvent[] | null>(null);
 
   // ---- shelter-report tab ----------------------------------------------------
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
@@ -318,6 +333,7 @@ export class AdminPage implements OnInit {
   switchTab(tab: AdminTab): void {
     this.tab.set(tab);
     this.clearFeedback();
+    this.closeHistory();
     switch (tab) {
       case 'shelters':
         if (this.shelterRows() === null && this.shelterLoadError() === null) {
@@ -443,6 +459,7 @@ export class AdminPage implements OnInit {
     this.shelterQuery.set(this.searchQuery.value.trim());
     this.clearFeedback();
     this.confirmingDelete.set(null);
+    this.closeHistory();
     this.loadShelters();
   }
 
@@ -499,9 +516,55 @@ export class AdminPage implements OnInit {
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter'));
     } finally {
+      if (this.historyFor() === id) {
+        this.closeHistory();
+      }
       this.confirmingDelete.set(null);
       this.busy.set(false);
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelter history (M10 slice 2, D4)
+  // -------------------------------------------------------------------------
+  /**
+   * Toggle the inline edit-history panel for a USER row. The panel lists
+   * the row's lifecycle events ascending (Created / Edited — with the
+   * server-parsed field changes / Deleted); a second click closes it.
+   * History is a USER-row promise only — registry rows never get the
+   * button (the import keeps its own data_imports audit and writes no
+   * history rows).
+   */
+  async openHistory(row: AdminShelterDto): Promise<void> {
+    if (this.historyFor() === row.id) {
+      this.closeHistory();
+      return;
+    }
+    this.historyFor.set(row.id);
+    this.historyEvents.set(null);
+    try {
+      this.historyEvents.set(await this.admin.listShelterHistory(row.id));
+    } catch (error) {
+      this.closeHistory();
+      this.error.set(bannerMessage(error, 'shelter'));
+    }
+  }
+
+  /** Close the open history panel (tab switch, search, delete, toggle). */
+  closeHistory(): void {
+    this.historyFor.set(null);
+    this.historyEvents.set(null);
+  }
+
+  /** History action label (the machine value → human copy). */
+  protected historyActionLabel(action: AdminShelterHistoryEvent['action']): string {
+    return SHELTER_HISTORY_ACTION_LABEL[action];
+  }
+
+  /** One field change, "field: old → new"; an absent side renders "—"
+   *  (a first-set description, or a field cleared to absent). */
+  protected historyChangeText(change: AdminShelterHistoryFieldChange): string {
+    return `${change.field}: ${change.from ?? '—'} → ${change.to ?? '—'}`;
   }
 
   private patchShelter(id: number, patch: Partial<AdminShelterDto>): void {

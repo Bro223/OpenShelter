@@ -562,6 +562,37 @@ export interface AdminAuditRow {
   createdAt: string;
 }
 
+/** One server-parsed field change of an EDITED history row (M10 slice 2).
+ *  `from`/`to` are display strings — null = the field was absent
+ *  (e.g. a first-set description). */
+export interface AdminShelterHistoryFieldChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+/**
+ * One row of GET /admin/shelters/{id}/history (M10 slice 2, ascending over
+ * the shelter's lifecycle): CREATED on submission, EDITED on an owner PUT
+ * that moved fields (the changes are parsed server-side — the UI renders,
+ * never parses JSON), DELETED on a user or admin hard delete. The history
+ * of a deleted shelter still serves (the rows' shelter_id dangles
+ * legally); `shelterName` is the SNAPSHOT at event time (a rename does not
+ * rewrite the earlier rows). `actorName` is "Unknown" after the actor's
+ * account was erased (no FK).
+ */
+export interface AdminShelterHistoryEvent {
+  id: number;
+  /** The shelter's name as it was when the event happened. */
+  shelterName: string;
+  actorName: string;
+  action: 'CREATED' | 'EDITED' | 'DELETED';
+  /** Empty for CREATED/DELETED; exactly the moved fields for EDITED. */
+  changes: AdminShelterHistoryFieldChange[];
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
+
 /**
  * The M3 throttle/abuse alert kinds (GET /admin/alerts, abuse-limits slice
  * 4) — the closed backend vocabulary.

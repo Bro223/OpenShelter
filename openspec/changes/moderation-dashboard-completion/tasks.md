@@ -27,19 +27,19 @@
 
 ## Slice 2 — Edit-history viewer
 
-- [ ] V18 `shelter_history` (snapshot name, SET NULL shelter FK, no
+- [x] V18 `shelter_history` (snapshot name, SET NULL shelter FK, no
       actor FK, changes JSON)
-- [ ] `ShelterHistoryLog` seam + JPA impl + in-memory fake
-- [ ] Record CREATED/EDITED/DELETED in `ShelterService` (diff on
+- [x] `ShelterHistoryLog` seam + JPA impl + in-memory fake
+- [x] Record CREATED/EDITED/DELETED in `ShelterService` (diff on
       PUT; no-op PUT records nothing; delete actor threaded from
       both call sites)
-- [ ] `GET /admin/shelters/{id}/history` (+ `AdminShelterHistoryDto`,
+- [x] `GET /admin/shelters/{id}/history` (+ `AdminShelterHistoryDto`,
       server-parsed field changes, batched actor names, 404 rule)
-- [ ] BE tests: diff unit tests, history IT (edit, no-op, deleted
+- [x] BE tests: diff unit tests, history IT (edit, no-op, deleted
       shelter history, 404)
-- [ ] FE: History button + inline event dialog in the Shelters tab;
+- [x] FE: History button + inline event dialog in the Shelters tab;
       specs
-- [ ] Gate both + commit `M10: edit-history viewer (slice 2)`
+- [x] Gate both + commit `M10: edit-history viewer (slice 2)`
 
 ## Slice 3 — Request-info
 
