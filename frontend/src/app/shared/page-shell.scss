@@ -64,6 +64,14 @@
   gap: var(--space-10);
 }
 
+/* Language switcher (i18n-et-en M14 slice 1): a compact two-button group
+   of the global .btn ghosts (48px target included); at <900 it stretches
+   to the panel row width like the other action buttons. */
+.shell-lang {
+  display: flex;
+  gap: var(--space-8);
+}
+
 .shell-body {
   flex: 1;
   width: 100%;
@@ -220,8 +228,19 @@
       .btn {
         width: 100%;
         /* Left-aligned panel rows — the documented .btn exception (same
-           opt-out the shelter-row__details buttons use). */
+             opt-out the shelter-row__details buttons use). */
         justify-content: flex-start;
+      }
+
+      /* The switcher stays a side-by-side row inside its full-width
+           panel row (the group stretches, the buttons split it). */
+      .shell-lang {
+        width: 100%;
+
+        .btn {
+          flex: 1;
+          justify-content: center;
+        }
       }
     }
   }

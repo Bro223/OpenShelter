@@ -27,35 +27,35 @@ import { AccountPage } from './features/account/account-page';
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'map' },
-  { path: 'map', component: MapPage, data: { title: 'Shelter map' }, canActivate: [titleGuard] },
+  { path: 'map', component: MapPage, data: { title: 'title.map' }, canActivate: [titleGuard] },
   {
     path: 'login',
     component: LoginPage,
-    data: { title: 'Log in' },
+    data: { title: 'title.login' },
     canActivate: [titleGuard, guestGuard],
   },
   {
     path: 'register',
     component: RegisterPage,
-    data: { title: 'Create account' },
+    data: { title: 'title.register' },
     canActivate: [titleGuard, guestGuard],
   },
   {
     path: 'reset',
     component: ResetPage,
-    data: { title: 'Reset password' },
+    data: { title: 'title.reset' },
     canActivate: [titleGuard, guestGuard],
   },
   {
     path: 'verify',
     component: VerifyPage,
-    data: { title: 'Verify account' },
+    data: { title: 'title.verify' },
     canActivate: [titleGuard, authGuard],
   },
   {
     path: 'account',
     component: AccountPage,
-    data: { title: 'Account' },
+    data: { title: 'title.account' },
     canActivate: [titleGuard, authGuard],
   },
   // legal-recovery (roadmap M4): static legal pages, no backend — lazy for
@@ -64,13 +64,13 @@ export const routes: Routes = [
     path: 'privacy',
     loadComponent: () =>
       import('./features/legal/privacy-policy-page').then((m) => m.PrivacyPolicyPage),
-    data: { title: 'Privacy policy' },
+    data: { title: 'title.privacy' },
     canActivate: [titleGuard],
   },
   {
     path: 'terms',
     loadComponent: () => import('./features/legal/terms-page').then((m) => m.TermsPage),
-    data: { title: 'Terms of use' },
+    data: { title: 'title.terms' },
     canActivate: [titleGuard],
   },
   // Public: anonymous visitors see the detail without the review controls;
@@ -81,7 +81,7 @@ export const routes: Routes = [
     // after a marker/row click, not for first paint of the map.
     loadComponent: () =>
       import('./features/shelter/shelter-detail-page').then((m) => m.ShelterDetailPage),
-    data: { title: 'Shelter detail' },
+    data: { title: 'title.shelterDetail' },
     canActivate: [titleGuard],
   },
   // Verified accounts only — mirrors the backend 403 (design decision 5).
@@ -91,7 +91,7 @@ export const routes: Routes = [
     // user actually opens the route.
     loadComponent: () =>
       import('./features/shelter/submit-shelter-page').then((m) => m.SubmitShelterPage),
-    data: { title: 'Submit a shelter' },
+    data: { title: 'title.submit' },
     canActivate: [titleGuard, authGuard, verifiedGuard],
   },
   // Admin-kind only (admin-moderation D2): adminGuard sends BOTH anonymous
@@ -102,7 +102,7 @@ export const routes: Routes = [
     // Lazy (bundle budget): the moderation tool is a rare route — no other
     // page needs its code.
     loadComponent: () => import('./features/admin/admin-page').then((m) => m.AdminPage),
-    data: { title: 'Admin' },
+    data: { title: 'title.admin' },
     canActivate: [titleGuard, adminGuard],
   },
   { path: '**', redirectTo: 'map' },

@@ -148,7 +148,11 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   (≈300). Nearest-neighbor/bbox search (`GET /api/shelters/nearest`-style, would need a
   GeoService + PostGIS GIST index) is documented as deferred on the backend — **no such
   endpoint exists**; the UI has no nearest feature either.
-- **i18n** — English-only strings; `titleGuard` builds "<Page> — OpenShelter" in code.
+- **i18n (feature pages)** — the app chrome (header nav/actions, footer,
+  document titles) is bilingual EN/ET (M14 slice 1: `core/i18n`, the `t`
+  pipe, the header language switcher, persisted `openshelter-locale`, default
+  `en`). Feature-page copy (shelter trust copy, forms, error copy, legal
+  page bodies) is still English-only — M14 slice 2+.
 - **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
 - **httpOnly refresh cookie** — see [token storage](#token-storage-tradeoff).
 - **SSR / prerender** — client-rendered SPA; v1 is a JS app by design.

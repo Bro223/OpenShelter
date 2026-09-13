@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -7,8 +7,11 @@ import {
   OnDestroy,
   signal,
 } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet, RouterLink } from '@angular/router';
 import { ThemeStore } from '../core/theme-store';
+import { I18nService } from '../core/i18n/i18n.service';
+import { LOCALES, type Locale } from '../core/i18n/locale';
+import { TranslatePipe } from '../core/i18n/translate-pipe';
 import { type DataSourceDto } from '../core/models';
 import { DataSourceGateway } from '../gateways/data-source-gateway';
 import { AuthStore } from '../session/auth-store';
@@ -26,7 +29,7 @@ import { AuthStore } from '../session/auth-store';
  */
 @Component({
   selector: 'app-page-shell',
-  imports: [RouterOutlet, RouterLink, DatePipe],
+  imports: [RouterOutlet, RouterLink, DatePipe, UpperCasePipe, TranslatePipe],
   templateUrl: './page-shell.html',
   styleUrl: './page-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -34,6 +37,7 @@ import { AuthStore } from '../session/auth-store';
 export class PageShell implements OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly themeStore = inject(ThemeStore);
+  private readonly i18nService = inject(I18nService);
   private readonly router = inject(Router);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
@@ -66,6 +70,18 @@ export class PageShell implements OnDestroy {
 
   protected readonly auth = this.store;
   protected readonly theme = this.themeStore;
+  /** i18n-et-en M14: the chrome copy + the language switcher. `locale`
+      is read in the template, so a switch triggers this component's
+      change detection and the `pure: false` `t` pipe re-renders. */
+  protected readonly i18n = this.i18nService;
+  /** The switcher buttons render from LOCALES (a new language is one
+      catalog entry, not a template edit). */
+  protected readonly locales: readonly Locale[] = LOCALES;
+
+  /** Language switcher action — persists (I18nService). */
+  setLocale(locale: Locale): void {
+    this.i18nService.setLocale(locale);
+  }
 
   ngOnDestroy(): void {
     this.host.nativeElement.removeEventListener('keydown', this.onKeydown);

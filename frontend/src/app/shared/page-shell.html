@@ -5,7 +5,7 @@
   <button
     type="button"
     class="shell-burger"
-    aria-label="Menu"
+    [attr.aria-label]="'menu.aria' | t"
     [attr.aria-expanded]="menuOpen()"
     aria-controls="shell-mobile-menu"
     (click)="toggleMenu()"
@@ -19,7 +19,8 @@
        to the header's right edge — the old inline layout, visually
        unchanged); below 900 the same node is the dropdown panel (hidden
        until opened). The (click) close covers every menu item in one
-       place: nav anchors, the high-contrast toggle, the auth controls. -->
+       place: nav anchors, the language switcher, the high-contrast
+       toggle, the auth controls. -->
   <div
     class="shell-menu"
     id="shell-mobile-menu"
@@ -27,18 +28,35 @@
     (click)="closeMenu()"
   >
     <nav class="shell-nav" aria-label="Primary">
-      <a routerLink="/map" routerLinkActive="active">Shelter map</a>
+      <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
       @if (auth.initialized() && auth.authenticated()) {
-        <a routerLink="/account" routerLinkActive="active">Account</a>
+        <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
         <!-- Admin-kind only (admin-moderation D5): regular users see the
              nav unchanged; a failed profile fetch leaves isAdmin false, so
              the item hides itself fail-closed. -->
         @if (auth.isAdmin()) {
-          <a routerLink="/admin" routerLinkActive="active">Admin</a>
+          <a routerLink="/admin" routerLinkActive="active">{{ 'nav.admin' | t }}</a>
         }
       }
     </nav>
     <div class="shell-actions">
+      <!-- Language switcher (i18n-et-en M14 slice 1): the active locale's
+           button carries aria-pressed; the choice persists
+           (openshelter-locale) and applies pre-paint via the inline
+           index.html script. The buttons render from LOCALES; the labels
+           are the language codes themselves — never translated. -->
+      <div class="shell-lang" role="group" [attr.aria-label]="'lang.label' | t">
+        @for (code of locales; track code) {
+          <button
+            type="button"
+            class="btn btn--ghost"
+            [attr.aria-pressed]="i18n.locale() === code"
+            (click)="setLocale(code)"
+          >
+            {{ code | uppercase }}
+          </button>
+        }
+      </div>
       <!-- High-contrast toggle (accessibility-and-provenance D2): always
            visible (independent of auth), aria-pressed mirrors the theme
            signal; the preference persists in localStorage and is applied
@@ -49,14 +67,16 @@
         [attr.aria-pressed]="theme.highContrast()"
         (click)="theme.toggle()"
       >
-        High contrast
+        {{ 'theme.toggle' | t }}
       </button>
       @if (auth.initialized()) {
         @if (auth.authenticated()) {
-          <button type="button" class="btn btn--ghost" (click)="logout()">Log out</button>
+          <button type="button" class="btn btn--ghost" (click)="logout()">
+            {{ 'auth.logout' | t }}
+          </button>
         } @else {
-          <a routerLink="/login" class="btn btn--ghost">Log in</a>
-          <a routerLink="/register" class="btn btn--primary">Create account</a>
+          <a routerLink="/login" class="btn btn--ghost">{{ 'auth.login' | t }}</a>
+          <a routerLink="/register" class="btn btn--primary">{{ 'auth.register' | t }}</a>
         }
       }
     </div>
@@ -70,33 +90,42 @@
 <!-- App-wide safety notice: the list is community-maintained and NOT an
      official emergency channel (the "verified user ≠ verified shelter"
      trust gap). 112 first, then the official sources. Lives in the shell
-     so every page carries it, and out of the feature pages' layout. -->
+     so every page carries it, and out of the feature pages' layout.
+     i18n-et-en M14: segmented around the two official links — the link
+     URLs stay constant, only the labels translate. -->
 <footer class="shell-footer">
   <p class="shell-footer__notice">
-    OpenShelter is a community-maintained list, not an official emergency service. In an emergency,
-    call 112. Official shelter information:
-    <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">Rescue Board</a>
-    and
-    <a href="https://www.maaamet.ee" target="_blank" rel="noopener">Maa-amet</a>.
+    {{ 'footer.notice1' | t }} {{ 'footer.notice2' | t }} {{ 'footer.notice3' | t }}
+    <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">{{
+      'footer.rescueBoard' | t
+    }}</a>
+    {{ 'footer.and' | t }}
+    <a href="https://www.maaamet.ee" target="_blank" rel="noopener">{{ 'footer.maaAmet' | t }}</a
+    >.
   </p>
   <!-- legal-recovery (roadmap M4): the legal pages are reachable from
        EVERY page via the shell, next to the safety notice. -->
   <nav class="shell-footer__legal" aria-label="Legal">
-    <a routerLink="/privacy">Privacy policy</a>
+    <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>
     <span aria-hidden="true">&middot;</span>
-    <a routerLink="/terms">Terms of use</a>
+    <a routerLink="/terms">{{ 'footer.terms' | t }}</a>
   </nav>
   <!-- official-dataset-csv (roadmap M5): data provenance — who publishes
        the official shelter data, the official open-data page, and when the
-       last import ran. Non-critical: hidden while loading or on API error. -->
+       last import ran. Non-critical: hidden while loading or on API error.
+       i18n-et-en M14: the date stamp follows the active locale. -->
   @if (dataSource(); as ds) {
     <p class="shell-footer__data">
-      Shelter data: {{ ds.sourceName }}
+      {{ 'footer.dataSource' | t }}: {{ ds.sourceName }}
       @if (ds.lastImport; as last) {
-        <span aria-hidden="true">&middot;</span> last import {{ last.at | date: 'short' }}
+        <span aria-hidden="true">&middot;</span>
+        {{ 'footer.lastImport' | t }}
+        {{ last.at | date: 'short' : undefined : i18n.locale() }}
       }
       <span aria-hidden="true">&middot;</span>
-      <a [href]="ds.officialUrl" target="_blank" rel="noopener">official open data</a>
+      <a [href]="ds.officialUrl" target="_blank" rel="noopener">{{
+        'footer.officialOpenData' | t
+      }}</a>
     </p>
   }
 </footer>

@@ -391,6 +391,93 @@ describe('PageShell', () => {
     });
   });
 
+  /* Language switcher (i18n-et-en M14 slice 1): the active locale's
+     button carries aria-pressed; the choice persists (openshelter-locale)
+     and flips <html lang> + the whole chrome. jsdom cannot measure media
+     queries, so the acceptance is the DOM/aria/state wiring, not the CSS. */
+  describe('language switcher (i18n-et-en M14)', () => {
+    function langGroup(): HTMLElement {
+      const group = fixture.nativeElement.querySelector('.shell-lang') as HTMLElement;
+      expect(group, '.shell-lang group missing').not.toBeNull();
+      return group;
+    }
+
+    function langButtons(): HTMLButtonElement[] {
+      return [...langGroup().querySelectorAll<HTMLButtonElement>('button')];
+    }
+
+    it('renders one button per locale (EN first, the default), group aria-wired', () => {
+      fixture.detectChanges();
+      expect(langGroup().getAttribute('role')).toBe('group');
+      expect(langGroup().getAttribute('aria-label')).toBe('Language');
+      const buttons = langButtons();
+      expect(buttons.map((b) => b.textContent?.trim())).toEqual(['EN', 'ET']);
+      expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
+      expect(buttons[1].getAttribute('aria-pressed')).toBe('false');
+      expect(document.documentElement.lang).toBe('en');
+    });
+
+    it('clicking ET switches the chrome, <html lang> and the persisted choice', async () => {
+      await store.init();
+      fixture.detectChanges();
+      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      expect(document.documentElement.lang).toBe('et');
+      expect(localStorage.getItem('openshelter-locale')).toBe('et');
+      expect(langButtons()[1].getAttribute('aria-pressed')).toBe('true');
+      expect(langButtons()[0].getAttribute('aria-pressed')).toBe('false');
+
+      // The chrome is now Estonian: nav, guest actions and footer.
+      const element = fixture.nativeElement as HTMLElement;
+      // .shell-nav scope: the brand link shares href="/map".
+      expect(element.querySelector('.shell-nav a[href="/map"]')?.textContent).toContain(
+        'Varjupaikade kaart',
+      );
+      expect(text()).toContain('Logi sisse');
+      expect(text()).toContain('Kõrge kontrast');
+      expect(text()).toContain('Loo konto');
+      const notice = element.querySelector('.shell-footer__notice') as Element;
+      expect(notice.textContent).toContain('Hädaolukorras helista 112');
+      const noticeLinks = [...notice.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
+        a.textContent?.trim(),
+      );
+      expect(noticeLinks).toEqual(['Päästeamet', 'Maa-amet']);
+      const legal = element.querySelector('.shell-footer__legal') as Element;
+      const legalLabels = [...legal.querySelectorAll('a')].map((a) => a.textContent?.trim());
+      expect(legalLabels).toEqual(['Privaatsuspoliitika', 'Kasutustingimused']);
+    });
+
+    it('clicking EN after ET returns the English chrome and persistence', async () => {
+      await store.init();
+      fixture.detectChanges();
+      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+      langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      expect(document.documentElement.lang).toBe('en');
+      expect(localStorage.getItem('openshelter-locale')).toBe('en');
+      expect(langButtons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(text()).toContain('Log in');
+      expect(text()).toContain('High contrast');
+    });
+
+    it('an authenticated Estonian chrome shows the translated nav + Log out', async () => {
+      await store.init();
+      gateway.login.mockResolvedValue(PAIR);
+      await store.login('user@example.ee', 'secret');
+      fixture.detectChanges();
+      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelector('a[href="/account"]')?.textContent).toContain('Konto');
+      expect(text()).toContain('Logi välja');
+      expect(text()).not.toContain('Logi sisse');
+    });
+  });
+
   describe('data provenance line (official-dataset-csv M5)', () => {
     const DS: DataSourceDto = {
       sourceName: 'Päästeamet',
