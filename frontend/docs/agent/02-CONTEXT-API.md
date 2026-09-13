@@ -149,8 +149,8 @@ runs first). `ShelterGateway.report` / `ShelterGateway.reportOccupancy` and
 
 ### Account profile & my data (`/account`) — JWT required, user resolved from the token
 
-| Method + path     | Body | Success                                                                                                                                                                | Errors |
-| ----------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Method + path     | Body | Success                                                                                                                                                     | Errors |
+| ----------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | `GET /account/me` | —    | 200 `MeResponse` — the REAL profile + REAL verified claims + `isAdmin` (the frontend's single source of truth for name/email/phone/levels + the admin gate) | 401    |
 
 ### Admin moderation (`/admin`) — JWT + ADMIN kind required (admin-moderation)
