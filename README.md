@@ -547,8 +547,8 @@ backup alone no longer exposes account identities. Design: `openspec/changes/pii
   **offline backup of both keys** — the DB dump itself no longer helps an attacker, so the
   key is the single thing worth protecting.
 - **Out of scope here.** The file-backed `data/verification-send.log` TSV (anti-spam daily
-cap) keeps its format — residual item for the M15 security pass. JWTs carry no
-e-mail/phone claims (verified).
+cap) keeps its format — a named residual (backup + future DB-backed seam) in
+`docs/security/operations.md` (M15). JWTs carry no e-mail/phone claims (verified).
 
 ## Production deployment
 
@@ -567,17 +567,22 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
    (`SMTP_FROM` verified in the dashboard); `SMS_PROVIDER=twilio` + `TWILIO_*` credentials
    (the sender fail-fasts at boot with missing credentials). All credentials via env vars / a
    secret store — never committed.
-5. **Registry sync.** `REGISTRY_CLIENT=paasteamet` (default) fetches the live Maa-amet WFS;
-   `REGISTRY_CLIENT=dev` uses the local fixture (dev only). Weekly cron `0 0 3 * * MON`
+5. **Registry sync.** `REGISTRY_CLIENT=csv` (default, M5) fetches the
+   Päästeamet open-data CSV; `REGISTRY_CLIENT=paasteamet` is the legacy WFS
+   alternate; `REGISTRY_CLIENT=dev` uses the local fixture (dev only).
+   Weekly cron `0 0 3 * * MON`
    Europe/Tallinn (`app.registry.cron`/`zone`), disable with `app.registry.schedule-enabled=false`.
 6. **Single instance — in-memory rate limits.** The token-bucket limiter and the reset
    re-issue counter are **in-memory, per process**. This app must run as ONE instance; behind
    multiple replicas each has its own buckets (limits weaken by the replica count) and the
    reset daily cap is per-instance. Run one, or move to a shared store first.
-7. **Content-Security-Policy at the proxy (review N1 — the app does not send one).** Add the
-   CSP `Content-Security-Policy` header in the reverse proxy in front of the SPA
-   (the backend sets no CSP; the frontend's prod build is same-origin by default, so a
-   `default-src 'self'`-style policy at the proxy is the intended enforcement point).
+7. **Content-Security-Policy at the proxy.** Add the CSP
+   `Content-Security-Policy` header in the reverse proxy in front of the SPA
+   — that is the UI's real enforcement point (the frontend's prod build is
+   same-origin by default, so a `default-src 'self'`-style policy at the
+   proxy). The API has sent its own hardening headers, including a
+   defense-in-depth CSP, on every response since the M3 slice 5 hardening
+   pass (`SecurityHeadersFilter`).
 8. **Trusted proxies for rate-limit keys.** If the app sits behind a reverse proxy/LB, set
    `RATELIMIT_TRUSTED_PROXIES` to the proxy IP(s) — otherwise every user behind it shares one
    bucket, and without it the `X-Forwarded-For` header is ignored entirely (safe default).
@@ -585,6 +590,22 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 9. **PII keys (fail-closed).** `PII_AES_KEY` + `PII_HMAC_KEY` (32-byte base64, env/secret
    store — never in the repo) MUST be set, or the app refuses to boot. Back up both keys
    OFFLINE: a lost key makes the affected accounts unloginable by contact (see “PII at rest”).
+
+## Security
+
+- **Threat model** — `docs/security/threat-model.md`: the twelve-attack
+  model (false submissions, brigading, DoS, account takeover, enumeration,
+  private-address exposure, malicious content, location tracking,
+  SMS/e-mail cost abuse, DB leaks, admin compromise, nearest-result
+  manipulation) with each attack's mitigations, status and pinning tests,
+  plus the explicit residual-risk register.
+- **Operations runbook** — `docs/security/operations.md`: environments and
+  the fail-closed boot guards, the env-only secrets matrix,
+  staging-vs-production separation, backups (pg_dump + restore),
+  monitoring, and the incident quick-list.
+- The security test suite (the `*IT` classes named in the threat model,
+  incl. `PasswordRecoveryFlowIT` and `AdminAuthorizationIT`) runs with
+  `mvn test`.
 
 ## Current state & known gaps
 
