@@ -1,5 +1,7 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.DataImportLog;
+import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.ShelterOccupancyRepository;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
@@ -60,6 +62,15 @@ import java.util.stream.Collectors;
  * community rows are public, carrying the unverified treatment); only
  * REJECTED rows are hidden, and that through the existing status
  * INACTIVE mechanism.
+ *
+ * <p>Last-verified meta (last-verified-meta M8): every DTO also carries
+ * {@code reportCount} (the TOTAL community report count — all types,
+ * summed over the existing batched per-type counts) and
+ * {@code lastVerifiedAt} (registry rows: the newest non-failed import of
+ * their source; community rows: the newest non-submitter OPEN_CONFIRMED
+ * report or CONFIRM / AUTO_CONFIRM moderation action; null = never
+ * verified). Both are batched — one import lookup per distinct registry
+ * source in the batch (at most two), one report lookup, one audit lookup.
  */
 @Service
 public class ShelterQueryService {
@@ -72,6 +83,8 @@ public class ShelterQueryService {
     private final UserRepository userRepository;
     private final ShelterReportRepository reportRepository;
     private final ShelterOccupancyRepository occupancyRepository;
+    private final DataImportLog dataImportLog;
+    private final ModerationAuditLog moderationAudit;
     private final Clock clock;
 
     public ShelterQueryService(ShelterRepository shelterRepository,
@@ -79,12 +92,16 @@ public class ShelterQueryService {
                                UserRepository userRepository,
                                ShelterReportRepository reportRepository,
                                ShelterOccupancyRepository occupancyRepository,
+                               DataImportLog dataImportLog,
+                               ModerationAuditLog moderationAudit,
                                Clock clock) {
         this.shelterRepository = shelterRepository;
         this.reviewRepository = reviewRepository;
         this.userRepository = userRepository;
         this.reportRepository = reportRepository;
         this.occupancyRepository = occupancyRepository;
+        this.dataImportLog = dataImportLog;
+        this.moderationAudit = moderationAudit;
         this.clock = clock;
     }
 
@@ -143,10 +160,10 @@ public class ShelterQueryService {
     }
 
     /**
-     * The four batched trust lookups (one query each — no N+1) shared by
-     * the public list and the admin list projections: rating aggregates,
+     * The batched trust lookups (one query each — no N+1) shared by the
+     * public list and the admin list projections: rating aggregates,
      * creators (the provenance/trust submitter join), report counts by
-     * type, and the fresh occupancy rows.
+     * type, the fresh occupancy rows, and the last-verified stamp (M8).
      */
     private Batches batchesFor(List<Shelter> shelters) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
@@ -170,7 +187,10 @@ public class ShelterQueryService {
         // latest band wins, agreeing count, newest timestamp — is in memory.
         Map<Long, ShelterDto.Occupancy> occupancy = deriveOccupancy(occupancyRepository
                 .findFreshByShelterIds(ids, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
-        return new Batches(aggregates, authors, reportCounts, occupancy);
+        // Last verified (M8): the per-shelter verification stamp (see the
+        // lastVerifiedFor derivation comment).
+        Map<Long, Instant> lastVerified = lastVerifiedFor(shelters, ids);
+        return new Batches(aggregates, authors, reportCounts, occupancy, lastVerified);
     }
 
     /** The shared batched inputs of both shelter projections. */
@@ -178,7 +198,73 @@ public class ShelterQueryService {
             Map<Long, RatingAggregate> aggregates,
             Map<Long, User> authors,
             Map<Long, Map<ShelterReportType, Long>> reportCounts,
-            Map<Long, ShelterDto.Occupancy> occupancy) {
+            Map<Long, ShelterDto.Occupancy> occupancy,
+            Map<Long, Instant> lastVerified) {
+    }
+
+    /**
+     * M8: the per-entry "last verified" stamp. Registry rows carry the
+     * newest VERIFYING import of their source (OK or NOT_MODIFIED — a 304
+     * re-check is a verification; FAILED / SKIPPED runs verify nothing;
+     * one lookup per distinct source in the batch, at most two). USER rows
+     * carry the newest of (a) OPEN_CONFIRMED reports by a user OTHER than
+     * the submitter (a self-confirm never verifies — the auto-confirm
+     * rule; a legacy unclaimed row with a null author accepts any
+     * reporter, same precedent) and (b) CONFIRM / AUTO_CONFIRM moderation
+     * actions (the admin's manual confirm is a verification too). Null =
+     * never verified — the UNDER_REVIEW "not yet verified" signal.
+     */
+    private Map<Long, Instant> lastVerifiedFor(List<Shelter> shelters, List<Long> ids) {
+        Map<Long, List<ShelterReportRepository.ConfirmedAt>> confirmedByShelter = reportRepository
+                .latestOpenConfirmedByShelterIds(ids).stream()
+                .collect(Collectors.groupingBy(ShelterReportRepository.ConfirmedAt::shelterId));
+        Map<Long, Instant> confirmingActions = moderationAudit
+                .latestConfirmationByShelterIds(ids).stream()
+                .collect(Collectors.toMap(ModerationAuditLog.LatestConfirmation::shelterId,
+                        ModerationAuditLog.LatestConfirmation::latestAt));
+        Map<ShelterSource, Instant> importVerifiedAt = new HashMap<>();
+        shelters.stream().map(Shelter::getSource)
+                .filter(source -> source != ShelterSource.USER)
+                .distinct()
+                .forEach(source -> importVerifiedAt.put(source,
+                        dataImportLog.findLatestVerifiedBySource(source.name())
+                                .map(DataImportLog.Row::importedAt)
+                                .orElse(null)));
+        Map<Long, Instant> result = new HashMap<>();
+        for (Shelter shelter : shelters) {
+            Instant verified = shelter.getSource() == ShelterSource.USER
+                    ? latestCommunityVerification(shelter,
+                            confirmedByShelter.get(shelter.getId()),
+                            confirmingActions.get(shelter.getId()))
+                    : importVerifiedAt.get(shelter.getSource());
+            if (verified != null) {
+                result.put(shelter.getId(), verified);
+            }
+        }
+        return result;
+    }
+
+    /** The newest of the non-submitter OPEN_CONFIRMED reports and the confirming audit action. */
+    private static Instant latestCommunityVerification(Shelter shelter,
+                                                       List<ShelterReportRepository.ConfirmedAt> reports,
+                                                       Instant confirmingActionAt) {
+        Instant best = confirmingActionAt;
+        Long createdById = shelter.getCreatedBy();
+        if (reports == null) {
+            return best;
+        }
+        for (ShelterReportRepository.ConfirmedAt report : reports) {
+            // The submitter's own OPEN_CONFIRMED never verifies (the
+            // auto-confirm rule); a legacy unclaimed row (null author)
+            // accepts any reporter.
+            if (createdById != null && createdById.equals(report.userId())) {
+                continue;
+            }
+            if (best == null || report.latestAt().isAfter(best)) {
+                best = report.latestAt();
+            }
+        }
+        return best;
     }
 
     /** Detail-only: the caller's live band for the single shelter, if any. */
@@ -207,6 +293,7 @@ public class ShelterQueryService {
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
+        int reportTotal = typeCounts.values().stream().mapToInt(Long::intValue).sum();
         return new ShelterDto(
                 shelter.getId(),
                 shelter.getName(),
@@ -229,7 +316,9 @@ public class ShelterQueryService {
                 shelter.getReviewNote(),
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
-                        shelter.getStatus(), nonExistent));
+                        shelter.getStatus(), nonExistent),
+                reportTotal,
+                batches.lastVerified().get(shelter.getId()));
     }
 
     /**

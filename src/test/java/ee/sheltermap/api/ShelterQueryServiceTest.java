@@ -1,13 +1,17 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.InMemoryDataImportLog;
+import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterReport;
@@ -49,6 +53,8 @@ class ShelterQueryServiceTest {
     private InMemoryUserRepository users;
     private InMemoryShelterReportRepository reports;
     private InMemoryShelterOccupancyRepository occupancy;
+    private InMemoryDataImportLog importLog;
+    private InMemoryModerationAuditLog audit;
     private ShelterQueryService service;
 
     private Shelter userShelter;
@@ -62,7 +68,10 @@ class ShelterQueryServiceTest {
         users = new InMemoryUserRepository();
         reports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
-        service = new ShelterQueryService(shelters, reviews, users, reports, occupancy, FIXED);
+        importLog = new InMemoryDataImportLog();
+        audit = new InMemoryModerationAuditLog(FIXED);
+        service = new ShelterQueryService(shelters, reviews, users, reports, occupancy,
+                importLog, audit, FIXED);
 
         userShelter = save("User House", ShelterSource.USER);
         registryShelter = save("Paasteamet House", ShelterSource.PAASETEAMET);
@@ -77,6 +86,11 @@ class ShelterQueryServiceTest {
 
     private void report(long shelterId, long userId, ShelterReportType type) {
         reports.save(new ShelterReport(shelterId, userId, type, null));
+    }
+
+    /** A report at an explicit instant (deterministic "last verified" assertions). */
+    private void reportAt(long shelterId, long userId, ShelterReportType type, Instant at) {
+        reports.save(new ShelterReport(shelterId, userId, type, null, at));
     }
 
     private long saveUser(String name, String email, boolean verified) {
@@ -436,5 +450,139 @@ class ShelterQueryServiceTest {
         assertThat(dtos).allMatch(dto -> dto instanceof ShelterDto);
         // and the repo still holds exactly the domain entities
         assertThat(shelters.findAll()).hasSize(3);
+    }
+
+    // ---------- last-verified meta (last-verified-meta M8) ----------
+
+    @Test
+    void reportCountSumsAllReportTypes() {
+        report(userShelter.getId(), 1L, ShelterReportType.NON_EXISTENT);
+        report(userShelter.getId(), 2L, ShelterReportType.NON_EXISTENT);
+        report(userShelter.getId(), 3L, ShelterReportType.CLOSED);
+        report(userShelter.getId(), 4L, ShelterReportType.OPEN_CONFIRMED);
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.reportCount()).isEqualTo(4);
+        assertThat(dto.nonexistentReports()).isEqualTo(2); // the subset stays correct
+    }
+
+    @Test
+    void noReportsMeansZeroReportCountAndNoVerificationStamp() {
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.reportCount()).isZero();
+        assertThat(dto.lastVerifiedAt()).isNull();
+    }
+
+    @Test
+    void registryRowCarriesTheNewestVerifyingImport() {
+        Instant okAt = NOW.minus(Duration.ofDays(1));
+        Instant failedAt = NOW.minus(Duration.ofHours(12));
+        Instant notModifiedAt = NOW.minus(Duration.ofHours(1));
+        importLog.record(InMemoryDataImportLog.row("PAASETEAMET", okAt, "OK"));
+        importLog.record(InMemoryDataImportLog.row("PAASETEAMET", failedAt, "FAILED"));
+        importLog.record(InMemoryDataImportLog.row("PAASETEAMET", notModifiedAt, "NOT_MODIFIED"));
+
+        ShelterDto dto = service.findById(registryShelter.getId()).orElseThrow();
+
+        // the FAILED run is skipped; the 304 re-check (NOT_MODIFIED) verifies
+        assertThat(dto.lastVerifiedAt()).isEqualTo(notModifiedAt);
+    }
+
+    @Test
+    void registryRowWithoutAVerifiedImportStaysUnverified() {
+        importLog.record(InMemoryDataImportLog.row("PAASETEAMET", NOW.minus(Duration.ofHours(2)), "FAILED"));
+        importLog.record(InMemoryDataImportLog.row("PAASETEAMET", NOW.minus(Duration.ofHours(1)), "SKIPPED"));
+        importLog.record(InMemoryDataImportLog.row("MUNICIPALITY", NOW.minus(Duration.ofDays(3)), "OK"));
+
+        // FAILED/SKIPPED verify nothing — the Paasteamet row is unverified…
+        assertThat(service.findById(registryShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+        // …while the partner row carries its OWN source's newest OK run
+        assertThat(service.findById(municipalityShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW.minus(Duration.ofDays(3)));
+    }
+
+    @Test
+    void communityReportsNeverDateStampRegistryRows() {
+        reportAt(registryShelter.getId(), 1L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.minus(Duration.ofHours(1)));
+
+        assertThat(service.findById(registryShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+    }
+
+    @Test
+    void unconfirmedCommunityRowIsUnverified() {
+        userShelter.setCreatedBy(1L);
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+    }
+
+    @Test
+    void nonSubmitterOpenConfirmedVerifiesTheRow() {
+        userShelter.setCreatedBy(1L);
+        reportAt(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.minus(Duration.ofHours(3)));
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW.minus(Duration.ofHours(3)));
+    }
+
+    @Test
+    void theSubmittersOwnOpenConfirmedNeverVerifies() {
+        userShelter.setCreatedBy(1L);
+        reportAt(userShelter.getId(), 1L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.minus(Duration.ofHours(3)));
+
+        // a self-confirm is not a verification (the auto-confirm rule)
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+    }
+
+    @Test
+    void aLegacyUnclaimedRowAcceptsAnyReportersConfirmation() {
+        // createdById stays null — the auto-confirm "unclaimed" precedent
+        reportAt(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.minus(Duration.ofDays(1)));
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW.minus(Duration.ofDays(1)));
+    }
+
+    @Test
+    void theNewestOfCommunityCheckAndAdminConfirmWins() {
+        userShelter.setCreatedBy(1L);
+        reportAt(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.minus(Duration.ofDays(2)));
+        // the fixed audit clock stamps NOW — later than the report
+        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.CONFIRM, null,
+                ReviewStatus.NEW, ReviewStatus.CONFIRMED);
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW);
+    }
+
+    @Test
+    void aStaleAdminConfirmAloneVerifiesUntilACommunityCheckSupersedes() {
+        userShelter.setCreatedBy(1L);
+        // the fixed audit clock stamps NOW; a later community check wins
+        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.CONFIRM, null,
+                ReviewStatus.NEW, ReviewStatus.CONFIRMED);
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW);
+        reportAt(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED,
+                NOW.plus(Duration.ofHours(1)));
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW.plus(Duration.ofHours(1)));
+    }
+
+    @Test
+    void nonConfirmingAuditActionsNeverVerify() {
+        userShelter.setCreatedBy(1L);
+        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.REJECT, null,
+                ReviewStatus.NEW, ReviewStatus.REJECTED);
+        audit.record(userShelter.getId(), 9L, ModerationAuditLog.Action.REPORT_DISMISS, null,
+                ReviewStatus.CONFIRMED, ReviewStatus.CONFIRMED);
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
     }
 }

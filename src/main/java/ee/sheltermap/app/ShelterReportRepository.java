@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,17 @@ public interface ShelterReportRepository {
     record ReportTypeCount(long shelterId, ShelterReportType type, long count) {
     }
 
+    /**
+     * The newest {@code OPEN_CONFIRMED} report per (shelter, reporter) for
+     * the given shelter ids in ONE query (last-verified-meta M8). The
+     * reporter id rides along so the projection can drop the submitter's
+     * own report — a self-confirm is never a verification. (shelter,
+     * reporter) pairs without an OPEN_CONFIRMED report are absent from the
+     * result.
+     */
+    record ConfirmedAt(long shelterId, long userId, Instant latestAt) {
+    }
+
     void save(ShelterReport report);
 
     boolean existsByShelterIdAndUserIdAndType(long shelterId, long userId, ShelterReportType type);
@@ -30,6 +42,9 @@ public interface ShelterReportRepository {
      * (caller treats "missing" as count 0).
      */
     List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds);
+
+    /** Batched newest OPEN_CONFIRMED per (shelter, reporter) — the "last verified" input (M8). */
+    List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds);
 
     /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation D3). */
     Optional<ShelterReport> findById(Long id);

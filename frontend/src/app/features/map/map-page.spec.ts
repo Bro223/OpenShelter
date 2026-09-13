@@ -64,11 +64,13 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     capacity: null,
     submitterVerified: false,
     nonexistentReports: 0,
+    reportCount: 0, // M8 total (all report types)
     statusFlag: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3) — USER fixtures override
     locationKind: 'PUBLIC', // D7 default — no private declaration
     provenance: 'OFFICIAL', // follows the PAASETEAMET default row (M6)
+    lastVerifiedAt: null, // M8 — null = never verified
     ...overrides,
   };
 }
@@ -1377,7 +1379,8 @@ describe('MapPage', () => {
       const { element } = await open('/map');
 
       const badge = element.querySelector('.badge--reported');
-      expect(badge?.textContent?.trim()).toBe('Reported');
+      // M8: the count — the nonexistentReports subset that drives the badge.
+      expect(badge?.textContent?.trim()).toBe('Reported (2)');
       // The row keeps its trust badge too (the orange is the single
       // marker affordance; the row text keeps the community label).
       expect(element.querySelector('.shelter-row .badge')?.textContent?.trim()).toBe(

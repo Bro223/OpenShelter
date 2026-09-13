@@ -28,6 +28,7 @@ import {
   provenanceText as provenanceTextShared,
   provenanceBadgeClass as provenanceBadgeClassShared,
   ratingText as ratingTextShared,
+  reportedBadgeText as reportedBadgeTextShared,
   statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
 import { bannerMessage } from '../../shared/error-copy';
@@ -165,6 +166,8 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly ratingText = ratingTextShared;
   protected readonly statusFlagText = statusFlagTextShared;
   protected readonly occupancyText = occupancyTextShared;
+  /** The reported badge with its count (last-verified-meta M8). */
+  protected readonly reportedBadgeText = reportedBadgeTextShared;
   /** The nearest result's straight-line distance line (D6 honesty). */
   protected readonly straightLineText = straightLineText;
   /** The community unverified warning line (community-review-queue). */

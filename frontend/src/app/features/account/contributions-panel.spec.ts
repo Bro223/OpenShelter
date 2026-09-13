@@ -22,12 +22,14 @@ const SHELTER_ROW: MineShelterDto = {
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
+  reportCount: 0, // M8 total (all report types)
   statusFlag: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   reviewNote: null,
   locationKind: 'PUBLIC',
   provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
+  lastVerifiedAt: null, // M8 — null = never verified
 };
 
 const REVIEW_ROW: MyReviewDto = {
@@ -490,9 +492,7 @@ describe('ContributionsPanel', () => {
     const rows = element.querySelectorAll<HTMLElement>('.contrib-row');
     expect(rows.length).toBe(4);
     const [newRow, checkedRow, reportedRow, rejectedRow] = rows;
-    expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe(
-      'Proposed',
-    );
+    expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe('Proposed');
     expect(checkedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
       'Community-reported',
     );

@@ -167,11 +167,13 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     capacity: null,
     submitterVerified: false, // registry rows have no creator (D3)
     nonexistentReports: 0,
+    reportCount: 0, // M8 total (all report types)
     statusFlag: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3)
     locationKind: 'PUBLIC',
     provenance: 'OFFICIAL', // server-derived (M6) — follows the PAASETEAMET row
+    lastVerifiedAt: null, // M8 — null = never verified
     yourOccupancyBand: null, // the detail projection's extra field (D5)
     ...overrides,
   };
@@ -431,6 +433,68 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // wording).
       expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Proposed');
       expect(el8.querySelector('.community-warning')).not.toBeNull();
+    });
+
+    // ----- last-verified meta (M8) ---------------------------------------
+
+    it('a verified row shows the last-verified line from the server stamp', async () => {
+      const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
+      shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2) }));
+      const { element } = await open('/shelters/1');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Last verified 2 h ago');
+      // No report-count suffix while the row has no community reports.
+      expect(element.textContent).not.toContain('community reports');
+    });
+
+    it('the community report count rides on the verified line when present', async () => {
+      const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
+      shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2), reportCount: 3 }));
+      const { element } = await open('/shelters/1');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Last verified 2 h ago · 3 community reports',
+      );
+    });
+
+    it('a Proposed row reads the under-review line: proposal age, no verification', async () => {
+      const daysAgo = (d: number): string => new Date(Date.now() - d * 86400000).toISOString();
+      shelterGateway.rows.set(7, userShelter({ createdAt: daysAgo(3) }));
+      const { element } = await open('/shelters/7');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Proposed 3 d ago — not yet verified',
+      );
+    });
+
+    it('a non-Proposed row without a verification record says so plainly', async () => {
+      shelterGateway.rows.set(
+        8,
+        userShelter({ id: 8, reviewStatus: 'CONFIRMED', provenance: 'COMMUNITY_REPORTED' }),
+      );
+      const { element } = await open('/shelters/8');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'No verification record yet',
+      );
+    });
+
+    it('a Proposed row carrying reports (e.g. a self-confirm) still reads unverified until the server stamps it', async () => {
+      // The FE renders the server value — reportCount alone never fabricates
+      // a verification stamp (a self-confirm reports but does not verify).
+      // createdAt is the fixture's fixed 2025-09-01 — over 7 days old, so
+      // the proposal age falls back to the concrete date.
+      shelterGateway.rows.set(7, userShelter({ reportCount: 1 }));
+      const { element } = await open('/shelters/7');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Proposed 1 Sep 2025 — not yet verified · 1 community report',
+      );
     });
 
     it('shows a not-found state for an unknown id (404) — no error storm', async () => {
@@ -1047,7 +1111,8 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element } = await open('/shelters/1');
 
-      expect(element.querySelector('.badge--reported')?.textContent?.trim()).toBe('Reported');
+      // M8: the count — the nonexistentReports subset that drives the badge.
+      expect(element.querySelector('.badge--reported')?.textContent?.trim()).toBe('Reported (2)');
       expect(element.querySelector('.badge--open')?.textContent?.trim()).toBe('Confirmed open');
       expect(element.querySelector('.badge--occupancy')?.textContent?.trim()).toBe(
         'Full · 12 min ago',

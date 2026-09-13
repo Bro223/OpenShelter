@@ -42,6 +42,10 @@ import {
   provenanceBadgeClass as provenanceBadgeClassShared,
   provenanceText as provenanceTextShared,
   reviewCountText as reviewCountTextShared,
+  reportedBadgeText as reportedBadgeTextShared,
+  lastVerifiedText as lastVerifiedTextShared,
+  communityReportsText as communityReportsTextShared,
+  hasCommunityReports as hasCommunityReportsShared,
   statusFlagText as statusFlagTextShared,
 } from '../../shared/shelter-copy';
 import {
@@ -152,6 +156,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly occupancyText = occupancyTextShared;
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
+  /** Last-verified meta (M8): the reported badge with its count, the per-
+   *  entry verification line and the community report count line. */
+  protected readonly reportedBadgeText = reportedBadgeTextShared;
+  protected readonly lastVerifiedText = lastVerifiedTextShared;
+  protected readonly communityReportsText = communityReportsTextShared;
+  protected readonly hasCommunityReports = hasCommunityReportsShared;
   /** The unverified warning for NEW community rows (community-review-
    *  queue): rendered in the header next to the provenance chip. */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;

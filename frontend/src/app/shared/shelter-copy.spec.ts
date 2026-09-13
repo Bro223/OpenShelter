@@ -12,6 +12,11 @@ import {
   provenanceText,
   recencyText,
   statusFlagText,
+  reportedBadgeText,
+  verifiedAgoText,
+  lastVerifiedText,
+  communityReportsText,
+  hasCommunityReports,
 } from './shelter-copy';
 import type { ShelterOccupancy } from '../core/models';
 
@@ -182,5 +187,86 @@ describe('trust-badge predicates (D6)', () => {
         occupancy: { band: 'FULL', reportCount: 1, lastReportedAt: '2026-09-11T12:07:00Z' },
       }),
     ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Last-verified meta (last-verified-meta M8): PINNED copy — a copy change
+// is a spec change.
+// ---------------------------------------------------------------------------
+
+describe('reportedBadgeText (M8)', () => {
+  it('the badge carries the NON_EXISTENT count that drives it', () => {
+    expect(reportedBadgeText(1)).toBe('Reported (1)');
+    expect(reportedBadgeText(2)).toBe('Reported (2)');
+    expect(reportedBadgeText(4)).toBe('Reported (4)');
+  });
+});
+
+describe('verifiedAgoText (M8)', () => {
+  const NOW = Date.parse('2026-09-13T12:00:00Z');
+  const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
+
+  it('sub-minute -> "just now"', () => {
+    expect(verifiedAgoText(at(0.4), NOW)).toBe('just now');
+  });
+
+  it('minutes and hours stay relative', () => {
+    expect(verifiedAgoText(at(12), NOW)).toBe('12 min ago');
+    expect(verifiedAgoText(at(120), NOW)).toBe('2 h ago');
+    expect(verifiedAgoText(at(60 * 23), NOW)).toBe('23 h ago');
+  });
+
+  it('days stay relative under a week', () => {
+    expect(verifiedAgoText(at(60 * 24), NOW)).toBe('1 d ago');
+    expect(verifiedAgoText(at(60 * 24 * 6), NOW)).toBe('6 d ago');
+  });
+
+  it('a week or more falls back to a concrete date (en-GB)', () => {
+    expect(verifiedAgoText(at(60 * 24 * 7), NOW)).toBe('6 Sep 2026');
+    expect(verifiedAgoText(at(60 * 24 * 30), NOW)).toBe('14 Aug 2026');
+  });
+});
+
+describe('lastVerifiedText (M8)', () => {
+  const NOW = Date.parse('2026-09-13T12:00:00Z');
+  const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
+
+  it('a verified row reads "Last verified {ago}"', () => {
+    expect(
+      lastVerifiedText(
+        { lastVerifiedAt: at(120), provenance: 'OFFICIAL', createdAt: at(60 * 24 * 400) },
+        NOW,
+      ),
+    ).toBe('Last verified 2 h ago');
+  });
+
+  it('an UNDER_REVIEW row is the under-review signal: proposal age + no check', () => {
+    expect(
+      lastVerifiedText(
+        { lastVerifiedAt: null, provenance: 'UNDER_REVIEW', createdAt: at(60 * 24 * 3) },
+        NOW,
+      ),
+    ).toBe('Proposed 3 d ago — not yet verified');
+  });
+
+  it('a non-proposed row without a record says so plainly', () => {
+    for (const provenance of ['OFFICIAL', 'PARTNER_VERIFIED', 'COMMUNITY_REPORTED'] as const) {
+      expect(
+        lastVerifiedText({ lastVerifiedAt: null, provenance, createdAt: at(60 * 24 * 400) }, NOW),
+      ).toBe('No verification record yet');
+    }
+  });
+});
+
+describe('communityReportsText (M8)', () => {
+  it('singular/plural over the TOTAL report count', () => {
+    expect(communityReportsText(1)).toBe('1 community report');
+    expect(communityReportsText(3)).toBe('3 community reports');
+  });
+
+  it('hasCommunityReports: > 0 of any type', () => {
+    expect(hasCommunityReports({ reportCount: 0 })).toBe(false);
+    expect(hasCommunityReports({ reportCount: 1 })).toBe(true);
   });
 });

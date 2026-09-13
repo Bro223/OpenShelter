@@ -7,7 +7,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * In-memory fake of {@link ModerationAuditLog} for tests: the same
@@ -55,6 +57,23 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
             }
         }
         return redacted;
+    }
+
+    @Override
+    public synchronized List<LatestConfirmation> latestConfirmationByShelterIds(Collection<Long> shelterIds) {
+        Map<Long, Instant> latest = new HashMap<>();
+        for (Row row : rows) {
+            if (row.action() != Action.CONFIRM && row.action() != Action.AUTO_CONFIRM) {
+                continue;
+            }
+            if (!shelterIds.contains(row.shelterId())) {
+                continue;
+            }
+            latest.merge(row.shelterId(), row.createdAt(), (a, b) -> a.isAfter(b) ? a : b);
+        }
+        return latest.entrySet().stream()
+                .map(e -> new LatestConfirmation(e.getKey(), e.getValue()))
+                .toList();
     }
 
     /** Every recorded row, in recording order (for assertions). */

@@ -81,6 +81,8 @@ const CREATED: ShelterDto = {
   reviewStatus: 'NEW',
   locationKind: 'PUBLIC',
   provenance: 'UNDER_REVIEW', // USER + NEW (M6)
+  reportCount: 0, // M8 total (all report types)
+  lastVerifiedAt: null, // M8 — a fresh submission is never verified
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */

@@ -59,6 +59,17 @@ class ShelterImportServiceTest {
         public Optional<Row> findLatest() {
             return rows.isEmpty() ? Optional.empty() : Optional.of(rows.get(rows.size() - 1));
         }
+
+        @Override
+        public Optional<Row> findLatestVerifiedBySource(String sourceName) {
+            for (int i = rows.size() - 1; i >= 0; i--) {
+                Row r = rows.get(i);
+                if (r.sourceName().equals(sourceName) && VERIFIED_STATUSES.contains(r.status())) {
+                    return Optional.of(r);
+                }
+            }
+            return Optional.empty();
+        }
     }
 
     private ShelterImportService serviceWithAudit(FakeRegistryClient client, CapturingImportLog auditLog) {

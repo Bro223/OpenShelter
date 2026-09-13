@@ -6,6 +6,7 @@ import ee.sheltermap.domain.ShelterReportType;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -82,6 +83,21 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
                         ((Number) row[0]).longValue(),
                         (ShelterReportType) row[1],
                         ((Number) row[2]).longValue()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds) {
+        if (shelterIds == null || shelterIds.isEmpty()) {
+            return List.of();
+        }
+        return reports.latestByShelterAndUserForShelterIdsAndType(
+                        shelterIds, ShelterReportType.OPEN_CONFIRMED).stream()
+                .map(row -> new ConfirmedAt(
+                        ((Number) row[0]).longValue(),
+                        ((Number) row[1]).longValue(),
+                        (Instant) row[2]))
                 .toList();
     }
 

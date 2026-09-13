@@ -3,9 +3,11 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,25 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     private record CountKey(long shelterId, ShelterReportType type) {
+    }
+
+    @Override
+    public List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds) {
+        // (shelter, user) -> newest OPEN_CONFIRMED createdAt
+        Map<Long, Map<Long, Instant>> latest = new HashMap<>();
+        for (ShelterReport r : store.values()) {
+            if (r.getType() != ShelterReportType.OPEN_CONFIRMED
+                    || !shelterIds.contains(r.getShelterId())) {
+                continue;
+            }
+            latest.computeIfAbsent(r.getShelterId(), k -> new HashMap<>())
+                    .merge(r.getUserId(), r.getCreatedAt(),
+                            (a, b) -> a.isAfter(b) ? a : b);
+        }
+        List<ConfirmedAt> result = new ArrayList<>();
+        latest.forEach((shelterId, byUser) -> byUser.forEach(
+                (userId, at) -> result.add(new ConfirmedAt(shelterId, userId, at))));
+        return result;
     }
 
     @Override

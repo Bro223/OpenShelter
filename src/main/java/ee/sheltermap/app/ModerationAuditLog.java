@@ -42,6 +42,15 @@ public interface ModerationAuditLog {
     }
 
     /**
+     * The newest confirming action ({@code CONFIRM} or {@code AUTO_CONFIRM})
+     * per shelter for a batch of ids in ONE query (last-verified-meta M8)
+     * — a verification stamp on the row. Shelters without a confirming
+     * action are absent from the result.
+     */
+    record LatestConfirmation(long shelterId, Instant latestAt) {
+    }
+
+    /**
      * Records one moderation-relevant action in the caller's
      * transaction.
      *
@@ -69,4 +78,7 @@ public interface ModerationAuditLog {
      * same-timestamp tie-break), at most {@code limit} of them.
      */
     List<Row> findLatest(int limit);
+
+    /** Batched newest CONFIRM / AUTO_CONFIRM action per shelter — the "last verified" input (M8). */
+    List<LatestConfirmation> latestConfirmationByShelterIds(Collection<Long> shelterIds);
 }

@@ -23,11 +23,13 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     capacity: null,
     submitterVerified: false,
     nonexistentReports: 0,
+    reportCount: 0, // M8 total (all report types)
     statusFlag: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill; USER fixtures override
     locationKind: 'PUBLIC',
     provenance: 'OFFICIAL', // default follows the PAASETEAMET default row
+    lastVerifiedAt: null, // M8 — null = never verified
     ...overrides,
   };
 }

@@ -201,3 +201,98 @@ export function occupancyText(occupancy: ShelterOccupancy, now: number = Date.no
       : OCCUPANCY_HEDGED_COPY[occupancy.band];
   return `${head} · ${recencyText(occupancy.lastReportedAt, now)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Last-verified meta (last-verified-meta M8): the per-entry verification
+// stamp + the report counts, single-sourced like the rest of the trust
+// copy. The DATUM is server-derived (ShelterDto.lastVerifiedAt / reportCount);
+// these helpers only format. Copy changes are spec changes — pins live in
+// shelter-copy.spec.ts.
+// ---------------------------------------------------------------------------
+
+/**
+ * The reported badge with its count (M8): "Reported (2)" — the count is the
+ * `nonexistentReports` subset that drives the badge (not the total report
+ * count). Rendered on the map row and the detail header wherever the
+ * orange "Reported" badge appears.
+ */
+export function reportedBadgeText(nonexistentReports: number): string {
+  return `Reported (${nonexistentReports})`;
+}
+
+/**
+ * Relative text for a verification stamp (M8): coarser than
+ * {@link recencyText} — occupancy freshness lives in minutes/hours, but a
+ * verification stamp can be days or weeks old (an import from last week).
+ * Under 7 days it stays relative; older stamps fall back to a concrete
+ * date (en-GB style — "12 Sep 2026" — formatted by hand so the output is
+ * deterministic across Node ICU versions and user time zones, UTC-based).
+ * `now` is injectable so specs are deterministic.
+ */
+const MONTHS_EN_GB = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
+
+export function verifiedAgoText(iso: string, now: number = Date.now()): string {
+  const minutes = Math.round((now - Date.parse(iso)) / 60000);
+  if (Number.isNaN(minutes) || minutes < 1) {
+    return 'just now';
+  }
+  if (minutes < 60) {
+    return `${minutes} min ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours} h ago`;
+  }
+  const days = Math.round(hours / 24);
+  if (days < 7) {
+    return `${days} d ago`;
+  }
+  const d = new Date(iso);
+  return `${d.getUTCDate()} ${MONTHS_EN_GB[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * The per-entry "last verified" line (M8): a verified row reads
+ * "Last verified {ago}"; an UNDER_REVIEW row is never verified — its line
+ * IS the under-review signal, pairing the proposal age with the missing
+ * check; any other row without a verification record (e.g. a dev DB before
+ * the first import) reads "No verification record yet".
+ */
+export function lastVerifiedText(
+  shelter: { lastVerifiedAt: string | null; provenance: Provenance; createdAt: string },
+  now: number = Date.now(),
+): string {
+  if (shelter.lastVerifiedAt === null) {
+    return shelter.provenance === 'UNDER_REVIEW'
+      ? `Proposed ${verifiedAgoText(shelter.createdAt, now)} — not yet verified`
+      : 'No verification record yet';
+  }
+  return `Last verified ${verifiedAgoText(shelter.lastVerifiedAt, now)}`;
+}
+
+/**
+ * The community report count line (M8): "1 community report" /
+ * "N community reports" — the TOTAL over all report types (the badge's
+ * "Reported (n)" stays the NON_EXISTENT subset).
+ */
+export function communityReportsText(reportCount: number): string {
+  return `${reportCount} community report${reportCount === 1 ? '' : 's'}`;
+}
+
+/** True when the DTO carries at least one community report of any type (M8). */
+export function hasCommunityReports(shelter: { reportCount: number }): boolean {
+  return shelter.reportCount > 0;
+}

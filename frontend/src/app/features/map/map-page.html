@@ -207,7 +207,11 @@
                 @if (hasTrustBadges(shelter)) {
                   <span class="shelter-row__badges">
                     @if (hasReports(shelter)) {
-                      <span class="badge badge--reported">Reported</span>
+                      <!-- M8: the count — the nonexistentReports subset
+                           that drives the badge (single-sourced). -->
+                      <span class="badge badge--reported">{{
+                        reportedBadgeText(shelter.nonexistentReports)
+                      }}</span>
                     }
                     @if (statusFlagText(shelter.statusFlag); as flagText) {
                       <span

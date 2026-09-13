@@ -24,7 +24,11 @@
                as the map list row — reported / statusFlag / occupancy. -->
           @if (hasTrustBadges(s)) {
             @if (hasReports(s)) {
-              <span class="badge badge--reported">Reported</span>
+              <!-- M8: the count — the nonexistentReports subset that
+                   drives the badge (single-sourced with the map row). -->
+              <span class="badge badge--reported">{{
+                reportedBadgeText(s.nonexistentReports)
+              }}</span>
             }
             @if (statusFlagText(s.statusFlag); as flagText) {
               <span
@@ -77,6 +81,19 @@
                shifting (the submit page's readout uses the same class). -->
           <p class="shelter-detail__coords num-tabular">{{ coordinateLine(s) }}</p>
         }
+      }
+      @if (shelter(); as s) {
+        <!-- Last verified (M8): the per-entry server-derived stamp. For
+             UNDER_REVIEW rows the line IS the under-review signal ("Proposed
+             X d ago — not yet verified"); the community report count rides
+             on the same line when present. .num-tabular keeps the figures
+             from shifting. -->
+        <p class="shelter-detail__verified num-tabular">
+          {{ lastVerifiedText(s) }}
+          @if (hasCommunityReports(s)) {
+            <span>&middot; {{ communityReportsText(s.reportCount) }}</span>
+          }
+        </p>
       }
       @if (shelter(); as s) {
         <div class="shelter-detail__rating">

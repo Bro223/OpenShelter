@@ -7,6 +7,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -63,5 +64,17 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
         }
         // Runs in the caller's transaction (the erasure service is @Transactional).
         return actions.clearReasonByShelterIds(shelterIds);
+    }
+
+    @Override
+    public List<LatestConfirmation> latestConfirmationByShelterIds(Collection<Long> shelterIds) {
+        if (shelterIds == null || shelterIds.isEmpty()) {
+            return List.of();
+        }
+        return actions.latestConfirmingByShelterIds(shelterIds,
+                List.of(Action.CONFIRM, Action.AUTO_CONFIRM)).stream()
+                .map(row -> new LatestConfirmation(((Number) row[0]).longValue(),
+                        (Instant) row[1]))
+                .toList();
     }
 }

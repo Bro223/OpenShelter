@@ -48,6 +48,16 @@ import java.time.Instant;
  * precedence). Only the first four values are reachable in the ACTIVE-only
  * public list; the hidden two ride on the detail, {@code /mine} and admin
  * projections. The UI never re-derives it.
+ *
+ * <p>Last-verified meta (last-verified-meta M8): {@code reportCount} is the
+ * TOTAL community shelter-report count (all types; {@code nonexistentReports}
+ * stays the NON_EXISTENT subset that drives the orange "Reported" badge),
+ * and {@code lastVerifiedAt} is the per-entry verification stamp — registry
+ * rows: the newest non-failed import of their source (a NOT_MODIFIED 304
+ * re-check verifies; FAILED/SKIPPED do not); community rows: the newest
+ * non-submitter OPEN_CONFIRMED report or CONFIRM/AUTO_CONFIRM moderation
+ * action. {@code null} = never verified (the UNDER_REVIEW "not yet verified"
+ * signal on the UI).
  */
 public record ShelterDto(
         Long id,
@@ -70,7 +80,9 @@ public record ShelterDto(
         ReviewStatus reviewStatus,
         String reviewNote,
         LocationKind locationKind,
-        Provenance provenance) {
+        Provenance provenance,
+        int reportCount,
+        Instant lastVerifiedAt) {
 
     /**
      * The fresh occupancy block (D4): the latest fresh report's band, the

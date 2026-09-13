@@ -41,6 +41,12 @@ public class JpaDataImportLog implements DataImportLog {
         return imports.findTopByOrderByImportedAtDescIdDesc().map(this::toRow);
     }
 
+    @Override
+    public Optional<Row> findLatestVerifiedBySource(String sourceName) {
+        return imports.findTopBySourceNameAndStatusInOrderByImportedAtDescIdDesc(
+                sourceName, DataImportLog.VERIFIED_STATUSES).map(this::toRow);
+    }
+
     private Row toRow(DataImportEntity e) {
         return new Row(e.getSourceName(), e.getSourceVersion(), e.getImportedAt(),
                 e.getRecordsAdded(), e.getRecordsUpdated(), e.getRecordsRemoved(),

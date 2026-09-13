@@ -40,11 +40,13 @@ const SHELTER_ROW: ShelterDto = {
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
+  reportCount: 0, // M8 total (all report types)
   statusFlag: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   locationKind: 'PUBLIC',
   provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
+  lastVerifiedAt: null, // M8 — null = never verified
 };
 
 const REVIEW_ROW: MyReviewDto = {

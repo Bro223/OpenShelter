@@ -2,6 +2,7 @@ package ee.sheltermap.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.Optional;
 
 /**
@@ -14,4 +15,8 @@ public interface SpringDataDataImportRepository extends JpaRepository<DataImport
     Optional<DataImportEntity> findTopBySourceNameOrderByImportedAtDescIdDesc(String sourceName);
 
     Optional<DataImportEntity> findTopByOrderByImportedAtDescIdDesc();
+
+    /** Newest verifying run of one source (M8 "last verified" — OK / NOT_MODIFIED). */
+    Optional<DataImportEntity> findTopBySourceNameAndStatusInOrderByImportedAtDescIdDesc(
+            String sourceName, Collection<String> statuses);
 }

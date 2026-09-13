@@ -337,6 +337,21 @@ export interface ShelterDto {
    * never re-derives it from source/reviewStatus.
    */
   provenance: Provenance;
+  /**
+   * TOTAL community shelter-report count, all types (last-verified-meta
+   * M8, backend-computed) — the `nonexistentReports` subset is what drives
+   * the orange "Reported" badge; this is the whole community-signal count.
+   */
+  reportCount: number;
+  /**
+   * Per-entry "last verified" stamp (last-verified-meta M8, backend-
+   * computed, ISO-8601): registry rows carry the newest non-failed import
+   * of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED
+   * do not); community rows the newest non-submitter OPEN_CONFIRMED check
+   * or confirming moderation action. `null` = never verified (the
+   * UNDER_REVIEW "not yet verified" signal).
+   */
+  lastVerifiedAt: string | null;
 }
 
 /**

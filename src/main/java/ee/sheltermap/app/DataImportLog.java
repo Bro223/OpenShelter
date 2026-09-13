@@ -1,6 +1,7 @@
 package ee.sheltermap.app;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -15,6 +16,14 @@ import java.util.Optional;
  * Last-Modified/ETag the previous run saw).
  */
 public interface DataImportLog {
+
+    /**
+     * The run statuses that VERIFY a source's rows (last-verified-meta
+     * M8): {@code OK} (data applied) and {@code NOT_MODIFIED} (a 304
+     * re-check — the rows are confirmed current as of that run). A
+     * {@code FAILED} or {@code SKIPPED} run verifies nothing.
+     */
+    List<String> VERIFIED_STATUSES = List.of("OK", "NOT_MODIFIED");
 
     /**
      * @param sourceName      the imported {@code ShelterSource} name
@@ -39,4 +48,11 @@ public interface DataImportLog {
 
     /** The newest row of any source (the UI's "last import" line). */
     Optional<Row> findLatest();
+
+    /**
+     * The newest row for one source with a verifying status
+     * ({@link #VERIFIED_STATUSES}) — the "last verified" stamp for that
+     * source's rows (M8); empty when the source has no verified run yet.
+     */
+    Optional<Row> findLatestVerifiedBySource(String sourceName);
 }

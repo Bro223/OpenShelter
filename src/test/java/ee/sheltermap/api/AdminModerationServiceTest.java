@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.InMemoryDataImportLog;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
@@ -62,7 +63,8 @@ class AdminModerationServiceTest {
         users = new InMemoryUserRepository();
         audit = new InMemoryModerationAuditLog(FIXED);
         ShelterQueryService queryService =
-                new ShelterQueryService(shelters, reviews, users, shelterReports, occupancy, FIXED);
+                new ShelterQueryService(shelters, reviews, users, shelterReports, occupancy,
+                        new InMemoryDataImportLog(), audit, FIXED);
         service = new AdminModerationService(queryService, shelters, shelterReports,
                 new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED, audit);
 
