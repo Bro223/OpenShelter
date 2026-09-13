@@ -99,6 +99,21 @@ export const PRIVATE_LOCATION_NOTE =
 export const COMMUNITY_UNVERIFIED_WARNING =
   'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.';
 
+/**
+ * The "reported inaccurate" warning (moderation-dashboard-completion M10
+ * slice 4): the single-sourced sentence for a moderator-marked row. A
+ * marked row stays visible with status and provenance untouched — the
+ * warning is the treatment. Rendered on every surface that renders the
+ * unverified treatment: the map's around-you line, the detail header,
+ * the /mine rows and the admin list. Exact copy is spec-pinned — a copy
+ * change is a spec change. Muted styling at the point of use: a caveat,
+ * not the crisis orange.
+ */
+export const INACCURATE_WARNING = 'Reported inaccurate — details may be wrong';
+
+/** The admin-list badge for a moderator-marked row (M10 slice 4). */
+export const INACCURATE_BADGE = 'Inaccurate';
+
 /** True for rows carrying the private-home declaration. */
 export function isPrivateLocation(shelter: { locationKind: LocationKind }): boolean {
   return shelter.locationKind === 'PRIVATE';

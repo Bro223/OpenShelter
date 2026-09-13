@@ -42,6 +42,11 @@ import java.time.Instant;
  * submitter's reply here (audit posture: the row is kept after the reply),
  * with the requesting admin's profile name ("Unknown" after erasure —
  * no FK on requested_by).
+ *
+ * <p>Mark inaccurate (moderation-dashboard-completion M10 slice 4):
+ * {@code inaccurate} is the same server-derived flag as on
+ * {@link ShelterDto} — the admin list is where the mark is managed, so the
+ * row carries the state its Mark/Inaccurate actions toggle.
  */
 public record AdminShelterDto(
         Long id,
@@ -60,6 +65,7 @@ public record AdminShelterDto(
         String reviewNote,
         LocationKind locationKind,
         Provenance provenance,
+        boolean inaccurate,
         InfoRequest infoRequest) {
 
     /**

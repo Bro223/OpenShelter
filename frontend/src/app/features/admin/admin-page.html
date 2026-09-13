@@ -237,6 +237,12 @@
                   @if (row.address) {
                     <span class="admin-muted">{{ row.address }}</span>
                   }
+                  <!-- Marked inaccurate (M10 slice 4): the single-sourced
+                       warning line — the row stays visible, the flag is the
+                       treatment. -->
+                  @if (row.inaccurate) {
+                    <span class="admin-inaccurate">{{ inaccurateWarning }}</span>
+                  }
                 </td>
                 <td>
                   <!-- Provenance + trust state (community-review-queue; M7
@@ -245,6 +251,9 @@
                   <span class="badge" [ngClass]="provenanceBadgeClass(row.provenance)">
                     {{ provenanceText(row.provenance) }}
                   </span>
+                  @if (row.inaccurate) {
+                    <span class="badge badge--inaccurate">{{ inaccurateBadge }}</span>
+                  }
                   @if (isPrivateLocation(row)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>
                   }
@@ -313,6 +322,28 @@
                     >
                       {{ infoFor() === row.id ? 'Close info' : 'Info' }}
                     </button>
+                    <!-- Mark inaccurate (M10 slice 4): the Clear action for a
+                         marked row, the editor toggle for an unmarked one.
+                         USER rows only, like History/Info. -->
+                    @if (row.inaccurate) {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="clearInaccurateAction(row)"
+                        [disabled]="busy()"
+                      >
+                        Clear inaccurate
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="toggleInaccurate(row)"
+                        [disabled]="busy()"
+                      >
+                        {{ inaccurateFor() === row.id ? 'Close mark' : 'Mark inaccurate' }}
+                      </button>
+                    }
                     @if (confirmingDelete() !== row.id) {
                       @if (row.status === 'ACTIVE') {
                         <button
@@ -463,6 +494,44 @@
                         </div>
                       </div>
                     }
+                  </td>
+                </tr>
+              }
+              <!-- Inline mark-inaccurate editor (M10 slice 4): the optional
+                   reason (blank/absent stores NULL on the audit row); the
+                   row refetches on success like the other 204 actions. -->
+              @if (inaccurateFor() === row.id) {
+                <tr class="admin-history-row">
+                  <td class="admin-history" colspan="9">
+                    <div class="admin-reason">
+                      <label for="mark-inaccurate-reason">Reason (optional)</label>
+                      <textarea
+                        id="mark-inaccurate-reason"
+                        [formControl]="inaccurateReason"
+                        placeholder="What did you find to be inaccurate?"
+                      ></textarea>
+                      @if (inaccurateReason.invalid && inaccurateReason.touched) {
+                        <span class="admin-reason__error"> Max {{ 500 }} characters. </span>
+                      }
+                      <div class="admin-reason__actions">
+                        <button
+                          type="button"
+                          class="btn btn--primary"
+                          (click)="markInaccurateAction(row)"
+                          [disabled]="busy() || inaccurateReason.invalid"
+                        >
+                          {{ busy() ? 'Marking…' : 'Mark inaccurate' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="closeInaccurate()"
+                          [disabled]="busy()"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               }

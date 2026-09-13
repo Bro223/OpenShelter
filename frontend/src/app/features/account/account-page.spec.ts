@@ -47,6 +47,7 @@ const SHELTER_ROW: ShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
   lastVerifiedAt: null, // M8 — null = never verified
+  inaccurate: false, // M10 slice 4 — no moderator mark on this row
 };
 
 const REVIEW_ROW: MyReviewDto = {

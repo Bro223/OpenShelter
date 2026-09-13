@@ -124,6 +124,27 @@ public class AdminController {
     }
 
     /**
+     * Mark a USER shelter inaccurate (M10 slice 4): the row stays visible,
+     * the public DTOs carry {@code inaccurate: true} and the UI renders the
+     * warning. Optional reason rides on the audit row. 204 (idempotent);
+     * 404 unknown shelter; 409 registry rows (import-owned).
+     */
+    @PostMapping("/shelters/{id}/mark-inaccurate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markInaccurate(@PathVariable long id,
+                               @Valid @RequestBody(required = false) AdminMarkInaccurateRequest request) {
+        moderation.markInaccurate(requireAdmin(), id,
+                request == null ? null : request.reason());
+    }
+
+    /** Clear the inaccurate mark (M10 slice 4) — idempotent, audited. 204; 404; 409. */
+    @PostMapping("/shelters/{id}/clear-inaccurate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearInaccurate(@PathVariable long id) {
+        moderation.clearInaccurate(requireAdmin(), id);
+    }
+
+    /**
      * The community review decision (community-review-queue v2 D2) —
      * the rare manual override: CONFIRM promotes the row to CONFIRMED
      * (status untouched, note cleared); REJECT hides it (REJECTED +

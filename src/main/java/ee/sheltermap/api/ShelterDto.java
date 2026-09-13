@@ -65,6 +65,12 @@ import java.time.Instant;
  * {@code null} on the public list and detail reads (the exchange is
  * private between the admin and the author). The admin's own view carries
  * it on {@link AdminShelterDto} instead, with the requester's name.
+ *
+ * <p>Mark inaccurate (moderation-dashboard-completion M10 slice 4):
+ * {@code inaccurate} is the server-derived moderator flag (the V20 stamp on
+ * the row is set — idempotent mark/clear behind the admin endpoints). A
+ * marked row stays visible with status and provenance untouched; the UI
+ * renders the single-sourced warning on the unverified-treatment surfaces.
  */
 public record ShelterDto(
         Long id,
@@ -90,6 +96,7 @@ public record ShelterDto(
         Provenance provenance,
         int reportCount,
         Instant lastVerifiedAt,
+        boolean inaccurate,
         InfoRequest infoRequest) {
 
     /**

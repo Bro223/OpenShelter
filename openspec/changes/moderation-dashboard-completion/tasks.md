@@ -52,12 +52,12 @@
 
 ## Slice 4 — Mark inaccurate
 
-- [ ] V20 `shelters.inaccurate_marked_at` / `inaccurate_marked_by`
-- [ ] `POST /admin/shelters/{id}/mark-inaccurate {reason?}` +
+- [x] V20 `shelters.inaccurate_marked_at` / `inaccurate_marked_by`
+- [x] `POST /admin/shelters/{id}/mark-inaccurate {reason?}` +
       `/clear-inaccurate` (idempotent, audited)
-- [ ] Public DTO `inaccurate` flag + single-sourced FE warning on
+- [x] Public DTO `inaccurate` flag + single-sourced FE warning on
       the unverified-treatment surfaces
-- [ ] BE + FE tests; gate both; commit `M10: mark inaccurate
+- [x] BE + FE tests; gate both; commit `M10: mark inaccurate
       (slice 4)`
 
 ## Slice 5 — Wrap-up

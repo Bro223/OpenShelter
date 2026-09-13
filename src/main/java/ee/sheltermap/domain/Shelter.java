@@ -63,6 +63,15 @@ public class Shelter {
     private String reviewNote;
     /** The submitter's private-home declaration (community-review-queue v2 D7). */
     private LocationKind locationKind = LocationKind.PUBLIC;
+    /**
+     * "Mark inaccurate" stamp (moderation-dashboard-completion M10 slice 4):
+     * set by the admin mark, cleared by the admin clear; {@code null} = not
+     * marked. The row stays visible — this is a public warning flag, not a
+     * lifecycle state (status and reviewStatus are untouched).
+     */
+    private Instant inaccurateMarkedAt;
+    /** The moderating admin's user id; {@code null} while unmarked (NO-FK semantics, V20). */
+    private Long inaccurateMarkedBy;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -207,5 +216,23 @@ public class Shelter {
 
     public Integer getCapacity() {
         return capacity;
+    }
+
+    /** "Mark inaccurate" stamp (M10 slice 4); {@code null} while unmarked. */
+    public Instant getInaccurateMarkedAt() {
+        return inaccurateMarkedAt;
+    }
+
+    public void setInaccurateMarkedAt(Instant inaccurateMarkedAt) {
+        this.inaccurateMarkedAt = inaccurateMarkedAt;
+    }
+
+    /** The moderating admin id of the mark; {@code null} while unmarked. */
+    public Long getInaccurateMarkedBy() {
+        return inaccurateMarkedBy;
+    }
+
+    public void setInaccurateMarkedBy(Long inaccurateMarkedBy) {
+        this.inaccurateMarkedBy = inaccurateMarkedBy;
     }
 }

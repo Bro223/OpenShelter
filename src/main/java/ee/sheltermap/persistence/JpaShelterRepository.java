@@ -71,6 +71,8 @@ public class JpaShelterRepository implements ShelterRepository {
         entity.setReviewStatus(shelter.getReviewStatus());
         entity.setReviewNote(shelter.getReviewNote());
         entity.setLocationKind(shelter.getLocationKind());
+        entity.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
+        entity.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
     }
 
     @Override
@@ -210,6 +212,8 @@ public class JpaShelterRepository implements ShelterRepository {
         shelter.setReviewStatus(entity.getReviewStatus());
         shelter.setReviewNote(entity.getReviewNote());
         shelter.setLocationKind(entity.getLocationKind());
+        shelter.setInaccurateMarkedAt(entity.getInaccurateMarkedAt());
+        shelter.setInaccurateMarkedBy(entity.getInaccurateMarkedBy());
         return shelter;
     }
 }

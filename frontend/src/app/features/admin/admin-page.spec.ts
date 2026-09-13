@@ -59,6 +59,7 @@ const USER_ROW: AdminShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'UNDER_REVIEW', // USER + NEW (M6)
   infoRequest: null, // M10 slice 3 — no moderator question on this row
+  inaccurate: false, // M10 slice 4 — no mark on this row
 };
 
 const USER_ROW_HIDDEN: AdminShelterDto = {
@@ -91,6 +92,7 @@ const REGISTRY_ROW: AdminShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'OFFICIAL', // PAASETEAMET row (M6)
   infoRequest: null, // M10 slice 3
+  inaccurate: false, // M10 slice 4 — no mark on this row
 };
 
 /** A second NEW community row, newer than USER_ROW — the queue ordering. */
@@ -193,6 +195,8 @@ class FakeAdminGateway {
   listAlerts = vi.fn();
   listShelterHistory = vi.fn();
   requestInfo = vi.fn();
+  markInaccurate = vi.fn();
+  clearInaccurate = vi.fn();
   listUsers = vi.fn();
   suspendUser = vi.fn();
   unsuspendUser = vi.fn();
@@ -662,6 +666,104 @@ describe('AdminPage', () => {
     expect(element.querySelector('#info-request-message')).not.toBeNull();
   });
 
+  // ---- mark inaccurate (M10 slice 4) -------------------------------------------------
+
+  it('an unmarked USER row gets a Mark inaccurate button that opens the reason editor', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Mark inaccurate')!.click();
+    fixture.detectChanges();
+
+    expect(element.querySelector('#mark-inaccurate-reason')).not.toBeNull();
+    expect(element.textContent).toContain('Reason (optional)');
+  });
+
+  it('marking POSTs the reason, refetches the list, and renders the flag treatment', async () => {
+    const markedRow = { ...USER_ROW, inaccurate: true };
+    admin.listShelters.mockResolvedValueOnce([USER_ROW]).mockResolvedValueOnce([markedRow]);
+    admin.markInaccurate.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Mark inaccurate')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#mark-inaccurate-reason')!;
+    textarea.value = 'Uks on suletud';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Mark inaccurate')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(admin.markInaccurate).toHaveBeenCalledWith(7, 'Uks on suletud');
+    // the 204 carries no body — the list refetches and the editor closes
+    expect(admin.listShelters).toHaveBeenCalledTimes(2);
+    expect(element.querySelector('#mark-inaccurate-reason')).toBeNull();
+    expect(element.textContent).toContain('Marked as inaccurate.');
+    // the refetched row carries the badge + the single-sourced warning line
+    expect(element.querySelector('.badge--inaccurate')?.textContent?.trim()).toBe('Inaccurate');
+    expect(element.textContent).toContain('Reported inaccurate — details may be wrong');
+  });
+
+  it('a marked row shows the badge + warning and a Clear action (no editor)', async () => {
+    const markedRow = { ...USER_ROW, inaccurate: true };
+    admin.listShelters.mockResolvedValueOnce([markedRow]).mockResolvedValueOnce([USER_ROW]);
+    admin.clearInaccurate.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    expect(element.querySelector('.badge--inaccurate')).not.toBeNull();
+    expect(element.textContent).toContain('Reported inaccurate — details may be wrong');
+    expect(buttonByText(firstRow(element), 'Mark inaccurate')).toBeNull();
+
+    buttonByText(firstRow(element), 'Clear inaccurate')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(admin.clearInaccurate).toHaveBeenCalledWith(7);
+    expect(admin.listShelters).toHaveBeenCalledTimes(2);
+    expect(element.querySelector('.badge--inaccurate')).toBeNull();
+    expect(element.textContent).toContain('Inaccurate mark cleared.');
+  });
+
+  it('a failed mark keeps the editor open with the reason', async () => {
+    admin.listShelters.mockResolvedValue([USER_ROW]);
+    admin.markInaccurate.mockRejectedValue(
+      apiError(409, 'registry rows are import-owned', '/admin/shelters/7/mark-inaccurate'),
+    );
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    buttonByText(firstRow(element), 'Mark inaccurate')!.click();
+    fixture.detectChanges();
+    const textarea = element.querySelector<HTMLTextAreaElement>('#mark-inaccurate-reason')!;
+    textarea.value = 'Uks on suletud';
+    textarea.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    buttonByText(element, 'Mark inaccurate')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.textContent).toContain('registry rows are import-owned');
+    // the editor stays open (the admin keeps the reason)
+    expect(element.querySelector('#mark-inaccurate-reason')).not.toBeNull();
+    expect((element.querySelector('#mark-inaccurate-reason') as HTMLTextAreaElement).value).toBe(
+      'Uks on suletud',
+    );
+  });
+
+  it('registry rows get no mark/clear actions', async () => {
+    admin.listShelters.mockResolvedValue([REGISTRY_ROW]);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    const row = firstRow(element);
+    expect(buttonByText(row, 'Mark inaccurate')).toBeNull();
+    expect(buttonByText(row, 'Clear inaccurate')).toBeNull();
+  });
+
   it('submitting the search box re-queries with the q filter (server-side substring)', async () => {
     admin.listShelters.mockResolvedValue([]);
     const { page, element, fixture } = await openAdmin();
@@ -1105,6 +1207,45 @@ describe('AdminPage', () => {
     // Row 3: the reason cell is filled.
     expect(rows[2].textContent).toContain('Rejected');
     expect(rows[2].textContent).toContain('Could not verify');
+  });
+
+  it('the audit trail labels the mark-inaccurate actions (M10 slice 4)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([
+      {
+        id: 9101,
+        createdAt: ago(5 * 60_000),
+        moderatorName: 'Anu T.',
+        shelterId: 7,
+        shelterName: 'Kommunaali Varjend',
+        action: 'MARK_INACCURATE',
+        previousStatus: 'NEW',
+        newStatus: 'NEW',
+        reason: 'Uks on suletud',
+      },
+      {
+        id: 9102,
+        createdAt: ago(10 * 60_000),
+        moderatorName: 'Anu T.',
+        shelterId: 7,
+        shelterName: 'Kommunaali Varjend',
+        action: 'CLEAR_INACCURATE',
+        previousStatus: 'NEW',
+        newStatus: 'NEW',
+        reason: null,
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Audit log')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    const rows = element.querySelectorAll('tr.admin-row');
+    expect(rows[0].textContent).toContain('Marked inaccurate');
+    expect(rows[0].textContent).toContain('Uks on suletud');
+    expect(rows[1].textContent).toContain('Inaccurate cleared');
   });
 
   it('an empty audit trail shows the empty state', async () => {

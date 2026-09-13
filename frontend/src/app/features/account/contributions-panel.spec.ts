@@ -30,6 +30,7 @@ const SHELTER_ROW: MineShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
   lastVerifiedAt: null, // M8 — null = never verified
+  inaccurate: false, // M10 slice 4 — no moderator mark on this row
   infoRequest: null, // M10 slice 3 — no moderator question on this row
 };
 
@@ -632,5 +633,17 @@ describe('ContributionsPanel', () => {
 
     expect(element.querySelector('.contrib-row__note')).toBeNull();
     expect(element.textContent).not.toContain('Admin note');
+  });
+
+  it('a marked row carries the single-sourced inaccurate warning line (M10 slice 4)', async () => {
+    shelters.mine.mockResolvedValue([{ ...SHELTER_ROW, inaccurate: true }]);
+    const { element } = await open();
+
+    // the warning line (no admin note on this row — it is the only note)
+    expect(element.querySelector('.contrib-row__note')?.textContent?.trim()).toBe(
+      'Reported inaccurate — details may be wrong',
+    );
+    // the row stays listed and visible (no hidden treatment)
+    expect(element.querySelectorAll('.contrib-row')).toHaveLength(1);
   });
 });

@@ -32,6 +32,7 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   COMMUNITY_UNVERIFIED_WARNING,
+  INACCURATE_WARNING,
   NO_RATINGS_YET,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
@@ -167,6 +168,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** The unverified warning for NEW community rows (community-review-
    *  queue): rendered in the header next to the provenance chip. */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
+  /** The single-sourced "reported inaccurate" warning (M10 slice 4):
+   *  rendered in the header for a moderator-marked row — independent of
+   *  the review state, the row stays visible. */
+  protected readonly inaccurateWarning = INACCURATE_WARNING;
   /** The private-home declaration copy (D7): badge + the resident-offered
    *  detail note. */
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;

@@ -115,6 +115,14 @@ public class ShelterEntity {
     @Column(name = "location_kind", nullable = false, length = 10)
     private LocationKind locationKind;
 
+    /** "Mark inaccurate" stamp (V20, M10 slice 4); NULL = not marked. */
+    @Column(name = "inaccurate_marked_at")
+    private Instant inaccurateMarkedAt;
+
+    /** The moderating admin id of the mark (V20); NULL while unmarked. NO FK (V20). */
+    @Column(name = "inaccurate_marked_by")
+    private Long inaccurateMarkedBy;
+
     public Long getId() {
         return id;
     }
@@ -281,5 +289,21 @@ public class ShelterEntity {
 
     public void setLocationKind(LocationKind locationKind) {
         this.locationKind = locationKind;
+    }
+
+    public Instant getInaccurateMarkedAt() {
+        return inaccurateMarkedAt;
+    }
+
+    public void setInaccurateMarkedAt(Instant inaccurateMarkedAt) {
+        this.inaccurateMarkedAt = inaccurateMarkedAt;
+    }
+
+    public Long getInaccurateMarkedBy() {
+        return inaccurateMarkedBy;
+    }
+
+    public void setInaccurateMarkedBy(Long inaccurateMarkedBy) {
+        this.inaccurateMarkedBy = inaccurateMarkedBy;
     }
 }

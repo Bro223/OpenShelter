@@ -22,7 +22,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The sixteen endpoints, 1:1:
+ * The eighteen endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -30,6 +30,8 @@ import type {
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
  *   GET    /admin/shelters/{id}/history        -> AdminShelterHistoryEvent[] (M10 slice 2)
  *   POST   /admin/shelters/{id}/request-info   -> 204 (USER rows only; M10 slice 3)
+ *   POST   /admin/shelters/{id}/mark-inaccurate -> 204 (USER rows only; M10 slice 4)
+ *   POST   /admin/shelters/{id}/clear-inaccurate -> 204 (USER rows only; M10 slice 4)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
  *   GET    /admin/review-reports               -> AdminReviewReportDto[]
@@ -114,6 +116,34 @@ export class AdminGateway {
    */
   requestInfo(id: number, message: string): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/shelters/${id}/request-info`, { message }));
+  }
+
+  /**
+   * POST /admin/shelters/{id}/mark-inaccurate {reason?} -> 204 (M10 slice
+   * 4). Sets the public `inaccurate` flag on a USER shelter — the row
+   * stays visible (status and provenance untouched). The reason is
+   * optional (the audit row stores it when given; blank/absent stores
+   * NULL). USER rows only (409 registry — import-owned); 404 unknown id;
+   * idempotent (re-marking an already-marked row is a no-op that audits
+   * nothing).
+   */
+  markInaccurate(id: number, reason?: string): Promise<void> {
+    const trimmed = reason?.trim();
+    return lastValueFrom(
+      this.api.post<void>(
+        `/admin/shelters/${id}/mark-inaccurate`,
+        trimmed ? { reason: trimmed } : undefined,
+      ),
+    );
+  }
+
+  /**
+   * POST /admin/shelters/{id}/clear-inaccurate -> 204 (M10 slice 4).
+   * Clears the flag — idempotent (clearing an unmarked row is a no-op). Same
+   * 404/409 guards as the mark.
+   */
+  clearInaccurate(id: number): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/shelters/${id}/clear-inaccurate`));
   }
 
   /**

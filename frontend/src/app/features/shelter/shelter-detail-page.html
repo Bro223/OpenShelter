@@ -54,6 +54,12 @@
                provenance chip — a caveat, NOT the crisis orange. -->
           <p class="community-warning">{{ communityUnverifiedWarning }}</p>
         }
+        @if (s.inaccurate) {
+          <!-- Marked inaccurate (M10 slice 4): the single-sourced warning —
+               the flag is the treatment, the row stays visible (status and
+               provenance untouched). Independent of the review state. -->
+          <p class="community-warning">{{ inaccurateWarning }}</p>
+        }
         @if (isPrivateLocation(s)) {
           <!-- The private-home declaration (D7): resident-offered, not an
                official facility. Every PRIVATE row, on every visit. -->

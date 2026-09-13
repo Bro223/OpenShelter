@@ -27,6 +27,7 @@ const REGISTRY_ROW: ShelterDto = {
   locationKind: 'PUBLIC',
   provenance: 'OFFICIAL',
   lastVerifiedAt: null, // M8 — no import run in this fixture
+  inaccurate: false, // M10 slice 4 — no moderator mark in this fixture
 };
 
 const USER_ROW: ShelterDto = {

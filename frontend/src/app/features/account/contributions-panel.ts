@@ -19,6 +19,7 @@ import {
   provenanceBadgeClass as provenanceBadgeClassShared,
   provenanceText as provenanceTextShared,
   ratingText as ratingTextShared,
+  INACCURATE_WARNING,
 } from '../../shared/shelter-copy';
 import { RatingStars } from '../../shared/rating-stars';
 
@@ -107,6 +108,10 @@ export class ContributionsPanel implements OnInit {
 
   /** W24: the shared rating summary copy, exposed to the template. */
   protected readonly ratingText = ratingTextShared;
+  /** The single-sourced "reported inaccurate" warning (M10 slice 4):
+   *  the note line on a moderator-marked own row — the row stays visible,
+   *  the flag is the treatment. */
+  protected readonly inaccurateWarning = INACCURATE_WARNING;
   /** Provenance badge copy (shelter-provenance-taxonomy M6): the server-
    *  derived taxonomy value — the hidden rows (REPORTED_INACTIVE /
    *  REJECTED) say what happened to them on the owner's list. */

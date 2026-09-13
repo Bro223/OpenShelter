@@ -38,7 +38,12 @@ public interface ModerationAuditLog {
         // the action has no shelter (shelterId null) and names the target
         // account in subjectUserId.
         USER_SUSPEND,
-        USER_UNSUSPEND
+        USER_UNSUSPEND,
+        // Mark-inaccurate pair (moderation-dashboard-completion M10 slice 4):
+        // shelter-scoped actions on the public `inaccurate` flag (the stamp
+        // itself lives on the shelter row, the trail records the decision).
+        MARK_INACCURATE,
+        CLEAR_INACCURATE
     }
 
     /** One audit row as read by the admin projection. */

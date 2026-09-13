@@ -30,6 +30,7 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     locationKind: 'PUBLIC',
     provenance: 'OFFICIAL', // default follows the PAASETEAMET default row
     lastVerifiedAt: null, // M8 — null = never verified
+    inaccurate: false, // M10 slice 4 — no moderator mark on this row
     ...overrides,
   };
 }

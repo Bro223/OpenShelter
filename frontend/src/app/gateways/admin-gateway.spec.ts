@@ -26,6 +26,7 @@ const SHELTER_ROW: AdminShelterDto = {
   // trust-state value (M6 — below the auto-hide threshold).
   provenance: 'UNDER_REVIEW',
   infoRequest: null, // M10 slice 3 — no moderator question on this row
+  inaccurate: false, // M10 slice 4 — no mark on this row
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
@@ -382,5 +383,36 @@ describe('AdminGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/request-info', {
       message: 'Kas varjund on avatud?',
     });
+  });
+
+  // ---- POST /admin/shelters/{id}/mark-inaccurate + clear-inaccurate (M10 slice 4) ----
+
+  it('markInaccurate POSTs the reason to /admin/shelters/{id}/mark-inaccurate and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.markInaccurate(7, 'Uks on suletud');
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/mark-inaccurate', {
+      reason: 'Uks on suletud',
+    });
+  });
+
+  it('markInaccurate without a reason POSTs no body (the audit row stores NULL)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.markInaccurate(7);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/mark-inaccurate', undefined);
+  });
+
+  it('clearInaccurate POSTs to /admin/shelters/{id}/clear-inaccurate and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.clearInaccurate(7);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/clear-inaccurate');
   });
 });

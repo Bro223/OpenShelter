@@ -363,6 +363,13 @@ export interface ShelterDto {
    * UNDER_REVIEW "not yet verified" signal).
    */
   lastVerifiedAt: string | null;
+  /**
+   * "Mark inaccurate" moderator flag (moderation-dashboard-completion
+   * M10 slice 4, backend-computed from the V20 stamp): a marked row stays
+   * visible with status and provenance untouched — the UI renders the
+   * single-sourced warning on the unverified-treatment surfaces.
+   */
+  inaccurate: boolean;
 }
 
 /**
@@ -514,6 +521,11 @@ export interface AdminShelterDto {
    * REPORTED_INACTIVE / REJECTED tones here.
    */
   provenance: Provenance;
+  /**
+   * "Mark inaccurate" moderator flag (M10 slice 4) — the same value as on
+   * the public DTO; the admin list is where the mark is managed.
+   */
+  inaccurate: boolean;
   /** The row's moderator→submitter information request (M10 slice 3);
    *  null when none. Carries the submitter's reply once given (the row is
    *  kept after the reply — audit posture). */
@@ -568,7 +580,9 @@ export type AdminAuditAction =
   | 'AUTO_CONFIRM'
   | 'REJECT'
   | 'USER_SUSPEND'
-  | 'USER_UNSUSPEND';
+  | 'USER_UNSUSPEND'
+  | 'MARK_INACCURATE'
+  | 'CLEAR_INACCURATE';
 
 /**
  * One row of GET /admin/audit (newest first; the backend returns the

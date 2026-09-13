@@ -175,6 +175,7 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     locationKind: 'PUBLIC',
     provenance: 'OFFICIAL', // server-derived (M6) — follows the PAASETEAMET row
     lastVerifiedAt: null, // M8 — null = never verified
+    inaccurate: false, // M10 slice 4 — no moderator mark on this row
     yourOccupancyBand: null, // the detail projection's extra field (D5)
     ...overrides,
   };
@@ -387,6 +388,28 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.textContent).not.toContain(
         'This location was submitted by a community member',
       );
+    });
+
+    it('a marked row carries the single-sourced inaccurate warning in the header', async () => {
+      // A CONFIRMED community row: the unverified block is absent, so the
+      // single .community-warning IS the M10-slice-4 treatment.
+      shelterGateway.rows.set(
+        8,
+        userShelter({
+          id: 8,
+          reviewStatus: 'CONFIRMED',
+          provenance: 'COMMUNITY_REPORTED',
+          inaccurate: true,
+        }),
+      );
+      const { element } = await open('/shelters/8');
+
+      const warnings = element.querySelectorAll('.community-warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].textContent).toBe('Reported inaccurate — details may be wrong');
+      expect(warnings[0].closest('.shelter-detail__header')).not.toBeNull();
+      // the row stays visible — no hidden/inactive treatment
+      expect(element.textContent).toContain('Community-reported');
     });
 
     it('a PRIVATE row shows the private badge and the resident-offered note (D7)', async () => {

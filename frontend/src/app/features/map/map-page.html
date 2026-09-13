@@ -95,6 +95,11 @@
                community row (any review status — map-browse delta). -->
           <p class="nearest-line nearest-line--warning">{{ communityUnverifiedWarning }}</p>
         }
+        @if (n.inaccurate) {
+          <!-- Marked inaccurate (M10 slice 4): the single-sourced warning —
+               the flag is the treatment, the row stays visible. -->
+          <p class="nearest-line nearest-line--warning">{{ inaccurateWarning }}</p>
+        }
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
           No listed locations around you yet.

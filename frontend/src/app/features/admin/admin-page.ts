@@ -40,6 +40,8 @@ import {
   provenanceText as provenanceTextShared,
   PRIVATE_LOCATION_BADGE,
   isPrivateLocation as isPrivateLocationShared,
+  INACCURATE_WARNING,
+  INACCURATE_BADGE,
 } from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
@@ -91,6 +93,8 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   REJECT: 'Rejected',
   USER_SUSPEND: 'User suspended',
   USER_UNSUSPEND: 'User unsuspended',
+  MARK_INACCURATE: 'Marked inaccurate',
+  CLEAR_INACCURATE: 'Inaccurate cleared',
 };
 
 /** Shelter-history action labels (M10 slice 2 — the Shelters-tab panel). */
@@ -218,6 +222,19 @@ export class AdminPage implements OnInit {
     validators: [Validators.required, nameBlankValidator, Validators.maxLength(INFO_REQUEST_MAX)],
   });
 
+  // ---- mark inaccurate (M10 slice 4) -----------------------------------------------
+  /** The row whose inline mark-inaccurate editor is open (null = closed).
+   *  Only opened for UNMARKED USER rows — a marked row shows the clear
+   *  action directly, no editor. */
+  protected readonly inaccurateFor = signal<number | null>(null);
+  /** The optional reason editor (at most 500 characters — the
+   *  moderation_actions.reason bound; blank/absent stores NULL on the
+   *  audit row). */
+  readonly inaccurateReason = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(REJECT_REASON_MAX)],
+  });
+
   // ---- shelter-report tab ----------------------------------------------------
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
   protected readonly reportLoadError = signal<string | null>(null);
@@ -267,6 +284,10 @@ export class AdminPage implements OnInit {
   protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   protected readonly isPrivateLocation = isPrivateLocationShared;
+  /** The single-sourced "reported inaccurate" warning + the admin-list
+   *  badge (M10 slice 4). */
+  protected readonly inaccurateWarning = INACCURATE_WARNING;
+  protected readonly inaccurateBadge = INACCURATE_BADGE;
 
   /** The admin occupancy block into the shared occupancy copy (its shape
    *  differs only in the field name: reportedAt vs lastReportedAt). */
@@ -349,6 +370,7 @@ export class AdminPage implements OnInit {
     this.clearFeedback();
     this.closeHistory();
     this.closeInfo();
+    this.closeInaccurate();
     switch (tab) {
       case 'shelters':
         if (this.shelterRows() === null && this.shelterLoadError() === null) {
@@ -476,6 +498,7 @@ export class AdminPage implements OnInit {
     this.confirmingDelete.set(null);
     this.closeHistory();
     this.closeInfo();
+    this.closeInaccurate();
     this.loadShelters();
   }
 
@@ -538,6 +561,9 @@ export class AdminPage implements OnInit {
       if (this.infoFor() === id) {
         this.closeInfo();
       }
+      if (this.inaccurateFor() === id) {
+        this.closeInaccurate();
+      }
       this.confirmingDelete.set(null);
       this.busy.set(false);
     }
@@ -593,6 +619,78 @@ export class AdminPage implements OnInit {
       this.closeInfo();
     } catch (error) {
       // The panel STAYS open on failure (the admin keeps the question).
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * Toggle the inline mark-inaccurate editor for an UNMARKED USER row.
+   * A marked row never opens the editor — it shows the Clear action
+   * directly (the flag's state, not a question). A second click on the
+   * open row closes the editor.
+   */
+  toggleInaccurate(row: AdminShelterDto): void {
+    if (this.inaccurateFor() === row.id) {
+      this.closeInaccurate();
+      return;
+    }
+    this.clearFeedback();
+    this.inaccurateReason.reset('');
+    this.inaccurateFor.set(row.id);
+  }
+
+  /** Close the open mark-inaccurate editor (tab switch, search, delete, toggle). */
+  closeInaccurate(): void {
+    this.inaccurateFor.set(null);
+  }
+
+  /**
+   * "Mark": POST /admin/shelters/{id}/mark-inaccurate {reason?} (204).
+   * The reason is optional — blank/absent stores NULL on the audit row.
+   * The shelters list refetches afterwards (the server stamps the flag;
+   * the 204 carries no body, the request-info refetch precedent).
+   */
+  async markInaccurateAction(row: AdminShelterDto): Promise<void> {
+    const reason = this.inaccurateReason.value.trim();
+    if (reason.length > REJECT_REASON_MAX) {
+      this.inaccurateReason.markAsTouched();
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.markInaccurate(row.id, reason);
+      this.success.set('Marked as inaccurate.');
+      await this.refreshShelters();
+      this.closeInaccurate();
+    } catch (error) {
+      // The editor STAYS open on failure (the admin keeps the reason).
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * "Clear inaccurate": POST /admin/shelters/{id}/clear-inaccurate (204,
+   * idempotent). The list refetches — the flag is server state.
+   */
+  async clearInaccurateAction(row: AdminShelterDto): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.clearInaccurate(row.id);
+      this.success.set('Inaccurate mark cleared.');
+      await this.refreshShelters();
+    } catch (error) {
       this.error.set(bannerMessage(error, 'shelter'));
     } finally {
       this.busy.set(false);

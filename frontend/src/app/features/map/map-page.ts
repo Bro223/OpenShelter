@@ -21,6 +21,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   COMMUNITY_UNVERIFIED_WARNING,
   PRIVATE_LOCATION_BADGE,
+  INACCURATE_WARNING,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
@@ -172,6 +173,8 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly straightLineText = straightLineText;
   /** The community unverified warning line (community-review-queue). */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
+  /** The single-sourced "reported inaccurate" warning (M10 slice 4). */
+  protected readonly inaccurateWarning = INACCURATE_WARNING;
   /** The private-home declaration badge (D7). */
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   /** The private-location predicate (D7) — the template stays branch-free. */

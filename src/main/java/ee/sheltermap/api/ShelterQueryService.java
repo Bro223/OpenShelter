@@ -350,6 +350,7 @@ public class ShelterQueryService {
                         shelter.getStatus(), nonExistent),
                 reportTotal,
                 batches.lastVerified().get(shelter.getId()),
+                shelter.getInaccurateMarkedAt() != null,
                 toInfoRequest(batches.infoRequests().get(shelter.getId())));
     }
 
@@ -421,6 +422,7 @@ public class ShelterQueryService {
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
                         shelter.getStatus(), nonExistent),
+                shelter.getInaccurateMarkedAt() != null,
                 toAdminInfoRequest(batches.infoRequests().get(shelter.getId()),
                         batches.infoRequesters()));
     }

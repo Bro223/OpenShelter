@@ -71,6 +71,7 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     locationKind: 'PUBLIC', // D7 default — no private declaration
     provenance: 'OFFICIAL', // follows the PAASETEAMET default row (M6)
     lastVerifiedAt: null, // M8 — null = never verified
+    inaccurate: false, // M10 slice 4 — no moderator mark on this row
     ...overrides,
   };
 }
@@ -795,6 +796,40 @@ describe('MapPage', () => {
       expect(text(fixture)).toContain('Show shelters around you: Nõmme Shelter');
       expect(text(fixture)).toContain('≈ 6.4 km straight line');
       expect(element.querySelector('.nearest-line--warning')).toBeNull();
+    });
+
+    it('a marked nearest row shows the single-sourced inaccurate warning under the result', async () => {
+      // The flagged USER row is nearest: the map's unverified treatment shows
+      // the community line for EVERY USER nearest row, and the M10-slice-4
+      // warning adds the single-sourced "reported inaccurate" line.
+      const MARKED = shelter({
+        id: 32,
+        name: 'Marked Cellar',
+        address: null,
+        source: 'USER',
+        provenance: 'COMMUNITY_REPORTED',
+        reviewStatus: 'CONFIRMED',
+        inaccurate: true,
+        latitude: 59.4385,
+        longitude: 24.7565,
+        averageRating: null,
+        reviewCount: 0,
+      });
+      gateway.list.mockResolvedValue([MARKED, FAR]);
+      setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      const { element, fixture } = await open('/map');
+
+      cta(element).click();
+      await settle(fixture);
+
+      expect(text(fixture)).toContain('Show shelters around you: Marked Cellar');
+      const warnings = [...element.querySelectorAll<HTMLElement>('.nearest-line--warning')].map(
+        (w) => w.textContent,
+      );
+      expect(warnings).toContain(
+        'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
+      );
+      expect(warnings).toContain('Reported inaccurate — details may be wrong');
     });
 
     it.each([

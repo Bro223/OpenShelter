@@ -226,6 +226,51 @@ public class AdminModerationService {
     }
 
     /**
+     * POST /admin/shelters/{id}/mark-inaccurate (M10 slice 4) — set the
+     * public "reported inaccurate" flag on a USER shelter. The row stays
+     * visible: status and provenance are untouched, only the V20 stamp is
+     * written (the reason, when given, rides on the audit row — the mark is
+     * a boolean state, the trail is the record). USER rows only (registry
+     * → 409, import-owned, same guard as the other admin writes); unknown
+     * id → 404. Idempotent like every other admin moderation action:
+     * re-marking an already-marked row is a no-op that records no audit
+     * row; a fresh mark records MARK_INACCURATE in this transaction.
+     */
+    @Transactional
+    public void markInaccurate(long moderatorId, long shelterId, String reason) {
+        Shelter shelter = requireShelter(shelterId);
+        requireUserOwned(shelter);
+        if (shelter.getInaccurateMarkedAt() == null) {
+            shelter.setInaccurateMarkedAt(clock.instant());
+            shelter.setInaccurateMarkedBy(moderatorId);
+            shelters.save(shelter);
+            audit.record(shelterId, null, moderatorId,
+                    ModerationAuditLog.Action.MARK_INACCURATE, normalizeReason(reason),
+                    shelter.getReviewStatus(), shelter.getReviewStatus());
+        }
+    }
+
+    /**
+     * POST /admin/shelters/{id}/clear-inaccurate (M10 slice 4) — clear the
+     * flag (idempotent: clearing an unmarked row is a no-op that records no
+     * audit row). Same 404/409 guards as {@link #markInaccurate}; a fresh
+     * clear records CLEAR_INACCURATE in this transaction.
+     */
+    @Transactional
+    public void clearInaccurate(long moderatorId, long shelterId) {
+        Shelter shelter = requireShelter(shelterId);
+        requireUserOwned(shelter);
+        if (shelter.getInaccurateMarkedAt() != null) {
+            shelter.setInaccurateMarkedAt(null);
+            shelter.setInaccurateMarkedBy(null);
+            shelters.save(shelter);
+            audit.record(shelterId, null, moderatorId,
+                    ModerationAuditLog.Action.CLEAR_INACCURATE, null,
+                    shelter.getReviewStatus(), shelter.getReviewStatus());
+        }
+    }
+
+    /**
      * GET /admin/reports — the shelter report queue, newest first. With
      * {@code shelterId} that shelter's queue (unknown shelter → 404);
      * without, every report. Shelter name/status and the reporter's

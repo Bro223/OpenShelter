@@ -59,6 +59,11 @@
             @if (row.reviewNote) {
               <span class="contrib-row__note">Admin note: {{ row.reviewNote }}</span>
             }
+            <!-- Marked inaccurate (M10 slice 4): the single-sourced warning
+                 line — the row stays visible, the flag is the treatment. -->
+            @if (row.inaccurate) {
+              <span class="contrib-row__note">{{ inaccurateWarning }}</span>
+            }
             <span class="contrib-row__meta">
               {{ row.createdAt | date: 'medium' }} ·
               {{ ratingText(row.averageRating, row.reviewCount) }}

@@ -543,4 +543,88 @@ class AdminModerationServiceTest {
                 .isInstanceOf(ShelterNotFoundException.class);
         assertThat(infoRequests.rows()).isEmpty();
     }
+
+    // ---------- mark inaccurate (M10 slice 4) ----------
+
+    @Test
+    void aMarkStampsTheRowAndAuditsWithTheReason() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+
+        service.markInaccurate(adminId, shelter.getId(), "  Uks on suletud  ");
+
+        assertThat(shelter.getInaccurateMarkedAt()).isEqualTo(NOW);
+        assertThat(shelter.getInaccurateMarkedBy()).isEqualTo(adminId);
+        // The row stays visible: status and review state untouched.
+        assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
+                1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.MARK_INACCURATE,
+                "Uks on suletud", ReviewStatus.NEW, ReviewStatus.NEW, NOW));
+    }
+
+    @Test
+    void aBlankReasonStoresNullOnTheAuditRow() {
+        Shelter shelter = userShelter(ReviewStatus.CONFIRMED);
+
+        service.markInaccurate(adminId, shelter.getId(), "   ");
+
+        assertThat(audit.rows()).hasSize(1);
+        assertThat(audit.rows().get(0).reason()).isNull();
+    }
+
+    @Test
+    void aSecondMarkIsANoOp() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        service.markInaccurate(adminId, shelter.getId(), "Esimene");
+
+        service.markInaccurate(adminId, shelter.getId(), "Teine");
+
+        assertThat(shelter.getInaccurateMarkedAt()).isEqualTo(NOW);
+        assertThat(shelter.getInaccurateMarkedBy()).isEqualTo(adminId);
+        // Idempotent: the second mark writes nothing, audit included.
+        assertThat(audit.rows()).hasSize(1);
+        assertThat(audit.rows().get(0).reason()).isEqualTo("Esimene");
+    }
+
+    @Test
+    void aClearRemovesTheStampAndAudits() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+        service.markInaccurate(adminId, shelter.getId(), "Uks on suletud");
+
+        service.clearInaccurate(adminId, shelter.getId());
+
+        assertThat(shelter.getInaccurateMarkedAt()).isNull();
+        assertThat(shelter.getInaccurateMarkedBy()).isNull();
+        assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(audit.rows()).extracting(ModerationAuditLog.Row::action)
+                .containsExactly(ModerationAuditLog.Action.MARK_INACCURATE,
+                        ModerationAuditLog.Action.CLEAR_INACCURATE);
+        assertThat(audit.rows().get(1).reason()).isNull();
+    }
+
+    @Test
+    void aClearOfAnUnmarkedRowIsANoOp() {
+        Shelter shelter = userShelter(ReviewStatus.NEW);
+
+        service.clearInaccurate(adminId, shelter.getId());
+
+        assertThat(shelter.getInaccurateMarkedAt()).isNull();
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void marksOnRegistryRowsAreConflictsAndUnknownIdsAre404() {
+        Shelter registry = registryShelter();
+
+        assertThatThrownBy(() -> service.markInaccurate(adminId, registry.getId(), "Kust?"))
+                .isInstanceOf(ImportOwnedShelterException.class);
+        assertThatThrownBy(() -> service.clearInaccurate(adminId, registry.getId()))
+                .isInstanceOf(ImportOwnedShelterException.class);
+        assertThatThrownBy(() -> service.markInaccurate(adminId, 999_999L, "Kust?"))
+                .isInstanceOf(ShelterNotFoundException.class);
+        assertThatThrownBy(() -> service.clearInaccurate(adminId, 999_999L))
+                .isInstanceOf(ShelterNotFoundException.class);
+        assertThat(registry.getInaccurateMarkedAt()).isNull();
+        assertThat(audit.rows()).isEmpty();
+    }
 }

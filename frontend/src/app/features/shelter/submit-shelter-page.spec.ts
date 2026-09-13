@@ -83,6 +83,7 @@ const CREATED: ShelterDto = {
   provenance: 'UNDER_REVIEW', // USER + NEW (M6)
   reportCount: 0, // M8 total (all report types)
   lastVerifiedAt: null, // M8 — a fresh submission is never verified
+  inaccurate: false, // M10 slice 4 — a fresh submission is never marked
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */
