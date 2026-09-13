@@ -423,7 +423,7 @@ describe('design tokens (M6)', () => {
     const submit = readFileSync(`${SRC_DIR}/app/features/shelter/submit-shelter-page.scss`, 'utf8');
     const checkbox = submit.match(/\.checkbox-field \{[\s\S]*?\n\}/);
     expect(checkbox, 'submit-shelter-page.scss must style .checkbox-field').not.toBeNull();
-    const inputRule = checkbox![0].match(/input \{[\s\S]*?\n  \}/);
+    const inputRule = checkbox![0].match(/input \{[\s\S]*?\n {2}\}/);
     expect(inputRule, '.checkbox-field must size its input explicitly').not.toBeNull();
     expect(inputRule![0]).toMatch(/width: 18px/);
     expect(inputRule![0]).toMatch(/height: 18px/);
