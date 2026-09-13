@@ -8,9 +8,10 @@ abuse layer: per-user rate caps on submitting, OTP throttles per
 phone/IP/e-mail, duplicate-submission detection, admin alerting, and the
 secure-headers / HTTPS-only-cookie audit. No CAPTCHA (locked decision).
 
-This change is delivered in slices; **slices 1–4 are done** (per-user daily
-submission cap + per-contact OTP caps + duplicate-submission detection +
-admin alerts) — each the smallest complete, gate-green piece.
+This change is delivered in slices; **all five slices are done** — M3 is
+complete (per-user daily submission cap + per-contact OTP caps +
+duplicate-submission detection + admin alerts + secure headers / cookie
+audit), each slice the smallest complete, gate-green piece.
 
 ## What Changes
 
@@ -118,9 +119,31 @@ admin alerts) — each the smallest complete, gate-green piece.
   HTTP (401/403/400-limit; each kind lands with the right subject +
   retry-after; newest-first).
 
-### Remaining M3 scope (later slices — NOT in this pass)
+### Slice 5 — secure headers + HTTPS-only cookies audit (done)
 
-- Secure headers + HTTPS-only cookies audit.
+- **`SecurityHeadersFilter`** (`config` package, `OncePerRequestFilter`
+  registered in `SecurityConfig` before the JWT filter): every response —
+  success, 4xx, 5xx and the security 401/403 error bodies — carries
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer` and `Content-Security-Policy:
+  default-src 'self'` (the SPA document is served by the frontend host,
+  so this CSP is defense-in-depth on the API, not the UI's real policy).
+  **HSTS** (`Strict-Transport-Security: max-age=31536000;
+  includeSubDomains`) is sent ONLY when the request is secure — never
+  over plain-HTTP dev traffic.
+- **Cookie audit:** the app is stateless JWT — the source audit found no
+  `addCookie`/`ResponseCookie`/`Set-Cookie` paths in `src/main` (there are
+  no cookie flags to audit: no cookie is ever set), and the IT pins the
+  observable behavior (no `Set-Cookie` on the 200/401/404/400 surfaces).
+- **Tests:** `SecurityHeadersIT` 4/4 (headers on 200 / 401 / 404 / 400;
+  HSTS absent over http, present with the exact value on a secure
+  request; no `Set-Cookie` anywhere).
+
+### M3 scope
+
+Complete — all five slices delivered and committed (slice 1 = 9fd96b9,
+slice 2 = 39c708c, slice 3 = 48bea6e, slices 4–5 in this pass's commits).
+No remaining M3 work.
 
 ## Impact
 

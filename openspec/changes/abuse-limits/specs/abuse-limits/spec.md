@@ -129,3 +129,36 @@ bucket key (trim + root-locale lowercase).
 - **WHEN** more than the retention bound of alerts have been recorded
 - **THEN** the ring keeps only the newest `alerts-retained` rows and
   `GET /admin/alerts` returns them newest first
+
+### Requirement: Secure headers and stateless cookie posture
+
+Every backend response — success, 4xx, 5xx and the security 401/403
+error bodies — SHALL carry the hardening headers
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer` and `Content-Security-Policy:
+default-src 'self'`. `Strict-Transport-Security` (max-age one year,
+includeSubDomains) SHALL be sent ONLY when the request is secure
+(HTTPS) — never over plain-HTTP dev traffic. The app is stateless JWT:
+the backend SHALL NOT set any cookie on any response.
+
+#### Scenario: Error responses are hardened too
+
+- **WHEN** a request is rejected (401 unauthenticated, 404 unknown
+  resource, 400 malformed)
+- **THEN** the error response carries all four hardening headers and no
+  `Set-Cookie` header
+
+#### Scenario: HSTS is HTTPS-only
+
+- **WHEN** the same public endpoint is called over plain HTTP and over
+  HTTPS
+- **THEN** the plain-HTTP response has no `Strict-Transport-Security`
+  header and the HTTPS response carries it with the one-year
+  includeSubDomains value
+
+#### Scenario: No cookie is ever set
+
+- **WHEN** any endpoint is called (public reads, the auth surface,
+  protected routes)
+- **THEN** the response carries no `Set-Cookie` header (stateless JWT
+  posture — the source audit found no cookie-setting paths)

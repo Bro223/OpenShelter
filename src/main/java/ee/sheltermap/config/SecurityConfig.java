@@ -181,6 +181,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTokenService tokenService,
                                                    ObjectMapper objectMapper,
                                                    CorsConfigurationSource corsConfigurationSource) throws Exception {
+        // M3 slice 5: the hardening headers go BEFORE the JWT filter (the
+        // same reference position, registered first = runs first), so the
+        // headers are present on the 401/403 error bodies too — the entry
+        // point writes those after both filters have run.
+        SecurityHeadersFilter headersFilter = new SecurityHeadersFilter();
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenService);
         http
             .csrf(csrf -> csrf.disable())
@@ -201,6 +206,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .anyRequest().authenticated())
+            .addFilterBefore(headersFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

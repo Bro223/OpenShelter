@@ -180,6 +180,17 @@ ADMIN), never derived from any token claim.
   answers 401 for anonymous callers; the controller's own fresh `isAdmin` lookup then answers
   403 for an authenticated non-admin (D2).
 - The JWT filter is the Spring-side implementation of `JwtTokenService` validation.
+- `SecurityHeadersFilter` (M3 slice 5, abuse-limits) — registered in the chain
+  BEFORE the JWT filter, so every response (200/400/401/404/500 incl. the
+  security error bodies) carries the hardening headers: `X-Content-Type-
+  Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  `Content-Security-Policy: default-src 'self'` (the SPA document is served
+  by the frontend host — defense-in-depth on the API, not the UI's policy).
+  `Strict-Transport-Security: max-age=31536000; includeSubDomains` goes out
+  ONLY on secure (HTTPS) requests — never over plain-HTTP dev traffic.
+  Cookie posture: the app is stateless JWT and the backend sets NO cookie
+  anywhere (source audit: no `addCookie`/`ResponseCookie` paths; the
+  `SecurityHeadersIT` pins the no-`Set-Cookie` behavior over HTTP).
 - `PasswordEncoder` bean = `Argon2PasswordEncoder` (used by `Argon2PasswordHasher`).
 
 ## Testing notes

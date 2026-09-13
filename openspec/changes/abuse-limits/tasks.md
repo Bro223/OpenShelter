@@ -107,9 +107,23 @@
 - [x] Gates green: `mvn -q test` 557/557 (75 classes) + `ng test` 767/767
       (38 spec files)
 
-## Slice 5 — secure headers + HTTPS-only cookies audit
+## Slice 5 — secure headers + HTTPS-only cookies audit (done)
 
-- [ ] Header filter (X-Content-Type-Options, X-Frame-Options,
-      Referrer-Policy, CSP, HSTS)
-- [ ] Cookie flags audit (Secure/HttpOnly/SameSite)
-- [ ] ITs asserting the headers
+- [x] Header filter (`config.SecurityHeadersFilter`, `OncePerRequestFilter`
+      registered in `SecurityConfig` BEFORE the JWT filter — the same
+      reference position, registered first = runs first, so the headers are
+      present on the security 401/403 error bodies too): every response
+      gets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+      `Referrer-Policy: no-referrer`, `Content-Security-Policy: default-src
+      'self'` (defense-in-depth on the API — the SPA document is served by
+      the frontend host); `Strict-Transport-Security: max-age=31536000;
+      includeSubDomains` ONLY when `request.isSecure()` (never over plain-
+      HTTP dev traffic)
+- [x] Cookie flags audit: the app is stateless JWT — the source audit found
+      NO `addCookie`/`ResponseCookie`/`Set-Cookie` paths in `src/main` (no
+      Secure/HttpOnly/SameSite flags to audit: no cookie is ever set), and
+      the IT pins the observable behavior — no `Set-Cookie` header on the
+      public 200, the 401, the 404 and the malformed-register 400
+- [x] ITs asserting the headers: `SecurityHeadersIT` 4/4 (headers on 200
+      / 401 / 404 / 400; HSTS absent over http and present with the exact
+      value on a secure request; no `Set-Cookie` anywhere)
