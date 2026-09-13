@@ -49,6 +49,9 @@
       pre-migration on a fresh database ⇒ converted + unique-indexed)
 - [x] Full `mvn -q test` green (existing auth/account/verification ITs
       are the transparent-boundary regression suite)
+- [x] Blank/absent-contact handling: V13 + `UserMapper` skip blank PII
+      (legacy empty claim ref, no-phone admin) — dev-DB restart blocker;
+      `UserMapperBlankValueTest` + the PiiAtRestIT blank rows
 - [x] `npx ng test` green (frontend untouched — tree health check)
 
 ## Phase 4 — Docs + close-out

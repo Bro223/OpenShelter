@@ -22,7 +22,9 @@ public class VerificationClaim {
     public VerificationClaim(VerificationLevel level, String provider, String externalRef, Instant verifiedAt) {
         this.level = Objects.requireNonNull(level, "level");
         this.provider = Objects.requireNonNull(provider, "provider");
-        this.externalRef = Objects.requireNonNull(externalRef, "externalRef");
+        // May be null: a legacy row whose stored ref is blank (pre-M1 dev
+        // DB) carries no external reference.
+        this.externalRef = externalRef;
         this.verifiedAt = Objects.requireNonNull(verifiedAt, "verifiedAt");
     }
 

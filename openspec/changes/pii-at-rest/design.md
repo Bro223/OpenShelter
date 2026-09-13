@@ -88,6 +88,16 @@ and is safe because of the `v1:` guard (Flyway does not auto-rollback).
   file-backed dev/ops artifact, not the app's data store; it keeps its
   format in this change and is listed as a residual item for the M15
   security pass. JWTs carry no e-mail/phone claims (verified).
+- **D8 — Blank values are "absent", not values.**
+  Pre-existing rows with a BLANK PII column (the provisioned admin's
+  empty phone, a pre-M1 dev-DB row whose claim `external_ref` is an
+  empty string) hold no contact: V13 leaves them as-is — never
+  encrypted, no blind index (encrypting an empty string would fail
+  closed and block the migration) — and `UserMapper.toDomain` maps a
+  stored blank to `null` on read. A non-blank pre-V13 plaintext value
+  still fails closed in `decrypt`. Write paths never produce blanks:
+  registration is `@NotBlank`-validated and the admin seeder carries
+  the e-mail as every claim ref.
 
 ## Risks / trade-offs
 

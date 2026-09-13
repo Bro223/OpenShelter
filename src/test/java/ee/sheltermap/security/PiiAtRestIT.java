@@ -180,6 +180,16 @@ class PiiAtRestIT extends AbstractPersistenceIT {
             assertThat((String) guest.get("phone_hash"))
                     .isEqualTo(pii.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, "+37250000002"));
 
+            // an absent (blank) contact stays blank: no ciphertext, no hash —
+            // the dev-DB shape that used to crash the migration
+            Map<String, Object> noPhone = j13.queryForMap(
+                    "SELECT email, phone, email_hash, phone_hash FROM users WHERE name = 'NoPhone'");
+            assertThat((String) noPhone.get("email")).startsWith("v1:");
+            assertThat((String) noPhone.get("phone")).isEqualTo("");
+            assertThat(noPhone.get("phone_hash")).isNull();
+            assertThat((String) noPhone.get("email_hash"))
+                    .isEqualTo(pii.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, "nophone@example.ee"));
+
             // the copy columns converted too (no index needed there)
             String claimRef = j13.queryForObject(
                     "SELECT external_ref FROM verification_claims WHERE user_id = 1", String.class);
@@ -191,6 +201,10 @@ class PiiAtRestIT extends AbstractPersistenceIT {
             String pendingTarget = j13.queryForObject(
                     "SELECT target FROM pending_contact_changes WHERE user_id = 1", String.class);
             assertThat(pii.decrypt(pendingTarget)).isEqualTo("new@example.ee");
+            // the legacy blank claim ref was left as-is, not encrypted
+            assertThat(j13.queryForObject(
+                    "SELECT external_ref FROM verification_claims WHERE user_id = 3", String.class))
+                    .isEqualTo("");
 
             // the plaintext unique indexes are gone, the hash ones are live
             List<String> indexes = j13.queryForList(
@@ -208,6 +222,9 @@ class PiiAtRestIT extends AbstractPersistenceIT {
             assertThat(after.get("phone")).isEqualTo(phoneBefore);
             assertThat(after.get("email_hash")).isEqualTo(legacy.get("email_hash"));
             assertThat(after.get("phone_hash")).isEqualTo(legacy.get("phone_hash"));
+            // blanks stay blank across the rerun (the guard is re-evaluated)
+            assertThat(j13.queryForObject(
+                    "SELECT phone FROM users WHERE name = 'NoPhone'", String.class)).isEqualTo("");
 
             // the hash unique index is the duplicate backstop now
             assertThatThrownBy(() -> j13.update(
@@ -266,10 +283,16 @@ class PiiAtRestIT extends AbstractPersistenceIT {
             statement.execute(
                     "INSERT INTO users (kind, name, email, phone) VALUES "
                             + "('REGISTERED', 'Legacy', 'legacy@example.ee', '+37250000001'), "
-                            + "('GUEST', 'Guest', NULL, '+37250000002')");
+                            + "('GUEST', 'Guest', NULL, '+37250000002'), "
+                            + "('REGISTERED', 'NoPhone', 'nophone@example.ee', '')");
             statement.execute(
                     "INSERT INTO verification_claims (user_id, level, provider, external_ref, verified_at) "
                             + "VALUES (1, 'EMAIL', 'EMAIL', 'legacy@example.ee', now())");
+            // a legacy blank ref (the pre-M1 dev-DB shape of the provisioned
+            // admin's SMART_ID claim) — V13 must leave it as-is, not fail
+            statement.execute(
+                    "INSERT INTO verification_claims (user_id, level, provider, external_ref, verified_at) "
+                            + "VALUES (3, 'SMART_ID', 'system', '', now())");
             statement.execute(
                     "INSERT INTO pending_verifications (user_id, level, contact, code_hash, expires_at) "
                             + "VALUES (1, 'EMAIL', 'legacy@example.ee', '" + hex64 + "', now())");

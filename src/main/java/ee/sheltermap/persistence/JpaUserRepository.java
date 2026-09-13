@@ -73,9 +73,14 @@ public class JpaUserRepository implements UserRepository {
         // PII-at-rest (M2): the stored external_ref is the v1: envelope —
         // diff on the DECRYPTED contact so the (level, contact, revokedAt)
         // identity matches the domain claim's plaintext ref (no id churn).
+        // A blank stored ref ("absent", stored as '' because the column is
+        // NOT NULL) maps to a null ref, like the domain side.
         Map<ClaimKey, VerificationClaimEntity> existingByKey = claims.findByUserId(userId).stream()
                 .collect(Collectors.toMap(
-                        e -> new ClaimKey(e.getLevel(), piiCrypto.decrypt(e.getExternalRef()), e.getRevokedAt()),
+                        e -> new ClaimKey(e.getLevel(),
+                                e.getExternalRef() == null || e.getExternalRef().isBlank()
+                                        ? null : piiCrypto.decrypt(e.getExternalRef()),
+                                e.getRevokedAt()),
                         e -> e,
                         (first, second) -> first)); // defensive: a duplicate key keeps the older row
         List<VerificationClaim> toInsert = new ArrayList<>();

@@ -48,8 +48,12 @@ final class UserMapper {
     }
 
     static User toDomain(UserEntity entity, List<VerificationClaimEntity> claimEntities, PiiCrypto pii) {
-        String email = entity.getEmail() == null ? null : pii.decrypt(entity.getEmail());
-        String phone = entity.getPhone() == null ? null : pii.decrypt(entity.getPhone());
+        // A blank stored value means "absent" (V13 leaves legacy blanks
+        // as-is — e.g. a no-phone admin, an empty legacy claim ref): it is
+        // mapped to null, never handed to the fail-closed decrypt. A
+        // non-blank pre-V13 plaintext value still fails closed there.
+        String email = isBlank(entity.getEmail()) ? null : pii.decrypt(entity.getEmail());
+        String phone = isBlank(entity.getPhone()) ? null : pii.decrypt(entity.getPhone());
         User user = switch (entity.getKind()) {
             case GUEST -> new GuestUser();
             case REGISTERED -> new RegisteredUser(entity.getName(), email, phone);
@@ -63,7 +67,8 @@ final class UserMapper {
         if (user instanceof RegisteredUser registered) {
             for (VerificationClaimEntity ce : claimEntities) {
                 VerificationClaim claim = new VerificationClaim(
-                        ce.getLevel(), ce.getProvider(), pii.decrypt(ce.getExternalRef()),
+                        ce.getLevel(), ce.getProvider(),
+                        isBlank(ce.getExternalRef()) ? null : pii.decrypt(ce.getExternalRef()),
                         ce.getVerifiedAt(), ce.getRevokedAt());
                 claim.setId(ce.getId());
                 registered.addVerification(claim);
@@ -78,11 +83,18 @@ final class UserMapper {
         entity.setLevel(claim.getLevel());
         entity.setProvider(claim.getProvider());
         // The claim ref carries the contact that proved the level — encrypt
-        // it like any other stored contact (M2).
-        entity.setExternalRef(pii.encrypt(claim.getExternalRef()));
+        // it like any other stored contact (M2). A null/blank ref (a legacy
+        // row with no recorded reference) is stored as '' — the column is
+        // NOT NULL, '' is the storage convention for "absent".
+        entity.setExternalRef(isBlank(claim.getExternalRef())
+                ? "" : pii.encrypt(claim.getExternalRef()));
         entity.setVerifiedAt(claim.getVerifiedAt());
         entity.setRevokedAt(claim.getRevokedAt());
         return entity;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private static UserKind kindOf(User user) {

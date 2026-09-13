@@ -24,8 +24,11 @@ import java.util.Objects;
  *       matches the entity column type);</li>
  *   <li>convert every existing row IN PLACE to ciphertext + blind index —
  *       idempotent: rows already carrying the {@code v1:} prefix are
- *       skipped, so a failed-then-{@code flyway repair}-ed rerun is safe
- *       (Flyway does not auto-rollback a failed migration);</li>
+ *       skipped, and blank values (absent contacts, e.g. the provisioned
+ *       admin's phone / a legacy empty claim ref) are left as-is — they
+ *       are never encrypted and get no blind index, so a failed-then-
+ *       {@code flyway repair}-ed rerun is safe (Flyway does not
+ *       auto-rollback a failed migration);</li>
  *   <li>replace the plaintext unique indexes {@code uq_users_email_ci} /
  *       {@code uq_users_phone} with unique indexes on the hashes.</li>
  * </ol>
@@ -115,16 +118,21 @@ public class V13PiiEncryptionMigration implements JavaMigration {
                 long id = rs.getLong(1);
                 String email = rs.getString(2);
                 String phone = rs.getString(3);
-                if ((email != null && !piiCrypto.isEncrypted(email))
-                        || (phone != null && !piiCrypto.isEncrypted(phone))) {
-                    String newEmail = email != null && !piiCrypto.isEncrypted(email)
+                // A blank contact means "absent" (the provisioned admin's
+                // phone, legacy rows) — it stays as-is: PiiCrypto fails
+                // closed on empties, and an absent contact has no index.
+                boolean emailBlank = email == null || email.isBlank();
+                boolean phoneBlank = phone == null || phone.isBlank();
+                if ((email != null && !emailBlank && !piiCrypto.isEncrypted(email))
+                        || (phone != null && !phoneBlank && !piiCrypto.isEncrypted(phone))) {
+                    String newEmail = email != null && !emailBlank && !piiCrypto.isEncrypted(email)
                             ? piiCrypto.encrypt(email) : null;
-                    String emailHash = email != null
+                    String emailHash = !emailBlank
                             ? piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL,
                                     PiiCrypto.canonicalEmail(piiCrypto.unwrapForHash(email))) : null;
-                    String newPhone = phone != null && !piiCrypto.isEncrypted(phone)
+                    String newPhone = phone != null && !phoneBlank && !piiCrypto.isEncrypted(phone)
                             ? piiCrypto.encrypt(phone) : null;
-                    String phoneHash = phone != null
+                    String phoneHash = !phoneBlank
                             ? piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_PHONE,
                                     PhoneNumbers.normalizeE164(piiCrypto.unwrapForHash(phone))) : null;
                     try (PreparedStatement update = connection.prepareStatement(
@@ -173,7 +181,9 @@ public class V13PiiEncryptionMigration implements JavaMigration {
             ResultSet rs = select.executeQuery();
             while (rs.next()) {
                 String value = rs.getString(2);
-                if (value == null || piiCrypto.isEncrypted(value)) {
+                // null and blank mean "absent" (e.g. a legacy empty claim
+                // ref) — leave as-is, there is nothing to encrypt.
+                if (value == null || value.isBlank() || piiCrypto.isEncrypted(value)) {
                     continue;
                 }
                 update.setString(1, piiCrypto.encrypt(value));
