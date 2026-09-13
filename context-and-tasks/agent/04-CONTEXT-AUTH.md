@@ -48,7 +48,7 @@ RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): Regi
 (duplicate-registration pre-check — hardening).
 
 **PII at rest (M2 — `pii-at-rest`):** the auth storage boundary is now encrypted.
-`users.email` / `users.phone` (plus the pending-* `contact`/`target` copy columns and the
+`users.email` / `users.phone` (plus the pending-*`contact`/`target` copy columns and the
 claim `external_ref`) store a `v1:` AES-256-GCM envelope; `users.email_hash` /
 `users.phone_hash` hold the domain-separated HMAC-SHA256 blind index of the canonical
 value (e-mail lower-cased + trimmed, phone E.164) and are what every lookup and the
