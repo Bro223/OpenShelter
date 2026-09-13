@@ -44,34 +44,10 @@ export type LocationKind = 'PUBLIC' | 'PRIVATE';
 export type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
 
 /**
- * Provenance taxonomy (shelter-provenance-taxonomy M6): the server-derived
- * single answer to "where does this row come from, and what is its
- * standing?" — computed on the backend (`ShelterDto.provenance`), never
- * re-derived in the FE. Only OFFICIAL / PARTNER_VERIFIED /
- * COMMUNITY_REPORTED / UNDER_REVIEW are reachable in the ACTIVE-only public
- * list; the hidden two (REPORTED_INACTIVE / REJECTED) ride on the detail
- * read, /mine and the admin list.
+ * The map's source filter — the server-side `?source=` param. REGISTRY =
+ * PAASETEAMET + MUNICIPALITY rows; USER = community submissions.
  */
-export type Provenance =
-  | 'OFFICIAL'
-  | 'PARTNER_VERIFIED'
-  | 'COMMUNITY_REPORTED'
-  | 'UNDER_REVIEW'
-  | 'REPORTED_INACTIVE'
-  | 'REJECTED';
-
-/**
- * The map's provenance filter (M6) — the server-side `?provenance=` param,
- * restricted to the four values reachable in the ACTIVE-only public list
- * (the hidden two would always filter to empty, so no chip offers them).
- * Replaces the old source chips: provenance strictly subdivides source
- * (REGISTRY = OFFICIAL ∪ PARTNER_VERIFIED, USER = COMMUNITY_REPORTED ∪
- * UNDER_REVIEW), so the finer filter supersedes the coarser one. The
- * backend keeps `?source=` for compatibility — the FE simply no longer
- * sends it.
- */
-export type ProvenanceFilter =
-  'ALL' | 'OFFICIAL' | 'PARTNER_VERIFIED' | 'COMMUNITY_REPORTED' | 'UNDER_REVIEW';
+export type ShelterSourceFilter = 'ALL' | 'REGISTRY' | 'USER';
 
 // ---------------------------------------------------------------------------
 // Request bodies (records on the backend, `interface`s here)
@@ -190,13 +166,6 @@ export interface UpdateShelterRequest {
   capacity?: number;
 }
 
-export interface ReviewRequest {
-  /** 1..5 */
-  rating: number;
-  /** <= 500 chars; absent = no comment. */
-  comment?: string;
-}
-
 // ---------------------------------------------------------------------------
 // Trust layer: typed reports + occupancy (shelter-trust-and-reports D1/D2/D4)
 // ---------------------------------------------------------------------------
@@ -222,15 +191,6 @@ export interface ShelterReportResult {
   damped: boolean;
 }
 
-/** Review-report reasons (POST /api/shelters/{id}/reviews/{reviewId}/reports). */
-export type ReviewReportReason = 'FALSY_DATA' | 'NOT_RELEVANT' | 'SPAM' | 'OTHER';
-
-export interface ReportReviewRequest {
-  reason: ReviewReportReason;
-  /** Free text (<= 500 chars) — the honest detail for any reason. */
-  detail?: string;
-}
-
 /** Live occupancy bands (PUT /api/shelters/{id}/occupancy — one per user). */
 export type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
 
@@ -253,16 +213,42 @@ export interface ShelterOccupancy {
   lastReportedAt: string;
 }
 
-/** Display-only flag netting CLOSED vs OPEN_CONFIRMED (D1) — never status. */
-export type ShelterStatusFlag = 'REPORTED_CLOSED' | 'CONFIRMED_OPEN';
+/** The shelter's current open/closed state (fresh-report derived). */
+export type OpenState = 'OPEN' | 'CLOSED';
+
+/**
+ * PUT /api/shelters/{id}/open-status body: the caller's live open/closed
+ * report (one per user, latest edit wins — the same upsert contract as the
+ * occupancy band). Verified accounts only (403), 404 unknown shelter.
+ */
+export interface PutOpenStatusRequest {
+  state: OpenState;
+}
+
+/**
+ * Server-derived open/closed block (open-status wave — computed at read
+ * time over the last 2 h of open-status reports, the same window and
+ * reportCount semantics as the occupancy block: 1 = the UI hedges
+ * ("Reported closed"), >= 2 = firm ("Closed")). `null` on the DTO =
+ * nothing fresh — the UI falls back to the lifecycle status. On ALL list
+ * rows and the detail projection.
+ */
+export interface OpenStatusDto {
+  /** The latest fresh state. */
+  state: OpenState;
+  /** ISO-8601 instant of the latest report in the window. */
+  reportedAt: string;
+  /** Fresh reports agreeing with `state` (1 = lone, >= 2 = firm). */
+  reportCount: number;
+}
 
 /**
  * Optional trust filters for GET /api/shelters (D5) — composable with the
  * source filter. Absent fields are omitted from the query string entirely.
+ * (The `reviewed` filter is gone with the review model; "Open" is a
+ * client-side chip — the BE has no param for it.)
  */
 export interface ShelterTrustFilter {
-  /** reviewed=true — at least one visible (non-hidden) review. */
-  reviewed?: boolean;
   /** hasCapacity=true — capacity data present. */
   hasCapacity?: boolean;
 }
@@ -305,9 +291,6 @@ export interface ShelterDto {
   longitude: number;
   status: ShelterStatus;
   source: ShelterSource;
-  /** null = no reviews yet (NOT 0). */
-  averageRating: number | null;
-  reviewCount: number;
   /** ISO-8601 instant. */
   createdAt: string;
   /** USER submissions only. */
@@ -327,25 +310,19 @@ export interface ShelterDto {
    * the public list simply no longer contains the row.
    */
   nonexistentReports: number;
-  /** CLOSED vs OPEN_CONFIRMED net (D1) — display-only, null = no flag. */
-  statusFlag: ShelterStatusFlag | null;
+  /** Fresh open/closed (open-status wave); null = nothing fresh in the last 2 h. */
+  openStatus: OpenStatusDto | null;
   /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
   occupancy: ShelterOccupancy | null;
   /**
    * Community trust state (community-review-queue): NEW/CONFIRMED for USER
-   * rows (amber/green marker + "Proposed" / "Community-reported" badge);
+   * rows (amber/green marker + "Newly added" / "Community-checked" badge);
    * CONFIRMED for registry rows (informational — the label logic only reads
    * it on USER rows). REJECTED rows are never in the public list (INACTIVE).
    */
   reviewStatus: ReviewStatus;
   /** Submitter-declared: PRIVATE rows carry the "Private location" badge. */
   locationKind: LocationKind;
-  /**
-   * Provenance taxonomy (M6) — server-derived (see the `Provenance` type).
-   * Drives the marker tone, the row badge text/tone and the legend; the FE
-   * never re-derives it from source/reviewStatus.
-   */
-  provenance: Provenance;
   /**
    * TOTAL community shelter-report count, all types (last-verified-meta
    * M8, backend-computed) — the `nonexistentReports` subset is what drives
@@ -358,13 +335,13 @@ export interface ShelterDto {
    * of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED
    * do not); community rows the newest non-submitter OPEN_CONFIRMED check
    * or confirming moderation action. `null` = never verified (the
-   * UNDER_REVIEW "not yet verified" signal).
+   * "not yet verified" signal for NEW community rows).
    */
   lastVerifiedAt: string | null;
   /**
    * "Mark inaccurate" moderator flag (moderation-dashboard-completion
    * M10 slice 4, backend-computed from the V20 stamp): a marked row stays
-   * visible with status and provenance untouched — the UI renders the
+   * visible with status and trust state untouched — the UI renders the
    * single-sourced warning on the unverified-treatment surfaces.
    */
   inaccurate: boolean;
@@ -372,12 +349,14 @@ export interface ShelterDto {
 
 /**
  * Detail projection (GET /api/shelters/{id}): every list field plus the
- * CALLER's own occupancy band — the "Report how full" picker's pre-select.
- * Null for guests and anonymous users (and for a user without a live
- * report for this shelter).
+ * CALLER's own live reports — the "Report how full" picker's pre-select
+ * (`yourOccupancyBand`) and the "Report open/closed" picker's pre-select
+ * (`yourOpenStatus`). Both null for guests and anonymous users (and for a
+ * user without a live report for this shelter).
  */
 export interface ShelterDetailDto extends ShelterDto {
   yourOccupancyBand: OccupancyBand | null;
+  yourOpenStatus: OpenState | null;
 }
 
 /**
@@ -479,7 +458,10 @@ export interface AdminUserDto {
 /**
  * The admin's view of one shelter row (GET /admin/shelters): the public
  * projection's trust fields plus what the public list hides — INACTIVE rows
- * included, the submitter's name, and the raw capacity.
+ * included, the submitter's name, and the raw capacity. The backend is
+ * id-ordered (auto-increment id = creation order) and carries NO creation
+ * timestamp on this projection (verified against the live API) — the
+ * Unconfirmed queue orders by id, newest first.
  */
 export interface AdminShelterDto {
   id: number;
@@ -489,18 +471,11 @@ export interface AdminShelterDto {
   source: ShelterSource;
   /** Includes INACTIVE — the public list never contains them. */
   status: ShelterStatus;
-  /** null = no visible reviews yet (NOT 0). */
-  rating: number | null;
-  reviewCount: number;
   nonexistentReports: number;
-  statusFlag: ShelterStatusFlag | null;
   occupancy: AdminOccupancy | null;
   capacity: number | null;
   /** The submitting user's profile name (USER rows only). */
   submitter: string | null;
-  /** ISO creation instant — the Unconfirmed queue's "created (newest
-   *  first)" column (community-review-queue). */
-  createdAt: string;
   /**
    * Community trust state (community-review-queue): the Unconfirmed tab is
    * the client-side `source === 'USER' && reviewStatus === 'NEW'` filter
@@ -512,13 +487,6 @@ export interface AdminShelterDto {
   reviewNote: string | null;
   /** PRIVATE rows carry the "Private location" badge on this surface too. */
   locationKind: LocationKind;
-  /**
-   * Provenance taxonomy (M6) — the same server-derived value as on the
-   * public DTO; this is the one surface where all six values are reachable
-   * (the list keeps hidden rows), so the badge can render the
-   * REPORTED_INACTIVE / REJECTED tones here.
-   */
-  provenance: Provenance;
   /**
    * "Mark inaccurate" moderator flag (M10 slice 4) — the same value as on
    * the public DTO; the admin list is where the mark is managed.
@@ -669,69 +637,13 @@ export interface AdminAlertRow {
 }
 
 /**
- * One row of GET /admin/review-reports (review-report queue, newest first).
- * The action targets the REVIEW's id (`reviewId`), not this row's id.
+ * One row of GET /admin/audit (newest first). The audit trail is append-
+ * only — a row persists after a reply, so it renders "(after reply)" when
+ * the shelter is already back on the map. `action` reflects the row's
+ * review-status transition at the time it was written (or a bulk import).
+ * The REVIEW_HIDE/REVIEW_RESTORE values persist in historical rows even
+ * though the review model is gone (the audit tab renders them read-only).
  */
-export interface AdminReviewReportDto {
-  id: number;
-  shelterId: number;
-  shelterName: string;
-  reviewId: number;
-  /** 1..5 */
-  reviewRating: number;
-  reviewComment: string | null;
-  reviewHidden: boolean;
-  reason: ReviewReportReason;
-  /** Free text for the report (any reason). */
-  detail: string | null;
-  reporterName: string | null;
-  reporterEmail: string | null;
-  /** ISO-8601 instant. */
-  createdAt: string;
-}
-
-export interface ShelterReviewDto {
-  id: number;
-  authorName: string;
-  /** 1..5 */
-  rating: number;
-  comment: string | null;
-  /** ISO-8601 instant. */
-  createdAt: string;
-  /**
-   * Hidden by five review reports (D2): excluded from the public list,
-   * the average and the count. Hidden reviews are NEVER returned to
-   * non-authors — the author sees their own row with this flag true and
-   * renders it marked "Hidden".
-   */
-  hidden: boolean;
-}
-
-/**
- * One row of GET /account/reviews/mine (user-contributions): the caller's
- * review of a shelter across ALL shelters, carrying the shelter's id + name
- * for navigation plus the review's own fields. A review whose shelter was
- * deleted cannot occur (shelter deletion cascades), so shelterName always
- * resolves.
- */
-export interface MyReviewDto {
-  shelterId: number;
-  shelterName: string;
-  /** 1..5 */
-  rating: number;
-  /** null = no comment. */
-  comment: string | null;
-  /** ISO-8601 instant. */
-  createdAt: string;
-  /** ISO-8601 instant. */
-  updatedAt: string;
-}
-
-// ---------------------------------------------------------------------------
-// M4 legal/recovery — data export (GET /account/export)
-// ---------------------------------------------------------------------------
-
-/** One author-scoped shelter row in the M4 data export (all statuses). */
 export interface DataExportShelter {
   id: number;
   name: string;
@@ -749,16 +661,6 @@ export interface DataExportShelter {
   createdAt: string;
 }
 
-/** One review in the M4 data export (shelter name resolved server-side). */
-export interface DataExportReview {
-  shelterId: number;
-  shelterName: string;
-  rating: number;
-  comment: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /** GET /account/export — the caller's own data in one document (M4 slice 1). */
 export interface DataExportResponse {
   profile: {
@@ -769,7 +671,6 @@ export interface DataExportResponse {
     levels: VerificationLevel[];
   };
   shelters: DataExportShelter[];
-  reviews: DataExportReview[];
 }
 
 /** One data_imports audit row — the newest (GET /api/data-source, M5). */

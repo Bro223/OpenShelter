@@ -8,7 +8,7 @@ package ee.sheltermap.app;
  * in the same step).
  *
  * <p>One row per report-type ACTION (any target, any type): shelter
- * reports, review reports and occupancy re-PUTs all count, because an
+ * reports and occupancy re-PUTs all count, because an
  * occupancy re-PUT updates one row and would be uncountable from the
  * report tables alone. A rejected duplicate (409) records NOTHING — a
  * user cannot burn their own budget by resubmitting (same discipline as
@@ -19,7 +19,6 @@ public interface ReportActionLog {
     /** Which report-family action a log row records. */
     enum Action {
         SHELTER_REPORT,
-        REVIEW_REPORT,
         OCCUPANCY
     }
 

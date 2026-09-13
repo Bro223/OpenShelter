@@ -149,6 +149,12 @@ function hasNonDmsDecimal(text: string): boolean {
 const GOO_SHARE_PATTERN = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/i;
 /** Google path format: /@59.437,24.753 (maps/@…, maps/place/…/@…, any host). */
 const AT_COORD_PATTERN = /@(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/;
+/** Google search path — the 2026-09 maps.app.goo.gl redirect target:
+ *  /search/58.999669,+27.289732 (comma and/or plus — a URL-encoded space —
+ *  as the separator) or the comma form /search/59.437,24.753. Raw path
+ *  forms only: a percent-encoded separator is not decoded (like the
+ *  query-param values). Mirrors the backend SEARCH_PAIR. */
+const SEARCH_PAIR_PATTERN = /\/search\/(-?\d+(?:\.\d+)?)[,\s+]+(-?\d+(?:\.\d+)?)/;
 
 /** Map-URL query params that carry coordinate pairs (Google q/ll/daddr/saddr, Apple ll). */
 const QUERY_PARAM_PATTERNS: readonly RegExp[] = [
@@ -273,6 +279,15 @@ function urlPair(url: string): ParseLocationResult {
       return commaFailure;
     }
     return gateWithSwap(Number(at[1]), Number(at[2]));
+  }
+  const search = SEARCH_PAIR_PATTERN.exec(url);
+  if (search !== null) {
+    // The same guard on the matched /search/lat,lng span.
+    const commaFailure = decimalCommaFailure(search[0]);
+    if (commaFailure !== null) {
+      return commaFailure;
+    }
+    return gateWithSwap(Number(search[1]), Number(search[2]));
   }
   // Estonian decimal-comma in the generic fallback (H4): the scheme+host is
   // always dotted, so the plain path's "no point at all" rule applies to the

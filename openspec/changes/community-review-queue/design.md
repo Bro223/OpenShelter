@@ -64,5 +64,14 @@ unreliable; instead the submitter declares it (checkbox, stored as
 location_kind=PRIVATE). Private rows are NOT demoted or hidden — a
 resident may legitimately offer their home as a refuge for people far
 from home (the product idea) — but every surface (list row, detail,
-admin) shows a "Private location" badge + a detail note that it is a
-resident-offered location, not an official facility.
+admin) shows a "Private home (declared)" badge + a detail note that it
+is a resident-offered location, not an official facility.
+
+D7a — the declaration is a building-type CLAIM, never an access claim
+(option A, owner decision): locationKind is never used to render
+"publicly available: yes/no" or any access policy — the app collects no
+access data, so claiming it would fabricate facts in a crisis context.
+No map filter hides PRIVATE rows (hiding the scarcest refuge resource
+inverts the feature); the badge is the only public/private surface.
+The detail practical block shows only what the data supports: the
+reported open/closed status.

@@ -7,7 +7,7 @@ import { ApiError } from '../../core/api-error';
 import type {
   GeocodeResult,
   ShelterDto,
-  ProvenanceFilter,
+  ShelterSourceFilter,
   VerificationLevel,
 } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -72,19 +72,16 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     longitude: 24.754,
     status: 'ACTIVE',
     source: 'PAASETEAMET',
-    averageRating: 4.5,
-    reviewCount: 2,
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
     submitterVerified: false,
     nonexistentReports: 0,
     reportCount: 0, // M8 total (all report types)
-    statusFlag: null,
+    openStatus: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3) — USER fixtures override
     locationKind: 'PUBLIC', // D7 default — no private declaration
-    provenance: 'OFFICIAL', // follows the PAASETEAMET default row (M6)
     lastVerifiedAt: null, // M8 — null = never verified
     inaccurate: false, // M10 slice 4 — no moderator mark on this row
     ...overrides,
@@ -96,32 +93,25 @@ const PARNU = shelter({
   id: 2,
   name: 'Pärnu Municipal Shelter',
   source: 'MUNICIPALITY',
-  provenance: 'PARTNER_VERIFIED',
 });
 const BASEMENT = shelter({
   id: 7,
   name: 'Community Cellar',
   address: null,
   source: 'USER',
-  averageRating: null,
-  reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
   reviewStatus: 'NEW', // D3: USER rows backfill NEW (amber marker)
-  provenance: 'UNDER_REVIEW',
 });
 const VERIFIED_BASEMENT = shelter({
   id: 8,
   name: 'Verified Cellar',
   address: null,
   source: 'USER',
-  averageRating: null,
-  reviewCount: 0,
   description: 'Verified submitter',
   capacity: 12,
   submitterVerified: true, // a verified submitter is NOT a verified shelter
-  reviewStatus: 'CONFIRMED', // community-reported (green)
-  provenance: 'COMMUNITY_REPORTED',
+  reviewStatus: 'CONFIRMED', // community-checked (green)
 });
 const ALL_ROWS = [TALLINN, PARNU, BASEMENT];
 
@@ -139,7 +129,6 @@ const FAR = shelter({
   name: 'Nõmme Shelter',
   address: 'Pikaliiva 5, Tallinn',
   source: 'MUNICIPALITY',
-  provenance: 'PARTNER_VERIFIED',
   latitude: 59.385,
   longitude: 24.802,
 });
@@ -328,8 +317,8 @@ describe('MapPage', () => {
 
   describe('map lifecycle (one instance per visit, no leaks between visits)', () => {
     it('destroys the map on route leave and renders a fresh map on return', async () => {
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(provenance === 'UNDER_REVIEW' ? [BASEMENT] : ALL_ROWS),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'USER' ? [BASEMENT] : ALL_ROWS),
       );
       const { fixture } = await open('/map');
 
@@ -372,22 +361,16 @@ describe('MapPage', () => {
 
   describe('browse', () => {
     beforeEach(() => {
-      // Simulates the server-side provenance filter (M6): each taxonomy
-      // value keeps only its own rows.
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
+      // Simulates the server-side source filter: REGISTRY keeps the
+      // registry rows, USER keeps community submissions.
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
         Promise.resolve(
-          provenance === 'OFFICIAL'
-            ? [TALLINN]
-            : provenance === 'PARTNER_VERIFIED'
-              ? [PARNU]
-              : provenance === 'COMMUNITY_REPORTED' || provenance === 'UNDER_REVIEW'
-                ? [BASEMENT]
-                : ALL_ROWS,
+          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
         ),
       );
     });
 
-    it('renders rows as markers AND sidebar rows (sorted, null-address safe, honest ratings)', async () => {
+    it('renders rows as markers AND sidebar rows (sorted, null-address safe, no rating)', async () => {
       const { element, fixture } = await open('/map');
 
       // Markers: the service got every row, sorted by name.
@@ -407,57 +390,55 @@ describe('MapPage', () => {
       expect(rows[1].querySelector('.shelter-row__address')?.textContent?.trim()).toBe(
         'Tornimäe 1, Tallinn',
       );
-      // Trust-state badges (D4 provenance + community-review-queue; M7
-      // wording): the NEW USER row reads "Proposed", the registry rows
-      // keep their provenance chips.
-      expect(basementRow.textContent).toContain('Proposed');
+      // Trust-state badges (community-review-queue D5): the NEW USER row
+      // reads "Newly added", the registry rows keep their registry labels.
+      expect(basementRow.textContent).toContain('Newly added');
       expect(rows[1].textContent).toContain('Municipal registry');
       expect(rows[2].textContent).toContain('Paasteamet registry');
-      // Rating summary: real rating shown, null rating says "No ratings yet" (no invented zero).
-      expect(basementRow.textContent).toContain('No ratings yet');
-      expect(basementRow.textContent).not.toContain('0.0');
-      expect(rows[2].textContent).toContain('★ 4.5 · 2 reviews');
+      // No rating of any kind renders in a row (the review model is gone).
+      expect(basementRow.textContent).not.toContain('★');
+      expect(rows[2].textContent).not.toContain('★');
       // Loading indicator gone once settled.
       expect(text(fixture)).not.toContain('Loading shelters…');
     });
 
-    it('sidebar rows show the trust-state badge: NEW is "Proposed", CONFIRMED is "Community-reported"', async () => {
+    it('sidebar rows show the trust-state badge: NEW is "Newly added", CONFIRMED is "Community-checked"', async () => {
       gateway.list.mockResolvedValue([TALLINN, PARNU, BASEMENT, VERIFIED_BASEMENT]);
       const { element } = await open('/map');
 
       // One badge per row, in the name-sorted order. The old
       // "Verified user" / "User-submitted" split is gone — the label follows
-      // the trust state (community-review-queue; M7 wording): NEW →
-      // "Proposed", CONFIRMED → "Community-reported".
+      // the trust state (community-review-queue D5): NEW → "Newly added",
+      // CONFIRMED → "Community-checked".
       const badges = [...element.querySelectorAll<HTMLElement>('.shelter-row .badge')].map((b) =>
         b.textContent?.trim(),
       );
       expect(badges).toEqual([
-        'Proposed', // Community Cellar (USER, NEW)
+        'Newly added', // Community Cellar (USER, NEW)
         'Municipal registry', // Pärnu Municipal Shelter (MUNICIPALITY)
         'Paasteamet registry', // Tallinn Central Shelter (PAASETEAMET)
-        'Community-reported', // Verified Cellar (USER, CONFIRMED)
+        'Community-checked', // Verified Cellar (USER, CONFIRMED)
       ]);
     });
 
-    it('renders the five-entry provenance legend (M6; M7 wording): official, partner, community, proposed, reported', async () => {
+    it('renders the four-entry legend: registry, new community, confirmed community, reported', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend).not.toBeNull();
-      expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull(); // official blue
-      expect(legend?.querySelector('.shelter-marker--partner')).not.toBeNull();
-      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull(); // community green
-      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull(); // registry blue
+      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull(); // NEW amber
+      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull(); // CONFIRMED green
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
-      expect(legend?.textContent).toContain('Official');
-      expect(legend?.textContent).toContain('Partner');
-      expect(legend?.textContent).toContain('Community');
-      expect(legend?.textContent).toContain('Proposed');
+      expect(legend?.textContent).toContain('Registry');
+      expect(legend?.textContent).toContain('New by community');
+      expect(legend?.textContent).toContain('Confirmed by community');
       expect(legend?.textContent).toContain('Reported');
-      // The old source-chip wording is gone.
-      expect(legend?.textContent).not.toContain('Registry');
-      expect(legend?.textContent).not.toContain('Confirmed community');
+      // Exactly four entries — no partner/official/proposed wording.
+      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(4);
+      expect(legend?.textContent).not.toContain('Official');
+      expect(legend?.textContent).not.toContain('Partner');
+      expect(legend?.textContent).not.toContain('Proposed');
       expect(legend?.textContent).not.toContain('User-submitted');
     });
 
@@ -476,45 +457,25 @@ describe('MapPage', () => {
       expect(text(fixture)).not.toContain('No shelters match this filter.');
     });
 
-    it('filter chips refetch server-side with the matching provenance param (M6)', async () => {
+    it('filter chips refetch server-side with the matching source param', async () => {
       const { element, fixture } = await open('/map');
       const chips = [...element.querySelectorAll<HTMLButtonElement>('.chip')];
-      expect(chips.map((c) => c.textContent?.trim())).toEqual([
-        'All',
-        'Official',
-        'Partner',
-        'Community',
-        'Proposed',
-      ]);
+      expect(chips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
       expect(chips[0].classList.contains('chip--active')).toBe(true);
 
-      chips[1].click(); // Official
+      chips[1].click(); // Registry
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'OFFICIAL']);
-      expect(leaflet.lastRendered).toEqual([TALLINN]);
+      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'REGISTRY']);
+      expect(leaflet.lastRendered).toEqual([PARNU, TALLINN]);
       expect(text(fixture)).toContain('Tallinn Central Shelter');
-      expect(text(fixture)).not.toContain('Pärnu Municipal Shelter');
+      expect(text(fixture)).toContain('Pärnu Municipal Shelter');
       expect(text(fixture)).not.toContain('Community Cellar');
       expect(chips[1].classList.contains('chip--active')).toBe(true);
       expect(chips[0].classList.contains('chip--active')).toBe(false);
 
-      chips[2].click(); // Partner
+      chips[2].click(); // User
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual([
-        'ALL',
-        'OFFICIAL',
-        'PARTNER_VERIFIED',
-      ]);
-      expect(leaflet.lastRendered).toEqual([PARNU]);
-
-      chips[4].click(); // Proposed
-      await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual([
-        'ALL',
-        'OFFICIAL',
-        'PARTNER_VERIFIED',
-        'UNDER_REVIEW',
-      ]);
+      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'REGISTRY', 'USER']);
       expect(leaflet.lastRendered).toEqual([BASEMENT]);
       expect(text(fixture)).not.toContain('Pärnu Municipal Shelter');
 
@@ -576,13 +537,13 @@ describe('MapPage', () => {
     });
 
     it('shows an empty state (map stays usable) when no shelters match the filter', async () => {
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(provenance === 'PARTNER_VERIFIED' ? [] : ALL_ROWS),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'USER' ? [] : ALL_ROWS),
       );
       const { element, fixture } = await open('/map');
       expect(text(fixture)).not.toContain('No shelters match this filter.');
 
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // Partner
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User
       await settle(fixture);
 
       expect(text(fixture)).toContain('No shelters match this filter.');
@@ -610,8 +571,8 @@ describe('MapPage', () => {
 
   describe('selection & zoom-in (details is a separate step)', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(provenance === 'ALL' ? ALL_ROWS : []),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? ALL_ROWS : []),
       );
     });
 
@@ -683,39 +644,39 @@ describe('MapPage', () => {
 
     it('drops an out-of-order (stale) filter response in favour of the newer one', async () => {
       let resolveAll: (rows: ShelterDto[]) => void = () => {};
-      let resolvePartner: (rows: ShelterDto[]) => void = () => {};
+      let resolveUser: (rows: ShelterDto[]) => void = () => {};
       gateway.list.mockImplementation(
-        (provenance: ProvenanceFilter) =>
+        (source: ShelterSourceFilter) =>
           new Promise<ShelterDto[]>((resolve) => {
-            if (provenance === 'ALL') {
+            if (source === 'ALL') {
               resolveAll = resolve;
             } else {
-              resolvePartner = resolve;
+              resolveUser = resolve;
             }
           }),
       );
       const { element, fixture } = await open('/map'); // ALL fetch pending
       // Chips stay enabled while loading — a second filter click queues a newer fetch.
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // Partner
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'PARTNER_VERIFIED']);
+      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'USER']);
 
       resolveAll(ALL_ROWS); // the STALE response arrives first
       await settle(fixture);
       expect(leaflet.lastRendered).toEqual([]); // dropped — never rendered
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
 
-      resolvePartner([PARNU]); // the newer one lands
+      resolveUser([BASEMENT]); // the newer one lands
       await settle(fixture);
-      expect(leaflet.lastRendered).toEqual([PARNU]);
-      expect(text(fixture)).toContain('Pärnu Municipal Shelter');
+      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+      expect(text(fixture)).toContain('Community Cellar');
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
     });
   });
 
   // ---------------------------------------------------------------------------
   // Nearest shelter (map-crisis-actions D1/D2): the safety-orange CTA,
-  // geolocation -> Haversine nearest over the loaded list -> fly + emphasize.
+  // geolocation -> Haversine nearest over the loaded list -> fly (no row emphasis).
   // ---------------------------------------------------------------------------
   describe('nearest shelter (crisis CTA)', () => {
     beforeEach(() => {
@@ -745,16 +706,19 @@ describe('MapPage', () => {
       expect(geoNote?.textContent).toContain('never sent to our servers');
     });
 
-    it('nearest found: flies to the closest shelter at street level and emphasizes its row', async () => {
+    it('nearest found: flies to the USER position at regional zoom, NO row emphasis or scroll', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       const { element, fixture } = await open('/map');
 
       cta(element).click();
       await settle(fixture);
 
-      // The map flew to the CLOSEST shelter (NEAR, ~250 m — not FAR, ~7 km)
-      // at the street-level SHELTER_ZOOM convention.
-      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+      // The map flew to the USER'S OWN POSITION at the regional AROUND_ZOOM
+      // (14 — a neighbourhood, not a street) — NOT to the nearest shelter.
+      expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
+      // No row is auto-selected by the around-you action — the nearest
+      // stays the RESULT (the one-line state), not a selection or emphasis.
+      expect(element.querySelector('.shelter-row--selected')).toBeNull();
       // The one-line state with the found shelter's name + address, plus
       // the straight-line distance (D6 honesty: the ranking's own Haversine
       // — ~125 m for the NEAR fixture, whole metres below 1 km). The NEAR
@@ -763,10 +727,9 @@ describe('MapPage', () => {
       expect(text(fixture)).toContain('Sadama 2, Tallinn');
       expect(text(fixture)).toContain('≈ 125 m straight line');
       expect(element.querySelector('.nearest-line--warning')).toBeNull();
-      // The matching row (and only it) carries the temporary emphasis.
-      const emphasized = element.querySelectorAll('.shelter-row--nearest');
-      expect(emphasized).toHaveLength(1);
-      expect(emphasized[0].textContent).toContain('Kalamaja Shelter');
+      // No row emphasis and no auto-scroll (the owner's correction): the
+      // list stays unfocused — the nearest is only the result line above.
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
       // The CTA is usable again.
       expect(cta(element).disabled).toBe(false);
     });
@@ -780,11 +743,8 @@ describe('MapPage', () => {
         name: 'Community Cellar',
         address: null,
         source: 'USER',
-        provenance: 'COMMUNITY_REPORTED',
         latitude: 59.4385,
         longitude: 24.7565,
-        averageRating: null,
-        reviewCount: 0,
       });
       gateway.list.mockResolvedValue([USER_NEAR, FAR]);
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
@@ -825,13 +785,10 @@ describe('MapPage', () => {
         name: 'Marked Cellar',
         address: null,
         source: 'USER',
-        provenance: 'COMMUNITY_REPORTED',
         reviewStatus: 'CONFIRMED',
         inaccurate: true,
         latitude: 59.4385,
         longitude: 24.7565,
-        averageRating: null,
-        reviewCount: 0,
       });
       gateway.list.mockResolvedValue([MARKED, FAR]);
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
@@ -1015,8 +972,9 @@ describe('MapPage', () => {
       // F10: the success line is an aria status (the error line already
       // carries role=alert — asserted in the denied test above).
       expect(element.querySelector('.nearest-line')?.getAttribute('role')).toBe('status');
-      // The locate settled on the nearest row.
-      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+      // The locate settled: the map flew to the user's position at the
+      // regional zoom (14), not to a shelter's street.
+      expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
     it('a failed retry clears the stale Nearest line and row emphasis (F1)', async () => {
@@ -1046,22 +1004,21 @@ describe('MapPage', () => {
       // template chain must not short-circuit on the previous success).
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      // The map stays where the first success left it — untouched.
-      expect(leaflet.flyToCalls).toEqual([[NEAR.latitude, NEAR.longitude, SHELTER_ZOOM]]);
+      // The map stays where the first success left it — the user position
+      // at the regional zoom, untouched by the failed retry.
+      expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
     it('a locate settling after a failed filter refetch does not offer the empty state beside the banner (F5)', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        provenance === 'ALL'
-          ? Promise.resolve([NEAR, FAR])
-          : Promise.reject(ApiError.fromNetwork()),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        source === 'ALL' ? Promise.resolve([NEAR, FAR]) : Promise.reject(ApiError.fromNetwork()),
       );
       const { element, fixture } = await open('/map');
 
       cta(element).click(); // locate in flight
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Official refetch
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry refetch
       await settle(fixture);
       // The refetch failed: the list is empty and the banner is up.
       expect(element.querySelector('.banner--error')).not.toBeNull();
@@ -1096,8 +1053,8 @@ describe('MapPage', () => {
 
     it('a filter change clears the Nearest emphasis (D2)', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(provenance === 'ALL' ? [NEAR, FAR] : [FAR]),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? [NEAR, FAR] : [FAR]),
       );
       const { element, fixture } = await open('/map');
 
@@ -1105,7 +1062,7 @@ describe('MapPage', () => {
       await settle(fixture);
       expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
 
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Official
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry
       await settle(fixture);
 
       expect(element.querySelector('.shelter-row--nearest')).toBeNull();
@@ -1210,6 +1167,51 @@ describe('MapPage', () => {
         ...element.querySelectorAll<HTMLElement>('.shelter-row__anchor-distance'),
       ].map((el) => el.textContent?.trim());
       expect(distances).toEqual(['≈ 0 m straight line', '≈ 6.5 km straight line']);
+
+      // Search-selection focus (owner task): the result's NEAREST shelter
+      // (FAR — 0 km from the searched point) is selected in the list with
+      // the marker-click selected state, scrolled into view centered.
+      const selected = element.querySelector<HTMLElement>('.shelter-row--selected');
+      expect(selected?.textContent).toContain('Nõmme Shelter');
+      // The details link is the row's SIBLING (inside the <li>, after the
+      // button) — it appears only on the selected row.
+      expect(selected?.closest('li')?.querySelector('a')?.textContent).toContain('View details');
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' });
+      // The camera went to the SEARCHED point only — no extra shelter fly.
+      expect(leaflet.flyToCalls).toEqual([[FAR.latitude, FAR.longitude, 14]]);
+    });
+
+    it('selecting a result with an EMPTY list refreshes with the current filters and selects on settle', async () => {
+      // The list is empty (the source filter has no matches) when the
+      // selection lands: the page re-loads with the CURRENT filter and the
+      // nearest row is selected once the load settles.
+      let sourceCalls: ShelterSourceFilter[] = [];
+      gateway.list.mockImplementation((source: ShelterSourceFilter) => {
+        sourceCalls.push(source);
+        // First load (initial render): empty. The selection's refresh
+        // returns the two rows.
+        return sourceCalls.length === 1 ? Promise.resolve([]) : Promise.resolve([NEAR, FAR]);
+      });
+      geocode.search.mockResolvedValue(ANCHOR_RESULT);
+      const { element, fixture } = await open('/map');
+      await typeAndSearch(element, fixture, 'Pikaliiva 5');
+      await settle(fixture);
+      expect(element.querySelectorAll('.shelter-row')).toHaveLength(0);
+
+      element.querySelector<HTMLButtonElement>('.anchor-search__result')!.click();
+      await settle(fixture);
+
+      // The refresh ran under the CURRENT source filter (ALL, untouched).
+      expect(sourceCalls).toEqual(['ALL', 'ALL']);
+      // Once the load settled, the nearest row (FAR) carries the selected
+      // state — scrolled into view centered.
+      const selected = element.querySelector<HTMLElement>('.shelter-row--selected');
+      expect(selected?.textContent).toContain('Nõmme Shelter');
+      expect(selected?.closest('li')?.querySelector('a')?.textContent).toContain('View details');
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' });
+      // The camera flew to the searched point when the selection happened —
+      // not to the shelter afterwards.
+      expect(leaflet.flyToCalls).toEqual([[FAR.latitude, FAR.longitude, 14]]);
     });
 
     it('clearing the anchor removes the pin, the distances and the distance sort', async () => {
@@ -1354,10 +1356,8 @@ describe('MapPage', () => {
   // ---------------------------------------------------------------------------
   describe('scroll the row into view (marker click / nearest)', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
-        Promise.resolve(
-          provenance === 'ALL' ? ALL_ROWS : provenance === 'UNDER_REVIEW' ? [BASEMENT] : [],
-        ),
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'ALL' ? ALL_ROWS : source === 'USER' ? [BASEMENT] : []),
       );
     });
 
@@ -1399,11 +1399,11 @@ describe('MapPage', () => {
 
     it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
       const { element, fixture } = await open('/map');
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // Partner filter
+      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User filter
       await settle(fixture);
       scrollSpy.mockClear();
 
-      leaflet.markerClick!(TALLINN.id); // TALLINN is not in the PARTNER_VERIFIED list
+      leaflet.markerClick!(TALLINN.id); // TALLINN is not in the USER list
       await settle(fixture);
 
       expect(scrollSpy).not.toHaveBeenCalled();
@@ -1443,78 +1443,109 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Trust filters + reported/occupancy presentation (shelter-trust-and-
-  // reports D5/D6): Reviewed / Has capacity toggle chips, all composable
-  // with the source chips — every change is a server refetch with the
-  // matching query params, then the list rebuild. (M11 rating demotion:
-  // the rating select is gone — no rating control of any kind on the map.)
+  // Practical filter chips (review model gone): "Open" (client-side — the
+  // BE has no open/closed param: the loaded list is filtered and the markers
+  // re-render, no refetch) and "Has capacity" (server-side ?hasCapacity=).
+  // Both compose with the source chips. (M11 rating demotion + review
+  // removal: no rating or review control of any kind on the map.)
   // ---------------------------------------------------------------------------
-  describe('trust filters (shelter-trust-and-reports D5/D6)', () => {
+  describe('practical filter chips (Open + Has capacity)', () => {
     beforeEach(() => {
-      // Simulates the server-side provenance filter (M6) the same way the
-      // browse describe does.
-      gateway.list.mockImplementation((provenance: ProvenanceFilter) =>
+      // Simulates the server-side source filter the same way the browse
+      // describe does.
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
         Promise.resolve(
-          provenance === 'OFFICIAL'
-            ? [TALLINN]
-            : provenance === 'PARTNER_VERIFIED'
-              ? [PARNU]
-              : provenance === 'COMMUNITY_REPORTED' || provenance === 'UNDER_REVIEW'
-                ? [BASEMENT]
-                : ALL_ROWS,
+          source === 'REGISTRY' ? [TALLINN, PARNU] : source === 'USER' ? [BASEMENT] : ALL_ROWS,
         ),
       );
     });
 
     /** The two toggle chips of the trust row (M11: no rating control). */
     function trustControls(element: HTMLElement): {
-      reviewed: HTMLButtonElement;
+      open: HTMLButtonElement;
       hasCapacity: HTMLButtonElement;
     } {
-      const chips = [...element.querySelectorAll<HTMLButtonElement>('.trust-chip')];
+      const chips = [...element.querySelectorAll<HTMLButtonElement>('button.trust-chip')];
       if (chips.length !== 2) {
         throw new Error('trust filter controls not rendered');
       }
-      return { reviewed: chips[0], hasCapacity: chips[1] };
+      return { open: chips[0], hasCapacity: chips[1] };
     }
 
-    it('renders the Reviewed / Has capacity toggle chips beside the source chips (no rating control — M11)', async () => {
+    it('renders the Open / Has capacity toggle chips beside the source chips (no rating control — M11)', async () => {
       const { element } = await open('/map');
 
-      const { reviewed, hasCapacity } = trustControls(element);
-      expect(reviewed.textContent?.trim()).toBe('Reviewed');
+      const { open: openChip, hasCapacity } = trustControls(element);
+      expect(openChip.textContent?.trim()).toBe('Open');
       expect(hasCapacity.textContent?.trim()).toBe('Has capacity');
       // Neither toggle is active initially; no rating control at all.
-      expect(reviewed.classList.contains('chip--active')).toBe(false);
-      expect(reviewed.getAttribute('aria-pressed')).toBe('false');
+      expect(openChip.classList.contains('chip--active')).toBe(false);
+      expect(openChip.getAttribute('aria-pressed')).toBe('false');
       expect(hasCapacity.getAttribute('aria-pressed')).toBe('false');
       expect(element.querySelector('.filter-rating')).toBeNull();
       expect(element.querySelector('select')).toBeNull();
-      // The provenance chips (M6 — replacing the old three source chips)
-      // stay untouched, still first in the row.
-      const provenanceChips = [...element.querySelectorAll<HTMLButtonElement>('.chip')];
-      expect(provenanceChips.map((c) => c.textContent?.trim())).toEqual([
-        'All',
-        'Official',
-        'Partner',
-        'Community',
-        'Proposed',
-      ]);
+      // The source chips (three of them) stay untouched, still first in the
+      // row.
+      const sourceChips = [...element.querySelectorAll<HTMLButtonElement>('button.chip')];
+      expect(sourceChips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
     });
 
-    it('toggling Reviewed refetches with reviewed=true and back to the legacy call shape', async () => {
+    it('toggling Open filters the loaded list CLIENT-side (no refetch, markers follow)', async () => {
+      // TALLINN is open (nothing fresh); a fresh-CLOSED, a fresh-OPEN and an
+      // INACTIVE row — the closed and inactive rows drop out while the chip
+      // is on, the fresh OPEN one stays (open is the default).
+      const minutesAgo = (minutes: number): string =>
+        new Date(Date.now() - minutes * 60000).toISOString();
+      const FRESH_CLOSED = shelter({
+        id: 50,
+        name: 'Closed Cellar',
+        address: null,
+        source: 'USER',
+        openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 1 },
+        reviewStatus: 'NEW',
+      });
+      const INACTIVE = shelter({
+        id: 51,
+        name: 'Old Cellar',
+        address: null,
+        source: 'USER',
+        status: 'INACTIVE',
+        reviewStatus: 'NEW',
+      });
+      const FRESH_OPEN = shelter({
+        id: 52,
+        name: 'Fresh Open Cellar',
+        openStatus: { state: 'OPEN', reportedAt: minutesAgo(12), reportCount: 1 },
+      });
+      gateway.list.mockResolvedValue([TALLINN, FRESH_CLOSED, INACTIVE, FRESH_OPEN]);
       const { element, fixture } = await open('/map');
-      const { reviewed } = trustControls(element);
+      const { open: openChip } = trustControls(element);
+      expect(element.querySelectorAll('.shelter-row')).toHaveLength(4);
+      const callsBefore = gateway.list.mock.calls.length;
 
-      reviewed.click();
-      await settle(fixture);
-      expect(reviewed.classList.contains('chip--active')).toBe(true);
-      expect(reviewed.getAttribute('aria-pressed')).toBe('true');
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { reviewed: true });
+      openChip.click();
+      fixture.detectChanges();
 
-      reviewed.click(); // off — the param disappears (legacy single-arg call)
-      await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+      expect(openChip.classList.contains('chip--active')).toBe(true);
+      expect(openChip.getAttribute('aria-pressed')).toBe('true');
+      // No refetch — the client filter is the whole mechanism.
+      expect(gateway.list).toHaveBeenCalledTimes(callsBefore);
+      // Only the open rows survive (fresh OPEN included), in the sidebar
+      // AND on the map.
+      const rows = [...element.querySelectorAll<HTMLElement>('.shelter-row')];
+      expect(rows.map((r) => r.querySelector('.shelter-row__name')?.textContent?.trim())).toEqual([
+        'Fresh Open Cellar',
+        'Tallinn Central Shelter',
+      ]);
+      expect(leaflet.lastRendered).toEqual([FRESH_OPEN, TALLINN]);
+
+      openChip.click(); // off — the full list returns
+      fixture.detectChanges();
+      expect(openChip.getAttribute('aria-pressed')).toBe('false');
+      expect(element.querySelectorAll('.shelter-row')).toHaveLength(4);
+      // Name-sorted: Closed Cellar < Fresh Open Cellar < Old Cellar <
+      // Tallinn Central Shelter.
+      expect(leaflet.lastRendered).toEqual([FRESH_CLOSED, FRESH_OPEN, INACTIVE, TALLINN]);
     });
 
     it('toggling Has capacity refetches with hasCapacity=true', async () => {
@@ -1530,43 +1561,45 @@ describe('MapPage', () => {
       expect(gateway.list).toHaveBeenLastCalledWith('ALL');
     });
 
-    it('the trust filters combine with the provenance chips (Community + Reviewed + Has capacity)', async () => {
+    it('the chips combine with the source chips (User + Open + Has capacity)', async () => {
+      gateway.list.mockImplementation(() => Promise.resolve([BASEMENT, TALLINN]));
       const { element, fixture } = await open('/map');
-      const { reviewed, hasCapacity } = trustControls(element);
+      const { open: openChip, hasCapacity } = trustControls(element);
 
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][3].click(); // Community
+      [...element.querySelectorAll<HTMLButtonElement>('button.chip')][2].click(); // User
       await settle(fixture);
-      reviewed.click();
-      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('USER');
+      openChip.click();
+      fixture.detectChanges();
       hasCapacity.click();
       await settle(fixture);
 
-      // One request carrying the whole composed state (D5 scenario).
-      expect(gateway.list).toHaveBeenLastCalledWith('COMMUNITY_REPORTED', {
-        reviewed: true,
-        hasCapacity: true,
-      });
-      // The list rebuilt from that response (the community rows, name-sorted).
-      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+      // One server request carrying the server-side filter only — "Open"
+      // never reaches the query string (client-side).
+      expect(gateway.list).toHaveBeenLastCalledWith('USER', { hasCapacity: true });
+      // The client filter applies on top of the response: TALLINN is open,
+      // BASEMENT is open too — both stay, name-sorted.
+      expect(leaflet.lastRendered).toEqual([BASEMENT, TALLINN]);
       expect(text(fixture)).toContain('Community Cellar');
+      expect(text(fixture)).toContain('Tallinn Central Shelter');
     });
 
-    it('a trust-filter refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
+    it('a Has capacity refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
       let calls = 0;
       gateway.list.mockImplementation(() => {
         calls++;
-        // The initial ALL fetch succeeds; the reviewed=true refetch fails;
-        // toggling back off re-fetches cleanly.
+        // The initial ALL fetch succeeds; the hasCapacity=true refetch
+        // fails; toggling back off re-fetches cleanly.
         return calls === 2 ? Promise.reject(ApiError.fromNetwork()) : Promise.resolve(ALL_ROWS);
       });
       const { element, fixture } = await open('/map');
-      const { reviewed } = trustControls(element);
+      const { hasCapacity } = trustControls(element);
 
-      reviewed.click();
+      hasCapacity.click();
       await settle(fixture);
       expect(element.querySelector('.banner--error')).not.toBeNull();
 
-      reviewed.click(); // back off — the failed filter is dropped, list re-fetches cleanly
+      hasCapacity.click(); // back off — the failed filter is dropped, list re-fetches cleanly
       await settle(fixture);
       expect(gateway.list).toHaveBeenCalledTimes(3);
       expect(gateway.list).toHaveBeenLastCalledWith('ALL');
@@ -1593,17 +1626,23 @@ describe('MapPage', () => {
       name: 'Reported Cellar',
       address: null,
       source: 'USER',
-      averageRating: null,
-      reviewCount: 0,
       nonexistentReports: 2, // 1–4: flagged, still ACTIVE and public
-      provenance: 'COMMUNITY_REPORTED',
     });
-    const REPORTED_CLOSED = shelter({
+    const FRESH_CLOSED = shelter({
       id: 21,
       name: 'Closed Shelter',
-      statusFlag: 'REPORTED_CLOSED',
+      openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 1 },
     });
-    const CONFIRMED_OPEN = shelter({ id: 22, name: 'Open Shelter', statusFlag: 'CONFIRMED_OPEN' });
+    const FRESH_CLOSED_FIRM = shelter({
+      id: 25,
+      name: 'Closed Firm Shelter',
+      openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 2 },
+    });
+    const FRESH_OPEN = shelter({
+      id: 22,
+      name: 'Open Shelter',
+      openStatus: { state: 'OPEN', reportedAt: minutesAgo(12), reportCount: 1 },
+    });
     const FULL_FIRM = shelter({
       id: 23,
       name: 'Full Shelter',
@@ -1621,9 +1660,8 @@ describe('MapPage', () => {
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
       expect(legend?.textContent).toContain('Reported');
-      // The provenance entries stay (the orange one is ADDED, not swapped).
+      // The trust entries stay (the orange one is ADDED, not swapped).
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
-      expect(legend?.querySelector('.shelter-marker--partner')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
     });
@@ -1638,30 +1676,41 @@ describe('MapPage', () => {
       // The row keeps its trust badge too (the orange is the single
       // marker affordance; the row text keeps the community label).
       expect(element.querySelector('.shelter-row .badge')?.textContent?.trim()).toBe(
-        'Community-reported',
+        'Community-checked',
       );
       // The reported row reaches the marker renderer (the orange CLASS on
       // the pin itself is asserted in leaflet-service.spec.ts).
       expect(leaflet.lastRendered).toEqual([REPORTED_BASEMENT]);
     });
 
-    it('unreported rows carry no "Reported" badge (provenance colours only)', async () => {
+    it('unreported rows carry no "Reported" or open-status badge (trust colours only)', async () => {
       const { element } = await open('/map'); // ALL_ROWS — all unreported
 
       expect(element.querySelector('.badge--reported')).toBeNull();
       expect(element.querySelector('.badge--closed')).toBeNull();
-      expect(element.querySelector('.badge--open')).toBeNull();
       expect(element.querySelector('.badge--occupancy')).toBeNull();
     });
 
-    it('statusFlag renders as the amber "Reported closed" / green "Confirmed open" badges', async () => {
-      gateway.list.mockResolvedValue([REPORTED_CLOSED, CONFIRMED_OPEN]);
+    it('a fresh CLOSED row renders the amber badge: "Reported closed" at one, "Closed" at two+', async () => {
+      gateway.list.mockResolvedValue([FRESH_CLOSED, FRESH_CLOSED_FIRM]);
       const { element } = await open('/map');
 
-      const closed = element.querySelector('.badge--closed');
-      expect(closed?.textContent?.trim()).toBe('Reported closed');
-      const openBadge = element.querySelector('.badge--open');
-      expect(openBadge?.textContent?.trim()).toBe('Confirmed open');
+      const badges = [...element.querySelectorAll<HTMLElement>('.badge--closed')].map((b) =>
+        b.textContent?.trim(),
+      );
+      // Name-sorted: "Closed Firm Shelter" < "Closed Shelter" — the firm
+      // net is firm, the lone report hedges.
+      expect(badges).toEqual(['Closed', 'Reported closed']);
+    });
+
+    it('a fresh OPEN row renders NO badge (open is the default — no noise)', async () => {
+      gateway.list.mockResolvedValue([FRESH_OPEN]);
+      const { element } = await open('/map');
+
+      // No open-status badge of any kind — and no badge strip at all, the
+      // row meta holds only the source/trust badge.
+      expect(element.querySelector('.badge--closed')).toBeNull();
+      expect(element.querySelector('.shelter-row__badges')).toBeNull();
     });
 
     it('fresh occupancy renders the NEUTRAL badge: firm at two+, hedged at one, with recency', async () => {

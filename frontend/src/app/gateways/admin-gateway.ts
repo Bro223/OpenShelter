@@ -8,7 +8,6 @@ import type {
   AdminShelterFilters,
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
-  AdminReviewReportDto,
   AdminUserDto,
   ReviewShelterRequest,
   ReviewShelterResponse,
@@ -22,7 +21,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The eighteen endpoints, 1:1:
+ * The fifteen endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -34,17 +33,11 @@ import type {
  *   POST   /admin/shelters/{id}/clear-inaccurate -> 204 (USER rows only; M10 slice 4)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
- *   GET    /admin/review-reports               -> AdminReviewReportDto[]
- *   POST   /admin/reviews/{id}/hide            -> 204 (idempotent)
- *   POST   /admin/reviews/{id}/restore         -> 204 (idempotent)
  *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
  *   GET    /admin/alerts?limit=                -> AdminAlertRow[] (newest 50)
  *   GET    /admin/users                        -> AdminUserDto[] (M10 slice 1)
  *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
  *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
- *
- * The review hide/restore `{id}` is the REVIEW's id, not the review-report
- * row's id — callers pass `row.reviewId`.
  */
 @Injectable({ providedIn: 'root' })
 export class AdminGateway {
@@ -121,7 +114,7 @@ export class AdminGateway {
   /**
    * POST /admin/shelters/{id}/mark-inaccurate {reason?} -> 204 (M10 slice
    * 4). Sets the public `inaccurate` flag on a USER shelter — the row
-   * stays visible (status and provenance untouched). The reason is
+   * stays visible (status and trust state untouched). The reason is
    * optional (the audit row stores it when given; blank/absent stores
    * NULL). USER rows only (409 registry — import-owned); 404 unknown id;
    * idempotent (re-marking an already-marked row is a no-op that audits
@@ -180,25 +173,6 @@ export class AdminGateway {
   /** POST /admin/reports/{id}/dismiss -> 204. Idempotent (no-op if done). */
   dismissShelterReport(id: number): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/reports/${id}/dismiss`));
-  }
-
-  /** GET /admin/review-reports — the review-report queue, newest first. */
-  listReviewReports(): Promise<AdminReviewReportDto[]> {
-    return lastValueFrom(this.api.get<AdminReviewReportDto[]>('/admin/review-reports'));
-  }
-
-  /** POST /admin/reviews/{id}/hide -> 204, idempotent. `{id}` = the REVIEW id. */
-  hideReview(reviewId: number): Promise<void> {
-    return lastValueFrom(this.api.post<void>(`/admin/reviews/${reviewId}/hide`));
-  }
-
-  /**
-   * POST /admin/reviews/{id}/restore -> 204, idempotent. Clears the hidden
-   * marker; the review rejoins the public list, average and count.
-   * `{id}` = the REVIEW id.
-   */
-  restoreReview(reviewId: number): Promise<void> {
-    return lastValueFrom(this.api.post<void>(`/admin/reviews/${reviewId}/restore`));
   }
 
   /**

@@ -208,13 +208,13 @@ describe('design tokens (M6)', () => {
     ['--color-bg-surface', '--color-primary'],
     ['--color-bg-surface', '--color-cta'],
     ['--color-bg-surface', '--color-reported'],
-    // Provenance badge text on its fill (shelter-detail-page .badge). The
+    // Source/trust badge text on its fill (shelter-detail-page .badge). The
     // map rows use the same pair over a 12% color-mix — that computed fill
     // is covered by the styles.scss D1 note, not this literal-based check.
     ['--color-shelter-registry', '--color-badge-registry'],
     ['--color-shelter-user', '--color-badge-user'],
-    // Trust-state badge text on its fill (community-review-queue D5; M7
-    // wording): the NEW community rows' "Proposed" badge on every surface.
+    // Trust-state badge text on its fill (community-review-queue D5):
+    // the NEW community rows' "Newly added" badge on every surface.
     ['--color-warning', '--color-badge-new'],
   ];
 
@@ -236,8 +236,6 @@ describe('design tokens (M6)', () => {
       [
         ['--color-border', '--color-bg-surface'],
         ['--color-border', '--color-bg'],
-        ['--color-star-filled', '--color-bg-surface'],
-        ['--color-star-empty', '--color-bg-surface'],
       ] as [string, string][]
     ).flatMap(([fg, bg]) =>
       (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
@@ -278,21 +276,6 @@ describe('design tokens (M6)', () => {
       min: 3,
       reason: 'non-text card/list-row boundary (1.36:1) — same rationale as vs the surface',
     },
-    {
-      theme: 'light',
-      fg: '--color-star-filled',
-      bg: '--color-bg-surface',
-      min: 3,
-      reason:
-        'decorative glyph (2.16:1) — the rating value is carried by the aria-label (rating-stars.spec)',
-    },
-    {
-      theme: 'light',
-      fg: '--color-star-empty',
-      bg: '--color-bg-surface',
-      min: 3,
-      reason: 'decorative glyph (1.58:1) — the unfilled star carries no information on its own',
-    },
   ];
 
   const isPlainHex = (v: string): boolean => /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v);
@@ -305,7 +288,7 @@ describe('design tokens (M6)', () => {
     expect(missingInRoot, 'high-contrast tokens missing from :root').toEqual([]);
   });
 
-  it('every contrast-checked text pair meets 4.5:1 and border/star pairs 3:1, in both themes', () => {
+  it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in both themes', () => {
     const exempted = new Set(CONTRAST_EXEMPTIONS.map((e) => `${e.theme}:${e.fg}:${e.bg}`));
     const offenders: string[] = [];
     for (const check of CONTRAST_CHECKS) {
@@ -387,7 +370,6 @@ describe('design tokens (M6)', () => {
       '--color-shelter-registry',
       '--color-shelter-user',
       '--color-shelter-pick',
-      '--color-star-filled',
     ]) {
       expect(rootCss, `missing token ${token}`).toContain(token);
     }
@@ -433,8 +415,7 @@ describe('design tokens (M6)', () => {
   it('styles.scss provides a global :focus-visible rule (keyboard-operable nav)', () => {
     // M6 a11y audit: every interactive element (links, buttons, inputs,
     // textareas) gets a visible focus ring even without component-scoped
-    // focus styles. Icon-only controls (star input) carry aria-labels —
-    // asserted in rating-stars.spec.ts.
+    // focus styles.
     expect(stylesCss).toContain(':focus-visible');
     expect(stylesCss).toMatch(
       /a:focus-visible,\s*button:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible/,

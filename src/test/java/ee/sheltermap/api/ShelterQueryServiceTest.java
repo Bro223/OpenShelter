@@ -4,23 +4,23 @@ import ee.sheltermap.app.InMemoryDataImportLog;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterInfoRequestLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
+import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
-import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
+import ee.sheltermap.domain.ShelterOpenStatusReport;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
-import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
-import ee.sheltermap.domain.ShelterStatusFlag;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,9 +39,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Unit tests for the read side of the shelter API: source-filter mapping
  * (REGISTRY/USER/ALL → repository source sets), DTO mapping that never leaks
- * the entity, rating aggregates computed per request, and the trust-layer
+ * the entity, and the trust-layer
  * derivations (shelter-trust-and-reports D1/D4/D5): report counts, the
- * CLOSED/OPEN_CONFIRMED flag, the fresh occupancy block, the ACTIVE-only
+ * fresh open/closed block, the fresh occupancy block, the ACTIVE-only
  * public list and the in-memory trust filters.
  */
 class ShelterQueryServiceTest {
@@ -50,10 +50,10 @@ class ShelterQueryServiceTest {
     private static final Clock FIXED = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private InMemoryShelterRepository shelters;
-    private InMemoryShelterReviewRepository reviews;
     private InMemoryUserRepository users;
     private InMemoryShelterReportRepository reports;
     private InMemoryShelterOccupancyRepository occupancy;
+    private InMemoryShelterOpenStatusRepository openStatus;
     private InMemoryDataImportLog importLog;
     private InMemoryModerationAuditLog audit;
     private InMemoryShelterInfoRequestLog infoRequests;
@@ -66,15 +66,15 @@ class ShelterQueryServiceTest {
     @BeforeEach
     void setUp() {
         shelters = new InMemoryShelterRepository();
-        reviews = new InMemoryShelterReviewRepository();
         users = new InMemoryUserRepository();
         reports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
+        openStatus = new InMemoryShelterOpenStatusRepository();
         importLog = new InMemoryDataImportLog();
         audit = new InMemoryModerationAuditLog(FIXED);
         infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
-        service = new ShelterQueryService(shelters, reviews, users, reports, occupancy,
-                importLog, audit, infoRequests, FIXED);
+        service = new ShelterQueryService(shelters, users, reports, occupancy,
+                openStatus, importLog, audit, infoRequests, FIXED);
 
         userShelter = save("User House", ShelterSource.USER);
         registryShelter = save("Paasteamet House", ShelterSource.PAASETEAMET);
@@ -107,7 +107,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterUserReturnsOnlyUserRowsAsDtos() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, null, null);
 
         assertThat(dtos).extracting(ShelterDto::name)
                 .containsExactly("User House");
@@ -117,7 +117,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterRegistryReturnsOnlyImportedRows() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.REGISTRY, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.REGISTRY, null, null);
 
         assertThat(dtos).extracting(ShelterDto::name)
                 .containsExactlyInAnyOrder("Paasteamet House", "City House");
@@ -127,7 +127,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterAllReturnsEverything() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null);
 
         assertThat(dtos).hasSize(3);
     }
@@ -139,40 +139,13 @@ class ShelterQueryServiceTest {
         shelters.save(hidden);
         hidden.setCreatedBy(7L);
 
-        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null))
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null))
                 .extracting(ShelterDto::name)
                 .doesNotContain("Peidetud varjend");
         // the owner list keeps hidden rows (D5) and carries their derived state
         ShelterDto mine = service.findByCreatedBy(7L).get(0);
         assertThat(mine.name()).isEqualTo("Peidetud varjend");
         assertThat(mine.status()).isEqualTo(ShelterStatus.INACTIVE);
-    }
-
-    @Test
-    void dtoCarriesRatingAggregatesComputedPerRequest() {
-        // two reviews: 4 and 5 -> average 4.5, count 2
-        reviews.save(new ShelterReview(userShelter.getId(), 1L, 4, "decent"));
-        reviews.save(new ShelterReview(userShelter.getId(), 2L, 5, "great"));
-
-        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
-
-        assertThat(dto.id()).isEqualTo(userShelter.getId());
-        assertThat(dto.name()).isEqualTo("User House");
-        assertThat(dto.latitude()).isEqualTo(59.4);
-        assertThat(dto.longitude()).isEqualTo(24.7);
-        assertThat(dto.status()).isEqualTo(ShelterStatus.ACTIVE);
-        assertThat(dto.source()).isEqualTo(ShelterSource.USER);
-        assertThat(dto.averageRating()).isEqualTo(4.5);
-        assertThat(dto.reviewCount()).isEqualTo(2);
-        assertThat(dto.address()).isNull(); // lean projection — no address on this row
-    }
-
-    @Test
-    void dtoWithoutReviewsHasNullAverageAndZeroCount() {
-        ShelterDto dto = service.findById(registryShelter.getId()).orElseThrow();
-
-        assertThat(dto.averageRating()).isNull();
-        assertThat(dto.reviewCount()).isZero();
     }
 
     // ---------- trust derivations (shelter-trust-and-reports D1/D4/D5) ----------
@@ -182,9 +155,10 @@ class ShelterQueryServiceTest {
         ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
 
         assertThat(dto.nonexistentReports()).isZero();
-        assertThat(dto.statusFlag()).isNull();
+        assertThat(dto.openStatus()).isNull();
         assertThat(dto.occupancy()).isNull();
         assertThat(dto.yourOccupancyBand()).isNull();
+        assertThat(dto.yourOpenStatus()).isNull();
     }
 
     @Test
@@ -197,55 +171,24 @@ class ShelterQueryServiceTest {
         ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
 
         assertThat(dto.nonexistentReports()).isEqualTo(2);
-        // confirmations without any closed report → no flag (both sides must be present)
-        assertThat(dto.statusFlag()).isNull();
     }
 
     @Test
-    void closedWithoutAnyConfirmationIsReportedClosed() {
-        // the spec scenario: 2 CLOSED, 0 OPEN_CONFIRMED → "Reported closed"
-        report(userShelter.getId(), 1L, ShelterReportType.CLOSED);
-        report(userShelter.getId(), 2L, ShelterReportType.CLOSED);
+    void aDismissedReportCountsNothingInTheDisplayedCounts() {
+        report(userShelter.getId(), 1L, ShelterReportType.NON_EXISTENT);
+        report(userShelter.getId(), 2L, ShelterReportType.NON_EXISTENT);
+        report(userShelter.getId(), 3L, ShelterReportType.CLOSED);
+        // the admin judged the CLOSED report invalid: it stops counting
+        reports.findByShelterId(userShelter.getId()).stream()
+                .filter(r -> r.getType() == ShelterReportType.CLOSED)
+                .findFirst().orElseThrow()
+                .markDismissed(NOW);
 
-        assertThat(service.findById(userShelter.getId()).orElseThrow().statusFlag())
-                .isEqualTo(ShelterStatusFlag.REPORTED_CLOSED);
-    }
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
 
-    @Test
-    void moreClosedThanConfirmedFlipsToReportedClosed() {
-        report(userShelter.getId(), 1L, ShelterReportType.CLOSED);
-        report(userShelter.getId(), 2L, ShelterReportType.CLOSED);
-
-        assertThat(service.findById(userShelter.getId()).orElseThrow().statusFlag())
-                .isEqualTo(ShelterStatusFlag.REPORTED_CLOSED);
-    }
-
-    @Test
-    void confirmedAtLeastClosedFlipsToConfirmedOpen() {
-        report(userShelter.getId(), 1L, ShelterReportType.CLOSED);
-        report(userShelter.getId(), 2L, ShelterReportType.CLOSED);
-        report(userShelter.getId(), 3L, ShelterReportType.OPEN_CONFIRMED);
-        report(userShelter.getId(), 4L, ShelterReportType.OPEN_CONFIRMED);
-        report(userShelter.getId(), 5L, ShelterReportType.OPEN_CONFIRMED);
-
-        assertThat(service.findById(userShelter.getId()).orElseThrow().statusFlag())
-                .isEqualTo(ShelterStatusFlag.CONFIRMED_OPEN);
-    }
-
-    @Test
-    void tiedClosedAndConfirmedIsConfirmedOpen() {
-        report(userShelter.getId(), 1L, ShelterReportType.CLOSED);
-        report(userShelter.getId(), 2L, ShelterReportType.OPEN_CONFIRMED);
-
-        assertThat(service.findById(userShelter.getId()).orElseThrow().statusFlag())
-                .isEqualTo(ShelterStatusFlag.CONFIRMED_OPEN);
-    }
-
-    @Test
-    void onlyOpenConfirmedWithoutClosedIsNoFlag() {
-        report(userShelter.getId(), 1L, ShelterReportType.OPEN_CONFIRMED);
-
-        assertThat(service.findById(userShelter.getId()).orElseThrow().statusFlag()).isNull();
+        assertThat(dto.nonexistentReports()).isEqualTo(2);
+        // the dismissed report is excluded from the total as well
+        assertThat(dto.reportCount()).isEqualTo(2);
     }
 
     @Test
@@ -296,6 +239,79 @@ class ShelterQueryServiceTest {
         assertThat(service.findById(userShelter.getId()).orElseThrow().occupancy()).isNull();
     }
 
+    // ---------- live open/closed block (same level as capacity) ----------
+
+    @Test
+    void loneFreshOpenStatusTapIsDisplayed() {
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 1L, OpenStatusState.OPEN, NOW.minus(Duration.ofMinutes(12))));
+
+        ShelterDto.OpenStatus block = service.findById(userShelter.getId()).orElseThrow().openStatus();
+
+        assertThat(block).isNotNull();
+        assertThat(block.state()).isEqualTo("OPEN");
+        assertThat(block.reportCount()).isEqualTo(1);
+        assertThat(block.reportedAt()).isEqualTo(NOW.minus(Duration.ofMinutes(12)));
+    }
+
+    @Test
+    void theLatestOpenStatusTapWinsAndOnlyAgreeingTapsCount() {
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 1L, OpenStatusState.OPEN, NOW.minus(Duration.ofMinutes(30))));
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 2L, OpenStatusState.OPEN, NOW.minus(Duration.ofMinutes(20))));
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 3L, OpenStatusState.CLOSED, NOW.minus(Duration.ofMinutes(5))));
+
+        ShelterDto.OpenStatus block = service.findById(userShelter.getId()).orElseThrow().openStatus();
+
+        assertThat(block.state()).isEqualTo("CLOSED");
+        assertThat(block.reportCount()).isEqualTo(1); // only the latest agrees with itself
+        assertThat(block.reportedAt()).isEqualTo(NOW.minus(Duration.ofMinutes(5)));
+    }
+
+    @Test
+    void agreeingFreshTapsAreCountedAgainstTheWinningState() {
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 1L, OpenStatusState.OPEN, NOW.minus(Duration.ofMinutes(30))));
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 2L, OpenStatusState.CLOSED, NOW.minus(Duration.ofMinutes(25))));
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 3L, OpenStatusState.OPEN, NOW.minus(Duration.ofMinutes(12))));
+
+        ShelterDto.OpenStatus block = service.findById(userShelter.getId()).orElseThrow().openStatus();
+
+        assertThat(block.state()).isEqualTo("OPEN"); // the latest tap wins
+        assertThat(block.reportCount()).isEqualTo(2); // the two OPEN taps agree
+        assertThat(block.reportedAt()).isEqualTo(NOW.minus(Duration.ofMinutes(12)));
+    }
+
+    @Test
+    void staleOpenStatusDisappears() {
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), 1L, OpenStatusState.OPEN, NOW.minus(Duration.ofHours(3))));
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().openStatus()).isNull();
+    }
+
+    @Test
+    void detailCarriesTheCallersOwnOpenStatusAndListDoesNot() {
+        long reporterId = saveUser("Mari", "mari@example.ee", true);
+        openStatus.save(new ShelterOpenStatusReport(
+                userShelter.getId(), reporterId, OpenStatusState.CLOSED, NOW.minus(Duration.ofMinutes(1))));
+
+        // detail for the reporter: their live state
+        assertThat(service.findById(userShelter.getId(), users.findById(reporterId)).orElseThrow()
+                .yourOpenStatus()).isEqualTo("CLOSED");
+        // the same read for another user / nobody: null
+        assertThat(service.findById(userShelter.getId(), users.findById(saveUser("Jaan", "jaan@example.ee", true)))
+                .orElseThrow().yourOpenStatus()).isNull();
+        assertThat(service.findById(userShelter.getId()).orElseThrow().yourOpenStatus()).isNull();
+        // the list projection never carries it (detail-only field)
+        assertThat(service.findAll(ShelterSourceFilter.USER, null, null).get(0).yourOpenStatus())
+                .isNull();
+    }
+
     @Test
     void detailCarriesTheCallersOwnBandAndListDoesNot() {
         long reporterId = saveUser("Mari", "mari@example.ee", true);
@@ -310,26 +326,8 @@ class ShelterQueryServiceTest {
                 .orElseThrow().yourOccupancyBand()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().yourOccupancyBand()).isNull();
         // the list projection never carries it (detail-only field)
-        assertThat(service.findAll(ShelterSourceFilter.USER, null, null, null).get(0).yourOccupancyBand())
+        assertThat(service.findAll(ShelterSourceFilter.USER, null, null).get(0).yourOccupancyBand())
                 .isNull();
-    }
-
-    @Test
-    void reviewedFilterKeepsOnlySheltersWithVisibleReviews() {
-        reviews.save(new ShelterReview(userShelter.getId(), 1L, 4, "hea"));
-        long hiddenOnly = save("Peidetud arvustus", ShelterSource.USER).getId();
-        ShelterReview hidden = new ShelterReview(hiddenOnly, 2L, 5, "peideta mind");
-        hidden.markHidden(NOW);
-        reviews.save(hidden);
-
-        List<ShelterDto> reviewed = service.findAll(ShelterSourceFilter.ALL, true, null, null);
-
-        assertThat(reviewed).extracting(ShelterDto::name).containsExactly("User House");
-
-        // the negation keeps the unreviewed ones
-        List<ShelterDto> unreviewed = service.findAll(ShelterSourceFilter.ALL, false, null, null);
-        assertThat(unreviewed).extracting(ShelterDto::name)
-                .containsExactlyInAnyOrder("Peidetud arvustus", "Paasteamet House", "City House");
     }
 
     @Test
@@ -339,30 +337,28 @@ class ShelterQueryServiceTest {
                 null, null, null, null, null, null, 40);
         shelters.save(withCapacity);
 
-        List<ShelterDto> withCap = service.findAll(ShelterSourceFilter.ALL, null, true, null);
+        List<ShelterDto> withCap = service.findAll(ShelterSourceFilter.ALL, true, null);
 
         assertThat(withCap).extracting(ShelterDto::name).containsExactly("Mahupolu varjend");
 
-        List<ShelterDto> withoutCap = service.findAll(ShelterSourceFilter.ALL, null, false, null);
+        List<ShelterDto> withoutCap = service.findAll(ShelterSourceFilter.ALL, false, null);
         assertThat(withoutCap).extracting(ShelterDto::name).doesNotContain("Mahupolu varjend");
     }
 
     @Test
     void trustFiltersComposeWithTheSourceFilter() {
-        // USER + reviewed + capacity: only this row qualifies — the other
-        // USER row misses one filter (no review). (M11: the rating filter
-        // is gone from this compose — the rating is context, not a lever.)
+        // USER + capacity: only the capacity row qualifies — the other USER
+        // row has no capacity data.
         Shelter qualified = new Shelter("Kvalifitseeritud", new GeoPoint(59.4, 24.7),
                 ShelterStatus.ACTIVE, null, ShelterSource.USER,
                 null, null, null, null, null, null, 40);
         shelters.save(qualified);
-        reviews.save(new ShelterReview(qualified.getId(), 1L, 5, ""));
-        Shelter unreviewed = new Shelter("Ilma Arvustuseta", new GeoPoint(59.4, 24.7),
+        Shelter without = new Shelter("Ilma Mahtuta", new GeoPoint(59.4, 24.7),
                 ShelterStatus.ACTIVE, null, ShelterSource.USER,
-                null, null, null, null, null, null, 10);
-        shelters.save(unreviewed);
+                null, null, null, null, null, null, null);
+        shelters.save(without);
 
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, true, true, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, true, null);
 
         assertThat(dtos).extracting(ShelterDto::name).containsExactly("Kvalifitseeritud");
     }
@@ -405,7 +401,7 @@ class ShelterQueryServiceTest {
 
         // The exchange is private between the admin and the author — it must
         // not leak on the public list or the detail read.
-        ShelterDto publicRow = service.findAll(ShelterSourceFilter.ALL, null, null, null)
+        ShelterDto publicRow = service.findAll(ShelterSourceFilter.ALL, null, null)
                 .stream().filter(dto -> dto.id().equals(userShelter.getId())).findFirst().orElseThrow();
         assertThat(publicRow.infoRequest()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().infoRequest()).isNull();
@@ -468,7 +464,7 @@ class ShelterQueryServiceTest {
         Shelter second = save("Second User House", ShelterSource.USER);
         second.setCreatedBy(saveUser("Jaan", "jaan@example.ee", true));
 
-        Map<String, Boolean> byName = service.findAll(ShelterSourceFilter.USER, null, null, null).stream()
+        Map<String, Boolean> byName = service.findAll(ShelterSourceFilter.USER, null, null).stream()
                 .collect(Collectors.toMap(ShelterDto::name, ShelterDto::submitterVerified));
 
         assertThat(byName).containsEntry("User House", true)
@@ -477,7 +473,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void dtoNeverLeaksTheEntity() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null);
         // the returned objects are records (DTOs), not the domain Shelter
         assertThat(dtos).allMatch(dto -> dto instanceof ShelterDto);
         // and the repo still holds exactly the domain entities

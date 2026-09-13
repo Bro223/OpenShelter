@@ -30,9 +30,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Report-throttle acceptance (shelter-trust-and-reports D5): 10 report-type
- * actions (shelter reports, occupancy reports, review reports) per user per
+ * actions (shelter reports, occupancy reports) per user per
  * rolling hour → the 11th is 429. Window expiry frees budget; the limit is
- * per user, not global.
+ * per user, not global. The open-status tap is NOT a report-type action
+ * (occupancy parity — a state, not a report) and never consumes budget.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -193,5 +194,51 @@ class ReportThrottleIT extends AbstractPersistenceIT {
                 .andExpect(status().isTooManyRequests());
         // ...while a different user is completely unaffected
         report(goodCitizen, s5, "CLOSED");
+    }
+
+    @Test
+    void openStatusTapsAreNotThrottledAndConsumeNoBudget() throws Exception {
+        String token = verifiedToken("tapijad@example.ee");
+        long s1 = seedShelter();
+        long s2 = seedShelter();
+        long s3 = seedShelter();
+        long s4 = seedShelter();
+        long s5 = seedShelter();
+
+        // exhaust the ten-action budget with throttled report-type actions
+        for (int i = 0; i < 5; i++) {
+            report(token, new long[]{s1, s2, s3, s4, s5}[i], "NON_EXISTENT");
+        }
+        occupancy(token, s1, "FULL");
+        report(token, s1, "CLOSED");
+        report(token, s2, "CLOSED");
+        report(token, s3, "CLOSED");
+        report(token, s4, "CLOSED");
+
+        // the 11th report-type action is 429...
+        mvc.perform(post("/api/shelters/" + s5 + "/reports")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"CLOSED\"}"))
+                .andExpect(status().isTooManyRequests());
+
+        // ...while the open-status taps (a state, not a report action)
+        // keep passing
+        mvc.perform(put("/api/shelters/" + s1 + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"state\":\"OPEN\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(put("/api/shelters/" + s1 + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"state\":\"CLOSED\"}"))
+                .andExpect(status().isNoContent());
+
+        // the taps consumed no budget — the log still holds exactly the 10
+        // accepted report-type actions
+        Integer logged = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM report_actions", Integer.class);
+        assertThat(logged).isEqualTo(10);
     }
 }

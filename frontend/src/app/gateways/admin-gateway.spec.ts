@@ -11,20 +11,15 @@ const SHELTER_ROW: AdminShelterDto = {
   address: null,
   source: 'USER',
   status: 'INACTIVE',
-  rating: 4.5,
-  reviewCount: 2,
   nonexistentReports: 3,
-  statusFlag: 'REPORTED_CLOSED',
   occupancy: { band: 'FULL', reportedAt: '2025-09-01T08:00:00Z', reportCount: 2 },
   capacity: 12,
   submitter: 'Kaja K.',
-  createdAt: '2025-09-01T08:00:00Z',
   reviewStatus: 'NEW',
   reviewNote: null,
   locationKind: 'PUBLIC',
   // INACTIVE + NEW + only 3 reports: the derivation falls through to the
   // trust-state value (M6 — below the auto-hide threshold).
-  provenance: 'UNDER_REVIEW',
   infoRequest: null, // M10 slice 3 — no moderator question on this row
   inaccurate: false, // M10 slice 4 — no mark on this row
 };
@@ -178,35 +173,6 @@ describe('AdminGateway', () => {
     await expect(gateway.dismissShelterReport(101)).resolves.toBeUndefined();
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/admin/reports/101/dismiss');
-  });
-
-  // ---- GET /admin/review-reports ---------------------------------------------------
-
-  it('listReviewReports GETs /admin/review-reports', async () => {
-    api.get.mockReturnValue(of([]));
-
-    const rows = await gateway.listReviewReports();
-
-    expect(api.get).toHaveBeenCalledWith('/admin/review-reports');
-    expect(rows).toEqual([]);
-  });
-
-  // ---- POST /admin/reviews/{id}/hide | /restore --------------------------------------
-
-  it('hideReview POSTs the REVIEW id to /admin/reviews/{id}/hide (204)', async () => {
-    api.post.mockReturnValue(of(undefined));
-
-    await expect(gateway.hideReview(301)).resolves.toBeUndefined();
-    expect(api.post).toHaveBeenCalledTimes(1);
-    expect(api.post).toHaveBeenCalledWith('/admin/reviews/301/hide');
-  });
-
-  it('restoreReview POSTs the REVIEW id to /admin/reviews/{id}/restore (204)', async () => {
-    api.post.mockReturnValue(of(undefined));
-
-    await expect(gateway.restoreReview(302)).resolves.toBeUndefined();
-    expect(api.post).toHaveBeenCalledTimes(1);
-    expect(api.post).toHaveBeenCalledWith('/admin/reviews/302/restore');
   });
 
   it('rejects with ApiError on a network failure', async () => {

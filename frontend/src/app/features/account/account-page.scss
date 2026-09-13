@@ -123,10 +123,10 @@
   flex-wrap: wrap;
 }
 
-/* Provenance-style badge (admin-moderation D5): the same pill vocabulary as
+/* Kind badge (admin-moderation D5): the same pill vocabulary as
    the map rows / shelter-detail header source badges (those duplicate the
    block per feature; the tokens are the app-wide ones). "Admin" uses the
-   green provenance tint — the verified/trusted colour. */
+   green trust tint — the verified/trusted colour. */
 .badge {
   display: inline-block;
   font-size: var(--text-2xs);

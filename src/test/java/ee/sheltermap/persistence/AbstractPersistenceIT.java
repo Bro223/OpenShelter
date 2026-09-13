@@ -143,7 +143,7 @@ public abstract class AbstractPersistenceIT {
      */
     protected final void wipeAllTables() {
         jdbcTemplate.execute(
-                "TRUNCATE shelter_reviews, password_reset_tokens, refresh_tokens, "
+                "TRUNCATE password_reset_tokens, refresh_tokens, "
                         + "pending_contact_changes, pending_verifications, user_credentials, "
                         + "verification_claims, moderation_actions, shelters, users RESTART IDENTITY CASCADE");
     }

@@ -15,7 +15,7 @@ import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import type {
   ShelterDto,
-  ProvenanceFilter,
+  ShelterSourceFilter,
   ShelterTrustFilter,
   GeocodeResult,
 } from '../../core/models';
@@ -33,11 +33,11 @@ import {
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
-  provenanceText as provenanceTextShared,
-  provenanceBadgeClass as provenanceBadgeClassShared,
-  ratingText as ratingTextShared,
+  openStatusBadgeText as openStatusBadgeTextShared,
+  isOpenRow as isOpenRowShared,
+  sourceTrustLabel as sourceTrustLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
   reportedBadgeText as reportedBadgeTextShared,
-  statusFlagText as statusFlagTextShared,
   straightLineText,
 } from '../../shared/shelter-copy';
 import { bannerMessage } from '../../shared/error-copy';
@@ -48,20 +48,11 @@ import {
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
 
-/**
- * The provenance-filter chips (shelter-provenance-taxonomy M6 — server-side
- * `?provenance=` refetch, replacing the old source chips: provenance
- * strictly subdivides source, so the finer filter supersedes the coarser
- * one). The two hidden taxonomy values (REPORTED_INACTIVE / REJECTED)
- * have no chip — the public list is ACTIVE-only, so they would always
- * filter to empty.
- */
-const PROVENANCE_FILTERS: { value: ProvenanceFilter; label: string }[] = [
+/** The three source-filter chips (server-side `?source=` refetch, design 4). */
+const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
   { value: 'ALL', label: 'All' },
-  { value: 'OFFICIAL', label: 'Official' },
-  { value: 'PARTNER_VERIFIED', label: 'Partner' },
-  { value: 'COMMUNITY_REPORTED', label: 'Community' },
-  { value: 'UNDER_REVIEW', label: 'Proposed' },
+  { value: 'REGISTRY', label: 'Registry' },
+  { value: 'USER', label: 'User' },
 ];
 
 /**
@@ -98,6 +89,11 @@ const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
  *  surroundings the search exists to compare. */
 const ANCHOR_ZOOM = 14;
 
+/** Regional scale for the around-you fly (owner decision): the map shows
+ *  the NEIGHBOURHOOD around the user's own position — not a single
+ *  shelter's street. Same scale as the anchor fly, separate intent. */
+const AROUND_ZOOM = 14;
+
 /** Great-circle distance in kilometres (Haversine) — the client-side
  *  nearest-shelter + address-anchor distance computation (D2: no new
  *  endpoint). */
@@ -111,17 +107,32 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return 2 * 6371 * Math.asin(Math.sqrt(a));
 }
 
+/** The closest row to a point (or null for an empty list) + its distance. */
+function nearestShelterAt(
+  latitude: number,
+  longitude: number,
+  rows: ShelterDto[],
+): { row: ShelterDto; km: number } | null {
+  let best: ShelterDto | null = null;
+  let bestKm = Number.POSITIVE_INFINITY;
+  for (const row of rows) {
+    const km = haversineKm(latitude, longitude, row.latitude, row.longitude);
+    if (km < bestKm) {
+      bestKm = km;
+      best = row;
+    }
+  }
+  return best === null ? null : { row: best, km: bestKm };
+}
+
 /**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
  * route). The read-only shelter browse experience (M4): a Leaflet map with
- * divIcon markers toned by the server-derived provenance (M6: OFFICIAL
- * blue, PARTNER_VERIFIED yellow, COMMUNITY_REPORTED green, UNDER_REVIEW
- * amber, plus the reported-state orange override) + a sidebar list,
- * provenance-filter chips that refetch server-side, trust filters
- * (shelter-trust-and-reports D6: Reviewed / Has capacity toggle chips —
- * all composable, all server-side; M11 rating demotion dropped the rating
- * select — the star summary stays a read-only display, not a filter),
- * a legend, and
+ * divIcon markers toned by the trust palette (community-review-queue D5:
+ * registry blue, community NEW amber, community CONFIRMED green, plus the
+ * reported-state orange override) + a sidebar list, source-filter chips
+ * that refetch server-side, the practical filter chips ("Open" /
+ * "Has capacity" — see the Filters note below), a legend, and
  * loading/empty/error states.
  *
  * Thin shell (01-TASK.md §7): state in signals, business behaviour delegated —
@@ -130,6 +141,10 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  * ngOnDestroy so no map or listener leaks between visits (zoneless has no
  * safety net).
  *
+ * Filters: the source chips refetch server-side (`?source=`); the
+ * practical chips are "Open" (client-side — the BE has no open/closed
+ * param, it filters the loaded list + re-renders the markers) and
+ * "Has capacity" (server-side `?hasCapacity=`). All composable.
  * Selection & zoom (design decision 5): a shared selectedId signal — a row
  * click OR a marker click SELECTS the shelter and flies the map to it at
  * street level (SHELTER_ZOOM). The user STAYS on /map: the zoom is the
@@ -161,15 +176,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  callback to the component's lifecycle (never fires after destroy). */
   private readonly injector = inject(EnvironmentInjector);
 
-  protected readonly provenanceFilters = PROVENANCE_FILTERS;
-  /** W24: the shared provenance copy, exposed to the template (Angular's
+  protected readonly sourceFilters = SOURCE_FILTERS;
+  /** W24: the shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
-   *  server-derived provenance (shelter-provenance-taxonomy M6); the trust
-   *  badges (D6) reuse the shared statusFlag/occupancy copy. */
-  protected readonly provenanceText = provenanceTextShared;
-  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
-  protected readonly ratingText = ratingTextShared;
-  protected readonly statusFlagText = statusFlagTextShared;
+   *  source label (registry) or the trust-state label (USER rows);
+   *  the trust badges (D6) reuse the shared openStatus/occupancy copy. */
+  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  protected readonly communityBadgeClass = communityBadgeClassShared;
+  /** The row's fresh-CLOSED badge text (open-status wave) — fresh OPEN rows
+   *  render no badge (open is the default). */
+  protected readonly openStatusBadgeText = openStatusBadgeTextShared;
   protected readonly occupancyText = occupancyTextShared;
   /** The reported badge with its count (last-verified-meta M8). */
   protected readonly reportedBadgeText = reportedBadgeTextShared;
@@ -193,13 +209,18 @@ export class MapPage implements AfterViewInit, OnDestroy {
     const kind = this.anchorError();
     return kind === null ? null : GEOCODE_ERROR_COPY[kind];
   };
-  protected readonly filter = signal<ProvenanceFilter>('ALL');
+  protected readonly filter = signal<ShelterSourceFilter>('ALL');
 
-  // ---- trust filters (shelter-trust-and-reports D5/D6) ----------------------
-  /** Reviewed toggle chip -> `reviewed=true` (>= 1 visible review). */
-  protected readonly reviewed = signal(false);
-  /** Has capacity toggle chip -> `hasCapacity=true`. */
+  // ---- shelter filters ------------------------------------------------------
+  /** Has capacity toggle chip -> `hasCapacity=true` (server-side). */
   protected readonly hasCapacity = signal(false);
+  /** Open toggle chip (client-side): keeps the rows whose derived display
+   *  status reads OPEN (open-status wave: fresh OPEN + nothing-fresh),
+   *  dropping the fresh-CLOSED rows (and lifecycle-INACTIVE rows, which
+   *  never reach the public list). The BE has no such param, so the chip
+   *  filters the loaded list WITHOUT a refetch and re-renders the markers
+   *  from the filtered view. */
+  protected readonly openOnly = signal(false);
 
   protected readonly shelters = signal<ShelterDto[]>([]);
   protected readonly loading = signal(false);
@@ -212,13 +233,21 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly auth = this.store;
   /** True while the geolocation request for the nearest shelter is in flight. */
   protected readonly locating = signal(false);
-  /** The nearest shelter (last success) — its row carries the temporary
-   *  `shelter-row--nearest` emphasis while this is set. */
+  /** The nearest shelter (last success) — drives the one-line result under
+   *  the CTA (name, distance, warnings) and the distance sort. It carries
+   *  NO row emphasis (removed by owner decision — the list must not focus
+   *  a single shelter). */
   protected readonly nearest = signal<ShelterDto | null>(null);
   /** The Haversine distance to the nearest shelter in km (last success) —
    *  shown as "≈ … straight line" (D6: distance honesty). Cleared with
    *  `nearest` everywhere (the two signals move as one). */
   protected readonly nearestKm = signal<number | null>(null);
+  /** The user's position from the last around-you success (null = none).
+   *  While set, the sidebar list sorts by straight-line distance to it —
+   *  the ranking the around-you action promises. A manual selection does
+   *  NOT clear it (the position stays true); a new around-you run replaces
+   *  it. */
+  protected readonly userPosition = signal<{ latitude: number; longitude: number } | null>(null);
   /** The loaded list was empty when the action ran — the "add the first one"
    *  offer (with the /submit link for authenticated users). */
   protected readonly nearestEmpty = signal(false);
@@ -243,17 +272,38 @@ export class MapPage implements AfterViewInit, OnDestroy {
     label: string;
   } | null>(null);
 
-  /** Sidebar rows: stable name sort (05-CONTEXT-MAP) — EXCEPT while a
-   *  browse anchor is active (M12), when the list sorts by the anchor's
-   *  straight-line distance (name as the tiebreak). Clearing the anchor
-   *  restores the name sort. */
+  /**
+   * Sidebar rows: the "Open" chip's client-side filter first, then the
+   * distance sort — the around-you user position wins (the action's
+   * ranking), the browse anchor next (M12), the stable name sort is the
+   * default and the tiebreak everywhere (05-CONTEXT-MAP).
+   */
   protected readonly sorted = computed<ShelterDto[]>(() => {
-    const rows = [...this.shelters()];
+    const rows = this.shelters().filter((row) => !this.openOnly() || isOpenRowShared(row));
+    const list = [...rows];
+    const userPosition = this.userPosition();
+    if (userPosition !== null) {
+      return list.sort((a, b) => {
+        const da = haversineKm(
+          userPosition.latitude,
+          userPosition.longitude,
+          a.latitude,
+          a.longitude,
+        );
+        const db = haversineKm(
+          userPosition.latitude,
+          userPosition.longitude,
+          b.latitude,
+          b.longitude,
+        );
+        return da - db || a.name.localeCompare(b.name);
+      });
+    }
     const anchor = this.anchor();
     if (anchor === null) {
-      return rows.sort((a, b) => a.name.localeCompare(b.name));
+      return list.sort((a, b) => a.name.localeCompare(b.name));
     }
-    return rows.sort((a, b) => {
+    return list.sort((a, b) => {
       const da = haversineKm(anchor.latitude, anchor.longitude, a.latitude, a.longitude);
       const db = haversineKm(anchor.latitude, anchor.longitude, b.latitude, b.longitude);
       return da - db || a.name.localeCompare(b.name);
@@ -267,6 +317,11 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
+  /** A search selection made while the list was empty: the result's point,
+   *  whose nearest row must be selected once the refresh settles (the
+   *  search-selection focus). Cleared on every load outcome and by any
+   *  manual selection (the newer intent wins). */
+  private pendingAnchorSelection: { latitude: number; longitude: number } | null = null;
   /** Set in ngOnDestroy — a stray callback after route leave (a Leaflet
    *  marker event racing the destroy, the geolocation-callback bug class)
    *  must not touch the DOM. */
@@ -288,45 +343,42 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.destroy();
   }
 
-  /** Chip click — refetch with the server-side provenance param (no client
-   *  filter, M6). Public so specs can drive it (M2 page convention).
+  /** Chip click — refetch with the server-side source param (no client
+   *  filter). Public so specs can drive it (M2 page convention).
    *  Re-selecting the ACTIVE chip retries the last failed refetch — the
    *  equality guard must not swallow that click while an error banner is
    *  up (reviewer N8). */
-  setFilter(provenance: ProvenanceFilter): void {
-    if (provenance === this.filter() && this.error() === null) {
+  setFilter(source: ShelterSourceFilter): void {
+    if (source === this.filter() && this.error() === null) {
       return;
     }
-    this.load(provenance);
+    this.load(source);
   }
 
-  /** Reviewed toggle chip (D6) — flip + refetch with the current source. */
-  toggleReviewed(): void {
-    this.reviewed.update((active) => !active);
-    this.load(this.filter());
+  /** Open toggle chip — flip + re-render the markers from the filtered
+   *  list. Client-side: the BE has no open/closed param, so NO refetch —
+   *  the loaded list is filtered and the marker layer follows the same
+   *  `sorted()` view the sidebar renders. */
+  toggleOpen(): void {
+    this.openOnly.update((active) => !active);
+    this.leaflet.renderShelters(this.sorted());
   }
 
-  /** Has capacity toggle chip (D6) — flip + refetch with the current source. */
+  /** Has capacity toggle chip — flip + refetch with the current source. */
   toggleHasCapacity(): void {
     this.hasCapacity.update((active) => !active);
     this.load(this.filter());
   }
 
   /**
-   * The active trust filters, or undefined when none are active (D5).
+   * The active trust filter, or undefined when none is active (D5).
    * An undefined result keeps the legacy single-arg `list(source)` call
-   * shape — the query string is byte-identical to M4 until a trust filter
-   * is actually set. (M11: the minRating rating filter is gone — the
-   * rating is context, not a lever.)
+   * shape — the query string is byte-identical to M4 until the filter is
+   * actually set. (The `reviewed` param is gone with the review model;
+   * "Open" is client-side and never reaches the query string.)
    */
   private activeTrustFilter(): ShelterTrustFilter | undefined {
-    if (!this.reviewed() && !this.hasCapacity()) {
-      return undefined;
-    }
-    return {
-      reviewed: this.reviewed() || undefined,
-      hasCapacity: this.hasCapacity() || undefined,
-    };
+    return this.hasCapacity() ? { hasCapacity: true } : undefined;
   }
 
   /**
@@ -337,7 +389,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
    */
   selectShelter(shelter: ShelterDto): void {
     // A manual selection supersedes the Nearest emphasis (D2: the temporary
-    // highlight clears on the next interaction).
+    // highlight clears on the next interaction) and any pending search
+    // selection (a manual pick is the newer intent).
+    this.pendingAnchorSelection = null;
     this.nearest.set(null);
     this.nearestKm.set(null);
     this.selectedId.set(shelter.id);
@@ -356,6 +410,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     if (row) {
       this.selectShelter(row);
     } else {
+      this.pendingAnchorSelection = null; // a manual pick supersedes it
       this.nearest.set(null); // an interaction outside the list still supersedes it
       this.nearestKm.set(null);
       this.selectedId.set(id);
@@ -370,10 +425,13 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * with the submit page's exact options ({ enableHighAccuracy: true,
    * timeout: 10000, maximumAge: 0 }), then the closest shelter computed
    * CLIENT-SIDE from the already-loaded list — no backend call. On success:
-   * fly to the shelter at street level (SHELTER_ZOOM) + emphasize its row +
-   * the one-line "Nearest: …" state. On failure: per-error copy (the submit
-   * page's vocabulary); the list and map stay untouched. Public so specs can
-   * drive it (page convention).
+   * the map flies to the USER'S OWN POSITION at regional scale
+   * (AROUND_ZOOM 14 — a neighbourhood, not a single shelter's street) and
+   * does NOT select any row; the nearest shelter stays the RESULT of the
+   * action (row emphasis + the one-line "Nearest: …" state), and the list
+   * sorts by straight-line distance to the user's position. On failure:
+   * per-error copy (the submit page's vocabulary); the list and map stay
+   * untouched. Public so specs can drive it (page convention).
    */
   findNearest(): void {
     if (this.locating() || this.loading() || this.error() !== null) {
@@ -427,23 +485,23 @@ export class MapPage implements AfterViewInit, OnDestroy {
     );
   }
 
-  /** Fly to the closest loaded shelter at street level and mark its row. */
+  /**
+   * Around-you success (owner decision): the map flies to the user's OWN
+   * position at regional scale (AROUND_ZOOM 14) — NOT to the nearest
+   * shelter, and NO row is selected, emphasized or scrolled to. The nearest
+   * shelter is the action's RESULT: the one-line result (name,
+   * straight-line distance, the unverified warning when it is a community
+   * row), and the sidebar list sorts by straight-line distance to the
+   * user's position while it is set.
+   */
   private focusNearestShelter(latitude: number, longitude: number): void {
     // Nearest is computed over `shelters()` — the list the gateway last
     // loaded, the UNFILTERED-by-client view: no further narrowing on top of
     // the server-side filter, and not the name-sorted `sorted()` display
     // view (same rows, different order). D2: the already-loaded list, not a
     // new fetch.
-    let nearestShelter: ShelterDto | null = null;
-    let nearestKm = Number.POSITIVE_INFINITY;
-    for (const row of this.shelters()) {
-      const km = haversineKm(latitude, longitude, row.latitude, row.longitude);
-      if (km < nearestKm) {
-        nearestKm = km;
-        nearestShelter = row;
-      }
-    }
-    if (nearestShelter === null) {
+    const hit = nearestShelterAt(latitude, longitude, this.shelters());
+    if (hit === null) {
       // F5: the list may have emptied (and FAILED to load) while the locate
       // was in flight — the error banner is the state; offering "add the
       // first one" beside it would mislead.
@@ -452,12 +510,16 @@ export class MapPage implements AfterViewInit, OnDestroy {
       }
       return;
     }
-    this.nearest.set(nearestShelter);
-    this.nearestKm.set(nearestKm);
-    this.leaflet.flyTo(nearestShelter.latitude, nearestShelter.longitude, SHELTER_ZOOM);
-    // The emphasis may have landed on a row below the fold — scroll it into
-    // view, the same way a marker click does.
-    this.scrollRowIntoView(nearestShelter.id);
+    this.nearest.set(hit.row);
+    this.nearestKm.set(hit.km);
+    this.userPosition.set({ latitude, longitude });
+    // Regional view centred on the user, NOT a street-level fly to the
+    // nearest shelter (the owner's correction) — the user surveys the
+    // neighbourhood and picks.
+    this.leaflet.flyTo(latitude, longitude, AROUND_ZOOM);
+    // No row emphasis, no auto-scroll (the owner's correction): the nearest
+    // shelter is the action's RESULT — the one-line state under the CTA —
+    // the list itself stays unfocused (distance-sorted via userPosition).
   }
 
   // ---- address-search anchor (location-navigation M12) -------------------
@@ -517,6 +579,17 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * fly to neighbourhood scale, and every row's straight-line distance
    * follow this point. A selection supersedes the nearest emphasis (the
    * next-interaction-supersedes convention) and collapses the result list.
+   *
+   * Search-selection focus: on top of the existing fly-to, the result's
+   * NEAREST shelter is selected in the sidebar list — the same selected
+   * state a marker click gives (highlight + "View details" link, NO extra
+   * fly: the camera already went to the searched point) — and scrolled
+   * into view with block 'center'. The search result is an address, not a
+   * shelter row, so "the shelter the user selected" is the nearest loaded
+   * row to that address (the M12 anchor contract: the search exists to
+   * compare the surroundings). If nothing is loaded, the list is re-loaded
+   * with the CURRENT filters and the nearest row is selected once the load
+   * settles (pendingAnchorSelection).
    */
   protected selectAnchorResult(result: GeocodeResult): void {
     this.nearest.set(null);
@@ -530,6 +603,27 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.anchorError.set(null);
     this.leaflet.setAnchor(result.latitude, result.longitude);
     this.leaflet.flyTo(result.latitude, result.longitude, ANCHOR_ZOOM);
+    const loaded = this.shelters();
+    const hit = nearestShelterAt(result.latitude, result.longitude, loaded);
+    if (hit === null) {
+      // Empty list — refresh with the current filters; the selection lands
+      // when the load settles (load's success path consumes the pending).
+      this.pendingAnchorSelection = { latitude: result.latitude, longitude: result.longitude };
+      this.load(this.filter());
+    } else {
+      this.selectRow(hit.row.id, 'center');
+    }
+  }
+
+  /**
+   * Select a row by id with the SAME selected state as a marker click
+   * (highlight + "View details" link) and scroll it into view. No fly —
+   * the caller owns the camera (a marker click flies to the shelter, the
+   * search selection flies to the searched point).
+   */
+  private selectRow(id: number, block: ScrollLogicalPosition): void {
+    this.selectedId.set(id);
+    this.scrollRowIntoView(id, block);
   }
 
   /** Removes the anchor — pin, per-row distances, and the distance sort. */
@@ -557,14 +651,15 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * Deferred to afterNextRender: the signal write that triggered this call
    * re-renders the row first (the selected row GROWS its "View details"
    * link), so the scroll measures the final layout, not the pre-update one.
-   * block:'nearest' is deliberate: a no-op when the row is already visible
-   * (no jumpy re-scroll), the minimum scroll when it isn't. A missing list
-   * (loading / empty / destroyed) or a missing row (filtered out) is a
-   * no-op. Under the list's proximity scroll-snap, the smooth scroll simply
-   * settles on the nearest row edge after it finishes (proximity never
-   * forces a position).
+   * `block` defaults to 'nearest': a no-op when the row is already visible
+   * (no jumpy re-scroll), the minimum scroll when it isn't. The search-
+   * selection focus passes 'center' — the selected row is the point of
+   * interest and must sit mid-viewport. A missing list (loading / empty /
+   * destroyed) or a missing row (filtered out) is a no-op. Under the list's
+   * proximity scroll-snap, the smooth scroll simply settles on the nearest
+   * row edge after it finishes (proximity never forces a position).
    */
-  private scrollRowIntoView(id: number): void {
+  private scrollRowIntoView(id: number, block: ScrollLogicalPosition = 'nearest'): void {
     if (this.destroyed) {
       return; // a stray callback after route leave must not touch the DOM
     }
@@ -576,23 +671,23 @@ export class MapPage implements AfterViewInit, OnDestroy {
         }
         const row = list.querySelector<HTMLElement>(`[data-shelter-id="${id}"]`);
         if (row) {
-          row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          row.scrollIntoView({ block, behavior: 'smooth' });
         }
       },
       { injector: this.injector },
     );
   }
 
-  private load(provenance: ProvenanceFilter): void {
+  private load(source: ShelterSourceFilter): void {
     const seq = ++this.fetchSeq;
-    this.filter.set(provenance);
+    this.filter.set(source);
     this.error.set(null);
     this.loading.set(true);
-    // Trust filters compose with the provenance (D5 + M6); with none active
-    // the call is the plain list(provenance) shape — no second argument.
+    // Trust filters compose with the source filter (D5); with none active
+    // the call is the plain list(source) shape — no second argument.
     const trust = this.activeTrustFilter();
     const request =
-      trust === undefined ? this.gateway.list(provenance) : this.gateway.list(provenance, trust);
+      trust === undefined ? this.gateway.list(source) : this.gateway.list(source, trust);
     void request.then(
       (rows) => {
         if (seq !== this.fetchSeq) {
@@ -609,11 +704,23 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.nearestEmpty.set(false);
         this.leaflet.renderShelters(this.sorted());
         this.loading.set(false);
+        // A search selection made while the list was empty lands now: the
+        // nearest loaded row is selected with the marker-click selected
+        // state, scrolled into view centered.
+        const pending = this.pendingAnchorSelection;
+        this.pendingAnchorSelection = null;
+        if (pending !== null) {
+          const hit = nearestShelterAt(pending.latitude, pending.longitude, rows);
+          if (hit !== null) {
+            this.selectRow(hit.row.id, 'center');
+          }
+        }
       },
       (failure: unknown) => {
         if (seq !== this.fetchSeq) {
           return;
         }
+        this.pendingAnchorSelection = null; // the refresh failed — the selection never lands
         this.shelters.set([]);
         this.selectedId.set(null);
         this.nearest.set(null);

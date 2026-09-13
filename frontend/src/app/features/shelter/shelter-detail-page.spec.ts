@@ -8,10 +8,8 @@ import type {
   ShelterDetailDto,
   ShelterDto,
   ShelterReportResult,
-  ShelterReviewDto,
   VerificationLevel,
 } from '../../core/models';
-import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
@@ -43,53 +41,8 @@ class FakeShelterGateway {
   /** Trust layer (shelter-trust-and-reports) — resolves the M9 damp flag (plain by default). */
   report = vi.fn(async (): Promise<ShelterReportResult> => ({ damped: false }));
   reportOccupancy = vi.fn(async (): Promise<void> => undefined);
-}
-
-/** In-memory upserting review store mirroring the backend semantics. */
-class FakeReviewGateway {
-  rows = new Map<number, ShelterReviewDto[]>();
-  private nextId = 100;
-
-  list = vi.fn(async (shelterId: number): Promise<ShelterReviewDto[]> => {
-    return this.rows.get(shelterId) ?? [];
-  });
-  add = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
-    // The backend keeps ONE review per (shelter, user): a POST by the same
-    // author upserts in place (200 update after the 201) — same id, new
-    // rating/comment. Reviewer F6: the old append diverged from that.
-    const existing = this.rows.get(shelterId) ?? [];
-    const mine = existing.find((r) => r.authorName === 'Marek T.');
-    const row: ShelterReviewDto = {
-      id: mine?.id ?? this.nextId++,
-      authorName: 'Marek T.',
-      rating,
-      comment,
-      createdAt: mine?.createdAt ?? '2025-09-10T09:30:00Z',
-      hidden: false,
-    };
-    this.rows.set(
-      shelterId,
-      mine ? existing.map((r) => (r.authorName === 'Marek T.' ? row : r)) : [...existing, row],
-    );
-    return row;
-  });
-  updateMine = vi.fn(async (shelterId: number, rating: number, comment: string | null) => {
-    const row: ShelterReviewDto = {
-      id: this.nextId++,
-      authorName: 'Marek T.',
-      rating,
-      comment,
-      createdAt: '2025-09-10T09:30:00Z',
-      hidden: false,
-    };
-    this.rows.set(shelterId, [row]); // author has at most one review
-    return row;
-  });
-  deleteMine = vi.fn(async (shelterId: number): Promise<void> => {
-    this.rows.delete(shelterId);
-  });
-  /** Trust layer (shelter-trust-and-reports D2) — resolves void by default. */
-  reportReview = vi.fn(async (): Promise<void> => undefined);
+  /** Open-status wave — the live open/closed upsert (204, void). */
+  putOpenStatus = vi.fn(async (): Promise<void> => undefined);
 }
 
 /**
@@ -161,22 +114,20 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     longitude: 24.754,
     status: 'ACTIVE',
     source: 'PAASETEAMET',
-    averageRating: 4.5,
-    reviewCount: 2,
     createdAt: '2025-09-01T08:00:00Z',
     description: null,
     capacity: null,
     submitterVerified: false, // registry rows have no creator (D3)
     nonexistentReports: 0,
     reportCount: 0, // M8 total (all report types)
-    statusFlag: null,
+    openStatus: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3)
     locationKind: 'PUBLIC',
-    provenance: 'OFFICIAL', // server-derived (M6) — follows the PAASETEAMET row
     lastVerifiedAt: null, // M8 — null = never verified
     inaccurate: false, // M10 slice 4 — no moderator mark on this row
     yourOccupancyBand: null, // the detail projection's extra field (D5)
+    yourOpenStatus: null, // the detail projection's open-status pre-select
     ...overrides,
   };
 }
@@ -188,24 +139,12 @@ function userShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDt
     address: null,
     name: 'Community Cellar',
     source: 'USER',
-    averageRating: null,
-    reviewCount: 0,
     description: 'Neighbourhood basement',
     capacity: 12,
     reviewStatus: 'NEW', // D3: existing USER rows backfill NEW (amber)
-    provenance: 'UNDER_REVIEW', // M6: USER + NEW
     ...overrides,
   };
 }
-
-const OLD_REVIEW: ShelterReviewDto = {
-  id: 11,
-  authorName: 'Liis K.',
-  rating: 5,
-  comment: 'Deep and dry.',
-  createdAt: '2025-09-01T08:00:00Z',
-  hidden: false,
-};
 
 /** Navigation targets (real app routes; stubs keep the test shell small). */
 @Component({ template: '<p>map stub</p>' })
@@ -219,14 +158,12 @@ class VerifyStub {}
 
 describe('ShelterDetailPage (/shelters/:id)', () => {
   let shelterGateway: FakeShelterGateway;
-  let reviewGateway: FakeReviewGateway;
   let leaflet: FakeLeafletService;
   let store: AuthStore;
 
   beforeEach(() => {
     localStorage.clear();
     shelterGateway = new FakeShelterGateway();
-    reviewGateway = new FakeReviewGateway();
     leaflet = new FakeLeafletService();
     store = fakeAuthStore();
     TestBed.configureTestingModule({
@@ -242,7 +179,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         ]),
         { provide: ShelterGateway, useValue: shelterGateway as unknown as ShelterGateway },
         { provide: DataSourceGateway, useValue: { fetch: () => Promise.resolve(null) } },
-        { provide: ReviewGateway, useValue: reviewGateway as unknown as ReviewGateway },
         { provide: AuthStore, useValue: store },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
       ],
@@ -303,58 +239,54 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     return el?.textContent ?? '';
   }
 
-  function starButtons(element: HTMLElement): HTMLButtonElement[] {
-    return [...element.querySelectorAll<HTMLButtonElement>('.star-btn')];
-  }
-
-  function submitReview(element: HTMLElement, stars: number, comment?: string): void {
-    const form = element.querySelector('form') as HTMLFormElement;
-    if (comment !== undefined) {
-      const textarea = form.querySelector('#review-comment') as HTMLTextAreaElement;
-      textarea.value = comment;
-      textarea.dispatchEvent(new Event('input'));
-    }
-    starButtons(element)[stars - 1].click();
-    form.requestSubmit();
-  }
-
   describe('reading (public)', () => {
-    it('renders the shelter header, rating summary and the review list', async () => {
+    it('renders the shelter header and the practical info block (no reviews UI)', async () => {
       shelterGateway.rows.set(1, registryShelter());
       const { element, fixture } = await open('/shelters/1');
       expect(shelterGateway.get).toHaveBeenCalledWith(1);
-      expect(reviewGateway.list).toHaveBeenCalledWith(1);
 
       expect(text(fixture)).toContain('Tallinn Central Shelter');
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Paasteamet registry');
       expect(text(fixture)).toContain('Tornimäe 1, Tallinn');
-      // Rating summary: stars + numeric + count.
-      expect(element.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
-        '4.5 out of 5',
+      // The reviews model is gone: no star strip, no review list, no form.
+      expect(element.querySelector('[role="img"]')).toBeNull();
+      expect(element.querySelector('.review-list')).toBeNull();
+      expect(element.querySelector('form')).toBeNull();
+      // The practical info block: the derived display status for an ACTIVE
+      // row with nothing fresh (the no-recent-reports hedge).
+      const info = element.querySelector('#info-heading')?.closest('section');
+      expect(info).not.toBeNull();
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe(
+        'Open (no recent reports)',
       );
-      expect(text(fixture)).toContain('4.5');
-      expect(text(fixture)).toContain('2 reviews');
-      // No reviews were seeded for this shelter — the empty state shows.
-      expect(text(fixture)).toContain('No reviews yet.');
     });
 
-    it('renders a USER row null-safely: no address, "No ratings yet", description + capacity', async () => {
+    it('renders a USER row null-safely: no address, description + capacity, Status Open', async () => {
       shelterGateway.rows.set(7, userShelter());
       const { element, fixture } = await open('/shelters/7');
 
       expect(text(fixture)).toContain('Community Cellar');
       expect(element.querySelector('.shelter-detail__address')).toBeNull(); // null address
-      expect(text(fixture)).toContain('No ratings yet');
-      expect(text(fixture)).not.toContain('0.0'); // never an invented zero
-      expect(element.querySelector('[role="img"]')).toBeNull(); // no star strip without ratings
       expect(text(fixture)).toContain('Neighbourhood basement');
       expect(text(fixture)).toContain('Capacity: 12');
-      // The trust-state label (community-review-queue; M7 wording): NEW ->
-      // "Proposed" (replacing the old "User-submitted" provenance wording).
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Proposed');
+      // The trust-state label (community-review-queue D5): NEW ->
+      // "Newly added" (replacing the old "User-submitted" wording).
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
+      // An ACTIVE row with nothing fresh reads "Open (no recent reports)"
+      // in the info block.
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe(
+        'Open (no recent reports)',
+      );
     });
 
-    it('a NEW community row carries the unverified warning block next to the provenance chip', async () => {
+    it('a NEW community row carries the unverified warning block next to the trust badge', async () => {
       shelterGateway.rows.set(7, userShelter());
       const { element } = await open('/shelters/7');
 
@@ -366,14 +298,11 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(warning?.closest('.shelter-detail__header')).not.toBeNull();
     });
 
-    it('a CONFIRMED community row keeps the "Community-reported" badge and shows NO warning', async () => {
-      shelterGateway.rows.set(
-        8,
-        userShelter({ id: 8, reviewStatus: 'CONFIRMED', provenance: 'COMMUNITY_REPORTED' }),
-      );
+    it('a CONFIRMED community row keeps the "Community-checked" badge and shows NO warning', async () => {
+      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED' }));
       const { element } = await open('/shelters/8');
 
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-reported');
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Community-checked');
       expect(element.querySelector('.community-warning')).toBeNull();
       expect(element.textContent).not.toContain(
         'This location was submitted by a community member',
@@ -398,7 +327,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         userShelter({
           id: 8,
           reviewStatus: 'CONFIRMED',
-          provenance: 'COMMUNITY_REPORTED',
           inaccurate: true,
         }),
       );
@@ -409,7 +337,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(warnings[0].textContent).toBe('Reported inaccurate — details may be wrong');
       expect(warnings[0].closest('.shelter-detail__header')).not.toBeNull();
       // the row stays visible — no hidden/inactive treatment
-      expect(element.textContent).toContain('Community-reported');
+      expect(element.textContent).toContain('Community-checked');
     });
 
     it('a PRIVATE row shows the private badge and the resident-offered note (D7)', async () => {
@@ -417,7 +345,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const { element, fixture } = await open('/shelters/9');
 
       const badge = element.querySelector<HTMLElement>('.badge--private');
-      expect(badge?.textContent?.trim()).toBe('Private location');
+      expect(badge?.textContent?.trim()).toBe('Private home (declared)');
       const note = element.querySelector<HTMLElement>('.private-note');
       expect(note?.textContent?.trim()).toBe(
         'This is a resident-offered location, not an official facility.',
@@ -434,14 +362,13 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.private-note')).toBeNull();
     });
 
-    it('header badge shows the other provenance values: MUNICIPALITY and CONFIRMED USER', async () => {
+    it('header badge shows the registry values: MUNICIPALITY and the USER trust states', async () => {
       shelterGateway.rows.set(
         2,
         registryShelter({
           id: 2,
           name: 'Pärnu Municipal Shelter',
           source: 'MUNICIPALITY',
-          provenance: 'PARTNER_VERIFIED',
         }),
       );
       const { element } = await open('/shelters/2');
@@ -453,9 +380,8 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element: el8 } = await open('/shelters/8');
       // A verified submitter is NOT a verified shelter — the label follows
-      // the trust state, not submitterVerified (community-review-queue; M7
-      // wording).
-      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Proposed');
+      // the trust state, not submitterVerified (community-review-queue D5).
+      expect(el8.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
       expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
 
@@ -483,22 +409,19 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
     });
 
-    it('a Proposed row reads the under-review line: proposal age, no verification', async () => {
+    it('a NEW community row reads the not-yet-verified line: submission age, no verification', async () => {
       const daysAgo = (d: number): string => new Date(Date.now() - d * 86400000).toISOString();
       shelterGateway.rows.set(7, userShelter({ createdAt: daysAgo(3) }));
       const { element } = await open('/shelters/7');
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
       expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
-        'Proposed 3 d ago — not yet verified',
+        'Newly added 3 d ago — not yet verified',
       );
     });
 
-    it('a non-Proposed row without a verification record says so plainly', async () => {
-      shelterGateway.rows.set(
-        8,
-        userShelter({ id: 8, reviewStatus: 'CONFIRMED', provenance: 'COMMUNITY_REPORTED' }),
-      );
+    it('a non-NEW row without a verification record says so plainly', async () => {
+      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED' }));
       const { element } = await open('/shelters/8');
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
@@ -507,17 +430,17 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
     });
 
-    it('a Proposed row carrying reports (e.g. a self-confirm) still reads unverified until the server stamps it', async () => {
+    it('a NEW row carrying reports (e.g. a self-confirm) still reads unverified until the server stamps it', async () => {
       // The FE renders the server value — reportCount alone never fabricates
       // a verification stamp (a self-confirm reports but does not verify).
       // createdAt is the fixture's fixed 2025-09-01 — over 7 days old, so
-      // the proposal age falls back to the concrete date.
+      // the submission age falls back to the concrete date.
       shelterGateway.rows.set(7, userShelter({ reportCount: 1 }));
       const { element } = await open('/shelters/7');
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
       expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
-        'Proposed 1 Sep 2025 — not yet verified · 1 community report',
+        'Newly added 1 Sep 2025 — not yet verified · 1 community report',
       );
     });
 
@@ -546,7 +469,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       ) as never;
       const { element, fixture } = await open('/shelters/1');
       expect(text(fixture)).toContain('Loading shelter…');
-      expect(element.querySelector('.review-list')).toBeNull();
 
       resolveGet(registryShelter());
       await settle(fixture);
@@ -568,34 +490,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(shelterGateway.get).toHaveBeenCalledWith(7);
       expect(text(fixture)).toContain('Community Cellar');
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
-      // The anonymous prompt (no form) is now about the NEW shelter — plain
-      // text only (no inline login button on the page).
-      expect(text(fixture)).toContain('Log in to rate this shelter.');
+      // The anonymous report prompt (no form) is now about the NEW shelter
+      // — plain text only (no inline login button on the page).
+      expect(text(fixture)).toContain('Log in to report this shelter.');
       expect(element.querySelector('a[href*="returnUrl"]')).toBeNull();
-    });
-
-    it('a failed REVIEWS half keeps the loaded shelter and shows the reviews error (N11)', async () => {
-      shelterGateway.rows.set(1, registryShelter());
-      const failure = ApiError.fromHttp(
-        500,
-        { timestamp: 't', status: 500, error: 'Server Error', message: 'boom', path: '/x' },
-        '/api/shelters/1/reviews',
-      );
-      reviewGateway.list = vi.fn(async () => {
-        throw failure;
-      }) as never;
-      const { element, fixture } = await open('/shelters/1');
-
-      // The shelter half succeeded — it renders, no page-level error banner.
-      expect(text(fixture)).toContain('Tallinn Central Shelter');
-      expect(element.querySelector('.banner--error')).toBeNull();
-      // The reviews half failed — its own error state, no list. 5xx uses the
-      // fixed generic server-error copy (shared error-copy, N6).
-      expect(element.querySelector('.detail-state--error')?.textContent).toContain(
-        'Something went wrong. Please try again.',
-      );
-      expect(element.querySelector('.review-list')).toBeNull();
-      void fixture;
     });
 
     it('shows the error banner with page chrome intact when the backend is down', async () => {
@@ -610,298 +508,8 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // Chrome — shell header/nav AND the page title — stays intact.
       expect(text(fixture)).toContain('OpenShelter');
       expect(text(fixture)).toContain('Shelter details');
-      expect(element.querySelector('.review-list')).toBeNull();
     });
   });
-
-  describe('my review area (auth branching)', () => {
-    beforeEach(() => {
-      shelterGateway.rows.set(1, registryShelter());
-    });
-
-    it('anonymous: a plain-text login prompt, no inline button, no form', async () => {
-      const { element } = await open('/shelters/1');
-
-      expect(element.querySelector('form')).toBeNull();
-      expect(elText(element)).toContain('Log in to rate this shelter.');
-      // The header login is the single entry point — the detail page itself
-      // carries no inline login link.
-      expect(element.querySelector('a[href*="returnUrl"]')).toBeNull();
-    });
-
-    it('authenticated but unverified: a verify prompt with a /verify link, no form', async () => {
-      setSession(true);
-      const { element } = await open('/shelters/1');
-
-      expect(element.querySelector('form')).toBeNull();
-      expect(elText(element)).toContain('Verify your email or phone to rate this shelter.');
-      // N1: the verify prompt preserves the shelter as returnUrl too.
-      const link = element.querySelector('a[href*="returnUrl"]') as HTMLAnchorElement;
-      expect(link).not.toBeNull();
-      expect(link.getAttribute('href')).toBe('/verify?returnUrl=%2Fshelters%2F1');
-    });
-
-    it('verified: the review form is shown (star picker + comment + save)', async () => {
-      setSession(true, ['EMAIL']);
-      const { element } = await open('/shelters/1');
-
-      const form = element.querySelector('form') as HTMLFormElement;
-      expect(form).not.toBeNull();
-      expect(starButtons(element)).toHaveLength(5);
-      expect(form.querySelector('#review-comment')).not.toBeNull();
-      expect(
-        (form.querySelector('button[type="submit"]') as HTMLButtonElement).textContent,
-      ).toContain('Save review');
-    });
-
-    it('the authenticated variant waits for the auth boot to settle (F6)', async () => {
-      // A signed-in user mid-reload: the session signals say authenticated,
-      // but init() has not DECISIVELY settled (the shell's gate pattern).
-      // Without the initialized() gate the section flashes the un-
-      // authenticated variant (and, once authenticated flips but levels are
-      // still empty, the WRONG authenticated sub-variant — the verify
-      // prompt instead of the form).
-      store.authenticated.set(true);
-      store.levels.set(['EMAIL']);
-      store.initialized.set(false);
-      const { element, fixture } = await open('/shelters/1');
-
-      expect(elText(element)).toContain('Log in to rate this shelter.');
-      expect(element.querySelector('form')).toBeNull();
-      expect(elText(element)).not.toContain('Verify your email or phone');
-
-      store.initialized.set(true);
-      await settle(fixture);
-      expect(element.querySelector('form')).not.toBeNull();
-      expect(elText(element)).not.toContain('Log in to rate this shelter.');
-    });
-  });
-
-  describe('writes (verified only)', () => {
-    beforeEach(() => {
-      setSession(true, ['EMAIL']);
-      shelterGateway.rows.set(1, registryShelter({ reviewCount: 1, averageRating: 5 }));
-      reviewGateway.rows.set(1, [OLD_REVIEW]);
-    });
-
-    it('first review: POST add, appears after refetch, form switches to edit mode', async () => {
-      const { element, fixture } = await open('/shelters/1');
-      // Existing review list renders.
-      expect(element.querySelector('.review-list')).not.toBeNull();
-      expect(elText(element)).toContain('Liis K.');
-
-      submitReview(element, 4, 'Solid spot');
-      await settle(fixture);
-
-      // The add went out with the picked rating + comment.
-      expect(reviewGateway.add).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.add).toHaveBeenCalledWith(1, 4, 'Solid spot');
-      // Refetch: shelter + reviews fetched a second time.
-      expect(shelterGateway.get).toHaveBeenCalledTimes(2);
-      expect(reviewGateway.list).toHaveBeenCalledTimes(2);
-      // The new review is in the list; success notice shown.
-      expect(text(fixture)).toContain('Marek T.');
-      expect(text(fixture)).toContain('Solid spot');
-      expect(text(fixture)).toContain('Your review was saved.');
-      // The form is now in edit mode (delete available) seeded from my review.
-      expect(elText(element)).toContain('Update your review');
-      expect(element.querySelector('.btn--danger')).not.toBeNull();
-    });
-
-    it('second review: PUT /mine updates instead of duplicating', async () => {
-      const { element, fixture } = await open('/shelters/1');
-      submitReview(element, 4, 'First pass');
-      await settle(fixture);
-      expect(reviewGateway.add).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.updateMine).not.toHaveBeenCalled();
-
-      submitReview(element, 2, 'Changed my mind');
-      await settle(fixture);
-
-      expect(reviewGateway.updateMine).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.updateMine).toHaveBeenCalledWith(1, 2, 'Changed my mind');
-      expect(text(fixture)).toContain('Your review was updated.');
-      // No duplicate: the fake keeps exactly one row for the author.
-      const rows = await reviewGateway.list(1);
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({ rating: 2, comment: 'Changed my mind' });
-    });
-
-    it('prior-session review: POST returns 200-updated, page adopts it to edit mode', async () => {
-      // Reviewer W4: the backend POST upserts — if the user already has a
-      // review from a PREVIOUS session (page cannot know: no isMine in the
-      // DTO), POST returns 200 with the UPDATED single row. The page must
-      // treat that as an adoption (edit mode), never duplicate the row.
-      const { element, fixture } = await open('/shelters/1');
-
-      // Backend semantics: author has one review server-side; a POST by the
-      // same user updates it in place (single row, changed rating).
-      reviewGateway.rows.set(1, [
-        {
-          id: 11,
-          authorName: 'Marek T.',
-          rating: 2,
-          comment: 'Old take',
-          createdAt: '2025-09-01T08:00:00Z',
-          hidden: false,
-        },
-      ]);
-      reviewGateway.add = vi.fn(
-        async (shelterId: number, rating: number, comment: string | null) => {
-          const updated: ShelterReviewDto = {
-            id: 11,
-            authorName: 'Marek T.',
-            rating,
-            comment,
-            createdAt: '2025-09-01T08:00:00Z',
-            hidden: false,
-          };
-          reviewGateway.rows.set(shelterId, [updated]);
-          return updated;
-        },
-      );
-
-      submitReview(element, 5, 'Rethought');
-      await settle(fixture);
-
-      // The page POSTed (add), because it had no way to know the row was its own.
-      expect(reviewGateway.add).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.add).toHaveBeenCalledWith(1, 5, 'Rethought');
-      expect(reviewGateway.updateMine).not.toHaveBeenCalled();
-      // Refetched list holds ONE row — the upsert never duplicated it.
-      const rows = await reviewGateway.list(1);
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({ rating: 5, comment: 'Rethought' });
-      // The saved review was adopted as "mine": the form is now in edit mode
-      // with delete available (design 06-CONTEXT decision 2).
-      expect(elText(element)).toContain('Update your review');
-      expect(element.querySelector('.btn--danger')).not.toBeNull();
-    });
-
-    it('rating summary refetches after a write and reflects the new average', async () => {
-      // Reviewer W4: the M5 spec says "the rating summary refetches" — assert
-      // the DISPLAYED value updates, not merely that get() was called twice.
-      // (This test overrides the describe's beforeEach seed: start from a
-      // shelter with no reviews.)
-      shelterGateway.rows.set(1, registryShelter({ reviewCount: 0, averageRating: null }));
-      reviewGateway.rows.set(1, []);
-      const { element, fixture } = await open('/shelters/1');
-      expect(elText(element)).toContain('No ratings yet');
-
-      // Simulate the backend aggregate changing as a side effect of the POST.
-      reviewGateway.add = vi.fn(
-        async (shelterId: number, rating: number, comment: string | null) => {
-          const row: ShelterReviewDto = {
-            id: 200,
-            authorName: 'Marek T.',
-            rating,
-            comment,
-            createdAt: '2025-09-10T09:30:00Z',
-            hidden: false,
-          };
-          reviewGateway.rows.set(shelterId, [row]);
-          shelterGateway.rows.set(
-            shelterId,
-            registryShelter({ reviewCount: 1, averageRating: rating }),
-          );
-          return row;
-        },
-      );
-
-      submitReview(element, 4, 'Solid spot');
-      await settle(fixture);
-
-      // The refetched shelter carries the new aggregate — visible in the DOM.
-      expect(elText(element)).toContain('4.0');
-      expect(elText(element)).not.toContain('No ratings yet');
-    });
-
-    it('delete: removes the review, refetches, form returns to add mode', async () => {
-      const { element, fixture } = await open('/shelters/1');
-      submitReview(element, 4, 'To be deleted');
-      await settle(fixture);
-      expect(text(fixture)).toContain('Marek T.');
-
-      (element.querySelector('.btn--danger') as HTMLButtonElement).click();
-      await settle(fixture);
-
-      expect(reviewGateway.deleteMine).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.deleteMine).toHaveBeenCalledWith(1);
-      expect(text(fixture)).toContain('Your review was deleted.');
-      expect(text(fixture)).not.toContain('Marek T.');
-      // Back to add mode — delete button gone again.
-      expect(element.querySelector('.btn--danger')).toBeNull();
-      expect(elText(element)).toContain('Rate this shelter');
-    });
-
-    it('FakeReviewGateway mirrors the backend upsert: one row per (shelter, user) (F6)', async () => {
-      const first = await reviewGateway.add(1, 4, 'take one');
-      const second = await reviewGateway.add(1, 2, 'take two');
-
-      // Upsert keeps the row id (in-place update, not a new row).
-      expect(second.id).toBe(first.id);
-      const rows = await reviewGateway.list(1);
-      // Same author: exactly one row, with the new values...
-      const mine = rows.filter((r) => r.authorName === 'Marek T.');
-      expect(mine).toHaveLength(1);
-      expect(mine[0]).toMatchObject({ rating: 2, comment: 'take two' });
-      // ...and other authors' rows are untouched.
-      expect(rows).toContain(OLD_REVIEW);
-    });
-
-    it('a failed post-write refetch clears the success notice (N12)', async () => {
-      const { element, fixture } = await open('/shelters/1');
-
-      submitReview(element, 4, 'Solid spot');
-      await settle(fixture);
-      expect(text(fixture)).toContain('Your review was saved.');
-
-      // The second (post-write) refetch fails: the notice must not stack
-      // above the error banner.
-      shelterGateway.get = vi.fn(async () => {
-        throw ApiError.fromNetwork();
-      }) as never;
-      // Trigger another write -> its refetch now fails.
-      submitReview(element, 2, 'Changed my mind');
-      await settle(fixture);
-
-      expect(element.querySelector('.banner--error')?.textContent).toContain(
-        'Cannot reach the backend',
-      );
-      expect(text(fixture)).not.toContain('Your review was updated.');
-      expect(text(fixture)).not.toContain('Your review was saved.');
-    });
-
-    it('a failed save shows the error banner and keeps the form in add mode', async () => {
-      const forbidden = ApiError.fromHttp(
-        403,
-        {
-          timestamp: 't',
-          status: 403,
-          error: 'Forbidden',
-          message: 'reviews require a verified account',
-          path: '/api/shelters/1/reviews',
-        },
-        '/api/shelters/1/reviews',
-      );
-      reviewGateway.add = vi.fn(async () => {
-        throw forbidden;
-      }) as never;
-      const { element, fixture } = await open('/shelters/1');
-
-      submitReview(element, 4, 'Should fail');
-      await settle(fixture);
-
-      expect(element.querySelector('.banner--error')?.textContent).toContain(
-        'reviews require a verified account',
-      );
-      // No my-review state was adopted; the form is still in add mode.
-      expect(elText(element)).toContain('Rate this shelter');
-      expect(element.querySelector('.btn--danger')).toBeNull();
-      expect(reviewGateway.add).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe('navigate actions (Google Maps walking + Apple Maps, D3)', () => {
     beforeEach(() => {
       shelterGateway.rows.set(1, registryShelter());
@@ -1244,8 +852,8 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
   // ---------------------------------------------------------------------------
   // Trust layer (shelter-trust-and-reports):
-  //   header badges (D1/D6) · shelter report (D2/D6) · per-review report
-  //   (D2/D6) · "report how full" picker (D5/D6).
+  //   header badges (D1/D6) · shelter report (D1/D6) · "report how full"
+  //   picker (D5/D6).
   // All endpoints mocked; 409 → the plain sentence-case line (D6).
   // ---------------------------------------------------------------------------
   describe('trust layer (shelter-trust-and-reports)', () => {
@@ -1260,16 +868,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       setSession(true, ['EMAIL']);
     });
 
-    const LIIS_REVIEW: ShelterReviewDto = {
-      id: 21,
-      authorName: 'Liis K.',
-      rating: 4,
-      comment: 'Solid.',
-      createdAt: '2025-09-02T08:00:00Z',
-      hidden: false,
-    };
-
-    /** The section hosting the given heading id. */
     function sectionOf(element: HTMLElement, headingId: string): HTMLElement | null {
       const heading = element.querySelector(`#${headingId}`);
       return heading ? (heading.closest('section') ?? null) : null;
@@ -1285,13 +883,13 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       input.dispatchEvent(new Event('change'));
     }
 
-    it('header: reported / status-flag / occupancy badges render beside the provenance badge', async () => {
+    it('header: reported / open-status / occupancy badges render beside the source/trust badge', async () => {
       shelterGateway.rows.set(
         1,
         registryShelter({
           name: 'Trusty Shelter',
           nonexistentReports: 2,
-          statusFlag: 'CONFIRMED_OPEN',
+          openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 2 },
           occupancy: { band: 'FULL', reportCount: 2, lastReportedAt: minutesAgo(12) },
         }),
       );
@@ -1299,11 +897,13 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       // M8: the count — the nonexistentReports subset that drives the badge.
       expect(element.querySelector('.badge--reported')?.textContent?.trim()).toBe('Reported (2)');
-      expect(element.querySelector('.badge--open')?.textContent?.trim()).toBe('Confirmed open');
+      // A fresh firm CLOSED net (two+) is the amber badge, firm copy.
+      expect(element.querySelector('.badge--closed')?.textContent?.trim()).toBe('Closed');
       expect(element.querySelector('.badge--occupancy')?.textContent?.trim()).toBe(
         'Full · 12 min ago',
       );
-      // Provenance is the FIRST badge — the trust badges are appended, never replacing it.
+      // The source/trust badge is the FIRST one — the trust badges are
+      // appended, never replacing it.
       const badges = [...element.querySelectorAll('.shelter-detail__title-row .badge')].map((b) =>
         (b as HTMLElement).textContent?.trim(),
       );
@@ -1311,18 +911,92 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(badges).toHaveLength(4);
     });
 
-    it('unreported shelter: no reported/status/occupancy badges in the header', async () => {
+    it('a fresh OPEN report renders NO header badge (open is the default — no noise)', async () => {
+      shelterGateway.rows.set(
+        1,
+        registryShelter({
+          openStatus: { state: 'OPEN', reportedAt: minutesAgo(12), reportCount: 3 },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+
+      // No open-status badge at all (the lone remaining badge is the
+      // source/trust one).
+      expect(element.querySelector('.badge--closed')).toBeNull();
+      const badges = [...element.querySelectorAll('.shelter-detail__title-row .badge')].map((b) =>
+        (b as HTMLElement).textContent?.trim(),
+      );
+      expect(badges).toEqual(['Paasteamet registry']);
+    });
+
+    it('unreported shelter: no reported/open-status/occupancy badges in the header', async () => {
       const { element } = await open('/shelters/1');
 
       expect(element.querySelector('.badge--reported')).toBeNull();
       expect(element.querySelector('.badge--closed')).toBeNull();
-      expect(element.querySelector('.badge--open')).toBeNull();
       expect(element.querySelector('.badge--occupancy')).toBeNull();
     });
 
-    // ----- shelter report (D2/D6) --------------------------------------
+    // ----- practical info block (open-status wave) -------------------
 
-    it('verified: the shelter Report picker opens with the five D1 types and a factual detail field for the factual types (M11)', async () => {
+    it('the info block reads "Reported closed" for a fresh lone CLOSED report (hedged)', async () => {
+      shelterGateway.rows.set(
+        1,
+        registryShelter({
+          openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 1 },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Reported closed');
+    });
+
+    it('the info block reads "Closed" for a fresh firm CLOSED net (two+) — even over INACTIVE', async () => {
+      shelterGateway.rows.set(
+        1,
+        registryShelter({
+          openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 2 },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Closed');
+    });
+
+    it('a fresh OPEN report reads "Open" (an open confirmation, no hedge)', async () => {
+      shelterGateway.rows.set(
+        1,
+        registryShelter({
+          openStatus: { state: 'OPEN', reportedAt: minutesAgo(12), reportCount: 1 },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Open');
+    });
+
+    it('a lifecycle-INACTIVE row (nothing fresh) reads "Closed" — the hidden-row detail read', async () => {
+      shelterGateway.rows.set(1, registryShelter({ status: 'INACTIVE' }));
+      const { element } = await open('/shelters/1');
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const statusRow = [...info!.querySelectorAll('dt')].find(
+        (d) => (d.textContent ?? '').trim() === 'Status',
+      )!;
+      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Closed');
+    });
+
+    // ----- shelter report (D1/D6) --------------------------------------
+
+    it('verified: the shelter Report picker opens with the three NEGATIVE types and a factual detail field for the factual types (open-status wave: CLOSED/OPEN_CONFIRMED left the picker)', async () => {
       const { element, fixture } = await open('/shelters/1');
       const section = sectionOf(element, 'report-shelter-heading');
       expect(section).not.toBeNull();
@@ -1337,27 +1011,24 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const form = section!.querySelector('form')!;
       expect(form).not.toBeNull();
       const radios = [...form.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
-      expect(radios.map((r) => r.value)).toEqual([
-        'NON_EXISTENT',
-        'CLOSED',
-        'OPEN_CONFIRMED',
-        'WRONG_LOCATION',
-        'OTHER',
-      ]);
+      expect(radios.map((r) => r.value)).toEqual(['NON_EXISTENT', 'WRONG_LOCATION', 'OTHER']);
       expect(section!.textContent).toContain('It does not exist');
-      expect(section!.textContent).toContain('It is closed');
-      expect(section!.textContent).toContain('It is open');
       expect(section!.textContent).toContain('The location is wrong');
       expect(section!.textContent).toContain('Something else');
+      // CLOSED left the picker (open/closed is its own live-report section)
+      // and OPEN_CONFIRMED never returns — both stay legal values in stored
+      // data + the admin label map, but the picker is negative-only.
+      expect(section!.textContent).not.toContain('It is closed');
+      expect(section!.textContent).not.toContain('It is open');
       // The detail field appears only once a factual type is picked
-      // (optional text, max 500 — the binary types send no detail).
+      // (optional text, max 500 — the binary type sends no detail).
       expect(form.querySelector('#report-detail')).toBeNull();
 
-      pickRadio(form, 'It is closed');
+      pickRadio(form, 'The location is wrong');
       fixture.detectChanges(); // zoneless: flush the reportType signal update
       expect(form.querySelector('#report-detail')).not.toBeNull();
       expect(form.querySelector<HTMLTextAreaElement>('#report-detail')!.placeholder).toBe(
-        'When did it close, if you know?',
+        'What is the actual address?',
       );
 
       pickRadio(form, 'It does not exist');
@@ -1453,7 +1124,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('form')).toBeNull(); // picker closed
     });
 
-    it('verified: CLOSED submits with its factual detail (M11)', async () => {
+    it('verified: WRONG_LOCATION submits with its factual detail (M11)', async () => {
       const { element, fixture } = await open('/shelters/1');
       const section = sectionOf(element, 'report-shelter-heading')!;
       [...section.querySelectorAll('button')]
@@ -1462,18 +1133,18 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       fixture.detectChanges(); // zoneless: flush the picker-open signal update
       const form = section.querySelector('form')!;
 
-      pickRadio(form, 'It is closed');
+      pickRadio(form, 'The location is wrong');
       fixture.detectChanges(); // zoneless: flush the reportType signal update
       const detail = form.querySelector<HTMLTextAreaElement>('#report-detail')!;
-      detail.value = 'Closed in May, board is up.';
+      detail.value = 'Moved to Lossi 2.';
       detail.dispatchEvent(new Event('input'));
       form.requestSubmit();
       await settle(fixture);
 
       expect(shelterGateway.report).toHaveBeenCalledTimes(1);
       expect(shelterGateway.report).toHaveBeenCalledWith(1, {
-        type: 'CLOSED',
-        detail: 'Closed in May, board is up.',
+        type: 'WRONG_LOCATION',
+        detail: 'Moved to Lossi 2.',
       });
       expect(text(fixture)).toContain('Your report was submitted.');
       expect(section.querySelector('form')).toBeNull(); // picker closed
@@ -1537,146 +1208,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section!.querySelector('form')).toBeNull();
       expect(section!.querySelector('button')).toBeNull();
     });
-
-    // ----- per-review report (D2/D6) -------------------------------------
-
-    it("verified: other people's reviews get a per-review Report picker with the four D2 reasons", async () => {
-      reviewGateway.rows.set(1, [LIIS_REVIEW]);
-      const { element, fixture } = await open('/shelters/1');
-
-      const row = [...element.querySelectorAll('.review')].find((r) =>
-        (r.textContent ?? '').includes('Liis K.'),
-      )!;
-      const reportBtn = [...row.querySelectorAll('button')].find(
-        (b) => (b.textContent ?? '').trim() === 'Report',
-      );
-      expect(reportBtn).not.toBeNull();
-      reportBtn!.click();
-      await settle(fixture);
-
-      const form = row.querySelector('form')!;
-      const radios = [...form.querySelectorAll<HTMLInputElement>('input[type="radio"]')];
-      expect(radios.map((r) => r.value)).toEqual(['FALSY_DATA', 'NOT_RELEVANT', 'SPAM', 'OTHER']);
-      expect(row.textContent).toContain('False or misleading');
-      expect(row.textContent).toContain('Not relevant');
-      expect(row.textContent).toContain('Spam');
-      expect(row.textContent).toContain('Something else');
-      expect(row.textContent).not.toContain('It does not exist'); // shelter types never leak into review reasons
-    });
-
-    it('verified: submitting a review report POSTs the right body, shows the one-line success, closes the picker', async () => {
-      reviewGateway.rows.set(1, [LIIS_REVIEW]);
-      const { element, fixture } = await open('/shelters/1');
-      const row = [...element.querySelectorAll('.review')].find((r) =>
-        (r.textContent ?? '').includes('Liis K.'),
-      )!;
-      [...row.querySelectorAll('button')]
-        .find((b) => (b.textContent ?? '').trim() === 'Report')!
-        .click();
-      await settle(fixture);
-      const form = row.querySelector('form')!;
-
-      pickRadio(form, 'Spam');
-      form.requestSubmit();
-      await settle(fixture);
-
-      expect(reviewGateway.reportReview).toHaveBeenCalledTimes(1);
-      expect(reviewGateway.reportReview).toHaveBeenCalledWith(1, 21, { reason: 'SPAM' });
-      // Success is the shared page banner, not a row-local line.
-      expect(text(fixture)).toContain('Your report was submitted.');
-      expect(row.querySelector('form')).toBeNull();
-    });
-
-    it('verified: 409 review report renders the server\u2019s standard message (D6)', async () => {
-      reviewGateway.reportReview.mockRejectedValueOnce(
-        ApiError.fromHttp(
-          409,
-          {
-            timestamp: '2026-01-01T00:00:00Z',
-            status: 409,
-            error: 'Conflict',
-            message: 'This report has already been submitted',
-            path: '/api/shelters/1/reviews/21/report',
-          },
-          '/api/shelters/1/reviews/21/report',
-        ),
-      );
-      reviewGateway.rows.set(1, [LIIS_REVIEW]);
-      const { element, fixture } = await open('/shelters/1');
-      const row = [...element.querySelectorAll('.review')].find((r) =>
-        (r.textContent ?? '').includes('Liis K.'),
-      )!;
-      [...row.querySelectorAll('button')]
-        .find((b) => (b.textContent ?? '').trim() === 'Report')!
-        .click();
-      await settle(fixture);
-      const form = row.querySelector('form')!;
-      pickRadio(form, 'Not relevant');
-      form.requestSubmit();
-      await settle(fixture);
-
-      expect(reviewGateway.reportReview).toHaveBeenCalledWith(1, 21, {
-        reason: 'NOT_RELEVANT',
-      });
-      // The picker stays open with the plain line — no dialog, no banner.
-      const status = row.querySelector('.report-status');
-      expect(status?.textContent?.trim()).toBe('This report has already been submitted');
-    });
-
-    it('own (hidden) review row: no Report button, only the "Hidden" mark (D6: never reportable by you)', async () => {
-      reviewGateway.rows.set(1, [
-        LIIS_REVIEW,
-        {
-          id: 12,
-          authorName: 'Marek T.',
-          rating: 3,
-          comment: 'Okay, I guess.',
-          createdAt: '2025-09-05T10:00:00Z',
-          hidden: true,
-        },
-      ]);
-      const { element } = await open('/shelters/1');
-
-      const ownRow = [...element.querySelectorAll('.review')].find((r) =>
-        (r.textContent ?? '').includes('Hidden'),
-      )!;
-      expect(ownRow).toBeDefined();
-      // The neutral mark is present (no tooltip, no icon).
-      const hiddenMark = ownRow.querySelector('.review__hidden');
-      expect(hiddenMark?.textContent?.trim()).toBe('Hidden');
-      // No report affordance on own rows.
-      const reportBtn = [...ownRow.querySelectorAll('button')].find(
-        (b) => (b.textContent ?? '').trim() === 'Report',
-      );
-      expect(reportBtn).toBeUndefined();
-      // Other people's rows in the same list still offer Report.
-      const otherRow = [...element.querySelectorAll('.review')].find((r) =>
-        (r.textContent ?? '').includes('Liis K.'),
-      )!;
-      expect(
-        [...otherRow.querySelectorAll('button')].some(
-          (b) => (b.textContent ?? '').trim() === 'Report',
-        ),
-      ).toBe(true);
-    });
-
-    it('unverified reviews: no per-review Report buttons at all (verified-only)', async () => {
-      reviewGateway.rows.set(1, [LIIS_REVIEW]);
-      setSession(true, []);
-      const { element } = await open('/shelters/1');
-
-      const rows = element.querySelectorAll('.review');
-      expect(rows.length).toBeGreaterThan(0);
-      for (const row of rows) {
-        expect(
-          [...row.querySelectorAll('button')].some(
-            (b) => (b.textContent ?? '').trim() === 'Report',
-          ),
-        ).toBe(false);
-      }
-    });
-
-    // ----- report how full (D5/D6) ---------------------------------------
 
     it('verified: the three 48px band buttons preselect from yourOccupancyBand and PUT the picked band', async () => {
       shelterGateway.rows.set(1, registryShelter({ yourOccupancyBand: 'FULL' }));
@@ -1767,6 +1298,149 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         'Verify your email or phone to report how full this shelter is.',
       );
       expect(section.querySelector('.band-btn')).toBeNull();
+    });
+
+    // ----- report open/closed (open-status wave) -----------------------
+
+    it('verified: the two 48px state buttons preselect from yourOpenStatus', async () => {
+      shelterGateway.rows.set(1, registryShelter({ yourOpenStatus: 'CLOSED' }));
+      const { element } = await open('/shelters/1');
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      const picker = section.querySelector<HTMLElement>('[role="group"]');
+      expect(picker?.getAttribute('aria-label')).toBe('Is this shelter open right now?');
+      const buttons = [...section.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      expect(buttons.map((b) => (b.textContent ?? '').trim())).toEqual(['Open now', 'Closed now']);
+      // The user's live report is preselected (aria-pressed + the visual
+      // class) — radio-style, exactly one pressed.
+      expect(buttons[0].getAttribute('aria-pressed')).toBe('false');
+      expect(buttons[0].classList.contains('open-status-btn--active')).toBe(false);
+      expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+      expect(buttons[1].classList.contains('open-status-btn--active')).toBe(true);
+    });
+
+    it('verified: first-time reporter (no yourOpenStatus) has no preselected state', async () => {
+      const { element } = await open('/shelters/1'); // yourOpenStatus: null
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      const buttons = [...section.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      expect(buttons).toHaveLength(2);
+      for (const b of buttons) {
+        expect(b.getAttribute('aria-pressed')).toBe('false');
+        expect(b.classList.contains('open-status-btn--active')).toBe(false);
+      }
+    });
+
+    it('verified: a tap PUTs the state, shows the shared success, and refetches (settled pre-select comes from the fresh projection)', async () => {
+      // The refetch answers with the CALLER's live state adopted — the
+      // settled pre-select is the fresh yourOpenStatus, not the tap.
+      const get = shelterGateway.get;
+      shelterGateway.get = vi.fn(async (): Promise<ShelterDetailDto> =>
+        registryShelter({ yourOpenStatus: 'OPEN' }),
+      ) as never;
+      const { element, fixture } = await open('/shelters/1');
+      expect(shelterGateway.get).toHaveBeenCalledTimes(1); // the initial load
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      const buttons = [...section.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      buttons[0].click(); // "Open now"
+      await settle(fixture);
+
+      expect(shelterGateway.putOpenStatus).toHaveBeenCalledTimes(1);
+      expect(shelterGateway.putOpenStatus).toHaveBeenCalledWith(1, 'OPEN');
+      // Success is the shared page banner (the section keeps the picker).
+      expect(text(fixture)).toContain('Your open/closed report was saved.');
+      // The refetch happened (second get for the same id), and the settled
+      // projection carries the tapped state as preselected. The refetch's
+      // loading flip re-mounted the sections, so re-query the live section.
+      expect(shelterGateway.get).toHaveBeenCalledTimes(2);
+      const liveSection = sectionOf(element, 'open-status-heading')!;
+      const settled = [...liveSection.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      expect(settled[0].getAttribute('aria-pressed')).toBe('true');
+      expect(settled[1].getAttribute('aria-pressed')).toBe('false');
+      shelterGateway.get = get;
+    });
+
+    it('verified: the tapped state stays optimistically pressed while the upsert is in flight, and reverts on failure', async () => {
+      let release!: (value: void) => void;
+      shelterGateway.putOpenStatus.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+      );
+      const { element, fixture, page } = await open('/shelters/1');
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      let buttons = [...section.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      buttons[1].click(); // "Closed now" — no live state to preselect from
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      // In flight: the tapped state is pressed (optimistic) while the call
+      // is still pending.
+      buttons = [...section.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+      expect(shelterGateway.putOpenStatus).toHaveBeenCalledTimes(1);
+      expect(shelterGateway.putOpenStatus).toHaveBeenCalledWith(1, 'CLOSED');
+
+      // Settle the first tap fully: success banner + the refetch (the seeded
+      // row carries no live state, so nothing is preselected afterwards).
+      // The buttons stay disabled while reporting() is true, so the second
+      // tap below must wait for the chain to end (settle loop, the file's
+      // existing pattern for chained renders).
+      release(undefined);
+      for (let i = 0; i < 5; i++) {
+        await settle(fixture);
+      }
+      expect(page.reporting()).toBe(false);
+      expect(text(fixture)).toContain('Your open/closed report was saved.');
+
+      // The refetch's loading flip unmounted the sections (the @else-if
+      // block re-mounts on settle) — re-query the live section from the
+      // host element for the second tap.
+      const liveSection = sectionOf(element, 'open-status-heading')!;
+
+      // Second tap, this one failing: the optimistic pressed state reverts
+      // (no live state to fall back to) and the shared error banner
+      // surfaces — same handling as the band picker.
+      shelterGateway.putOpenStatus.mockRejectedValueOnce(ApiError.fromNetwork());
+      buttons = [...liveSection.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      buttons[0].click();
+      for (let i = 0; i < 5; i++) {
+        await settle(fixture);
+      }
+
+      expect(text(fixture)).toContain('Cannot reach the backend');
+      expect(element.querySelector('.banner--error')).not.toBeNull();
+      const reverted = [...liveSection.querySelectorAll<HTMLButtonElement>('.open-status-btn')];
+      for (const b of reverted) {
+        expect(b.getAttribute('aria-pressed')).toBe('false');
+        expect(b.classList.contains('open-status-btn--active')).toBe(false);
+      }
+    });
+
+    it('unverified: the open/closed section shows the verify prompt and NO picker', async () => {
+      setSession(true, []);
+      const { element } = await open('/shelters/1');
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      expect(section.textContent).toContain(
+        'Verify your email or phone to report whether this shelter is open.',
+      );
+      expect(section.querySelector('a[href*="returnUrl"]')).not.toBeNull();
+      expect(section.querySelector('button')).toBeNull();
+    });
+
+    it('anonymous: the open/closed section shows a plain login prompt', async () => {
+      setSession(false);
+      const { element } = await open('/shelters/1');
+
+      const section = sectionOf(element, 'open-status-heading')!;
+      expect(section.textContent).toContain('Log in to report whether this shelter is open.');
+      expect(section.querySelector('button')).toBeNull();
+      // Plain text only — the header login is the single entry point.
+      expect(section.querySelector('a[href*="returnUrl"]')).toBeNull();
     });
   });
 });

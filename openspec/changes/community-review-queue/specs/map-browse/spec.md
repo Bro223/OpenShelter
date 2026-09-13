@@ -10,8 +10,11 @@ Marker tone for community rows: amber when review_status NEW, green
 when CONFIRMED; reported rows keep the orange override. List rows and
 detail pages SHALL badge community rows: "Newly added" (NEW) or
 "Community-checked" (CONFIRMED); rows with location_kind PRIVATE add a
-"Private location" badge and the detail page shows a note that it is a
-resident-offered location, not an official facility. NEW community
+"Private home (declared)" badge and the detail page shows a note that it
+is a resident-offered location, not an official facility. The UI
+SHALL NOT derive or display any access policy from locationKind (no
+"publicly available" display, no filter hiding PRIVATE rows — design
+D7a). NEW community
 detail pages SHALL additionally show the unverified warning: the
 location was submitted by a community member, is not officially
 verified, and must not be relied on during an emergency.

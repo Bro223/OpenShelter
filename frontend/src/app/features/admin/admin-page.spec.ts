@@ -9,7 +9,6 @@ import { ApiError } from '../../core/api-error';
 import { adminGuard } from '../../core/guards';
 import { AuthStore } from '../../session/auth-store';
 import type {
-  AdminReviewReportDto,
   AdminShelterDto,
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
@@ -46,18 +45,13 @@ const USER_ROW: AdminShelterDto = {
   address: null,
   source: 'USER',
   status: 'ACTIVE',
-  rating: 4.5,
-  reviewCount: 2,
   nonexistentReports: 0,
-  statusFlag: null,
   occupancy: null,
   capacity: 12,
   submitter: 'Kaja K.',
-  createdAt: ago(2 * 3_600_000), // the NEW queue's newest-first ordering
   reviewStatus: 'NEW',
   reviewNote: null,
   locationKind: 'PUBLIC',
-  provenance: 'UNDER_REVIEW', // USER + NEW (M6)
   infoRequest: null, // M10 slice 3 — no moderator question on this row
   inaccurate: false, // M10 slice 4 — no mark on this row
 };
@@ -67,9 +61,6 @@ const USER_ROW_HIDDEN: AdminShelterDto = {
   id: 8,
   name: 'Peidetud Kelder',
   status: 'INACTIVE',
-  rating: null,
-  reviewCount: 0,
-  createdAt: ago(3 * 3_600_000),
   reviewStatus: 'CONFIRMED', // confirmed rows never appear in the queue
 };
 
@@ -79,29 +70,24 @@ const REGISTRY_ROW: AdminShelterDto = {
   address: 'Lossi 2, Tartu',
   source: 'PAASETEAMET',
   status: 'ACTIVE',
-  rating: 3.0,
-  reviewCount: 1,
   nonexistentReports: 2,
-  statusFlag: 'REPORTED_CLOSED',
   occupancy: { band: 'FULL', reportedAt: ago(12 * 60_000), reportCount: 2 },
   capacity: 50,
   submitter: null,
-  createdAt: ago(7 * 3_600_000),
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   reviewNote: null,
   locationKind: 'PUBLIC',
-  provenance: 'OFFICIAL', // PAASETEAMET row (M6)
   infoRequest: null, // M10 slice 3
   inaccurate: false, // M10 slice 4 — no mark on this row
 };
 
-/** A second NEW community row, newer than USER_ROW — the queue ordering. */
+/** A second NEW community row with a higher (newer) id — the queue
+ *  ordering (the admin list is id-ordered; auto-increment id = creation order). */
 const USER_ROW_NEWER: AdminShelterDto = {
   ...USER_ROW,
   id: 10,
   name: 'Uus Kelder',
   submitter: 'Maret M.',
-  createdAt: ago(30 * 60_000),
 };
 
 const REPORT_ROW: AdminShelterReportDto = {
@@ -127,32 +113,6 @@ const REPORT_ROW_INACTIVE: AdminShelterReportDto = {
   type: 'OTHER',
   detail: 'The address is wrong',
   createdAt: ago(5 * 60_000),
-};
-
-const REVIEW_ROW: AdminReviewReportDto = {
-  id: 201,
-  shelterId: 7,
-  shelterName: 'Kommunaali Varjend',
-  reviewId: 301,
-  reviewRating: 1,
-  reviewComment: 'Tuleb kinni',
-  reviewHidden: false,
-  reason: 'SPAM',
-  detail: null,
-  reporterName: 'Toomas T.',
-  reporterEmail: 'toomas@example.ee',
-  createdAt: ago(3_600_000),
-};
-
-const REVIEW_ROW_HIDDEN: AdminReviewReportDto = {
-  ...REVIEW_ROW,
-  id: 202,
-  reviewId: 302,
-  reviewRating: 5,
-  reviewComment: 'Parim koht',
-  reviewHidden: true,
-  reason: 'FALSY_DATA',
-  detail: 'The shelter never existed',
 };
 
 /** The edit-history fixture (M10 slice 2): ascending, snapshot-named, the
@@ -187,9 +147,6 @@ class FakeAdminGateway {
   deleteShelter = vi.fn();
   listShelterReports = vi.fn();
   dismissShelterReport = vi.fn();
-  listReviewReports = vi.fn();
-  hideReview = vi.fn();
-  restoreReview = vi.fn();
   reviewShelter = vi.fn();
   listAudit = vi.fn();
   listAlerts = vi.fn();
@@ -218,7 +175,6 @@ class FakeAccountGateway {
   confirmEmailChange = vi.fn();
   requestPhoneChange = vi.fn();
   confirmPhoneChange = vi.fn();
-  myReviews = vi.fn();
 }
 
 function apiError(status: number, message: string, path: string): ApiError {
@@ -247,8 +203,6 @@ describe('AdminPage', () => {
     admin.setShelterStatus.mockResolvedValue(undefined);
     admin.deleteShelter.mockResolvedValue(undefined);
     admin.dismissShelterReport.mockResolvedValue(undefined);
-    admin.hideReview.mockResolvedValue(undefined);
-    admin.restoreReview.mockResolvedValue(undefined);
     admin.reviewShelter.mockResolvedValue({ ok: true });
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
@@ -256,7 +210,6 @@ describe('AdminPage', () => {
     admin.listUsers.mockResolvedValue([]);
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
-    account.myReviews.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -369,12 +322,9 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Linna Varjend');
     expect(element.textContent).toContain('Lossi 2, Tartu');
     expect(element.textContent).toContain('Paasteamet registry');
-    expect(element.textContent).toContain('★ 4.5 · 2 reviews');
     expect(element.textContent).toContain('Kaja K.');
     // Occupancy: firm band + recency (the shared copy, reportedAt mapped).
     expect(element.textContent).toContain('Full · 12 min ago');
-    // The statusFlag flag badge, same vocabulary as the public UI.
-    expect(element.textContent).toContain('Reported closed');
   });
 
   it('a hidden USER row renders dimmed with the Hidden badge and offers Activate, not Hide', async () => {
@@ -894,85 +844,6 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Shelter restored.');
   });
 
-  // ---- review-report tab ---------------------------------------------------------
-
-  it('switching to the review tab loads the queue; Hide posts the REVIEW id, not the row id', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listReviewReports.mockResolvedValue([REVIEW_ROW]);
-    const { element, fixture } = await openAdmin();
-
-    expect(admin.listReviewReports).not.toHaveBeenCalled();
-    buttonByText(element, 'Review reports')!.click();
-    await fixture.whenStable();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
-
-    expect(admin.listReviewReports).toHaveBeenCalledTimes(1);
-    // Excerpt: the comment is visible; reason label + reporter + age.
-    expect(element.textContent).toContain('Tuleb kinni');
-    expect(element.textContent).toContain('Spam');
-    expect(element.textContent).toContain('Toomas T. <toomas@example.ee>');
-
-    buttonByText(firstRow(element), 'Hide')!.click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(admin.hideReview).toHaveBeenCalledTimes(1);
-    expect(admin.hideReview).toHaveBeenCalledWith(301); // reviewId — NOT 201
-    const row = firstRow(element);
-    expect(row.textContent).toContain('Hidden');
-    expect(buttonByText(row, 'Restore')).not.toBeNull();
-    expect(buttonByText(row, 'Hide')).toBeNull();
-  });
-
-  it('a hidden review renders the Hidden badge and a Restore that posts /restore', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listReviewReports.mockResolvedValue([REVIEW_ROW_HIDDEN]);
-    const { element, fixture } = await openAdmin();
-    buttonByText(element, 'Review reports')!.click();
-    await fixture.whenStable();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
-
-    const row = firstRow(element);
-    expect(row.textContent).toContain('Hidden');
-    expect(row.textContent).toContain('Falsy data');
-    expect(row.textContent).toContain('The shelter never existed');
-    expect(buttonByText(row, 'Restore')).not.toBeNull();
-    expect(buttonByText(row, 'Hide')).toBeNull();
-
-    buttonByText(row, 'Restore')!.click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    expect(admin.restoreReview).toHaveBeenCalledTimes(1);
-    expect(admin.restoreReview).toHaveBeenCalledWith(302); // reviewId
-    expect(firstRow(element).textContent).not.toContain('Hidden');
-    expect(buttonByText(firstRow(element), 'Hide')).not.toBeNull();
-    expect(element.textContent).toContain('Review restored.');
-  });
-
-  it('a rejected review hide (403) surfaces the server message and leaves the row untouched', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listReviewReports.mockResolvedValue([REVIEW_ROW]);
-    admin.hideReview.mockRejectedValue(
-      apiError(403, 'admin access required', '/admin/reviews/301/hide'),
-    );
-    const { element, fixture } = await openAdmin();
-    buttonByText(element, 'Review reports')!.click();
-    await fixture.whenStable();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
-
-    buttonByText(firstRow(element), 'Hide')!.click();
-    await fixture.whenStable();
-    fixture.detectChanges();
-
-    const banner = element.querySelector('.banner--error') as HTMLElement | null;
-    expect(banner?.textContent).toContain('admin access required');
-    expect(firstRow(element).textContent).not.toContain('Hidden');
-  });
-
   // ---- unconfirmed (review-queue) tab ------------------------------------------
 
   it('opens on the Unconfirmed tab: only USER+NEW rows, with the queue columns', async () => {
@@ -994,15 +865,15 @@ describe('AdminPage', () => {
     expect(element.textContent).not.toContain('Linna Varjend');
   });
 
-  it('the queue is ordered by created, newest first', async () => {
+  it('the queue is ordered by id, newest first', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW, USER_ROW_NEWER]);
     const { element } = await openAdmin();
 
     const names = [...element.querySelectorAll('.admin-row .admin-cell--name')].map(
       (c) => c.textContent?.trim() ?? '',
     );
-    expect(names[0]).toContain('Uus Kelder'); // 30 min ago — first
-    expect(names[1]).toContain('Kommunaali Varjend'); // 2 h ago — second
+    expect(names[0]).toContain('Uus Kelder'); // higher id — first
+    expect(names[1]).toContain('Kommunaali Varjend'); // lower id — second
   });
 
   it('Mark confirmed posts CONFIRM (no reason) and refreshes the queue', async () => {
@@ -1389,7 +1260,6 @@ describe('AdminPage', () => {
   it('shows a plain empty state per tab when the queues are empty', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listShelterReports.mockResolvedValue([]);
-    admin.listReviewReports.mockResolvedValue([]);
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
     admin.listUsers.mockResolvedValue([]);
@@ -1409,12 +1279,6 @@ describe('AdminPage', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
     expect(element.textContent).toContain('No reports.');
-
-    buttonByText(element, 'Review reports')!.click();
-    await fixture.whenStable();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    fixture.detectChanges();
-    expect(element.textContent).toContain('No review reports.');
 
     buttonByText(element, 'Alerts')!.click();
     await fixture.whenStable();

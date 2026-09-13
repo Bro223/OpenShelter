@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Step 6 end-to-end acceptance (07-STEPS.md): register → verify via the dev
- * e-mail sender → add a shelter → review it → fetch with {@code averageRating}.
+ * e-mail sender → add a shelter → fetch it.
  *
  * <p>The whole flow runs over real HTTP (MockMvc) with the real security
  * chain, JWT filter, services and Postgres. Verification is driven through
@@ -78,7 +78,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void registerVerifyAddShelterReviewAndFetchWithAverageRating() throws Exception {
+    void registerVerifyAddShelterAndFetch() throws Exception {
         // 1. register
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"E2E Kasutaja\",\"email\":\"e2e@example.ee\","
@@ -121,26 +121,11 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
         long shelterId = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
         assertThat(created.getResponse().getHeader("Location")).isEqualTo("/api/shelters/" + shelterId);
 
-        // 5. review it
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":5,\"comment\":\"Suurepärane varjend!\"}"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.authorName").value("E2E Kasutaja"))
-                .andExpect(jsonPath("$.rating").value(5));
-
-        // 6. fetch with the rating aggregate
+        // 5. fetch it back — the public GET is the round-trip proof
         mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("E2E Varjend"))
-                .andExpect(jsonPath("$.averageRating").value(5.0))
-                .andExpect(jsonPath("$.reviewCount").value(1));
-
-        mvc.perform(get("/api/shelters/" + shelterId + "/reviews"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(1)))
-                .andExpect(jsonPath("$[0].authorName").value("E2E Kasutaja"))
-                .andExpect(jsonPath("$[0].comment").value("Suurepärane varjend!"));
+                .andExpect(jsonPath("$.source").value("USER"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
     }
 }

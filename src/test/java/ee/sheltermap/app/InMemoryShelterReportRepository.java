@@ -52,8 +52,10 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     @Override
     public List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type) {
         // (shelter, user, type) uniqueness ⇒ one row per reporter.
+        // Dismissed reports are excluded (the admin's invalid verdict).
         return store.values().stream()
                 .filter(r -> r.getShelterId() == shelterId && r.getType() == type)
+                .filter(r -> !r.isDismissed())
                 .map(r -> new DampedReporter(r.getUserId(), r.isDamped()))
                 .toList();
     }
@@ -62,6 +64,7 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     public List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds) {
         return store.values().stream()
                 .filter(r -> shelterIds.contains(r.getShelterId()))
+                .filter(r -> !r.isDismissed())
                 .collect(Collectors.groupingBy(r -> new CountKey(r.getShelterId(), r.getType())))
                 .entrySet().stream()
                 .map(e -> new ReportTypeCount(e.getKey().shelterId, e.getKey().type, e.getValue().size()))

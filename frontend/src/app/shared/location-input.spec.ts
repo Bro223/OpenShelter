@@ -261,6 +261,25 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     input: 'https://www.bing.com/maps?q=59.437,24.7535',
     expected: { lat: 59.437, lng: 24.7535 },
   },
+  // 2026-09: Google changed the maps.app.goo.gl redirect target to the
+  // /search/<lat>+<lng> path (verified live). Names mirror the BE
+  // MapsUrlCoordinatesTest rows.
+  {
+    name: 'url-google-search-path',
+    input:
+      'https://www.google.com/maps/search/58.999669,+27.289732?entry=tts&g_ep=EgoyMDI2MDkwOS4wIPu8ASoASAFQAw%3D%3D&skid=df6dfcee-5f27-4f5d-bb58-77a07c0e71e7',
+    expected: { lat: 58.999669, lng: 27.289732 },
+  },
+  {
+    name: 'url-google-search-path-comma',
+    input: 'https://www.google.com/maps/search/59.437,24.753',
+    expected: { lat: 59.437, lng: 24.753 },
+  },
+  {
+    name: 'url-google-search-path-out-of-bounds',
+    input: 'https://www.google.com/maps/search/51.5074,+0.1278',
+    expected: { reason: 'out-of-bounds' },
+  },
   {
     name: 'url-generic-decimal-pair-fallback',
     input: 'https://example.com/place/59.437,24.7535',
@@ -293,6 +312,13 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     // F2 (H4): the /@lat,lng path pattern — guard on the matched span.
     name: 'url-atpath-decimal-comma',
     input: 'https://example.com/maps/@58,25/24,9',
+    expected: { reason: 'decimal-comma' },
+  },
+  {
+    // F2 (H4): the /search/lat,lng path pattern — guard on the matched span
+    // (the 2026-09 redirect shape with a comma-decimal must not pin (58, 25)).
+    name: 'url-searchpath-decimal-comma',
+    input: 'https://www.google.com/maps/search/58,25',
     expected: { reason: 'decimal-comma' },
   },
   {

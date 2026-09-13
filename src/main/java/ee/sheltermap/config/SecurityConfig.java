@@ -42,7 +42,7 @@ import java.util.List;
 /**
  * Spring Security wiring (Step 4).
  *
- * <p>Stateless JWT sessions: the auth endpoints and the public shelter/review
+ * <p>Stateless JWT sessions: the auth endpoints and the public shelter
  * GETs are permit-all, everything else requires a valid access token (via
  * {@link JwtAuthenticationFilter}). Unauthenticated requests on protected
  * routes get 401, authenticated-but-forbidden 403.

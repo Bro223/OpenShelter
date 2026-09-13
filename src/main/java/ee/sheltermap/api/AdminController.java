@@ -39,7 +39,7 @@ import java.util.Map;
  * hide/restore (restore disarms auto-hide and reverts a REJECTED row
  * to NEW), hard delete (USER rows only — registry rows are import-
  * owned, 409), the shelter-report queue with idempotent dismiss, the
- * review-report queue with idempotent hide/restore, the community
+ * community
  * review decisions (community-review-queue v2 D2: CONFIRM/REJECT — the
  * rare manual override), the moderation audit trail (v2 D4), and the
  * M3 throttle-abuse alerts (abuse-limits slice 4: the in-memory ring the
@@ -67,7 +67,7 @@ public class AdminController {
 
     /**
      * The admin shelter list (D3): every shelter including hidden, with
-     * report counts, status flag, occupancy, review counts and the
+     * report counts, status flag, occupancy and the
      * submitter's name; {@code status}/{@code source} exact-match filters,
      * {@code q} the case-insensitive name/address substring.
      */
@@ -208,13 +208,6 @@ public class AdminController {
         moderation.dismissReport(requireAdmin(), id);
     }
 
-    /** The review report queue (hidden reviews included), newest first. */
-    @GetMapping("/review-reports")
-    public List<AdminReviewReportDto> listReviewReports() {
-        requireAdmin();
-        return moderation.listReviewReports();
-    }
-
     /**
      * The account list behind the Users tab (M10 slice 1): every REGISTERED
      * and ADMIN account with its suspension state, id-ordered.
@@ -242,20 +235,6 @@ public class AdminController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unsuspendUser(@PathVariable long id) {
         moderation.unsuspendUser(requireAdmin(), id);
-    }
-
-    /** Immediate review hide — idempotent. 204; 404 unknown review. */
-    @PostMapping("/reviews/{id}/hide")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void hideReview(@PathVariable long id) {
-        moderation.hideReview(requireAdmin(), id);
-    }
-
-    /** Clear the review's hidden state (restores rating participation) — idempotent. 204; 404 unknown. */
-    @PostMapping("/reviews/{id}/restore")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void restoreReview(@PathVariable long id) {
-        moderation.restoreReview(requireAdmin(), id);
     }
 
     /**

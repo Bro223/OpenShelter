@@ -59,6 +59,18 @@ class MapsUrlCoordinatesTest {
                     "https://maps.app.goo.gl/abc123"),
             Case.none("outside Estonia in both orders (Paris)",
                     "https://www.google.com/maps?q=48.858,2.294"),
+            // 2026-09: Google changed the maps.app.goo.gl redirect target to
+            // the /search/<lat>+<lng> path (verified live). Case names
+            // mirror the FE spec fixtures exactly.
+            new Case("url-google-search-path",
+                    "https://www.google.com/maps/search/58.999669,+27.289732?entry=tts&g_ep=EgoyMDI2MDkwOS4wIPu8ASoASAFQAw%3D%3D&skid=df6dfcee-5f27-4f5d-bb58-77a07c0e71e7",
+                    58.999669, 27.289732),
+            new Case("url-google-search-path-comma",
+                    "https://www.google.com/maps/search/59.437,24.753", 59.437, 24.753),
+            Case.none("url-google-search-path-out-of-bounds",
+                    "https://www.google.com/maps/search/51.5074,+0.1278"),
+            Case.none("url-searchpath-decimal-comma",
+                    "https://www.google.com/maps/search/58,25"),
             // F2-BE (2026-09-11 review): Estonian decimal-comma parity with
             // the FE H4 guard — a comma decimal with no point decimal in the
             // coordinate-carrying segment is a decimal-mark misuse, NOT a

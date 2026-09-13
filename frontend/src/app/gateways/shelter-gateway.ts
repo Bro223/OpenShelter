@@ -5,12 +5,13 @@ import type {
   CreateShelterRequest,
   MineShelterDto,
   OccupancyBand,
-  ProvenanceFilter,
+  PutOpenStatusRequest,
   ReportOccupancyRequest,
   ReportShelterRequest,
   ShelterDetailDto,
   ShelterDto,
   ShelterReportResult,
+  ShelterSourceFilter,
   ShelterTrustFilter,
   UpdateShelterRequest,
 } from '../core/models';
@@ -28,25 +29,25 @@ import type {
  * Trust layer (shelter-trust-and-reports): `report()` posts a typed shelter
  * report and `reportOccupancy()` upserts the caller's live band — both
  * verified-only (403), 404 on unknown shelter, 409 on a duplicate.
+ * `putOpenStatus()` upserts the caller's live open/closed state (the
+ * open-status wave) — same verified-only 403 vocabulary, 204 on success.
  */
 @Injectable({ providedIn: 'root' })
 export class ShelterGateway {
   private readonly api = inject(ApiClient);
 
   /**
-   * GET /api/shelters?provenance=… -> ShelterDto[] (ACTIVE rows only, no
-   * paging — Estonia-scale fetch-all). The provenance filter (shelter-
-   * provenance-taxonomy M6) replaces the old source chips — provenance
-   * strictly subdivides source, and `ALL` omits the param entirely (the
-   * backend keeps `?source=` for compatibility).
+   * GET /api/shelters?source=ALL|REGISTRY|USER -> ShelterDto[] (ACTIVE rows
+   * only, no paging — Estonia-scale fetch-all). REGISTRY = PAASETEAMET +
+   * MUNICIPALITY rows; USER = community submissions.
    *
-   * `trust` (optional, D5) composes with the provenance filter: reviewed=
-   * true, hasCapacity=true. Inactive filters are omitted
-   * from the query string entirely (the default call is `/api/shelters`,
-   * byte-identical to M4's default `?source=ALL` response).
+   * `trust` (optional, D5) composes with the source filter: hasCapacity=true.
+   * Inactive filters are omitted from the query string entirely. (The
+   * `reviewed` filter is gone with the review model; "Open" is a
+   * client-side chip and never reaches the query string.)
    */
-  list(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): Promise<ShelterDto[]> {
-    return lastValueFrom(this.api.get<ShelterDto[]>(listPath(provenance, trust)));
+  list(source: ShelterSourceFilter, trust?: ShelterTrustFilter): Promise<ShelterDto[]> {
+    return lastValueFrom(this.api.get<ShelterDto[]>(listPath(source, trust)));
   }
 
   /** GET /api/shelters/{id} -> the detail projection, or a 404 ApiError. */
@@ -97,7 +98,8 @@ export class ShelterGateway {
     return lastValueFrom(this.api.put<ShelterDto>(`/api/shelters/${id}`, request));
   }
 
-  /** DELETE /api/shelters/{id} -> 204 No Content (author only; reviews cascade). */
+  /** DELETE /api/shelters/{id} -> 204 No Content (author only; reports and
+   *  occupancy cascade). */
   remove(id: number): Promise<void> {
     return lastValueFrom(this.api.delete<void>(`/api/shelters/${id}`));
   }
@@ -124,25 +126,28 @@ export class ShelterGateway {
     const request: ReportOccupancyRequest = { band };
     return lastValueFrom(this.api.put<void>(`/api/shelters/${id}/occupancy`, request));
   }
+
+  /**
+   * PUT /api/shelters/{id}/open-status -> 204 (open-status wave): upsert —
+   * one live open/closed state per user per shelter, latest edit wins.
+   * Verified accounts only (403, the standard redirect vocabulary),
+   * 404 unknown shelter.
+   */
+  putOpenStatus(id: number, state: 'OPEN' | 'CLOSED'): Promise<void> {
+    const request: PutOpenStatusRequest = { state };
+    return lastValueFrom(this.api.put<void>(`/api/shelters/${id}/open-status`, request));
+  }
 }
 
 /**
- * The list query string: `provenance` first, only when not ALL (M6 — the
- * old `source` param is no longer sent by the FE), trust filters appended
- * in a fixed order (reviewed, hasCapacity) — only when active. (M11:
- * the minRating rating filter is gone — the rating is context, not a
- * lever.) No filters -> exactly `/api/shelters`.
+ * The list query string: `source` always first, trust filters appended in
+ * a fixed order (hasCapacity) — only when active.
+ * No trust filters -> exactly `/api/shelters?source=…`.
  */
-function listPath(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): string {
-  const params: string[] = [];
-  if (provenance !== 'ALL') {
-    params.push(`provenance=${provenance}`);
-  }
-  if (trust?.reviewed === true) {
-    params.push('reviewed=true');
-  }
+function listPath(source: ShelterSourceFilter, trust?: ShelterTrustFilter): string {
+  const params = [`source=${source}`];
   if (trust?.hasCapacity === true) {
     params.push('hasCapacity=true');
   }
-  return params.length === 0 ? '/api/shelters' : `/api/shelters?${params.join('&')}`;
+  return `/api/shelters?${params.join('&')}`;
 }

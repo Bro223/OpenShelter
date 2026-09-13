@@ -43,10 +43,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * reporters still hide on the fifth report; trusted reporters faster;
  * dampened reports count zero; no re-hide after a manual restore),
  * duplicate dampening of the self-interested rival's negative vote (the
- * endpoint answers {"damped": true|false}), the CLOSED/OPEN_CONFIRMED
- * flag, review reports + hidden-review exclusion, occupancy (upsert,
- * hedge/firm, 2 h staleness), the per-user submission cap and the trust
- * list filters.
+ * endpoint answers {"damped": true|false}), occupancy (upsert, hedge/firm,
+ * 2 h staleness) and the live open/closed state (upsert, latest tap wins,
+ * 2 h staleness, auto-confirm on a cross-user OPEN tap), the per-user
+ * submission cap and the trust list filters.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -118,10 +118,6 @@ class ShelterReportIT extends AbstractPersistenceIT {
         return "{\"name\":\"" + name + "\",\"latitude\":59.4,\"longitude\":24.7}";
     }
 
-    private static String reviewBody(int rating, String comment) {
-        return "{\"rating\":" + rating + ",\"comment\":\"" + comment + "\"}";
-    }
-
     private static String reportBody(String type, String detail) {
         return "{\"type\":\"" + type + "\"" + (detail == null ? "" : ",\"detail\":\"" + detail + "\"") + "}";
     }
@@ -130,8 +126,8 @@ class ShelterReportIT extends AbstractPersistenceIT {
         return "{\"band\":\"" + band + "\"}";
     }
 
-    private static String reviewReportBody(String reason, String detail) {
-        return "{\"reason\":\"" + reason + "\"" + (detail == null ? "" : ",\"detail\":\"" + detail + "\"") + "}";
+    private static String openStatusBody(String state) {
+        return "{\"state\":\"" + state + "\"}";
     }
 
     private void expectError(org.springframework.test.web.servlet.ResultActions result,
@@ -163,7 +159,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].name").value("Aruundetav"))
                 .andExpect(jsonPath("$[0].nonexistentReports").value(1))
-                .andExpect(jsonPath("$[0].statusFlag").doesNotExist());
+                .andExpect(jsonPath("$[0].openStatus").doesNotExist());
         // detail carries it too
         mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(jsonPath("$.nonexistentReports").value(1));
@@ -216,6 +212,15 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(occupancyBody("FULL"))),
                 403, "Forbidden");
+        // anonymous open-status tap → 401, unverified → 403 (same gate)
+        expectError(mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                .contentType(MediaType.APPLICATION_JSON).content(openStatusBody("OPEN"))),
+                401, "Unauthorized");
+        expectError(mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + unverified)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN"))),
+                403, "Forbidden");
 
         mvc.perform(get("/api/shelters/" + shelterId))
                 .andExpect(jsonPath("$.nonexistentReports").value(0));
@@ -234,6 +239,11 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(occupancyBody("FULL"))),
+                404, "Not Found");
+        expectError(mvc.perform(put("/api/shelters/999999/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN"))),
                 404, "Not Found");
     }
 
@@ -261,6 +271,16 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(occupancyBody("CRASHED"))),
+                400, "Bad Request");
+        expectError(mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("CRASHED"))),
+                400, "Bad Request");
+        expectError(mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}")),
                 400, "Bad Request");
     }
 
@@ -458,10 +478,10 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    // ---------- CLOSED / OPEN_CONFIRMED flag (D1) ----------
+    // ---------- CLOSED / OPEN_CONFIRMED report types (D1 — display net retired) ----------
 
     @Test
-    void closedReportsFlagReportedClosedAndTheShelterStays() throws Exception {
+    void closedReportsNeverHideTheShelter() throws Exception {
         long shelterId = seedShelter("Suletud varjend", ShelterSource.USER);
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Suletud1", "suletud1@example.ee"))
@@ -474,31 +494,22 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .content(reportBody("CLOSED", null)))
                 .andExpect(status().isOk());
 
-        // 2 CLOSED, 0 OPEN_CONFIRMED → "Reported closed" — and it stays mappable
+        // CLOSED reports are a report TYPE only (the display net is
+        // retired) — the shelter stays mappable
         mvc.perform(get("/api/shelters").param("source", "USER"))
-                .andExpect(jsonPath("$[?(@.name == 'Suletud varjend')].statusFlag")
-                        .value(org.hamcrest.Matchers.contains("REPORTED_CLOSED")))
                 .andExpect(jsonPath("$[?(@.name == 'Suletud varjend')].status")
                         .value(org.hamcrest.Matchers.contains("ACTIVE")));
     }
 
     @Test
-    void openConfirmationsFlipTheFlagToConfirmedOpen() throws Exception {
+    void openConfirmationsNeverHideTheShelter() throws Exception {
         long shelterId = seedShelter("Tagasiavatud", ShelterSource.USER);
         mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Suletud3", "suletud3@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(reportBody("CLOSED", null)))
                 .andExpect(status().isOk());
-        mvc.perform(post("/api/shelters/" + shelterId + "/reports")
-                        .header("Authorization", "Bearer " + verifiedToken("Suletud4", "suletud4@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reportBody("CLOSED", null)))
-                .andExpect(status().isOk());
-        mvc.perform(get("/api/shelters/" + shelterId))
-                .andExpect(jsonPath("$.statusFlag").value("REPORTED_CLOSED"));
-
-        // 3 OPEN_CONFIRMED after 2 CLOSED → flips, visible throughout
+        // 3 OPEN_CONFIRMED — visible throughout, never a hide
         for (int i = 5; i <= 7; i++) {
             mvc.perform(post("/api/shelters/" + shelterId + "/reports")
                             .header("Authorization", "Bearer " + verifiedToken("Avatud" + i, "avatud" + i + "@example.ee"))
@@ -507,177 +518,8 @@ class ShelterReportIT extends AbstractPersistenceIT {
                     .andExpect(status().isOk());
         }
         mvc.perform(get("/api/shelters").param("source", "USER"))
-                .andExpect(jsonPath("$[?(@.name == 'Tagasiavatud')].statusFlag")
-                        .value(org.hamcrest.Matchers.contains("CONFIRMED_OPEN")))
                 .andExpect(jsonPath("$[?(@.name == 'Tagasiavatud')].status")
                         .value(org.hamcrest.Matchers.contains("ACTIVE")));
-    }
-
-    // ---------- review reports + hidden reviews (D2) ----------
-
-    @Test
-    void fiveReviewReportsHideTheReviewAndExcludeItFromAggregates() throws Exception {
-        long shelterId = seedShelter("Arvustatav", ShelterSource.USER);
-        String author = verifiedToken("Autor", "autor2@example.ee");
-        // the author's hidden-to-be review: rating 1 (a bad rating it attacked)
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(1, "vöör info")))
-                .andExpect(status().isCreated());
-        // a fair visible review: rating 5
-        String fair = verifiedToken("Toetaja", "toetaja@example.ee");
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + fair)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(5, "reaalne")))
-                .andExpect(status().isCreated());
-
-        // before: both count
-        mvc.perform(get("/api/shelters/" + shelterId))
-                .andExpect(jsonPath("$.reviewCount").value(2))
-                .andExpect(jsonPath("$.averageRating").value(3.0));
-
-        long reviewId = reviewIdOf(shelterId, "Autor");
-        for (int i = 1; i <= 5; i++) {
-            mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                            .header("Authorization", "Bearer " + verifiedToken("Arvestaja" + i, "arvestaja" + i + "@example.ee"))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(reviewReportBody("SPAM", null)))
-                    .andExpect(status().isNoContent());
-        }
-
-        // hidden now: excluded from the public list, the average and the count —
-        // and the row itself is retained (hiding never deletes)
-        mvc.perform(get("/api/shelters/" + shelterId + "/reviews"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(1)))
-                .andExpect(jsonPath("$[0].authorName").value("Toetaja"));
-        mvc.perform(get("/api/shelters/" + shelterId))
-                .andExpect(jsonPath("$.reviewCount").value(1))
-                .andExpect(jsonPath("$.averageRating").value(5.0));
-        // the row is still there (evidence for the admin queue)
-        Integer retained = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM shelter_reviews WHERE hidden_at IS NOT NULL", Integer.class);
-        assertThat(retained).isEqualTo(1);
-    }
-
-    @Test
-    void authorStillSeesTheirHiddenReviewMarkedHidden() throws Exception {
-        long shelterId = seedShelter("Oma varjend", ShelterSource.USER);
-        String author = verifiedToken("Autor", "autor3@example.ee");
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(2, "peida mind")))
-                .andExpect(status().isCreated());
-        long reviewId = reviewIdOf(shelterId, "Autor");
-        for (int i = 1; i <= 5; i++) {
-            mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                            .header("Authorization", "Bearer " + verifiedToken("Arv" + i, "arv" + i + "@example.ee"))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(reviewReportBody("FALSY_DATA", null)))
-                    .andExpect(status().isNoContent());
-        }
-
-        // the author's detail-page fetch: their own hidden review, marked
-        mvc.perform(get("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(1)))
-                .andExpect(jsonPath("$[0].authorName").value("Autor"))
-                .andExpect(jsonPath("$[0].hidden").value(true));
-        // a different verified user never receives it
-        String other = verifiedToken("Teine", "teine2@example.ee");
-        mvc.perform(get("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + other))
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(0)));
-    }
-
-    @Test
-    void ownReviewReportIs403AndNothingIsStored() throws Exception {
-        long shelterId = seedShelter("Oma arvustus", ShelterSource.USER);
-        String author = verifiedToken("Autor", "autor4@example.ee");
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(4, "süütu")))
-                .andExpect(status().isCreated());
-        long reviewId = reviewIdOf(shelterId, "Autor");
-
-        expectError(mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("SPAM", null))),
-                403, "Forbidden");
-
-        // still fully visible, nothing stored
-        mvc.perform(get("/api/shelters/" + shelterId + "/reviews"))
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(1)))
-                .andExpect(jsonPath("$[0].hidden").value(false));
-    }
-
-    @Test
-    void duplicateReviewReportIs409() throws Exception {
-        long shelterId = seedShelter("Dubleeritav arvustus", ShelterSource.USER);
-        String author = verifiedToken("Autor", "autor5@example.ee");
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(3, "süütu")))
-                .andExpect(status().isCreated());
-        long reviewId = reviewIdOf(shelterId, "Autor");
-        String reporter = verifiedToken("Arvaja", "arvaja@example.ee");
-
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + reporter)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("SPAM", null)))
-                .andExpect(status().isNoContent());
-
-        expectError(mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + reporter)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("OTHER", "üks ja ainult üks"))),
-                409, "Conflict");
-    }
-
-    @Test
-    void reviewReportRequiresExistingShelterAndReviewOfThatShelter() throws Exception {
-        long shelterId = seedShelter("Otsitav", ShelterSource.USER);
-        String author = verifiedToken("Autor", "autor6@example.ee");
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + author)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(3, "siin")))
-                .andExpect(status().isCreated());
-        long reviewId = reviewIdOf(shelterId, "Autor");
-        String token = verifiedToken("Arvaja", "arvaja2@example.ee");
-
-        // unknown shelter → 404
-        expectError(mvc.perform(post("/api/shelters/999999/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("SPAM", null))),
-                404, "Not Found");
-        // a real review pointed at the WRONG shelter → 404 (no cross-shelter)
-        expectError(mvc.perform(post("/api/shelters/" + (shelterId + 1) + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("SPAM", null))),
-                404, "Not Found");
-        // an unknown review id under a real shelter → 404
-        expectError(mvc.perform(post("/api/shelters/" + shelterId + "/reviews/999999/reports")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("SPAM", null))),
-                404, "Not Found");
-        // a bogus reason → 400
-        expectError(mvc.perform(post("/api/shelters/" + shelterId + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewReportBody("BOGUS", null))),
-                400, "Bad Request");
     }
 
     // ---------- occupancy (D4) ----------
@@ -806,6 +648,138 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .value(org.hamcrest.Matchers.contains("ACTIVE")));
     }
 
+    // ---------- live open/closed state (same level as capacity) ----------
+
+    @Test
+    void loneFreshOpenStatusTapShowsOnTheList() throws Exception {
+        long shelterId = seedShelter("Ainuke tap", ShelterSource.USER);
+        String token = verifiedToken("Mari", "mari5@example.ee");
+
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/shelters").param("source", "USER"))
+                .andExpect(jsonPath("$[0].openStatus.state").value("OPEN"))
+                .andExpect(jsonPath("$[0].openStatus.reportCount").value(1))
+                .andExpect(jsonPath("$[0].openStatus.reportedAt").isNotEmpty());
+    }
+
+    @Test
+    void theLatestOpenStatusTapWinsOverEarlierDisagreeingTaps() throws Exception {
+        long shelterId = seedShelter("Muutu tap", ShelterSource.USER);
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Avatud 1", "avatud-1@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+        // a later CLOSED tap: the state flips, only one agrees
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Suletud 1", "suletud-1@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("CLOSED")))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(get("/api/shelters").param("source", "USER"))
+                .andExpect(jsonPath("$[0].openStatus.state").value("CLOSED"))
+                .andExpect(jsonPath("$[0].openStatus.reportCount").value(1));
+    }
+
+    @Test
+    void staleOpenStatusDisappearsAtReadTime() throws Exception {
+        long shelterId = seedShelter("Vana tap", ShelterSource.USER);
+        String token = verifiedToken("Mari", "mari6@example.ee");
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+
+        // age the tap past the 2 h window (no cleanup job — read-time check)
+        jdbc.update("UPDATE shelter_open_status SET created_at = created_at - INTERVAL '3 hours'");
+
+        mvc.perform(get("/api/shelters").param("source", "USER"))
+                .andExpect(jsonPath("$[0].openStatus").doesNotExist());
+    }
+
+    @Test
+    void openStatusUpsertsOneRowPerUserAndDetailCarriesYourState() throws Exception {
+        long shelterId = seedShelter("Uuendatav tap", ShelterSource.USER);
+        String token = verifiedToken("Mari", "mari7@example.ee");
+
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("CLOSED")))
+                .andExpect(status().isNoContent());
+        // re-tap: latest state wins, still one live state per user
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+
+        // detail carries the caller's own state for the picker pre-select
+        mvc.perform(get("/api/shelters/" + shelterId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$.yourOpenStatus").value("OPEN"))
+                .andExpect(jsonPath("$.openStatus.state").value("OPEN"))
+                .andExpect(jsonPath("$.openStatus.reportCount").value(1));
+        // the list projection is detail-free: no own state there
+        mvc.perform(get("/api/shelters").param("source", "USER")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(jsonPath("$[0].yourOpenStatus").doesNotExist());
+        // other callers get no state (guests and anonymous included)
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.yourOpenStatus").doesNotExist());
+        mvc.perform(get("/api/shelters/" + shelterId)
+                        .header("Authorization", "Bearer " + verifiedToken("Teine", "teine5@example.ee")))
+                .andExpect(jsonPath("$.yourOpenStatus").doesNotExist());
+    }
+
+    @Test
+    void openStatusTapsNeverHide() throws Exception {
+        long shelterId = seedShelter("Alati nähtav tap", ShelterSource.USER);
+        for (int i = 1; i <= 5; i++) {
+            mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                            .header("Authorization", "Bearer " + verifiedToken("Tap" + i, "tap" + i + "@example.ee"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(openStatusBody("CLOSED")))
+                    .andExpect(status().isNoContent());
+        }
+
+        mvc.perform(get("/api/shelters").param("source", "USER"))
+                .andExpect(jsonPath("$[?(@.name == 'Alati nähtav tap')].status")
+                        .value(org.hamcrest.Matchers.contains("ACTIVE")));
+    }
+
+    @Test
+    void anOpenTapFromAnotherUserAutoConfirmsANewRow() throws Exception {
+        String author = verifiedToken("Autor", "autor-tap@example.ee");
+        long shelterId = createShelterViaApi(author, "Kinnitatav tap");
+
+        // the submitter's own tap never confirms (the auto-confirm rule)
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"));
+
+        // a cross-user OPEN tap promotes NEW→CONFIRMED (the OPEN_CONFIRMED
+        // auto-confirm rule, reused)
+        mvc.perform(put("/api/shelters/" + shelterId + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Teine tap", "teine-tap@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(openStatusBody("OPEN")))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/api/shelters/" + shelterId))
+                .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"));
+    }
+
     // ---------- per-user submission cap (D3) ----------
 
     @Test
@@ -874,45 +848,6 @@ class ShelterReportIT extends AbstractPersistenceIT {
     // ---------- trust filters (D5) ----------
 
     @Test
-    void reviewedFilterKeepsOnlySheltersWithVisibleReviews() throws Exception {
-        long visible = seedShelter("Arvustatud", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + visible + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("ArvU", "arvu@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(4, "")))
-                .andExpect(status().isCreated());
-
-        long hiddenOnly = seedShelter("Peadetud", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + hiddenOnly + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("ArvH", "arvh@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(5, "peita")))
-                .andExpect(status().isCreated());
-        long hiddenReviewId = reviewIdOf(hiddenOnly, "ArvH");
-        for (int i = 1; i <= 5; i++) {
-            mvc.perform(post("/api/shelters/" + hiddenOnly + "/reviews/" + hiddenReviewId + "/reports")
-                            .header("Authorization", "Bearer " + verifiedToken("Peitja" + i, "peitja" + i + "@example.ee"))
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(reviewReportBody("SPAM", null)))
-                    .andExpect(status().isNoContent());
-        }
-
-        long none = seedShelter("Ilma", ShelterSource.USER);
-
-        mvc.perform(get("/api/shelters").param("reviewed", "true"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Arvustatud")));
-        // a hidden-only shelter does NOT pass reviewed=true
-        mvc.perform(get("/api/shelters").param("reviewed", "true"))
-                .andExpect(jsonPath("$[*].name",
-                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("Peadetud"))));
-        // the negation keeps the unreviewed (visible) shelters
-        mvc.perform(get("/api/shelters").param("reviewed", "false"))
-                .andExpect(jsonPath("$[*].name",
-                        org.hamcrest.Matchers.containsInAnyOrder("Peadetud", "Ilma")));
-    }
-
-    @Test
     void hasCapacityFilterKeepsSheltersWithCapacityData() throws Exception {
         String token = verifiedToken("Maht", "maht@example.ee");
         mvc.perform(post("/api/shelters")
@@ -932,32 +867,19 @@ class ShelterReportIT extends AbstractPersistenceIT {
 
     @Test
     void trustFiltersComposeWithTheSourceFilter() throws Exception {
-        // USER + reviewed + hasCapacity → the intersection (M11: the
-        // minRating filter is gone — a stray param is ignored, not an error)
+        // USER + hasCapacity → the intersection (M11: the minRating filter
+        // is gone — a stray param is ignored, not an error)
         String token = verifiedToken("Liitja", "liitja@example.ee");
         mvc.perform(post("/api/shelters")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Kõik korras\",\"latitude\":59.4,\"longitude\":24.7,\"capacity\":10}"))
                 .andExpect(status().isCreated());
-        long qualifiedId = shelters.findByCreatedBy(users.findByEmail("liitja@example.ee").getId())
-                .stream().filter(s -> s.getName().equals("Kõik korras")).findFirst().orElseThrow().getId();
-        mvc.perform(post("/api/shelters/" + qualifiedId + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("LiitArv", "liitarv@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(4, "")))
-                .andExpect(status().isCreated());
         // a REGISTRY shelter that also matches — must be cut by source=USER
-        long registry = seedShelter("Registri hinne", ShelterSource.PAASETEAMET);
-        mvc.perform(post("/api/shelters/" + registry + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("RegArv", "regarv@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(5, "")))
-                .andExpect(status().isCreated());
+        long registry = seedShelter("Registri maht", ShelterSource.PAASETEAMET);
 
         mvc.perform(get("/api/shelters")
                         .param("source", "USER")
-                        .param("reviewed", "true")
                         .param("hasCapacity", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Kõik korras")));
@@ -993,13 +915,5 @@ class ShelterReportIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].status").value("INACTIVE"));
         // detail stays available
         mvc.perform(get("/api/shelters/" + shelterId)).andExpect(status().isOk());
-    }
-
-    /** Resolves the review id of the named author's review of a shelter (straight from the DB). */
-    private long reviewIdOf(long shelterId, String authorName) {
-        return jdbc.queryForObject(
-                "SELECT r.id FROM shelter_reviews r JOIN users u ON u.id = r.user_id " +
-                        "WHERE r.shelter_id = ? AND u.name = ?",
-                Long.class, shelterId, authorName);
     }
 }

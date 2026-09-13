@@ -33,8 +33,9 @@ separate later waves.
   (AUTO_CONFIRM / CONFIRM).
 - `shelters.location_kind`: PUBLIC / PRIVATE — submitter declares "this
   is a private home or private shelter offered as a refuge". Private
-  rows show a "Private location" badge (list, detail, admin); marker
-  colour stays the trust colour.
+  rows show a "Private home (declared)" badge (list, detail, admin);
+  marker colour stays the trust colour; no access policy is ever
+  derived from the declaration (design D7a).
 - `moderation_actions` audit table + `GET /admin/audit`; admin
   `POST /admin/shelters/{id}/review` accepts CONFIRM / REJECT (reason).
 - Display: legend grows to Registry / New community (amber) /

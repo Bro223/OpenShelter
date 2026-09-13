@@ -96,14 +96,6 @@
     color: var(--color-danger);
   }
 
-  /* Reported-away (shelter-provenance-taxonomy M6): the NEUTRAL grey chip
-     — a factual state ("the community reported it away"), not an alarm. */
-  &.badge--inactive {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
   /* Info request (M10 slice 3): an OPEN moderator question — the amber
      action chip (needs the submitter's one-time reply); answered requests
      carry no chip. */
@@ -137,16 +129,6 @@
 .contrib-row__hidden {
   color: var(--color-muted);
   font-size: var(--text-sm);
-}
-
-.contrib-row__stars {
-  display: inline-flex;
-}
-
-.contrib-row__comment {
-  font-size: var(--text-md);
-  color: var(--color-text);
-  overflow-wrap: anywhere;
 }
 
 .contrib-row__actions {

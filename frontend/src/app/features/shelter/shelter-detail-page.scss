@@ -47,10 +47,11 @@
     color: var(--color-shelter-user);
   }
 
-  /* Trust badges (shelter-trust-and-reports D6) — the same language as the
-     map row badges: reported = the single reported token; closed/open = the
-     existing warning/success tints; occupancy = NEUTRAL ("space available"
-     is not a celebration, "full" is not a crisis). */
+  /* Trust badges (shelter-trust-and-reports D6; open-status wave) — the
+     same language as the map row badges: reported = the single reported
+     token; closed = the existing warning tint (fresh OPEN rows render no
+     badge at all — open is the default); occupancy = NEUTRAL ("space
+     available" is not a celebration, "full" is not a crisis). */
   &.badge--reported {
     background: var(--color-reported);
     color: var(--color-bg-surface);
@@ -60,12 +61,6 @@
     background: var(--color-warning-bg);
     border: 1px solid var(--color-warning-border);
     color: var(--color-warning);
-  }
-
-  &.badge--open {
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
-    color: var(--color-success);
   }
 
   &.badge--occupancy {
@@ -89,14 +84,6 @@
     background: var(--color-badge-new);
     color: var(--color-warning);
   }
-
-  /* Reported-away (shelter-provenance-taxonomy M6): the NEUTRAL grey chip —
-     a hidden row's factual state, not an alarm. */
-  &.badge--inactive {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
 }
 
 .shelter-detail__address {
@@ -107,7 +94,7 @@
 /* The permanent unverified warning for NEW community rows (community-
    review-queue): an inset note in the muted/subtle vocabulary —
    deliberately NOT the crisis orange (--color-cta) and not the reported
-   token. A caveat that lives next to the provenance chip. */
+   token. A caveat that lives next to the trust-state badge. */
 .community-warning {
   margin: 0;
   padding: var(--space-8) var(--space-12);
@@ -200,28 +187,11 @@
 
 /* The last-verified line (M8) — the same muted meta language as the
    coordinate line: a fact about the row's freshness, not a caveat (the
-   UNDER_REVIEW caveat already lives in .community-warning above). */
+   unverified caveat already lives in .community-warning above). */
 .shelter-detail__verified {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--text-sm);
-}
-
-.shelter-detail__rating {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-
-  .review-count {
-    font-size: var(--text-sm);
-    color: var(--color-muted);
-  }
-
-  .no-ratings {
-    font-size: var(--text-md);
-    color: var(--color-muted);
-    font-style: italic;
-  }
 }
 
 .detail-state {
@@ -269,42 +239,30 @@
   font-size: var(--text-md);
 }
 
-.review-list {
-  list-style: none;
+/* The practical info block (review-model removal): plain label/value rows —
+   the derived display status for now. The row is a definition list: dt is
+   the muted label, dd the value. */
+.fact-list {
   margin: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-14);
-}
+  gap: var(--space-8);
 
-.review {
-  padding: var(--space-12) var(--space-14);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-
-  &__head {
+  &__row {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
     gap: var(--space-10);
   }
 
-  &__author {
-    font-weight: var(--font-weight-semibold);
-  }
-
-  &__date {
-    margin-left: auto;
-    font-size: var(--text-xs);
-    color: var(--color-muted);
-  }
-
-  &__comment {
+  &__label {
+    flex: 0 0 12rem; /* label column width (page-specific, not spacing) */
     margin: 0;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  &__value {
+    margin: 0;
+    font-size: var(--text-sm);
   }
 }
 
@@ -356,6 +314,35 @@
   color: var(--color-muted);
 }
 
+/* Report open/closed (open-status wave): two large state buttons — the
+   .band-picker language mirrored 1:1 (the .btn base carries the 48px
+   minimum target; the active state is the user's CURRENT report, the
+   optimistic tap in flight included). The pressed state is the primary
+   colour, never success/crisis. */
+.open-status-picker {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+
+  .open-status-btn {
+    flex: 1;
+    min-width: 0;
+    border-color: var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.open-status-btn--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
 /* The trust-layer pickers (D1/D2): inline expansion (the app's convention
    — no modals), one picker open at a time. Radio rows are the interactive
    targets, so each carries the 48px minimum. */
@@ -403,25 +390,4 @@
   display: flex;
   gap: var(--space-8);
   flex-wrap: wrap;
-}
-
-/* The per-review Report button (D2): the .btn base gives it the 48px
-   target; it sits under the review comment as a quiet secondary action. */
-.review__report {
-  align-self: flex-start;
-}
-
-/* The author's own hidden review (D2): the mark + muted author line. */
-.review__hidden {
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-8);
-  border-radius: var(--radius-full);
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
-  color: var(--color-muted);
-}
-
-.review--hidden .review__author {
-  color: var(--color-muted);
 }

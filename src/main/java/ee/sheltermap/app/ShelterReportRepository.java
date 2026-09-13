@@ -48,13 +48,17 @@ public interface ShelterReportRepository {
     /**
      * The distinct reporters of one type for one shelter with their damp
      * flag (M9, D3) — the weighted auto-hide tally input (one query).
+     * Admin-dismissed reports are excluded — the dismissal is the admin's
+     * invalid verdict, so the report stops influencing the tally.
      */
     List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type);
 
     /**
      * Report counts by type for all given shelter ids in ONE query.
-     * (shelter, type) pairs without reports are absent from the result
-     * (caller treats "missing" as count 0).
+     * Admin-dismissed reports are excluded from every count (the dismissed
+     * report stops influencing the displayed counts). (shelter, type) pairs
+     * without reports are absent from the result (caller treats "missing"
+     * as count 0).
      */
     List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds);
 

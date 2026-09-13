@@ -6,13 +6,11 @@ import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
-import ee.sheltermap.domain.ShelterStatusFlag;
 
 import java.time.Instant;
 
 /**
  * The versioned read contract with the frontend (05-shelter-api.puml).
- * {@code averageRating} is {@code null} when the shelter has no reviews yet.
  * Lean projection on purpose: the full registry record (county, municipality,
  * data-as-of, attribution) is stored locally but not dumped here — the UI
  * gets only what the map needs. {@code description}/{@code capacity} are
@@ -24,13 +22,20 @@ import java.time.Instant;
  *
  * <p>Trust layer (shelter-trust-and-reports D1/D4/D5):
  * {@code nonexistentReports} is 0 when none — the UI's orange "Reported"
- * affordance fires at {@code > 0}; {@code statusFlag} is the CLOSED vs
- * OPEN_CONFIRMED net (null = no flag); {@code occupancy} is the fresh
- * (≤ 2 h) block — null when nothing is fresh, and the UI hedges at
- * {@code reportCount == 1} and firms at 2+; {@code yourOccupancyBand}
- * is the CALLER's own live band (detail endpoint only; null for guests,
- * anonymous callers and users without a report). All derivations are
- * computed server-side in the batched projection — never client-computed.
+ * affordance fires at {@code > 0}; {@code openStatus} is the live
+ * open/closed block (same level as capacity) — the fresh (≤ 2 h) latest
+ * tap's state, the number of fresh reporters agreeing with it, and the
+ * newest fresh tap's time, null when nothing is fresh; {@code occupancy}
+ * is the fresh (≤ 2 h) block — null when nothing is fresh, and the UI
+ * hedges at {@code reportCount == 1} and firms at 2+; {@code
+ * yourOccupancyBand} is the CALLER's own live band (detail endpoint
+ * only; null for guests, anonymous callers and users without a report);
+ * {@code yourOpenStatus} is the CALLER's own live open/closed state
+ * (detail endpoint only; same null rules). The CLOSED/OPEN_CONFIRMED
+ * report TYPES remain (historical rows, the auto-confirm path) — the
+ * retired display flag (statusFlag) is gone with them. All derivations
+ * are computed server-side in the batched projection — never
+ * client-computed.
  *
  * <p>Community trust (community-review-queue v2 D2/D5/D7): every row
  * carries {@code reviewStatus} — NEW (unverified community row, the
@@ -80,16 +85,15 @@ public record ShelterDto(
         double longitude,
         ShelterStatus status,
         ShelterSource source,
-        Double averageRating,
-        int reviewCount,
         Instant createdAt,
         String description,
         Integer capacity,
         boolean submitterVerified,
         int nonexistentReports,
-        ShelterStatusFlag statusFlag,
+        OpenStatus openStatus,
         Occupancy occupancy,
         OccupancyBand yourOccupancyBand,
+        String yourOpenStatus,
         ReviewStatus reviewStatus,
         String reviewNote,
         LocationKind locationKind,
@@ -98,6 +102,18 @@ public record ShelterDto(
         Instant lastVerifiedAt,
         boolean inaccurate,
         InfoRequest infoRequest) {
+
+    /**
+     * The live open/closed block (same level as capacity): the LATEST
+     * fresh tap's state (the tie-break is exactly the occupancy D4
+     * derivation), the number of fresh taps agreeing with that state, and
+     * the newest fresh tap's time. Null when nothing is fresh (≤ 2 h).
+     */
+    public record OpenStatus(
+            String state,
+            Instant reportedAt,
+            int reportCount) {
+    }
 
     /**
      * The fresh occupancy block (D4): the latest fresh report's band, the

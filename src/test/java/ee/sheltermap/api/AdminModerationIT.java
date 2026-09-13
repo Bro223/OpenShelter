@@ -173,9 +173,6 @@ class AdminModerationIT extends AbstractPersistenceIT {
         expectError(mvc.perform(get("/admin/reports?shelterId=" + shelterId)
                         .header("Authorization", "Bearer " + token)),
                 403, "Forbidden");
-        expectError(mvc.perform(get("/admin/review-reports")
-                        .header("Authorization", "Bearer " + token)),
-                403, "Forbidden");
         expectError(mvc.perform(post("/admin/shelters/" + shelterId + "/status")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -224,12 +221,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
     void theAdminListHasAllStatusesTrustFieldsAndTheSubmitter() throws Exception {
         String author = verifiedToken("Autor", "autor@example.ee");
         long userId = createShelterViaApi(author, "Kasutaja varjend");
-        // a visible review + a NON_EXISTENT report + the CLOSED/OPEN net
-        mvc.perform(post("/api/shelters/" + userId + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Arvustaja", "arvustaja@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":5,\"comment\":\"\"}"))
-                .andExpect(status().isCreated());
+        // a NON_EXISTENT report + the CLOSED/OPEN net
         mvc.perform(post("/api/shelters/" + userId + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Arendaja", "arendaja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -267,10 +259,8 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].id").value(userId))
                 .andExpect(jsonPath("$[0].source").value("USER"))
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
-                .andExpect(jsonPath("$[0].rating").value(5.0))
-                .andExpect(jsonPath("$[0].reviewCount").value(1))
                 .andExpect(jsonPath("$[0].nonexistentReports").value(1))
-                .andExpect(jsonPath("$[0].statusFlag").value("CONFIRMED_OPEN"))
+                .andExpect(jsonPath("$[0].openStatus").doesNotExist())
                 .andExpect(jsonPath("$[0].submitter").value("Autor"));
         mvc.perform(get("/admin/shelters").header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[?(@.name == 'Peidetud oma')].status")
@@ -467,22 +457,10 @@ class AdminModerationIT extends AbstractPersistenceIT {
     // ---------- hard delete (D3) ----------
 
     @Test
-    void aDeleteCascadesReviewsReportsAndOccupancy() throws Exception {
+    void aDeleteCascadesReportsOccupancyAndOpenStatus() throws Exception {
         String author = verifiedToken("Autor", "autor2@example.ee");
         long id = createShelterViaApi(author, "Prunk");
-        // a review + a review report + a shelter report + an occupancy report
-        mvc.perform(post("/api/shelters/" + id + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Arv1", "arv1@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":2,\"comment\":\"\"}"))
-                .andExpect(status().isCreated());
-        Long reviewId = jdbc.queryForObject(
-                "SELECT id FROM shelter_reviews WHERE shelter_id = ?", Long.class, id);
-        mvc.perform(post("/api/shelters/" + id + "/reviews/" + reviewId + "/reports")
-                        .header("Authorization", "Bearer " + verifiedToken("Arv2", "arv2@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"reason\":\"SPAM\"}"))
-                .andExpect(status().isNoContent());
+        // a shelter report + an occupancy report + an open-status tap
         mvc.perform(post("/api/shelters/" + id + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Aru1", "aru1@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -494,6 +472,12 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"band\":\"FULL\"}"))
                 .andExpect(status().isNoContent());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .put("/api/shelters/" + id + "/open-status")
+                        .header("Authorization", "Bearer " + verifiedToken("Aru3", "aru3@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"state\":\"OPEN\"}"))
+                .andExpect(status().isNoContent());
 
         mvc.perform(delete("/admin/shelters/" + id).header("Authorization", "Bearer " + adminToken()))
                 .andExpect(status().isNoContent());
@@ -502,13 +486,11 @@ class AdminModerationIT extends AbstractPersistenceIT {
         assertThat(shelters.findById(id)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM shelters WHERE id = ?", Integer.class, id)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM shelter_reviews WHERE shelter_id = ?", Integer.class, id)).isZero();
-        assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shelter_reports WHERE shelter_id = ?", Integer.class, id)).isZero();
         assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM review_reports WHERE review_id = ?", Integer.class, reviewId)).isZero();
-        assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM shelter_occupancy_reports WHERE shelter_id = ?", Integer.class, id)).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM shelter_open_status WHERE shelter_id = ?", Integer.class, id)).isZero();
         // the public surface is clean
         mvc.perform(get("/api/shelters/" + id)).andExpect(status().isNotFound());
         mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + author))
@@ -659,124 +641,77 @@ class AdminModerationIT extends AbstractPersistenceIT {
                 404, "Not Found");
     }
 
-    // ---------- review report queue + hide/restore (D3) ----------
+    // ---------- dismissal stops counting (NON_EXISTENT tally + display) ----------
 
     @Test
-    void theReviewReportQueueIncludesHiddenReviewsWithTheirMarkers() throws Exception {
-        long id = seedShelter("Arvustatav", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + id + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Autor", "autor3@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":1,\"comment\":\"vöör info\"}"))
-                .andExpect(status().isCreated());
-        Long reviewId = jdbc.queryForObject(
-                "SELECT id FROM shelter_reviews WHERE shelter_id = ?", Long.class, id);
-        // 5 review reports → the trust layer hides the review
+    void aDismissedNonExistentReportStopsCountingInTallyAndDisplay() throws Exception {
+        long id = seedShelter("Lugatu", ShelterSource.USER);
         for (int i = 1; i <= 5; i++) {
-            mvc.perform(post("/api/shelters/" + id + "/reviews/" + reviewId + "/reports")
-                            .header("Authorization", "Bearer " + verifiedToken("Arvestaja" + i, "arvestaja" + i + "@example.ee"))
+            mvc.perform(post("/api/shelters/" + id + "/reports")
+                            .header("Authorization", "Bearer " + verifiedToken("Aru" + i, "aru" + i + "@example.ee"))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(i == 5
-                                    ? "{\"reason\":\"OTHER\",\"detail\":\"siin põhjus\"}"
-                                    : "{\"reason\":\"SPAM\"}"))
-                    .andExpect(status().isNoContent());
+                            .content("{\"type\":\"NON_EXISTENT\"}"))
+                    .andExpect(status().isOk());
         }
-        // stagger: the OTHER-reason report (id = the 5th, newest by default)
-        // must come first
-        entityManager.flush();
-        jdbc.update("UPDATE review_reports SET created_at = created_at - INTERVAL '1 minute' " +
-                "WHERE review_id = ? AND reason = 'SPAM'", reviewId);
+        // auto-hidden at the fifth report
+        assertThat(shelters.findById(id).orElseThrow().getStatus()).isEqualTo(ShelterStatus.INACTIVE);
 
-        mvc.perform(get("/admin/review-reports").header("Authorization", "Bearer " + adminToken()))
-                .andExpect(status().isOk())
+        // the admin judged one of them invalid — it stops influencing
+        // anything (the row itself stays in the queue)
+        Long reportId = reportId("Aru1", id);
+        mvc.perform(post("/admin/reports/" + reportId + "/dismiss")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isNoContent());
+        entityManager.flush();
+
+        // the displayed count drops 5 → 4
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.nonexistentReports").value(4));
+        mvc.perform(get("/admin/reports").param("shelterId", String.valueOf(id))
+                        .header("Authorization", "Bearer " + adminToken()))
                 .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(5)))
-                .andExpect(jsonPath("$[0].shelterId").value(id))
-                .andExpect(jsonPath("$[0].shelterName").value("Arvustatav"))
-                .andExpect(jsonPath("$[0].reviewId").value(reviewId))
-                .andExpect(jsonPath("$[0].reviewRating").value(1))
-                .andExpect(jsonPath("$[0].reviewComment").value("vöör info"))
-                .andExpect(jsonPath("$[0].reviewHidden").value(true))
-                .andExpect(jsonPath("$[0].reason").value("OTHER"))
-                .andExpect(jsonPath("$[0].detail").value("siin põhjus"))
-                .andExpect(jsonPath("$[0].reporterName").value("Arvestaja5"))
-                .andExpect(jsonPath("$[0].reporterEmail").value("arvestaja5@example.ee"))
-                .andExpect(jsonPath("$[1].reason").value("SPAM"))
-                .andExpect(jsonPath("$[1].detail").doesNotExist());
+                .andExpect(jsonPath("$[?(@.id == " + reportId + ")].dismissed")
+                        .value(org.hamcrest.Matchers.contains(true)));
     }
 
     @Test
-    void hideAndRestoreAreIdempotentAndRestoreRestoresTheAverage() throws Exception {
-        long id = seedShelter("Hinnatav", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + id + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Autor", "autor4@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":1,\"comment\":\"\"}"))
-                .andExpect(status().isCreated());
-        mvc.perform(post("/api/shelters/" + id + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Toetaja", "toetaja2@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":5,\"comment\":\"\"}"))
-                .andExpect(status().isCreated());
-        Long reviewId = jdbc.queryForObject(
-                "SELECT r.id FROM shelter_reviews r JOIN users u ON u.id = r.user_id " +
-                        "WHERE r.shelter_id = ? AND u.id = ?",
-                Long.class, id, userIdByEmail("autor4@example.ee"));
-        String token = adminToken();
+    void fiveWithOneDismissedDoNotAutoHideAndTheFifthUndismissedStillHides() throws Exception {
+        long id = seedShelter("Viis aruanet", ShelterSource.USER);
+        for (int i = 1; i <= 4; i++) {
+            mvc.perform(post("/api/shelters/" + id + "/reports")
+                            .header("Authorization", "Bearer " + verifiedToken("Viies" + i, "viies" + i + "@example.ee"))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"type\":\"NON_EXISTENT\"}"))
+                    .andExpect(status().isOk());
+        }
 
-        // before: both count (average 3.0)
-        mvc.perform(get("/api/shelters/" + id))
-                .andExpect(jsonPath("$.reviewCount").value(2))
-                .andExpect(jsonPath("$.averageRating").value(3.0));
-
-        // hide: 204, the review drops out of the public projection
-        mvc.perform(post("/admin/reviews/" + reviewId + "/hide")
-                        .header("Authorization", "Bearer " + token))
+        // the admin dismisses one: the tally sees three undismissed reports
+        Long reportId = reportId("Viies1", id);
+        mvc.perform(post("/admin/reports/" + reportId + "/dismiss")
+                        .header("Authorization", "Bearer " + adminToken()))
                 .andExpect(status().isNoContent());
-        mvc.perform(get("/api/shelters/" + id))
-                .andExpect(jsonPath("$.reviewCount").value(1))
-                .andExpect(jsonPath("$.averageRating").value(5.0));
         entityManager.flush();
-        Instant hiddenStamp = jdbc.queryForObject(
-                "SELECT hidden_at FROM shelter_reviews WHERE id = ?", Instant.class, reviewId);
-        assertThat(hiddenStamp).isNotNull();
 
-        // hide again: 204 no-op, the stamp is untouched
-        mvc.perform(post("/admin/reviews/" + reviewId + "/hide")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent());
-        assertThat(jdbc.queryForObject(
-                "SELECT hidden_at FROM shelter_reviews WHERE id = ?", Instant.class, reviewId))
-                .isEqualTo(hiddenStamp);
-
-        // restore: 204, the review is back in the rating/count (trust
-        // projection: hidden reviews were excluded, restore re-includes)
-        mvc.perform(post("/admin/reviews/" + reviewId + "/restore")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent());
+        // the fifth report arrives: only four undismissed count → stays ACTIVE
+        mvc.perform(post("/api/shelters/" + id + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Viies5", "viies5@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"NON_EXISTENT\"}"))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(id).orElseThrow().getStatus()).isEqualTo(ShelterStatus.ACTIVE);
         mvc.perform(get("/api/shelters/" + id))
-                .andExpect(jsonPath("$.reviewCount").value(2))
-                .andExpect(jsonPath("$.averageRating").value(3.0));
-        entityManager.flush();
-        assertThat(jdbc.queryForObject(
-                "SELECT hidden_at FROM shelter_reviews WHERE id = ?", Instant.class, reviewId)).isNull();
+                .andExpect(jsonPath("$.nonexistentReports").value(4));
 
-        // restore again: 204 no-op
-        mvc.perform(post("/admin/reviews/" + reviewId + "/restore")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent());
+        // the sixth report: five undismissed → hides (the undismissed five
+        // still auto-hide)
+        mvc.perform(post("/api/shelters/" + id + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Viies6", "viies6@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"NON_EXISTENT\"}"))
+                .andExpect(status().isOk());
+        assertThat(shelters.findById(id).orElseThrow().getStatus()).isEqualTo(ShelterStatus.INACTIVE);
         mvc.perform(get("/api/shelters/" + id))
-                .andExpect(jsonPath("$.reviewCount").value(2));
-    }
-
-    @Test
-    void unknownReviewIdsAre404() throws Exception {
-        String token = adminToken();
-        expectError(mvc.perform(post("/admin/reviews/999999/hide")
-                        .header("Authorization", "Bearer " + token)),
-                404, "Not Found");
-        expectError(mvc.perform(post("/admin/reviews/999999/restore")
-                        .header("Authorization", "Bearer " + token)),
-                404, "Not Found");
+                .andExpect(jsonPath("$.nonexistentReports").value(5));
     }
 
     /** The report id of the named reporter's report on a shelter (straight from the DB). */

@@ -17,15 +17,12 @@ import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
 import type {
   OccupancyBand,
-  ReportReviewRequest,
+  OpenState,
   ReportShelterRequest,
-  ReviewReportReason,
   ShelterDetailDto,
   ShelterDto,
   ShelterReportType,
-  ShelterReviewDto,
 } from '../../core/models';
-import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -33,7 +30,6 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   COMMUNITY_UNVERIFIED_WARNING,
   INACCURATE_WARNING,
-  NO_RATINGS_YET,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
   REPORT_SUBMITTED,
@@ -42,14 +38,14 @@ import {
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
-  provenanceBadgeClass as provenanceBadgeClassShared,
-  provenanceText as provenanceTextShared,
-  reviewCountText as reviewCountTextShared,
+  sourceTrustLabel as sourceTrustLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
+  shelterStatusText as shelterStatusTextShared,
   reportedBadgeText as reportedBadgeTextShared,
   lastVerifiedText as lastVerifiedTextShared,
   communityReportsText as communityReportsTextShared,
   hasCommunityReports as hasCommunityReportsShared,
-  statusFlagText as statusFlagTextShared,
+  openStatusBadgeText as openStatusBadgeTextShared,
   straightLineText as straightLineTextShared,
 } from '../../shared/shelter-copy';
 import {
@@ -58,8 +54,6 @@ import {
   LeafletService,
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
-import { RatingStars } from '../../shared/rating-stars';
-import { ReviewForm } from './review-form';
 
 /**
  * Per-error copy for the "Distance from you" action (location-navigation
@@ -95,19 +89,16 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  * stub at the same route (05-shelter-review-flow.puml).
  *
  * Thin shell (01-TASK.md §7): state in signals, behaviour delegated —
- * gateways own the API, AuthStore owns the session. Fetches shelter +
- * reviews in parallel on init; after any successful write it refetches both
- * (design decision 4 — the backend owns the rating aggregates, a cheap full
- * refetch is always consistent).
+ * gateways own the API, AuthStore owns the session. Fetches the shelter on
+ * init; after any successful trust-layer write (report / occupancy /
+ * open-status) it refetches — the backend owns the derived state, a cheap
+ * full refetch is always consistent.
  *
- * "My review" branching lives HERE (design decision 2 — the page owns the
- * auth/verification UX, forms stay dumb):
- *   anonymous -> plain-text login prompt (no inline button — the header
- *                 login is the single entry point; no returnUrl to preserve)
- *   unverified -> verify prompt + link to /verify
- *   verified   -> ReviewForm (add mode, or edit mode once the user's review
- *                 is known this session — the v1 DTO has no author identity,
- *                 so "mine" is tracked locally per 06-CONTEXT decision 2).
+ * The reviews model is GONE (owner decision): no review list, no review
+ * form, no per-review reports. In place of the old Reviews section the
+ * page shows a small practical info block (the derived display status —
+ * "Open" / "Reported closed" / "Closed" — shared rule with the map's
+ * "Open" chip, existing row data only).
  *
  * Location map: a small STATIC map under the header (page-scoped
  * LeafletService, same pattern as the /submit mini-map). The container is
@@ -126,16 +117,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  */
 @Component({
   selector: 'app-shelter-detail-page',
-  imports: [
-    RouterLink,
-    NgClass,
-    DatePipe,
-    ReactiveFormsModule,
-    BannerComponent,
-    RatingStars,
-    ReviewForm,
-    LoadingIndicator,
-  ],
+  imports: [RouterLink, NgClass, DatePipe, ReactiveFormsModule, BannerComponent, LoadingIndicator],
   providers: [LeafletService],
   templateUrl: './shelter-detail-page.html',
   styleUrl: './shelter-detail-page.scss',
@@ -143,7 +125,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 })
 export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly gateway = inject(ShelterGateway);
-  private readonly reviews = inject(ReviewGateway);
   private readonly store = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
   private readonly leaflet = inject(LeafletService);
@@ -154,38 +135,29 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   readonly id = signal<number | null>(null);
   /** Detail projection — the list fields + yourOccupancyBand (D5). */
   readonly shelter = signal<ShelterDetailDto | null>(null);
-  readonly reviewsList = signal<ShelterReviewDto[]>([]);
-  /** The reviews half of load() failed — the section shows its own error.
-   *  (Promise.allSettled: a reviews 5xx never hides a loaded shelter, N11.) */
-  readonly reviewsError = signal<string | null>(null);
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
   readonly notFound = signal(false);
-  /** A successful write is in flight (form buttons disable meanwhile). */
-  readonly saving = signal(false);
-  /** A report/occupancy write is in flight (the trust-layer pickers). */
+  /** A trust-layer write (report / occupancy) is in flight. */
   readonly reporting = signal(false);
   readonly notice = signal<{ severity: 'success'; text: string } | null>(null);
 
-  /**
-   * The user's own review, as saved THIS session (null = none known). The
-   * v1 DTO carries no author identity, so this is the page's only "mine"
-   * signal: a fresh page load starts in add mode, and a POST that answers
-   * "updated" (200) simply adopts the returned review as ours.
-   */
-  readonly myReview = signal<ShelterReviewDto | null>(null);
-
   protected readonly auth = this.store;
 
-  /** W24: the shared provenance/rating copy, exposed to the template
-   *  (Angular's template scope is the component class). The header badge
-   *  shows the server-derived provenance (shelter-provenance-taxonomy M6)
-   *  and, from shelter-trust-and-reports, the trust badges (D6). */
-  protected readonly provenanceText = provenanceTextShared;
-  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
-  protected readonly reviewCountText = reviewCountTextShared;
-  protected readonly noRatingsYet = NO_RATINGS_YET;
-  protected readonly statusFlagText = statusFlagTextShared;
+  /** W24: the shared source/trust copy, exposed to the template (Angular's
+   *  template scope is the component class). The header badge shows the
+   *  source label (registry rows) or the trust-state label (USER rows,
+   *  community-review-queue D5) and, from shelter-trust-and-reports, the
+   *  trust badges (D6). */
+  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  protected readonly communityBadgeClass = communityBadgeClassShared;
+  /** The derived display status ("Open" / "Reported closed" / "Closed" /
+   *  "Open (no recent reports)") — the practical info block, shared rule
+   *  with the map's "Open" chip. */
+  protected readonly shelterStatusText = shelterStatusTextShared;
+  /** The list row's fresh-CLOSED badge (open-status wave) — the same copy
+   *  the status row uses; fresh OPEN rows render no badge. */
+  protected readonly openStatusBadgeText = openStatusBadgeTextShared;
   protected readonly occupancyText = occupancyTextShared;
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
@@ -210,7 +182,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  up front, the same F1 convention as the map CTA). */
   protected readonly distanceError = signal<string | null>(null);
   /** The unverified warning for NEW community rows (community-review-
-   *  queue): rendered in the header next to the provenance chip. */
+   *  queue): rendered in the header next to the trust-state badge. */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
   /** The single-sourced "reported inaccurate" warning (M10 slice 4):
    *  rendered in the header for a moderator-marked row — independent of
@@ -223,22 +195,22 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** The private-location predicate (D7) — the template stays branch-free. */
   protected readonly isPrivateLocation = isPrivateLocation;
 
-  // ---- trust layer (shelter-trust-and-reports D1/D2/D4/D6) ------------------
-  /** The five report types + their picker labels (D1). M11 (factual report
-   *  fields): the factual types (CLOSED / WRONG_LOCATION / OTHER) carry the
-   *  detail field's per-type placeholder; the binary types stay claim-only. */
+  // ---- trust layer (shelter-trust-and-reports D1/D4/D6) ----------------------
+  /** The three NEGATIVE report types + their picker labels (open-status
+   *  wave): the picker is negative-only now — "It does not exist" /
+   *  "The location is wrong" / "Something else". CLOSED and OPEN_CONFIRMED
+   *  stay in the ShelterReportType union, the admin label map and the
+   *  historical rendering (they exist in stored data), but the picker no
+   *  longer offers either — open/closed moved to its own live-report
+   *  section below. M11 factual fields: the factual types (WRONG_LOCATION
+   *  / OTHER) carry the detail field's per-type placeholder; the binary
+   *  type stays claim-only. */
   protected readonly REPORT_TYPES: {
     value: ShelterReportType;
     label: string;
     detailPlaceholder?: string;
   }[] = [
     { value: 'NON_EXISTENT', label: 'It does not exist' },
-    {
-      value: 'CLOSED',
-      label: 'It is closed',
-      detailPlaceholder: 'When did it close, if you know?',
-    },
-    { value: 'OPEN_CONFIRMED', label: 'It is open' },
     {
       value: 'WRONG_LOCATION',
       label: 'The location is wrong',
@@ -251,19 +223,18 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     },
   ];
 
-  /** The four review-report reasons + their picker labels (D2). */
-  protected readonly REVIEW_REASONS: { value: ReviewReportReason; label: string }[] = [
-    { value: 'FALSY_DATA', label: 'False or misleading' },
-    { value: 'NOT_RELEVANT', label: 'Not relevant' },
-    { value: 'SPAM', label: 'Spam' },
-    { value: 'OTHER', label: 'Something else' },
-  ];
-
   /** The three occupancy bands (D4) — the picker's large buttons. */
   protected readonly BANDS: { value: OccupancyBand; label: string }[] = [
     { value: 'SPACE', label: 'Space available' },
     { value: 'GETTING_FULL', label: 'Getting full' },
     { value: 'FULL', label: 'Full' },
+  ];
+
+  /** The two open/closed states (open-status wave) — the picker's large
+   *  buttons, the band picker's language mirrored 1:1. */
+  protected readonly OPEN_STATES: { value: OpenState; label: string }[] = [
+    { value: 'OPEN', label: 'Open now' },
+    { value: 'CLOSED', label: 'Closed now' },
   ];
 
   /** The shelter-report picker is open (the "Report" button toggles it). */
@@ -276,17 +247,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** Plain sentence-case duplicate (409) line for the open shelter picker. */
   readonly reportDuplicate = signal<string | null>(null);
 
-  /** Per-review picker: the review whose picker is open (one at a time). */
-  readonly reviewReportOpenId = signal<number | null>(null);
-  readonly reviewReportReason = signal<ReviewReportReason | null>(null);
-  readonly reviewReportDetail = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.maxLength(500)],
-  });
-  readonly reviewReportDuplicate = signal<{ reviewId: number; message: string } | null>(null);
-
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
+
+  /** The tapped open/closed state while the upsert is in flight (open-
+   *  status wave): the optimistic pressed state — cleared on settle, the
+   *  refetch's yourOpenStatus is the settled pre-select. */
+  private readonly openStatusPending = signal<OpenState | null>(null);
 
   /** True while the Location map instance is alive (M4 — see the afterRender
    *  hook: the found branch re-mounts a fresh #mapEl after any not-found
@@ -370,11 +337,11 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   ngOnInit(): void {
     // Reviewer N7: re-read the :id on EVERY navigation to this route — a
     // manual URL edit (/shelters/1 -> /shelters/2) must swap the data, not
-    // keep the old shelter (a review POST would otherwise land on the wrong
-    // shelter). paramMap replays the current params on subscribe, replacing
-    // the old snapshot read; it completes when the route deactivates, so
-    // the subscription needs no manual teardown. The fetchSeq guard in
-    // load() drops the superseded in-flight response.
+    // keep the old shelter (a trust-layer write would otherwise land on the
+    // wrong shelter). paramMap replays the current params on subscribe,
+    // replacing the old snapshot read; it completes when the route
+    // deactivates, so the subscription needs no manual teardown. The
+    // fetchSeq guard in load() drops the superseded in-flight response.
     this.route.paramMap.subscribe((params) => this.readShelterId(params.get('id')));
   }
 
@@ -397,11 +364,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.id.set(parsed);
     this.notFound.set(false);
     this.shelter.set(null);
-    this.reviewsList.set([]);
-    this.reviewsError.set(null);
-    this.myReview.set(null);
     this.notice.set(null);
-    // The trust-layer pickers (D1/D2/D4) belong to the previous shelter —
+    // The trust-layer pickers (D1/D4) belong to the previous shelter —
     // close them with the data they were reporting on.
     this.resetTrustPickers();
     // F9: clear the PREVIOUS shelter's pin (showShelter(null) is the
@@ -417,18 +381,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.reportType.set(null);
     this.reportDetail.reset();
     this.reportDuplicate.set(null);
-    this.reviewReportOpenId.set(null);
-    this.reviewReportReason.set(null);
-    this.reviewReportDetail.reset();
-    this.reviewReportDuplicate.set(null);
+    this.openStatusPending.set(null);
   }
 
   /**
-   * Fetch shelter + reviews in parallel. 404 on the shelter -> not-found
-   * state; any other shelter failure -> error banner with the page chrome
-   * intact (shared convention). A failed REVIEWS half never hides a
-   * successfully loaded shelter (reviewer N11) — the reviews section shows
-   * its own error state instead.
+   * Fetch the shelter. 404 -> not-found state; any other failure -> error
+   * banner with the page chrome intact (shared convention). A failed
+   * post-write refetch clears the stale success notice (reviewer N12).
    */
   load(): Promise<void> {
     const id = this.id();
@@ -437,53 +396,43 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     }
     const seq = ++this.fetchSeq;
     this.error.set(null);
-    this.reviewsError.set(null);
     this.loading.set(true);
-    return Promise.allSettled([this.gateway.get(id), this.reviews.list(id)]).then(
-      ([shelterResult, reviewsResult]) => {
+    return this.gateway.get(id).then(
+      (value) => {
         if (seq !== this.fetchSeq) {
           return; // page left or a newer write superseded this response
         }
-        const shelterFailed = shelterResult.status === 'rejected';
-        const reviewsFailed = reviewsResult.status === 'rejected';
+        this.shelter.set(value);
+        // Location map: ensure the container holds a live instance (the
+        // not-found flip destroyed it and the found re-render mounted a
+        // fresh div — M4), then fly to the shelter at street level + pin
+        // it. Both calls are safe no-ops when create() was skipped, so no
+        // guard is needed here.
+        this.ensureLocationMap();
+        this.pinShelter(value);
+        this.loading.set(false);
+      },
+      (failure: unknown) => {
+        if (seq !== this.fetchSeq) {
+          return;
+        }
         // Reviewer N12: a failed post-write refetch must not leave the stale
         // success notice stacked above the error banner.
-        if (shelterFailed || reviewsFailed) {
-          this.notice.set(null);
+        this.notice.set(null);
+        if (failure instanceof ApiError && failure.status === 404) {
+          this.shelter.set(null);
+          // The not-found branch unmounts the map container — destroy the
+          // live map with it (null-safe when create was a no-op) (M4).
+          this.destroyLocationMap();
+          this.notFound.set(true);
+          this.loading.set(false);
+          return;
         }
-        if (shelterFailed) {
-          const failure = shelterResult.reason;
-          if (failure instanceof ApiError && failure.status === 404) {
-            this.shelter.set(null);
-            this.reviewsList.set([]);
-            // The not-found branch unmounts the map container — destroy the
-            // live map with it (null-safe when create was a no-op) (M4).
-            this.destroyLocationMap();
-            this.notFound.set(true);
-            this.loading.set(false);
-            return;
-          }
-          this.error.set(bannerMessage(failure, 'shelter'));
-          // The error state keeps the container mounted (placeholder) — if
-          // a prior not-found flip destroyed the map, re-create it here
-          // (M4); a no-op when the instance is still alive.
-          this.ensureLocationMap();
-        } else {
-          this.shelter.set(shelterResult.value);
-          // Location map: ensure the container holds a live instance (the
-          // not-found flip destroyed it and the found re-render mounted a
-          // fresh div — M4), then fly to the shelter at street level + pin
-          // it. Both calls are safe no-ops when create() was skipped, so no
-          // guard is needed here.
-          this.ensureLocationMap();
-          this.pinShelter(shelterResult.value);
-        }
-        if (reviewsFailed) {
-          this.reviewsList.set([]);
-          this.reviewsError.set(bannerMessage(reviewsResult.reason, 'shelter'));
-        } else {
-          this.reviewsList.set(reviewsResult.value);
-        }
+        this.error.set(bannerMessage(failure, 'shelter'));
+        // The error state keeps the container mounted (placeholder) — if a
+        // prior not-found flip destroyed the map, re-create it here (M4);
+        // a no-op when the instance is still alive.
+        this.ensureLocationMap();
         this.loading.set(false);
       },
     );
@@ -604,57 +553,75 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     );
   }
 
+  // ---- report how full (shelter-trust-and-reports D4/D6) --------------------
   /**
-   * ReviewForm save (upsert): the backend POSTs-or-updates via /reviews,
-   * PUT via /reviews/mine. We use POST when this session has no known
-   * review (a prior-session review updates via the same POST — 200), and
-   * PUT once the user's review is known. Either way: adopt the result as
-   * "mine" + refetch (design decision 4).
+   * One-tap occupancy upsert: the latest edit wins (the backend keeps ONE
+   * live band per user). Success refetches — the aggregate + recency and
+   * the picker's pre-select (yourOccupancyBand) both come from the fresh
+   * detail projection. Occupancy is display-only: it never hides or recolours
+   * anything, so the failure path only surfaces the shared banner copy.
    */
-  async onSaveReview(review: { rating: number; comment: string | null }): Promise<void> {
+  async reportBand(band: OccupancyBand): Promise<void> {
     const id = this.id();
-    if (id === null || this.saving()) {
+    if (id === null || this.reporting()) {
       return;
     }
-    this.saving.set(true);
+    this.reporting.set(true);
     this.error.set(null);
     this.notice.set(null);
     try {
-      let saved: ShelterReviewDto;
-      if (this.myReview()) {
-        saved = await this.reviews.updateMine(id, review.rating, review.comment);
-        this.notice.set({ severity: 'success', text: 'Your review was updated.' });
-      } else {
-        saved = await this.reviews.add(id, review.rating, review.comment);
-        this.notice.set({ severity: 'success', text: 'Your review was saved.' });
-      }
-      this.myReview.set(saved);
+      await this.gateway.reportOccupancy(id, band);
+      this.notice.set({ severity: 'success', text: 'Your occupancy report was saved.' });
       await this.load();
     } catch (failure: unknown) {
       this.error.set(bannerMessage(failure, 'shelter'));
     } finally {
-      this.saving.set(false);
+      this.reporting.set(false);
     }
   }
 
-  /** Delete my review (author-only endpoint), then refetch. */
-  async onDeleteMyReview(): Promise<void> {
+  // ---- report open/closed (open-status wave) --------------------------------
+  /**
+   * The picker's pressed state for a state (open-status wave): the user's
+   * current live report (yourOpenStatus) OR the optimistic tap in flight —
+   * radio-style, exactly one of the two buttons can be pressed. The
+   * refetch's yourOpenStatus is the settled pre-select, so the optimistic
+   * flag clears with no flicker on success and reverts on failure.
+   */
+  protected openStatusPressed(state: OpenState): boolean {
+    const shelter = this.shelter();
+    return shelter?.yourOpenStatus === state || this.openStatusPending() === state;
+  }
+
+  /**
+   * One-tap open/closed upsert: the latest edit wins (the backend keeps ONE
+   * live state per user). Same shape as the band picker — optimistic
+   * pressed state, success refetches (the aggregate + the picker's
+   * pre-select, yourOpenStatus, both come from the fresh detail
+   * projection), the shared banner copy on failure. Open/closed is
+   * display-only: it never hides or recolours anything itself — the status
+   * row and the badges derive from the fresh aggregate.
+   */
+  async reportOpenStatus(state: OpenState): Promise<void> {
     const id = this.id();
-    if (id === null || this.saving()) {
+    if (id === null || this.reporting()) {
       return;
     }
-    this.saving.set(true);
+    this.reporting.set(true);
+    this.openStatusPending.set(state);
     this.error.set(null);
     this.notice.set(null);
     try {
-      await this.reviews.deleteMine(id);
-      this.myReview.set(null);
-      this.notice.set({ severity: 'success', text: 'Your review was deleted.' });
+      await this.gateway.putOpenStatus(id, state);
+      this.notice.set({ severity: 'success', text: 'Your open/closed report was saved.' });
       await this.load();
     } catch (failure: unknown) {
+      // The finally below reverts the optimistic pressed state (the failed
+      // tap must not stay lit); the shared banner copy surfaces the error.
       this.error.set(bannerMessage(failure, 'shelter'));
     } finally {
-      this.saving.set(false);
+      this.reporting.set(false);
+      this.openStatusPending.set(null);
     }
   }
 
@@ -728,7 +695,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
         severity: 'success',
         text: result?.damped ? REPORT_SUBMITTED_DAMPED : REPORT_SUBMITTED,
       });
-      // The derived state (nonexistentReports, statusFlag) moved server-
+      // The derived state (nonexistentReports, openStatus) moved server-
       // side — refetch so the header badges reflect it (design decision 7).
       await this.load();
     } catch (failure: unknown) {
@@ -742,114 +709,6 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       } else {
         this.error.set(bannerMessage(failure, 'shelter'));
       }
-    } finally {
-      this.reporting.set(false);
-    }
-  }
-
-  // ---- per-review report (shelter-trust-and-reports D2) ---------------------
-  /**
-   * "Mine" detection for a review row: the v1 DTO carries no author id, so
-   * a row is provably the viewer's when (a) it is hidden — hidden reviews
-   * are NEVER returned to non-authors — or (b) the page saved it this
-   * session (myReview). Only non-own rows get a Report action.
-   */
-  protected isMyReview(review: ShelterReviewDto): boolean {
-    if (review.hidden) {
-      return true;
-    }
-    const mine = this.myReview();
-    return mine !== null && mine.id === review.id;
-  }
-
-  /** Open the reason picker on ONE review row (one at a time). */
-  openReviewReport(review: ShelterReviewDto): void {
-    if (this.isMyReview(review)) {
-      return; // own content is edited/deleted, not reported
-    }
-    this.reviewReportReason.set(null);
-    this.reviewReportDetail.reset();
-    this.reviewReportDuplicate.set(null);
-    this.reviewReportOpenId.set(review.id);
-  }
-
-  closeReviewReport(): void {
-    this.reviewReportOpenId.set(null);
-    this.reviewReportReason.set(null);
-    this.reviewReportDetail.reset();
-    this.reviewReportDuplicate.set(null);
-  }
-
-  onReviewReportReasonChange(event: Event): void {
-    this.reviewReportReason.set((event.target as HTMLInputElement).value as ReviewReportReason);
-  }
-
-  /**
-   * Submit the review report (verified, non-own rows only). 409 duplicate
-   * -> the plain sentence-case line; the 5th report hides the review
-   * server-side, so a success refetches (design decision 7) — the row may
-   * legitimately disappear from the list after that.
-   */
-  async submitReviewReport(review: ShelterReviewDto): Promise<void> {
-    const id = this.id();
-    const reason = this.reviewReportReason();
-    if (id === null || reason === null || this.reporting()) {
-      return;
-    }
-    const detail = this.reviewReportDetail.value.trim();
-    if (this.reviewReportDetail.invalid) {
-      this.reviewReportDetail.markAsTouched();
-      return;
-    }
-    const request: ReportReviewRequest = { reason };
-    if (detail !== '') {
-      request.detail = detail;
-    }
-    this.reporting.set(true);
-    this.error.set(null);
-    this.notice.set(null);
-    this.reviewReportDuplicate.set(null);
-    try {
-      await this.reviews.reportReview(id, review.id, request);
-      this.closeReviewReport();
-      this.notice.set({ severity: 'success', text: 'Your report was submitted.' });
-      await this.load();
-    } catch (failure: unknown) {
-      if (failure instanceof ApiError && failure.status === 409) {
-        this.reviewReportDuplicate.set({
-          reviewId: review.id,
-          message: failure.message || 'You have already reported this review.',
-        });
-      } else {
-        this.error.set(bannerMessage(failure, 'shelter'));
-      }
-    } finally {
-      this.reporting.set(false);
-    }
-  }
-
-  // ---- report how full (shelter-trust-and-reports D4/D6) --------------------
-  /**
-   * One-tap occupancy upsert: the latest edit wins (the backend keeps ONE
-   * live band per user). Success refetches — the aggregate + recency and
-   * the picker's pre-select (yourOccupancyBand) both come from the fresh
-   * detail projection. Occupancy is display-only: it never hides or recolours
-   * anything, so the failure path only surfaces the shared banner copy.
-   */
-  async reportBand(band: OccupancyBand): Promise<void> {
-    const id = this.id();
-    if (id === null || this.reporting()) {
-      return;
-    }
-    this.reporting.set(true);
-    this.error.set(null);
-    this.notice.set(null);
-    try {
-      await this.gateway.reportOccupancy(id, band);
-      this.notice.set({ severity: 'success', text: 'Your occupancy report was saved.' });
-      await this.load();
-    } catch (failure: unknown) {
-      this.error.set(bannerMessage(failure, 'shelter'));
     } finally {
       this.reporting.set(false);
     }

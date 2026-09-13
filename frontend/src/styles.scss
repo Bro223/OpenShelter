@@ -44,7 +44,7 @@
      (text = --color-bg-surface). Reuses the --color-cta hue family (safety
      orange, ~10–22°) as its own token: the crisis CTA keeps its colour, the
      reported state is the badge/marker language — and both stay distinct
-     from the provenance blue/green marker colours. White text on #c2410c
+     from the trust blue/green marker colours. White text on #c2410c
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
@@ -52,8 +52,8 @@
      tone for USER rows in review_status NEW. Vivid gold-amber on purpose,
      distinct from the safety-orange reported token (#c2410c, hue ~19°;
      this is ~40°): on the map a just-added community dot must read as
-     "new", not as "reported". Also the fill behind the "Proposed"
-     badge (M7 wording; its text uses the same token, 3.6:1 on white — a graphical
+     "new", not as "reported". Also the fill behind the "Newly added"
+     badge (its text uses the same token, 3.6:1 on white — a graphical
      badge, not body text; the legend swatch reuses the marker class). */
   --color-new: #f59f00;
 
@@ -102,20 +102,9 @@
   --color-shelter-registry: #0b5cad; /* registry (Päästeamet / municipality) */
   --color-shelter-user: #2e7d32; /* user-submitted */
   --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
-  /* Provenance palette (shelter-provenance-taxonomy M6): partner yellow is
-     kept a step darker than the amber "new" tone (--color-new #f59f00) so
-     the two read apart on light map tiles; grey = reported-away, red =
-     rejected (hidden rows — detail pin / badge only). */
-  --color-shelter-partner: #d4a017;
-  --color-shelter-inactive: #6b7280;
-  --color-shelter-rejected: #c92a2a;
   --color-map-placeholder: #e9eef2; /* map container before the first tiles */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
-
-  /* Rating stars */
-  --color-star-empty: #c9ced6;
-  --color-star-filled: #e8a33d;
-  /* Focus rings use --color-primary everywhere, including the star picker
+  /* Focus rings use --color-primary everywhere.
      (N19: the separate --color-focus blue was collapsed onto it). */
 
   /* ============ Typography ============================================ */
@@ -127,13 +116,12 @@
      0.92rem, which M6 rounded onto the adjacent step (≤ 0.5px) so the
      scale stays continuous. */
   --text-2xs: 0.75rem; /* badges, map legend, tiny meta */
-  --text-xs: 0.8rem; /* review date, character counters */
+  --text-xs: 0.8rem; /* tiny meta, character counters */
   --text-sm: 0.85rem; /* secondary lines: addresses, notes, level chips */
   --text-md: 0.9rem; /* labels, links, small meta (was 0.88/0.9/0.92) */
   --text-base: 0.95rem; /* buttons, banners, panel copy */
-  --text-lg: 1rem; /* inputs, star display */
+  --text-lg: 1rem; /* inputs, panel titles */
   --text-xl: 1.1rem; /* brand, panel titles */
-  --text-2xl: 1.4rem; /* rating input star glyph */
   --text-3xl: 1.6rem; /* page titles */
 
   --font-weight-medium: 550; /* labels, buttons */
@@ -169,7 +157,7 @@
   --space-48: 48px;
 
   /* ============ Radius ================================================ */
-  --radius-sm: 4px; /* star buttons */
+  --radius-sm: 4px; /* nav pill buttons */
   --radius-md: 6px; /* inputs, buttons, banners */
   --radius-lg: 8px; /* cards, panels, map frames */
   --radius-full: 999px; /* chips, badges, pills */
@@ -216,7 +204,6 @@
      .auth-links links: UA black/blue on the dark surfaces at 1.06/1.14/2.11)
      — fixed by the global element colour rules below, not by this block.)
      border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
-     star-filled/empty     vs surface 8.5 / 3.2 (decorative, aria-label carries value)
      Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
      the surface (2.67:1) → raised to #666666 (3.21:1 vs surface, 3.45:1 vs bg);
      every other D1 starting value passes as-is.
@@ -231,7 +218,7 @@
      Map context (D1): the MAP is not themed — OSM tiles stay light, so the
      marker tokens keep their SOURCE coding (blue=registry, green=user,
      red=pick). --color-shelter-registry/user are brightened from #0b5cad/
-     #2e7d32 because the SAME tokens double as provenance-badge TEXT in the
+     #2e7d32 because the SAME tokens double as source/trust-badge TEXT in the
      component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
      untouched per D1) and dark blue/green text fails 4.5:1 on the dark
      surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
@@ -302,15 +289,7 @@
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
   --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
   --color-shelter-pick: #ff8a80; /* brightened from #d32f2f — safe superset, see note above */
-  /* Provenance palette (M6) — brightened per the map-context note above. */
-  --color-shelter-partner: #ffe066;
-  --color-shelter-inactive: #9aa5b1;
-  --color-shelter-rejected: #ff8787;
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
-
-  /* Rating stars */
-  --color-star-empty: #666666; /* visible on dark, 3.2:1 vs surface */
-  --color-star-filled: #e8a33d; /* unchanged — 8.5:1 on the dark surface */
 }
 
 * {
@@ -520,27 +499,10 @@ textarea {
 
 /* Reported state (shelter-trust-and-reports D1): the single "reported"
  * marker affordance — any shelter with nonexistentReports > 0 renders this
- * orange regardless of source; provenance colours apply only to
- * unreported shelters. The map legend's third swatch reuses this class. */
+ * orange regardless of source; trust colours apply only to unreported
+ * shelters. The map legend's third swatch reuses this class. */
 .shelter-marker--reported {
   background: var(--color-reported);
-}
-
-/* Provenance palette (shelter-provenance-taxonomy M6): PARTNER_VERIFIED
- * (municipal/partner rows — the yellow pin), REPORTED_INACTIVE (grey — a
- * hidden row's static detail pin) and REJECTED (red — same). The grey and
- * red tones never reach the public map (ACTIVE-only list); the detail
- * page's static pin can render them. */
-.shelter-marker--partner {
-  background: var(--color-shelter-partner);
-}
-
-.shelter-marker--inactive {
-  background: var(--color-shelter-inactive);
-}
-
-.shelter-marker--rejected {
-  background: var(--color-shelter-rejected);
 }
 
 /* Selected-location pin on the /submit mini-map (leaflet-service setPick).

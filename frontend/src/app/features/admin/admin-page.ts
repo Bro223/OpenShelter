@@ -21,12 +21,10 @@ import type {
   AdminShelterHistoryEvent,
   AdminShelterHistoryFieldChange,
   AdminShelterReportDto,
-  AdminReviewReportDto,
   AdminUserDto,
   ShelterOccupancy,
   ShelterReportType,
   ShelterStatus,
-  ReviewReportReason,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { bannerMessage } from '../../shared/error-copy';
@@ -34,10 +32,8 @@ import { nameBlankValidator } from '../../shared/form-helpers';
 import {
   occupancyText as occupancyTextShared,
   recencyText,
-  ratingText as ratingTextShared,
-  statusFlagText,
-  provenanceBadgeClass as provenanceBadgeClassShared,
-  provenanceText as provenanceTextShared,
+  sourceTrustLabel as sourceTrustLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
   PRIVATE_LOCATION_BADGE,
   isPrivateLocation as isPrivateLocationShared,
   INACCURATE_WARNING,
@@ -45,15 +41,13 @@ import {
 } from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
-import { RatingStars } from '../../shared/rating-stars';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
 /** The seven moderation tabs: the review queue FIRST, the audit trail LAST
  *  (community-review-queue); the Users tab sits before the audit (M10
  *  slice 1). */
-export type AdminTab =
-  'unconfirmed' | 'shelters' | 'reports' | 'reviews' | 'alerts' | 'users' | 'audit';
+export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -63,20 +57,14 @@ export const REJECT_REASON_MAX = 500;
  *  contract (M10 slice 3, V19 column bound): required, at most 2000. */
 export const INFO_REQUEST_MAX = 2000;
 
-/** Shelter-report type labels (queue column + row meta). */
+/** Shelter-report type labels (queue column + row meta). OPEN_CONFIRMED
+ *  stays mapped for historical rows — the detail-page picker no longer
+ *  offers it (server-side deprecation), the queue renders it read-only. */
 export const SHELTER_REPORT_TYPE_LABEL: Record<ShelterReportType, string> = {
   NON_EXISTENT: 'Does not exist',
   CLOSED: 'Reported closed',
   OPEN_CONFIRMED: 'Confirmed open',
   WRONG_LOCATION: 'Wrong location',
-  OTHER: 'Other',
-};
-
-/** Review-report reason labels (queue row meta). */
-export const REVIEW_REPORT_REASON_LABEL: Record<ReviewReportReason, string> = {
-  FALSY_DATA: 'Falsy data',
-  NOT_RELEVANT: 'Not relevant',
-  SPAM: 'Spam',
   OTHER: 'Other',
 };
 
@@ -161,15 +149,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  */
 @Component({
   selector: 'app-admin-page',
-  imports: [
-    ReactiveFormsModule,
-    RouterLink,
-    NgClass,
-    DatePipe,
-    BannerComponent,
-    LoadingIndicator,
-    RatingStars,
-  ],
+  imports: [ReactiveFormsModule, RouterLink, NgClass, DatePipe, BannerComponent, LoadingIndicator],
   templateUrl: './admin-page.html',
   styleUrl: './admin-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -182,11 +162,14 @@ export class AdminPage implements OnInit {
 
   // ---- unconfirmed (review-queue) tab ------------------------------------------
   /** The queue: USER rows in the NEW state (client-side filter of the
-   *  shelters list — no extra endpoint), newest first. */
+   *  shelters list — no extra endpoint), newest first. The backend is
+   *  id-ordered (auto-increment id = creation order) and carries NO creation
+   *  timestamp on the admin projection (verified against the live API), so
+   *  the id IS the creation-order proxy. */
   protected readonly unconfirmedRows = computed(() =>
     (this.shelterRows() ?? [])
       .filter((row) => row.source === 'USER' && row.reviewStatus === 'NEW')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      .sort((a, b) => b.id - a.id),
   );
   /** The row whose reject-reason editor is open (null = closed). */
   protected readonly rejectRowFor = signal<AdminShelterDto | null>(null);
@@ -239,10 +222,6 @@ export class AdminPage implements OnInit {
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
   protected readonly reportLoadError = signal<string | null>(null);
 
-  // ---- review-report tab -----------------------------------------------------
-  protected readonly reviewRows = signal<AdminReviewReportDto[] | null>(null);
-  protected readonly reviewLoadError = signal<string | null>(null);
-
   // ---- audit tab ---------------------------------------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly auditRows = signal<AdminAuditRow[] | null>(null);
@@ -273,15 +252,13 @@ export class AdminPage implements OnInit {
   protected readonly confirmingDelete = signal<number | null>(null);
 
   // ---- shared copy helpers (exposed to the template) ---------------------------
-  protected readonly ratingText = ratingTextShared;
   protected readonly reporterText = reporterText;
-  protected readonly flagText = statusFlagText;
-  /** Provenance badge copy (shelter-provenance-taxonomy M6): the Shelters
-   *  tab's source column shows the server-derived taxonomy value — the
-   *  admin list keeps hidden rows, so REPORTED_INACTIVE / REJECTED render
-   *  their own tones here. */
-  protected readonly provenanceText = provenanceTextShared;
-  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
+  /** Source/trust badge copy (community-review-queue D5): the Shelters
+   *  tab's source column shows the source label (registry rows) or the
+   *  trust-state label — the admin list keeps hidden rows, so REJECTED
+   *  renders its own tone here. */
+  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  protected readonly communityBadgeClass = communityBadgeClassShared;
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   protected readonly isPrivateLocation = isPrivateLocationShared;
   /** The single-sourced "reported inaccurate" warning + the admin-list
@@ -310,10 +287,6 @@ export class AdminPage implements OnInit {
 
   protected reportTypeLabel(type: ShelterReportType): string {
     return SHELTER_REPORT_TYPE_LABEL[type];
-  }
-
-  protected reasonLabel(reason: ReviewReportReason): string {
-    return REVIEW_REPORT_REASON_LABEL[reason];
   }
 
   /** Audit-log action label (the machine value → human copy). */
@@ -380,11 +353,6 @@ export class AdminPage implements OnInit {
       case 'reports':
         if (this.reportRows() === null && this.reportLoadError() === null) {
           this.loadReports();
-        }
-        break;
-      case 'reviews':
-        if (this.reviewRows() === null && this.reviewLoadError() === null) {
-          this.loadReviews();
         }
         break;
       case 'alerts':
@@ -802,60 +770,6 @@ export class AdminPage implements OnInit {
     } finally {
       this.busy.set(false);
     }
-  }
-
-  // -------------------------------------------------------------------------
-  // Review-report tab
-  // -------------------------------------------------------------------------
-  loadReviews(): void {
-    this.reviewRows.set(null);
-    this.reviewLoadError.set(null);
-    this.admin
-      .listReviewReports()
-      .then((rows) => this.reviewRows.set(rows))
-      .catch((error: unknown) => this.reviewLoadError.set(bannerMessage(error, 'shelter')));
-  }
-
-  /** Hide the reviewed review (targets row.reviewId — the REVIEW id). */
-  async hideReview(row: AdminReviewReportDto): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.hideReview(row.reviewId);
-      this.patchReview(row.id, { reviewHidden: true });
-      this.success.set('Review hidden.');
-    } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  /** Restore a hidden review (clears the marker; rejoins the public list). */
-  async restoreReview(row: AdminReviewReportDto): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.clearFeedback();
-    this.busy.set(true);
-    try {
-      await this.admin.restoreReview(row.reviewId);
-      this.patchReview(row.id, { reviewHidden: false });
-      this.success.set('Review restored.');
-    } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  private patchReview(reportRowId: number, patch: Partial<AdminReviewReportDto>): void {
-    this.reviewRows.update((rows) =>
-      (rows ?? []).map((r) => (r.id === reportRowId ? { ...r, ...patch } : r)),
-    );
   }
 
   // -------------------------------------------------------------------------

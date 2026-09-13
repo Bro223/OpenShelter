@@ -29,10 +29,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Acceptance IT for {@code GET /account/export} (legal-recovery M4,
  * slice 1): anonymous 401; the authenticated user's document carries the
  * DECRYPTED profile (pii-at-rest M2 — the persistence boundary hands the
- * domain plaintext), exactly the user's own shelter rows (all statuses)
- * and reviews (shelter id + name resolved); another user's rows stay out;
- * a user without contributions gets empty lists. Full-stack MockMvc
- * against real services, security chain, JWT filter and Postgres.
+ * domain plaintext), exactly the user's own shelter rows (all statuses);
+ * another user's rows stay out; a user without contributions gets empty
+ * lists. Full-stack MockMvc against real services, security chain, JWT
+ * filter and Postgres.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -77,14 +77,6 @@ class AccountDataExportIT extends AbstractPersistenceIT {
         return JsonPath.parse(result.getResponse().getContentAsString()).read("$.id", Long.class);
     }
 
-    private void review(Auth user, long shelterId) throws Exception {
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + user.token())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":4,\"comment\":\"Hea varjend\"}"))
-                .andExpect(status().isCreated());
-    }
-
     @Test
     void anonymousExportIs401() throws Exception {
         mvc.perform(get("/account/export"))
@@ -92,10 +84,9 @@ class AccountDataExportIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void theExportCarriesDecryptedProfileOwnSheltersAndOwnReviews() throws Exception {
+    void theExportCarriesDecryptedProfileAndOwnShelters() throws Exception {
         Auth user = verified("Ekspordi Kasutaja", "ekspordi@example.ee");
         long shelterId = submit(user, "Ekspordi Varjend");
-        review(user, shelterId);
 
         mvc.perform(get("/account/export").header("Authorization", "Bearer " + user.token()))
                 .andExpect(status().isOk())
@@ -116,12 +107,6 @@ class AccountDataExportIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.shelters[0].reviewStatus").value("NEW"))
                 .andExpect(jsonPath("$.shelters[0].locationKind").value("PUBLIC"))
                 .andExpect(jsonPath("$.shelters[0].address").value(nullValue()))
-                // the review with the shelter's id + resolved name
-                .andExpect(jsonPath("$.reviews.length()").value(1))
-                .andExpect(jsonPath("$.reviews[0].shelterId").value(shelterId))
-                .andExpect(jsonPath("$.reviews[0].shelterName").value("Ekspordi Varjend"))
-                .andExpect(jsonPath("$.reviews[0].rating").value(4))
-                .andExpect(jsonPath("$.reviews[0].comment").value("Hea varjend"))
                 .andReturn();
     }
 
@@ -131,14 +116,12 @@ class AccountDataExportIT extends AbstractPersistenceIT {
         submit(user, "Esimese Varjend");
 
         Auth other = verified("Teise Kasutaja", "teise@example.ee");
-        long otherShelter = submit(other, "Teise Varjend");
-        review(other, otherShelter);
+        submit(other, "Teise Varjend");
 
         MvcResult result = mvc.perform(get("/account/export")
                         .header("Authorization", "Bearer " + user.token()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shelters.length()").value(1))
-                .andExpect(jsonPath("$.reviews.length()").value(0))
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
@@ -153,7 +136,6 @@ class AccountDataExportIT extends AbstractPersistenceIT {
         mvc.perform(get("/account/export").header("Authorization", "Bearer " + user.token()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.profile.email").value("tuhja@example.ee"))
-                .andExpect(jsonPath("$.shelters.length()").value(0))
-                .andExpect(jsonPath("$.reviews.length()").value(0));
+                .andExpect(jsonPath("$.shelters.length()").value(0));
     }
 }

@@ -99,17 +99,20 @@
 
 /* App-wide safety-notice footer (see page-shell.html): secondary text,
    never crisis orange; the footer hugs the bottom of the page flow
-   (min-height keeps it below the body). The legal-links line (M4
-   legal-recovery) sits under the notice with the same width/measure. */
+   (min-height keeps it below the body). Layout (owner's decision): the meta
+   row (legal + provenance, centred as a pair) on TOP, the notice on the
+   BOTTOM — centred, on its own full-width line (no max-width cap: the
+   combined sentence must not wrap on desktop; 20px side padding only). */
 .shell-footer {
   width: 100%;
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-surface);
 
   .shell-footer__notice {
-    max-width: var(--content-max-width);
+    max-width: none;
     margin: 0 auto;
-    padding: var(--space-16) var(--space-20) 0;
+    padding: var(--space-6) var(--space-20) var(--space-16);
+    text-align: center;
     font-size: var(--text-sm);
     line-height: 1.4;
     color: var(--color-muted);
@@ -119,10 +122,19 @@
     }
   }
 
+  /* The meta row (footer restructure, owner decision): legal links and
+     data provenance are TWO GROUPS, not more uniform text lines — centred
+     as a pair on desktop, stacked on narrow. The container owns the
+     horizontal padding; the children are plain inline flows. */
+  .shell-footer__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-16) var(--space-20) 0;
+  }
+
   .shell-footer__legal {
-    max-width: var(--content-max-width);
-    margin: 0 auto;
-    padding: var(--space-6) var(--space-20);
+    margin: 0;
     font-size: var(--text-sm);
     color: var(--color-muted);
 
@@ -136,9 +148,7 @@
   }
 
   .shell-footer__data {
-    max-width: var(--content-max-width);
-    margin: 0 auto;
-    padding: 0 var(--space-20) var(--space-16);
+    margin: 0;
     font-size: var(--text-sm);
     color: var(--color-muted);
 
@@ -148,6 +158,18 @@
 
     span {
       margin: 0 var(--space-6);
+    }
+  }
+
+  /* The documented 900px literal (--bp-narrow; @media cannot consume
+     var(), see styles.scss): desktop — the two meta groups share one row,
+     legal left + provenance right, text baselines aligned. */
+  @media (min-width: 900px) {
+    .shell-footer__meta {
+      flex-direction: row;
+      justify-content: center;
+      gap: var(--space-32);
+      align-items: baseline;
     }
   }
 }

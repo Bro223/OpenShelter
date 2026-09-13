@@ -1,9 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import type { MineShelterDto, MyReviewDto, ShelterDto, ShelterReviewDto } from '../../core/models';
+import type { MineShelterDto, ShelterDto } from '../../core/models';
 import { AccountGateway } from '../../gateways/account-gateway';
-import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ContributionsPanel } from './contributions-panel';
 
@@ -15,32 +14,20 @@ const SHELTER_ROW: MineShelterDto = {
   longitude: 24.754,
   status: 'ACTIVE',
   source: 'USER',
-  averageRating: 4.5,
-  reviewCount: 2,
   createdAt: '2025-09-01T08:00:00Z',
   description: 'Neighbourhood basement',
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
   reportCount: 0, // M8 total (all report types)
-  statusFlag: null,
+  openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   reviewNote: null,
   locationKind: 'PUBLIC',
-  provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
   lastVerifiedAt: null, // M8 — null = never verified
   inaccurate: false, // M10 slice 4 — no moderator mark on this row
   infoRequest: null, // M10 slice 3 — no moderator question on this row
-};
-
-const REVIEW_ROW: MyReviewDto = {
-  shelterId: 7,
-  shelterName: 'Community Cellar',
-  rating: 4,
-  comment: 'Hea varjend',
-  createdAt: '2025-09-02T09:00:00Z',
-  updatedAt: '2025-09-03T10:00:00Z',
 };
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -57,13 +44,6 @@ class FakeShelterGateway {
   }
 }
 
-class FakeReviewGateway {
-  list = vi.fn();
-  add = vi.fn();
-  updateMine = vi.fn();
-  deleteMine = vi.fn();
-}
-
 class FakeAccountGateway {
   me = vi.fn();
   updateProfile = vi.fn();
@@ -71,10 +51,6 @@ class FakeAccountGateway {
   confirmEmailChange = vi.fn();
   requestPhoneChange = vi.fn();
   confirmPhoneChange = vi.fn();
-  myReviews = vi.fn();
-  constructor() {
-    this.myReviews.mockResolvedValue([]);
-  }
 }
 
 function apiError(status: number, message: string, path: string): ApiError {
@@ -86,7 +62,6 @@ const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 describe('ContributionsPanel', () => {
   let shelters: FakeShelterGateway;
-  let reviews: FakeReviewGateway;
   let account: FakeAccountGateway;
 
   async function open(): Promise<{
@@ -95,7 +70,7 @@ describe('ContributionsPanel', () => {
     fixture: ReturnType<typeof TestBed.createComponent<ContributionsPanel>>;
   }> {
     const fixture = TestBed.createComponent(ContributionsPanel);
-    fixture.detectChanges(); // ngOnInit -> both loads start
+    fixture.detectChanges(); // ngOnInit -> the shelters load starts
     await flush();
     fixture.detectChanges();
     return {
@@ -113,14 +88,12 @@ describe('ContributionsPanel', () => {
 
   beforeEach(() => {
     shelters = new FakeShelterGateway();
-    reviews = new FakeReviewGateway();
     account = new FakeAccountGateway();
     TestBed.configureTestingModule({
       imports: [ContributionsPanel, RouterOutlet],
       providers: [
         provideRouter([]),
         { provide: ShelterGateway, useValue: shelters as unknown as ShelterGateway },
-        { provide: ReviewGateway, useValue: reviews as unknown as ReviewGateway },
         { provide: AccountGateway, useValue: account as unknown as AccountGateway },
       ],
     });
@@ -128,18 +101,14 @@ describe('ContributionsPanel', () => {
 
   // ---- loading / empty / error states ---------------------------------------
 
-  it('loads both lists in parallel and renders the rows', async () => {
+  it('loads the shelter list and renders the rows', async () => {
     shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
     const { element } = await open();
 
-    // shelter row: name + shared rating summary (W24)
+    // shelter row: name + submission date
     expect(element.textContent).toContain('Community Cellar');
-    expect(element.textContent).toContain('★ 4.5 · 2 reviews');
-    // review row: shelter link + comment
     const links = Array.from(element.querySelectorAll<HTMLAnchorElement>('a'));
     expect(links.some((a) => a.getAttribute('href') === '/shelters/7')).toBe(true);
-    expect(element.textContent).toContain('Hea varjend');
   });
 
   it('offers "Submit a shelter" while shelters are present (map-crisis-actions regression pin)', async () => {
@@ -155,12 +124,11 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain('Community Cellar');
   });
 
-  it('shows the empty shelter state with a /submit link and the plain empty review state', async () => {
+  it('shows the empty shelter state with a /submit link', async () => {
     const { element } = await open();
 
     expect(element.textContent).toContain("You haven't submitted any shelters yet.");
     expect(element.querySelector('a[href="/submit"]')).not.toBeNull();
-    expect(element.textContent).toContain("You haven't written any reviews yet.");
     // The empty state is a self-contained symmetric block (the spacing itself
     // is CSS-only in .contributions-empty — jsdom does not compute layout, so
     // the wrapper is the structural pin).
@@ -188,22 +156,6 @@ describe('ContributionsPanel', () => {
     fixture.detectChanges();
 
     expect(element.textContent).toContain('Community Cellar');
-  });
-
-  it('a failed review load shows the error state and Retry re-fetches', async () => {
-    account.myReviews.mockRejectedValue(ApiError.fromNetwork());
-    const { element, fixture } = await open();
-
-    expect(element.textContent).toContain("You haven't submitted any shelters yet."); // shelters still fine
-    const reviewSection = element.querySelectorAll('h3')[1];
-    expect(reviewSection?.nextElementSibling?.textContent).toContain('Cannot reach the backend');
-
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
-    fixture.debugElement.componentInstance.loadReviews();
-    await flush();
-    fixture.detectChanges();
-
-    expect(element.textContent).toContain('Hea varjend');
   });
 
   // ---- shelter rows: edit ----------------------------------------------------
@@ -386,9 +338,8 @@ describe('ContributionsPanel', () => {
 
   // ---- shelter rows: two-step delete ----------------------------------------
 
-  it('shelter delete requires the second step, then removes the row (and its review row)', async () => {
+  it('shelter delete requires the second step, then removes the row', async () => {
     shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
     shelters.remove.mockResolvedValue(undefined);
     const { page, element, fixture } = await open();
 
@@ -396,7 +347,7 @@ describe('ContributionsPanel', () => {
     fixture.detectChanges();
 
     // step 1: the confirm strip is armed, nothing deleted yet
-    expect(element.textContent).toContain('Its reviews will be removed as well');
+    expect(element.textContent).toContain('Delete this shelter permanently?');
     expect(shelters.remove).not.toHaveBeenCalled();
     expect(element.textContent).toContain('Community Cellar');
 
@@ -406,10 +357,8 @@ describe('ContributionsPanel', () => {
 
     expect(shelters.remove).toHaveBeenCalledTimes(1);
     expect(shelters.remove).toHaveBeenCalledWith(7);
-    // the shelter row is gone...
+    // the shelter row is gone
     expect(element.textContent).toContain("You haven't submitted any shelters yet.");
-    // ...and the cascaded review row came with it (DB ON DELETE CASCADE mirrored)
-    expect(element.textContent).not.toContain('Hea varjend');
   });
 
   it('cancel between the two steps deletes nothing', async () => {
@@ -442,82 +391,6 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain('Community Cellar'); // row unchanged
     // the confirm strip reset — the user can retry
     expect(buttonByText(element, 'Delete')).not.toBeNull();
-  });
-
-  // ---- review rows: edit + delete -------------------------------------------
-
-  it('review edit pre-fills rating + comment and saving updates the row via updateMine', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
-    const updatedReview: ShelterReviewDto = {
-      id: 1,
-      authorName: 'Mari',
-      rating: 5,
-      comment: 'Uus kommentaar',
-      createdAt: '2025-09-02T09:00:00Z',
-      hidden: false,
-    };
-    reviews.updateMine.mockResolvedValue(updatedReview);
-    const { page, element, fixture } = await open();
-
-    page.startEditReview(REVIEW_ROW);
-    fixture.detectChanges();
-
-    expect(page.editRating()).toBe(4); // pre-filled from the row
-    expect(page.editComment.value).toBe('Hea varjend');
-    expect(element.querySelector('#contrib-review-comment')).not.toBeNull();
-
-    page.editRating.set(5);
-    page.editComment.setValue('Uus kommentaar');
-    await page.saveReviewEdit();
-    fixture.detectChanges();
-
-    expect(reviews.updateMine).toHaveBeenCalledTimes(1);
-    expect(reviews.updateMine).toHaveBeenCalledWith(7, 5, 'Uus kommentaar');
-    // row updated in place (no refetch: myReviews called once)
-    expect(account.myReviews).toHaveBeenCalledTimes(1);
-    expect(element.textContent).toContain('Uus kommentaar');
-    expect(element.querySelector('#contrib-review-comment')).toBeNull(); // form closed
-  });
-
-  it('review delete requires the second step, then removes the row', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
-    reviews.deleteMine.mockResolvedValue(undefined);
-    const { page, element, fixture } = await open();
-
-    page.requestDeleteReview(7);
-    fixture.detectChanges();
-
-    expect(element.textContent).toContain('Delete your review of this shelter?');
-    expect(reviews.deleteMine).not.toHaveBeenCalled();
-
-    page.confirmDeleteReview(7);
-    await flush();
-    fixture.detectChanges();
-
-    expect(reviews.deleteMine).toHaveBeenCalledTimes(1);
-    expect(reviews.deleteMine).toHaveBeenCalledWith(7);
-    expect(element.textContent).toContain("You haven't written any reviews yet.");
-    // the shelter row itself is untouched
-    expect(element.textContent).toContain('Community Cellar');
-  });
-
-  it('a rejected review delete (403) keeps the row and shows a row error', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
-    reviews.deleteMine.mockRejectedValue(
-      apiError(403, 'only the author may delete this review', '/api/shelters/7/reviews/mine'),
-    );
-    const { page, element, fixture } = await open();
-
-    page.requestDeleteReview(7);
-    page.confirmDeleteReview(7);
-    await flush();
-    fixture.detectChanges();
-
-    expect(element.textContent).toContain('only the author may delete this review');
-    expect(element.textContent).toContain('Hea varjend'); // row unchanged
   });
 
   // ---- hidden own shelters (shelter-trust-and-reports / user-contributions) ----
@@ -558,21 +431,13 @@ describe('ContributionsPanel', () => {
 
   // ---- trust-state badges + admin note (community-review-queue) --------------
 
-  it('each /mine shelter row carries its provenance badge (M6: all six values)', async () => {
+  it('each /mine shelter row carries its trust-state badge (NEW / CONFIRMED / REJECTED)', async () => {
     shelters.mine.mockResolvedValue([
       {
         ...SHELTER_ROW,
         id: 7,
         name: 'New Cellar',
         reviewStatus: 'NEW',
-        provenance: 'UNDER_REVIEW',
-      },
-      {
-        ...SHELTER_ROW,
-        id: 8,
-        name: 'Checked Cellar',
-        reviewStatus: 'CONFIRMED',
-        provenance: 'COMMUNITY_REPORTED',
       },
       {
         ...SHELTER_ROW,
@@ -581,7 +446,6 @@ describe('ContributionsPanel', () => {
         reviewStatus: 'CONFIRMED',
         status: 'INACTIVE',
         nonexistentReports: 5,
-        provenance: 'REPORTED_INACTIVE',
       },
       {
         ...SHELTER_ROW,
@@ -589,20 +453,18 @@ describe('ContributionsPanel', () => {
         name: 'Rejected Cellar',
         reviewStatus: 'REJECTED',
         status: 'INACTIVE',
-        provenance: 'REJECTED',
       },
     ]);
     const { element } = await open();
 
     const rows = element.querySelectorAll<HTMLElement>('.contrib-row');
-    expect(rows.length).toBe(4);
-    const [newRow, checkedRow, reportedRow, rejectedRow] = rows;
-    expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe('Proposed');
-    expect(checkedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
-      'Community-reported',
+    expect(rows.length).toBe(3);
+    const [newRow, reportedRow, rejectedRow] = rows;
+    expect(newRow.querySelector('.contrib-badge.badge--new')?.textContent?.trim()).toBe(
+      'Newly added',
     );
-    expect(reportedRow.querySelector('.contrib-badge.badge--inactive')?.textContent?.trim()).toBe(
-      'Reported inactive',
+    expect(reportedRow.querySelector('.contrib-badge.badge--user')?.textContent?.trim()).toBe(
+      'Community-checked',
     );
     expect(rejectedRow.querySelector('.contrib-badge.badge--rejected')?.textContent?.trim()).toBe(
       'Rejected',

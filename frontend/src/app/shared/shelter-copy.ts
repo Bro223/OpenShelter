@@ -1,82 +1,91 @@
 import type {
   LocationKind,
   OccupancyBand,
-  Provenance,
+  OpenStatusDto,
+  ReviewStatus,
   ShelterOccupancy,
-  ShelterStatusFlag,
+  ShelterSource,
+  ShelterStatus,
 } from '../core/models';
 
 /**
- * The shared shelter copy (W24): provenance labels + the rating-summary
- * phrasing, single-sourced for the consumers that used to carry divergent
+ * The shared shelter copy (W24): source/trust labels + the practical-info
+ * status line, single-sourced for the consumers that used to carry divergent
  * inline copies — the map sidebar, the shelter detail header, the admin
  * list, and the contributions panel.
  */
 
-/** "No ratings yet" — the null-average phrasing (never an invented zero). */
-export const NO_RATINGS_YET = 'No ratings yet';
-
 /**
- * The provenance label (shelter-provenance-taxonomy M6, superseding
- * accessibility-and-provenance D4 and the community-review-queue
- * trust-label split; proposed-community-wording M7 renamed the two
- * community states): the text for each taxonomy value. The four values
- * reachable in the public list — "Paasteamet registry" / "Municipal
- * registry" / "Community-reported" / "Proposed"; the two hidden values
- * (visible only on /mine, the detail read and the admin list) get their
- * own: "Reported inactive" / "Rejected". Single-sourced: map rows,
- * detail header, /mine badges, the admin list and the legend all call
- * this. The input is the server-derived `Provenance` — the FE never
- * re-derives it from source/reviewStatus.
+ * The community trust-state label (community-review-queue D5): a USER row
+ * says what it IS in the trust lifecycle:
+ *   NEW       -> "Newly added"       (amber marker treatment)
+ *   CONFIRMED -> "Community-checked" (green marker treatment)
+ *   REJECTED  -> "Rejected"          (hidden; /mine + admin surfaces only)
  */
-export function provenanceText(provenance: Provenance): string {
-  switch (provenance) {
-    case 'OFFICIAL':
-      return 'Paasteamet registry';
-    case 'PARTNER_VERIFIED':
-      return 'Municipal registry';
-    case 'COMMUNITY_REPORTED':
-      return 'Community-reported';
-    case 'UNDER_REVIEW':
-      return 'Proposed';
-    case 'REPORTED_INACTIVE':
-      return 'Reported inactive';
+export function communityTrustLabel(reviewStatus: ReviewStatus): string {
+  switch (reviewStatus) {
+    case 'NEW':
+      return 'Newly added';
+    case 'CONFIRMED':
+      return 'Community-checked';
     case 'REJECTED':
       return 'Rejected';
   }
 }
 
 /**
- * The provenance badge tone (M6): the badge follows the marker palette —
- * UNDER_REVIEW gets the amber "proposed" tone, COMMUNITY_REPORTED the
- * green one, REJECTED the danger one, REPORTED_INACTIVE the muted grey;
- * OFFICIAL / PARTNER_VERIFIED rows get no modifier (their base badge fill
- * already says registry). Applied on every surface that renders the
- * provenance badge (map row, detail header, admin list, /mine).
+ * The row's source/trust badge label: registry rows carry their registry
+ * label ("Paasteamet registry" / "Municipal registry"); USER rows carry
+ * the trust-state label instead (REJECTED rows are not public — the label
+ * exists for the /mine + admin surfaces). Single-sourced: map rows, detail
+ * header, /mine badges and the admin list all call this.
  */
-export function provenanceBadgeClass(provenance: Provenance): string {
-  switch (provenance) {
-    case 'OFFICIAL':
-    case 'PARTNER_VERIFIED':
-      return '';
-    case 'UNDER_REVIEW':
-      return 'badge--new';
-    case 'COMMUNITY_REPORTED':
-      return 'badge--user';
-    case 'REPORTED_INACTIVE':
-      return 'badge--inactive';
-    case 'REJECTED':
-      return 'badge--rejected';
+export function sourceTrustLabel(shelter: {
+  source: ShelterSource;
+  reviewStatus: ReviewStatus;
+}): string {
+  if (shelter.source === 'PAASETEAMET') {
+    return 'Paasteamet registry';
   }
+  if (shelter.source === 'MUNICIPALITY') {
+    return 'Municipal registry';
+  }
+  return communityTrustLabel(shelter.reviewStatus);
+}
+
+/**
+ * The row's badge tone (community-review-queue D5): the badge follows the
+ * marker's trust palette — USER rows in NEW get the amber "Newly added"
+ * badge, REJECTED the danger one, CONFIRMED the green one. Registry rows
+ * get no modifier (their base badge fill already says registry). Applied
+ * on every surface that renders the badge (map row, detail header, admin
+ * list, /mine).
+ */
+export function communityBadgeClass(shelter: {
+  source: ShelterSource;
+  reviewStatus: ReviewStatus;
+}): string {
+  if (shelter.source !== 'USER') {
+    return '';
+  }
+  if (shelter.reviewStatus === 'NEW') {
+    return 'badge--new';
+  }
+  if (shelter.reviewStatus === 'REJECTED') {
+    return 'badge--rejected';
+  }
+  return 'badge--user';
 }
 
 /**
  * The private-home declaration badge (community-review-queue D7): shown
  * on list rows, the detail page and the admin list for rows whose
  * submitter declared the location a private home/shelter. Muted styling
- * at the point of use — a description, not a caveat.
+ * at the point of use — a description, not a caveat. The copy says what it
+ * IS (a declared private home), never what it is NOT: the app carries no
+ * access data and must not claim any (owner decision, Option A).
  */
-export const PRIVATE_LOCATION_BADGE = 'Private location';
+export const PRIVATE_LOCATION_BADGE = 'Private home (declared)';
 
 /**
  * The detail-page note for PRIVATE rows (community-review-queue D7):
@@ -88,13 +97,12 @@ export const PRIVATE_LOCATION_NOTE =
 
 /**
  * The unverified warning for community rows (community-review-queue, map-
- * browse delta; surfaces re-pinned by proposed-community-wording M7):
- * shown as a block on the detail page of community rows in the NEW state
- * (CONFIRMED rows keep the "Community-reported" badge and no warning),
- * and as a line under the around-you result when the highlighted row is
- * community (any review status). Exact copy is spec-pinned — a copy
- * change is a spec change. Muted styling at the point of use: this is a
- * caveat, not the crisis orange.
+ * browse delta): shown as a block on the detail page of USER rows in the
+ * NEW state (CONFIRMED rows keep the "Community-checked" badge and no
+ * warning), and as a line under the around-you result when the highlighted
+ * row is community (any review status). Exact copy is spec-pinned — a
+ * copy change is a spec change. Muted styling at the point of use: this is
+ * a caveat, not the crisis orange.
  */
 export const COMMUNITY_UNVERIFIED_WARNING =
   'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.';
@@ -102,7 +110,7 @@ export const COMMUNITY_UNVERIFIED_WARNING =
 /**
  * The "reported inaccurate" warning (moderation-dashboard-completion M10
  * slice 4): the single-sourced sentence for a moderator-marked row. A
- * marked row stays visible with status and provenance untouched — the
+ * marked row stays visible with status and trust state untouched — the
  * warning is the treatment. Rendered on every surface that renders the
  * unverified treatment: the map's around-you line, the detail header,
  * the /mine rows and the admin list. Exact copy is spec-pinned — a copy
@@ -119,41 +127,78 @@ export function isPrivateLocation(shelter: { locationKind: LocationKind }): bool
   return shelter.locationKind === 'PRIVATE';
 }
 
-/** The review count in singular/plural ("1 review" / "2 reviews"). */
-export function reviewCountText(reviewCount: number): string {
-  return `${reviewCount} review${reviewCount === 1 ? '' : 's'}`;
+/**
+ * The shelter's derived display status (open-status wave): the FRESH
+ * open/closed reports outrank the lifecycle status — a fresh lone CLOSED
+ * report hedges ("Reported closed"), a fresh firm one (two+) is firm
+ * ("Closed"), a fresh OPEN reads "Open"; with nothing fresh the lifecycle
+ * status decides — INACTIVE reads "Closed", ACTIVE reads "Open (no recent
+ * reports)". Single-sourced: the detail page's info block and the map's
+ * "Open" chip consume the same rule. INACTIVE rows normally never reach
+ * the public UI (the detail read 404s), but the mapping stays for the
+ * admin-facing displays.
+ */
+export function shelterStatusText(shelter: {
+  status: ShelterStatus;
+  openStatus: OpenStatusDto | null;
+}): string {
+  // A pre-wave BE omits the field entirely (undefined) — treat it as null
+  // ("nothing fresh") so the FE ships ahead of the API safely.
+  const fresh = shelter.openStatus ?? null;
+  if (fresh !== null && fresh.state === 'CLOSED') {
+    return fresh.reportCount === 1 ? 'Reported closed' : 'Closed';
+  }
+  if (fresh !== null && fresh.state === 'OPEN') {
+    return 'Open';
+  }
+  if (shelter.status === 'INACTIVE') {
+    return 'Closed';
+  }
+  return 'Open (no recent reports)';
 }
 
 /**
- * The rating summary for a list row: "★ 4.5 · 2 reviews". A null average
- * renders {@link NO_RATINGS_YET} — never an invented zero (M4 spec).
+ * The map's "Open" chip predicate (open-status wave, same mechanism as
+ * before, new source): keeps the rows whose derived display status reads
+ * OPEN — fresh OPEN and nothing-fresh ("Open (no recent reports)") — and
+ * drops the fresh-CLOSED rows (and lifecycle-INACTIVE rows, which never
+ * reach the public list but the rule covers them). Client-side: the BE
+ * has no open/closed param, the chip filters the loaded list without a
+ * refetch.
  */
-export function ratingText(averageRating: number | null, reviewCount: number): string {
-  if (averageRating === null) {
-    return NO_RATINGS_YET;
+export function isOpenRow(shelter: {
+  status: ShelterStatus;
+  openStatus: OpenStatusDto | null;
+}): boolean {
+  if (shelter.status === 'INACTIVE') {
+    return false;
   }
-  return `★ ${averageRating.toFixed(1)} · ${reviewCountText(reviewCount)}`;
+  return shelter.openStatus?.state !== 'CLOSED';
 }
 
 // ---------------------------------------------------------------------------
 // Trust layer copy (shelter-trust-and-reports D6): the map rows and the
 // detail header render the SAME badge text — single-sourced here, the same
-// W24 way provenanceLabel is. Copy changes are spec changes; the pins live
+// W24 way sourceTrustLabel is. Copy changes are spec changes; the pins live
 // in shelter-copy.spec.ts.
 // ---------------------------------------------------------------------------
 
 /**
- * The statusFlag badge text (D1 netting): amber "Reported closed" /
- * green "Confirmed open"; null = no flag (render nothing).
+ * The list row's open/closed badge text (open-status wave): a fresh
+ * CLOSED row carries the amber badge — the same copy the status row uses
+ * ("Reported closed" at exactly one fresh report, "Closed" at two+). A
+ * fresh OPEN row carries NO badge (open is the default — no noise); null
+ * = nothing fresh (render nothing). Single-sourced: map rows and the
+ * detail header render the same badge.
  */
-export function statusFlagText(flag: ShelterStatusFlag | null): string | null {
-  if (flag === 'REPORTED_CLOSED') {
-    return 'Reported closed';
+export function openStatusBadgeText(openStatus: OpenStatusDto | null): string | null {
+  // A pre-wave BE omits the field entirely (undefined) — treat it as null
+  // ("nothing fresh") so the FE ships ahead of the API safely.
+  const fresh = openStatus ?? null;
+  if (fresh === null || fresh.state !== 'CLOSED') {
+    return null;
   }
-  if (flag === 'CONFIRMED_OPEN') {
-    return 'Confirmed open';
-  }
-  return null;
+  return fresh.reportCount === 1 ? 'Reported closed' : 'Closed';
 }
 
 /** True when the DTO is in the reported state (D1: nonexistentReports > 0). */
@@ -161,14 +206,18 @@ export function hasReports(shelter: { nonexistentReports: number }): boolean {
   return shelter.nonexistentReports > 0;
 }
 
-/** True when the DTO carries at least one trust badge to render (D6). */
+/** True when the DTO carries at least one trust badge to render (D6) — a
+ *  fresh OPEN openStatus carries no badge (open is the default), so only
+ *  the fresh CLOSED one counts. */
 export function hasTrustBadges(shelter: {
   nonexistentReports: number;
-  statusFlag: ShelterStatusFlag | null;
+  openStatus: OpenStatusDto | null;
   occupancy: ShelterOccupancy | null;
 }): boolean {
   return (
-    shelter.nonexistentReports > 0 || shelter.statusFlag !== null || shelter.occupancy !== null
+    shelter.nonexistentReports > 0 ||
+    openStatusBadgeText(shelter.openStatus) !== null ||
+    shelter.occupancy !== null
   );
 }
 
@@ -297,18 +346,22 @@ export function verifiedAgoText(iso: string, now: number = Date.now()): string {
 
 /**
  * The per-entry "last verified" line (M8): a verified row reads
- * "Last verified {ago}"; an UNDER_REVIEW row is never verified — its line
- * IS the under-review signal, pairing the proposal age with the missing
- * check; any other row without a verification record (e.g. a dev DB before
- * the first import) reads "No verification record yet".
+ * "Last verified {ago}"; a NEW community row is never verified — its line
+ * IS the not-yet-verified signal, pairing the submission age with the
+ * missing check; any other row without a verification record (e.g. a dev
+ * DB before the first import) reads "No verification record yet".
  */
 export function lastVerifiedText(
-  shelter: { lastVerifiedAt: string | null; provenance: Provenance; createdAt: string },
+  shelter: {
+    lastVerifiedAt: string | null;
+    reviewStatus: ReviewStatus;
+    createdAt: string;
+  },
   now: number = Date.now(),
 ): string {
   if (shelter.lastVerifiedAt === null) {
-    return shelter.provenance === 'UNDER_REVIEW'
-      ? `Proposed ${verifiedAgoText(shelter.createdAt, now)} — not yet verified`
+    return shelter.reviewStatus === 'NEW'
+      ? `Newly added ${verifiedAgoText(shelter.createdAt, now)} — not yet verified`
       : 'No verification record yet';
   }
   return `Last verified ${verifiedAgoText(shelter.lastVerifiedAt, now)}`;

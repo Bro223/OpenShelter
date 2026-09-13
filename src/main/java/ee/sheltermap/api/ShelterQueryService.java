@@ -3,21 +3,21 @@ package ee.sheltermap.api;
 import ee.sheltermap.app.DataImportLog;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.ShelterOccupancyRepository;
+import ee.sheltermap.app.ShelterOpenStatusRepository;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReportRepository.ReportTypeCount;
 import ee.sheltermap.app.ShelterInfoRequestLog;
-import ee.sheltermap.app.ShelterReviewRepository;
-import ee.sheltermap.app.ShelterReviewRepository.RatingAggregate;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
+import ee.sheltermap.domain.ShelterOpenStatusReport;
 import ee.sheltermap.domain.ShelterReportType;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
-import ee.sheltermap.domain.ShelterStatusFlag;
 import ee.sheltermap.domain.User;
 import org.springframework.stereotype.Service;
 
@@ -32,12 +32,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * Read side of the shelter API. Returns <strong>DTOs only, never
- * entities</strong> (05-shelter-api.puml). Rating aggregates, creator
+ * entities</strong> (05-shelter-api.puml). Creator
  * verification state, report counts and fresh occupancy are each computed
  * in <strong>one batched query</strong> per listing — no N+1 (hardening
  * pass; previously one {@code findByShelterId} per shelter; the creator
@@ -46,21 +45,20 @@ import java.util.stream.Collectors;
  *
  * <p>Trust derivations are computed HERE, server-side, never client-
  * computed from raw report lists: {@code nonexistentReports} (0 when
- * none), {@code statusFlag} (the CLOSED vs OPEN_CONFIRMED net — both
- * ≥ 1 required; more closed → REPORTED_CLOSED, confirmed ≥ closed →
- * CONFIRMED_OPEN) and the fresh occupancy block (latest band wins,
- * hedged at one agreeing report, firm at two+, silent past 2 h).
+ * none), the live open/closed block (latest fresh tap wins, same 2 h
+ * freshness window as occupancy) and the fresh occupancy block (latest
+ * band wins, hedged at one agreeing report, firm at two+, silent past 2
+ * h). Admin-dismissed reports count in neither.
  *
  * <p>D5: the public list projection is ACTIVE-only (auto-hidden shelters
- * disappear from the map and list); the trust filters ({@code reviewed},
- * {@code hasCapacity}) are applied in-memory over the
- * already-fetched list (Estonia-scale data; the ratings/counts are
- * computed here anyway — no new SQL surface). (M11 rating demotion:
+ * disappear from the map and list); the trust filter
+ * ({@code hasCapacity}) is applied in-memory over the
+ * already-fetched list (Estonia-scale data). (M11 rating demotion:
  * the {@code minRating} rating filter is gone — the rating is context,
  * not a lever.)
  *
  * <p>Community trust (community-review-queue v2 D2): the public list and
- * detail reads are UNCHANGED by the review model — there is no blocking
+ * detail reads are UNCHANGED by the trust model — there is no blocking
  * queue. {@code reviewStatus} is display/trust data on the DTOs (NEW
  * community rows are public, carrying the unverified treatment); only
  * REJECTED rows are hidden, and that through the existing status
@@ -78,33 +76,33 @@ import java.util.stream.Collectors;
 @Service
 public class ShelterQueryService {
 
-    /** Occupancy freshness window (D4): reports older than this are silent. */
+    /** Freshness window for the live state blocks (occupancy D4, and the open/closed tap on the same level): reports older than this are silent. */
     public static final Duration OCCUPANCY_FRESHNESS_WINDOW = Duration.ofHours(2);
 
     private final ShelterRepository shelterRepository;
-    private final ShelterReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final ShelterReportRepository reportRepository;
     private final ShelterOccupancyRepository occupancyRepository;
+    private final ShelterOpenStatusRepository openStatusRepository;
     private final DataImportLog dataImportLog;
     private final ModerationAuditLog moderationAudit;
     private final ShelterInfoRequestLog infoRequests;
     private final Clock clock;
 
     public ShelterQueryService(ShelterRepository shelterRepository,
-                               ShelterReviewRepository reviewRepository,
                                UserRepository userRepository,
                                ShelterReportRepository reportRepository,
                                ShelterOccupancyRepository occupancyRepository,
+                               ShelterOpenStatusRepository openStatusRepository,
                                DataImportLog dataImportLog,
                                ModerationAuditLog moderationAudit,
                                ShelterInfoRequestLog infoRequests,
                                Clock clock) {
         this.shelterRepository = shelterRepository;
-        this.reviewRepository = reviewRepository;
         this.userRepository = userRepository;
         this.reportRepository = reportRepository;
         this.occupancyRepository = occupancyRepository;
+        this.openStatusRepository = openStatusRepository;
         this.dataImportLog = dataImportLog;
         this.moderationAudit = moderationAudit;
         this.infoRequests = infoRequests;
@@ -113,18 +111,17 @@ public class ShelterQueryService {
 
     /**
      * The public list: ACTIVE rows only (D5) — with the optional trust
-     * filters applied in-memory. {@code reviewed} keeps shelters with at
-     * least one VISIBLE review (hidden ones don't count);
-     * {@code hasCapacity} keeps shelters with capacity data. A
-     * {@code false} boolean is the negation. (M11: the minRating rating
+     * filter applied in-memory.
+     * {@code hasCapacity} keeps shelters with capacity data.
+     * A {@code false} boolean is the negation. (M11: the minRating rating
      * filter is gone — the rating is context, not a lever.)
      * NEW community rows are listed like any other ACTIVE row
      * (community-review-queue v2 D2 — no visibility gate).
      */
-    public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean reviewed,
-                                    Boolean hasCapacity, Provenance provenance) {
+    public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean hasCapacity,
+                                    Provenance provenance) {
         List<ShelterDto> dtos = toDtos(shelterRepository.findAllActiveBySourceIn(source.sources()), null);
-        return applyTrustFilters(dtos, reviewed, hasCapacity, provenance);
+        return applyTrustFilters(dtos, hasCapacity, provenance);
     }
 
     /** The single-shelter read without a caller (internal projections). */
@@ -137,8 +134,8 @@ public class ShelterQueryService {
      * caller's own live band ({@code yourOccupancyBand}) so the occupancy
      * picker can pre-select — null for guests, anonymous callers and
      * callers without a report. Rejected (INACTIVE) rows stay readable
-     * by id exactly as any other INACTIVE row (ids are public); the
-     * review model adds no detail-read rule.
+     * by id exactly as any other INACTIVE row (ids are public); no trust
+     * rule blocks a detail read.
      */
     public Optional<ShelterDto> findById(long id, User caller) {
         return shelterRepository.findById(id)
@@ -163,18 +160,21 @@ public class ShelterQueryService {
             return List.of();
         }
         Batches batches = batchesFor(shelters, withInfoRequests);
-        // The caller's own band is a DETAIL-only field (D5): one indexed
-        // lookup, and only for the single-shelter read — the list paths
-        // (public + /mine) pass a null caller and stay pure batch queries.
+        // The caller's own live states are DETAIL-only fields (D5): one
+        // indexed lookup each, and only for the single-shelter read — the
+        // list paths (public + /mine) pass a null caller and stay pure
+        // batch queries.
         Map<Long, OccupancyBand> callerBands = callerBands(shelters, caller);
+        Map<Long, String> callerOpenStatuses = callerOpenStatuses(shelters, caller);
         return shelters.stream()
-                .map(shelter -> toDto(shelter, batches, callerBands.get(shelter.getId())))
+                .map(shelter -> toDto(shelter, batches, callerBands.get(shelter.getId()),
+                        callerOpenStatuses.get(shelter.getId())))
                 .toList();
     }
 
     /**
      * The batched trust lookups (one query each — no N+1) shared by the
-     * public list and the admin list projections: rating aggregates,
+     * public list and the admin list projections:
      * creators (the provenance/trust submitter join), report counts by
      * type, the fresh occupancy rows, and the last-verified stamp (M8).
      */
@@ -184,8 +184,6 @@ public class ShelterQueryService {
 
     private Batches batchesFor(List<Shelter> shelters, boolean withInfoRequests) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
-        Map<Long, RatingAggregate> aggregates = reviewRepository.findRatingAggregates(ids).stream()
-                .collect(Collectors.toMap(RatingAggregate::shelterId, Function.identity()));
         // Provenance (accessibility-and-provenance D3): the batch's creators in
         // ONE lookup — distinct non-null author ids; missing ids (deleted users)
         // simply stay absent from the returned map.
@@ -204,6 +202,11 @@ public class ShelterQueryService {
         // latest band wins, agreeing count, newest timestamp — is in memory.
         Map<Long, ShelterDto.Occupancy> occupancy = deriveOccupancy(occupancyRepository
                 .findFreshByShelterIds(ids, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
+        // Live open/closed state (same level as capacity): the fresh taps
+        // for the whole batch in ONE query (the same 2 h window as
+        // occupancy); latest tap wins, agreeing count, newest timestamp.
+        Map<Long, ShelterDto.OpenStatus> openStatus = deriveOpenStatus(openStatusRepository
+                .findFreshByShelterIds(ids, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
         // Last verified (M8): the per-shelter verification stamp (see the
         // lastVerifiedFor derivation comment).
         Map<Long, Instant> lastVerified = lastVerifiedFor(shelters, ids);
@@ -220,16 +223,16 @@ public class ShelterQueryService {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet()))
                 : Map.of();
-        return new Batches(aggregates, authors, reportCounts, occupancy, lastVerified,
+        return new Batches(authors, reportCounts, occupancy, openStatus, lastVerified,
                 infoRequestRows, infoRequesters);
     }
 
     /** The shared batched inputs of both shelter projections. */
     private record Batches(
-            Map<Long, RatingAggregate> aggregates,
             Map<Long, User> authors,
             Map<Long, Map<ShelterReportType, Long>> reportCounts,
             Map<Long, ShelterDto.Occupancy> occupancy,
+            Map<Long, ShelterDto.OpenStatus> openStatus,
             Map<Long, Instant> lastVerified,
             Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequests,
             Map<Long, User> infoRequesters) {
@@ -313,13 +316,24 @@ public class ShelterQueryService {
         return band.map(value -> Map.of(shelterId, value)).orElse(Map.of());
     }
 
-    private ShelterDto toDto(Shelter shelter, Batches batches, OccupancyBand yourOccupancyBand) {
-        RatingAggregate aggregate = batches.aggregates().get(shelter.getId());
+    /** Detail-only: the caller's own live open/closed state for the single shelter, if any. */
+    private Map<Long, String> callerOpenStatuses(List<Shelter> shelters, User caller) {
+        Long callerId = caller == null ? null : caller.getId();
+        if (callerId == null || shelters.size() != 1) {
+            return Map.of();
+        }
+        long shelterId = shelters.get(0).getId();
+        Optional<String> state = openStatusRepository
+                .findByShelterIdAndUserId(shelterId, callerId)
+                .map(report -> report.getState().name());
+        return state.map(value -> Map.of(shelterId, value)).orElse(Map.of());
+    }
+
+    private ShelterDto toDto(Shelter shelter, Batches batches, OccupancyBand yourOccupancyBand,
+                             String yourOpenStatus) {
         // null key: registry row / pre-V7 legacy row — no author lookup
         Long createdById = shelter.getCreatedBy();
         User author = createdById == null ? null : batches.authors().get(createdById);
-        double average = aggregate == null ? 0 : aggregate.average();
-        long count = aggregate == null ? 0 : aggregate.count();
         // "Completed verification" = at least one active (non-revoked) claim;
         // a null author (registry row or a deleted user) is never verified.
         boolean submitterVerified = author != null && !author.getData().levels().isEmpty();
@@ -335,16 +349,15 @@ public class ShelterQueryService {
                 shelter.getLocation().lng(),
                 shelter.getStatus(),
                 shelter.getSource(),
-                count == 0 ? null : average,
-                (int) count,
                 shelter.getCreatedAt(),
                 shelter.getDescription(),
                 shelter.getCapacity(),
                 submitterVerified,
                 (int) nonExistent,
-                statusFlagOf(typeCounts),
+                batches.openStatus().get(shelter.getId()),
                 batches.occupancy().get(shelter.getId()),
                 yourOccupancyBand,
+                yourOpenStatus,
                 shelter.getReviewStatus(),
                 shelter.getReviewNote(),
                 shelter.getLocationKind(),
@@ -397,12 +410,9 @@ public class ShelterQueryService {
     }
 
     private AdminShelterDto toAdminDto(Shelter shelter, Batches batches) {
-        RatingAggregate aggregate = batches.aggregates().get(shelter.getId());
         // null key: registry row / pre-V7 legacy row — no submitter name
         Long createdById = shelter.getCreatedBy();
         User author = createdById == null ? null : batches.authors().get(createdById);
-        double average = aggregate == null ? 0 : aggregate.average();
-        long count = aggregate == null ? 0 : aggregate.count();
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
@@ -412,10 +422,7 @@ public class ShelterQueryService {
                 shelter.getAddress(),
                 shelter.getSource(),
                 shelter.getStatus(),
-                count == 0 ? null : average,
-                (int) count,
                 (int) nonExistent,
-                statusFlagOf(typeCounts),
                 batches.occupancy().get(shelter.getId()),
                 shelter.getCapacity(),
                 author == null ? null : author.getData().name(),
@@ -441,25 +448,6 @@ public class ShelterQueryService {
         return new AdminShelterDto.InfoRequest(request.message(), request.requestedAt(),
                 requester == null ? "Unknown" : requester.getData().name(),
                 request.replyMessage(), request.repliedAt());
-    }
-
-    /**
-     * D1: the derived reported state — counts are small, computed at
-     * read time, never stored. REPORTED_CLOSED when closed > confirmed
-     * (confirmed may be 0 — the "2 CLOSED, nobody confirmed" scenario);
-     * CONFIRMED_OPEN when confirmed ≥ closed with BOTH sides present
-     * (a tie is a confirmed open); otherwise no flag.
-     */
-    private static ShelterStatusFlag statusFlagOf(Map<ShelterReportType, Long> typeCounts) {
-        long closed = typeCounts.getOrDefault(ShelterReportType.CLOSED, 0L);
-        long confirmed = typeCounts.getOrDefault(ShelterReportType.OPEN_CONFIRMED, 0L);
-        if (closed > confirmed) {
-            return ShelterStatusFlag.REPORTED_CLOSED;
-        }
-        if (closed >= 1 && confirmed >= 1) {
-            return ShelterStatusFlag.CONFIRMED_OPEN;
-        }
-        return null;
     }
 
     /**
@@ -490,18 +478,46 @@ public class ShelterQueryService {
         return result;
     }
 
+    /**
+     * Live open/closed state (same level as capacity) over the fresh rows
+     * (the 2 h window already applied in SQL, the same window as
+     * occupancy D4): the MOST RECENT tap's state wins — the tie-break is
+     * exactly the occupancy D4 derivation (ties broken by user id — the
+     * timestamptz precision makes ties vanishingly rare, but the output
+     * stays deterministic), {@code reportCount} is the number of fresh
+     * taps agreeing with that state, and {@code reportedAt} is the newest
+     * fresh tap's time. Null (absent) when nothing is fresh.
+     */
+    private static Map<Long, ShelterDto.OpenStatus> deriveOpenStatus(List<ShelterOpenStatusReport> fresh) {
+        Map<Long, List<ShelterOpenStatusReport>> byShelter = fresh.stream()
+                .collect(Collectors.groupingBy(ShelterOpenStatusReport::getShelterId));
+        Map<Long, ShelterDto.OpenStatus> result = new HashMap<>();
+        byShelter.forEach((shelterId, rows) -> {
+            ShelterOpenStatusReport latest = rows.stream()
+                    .max(Comparator.comparing(ShelterOpenStatusReport::getCreatedAt)
+                            .thenComparing(ShelterOpenStatusReport::getUserId))
+                    .orElseThrow();
+            OpenStatusState state = latest.getState();
+            long agreeing = rows.stream().filter(r -> r.getState() == state).count();
+            Instant reportedAt = rows.stream()
+                    .map(ShelterOpenStatusReport::getCreatedAt)
+                    .max(Instant::compareTo)
+                    .orElseThrow();
+            result.put(shelterId, new ShelterDto.OpenStatus(state.name(), reportedAt, (int) agreeing));
+        });
+        return result;
+    }
+
     /** D5: the trust filters over the projected list (absent = no filter).
      *  {@code provenance} (shelter-provenance-taxonomy M6) keeps the rows
      *  whose derived taxonomy value matches — in-memory over the projected
      *  list, the same Estonia-scale precedent as the trust filters. */
-    private static List<ShelterDto> applyTrustFilters(List<ShelterDto> dtos, Boolean reviewed,
-                                                      Boolean hasCapacity,
+    private static List<ShelterDto> applyTrustFilters(List<ShelterDto> dtos, Boolean hasCapacity,
                                                       Provenance provenance) {
-        if (reviewed == null && hasCapacity == null && provenance == null) {
+        if (hasCapacity == null && provenance == null) {
             return dtos;
         }
         return dtos.stream()
-                .filter(dto -> reviewed == null || (dto.reviewCount() > 0) == reviewed)
                 .filter(dto -> hasCapacity == null || (dto.capacity() != null) == hasCapacity)
                 .filter(dto -> provenance == null || dto.provenance() == provenance)
                 .toList();

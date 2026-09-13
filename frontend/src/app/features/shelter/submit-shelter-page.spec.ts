@@ -65,8 +65,6 @@ const CREATED: ShelterDto = {
   longitude: 24.754,
   status: 'ACTIVE',
   source: 'USER',
-  averageRating: null,
-  reviewCount: 0,
   createdAt: '2025-09-10T09:00:00Z',
   description: 'Basement with two exits',
   capacity: 40,
@@ -74,13 +72,12 @@ const CREATED: ShelterDto = {
   // row comes back already proven (D3/D4).
   submitterVerified: true,
   nonexistentReports: 0,
-  statusFlag: null,
+  openStatus: null,
   occupancy: null,
   // Public DTO carries the trust state (community-review-queue): a fresh
   // submission comes back NEW (public immediately, no blocking queue).
   reviewStatus: 'NEW',
   locationKind: 'PUBLIC',
-  provenance: 'UNDER_REVIEW', // USER + NEW (M6)
   reportCount: 0, // M8 total (all report types)
   lastVerifiedAt: null, // M8 — a fresh submission is never verified
   inaccurate: false, // M10 slice 4 — a fresh submission is never marked
@@ -303,7 +300,7 @@ describe('SubmitShelterPage (/submit)', () => {
     // success panel (community-review-queue) instead of navigating.
     expect(router.url).toBe('/submit');
     expect(element.textContent).toContain(
-      'Your location is now listed and marked as proposed. Community reports confirm it.',
+      'Your location is now listed and marked as newly added. Community reports confirm it.',
     );
     expect(element.querySelector('.submit-success a[href="/shelters/42"]')).not.toBeNull();
     expect(element.querySelector('.submit-success a[href="/account"]')).not.toBeNull();

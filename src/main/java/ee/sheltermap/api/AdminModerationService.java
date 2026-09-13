@@ -5,25 +5,21 @@ import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ReportNotFoundException;
-import ee.sheltermap.app.ReviewReportRepository;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.ShelterReportRepository;
-import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserNotFoundException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewDecision;
-import ee.sheltermap.domain.ReviewReport;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReport;
-import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
@@ -66,11 +62,11 @@ import java.util.stream.Collectors;
  *
  * <p>Every moderation-relevant WRITE is recorded in the moderation audit
  * trail (community-review-queue v2 D4) in the SAME transaction as the
- * action: status change, delete, report dismiss, review hide/restore,
+ * action: status change, delete, report dismiss,
  * and the admin CONFIRM/REJECT decisions (the automatic AUTO_CONFIRM
  * promotion is recorded by the report service itself). The moderator's
  * user id (the controller's fresh kind lookup) is the actor of record.
- * Idempotent no-op calls (re-dismiss, re-hide, same-status change)
+ * Idempotent no-op calls (re-dismiss, same-status change)
  * record NOTHING — the audit row marks the change, not the request.
  */
 @Service
@@ -97,8 +93,6 @@ public class AdminModerationService {
     private final ShelterQueryService queryService;
     private final ShelterRepository shelters;
     private final ShelterReportRepository shelterReports;
-    private final ReviewReportRepository reviewReports;
-    private final ShelterReviewRepository reviews;
     private final UserRepository users;
     private final Clock clock;
     private final ModerationAuditLog audit;
@@ -109,8 +103,6 @@ public class AdminModerationService {
     public AdminModerationService(ShelterQueryService queryService,
                                   ShelterRepository shelters,
                                   ShelterReportRepository shelterReports,
-                                  ReviewReportRepository reviewReports,
-                                  ShelterReviewRepository reviews,
                                   UserRepository users,
                                   Clock clock,
                                   ModerationAuditLog audit,
@@ -120,8 +112,6 @@ public class AdminModerationService {
         this.queryService = Objects.requireNonNull(queryService, "queryService");
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.shelterReports = Objects.requireNonNull(shelterReports, "shelterReports");
-        this.reviewReports = Objects.requireNonNull(reviewReports, "reviewReports");
-        this.reviews = Objects.requireNonNull(reviews, "reviews");
         this.users = Objects.requireNonNull(users, "users");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.audit = Objects.requireNonNull(audit, "audit");
@@ -183,7 +173,7 @@ public class AdminModerationService {
 
     /**
      * DELETE /admin/shelters/{id} — hard delete of a USER shelter; the DB
-     * cascades its reviews, shelter reports, review reports and occupancy
+     * cascades its shelter reports and occupancy
      * rows (V1/V9 FKs are all ON DELETE CASCADE). USER rows only
      * (registry → 409); unknown id → 404.
      *
@@ -328,89 +318,6 @@ public class AdminModerationService {
             ReviewStatus reviewStatus = reviewStatusOf(report.getShelterId());
             audit.record(report.getShelterId(), null, moderatorId,
                     ModerationAuditLog.Action.REPORT_DISMISS, null, reviewStatus, reviewStatus);
-        }
-    }
-
-    /**
-     * GET /admin/review-reports — the review report queue, newest first,
-     * hidden reviews INCLUDED with their hidden marker. Review, shelter
-     * and reporter resolve in ONE batched lookup each (no N+1).
-     */
-    @Transactional(readOnly = true)
-    public List<AdminReviewReportDto> listReviewReports() {
-        List<ReviewReport> reports = reviewReports.findAll();
-        if (reports.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, ShelterReview> reviewsById = reviews
-                .findByIds(reports.stream().map(ReviewReport::getReviewId).collect(Collectors.toSet()))
-                .stream().collect(Collectors.toMap(ShelterReview::getId, Function.identity()));
-        Set<Long> shelterIds = reviewsById.values().stream()
-                .map(ShelterReview::getShelterId)
-                .collect(Collectors.toSet());
-        Map<Long, Shelter> sheltersById = shelters.findByIds(shelterIds).stream()
-                .collect(Collectors.toMap(Shelter::getId, Function.identity()));
-        Map<Long, User> reporters = users.findByIds(reports.stream()
-                .map(ReviewReport::getUserId).collect(Collectors.toSet()));
-        return reports.stream()
-                .map(report -> {
-                    ShelterReview review = reviewsById.get(report.getReviewId());
-                    // A report can never outlive its review or the review's
-                    // shelter (both FKs cascade) — "Unknown" guards the
-                    // impossible, same as the "my reviews" projection.
-                    Shelter shelter = review == null ? null : sheltersById.get(review.getShelterId());
-                    User reporter = reporters.get(report.getUserId());
-                    return new AdminReviewReportDto(
-                            report.getId(),
-                            review == null ? null : review.getShelterId(),
-                            shelter == null ? "Unknown" : shelter.getName(),
-                            report.getReviewId(),
-                            review == null ? null : review.getRating(),
-                            review == null ? null : review.getComment(),
-                            review != null && review.isHidden(),
-                            report.getReason(),
-                            report.getDetail(),
-                            reporter == null ? "Unknown" : reporter.getData().name(),
-                            reporter == null ? null : reporter.getData().email(),
-                            report.getCreatedAt());
-                })
-                .toList();
-    }
-
-    /**
-     * POST /admin/reviews/{id}/hide — immediate hide (idempotent: the
-     * stamp is set once, and a no-op records no audit row). Hiding never
-     * deletes the row; the review is excluded from the public list, the
-     * rating aggregate and the {@code reviewed} filter from this point
-     * on. Unknown id → 404.
-     */
-    @Transactional
-    public void hideReview(long moderatorId, long reviewId) {
-        ShelterReview review = requireReview(reviewId);
-        if (!review.isHidden()) {
-            review.markHidden(clock.instant());
-            reviews.save(review);
-            ReviewStatus reviewStatus = reviewStatusOf(review.getShelterId());
-            audit.record(review.getShelterId(), null, moderatorId,
-                    ModerationAuditLog.Action.REVIEW_HIDE, null, reviewStatus, reviewStatus);
-        }
-    }
-
-    /**
-     * POST /admin/reviews/{id}/restore — clear the hidden state
-     * (idempotent: a second restore is a no-op and records no audit
-     * row). Restores the review's participation in the rating, the count
-     * and the {@code reviewed} filter. Unknown id → 404.
-     */
-    @Transactional
-    public void restoreReview(long moderatorId, long reviewId) {
-        ShelterReview review = requireReview(reviewId);
-        if (review.isHidden()) {
-            review.markVisible();
-            reviews.save(review);
-            ReviewStatus reviewStatus = reviewStatusOf(review.getShelterId());
-            audit.record(review.getShelterId(), null, moderatorId,
-                    ModerationAuditLog.Action.REVIEW_RESTORE, null, reviewStatus, reviewStatus);
         }
     }
 
@@ -688,10 +595,5 @@ public class AdminModerationService {
         if (shelter.getSource() != ShelterSource.USER) {
             throw new ImportOwnedShelterException(IMPORT_OWNED_MESSAGE);
         }
-    }
-
-    private ShelterReview requireReview(long reviewId) {
-        return reviews.findById(reviewId)
-                .orElseThrow(() -> new ReportNotFoundException(reviewId));
     }
 }

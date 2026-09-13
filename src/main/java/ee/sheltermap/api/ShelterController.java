@@ -98,8 +98,8 @@ public class ShelterController {
     /**
      * The public list. {@code source} as before (D5: ACTIVE rows only —
      * auto-hidden shelters are absent); the optional trust filters combine
-     * with it in the projection: {@code reviewed} (at least one visible
-     * review; {@code false} = the negation) and {@code hasCapacity}
+     * with it in the projection:
+     * {@code hasCapacity}
      * (capacity data present). (M11 rating demotion: the {@code minRating}
      * rating filter is gone — the rating is context, not a lever; a stray
      * {@code minRating} param is ignored, not an error.)
@@ -114,10 +114,9 @@ public class ShelterController {
      */
     @GetMapping
     public List<ShelterDto> list(@RequestParam(defaultValue = "ALL") ShelterSourceFilter source,
-                                 @RequestParam(required = false) Boolean reviewed,
                                  @RequestParam(required = false) Boolean hasCapacity,
                                  @RequestParam(required = false) Provenance provenance) {
-        return queryService.findAll(source, reviewed, hasCapacity, provenance);
+        return queryService.findAll(source, hasCapacity, provenance);
     }
 
     /**
@@ -125,7 +124,7 @@ public class ShelterController {
      * (the caller's own live band for this shelter; null for guests,
      * anonymous callers and callers without a report). Rejected
      * (INACTIVE) rows stay readable by id exactly as any other INACTIVE
-     * row — the review model adds no detail-read rule.
+     * row — no trust rule blocks a detail read.
      * (community-review-queue v2 D2).
      */
     @GetMapping("/{id}")
@@ -209,6 +208,22 @@ public class ShelterController {
     }
 
     /**
+     * PUT /api/shelters/{id}/open-status — the caller's live open/closed
+     * state (same level as capacity): one state per user per shelter,
+     * re-sending updates it (latest state wins, {@code created_at}
+     * refreshed). Verified users only (403, the same REPORTING_MESSAGE
+     * vocabulary as occupancy); 404 unknown shelter; a value outside the
+     * OPEN/CLOSED enum is a 400 (Spring enum binding, same as
+     * {@code band}). NOT throttled — a tap is a state, not a report
+     * action (it consumes no action-log budget).
+     */
+    @PutMapping("/{id}/open-status")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reportOpenStatus(@PathVariable long id, @Valid @RequestBody OpenStatusReportRequest request) {
+        reportService.putOpenStatus(requireRegistered(currentUser()), id, request.state());
+    }
+
+    /**
      * PUT /api/shelters/{id} — update the caller's OWN USER-source shelter.
      * 404 if absent; 403 if not the author (registry/legacy rows are
      * unmanageable by anyone); 400 on bbox/field violations. Only the five
@@ -251,7 +266,7 @@ public class ShelterController {
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
     }
 
-    /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reviews cascade.
+    /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reports and occupancy cascade.
      *  The DELETED history row (M10 slice 2) is actor-attributed to the submitter. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -280,7 +295,7 @@ public class ShelterController {
         }
     }
 
-    /** Bearer JWT + verified registered account (author mutations, mirroring ReviewController). */
+    /** Bearer JWT + verified registered account (author mutations, mirroring the shelter author-mutation convention). */
     private RegisteredUser requireVerifiedRegisteredUser() {
         User user = currentUser();
         if (!(user instanceof RegisteredUser registered)) {
@@ -288,6 +303,19 @@ public class ShelterController {
         }
         if (!registered.canWrite()) {
             throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
+        }
+        return registered;
+    }
+
+    /**
+     * Bearer JWT + registered account for the open-status tap: a guest
+     * is rejected here with the occupancy 403 vocabulary (REPORTING
+     * MESSAGE); the {@code canWrite()} gate stays in the service, so an
+     * unverified registered user gets the same 403 from the other side.
+     */
+    private static RegisteredUser requireRegistered(User user) {
+        if (!(user instanceof RegisteredUser registered)) {
+            throw new NotVerifiedException(ShelterReportService.REPORTING_MESSAGE);
         }
         return registered;
     }

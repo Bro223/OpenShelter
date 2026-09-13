@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * {@code app.reports.*}.
  *
  * @param maxActionsPerHour per-user cap on report-type actions (shelter
- *                          reports + review reports + occupancy re-PUTs,
+ *                          reports + occupancy re-PUTs,
  *                          any target, any type) within a rolling hour;
  *                          {@code 0} disables the throttle
  */

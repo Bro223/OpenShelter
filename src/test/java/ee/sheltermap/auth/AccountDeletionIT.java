@@ -2,7 +2,6 @@ package ee.sheltermap.auth;
 
 import com.jayway.jsonpath.JsonPath;
 import ee.sheltermap.app.ShelterRepository;
-import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
@@ -35,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Acceptance IT for {@code DELETE /account} (legal-recovery M4, slice 2):
  * the split erasure rule — declared PRIVATE homes are purged, public
  * community rows are orphaned (created_by NULL, trust state untouched),
- * the DB cascades credentials/claims/tokens/reviews/reports, audit rows
+ * the DB cascades credentials/claims/tokens/reports, audit rows
  * survive with dangling ids, the blind index is gone (the erased contact
  * can be re-registered), and a repeat call is an idempotent no-op.
  * Full-stack MockMvc against real services, security chain, JWT filter
@@ -57,9 +56,6 @@ class AccountDeletionIT extends AbstractPersistenceIT {
 
     @Autowired
     ShelterRepository shelters;
-
-    @Autowired
-    ShelterReviewRepository reviews;
 
     @Autowired
     JdbcTemplate jdbc;
@@ -133,14 +129,6 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk());
     }
 
-    private void review(Auth user, long shelterId) throws Exception {
-        mvc.perform(post("/api/shelters/" + shelterId + "/reviews")
-                        .header("Authorization", "Bearer " + user.token())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":4,\"comment\":\"Hea varjend\"}"))
-                .andExpect(status().isCreated());
-    }
-
     @Test
     void anonymousDeletionIs401() throws Exception {
         mvc.perform(delete("/account"))
@@ -169,9 +157,6 @@ class AccountDeletionIT extends AbstractPersistenceIT {
         // cross-reports: each audit row's actor is the REPORTING user
         positiveReport(b, pubA);
         positiveReport(a, pubB);
-        // cross-reviews: a's review dies with a, b's review survives
-        review(a, pubB);
-        review(b, pubA);
 
         mvc.perform(delete("/account").header("Authorization", "Bearer " + a.token()))
                 .andExpect(status().isNoContent());
@@ -195,12 +180,9 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.submitterVerified").value(false))
                 .andExpect(jsonPath("$.address").value(nullValue()));
 
-        // 3. b's data is untouched — shelter still authored by b, b's review
-        //    survives, a's review on b's shelter is gone
+        // 3. b's data is untouched — shelter still authored by b
         assertThat(shelters.findById(pubB)).isPresent();
         assertThat(shelters.findById(pubB).orElseThrow().getCreatedBy()).isEqualTo(b.id());
-        assertThat(reviews.findByShelterId(pubA)).hasSize(1);
-        assertThat(reviews.findByShelterId(pubB)).isEmpty();
 
         // 4. audit rows SURVIVE: the row whose actor was b keeps b; the row
         //    whose actor was a dangles (moderator_id NULL — V14)
@@ -257,8 +239,7 @@ class AccountDeletionIT extends AbstractPersistenceIT {
     @Test
     void anExportAfterDeletionYieldsNoUserData() throws Exception {
         Auth user = registerVerified("Ekspordi", "ekspordi-del@example.ee", "+3725005001", "ekspordi-pass");
-        long shelterId = submit(user, "Ekspordi Varjend", false);
-        review(user, shelterId);
+        submit(user, "Ekspordi Varjend", false);
 
         mvc.perform(get("/account/export").header("Authorization", "Bearer " + user.token()))
                 .andExpect(status().isOk())

@@ -94,6 +94,36 @@
      i18n-et-en M14: segmented around the two official links — the link
      URLs stay constant, only the labels translate. -->
 <footer class="shell-footer">
+  <!-- legal-recovery (roadmap M4) + official-dataset-csv (roadmap M5):
+       the meta row sits ABOVE the notice (owner's layout decision) — the
+       two groups (legal links, data provenance) centred as a pair on
+       desktop, stacked on narrow (<900px).
+       Provenance is non-critical: hidden while loading or on API error.
+       i18n-et-en M14: labels + the date stamp follow the active locale. -->
+  <div class="shell-footer__meta">
+    <nav class="shell-footer__legal" aria-label="Legal">
+      <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>
+      <span aria-hidden="true">&middot;</span>
+      <a routerLink="/terms">{{ 'footer.terms' | t }}</a>
+    </nav>
+    @if (dataSource(); as ds) {
+      <p class="shell-footer__data">
+        {{ 'footer.dataSource' | t }}: {{ ds.sourceName }}
+        @if (ds.lastImport; as last) {
+          <span aria-hidden="true">&middot;</span>
+          {{ 'footer.lastImport' | t }}
+          {{ last.at | date: 'short' : undefined : i18n.locale() }}
+        }
+        <span aria-hidden="true">&middot;</span>
+        <a [href]="ds.officialUrl" target="_blank" rel="noopener">{{
+          'footer.officialOpenData' | t
+        }}</a>
+      </p>
+    }
+  </div>
+  <!-- The safety notice: the BOTTOM tier, centred on its own full-width
+       line (the owner's no-wrap requirement — the combined sentence needs
+       ~1100px, so it must have the row to itself). -->
   <p class="shell-footer__notice">
     {{ 'footer.notice1' | t }} {{ 'footer.notice2' | t }} {{ 'footer.notice3' | t }}
     <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">{{
@@ -103,29 +133,4 @@
     <a href="https://www.maaamet.ee" target="_blank" rel="noopener">{{ 'footer.maaAmet' | t }}</a
     >.
   </p>
-  <!-- legal-recovery (roadmap M4): the legal pages are reachable from
-       EVERY page via the shell, next to the safety notice. -->
-  <nav class="shell-footer__legal" aria-label="Legal">
-    <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>
-    <span aria-hidden="true">&middot;</span>
-    <a routerLink="/terms">{{ 'footer.terms' | t }}</a>
-  </nav>
-  <!-- official-dataset-csv (roadmap M5): data provenance — who publishes
-       the official shelter data, the official open-data page, and when the
-       last import ran. Non-critical: hidden while loading or on API error.
-       i18n-et-en M14: the date stamp follows the active locale. -->
-  @if (dataSource(); as ds) {
-    <p class="shell-footer__data">
-      {{ 'footer.dataSource' | t }}: {{ ds.sourceName }}
-      @if (ds.lastImport; as last) {
-        <span aria-hidden="true">&middot;</span>
-        {{ 'footer.lastImport' | t }}
-        {{ last.at | date: 'short' : undefined : i18n.locale() }}
-      }
-      <span aria-hidden="true">&middot;</span>
-      <a [href]="ds.officialUrl" target="_blank" rel="noopener">{{
-        'footer.officialOpenData' | t
-      }}</a>
-    </p>
-  }
 </footer>

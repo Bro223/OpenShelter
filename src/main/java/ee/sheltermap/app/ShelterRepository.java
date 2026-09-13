@@ -80,6 +80,6 @@ public interface ShelterRepository {
     /** Batched read by id (one query — name resolution without N+1). */
     List<Shelter> findByIds(Collection<Long> ids);
 
-    /** Deletes the row with {@code id} (a no-op when absent); reviews cascade via the DB. */
+    /** Deletes the row with {@code id} (a no-op when absent); reports and occupancy cascade via the DB. */
     void deleteById(Long id);
 }

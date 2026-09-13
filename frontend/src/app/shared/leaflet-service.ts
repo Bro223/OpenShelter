@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { Provenance, ShelterDto } from '../core/models';
+import type { ReviewStatus, ShelterDto, ShelterSource } from '../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).
@@ -42,41 +42,25 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 }
 
 /**
- * The marker tone class suffix (shelter-provenance-taxonomy M6): the tone
- * follows the server-derived `provenance` — blue OFFICIAL (the `--registry`
- * class, kept as the blue registry-family pin), yellow PARTNER_VERIFIED,
- * green COMMUNITY_REPORTED (the `--user` class, kept as the green
- * community-family pin), amber UNDER_REVIEW, grey REPORTED_INACTIVE,
- * red REJECTED. The reported state (shelter-trust-and-reports D1) still
- * wins over the provenance colour — an ACTIVE row with
- * `nonexistentReports > 0` renders the single orange "reported"
- * affordance. The two hidden tones (grey/red) never appear on the public
- * map (the list is ACTIVE-only); the detail page's static pin can render
- * them for a hidden row.
+ * The marker tone class suffix. Reported state (shelter-trust-and-reports
+ * D1) wins over everything — the orange dot is the single "reported"
+ * affordance. Otherwise the trust palette (community-review-queue D5):
+ * community rows are amber while review_status is NEW ("just added") and
+ * green once CONFIRMED; registry rows stay blue. Reported beats trust
+ * colour; hidden rows never reach the public map.
  */
 export function markerTone(shelter: {
-  provenance: Provenance;
+  source: ShelterSource;
+  reviewStatus: ReviewStatus;
   nonexistentReports: number;
-}): 'rejected' | 'inactive' | 'reported' | 'partner' | 'new' | 'user' | 'registry' {
-  if (shelter.provenance === 'REJECTED') {
-    return 'rejected';
-  }
-  if (shelter.provenance === 'REPORTED_INACTIVE') {
-    return 'inactive';
-  }
+}): 'reported' | 'new' | 'user' | 'registry' {
   if (shelter.nonexistentReports > 0) {
     return 'reported';
   }
-  switch (shelter.provenance) {
-    case 'OFFICIAL':
-      return 'registry';
-    case 'PARTNER_VERIFIED':
-      return 'partner';
-    case 'UNDER_REVIEW':
-      return 'new';
-    case 'COMMUNITY_REPORTED':
-      return 'user';
+  if (shelter.source === 'USER') {
+    return shelter.reviewStatus === 'NEW' ? 'new' : 'user';
   }
+  return 'registry';
 }
 
 /**
@@ -91,11 +75,11 @@ export function markerTone(shelter: {
  * receives marker clicks through the `markerClick` callback.
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
- * assets, no bundler asset-path pitfall): the tone follows the
- * server-derived provenance — OFFICIAL blue (registry family),
- * PARTNER_VERIFIED yellow, UNDER_REVIEW amber, COMMUNITY_REPORTED green
- * (user family); reported rows keep the orange override. The legend
- * reuses the same classes, so the visual stays single-sourced.
+ * assets, no bundler asset-path pitfall): the tone follows the trust
+ * palette — registry blue (Paasteamet + Municipal), community NEW amber,
+ * community CONFIRMED green (user family); reported rows keep the orange
+ * override. The legend reuses the same classes, so the visual stays
+ * single-sourced.
  */
 @Injectable()
 export class LeafletService {
@@ -161,10 +145,10 @@ export class LeafletService {
    * Replaces ALL markers with one divIcon per shelter row — the layer group
    * is cleared first, so a filter refetch never duplicates markers.
    *
-   * Provenance palette (shelter-provenance-taxonomy M6): the tone follows
-   * the server-derived `provenance`; a shelter with `nonexistentReports > 0`
-   * renders the ORANGE reported marker — the single "reported" affordance —
-   * regardless of provenance.
+   * Trust palette (community-review-queue D5): the tone follows
+   * source/reviewStatus; a shelter with `nonexistentReports > 0` renders
+   * the ORANGE reported marker — the single "reported" affordance —
+   * regardless of trust colour.
    */
   renderShelters(shelters: ShelterDto[]): void {
     if (!this.map || !this.markers) {
@@ -203,7 +187,6 @@ export class LeafletService {
    * a single non-interactive divIcon pin, toned exactly like
    * `renderShelters` (reported override, then the trust palette). Null
    * clears the pin.
-   *
    * Idempotent: the markers layer group is cleared first, so re-calls (e.g.
    * the refetch after a review write) replace the pin instead of duplicating
    * it. Deliberately does NOT wire `markerClick` or `setPick` — the detail
@@ -217,7 +200,8 @@ export class LeafletService {
     shelter: {
       latitude: number;
       longitude: number;
-      provenance: Provenance;
+      source: ShelterSource;
+      reviewStatus: ReviewStatus;
       nonexistentReports: number;
       name: string;
     } | null,

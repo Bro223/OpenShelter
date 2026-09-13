@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * The append-only moderation audit trail (community-review-queue v2
  * D4) — one row per moderation-relevant action: admin status change,
- * hard delete, shelter report dismiss, review hide/restore, the admin
+ * hard delete, shelter report dismiss, the admin CONFIRM/REJECT decisions,
  * CONFIRM/REJECT decisions, and the automatic AUTO_CONFIRM promotion
  * (the reporting user is its actor of record). The row is written in
  * the SAME JPA transaction as the action it records (no separate call,
@@ -29,8 +29,6 @@ public interface ModerationAuditLog {
         STATUS_CHANGE,
         DELETE,
         REPORT_DISMISS,
-        REVIEW_HIDE,
-        REVIEW_RESTORE,
         CONFIRM,
         AUTO_CONFIRM,
         REJECT,

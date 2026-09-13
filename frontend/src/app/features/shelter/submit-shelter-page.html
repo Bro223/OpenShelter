@@ -13,7 +13,7 @@
        page. The form stays for a second submission. -->
   @if (submitted(); as created) {
     <div class="submit-success" role="status">
-      <p>Your location is now listed and marked as proposed. Community reports confirm it.</p>
+      <p>Your location is now listed and marked as newly added. Community reports confirm it.</p>
       <p class="submit-success__links">
         <a [routerLink]="['/shelters', created.id]">View your location</a>
         <a routerLink="/account">View your contributions</a>

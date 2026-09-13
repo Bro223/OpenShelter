@@ -153,6 +153,21 @@ class LocationResolveServiceTest {
     }
 
     @Test
+    void liveGoogleSearchPathRedirectTargetIsResolvedEndToEnd() {
+        // 2026-09: the live maps.app.goo.gl redirect target — the pair rides
+        // in the /search/ path with a comma+plus separator (no q/ll/@ at
+        // all). One hop to the exact URL, then the terminal fetch.
+        client.hop(redirect(
+                        "https://www.google.com/maps/search/58.999669,+27.289732?entry=tts"
+                                + "&g_ep=EgoyMDI2MDkwOS4wIPu8ASoASAFQAw%3D%3D"
+                                + "&skid=df6dfcee-5f27-4f5d-bb58-77a07c0e71e7"))
+                .hop(new RedirectClient.RedirectHop(200, null));
+
+        assertThatResolved(service.resolve(START), 58.999669, 27.289732);
+        assertThat(client.fetches).isEqualTo(2); // start + the final URL
+    }
+
+    @Test
     void readTimeoutIsUpstreamFailure() {
         client.fail("Read timed out");
 

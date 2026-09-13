@@ -38,7 +38,7 @@ public interface UserRepository {
 
     /**
      * Batched lookup by ids (hardening: removes the N+1 author lookup in
-     * review listings). Missing ids are simply absent from the result map.
+     * shelter listings). Missing ids are simply absent from the result map.
      */
     Map<Long, User> findByIds(Collection<Long> ids);
 

@@ -400,20 +400,13 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         String token = adminToken();
         // the row for the trust-lifecycle actions
         long trust = createShelterViaApi(author, "Audit 1");
-        // a row with a report and a review for the queue actions
+        // a row with a report for the queue actions
         long queue = createShelterViaApi(author, "Audit 2");
         mvc.perform(post("/api/shelters/" + queue + "/reports")
                         .header("Authorization", "Bearer " + verifiedToken("Kolmeja", "kolmeja@example.ee"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"NON_EXISTENT\"}"))
                 .andExpect(status().isOk());
-        mvc.perform(post("/api/shelters/" + queue + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("Arvustaja", "arvustaja@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"rating\":1,\"comment\":\"\"}"))
-                .andExpect(status().isCreated());
-        Long reviewId = jdbc.queryForObject(
-                "SELECT id FROM shelter_reviews WHERE shelter_id = ?", Long.class, queue);
 
         // the actions, oldest → newest
         mvc.perform(post("/api/shelters/" + queue + "/reports")
@@ -432,12 +425,6 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         mvc.perform(post("/admin/reports/" + reportId + "/dismiss")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent()); // → REPORT_DISMISS
-        mvc.perform(post("/admin/reviews/" + reviewId + "/hide")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent()); // → REVIEW_HIDE
-        mvc.perform(post("/admin/reviews/" + reviewId + "/restore")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isNoContent()); // → REVIEW_RESTORE
         mvc.perform(post("/admin/shelters/" + trust + "/review")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -452,7 +439,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         // newest first; the correct action and transition pairs end to end
         mvc.perform(get("/admin/audit").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(7)))
+                .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(5)))
                 .andExpect(jsonPath("$[0].action").value("REJECT"))
                 .andExpect(jsonPath("$[0].shelterId").value(trust))
                 .andExpect(jsonPath("$[0].shelterName").value("Audit 1"))
@@ -465,16 +452,11 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[1].action").value("CONFIRM"))
                 .andExpect(jsonPath("$[1].previousStatus").value("NEW"))
                 .andExpect(jsonPath("$[1].newStatus").value("CONFIRMED"))
-                .andExpect(jsonPath("$[2].action").value("REVIEW_RESTORE"))
-                .andExpect(jsonPath("$[2].shelterId").value(queue))
-                .andExpect(jsonPath("$[2].previousStatus").value("CONFIRMED"))
-                .andExpect(jsonPath("$[2].newStatus").value("CONFIRMED"))
-                .andExpect(jsonPath("$[3].action").value("REVIEW_HIDE"))
-                .andExpect(jsonPath("$[4].action").value("REPORT_DISMISS"))
-                .andExpect(jsonPath("$[5].action").value("STATUS_CHANGE"))
-                .andExpect(jsonPath("$[6].action").value("AUTO_CONFIRM"))
-                .andExpect(jsonPath("$[6].previousStatus").value("NEW"))
-                .andExpect(jsonPath("$[6].newStatus").value("CONFIRMED"));
+                .andExpect(jsonPath("$[2].action").value("REPORT_DISMISS"))
+                .andExpect(jsonPath("$[3].action").value("STATUS_CHANGE"))
+                .andExpect(jsonPath("$[4].action").value("AUTO_CONFIRM"))
+                .andExpect(jsonPath("$[4].previousStatus").value("NEW"))
+                .andExpect(jsonPath("$[4].newStatus").value("CONFIRMED"));
         // the AUTO_CONFIRM actor is the REPORTING user, not an admin
         Long kinnitajaId = userIdByEmail("kinnitaja2@example.ee"); // PII-at-rest (M2): hash lookup
         entityManager.flush();
@@ -499,7 +481,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
         Long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM moderation_actions WHERE moderator_id = ?",
-                        Integer.class, adminId)).isEqualTo(6);
+                        Integer.class, adminId)).isEqualTo(4);
     }
 
     @Test

@@ -1,44 +1,32 @@
 <section class="map-page">
   <header class="map-page__header">
     <h1 class="page-title">Shelter map</h1>
-    <p class="page-subtitle">Find registered and community-reported bomb shelters in Estonia.</p>
+    <p class="page-subtitle">Find registered and community-submitted bomb shelters in Estonia.</p>
   </header>
 
   <div class="map-page__layout">
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
       <div class="map-legend" role="group" aria-label="Marker legend">
-        <!-- Provenance palette (shelter-provenance-taxonomy M6): the swatch
-             reuses the marker class, so the visual stays single-sourced.
-             Grey (reported-inactive) and red (rejected) never appear on
-             this map — the public list is ACTIVE-only. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
-          Official
+          Registry
         </span>
+        <!-- Trust palette (community-review-queue D5): NEW community rows
+             are amber, CONFIRMED stay green. -->
         <span class="legend-item">
-          <span
-            class="shelter-marker shelter-marker--partner legend-swatch"
-            aria-hidden="true"
-          ></span>
-          Partner
+          <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
+          New by community
         </span>
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
-          Community
-        </span>
-        <!-- Proposed state (community-review-queue D5; renamed by
-             proposed-community-wording M7): the amber pin for rows the
-             trust lifecycle has not confirmed yet. -->
-        <span class="legend-item">
-          <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
-          Proposed
+          Confirmed by community
         </span>
         <!-- Reported state (shelter-trust-and-reports D6): the single
-             orange "reported" affordance — beats the provenance colour. -->
+             orange "reported" affordance — beats the trust colour. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--reported legend-swatch"
@@ -189,8 +177,8 @@
         </p>
       }
 
-      <div class="filter-chips" role="group" aria-label="Filter shelters by provenance">
-        @for (chip of provenanceFilters; track chip.value) {
+      <div class="filter-chips" role="group" aria-label="Filter shelters by source">
+        @for (chip of sourceFilters; track chip.value) {
           <button
             type="button"
             class="chip"
@@ -202,18 +190,19 @@
         }
       </div>
 
-      <!-- Trust filters (shelter-trust-and-reports D6): composable with the
-           source chips above — every change is a SERVER refetch + list
-           rebuild (the existing pattern), never client-side filtering. -->
-      <div class="filter-trust" role="group" aria-label="Trust filters">
+      <!-- Practical filter chips: "Open" (client-side — the BE has no
+           open/closed param, it filters the loaded list and re-renders the
+           markers) and "Has capacity" (server-side `?hasCapacity=`). Both
+           are composable with the source chips above. -->
+      <div class="filter-trust" role="group" aria-label="Shelter filters">
         <button
           type="button"
           class="trust-chip"
-          [class.chip--active]="reviewed()"
-          [attr.aria-pressed]="reviewed()"
-          (click)="toggleReviewed()"
+          [class.chip--active]="openOnly()"
+          [attr.aria-pressed]="openOnly()"
+          (click)="toggleOpen()"
         >
-          Reviewed
+          Open
         </button>
         <button
           type="button"
@@ -250,7 +239,6 @@
                 type="button"
                 class="shelter-row"
                 [class.shelter-row--selected]="selectedId() === shelter.id"
-                [class.shelter-row--nearest]="nearest()?.id === shelter.id"
                 (click)="selectShelter(shelter)"
               >
                 <span class="shelter-row__name">{{ shelter.name }}</span>
@@ -258,19 +246,16 @@
                   <span class="shelter-row__address">{{ shelter.address }}</span>
                 }
                 <span class="shelter-row__meta">
-                  <!-- Provenance (shelter-provenance-taxonomy M6): the badge
-                       shows the server-derived taxonomy value with the
-                       matching tone (OFFICIAL / PARTNER_VERIFIED base fill,
-                       UNDER_REVIEW amber, COMMUNITY_REPORTED green). -->
-                  <span class="badge" [ngClass]="provenanceBadgeClass(shelter.provenance)">
-                    {{ provenanceText(shelter.provenance) }}
+                  <!-- Source/trust badge (community-review-queue): registry
+                       rows say which registry; USER rows say their trust
+                       state (NEW = "Newly added" amber, CONFIRMED =
+                       "Community-checked" green). -->
+                  <span class="badge" [ngClass]="communityBadgeClass(shelter)">
+                    {{ sourceTrustLabel(shelter) }}
                   </span>
                   @if (isPrivateLocation(shelter)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>
                   }
-                  <span class="shelter-row__rating">{{
-                    ratingText(shelter.averageRating, shelter.reviewCount)
-                  }}</span>
                   <!-- Address-anchor distance (location-navigation M12):
                        the straight-line distance from the searched point —
                        the same honesty format as the nearest line, never a
@@ -283,10 +268,13 @@
                     }}</span>
                   }
                 </span>
-                <!-- Trust badges (shelter-trust-and-reports D6): orange
-                     "Reported" (nonexistentReports > 0), the statusFlag
-                     amber/green badge, and the NEUTRAL occupancy badge with
-                     recency (hedged at one fresh report, firm at two+). -->
+                <!-- Trust badges (shelter-trust-and-reports D6; open-status
+                     wave): orange "Reported" (nonexistentReports > 0), the
+                     fresh-CLOSED amber badge ("Reported closed" at one
+                     fresh report, "Closed" at two+; a fresh OPEN row
+                     renders NO badge — open is the default), and the
+                     NEUTRAL occupancy badge with recency (hedged at one
+                     fresh report, firm at two+). -->
                 @if (hasTrustBadges(shelter)) {
                   <span class="shelter-row__badges">
                     @if (hasReports(shelter)) {
@@ -296,13 +284,8 @@
                         reportedBadgeText(shelter.nonexistentReports)
                       }}</span>
                     }
-                    @if (statusFlagText(shelter.statusFlag); as flagText) {
-                      <span
-                        class="badge"
-                        [class.badge--closed]="shelter.statusFlag === 'REPORTED_CLOSED'"
-                        [class.badge--open]="shelter.statusFlag === 'CONFIRMED_OPEN'"
-                        >{{ flagText }}</span
-                      >
+                    @if (openStatusBadgeText(shelter.openStatus); as openText) {
+                      <span class="badge badge--closed">{{ openText }}</span>
                     }
                     @if (shelter.occupancy; as occ) {
                       <span class="badge badge--occupancy">{{ occupancyText(occ) }}</span>

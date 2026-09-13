@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
-import type { ShelterDto, ProvenanceFilter, ShelterTrustFilter } from '../core/models';
+import type { ShelterDto, ShelterSourceFilter, ShelterTrustFilter } from '../core/models';
 import { ShelterGateway } from './shelter-gateway';
 
 const REGISTRY_ROW: ShelterDto = {
@@ -13,19 +13,16 @@ const REGISTRY_ROW: ShelterDto = {
   longitude: 24.754,
   status: 'ACTIVE',
   source: 'PAASETEAMET',
-  averageRating: 4.5,
-  reviewCount: 2,
   createdAt: '2025-09-01T08:00:00Z',
   description: null,
   capacity: null,
   submitterVerified: false, // registry rows have no creator (D3)
   nonexistentReports: 0,
   reportCount: 0, // M8 total (all report types)
-  statusFlag: null,
+  openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   locationKind: 'PUBLIC',
-  provenance: 'OFFICIAL',
   lastVerifiedAt: null, // M8 — no import run in this fixture
   inaccurate: false, // M10 slice 4 — no moderator mark in this fixture
 };
@@ -36,12 +33,9 @@ const USER_ROW: ShelterDto = {
   address: null,
   name: 'Community Cellar',
   source: 'USER',
-  averageRating: null,
-  reviewCount: 0,
   description: 'Neighbourhood basement',
   capacity: 12,
   submitterVerified: true, // creator has a completed verification
-  provenance: 'COMMUNITY_REPORTED',
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */
@@ -65,15 +59,13 @@ describe('ShelterGateway', () => {
   });
 
   it.each([
-    ['ALL', '/api/shelters'],
-    ['OFFICIAL', '/api/shelters?provenance=OFFICIAL'],
-    ['PARTNER_VERIFIED', '/api/shelters?provenance=PARTNER_VERIFIED'],
-    ['COMMUNITY_REPORTED', '/api/shelters?provenance=COMMUNITY_REPORTED'],
-    ['UNDER_REVIEW', '/api/shelters?provenance=UNDER_REVIEW'],
-  ] as const)('list(%s) GETs %s and returns the typed rows', async (provenance, path) => {
+    ['ALL', '/api/shelters?source=ALL'],
+    ['REGISTRY', '/api/shelters?source=REGISTRY'],
+    ['USER', '/api/shelters?source=USER'],
+  ] as const)('list(%s) GETs %s and returns the typed rows', async (source, path) => {
     api.get.mockReturnValue(of([REGISTRY_ROW, USER_ROW]));
 
-    const rows = await gateway.list(provenance);
+    const rows = await gateway.list(source);
 
     expect(api.get).toHaveBeenCalledTimes(1);
     expect(api.get).toHaveBeenCalledWith(path);
@@ -83,33 +75,24 @@ describe('ShelterGateway', () => {
   it('list supports an empty result set (no shelters for the filter)', async () => {
     api.get.mockReturnValue(of([]));
 
-    const rows = await gateway.list('UNDER_REVIEW');
+    const rows = await gateway.list('USER');
 
-    expect(api.get).toHaveBeenCalledWith('/api/shelters?provenance=UNDER_REVIEW');
+    expect(api.get).toHaveBeenCalledWith('/api/shelters?source=USER');
     expect(rows).toEqual([]);
   });
 
   // ---- trust filters (shelter-trust-and-reports D5) ------------------------
 
   it.each([
-    ['ALL', { reviewed: true }, '/api/shelters?reviewed=true'],
-    ['ALL', { hasCapacity: true }, '/api/shelters?hasCapacity=true'],
-    [
-      'COMMUNITY_REPORTED',
-      { reviewed: true },
-      '/api/shelters?provenance=COMMUNITY_REPORTED&reviewed=true',
-    ],
-    [
-      'OFFICIAL',
-      { reviewed: true, hasCapacity: true },
-      '/api/shelters?provenance=OFFICIAL&reviewed=true&hasCapacity=true',
-    ],
-  ] as [ProvenanceFilter, ShelterTrustFilter, string][])(
+    ['ALL', { hasCapacity: true }, '/api/shelters?source=ALL&hasCapacity=true'],
+    ['USER', { hasCapacity: true }, '/api/shelters?source=USER&hasCapacity=true'],
+    ['REGISTRY', { hasCapacity: true }, '/api/shelters?source=REGISTRY&hasCapacity=true'],
+  ] as [ShelterSourceFilter, ShelterTrustFilter, string][])(
     'list composes %j for %s into %s',
-    async (provenance, trust, path) => {
+    async (source, trust, path) => {
       api.get.mockReturnValue(of([REGISTRY_ROW]));
 
-      await gateway.list(provenance, trust);
+      await gateway.list(source, trust);
 
       expect(api.get).toHaveBeenCalledTimes(1);
       expect(api.get).toHaveBeenCalledWith(path);
@@ -119,11 +102,10 @@ describe('ShelterGateway', () => {
   it('list omits inactive trust filters (false/undefined -> no param)', async () => {
     api.get.mockReturnValue(of([REGISTRY_ROW]));
 
-    await gateway.list('ALL', { reviewed: false, hasCapacity: false });
+    await gateway.list('ALL', { hasCapacity: false });
 
-    // The bare list path when nothing is active (the M4 `?source=ALL`
-    // response, byte-identical server-side).
-    expect(api.get).toHaveBeenCalledWith('/api/shelters');
+    // `source` is always sent; nothing else is active.
+    expect(api.get).toHaveBeenCalledWith('/api/shelters?source=ALL');
   });
 
   it('get(id) GETs /api/shelters/{id} and returns one typed row', async () => {
@@ -361,5 +343,47 @@ describe('ShelterGateway', () => {
     api.put.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.reportOccupancy(999, 'SPACE')).rejects.toBe(failure);
+  });
+
+  it('putOpenStatus PUTs the state body to /api/shelters/{id}/open-status', async () => {
+    api.put.mockReturnValue(of(undefined));
+
+    await expect(gateway.putOpenStatus(7, 'CLOSED')).resolves.toBeUndefined();
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith('/api/shelters/7/open-status', { state: 'CLOSED' });
+  });
+
+  it('putOpenStatus rejects with ApiError on an unknown shelter (404)', async () => {
+    const failure = ApiError.fromHttp(
+      404,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 404,
+        error: 'Not Found',
+        message: 'shelter not found',
+        path: '/api/shelters/999/open-status',
+      },
+      '/api/shelters/999/open-status',
+    );
+    api.put.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.putOpenStatus(999, 'OPEN')).rejects.toBe(failure);
+  });
+
+  it('putOpenStatus rejects with ApiError for an unverified account (403)', async () => {
+    const failure = ApiError.fromHttp(
+      403,
+      {
+        timestamp: '2025-09-05T10:00:00Z',
+        status: 403,
+        error: 'Forbidden',
+        message: 'open-status reports require a verified account',
+        path: '/api/shelters/7/open-status',
+      },
+      '/api/shelters/7/open-status',
+    );
+    api.put.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.putOpenStatus(7, 'OPEN')).rejects.toBe(failure);
   });
 });

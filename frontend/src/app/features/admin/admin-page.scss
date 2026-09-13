@@ -218,7 +218,7 @@
   }
 }
 
-/* ---- provenance-style badges ------------------------------------------------
+/* ---- source/trust badges ------------------------------------------------
    The same pill vocabulary as the map rows / shelter-detail header (which
    duplicate the block per feature); the tokens are the app-wide ones. */
 .badge {
@@ -252,27 +252,6 @@
     color: var(--color-muted);
   }
 
-  /* Reported-away (shelter-provenance-taxonomy M6): the NEUTRAL grey chip —
-     the admin list keeps hidden rows, so the factual state renders here. */
-  &.badge--inactive {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* Trust flags: the map/detail-page classes, same copy, same tokens. */
-  &.badge--closed {
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-warning);
-  }
-
-  &.badge--open {
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
-    color: var(--color-success);
-  }
-
   /* "Hidden" / "Dismissed": the NEUTRAL chip (occupancy language) —
      visibility state, not an alarm. */
   &.badge--hidden {
@@ -282,7 +261,7 @@
   }
 
   /* "Inaccurate" (M10 slice 4): the moderator flag — the warning token
-     pair (same contrast pair as badge--closed). */
+     pair (the same amber the public UI uses for the fresh-CLOSED badge). */
   &.badge--inaccurate {
     background: var(--color-warning-bg);
     border: 1px solid var(--color-warning-border);
@@ -330,13 +309,6 @@
 .admin-queue-row__meta {
   color: var(--color-muted);
   font-size: var(--text-sm);
-}
-
-.admin-queue-row__review {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-8);
 }
 
 .admin-queue-row__detail {

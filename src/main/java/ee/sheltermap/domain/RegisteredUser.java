@@ -113,7 +113,7 @@ public class RegisteredUser extends User {
     @Override
     public void deleteAccount() {
         // Domain-level cascade: drop all verification claims.
-        // Service-level cascade (reviews, credentials, tokens) is later steps.
+        // Service-level cascade (credentials, tokens) is later steps.
         verifications.clear();
     }
 }

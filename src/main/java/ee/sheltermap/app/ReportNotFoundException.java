@@ -2,7 +2,7 @@ package ee.sheltermap.app;
 
 /**
  * Unknown report id in the admin moderation API (admin-moderation D3) —
- * mapped to 404, the same vocabulary as the unknown shelter/review ids.
+ * mapped to 404, the same vocabulary as the unknown shelter/report ids.
  */
 public class ReportNotFoundException extends RuntimeException {
     public ReportNotFoundException(long reportId) {

@@ -40,11 +40,8 @@ import java.util.stream.Collectors;
  *   <li>{@code POST /account/phone-change/request} — email code to the current
  *       email (a lost/stolen phone alone cannot change the phone)</li>
  *   <li>confirm endpoints complete the change once the code is verified</li>
- *   <li>{@code GET /account/reviews/mine} — the user's reviews across ALL
- *       shelters with shelter id + name (user-contributions; a cross-shelter
- *       list has no per-shelter parent, so it sits on this group)</li>
  *   <li>{@code GET /account/export} — the caller's own data (profile +
- *       shelters + reviews) as one JSON document (legal-recovery M4)</li>
+ *       shelters) as one JSON document (legal-recovery M4)</li>
  *   <li>{@code DELETE /account} — the account erasure (legal-recovery M4):
  *       purge the declared private homes, orphan the public community rows,
  *       cascade the rest via the DB FK policy (V14)</li>
@@ -143,19 +140,8 @@ public class AccountController {
     }
 
     /**
-     * GET /account/reviews/mine — the caller's reviews across all shelters,
-     * each with the shelter's id + name (user-contributions). Shelter names
-     * resolve in one batched query (no N+1); empty list when the user has
-     * no reviews.
-     */
-    @GetMapping("/reviews/mine")
-    public List<MyReviewDto> myReviews() {
-        return accountService.myReviews(currentUser());
-    }
-
-    /**
      * GET /account/export (legal-recovery M4, slice 1) — the caller's own
-     * data (profile + every author-scoped shelter row + every review) as
+     * data (profile + every author-scoped shelter row) as
      * one JSON document. Same auth rule as {@code /me} (valid JWT, user
      * from the token) and, like {@code /me}, no rate bucket (cheap read).
      * The frontend turns the body into a downloadable file.
@@ -169,8 +155,8 @@ public class AccountController {
      * DELETE /account (legal-recovery M4, slice 2) — the account erasure:
      * the declared private homes are purged, the public community rows are
      * orphaned (map data outlives accounts — V7), and the DB cascades
-     * credentials, claims, pending changes, tokens, reviews and reports.
-     * The verified-user gate matches the review/submission gates (403
+     * credentials, claims, pending changes, tokens and reports.
+     * The verified-user gate matches the submission gates (403
      * without a claim); a repeat call is an idempotent no-op — the JWT is
      * valid until its expiry, but the account is already gone.
      */
@@ -204,8 +190,8 @@ public class AccountController {
         if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {
             // Unreachable in practice: /account/** requires a valid JWT — but
             // if it ever fires, it is an authentication failure (401), not a
-            // contact-change validation error (400). Matches the Shelter/
-            // Review controller fallback convention.
+            // contact-change validation error (400). Matches the Shelter
+            // controller fallback convention.
             throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);

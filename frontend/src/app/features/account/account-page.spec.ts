@@ -4,12 +4,11 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AccountGateway } from '../../gateways/account-gateway';
-import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { AuthStore } from '../../session/auth-store';
-import type { MeResponse, MyReviewDto, ShelterDto, TokenResponse } from '../../core/models';
+import type { MeResponse, ShelterDto, TokenResponse } from '../../core/models';
 import { AccountPage } from './account-page';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
@@ -33,30 +32,18 @@ const SHELTER_ROW: ShelterDto = {
   longitude: 24.754,
   status: 'ACTIVE',
   source: 'USER',
-  averageRating: 4.5,
-  reviewCount: 2,
   createdAt: '2025-09-01T08:00:00Z',
   description: 'Naabruskonna kelder',
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
   reportCount: 0, // M8 total (all report types)
-  statusFlag: null,
+  openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   locationKind: 'PUBLIC',
-  provenance: 'COMMUNITY_REPORTED', // USER + CONFIRMED (M6)
   lastVerifiedAt: null, // M8 — null = never verified
   inaccurate: false, // M10 slice 4 — no moderator mark on this row
-};
-
-const REVIEW_ROW: MyReviewDto = {
-  shelterId: 7,
-  shelterName: 'Kommunaali Varjend',
-  rating: 4,
-  comment: 'Hea varjend',
-  createdAt: '2025-09-02T09:00:00Z',
-  updatedAt: '2025-09-03T10:00:00Z',
 };
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -76,14 +63,11 @@ class FakeAccountGateway {
   confirmEmailChange = vi.fn();
   requestPhoneChange = vi.fn();
   confirmPhoneChange = vi.fn();
-  /** The embedded contributions panel loads on init — default to empty. */
-  myReviews = vi.fn();
   /** M4 slice 1 — the export document; default to an empty document. */
   exportData = vi.fn();
   /** M4 slice 2 — the account erasure (204, empty body). */
   deleteAccount = vi.fn();
   constructor() {
-    this.myReviews.mockResolvedValue([]);
     this.deleteAccount.mockResolvedValue(undefined);
     this.exportData.mockResolvedValue({
       profile: {
@@ -93,7 +77,6 @@ class FakeAccountGateway {
         levels: [],
       },
       shelters: [],
-      reviews: [],
     });
   }
 }
@@ -111,13 +94,6 @@ class FakeShelterGateway {
   }
 }
 
-class FakeReviewGateway {
-  list = vi.fn();
-  add = vi.fn();
-  updateMine = vi.fn();
-  deleteMine = vi.fn();
-}
-
 function apiError(status: number, message: string, path: string): ApiError {
   return ApiError.fromHttp(status, { timestamp: 't', status, error: 'Error', message, path }, path);
 }
@@ -132,7 +108,6 @@ describe('AccountPage', () => {
   let account: FakeAccountGateway;
   let auth: FakeAuthGateway;
   let shelter: FakeShelterGateway;
-  let review: FakeReviewGateway;
   let store: AuthStore;
   let router: Router;
 
@@ -141,7 +116,6 @@ describe('AccountPage', () => {
     account = new FakeAccountGateway();
     auth = new FakeAuthGateway();
     shelter = new FakeShelterGateway();
-    review = new FakeReviewGateway();
     account.me.mockResolvedValue(PROFILE);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -154,7 +128,6 @@ describe('AccountPage', () => {
         { provide: AccountGateway, useValue: account as unknown as AccountGateway },
         { provide: AuthGateway, useValue: auth as unknown as AuthGateway },
         { provide: ShelterGateway, useValue: shelter as unknown as ShelterGateway },
-        { provide: ReviewGateway, useValue: review as unknown as ReviewGateway },
       ],
     });
     store = TestBed.inject(AuthStore);
@@ -206,7 +179,7 @@ describe('AccountPage', () => {
     expect(element.querySelector('.badge--admin')).toBeNull();
   });
 
-  it('an admin profile gets the Admin badge next to the name (provenance style)', async () => {
+  it('an admin profile gets the Admin badge next to the name (trust-badge style)', async () => {
     account.me.mockResolvedValue({ ...PROFILE, isAdmin: true });
     const { element } = await open();
 
@@ -742,9 +715,8 @@ describe('AccountPage', () => {
 
   // ---- My contributions (user-contributions) --------------------------------
 
-  it('renders the My contributions panel with both lists', async () => {
+  it('renders the My contributions panel with the shelter list', async () => {
     shelter.mine.mockResolvedValue([SHELTER_ROW]);
-    account.myReviews.mockResolvedValue([REVIEW_ROW]);
     const { element, fixture } = await open();
     // let the embedded panel's fire-and-forget loads settle, then re-render
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -752,7 +724,6 @@ describe('AccountPage', () => {
 
     expect(element.textContent).toContain('My contributions');
     expect(element.textContent).toContain('Kommunaali Varjend');
-    expect(element.textContent).toContain('Hea varjend');
   });
 
   it('shows the empty contributions states when the user has nothing', async () => {
@@ -761,7 +732,6 @@ describe('AccountPage', () => {
     expect(element.textContent).toContain('My contributions');
     expect(element.textContent).toContain("You haven't submitted any shelters yet.");
     expect(element.querySelector('a[href="/submit"]')).not.toBeNull();
-    expect(element.textContent).toContain("You haven't written any reviews yet.");
   });
 
   // ---- resend cooldowns (per change type) ----------------------------------
@@ -890,7 +860,6 @@ describe('AccountPage', () => {
           levels: [],
         },
         shelters: [],
-        reviews: [],
       };
       account.exportData.mockResolvedValue(doc);
       const createObjectURL = vi.fn(() => 'blob:fake');

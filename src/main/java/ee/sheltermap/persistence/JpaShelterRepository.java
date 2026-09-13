@@ -183,9 +183,9 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional
     public void deleteById(Long id) {
         shelters.deleteById(id);
-        // Force the SQL DELETE (and its ON DELETE CASCADE onto
-        // shelter_reviews) to run NOW, not at an arbitrary later auto-flush:
-        // a follow-up read of the reviews table in the same transaction must
+        // Force the SQL DELETE (and its ON DELETE CASCADE onto the report
+        // tables) to run NOW, not at an arbitrary later auto-flush:
+        // a follow-up read of the child tables in the same transaction must
         // already see the cascade (the shelters delete alone would not
         // trigger the auto-flush — the query does not read the shelters table).
         shelters.flush();

@@ -1,11 +1,13 @@
 package ee.sheltermap.app;
 
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ReporterTrust;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
+import ee.sheltermap.domain.ShelterOpenStatusReport;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
 import ee.sheltermap.domain.ShelterSource;
@@ -21,22 +23,27 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Typed shelter reports + live occupancy (shelter-trust-and-reports D1/D4).
+ * Typed shelter reports + live occupancy + live open/closed state
+ * (shelter-trust-and-reports D1/D4).
  *
  * <p>Every write requires a verified registered user (the same
  * {@code canWrite()} gate as submissions), a known shelter (404), and —
  * for shelter reports — passes the per-target unique bound (409 on a
  * repeat (shelter, user, type) BEFORE any throttle budget is consumed,
  * mirroring the verification already-verified guard). All report-type
- * actions count against the per-user rolling-hour throttle (429).
+ * actions count against the per-user rolling-hour throttle (429); the
+ * open/closed state tap does NOT count — a tap is a state, not a report
+ * action, so it records nothing in the action log.
  *
  * <p>Auto-hide (D1, trust-weighted since community-self-moderation M9):
  * an {@code ACTIVE} shelter whose {@code auto_hide_disarmed} is
  * {@code false} becomes {@code INACTIVE} on the {@code NON_EXISTENT}
  * report insert that brings the shelter's trust-weighted hide tally —
  * the sum of the distinct reporters' derived weights, dampened reports
- * contributing 0 — from below {@code AUTO_HIDE_THRESHOLD} to at least
- * that value. Five baseline (weight-1) reporters still hide on the
+ * contributing 0 and admin-dismissed reports excluded entirely (the
+ * dismissal is the admin's invalid verdict — the report stops
+ * influencing anything) — from below {@code AUTO_HIDE_THRESHOLD} to at
+ * least that value. Five baseline (weight-1) reporters still hide on the
  * fifth report; trusted reporters reach the consensus faster. The
  * trigger fires only on the crossing insert; after a manual status
  * change (admin restore, later change) the tally is already at or above
@@ -59,19 +66,27 @@ import java.util.Objects;
  * {@code app.limits.duplicate-coord-meters} haversine, any status) — a
  * self-interested vote that contributes 0 to the tally. The report
  * stays stored and visible in the admin queue (flagged), never deleted.
+ *
+ * <p>Live open/closed state (same level as capacity): one row per
+ * (shelter, user), a tap upserts it (latest state wins, created_at
+ * refreshed), display-only and NOT throttled. A successful OPEN tap
+ * runs the SAME auto-confirm as the {@code OPEN_CONFIRMED} report path
+ * (a USER row in review state NEW, by a user other than the submitter,
+ * is promoted NEW→CONFIRMED with an AUTO_CONFIRM audit row).
  */
 @Service
 public class ShelterReportService {
 
     /**
      * 403 message for unverified report/occupancy writes — the same
-     * sentence-case vocabulary as submissions and reviews.
+     * sentence-case vocabulary as submissions.
      */
     public static final String REPORTING_MESSAGE = "Reporting requires a verified account";
 
     private final ShelterRepository shelters;
     private final ShelterReportRepository reports;
     private final ShelterOccupancyRepository occupancy;
+    private final ShelterOpenStatusRepository openStatus;
     private final ReportActionLog actionLog;
     private final ModerationAuditLog audit;
     private final Clock clock;
@@ -81,6 +96,7 @@ public class ShelterReportService {
     public ShelterReportService(ShelterRepository shelters,
                                 ShelterReportRepository reports,
                                 ShelterOccupancyRepository occupancy,
+                                ShelterOpenStatusRepository openStatus,
                                 ReportActionLog actionLog,
                                 ModerationAuditLog audit,
                                 Clock clock,
@@ -88,6 +104,7 @@ public class ShelterReportService {
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.reports = Objects.requireNonNull(reports, "reports");
         this.occupancy = Objects.requireNonNull(occupancy, "occupancy");
+        this.openStatus = Objects.requireNonNull(openStatus, "openStatus");
         this.actionLog = Objects.requireNonNull(actionLog, "actionLog");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -176,10 +193,50 @@ public class ShelterReportService {
     }
 
     /**
+     * Upserts the user's live open/closed state (same level as
+     * capacity): one row per (shelter, user), a new tap replaces the
+     * previous state and refreshes {@code created_at}. Display-only —
+     * this write never affects visibility, status or filters. NOT
+     * throttled: a tap is a state, not a report action, so it records
+     * nothing in the action log and consumes no budget.
+     *
+     * <p>A successful OPEN tap runs the SAME auto-confirm as the
+     * {@code OPEN_CONFIRMED} report path: a USER row in review state
+     * NEW is promoted NEW→CONFIRMED (AUTO_CONFIRM audit, the tapping
+     * user as actor of record) when the tapping user is NOT the row's
+     * submitter. A CLOSED tap never confirms; the submitter's own tap
+     * never confirms.
+     *
+     * @throws NotVerifiedException     unverified registered user (→ 403)
+     * @throws ShelterNotFoundException unknown shelter id (→ 404)
+     */
+    @Transactional
+    public void putOpenStatus(RegisteredUser user, long shelterId, OpenStatusState state) {
+        if (!user.canWrite()) {
+            throw new NotVerifiedException(REPORTING_MESSAGE);
+        }
+        Shelter shelter = requireShelter(shelterId);
+        Instant now = clock.instant();
+        ShelterOpenStatusReport existing = openStatus
+                .findByShelterIdAndUserId(shelterId, user.getId())
+                .orElse(null);
+        if (existing != null) {
+            existing.update(state, now);
+        } else {
+            existing = new ShelterOpenStatusReport(shelterId, user.getId(), state, now);
+        }
+        openStatus.save(existing);
+        if (state == OpenStatusState.OPEN) {
+            autoConfirmIfEligible(shelter, user);
+        }
+    }
+
+    /**
      * The shelter's current trust-weighted hide tally (M9, D2) — the sum
      * of the weights of its distinct {@code NON_EXISTENT} reporters,
-     * dampened reports contributing 0 (one row per reporter by the
-     * (shelter, user, type) uniqueness).
+     * dampened reports contributing 0, admin-dismissed reports excluded
+     * entirely (one row per reporter by the (shelter, user, type)
+     * uniqueness).
      */
     private long hideTally(long shelterId) {
         return reports.reportersByShelterIdAndType(shelterId, ShelterReportType.NON_EXISTENT).stream()

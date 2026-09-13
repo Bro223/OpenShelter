@@ -6,9 +6,9 @@ import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterHistoryLog;
 import ee.sheltermap.app.InMemoryShelterInfoRequestLog;
 import ee.sheltermap.app.InMemoryShelterOccupancyRepository;
+import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
-import ee.sheltermap.app.InMemoryShelterReviewRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
@@ -27,7 +27,6 @@ import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
-import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,8 +56,8 @@ class AdminModerationServiceTest {
 
     private InMemoryShelterRepository shelters;
     private InMemoryShelterReportRepository shelterReports;
-    private InMemoryShelterReviewRepository reviews;
     private InMemoryShelterOccupancyRepository occupancy;
+    private InMemoryShelterOpenStatusRepository openStatus;
     private InMemoryUserRepository users;
     private InMemoryModerationAuditLog audit;
     private InMemoryShelterHistoryLog history;
@@ -72,17 +71,18 @@ class AdminModerationServiceTest {
     void setUp() {
         shelters = new InMemoryShelterRepository();
         shelterReports = new InMemoryShelterReportRepository();
-        reviews = new InMemoryShelterReviewRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
+        openStatus = new InMemoryShelterOpenStatusRepository();
         users = new InMemoryUserRepository();
         audit = new InMemoryModerationAuditLog(FIXED);
         history = new InMemoryShelterHistoryLog(FIXED);
         infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
         ShelterQueryService queryService =
-                new ShelterQueryService(shelters, reviews, users, shelterReports, occupancy,
+                new ShelterQueryService(shelters, users, shelterReports, occupancy,
+                        openStatus,
                         new InMemoryDataImportLog(), audit, infoRequests, FIXED);
         service = new AdminModerationService(queryService, shelters, shelterReports,
-                new ee.sheltermap.app.InMemoryReviewReportRepository(), reviews, users, FIXED,
+                users, FIXED,
                 audit,
                 new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
                         history),
@@ -236,7 +236,7 @@ class AdminModerationServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ---------- delete / dismiss / review hide-restore audit rows ----------
+    // ---------- delete / dismiss audit rows ----------
 
     @Test
     void aDeleteAuditsWithNullNewStatusAndRemovesTheShelter() {
@@ -266,27 +266,6 @@ class AdminModerationServiceTest {
         assertThat(row.shelterId()).isEqualTo(shelter.getId());
         assertThat(row.previousStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(row.newStatus()).isEqualTo(ReviewStatus.NEW);
-    }
-
-    @Test
-    void aHideAndRestoreAuditTheirReviewState() {
-        Shelter shelter = userShelter(ReviewStatus.NEW);
-        reviews.save(new ShelterReview(shelter.getId(), submitterId, 1, ""));
-        long reviewId = reviews.findByShelterId(shelter.getId()).get(0).getId();
-
-        service.hideReview(adminId, reviewId);
-        service.hideReview(adminId, reviewId); // no-op
-        service.restoreReview(adminId, reviewId);
-        service.restoreReview(adminId, reviewId); // no-op
-
-        assertThat(audit.rows()).extracting(ModerationAuditLog.Row::action)
-                .containsExactly(ModerationAuditLog.Action.REVIEW_HIDE,
-                        ModerationAuditLog.Action.REVIEW_RESTORE);
-        assertThat(audit.rows()).allSatisfy(row -> {
-            assertThat(row.previousStatus()).isEqualTo(ReviewStatus.NEW);
-            assertThat(row.newStatus()).isEqualTo(ReviewStatus.NEW);
-            assertThat(row.moderatorId()).isEqualTo(adminId);
-        });
     }
 
     // ---------- the audit list projection ----------

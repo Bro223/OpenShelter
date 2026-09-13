@@ -15,15 +15,19 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
 
     long countByShelterIdAndType(Long shelterId, ee.sheltermap.domain.ShelterReportType type);
 
-    /** One row per (shelter, user): [userId, damped] of the given type (M9, D3). */
+    /** One row per (shelter, user): [userId, damped] of the given type (M9, D3);
+     *  admin-dismissed rows are excluded (the dismissal is the admin's
+     *  invalid verdict — the report stops influencing the tally). */
     @Query("select r.userId, r.damped from ShelterReportEntity r " +
-            "where r.shelterId = :shelterId and r.type = :type")
+            "where r.shelterId = :shelterId and r.type = :type and r.dismissedAt is null")
     List<Object[]> reportersByShelterAndType(@Param("shelterId") Long shelterId,
                                               @Param("type") ee.sheltermap.domain.ShelterReportType type);
 
-    /** One row per (shelter, type): [shelterId, type, count] — the batched projection input. */
+    /** One row per (shelter, type): [shelterId, type, count] — the batched
+     *  projection input; admin-dismissed rows count in none of them (the
+     *  dismissed report stops influencing the displayed counts). */
     @Query("select r.shelterId, r.type, count(r) from ShelterReportEntity r " +
-            "where r.shelterId in :ids group by r.shelterId, r.type")
+            "where r.shelterId in :ids and r.dismissedAt is null group by r.shelterId, r.type")
     List<Object[]> countByTypeForShelterIds(@Param("ids") Collection<Long> ids);
 
     /** One row per (shelter, user): [shelterId, userId, newest createdAt] of the given type (M8). */

@@ -2,33 +2,25 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.ShelterRepository;
-import ee.sheltermap.app.ShelterReviewRepository;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
-import ee.sheltermap.domain.ShelterReview;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.domain.UserData;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
  * The account surface behind {@code GET /account/me} +
  * {@code PUT /account/profile} (04-CONTEXT-AUTH.md): the authenticated
  * user's real profile (name, email, phone + the real verified
- * claim set) and the password-confirmed name edit. Also the cross-
- * shelter "my reviews" listing ({@code GET /account/reviews/mine},
- * user-contributions) — it lives on the {@code /account} group because the
- * list has no per-shelter parent — and the data export + account
+ * claim set) and the password-confirmed name edit. Also the data export
+ * + account
  * erasure (legal-recovery M4).
  *
  * <p>Email/phone are NOT editable here — they stay on the cross-channel
@@ -39,26 +31,23 @@ import java.util.stream.Stream;
 @Service
 public class AccountService {
 
-    /** The verified-user gate message for the erasure (same 403 vocabulary as the review/submission gates). */
+    /** The verified-user gate message for the erasure (same 403 vocabulary as the submission gates). */
     public static final String DELETE_ACCOUNT_MESSAGE = "Deleting the account requires a verified account";
 
     private final UserRepository userRepository;
     private final UserCredentialsRepository credentials;
     private final PasswordHasher passwordHasher;
-    private final ShelterReviewRepository reviewRepository;
     private final ShelterRepository shelterRepository;
     private final ModerationAuditLog moderationAudit;
 
     public AccountService(UserRepository userRepository,
                           UserCredentialsRepository credentials,
                           PasswordHasher passwordHasher,
-                          ShelterReviewRepository reviewRepository,
                           ShelterRepository shelterRepository,
                           ModerationAuditLog moderationAudit) {
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
-        this.reviewRepository = Objects.requireNonNull(reviewRepository, "reviewRepository");
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.moderationAudit = Objects.requireNonNull(moderationAudit, "moderationAudit");
     }
@@ -92,39 +81,12 @@ public class AccountService {
     }
 
     /**
-     * GET /account/reviews/mine (user-contributions): the caller's reviews
-     * across ALL shelters, each carrying the shelter's id + name for
-     * navigation. Shelter names resolve in ONE batched read (no N+1,
-     * mirroring {@code ShelterReviewService.getReviews}' batched author
-     * lookup). A review whose shelter was deleted cannot occur (the DB
-     * cascades shelter deletion onto its reviews), so the name always
-     * resolves; "Unknown" guards the impossible only.
-     */
-    @Transactional(readOnly = true)
-    public List<MyReviewDto> myReviews(RegisteredUser user) {
-        List<ShelterReview> reviews = reviewRepository.findByUserId(user.getId());
-        if (reviews.isEmpty()) {
-            return List.of();
-        }
-        Map<Long, String> shelterNames = shelterNames(reviews);
-        return reviews.stream()
-                .map(review -> new MyReviewDto(
-                        review.getShelterId(),
-                        shelterNames.getOrDefault(review.getShelterId(), "Unknown"),
-                        review.getRating(),
-                        review.getComment(),
-                        review.getCreatedAt(),
-                        review.getUpdatedAt()))
-                .toList();
-    }
-
-    /**
      * GET /account/export (legal-recovery M4, slice 1): the caller's own
      * data in one document — profile (name/e-mail/phone decrypted at the
-     * persistence boundary + verified levels), EVERY author-scoped shelter
+     * persistence boundary + verified levels) and EVERY author-scoped
+     * shelter
      * row (all statuses — the export mirrors what the account submitted,
-     * including auto-hidden ones) and every review (shelter names
-     * batch-resolved as in {@link #myReviews}). A pure read: nothing is
+     * including auto-hidden ones). A pure read: nothing is
      * updated, nothing is logged.
      */
     @Transactional(readOnly = true)
@@ -145,30 +107,10 @@ public class AccountService {
                                 s.getDescription(), s.getCapacity(), s.getCreatedAt()))
                         .toList();
 
-        List<ShelterReview> reviews = reviewRepository.findByUserId(user.getId());
-        Map<Long, String> reviewShelterNames = shelterNames(reviews);
-        List<DataExportResponse.ExportedReview> exportedReviews = reviews.isEmpty() ? List.of()
-                : reviews.stream()
-                        .map(review -> new DataExportResponse.ExportedReview(
-                                review.getShelterId(),
-                                reviewShelterNames.getOrDefault(review.getShelterId(), "Unknown"),
-                                review.getRating(), review.getComment(),
-                                review.getCreatedAt(), review.getUpdatedAt()))
-                        .toList();
-
-        return new DataExportResponse(profile, shelters, exportedReviews);
+        return new DataExportResponse(profile, shelters);
     }
 
     /** One batched read of shelter names by id (no N+1; empty map if none). */
-    private Map<Long, String> shelterNames(Collection<ShelterReview> reviews) {
-        Set<Long> ids = reviews.stream().map(ShelterReview::getShelterId).collect(Collectors.toSet());
-        if (ids.isEmpty()) {
-            return Map.of();
-        }
-        return shelterRepository.findByIds(ids).stream()
-                .collect(Collectors.toMap(Shelter::getId, Shelter::getName));
-    }
-
     /**
      * DELETE /account (legal-recovery M4, slice 2) — the account erasure,
      * one transaction:
@@ -177,7 +119,7 @@ public class AccountService {
      *       data, which must not outlive the erasure request (entity-level
      *       delete: the same-transaction follow-up reads must see the
      *       rows gone, and a bulk JPQL delete would leave them cached).
-     *       Reviews cascade via the DB.</li>
+     *       The child rows cascade via the DB.</li>
      *   <li>ORPHAN the public community rows ({@code created_by -> NULL},
      *       V7's ON DELETE SET NULL intent executed explicitly) and redact
      *       the submitter-facing REJECT note. Trust state is untouched — a
@@ -190,7 +132,7 @@ public class AccountService {
      *   <li>Erase the user row. The DB does the rest: every child
      *       {@code user_id} FK is ON DELETE CASCADE (credentials, claims,
      *       pending verifications + contact changes, refresh +
-     *       password-reset tokens, reviews, reports, report actions) and
+     *       password-reset tokens, reports, report actions) and
      *       the relaxed moderation_actions FK (V14) nulls the moderator
      *       reference (audit rows survive, ids dangle).</li>
      * </ol>

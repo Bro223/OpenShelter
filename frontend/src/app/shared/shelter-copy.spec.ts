@@ -7,13 +7,16 @@ import {
   REPORT_SUBMITTED,
   REPORT_SUBMITTED_DAMPED,
   isPrivateLocation,
+  shelterStatusText,
   occupancyText,
   hasReports,
   hasTrustBadges,
-  provenanceBadgeClass,
-  provenanceText,
+  communityTrustLabel,
+  sourceTrustLabel,
+  communityBadgeClass,
   recencyText,
-  statusFlagText,
+  openStatusBadgeText,
+  isOpenRow,
   reportedBadgeText,
   verifiedAgoText,
   lastVerifiedText,
@@ -23,44 +26,45 @@ import {
 import type { ShelterOccupancy } from '../core/models';
 
 /**
- * The provenance values are PINNED copy (shelter-provenance-taxonomy M6,
- * superseding accessibility-and-provenance D4 + community-review-queue
- * D5; proposed-community-wording M7 renamed the two community states):
- * the server-derived taxonomy value maps to the badge text and tone.
+ * The source/trust labels are PINNED copy (community-review-queue D5):
+ * registry rows say which registry, USER rows say their trust state.
  * A copy change is a spec change — these assertions are the gate.
  */
-describe('provenanceText (M6 copy)', () => {
-  it('OFFICIAL -> "Paasteamet registry"', () => {
-    expect(provenanceText('OFFICIAL')).toBe('Paasteamet registry');
+describe('sourceTrustLabel (pinned copy)', () => {
+  it('PAASETEAMET -> "Paasteamet registry"', () => {
+    expect(sourceTrustLabel({ source: 'PAASETEAMET', reviewStatus: 'CONFIRMED' })).toBe(
+      'Paasteamet registry',
+    );
   });
 
-  it('PARTNER_VERIFIED -> "Municipal registry"', () => {
-    expect(provenanceText('PARTNER_VERIFIED')).toBe('Municipal registry');
+  it('MUNICIPALITY -> "Municipal registry"', () => {
+    expect(sourceTrustLabel({ source: 'MUNICIPALITY', reviewStatus: 'CONFIRMED' })).toBe(
+      'Municipal registry',
+    );
   });
 
-  it('COMMUNITY_REPORTED -> "Community-reported" (M7)', () => {
-    expect(provenanceText('COMMUNITY_REPORTED')).toBe('Community-reported');
+  it('USER rows carry the trust-state label', () => {
+    expect(sourceTrustLabel({ source: 'USER', reviewStatus: 'NEW' })).toBe('Newly added');
+    expect(sourceTrustLabel({ source: 'USER', reviewStatus: 'CONFIRMED' })).toBe(
+      'Community-checked',
+    );
+    expect(sourceTrustLabel({ source: 'USER', reviewStatus: 'REJECTED' })).toBe('Rejected');
   });
 
-  it('UNDER_REVIEW -> "Proposed" (M7)', () => {
-    expect(provenanceText('UNDER_REVIEW')).toBe('Proposed');
+  it('communityTrustLabel maps the lifecycle states', () => {
+    expect(communityTrustLabel('NEW')).toBe('Newly added');
+    expect(communityTrustLabel('CONFIRMED')).toBe('Community-checked');
+    expect(communityTrustLabel('REJECTED')).toBe('Rejected');
   });
 
-  it('REPORTED_INACTIVE -> "Reported inactive" (/mine + admin surfaces)', () => {
-    expect(provenanceText('REPORTED_INACTIVE')).toBe('Reported inactive');
-  });
-
-  it('REJECTED -> "Rejected" (/mine + admin surfaces)', () => {
-    expect(provenanceText('REJECTED')).toBe('Rejected');
-  });
-
-  it('the badge tone follows the marker palette', () => {
-    expect(provenanceBadgeClass('OFFICIAL')).toBe('');
-    expect(provenanceBadgeClass('PARTNER_VERIFIED')).toBe('');
-    expect(provenanceBadgeClass('UNDER_REVIEW')).toBe('badge--new');
-    expect(provenanceBadgeClass('COMMUNITY_REPORTED')).toBe('badge--user');
-    expect(provenanceBadgeClass('REPORTED_INACTIVE')).toBe('badge--inactive');
-    expect(provenanceBadgeClass('REJECTED')).toBe('badge--rejected');
+  it('the badge tone follows the trust palette', () => {
+    expect(communityBadgeClass({ source: 'PAASETEAMET', reviewStatus: 'CONFIRMED' })).toBe('');
+    expect(communityBadgeClass({ source: 'MUNICIPALITY', reviewStatus: 'CONFIRMED' })).toBe('');
+    expect(communityBadgeClass({ source: 'USER', reviewStatus: 'NEW' })).toBe('badge--new');
+    expect(communityBadgeClass({ source: 'USER', reviewStatus: 'CONFIRMED' })).toBe('badge--user');
+    expect(communityBadgeClass({ source: 'USER', reviewStatus: 'REJECTED' })).toBe(
+      'badge--rejected',
+    );
   });
 });
 
@@ -72,7 +76,7 @@ describe('community + private copy (community-review-queue)', () => {
   });
 
   it('the private badge + note are the exact pinned strings', () => {
-    expect(PRIVATE_LOCATION_BADGE).toBe('Private location');
+    expect(PRIVATE_LOCATION_BADGE).toBe('Private home (declared)');
     expect(PRIVATE_LOCATION_NOTE).toBe(
       'This is a resident-offered location, not an official facility.',
     );
@@ -88,17 +92,104 @@ describe('community + private copy (community-review-queue)', () => {
  * Trust-layer copy (shelter-trust-and-reports D4/D6): the map rows and the
  * detail header render the SAME strings — pinned here, the W24 way.
  */
-describe('statusFlagText (D1 netting, D6 badges)', () => {
-  it('REPORTED_CLOSED -> "Reported closed"', () => {
-    expect(statusFlagText('REPORTED_CLOSED')).toBe('Reported closed');
+
+describe('openStatusBadgeText (open-status wave badges)', () => {
+  it('a fresh lone CLOSED report -> hedged "Reported closed"', () => {
+    expect(
+      openStatusBadgeText({ state: 'CLOSED', reportedAt: '2026-09-11T12:00:00Z', reportCount: 1 }),
+    ).toBe('Reported closed');
   });
 
-  it('CONFIRMED_OPEN -> "Confirmed open"', () => {
-    expect(statusFlagText('CONFIRMED_OPEN')).toBe('Confirmed open');
+  it('a fresh firm CLOSED net (two+) -> "Closed"', () => {
+    expect(
+      openStatusBadgeText({ state: 'CLOSED', reportedAt: '2026-09-11T12:00:00Z', reportCount: 2 }),
+    ).toBe('Closed');
+    expect(
+      openStatusBadgeText({ state: 'CLOSED', reportedAt: '2026-09-11T12:00:00Z', reportCount: 5 }),
+    ).toBe('Closed');
   });
 
-  it('null flag -> null (render nothing)', () => {
-    expect(statusFlagText(null)).toBeNull();
+  it('a fresh OPEN report -> null (open is the default — no noise)', () => {
+    expect(
+      openStatusBadgeText({ state: 'OPEN', reportedAt: '2026-09-11T12:00:00Z', reportCount: 3 }),
+    ).toBeNull();
+  });
+
+  it('null (nothing fresh) -> null (render nothing)', () => {
+    expect(openStatusBadgeText(null)).toBeNull();
+  });
+});
+
+describe('shelterStatusText (open-status wave: fresh reports, then lifecycle)', () => {
+  const freshClosed = (reportCount: number) => ({
+    state: 'CLOSED' as const,
+    reportedAt: '2026-09-11T12:00:00Z',
+    reportCount,
+  });
+  const freshOpen = (reportCount: number) => ({
+    state: 'OPEN' as const,
+    reportedAt: '2026-09-11T12:00:00Z',
+    reportCount,
+  });
+
+  it('fresh CLOSED at exactly one report -> "Reported closed"', () => {
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: freshClosed(1) })).toBe(
+      'Reported closed',
+    );
+  });
+
+  it('fresh CLOSED at two+ reports -> "Closed" (firm)', () => {
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: freshClosed(2) })).toBe('Closed');
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: freshClosed(4) })).toBe('Closed');
+  });
+
+  it('fresh OPEN -> "Open"', () => {
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: freshOpen(1) })).toBe('Open');
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: freshOpen(3) })).toBe('Open');
+  });
+
+  it('nothing fresh + ACTIVE -> "Open (no recent reports)"', () => {
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: null })).toBe(
+      'Open (no recent reports)',
+    );
+  });
+
+  it('lifecycle INACTIVE (nothing fresh) -> "Closed" (the admin-facing mapping)', () => {
+    expect(shelterStatusText({ status: 'INACTIVE', openStatus: null })).toBe('Closed');
+  });
+
+  it('a fresh CLOSED net outranks the lifecycle status (a hidden row that is also closed)', () => {
+    expect(shelterStatusText({ status: 'INACTIVE', openStatus: freshClosed(1) })).toBe(
+      'Reported closed',
+    );
+    expect(shelterStatusText({ status: 'INACTIVE', openStatus: freshClosed(2) })).toBe('Closed');
+  });
+});
+
+describe('isOpenRow (the map\u2019s "Open" chip predicate)', () => {
+  const freshClosed = (reportCount: number) => ({
+    state: 'CLOSED' as const,
+    reportedAt: '2026-09-11T12:00:00Z',
+    reportCount,
+  });
+  const freshOpen = () => ({
+    state: 'OPEN' as const,
+    reportedAt: '2026-09-11T12:00:00Z',
+    reportCount: 1,
+  });
+
+  it('keeps fresh OPEN and nothing-fresh rows', () => {
+    expect(isOpenRow({ status: 'ACTIVE', openStatus: freshOpen() })).toBe(true);
+    expect(isOpenRow({ status: 'ACTIVE', openStatus: null })).toBe(true);
+  });
+
+  it('drops fresh CLOSED rows at any report count', () => {
+    expect(isOpenRow({ status: 'ACTIVE', openStatus: freshClosed(1) })).toBe(false);
+    expect(isOpenRow({ status: 'ACTIVE', openStatus: freshClosed(3) })).toBe(false);
+  });
+
+  it('drops lifecycle INACTIVE rows (never public, but the rule covers them)', () => {
+    expect(isOpenRow({ status: 'INACTIVE', openStatus: null })).toBe(false);
   });
 });
 
@@ -190,21 +281,33 @@ describe('trust-badge predicates (D6)', () => {
     expect(hasReports({ nonexistentReports: 4 })).toBe(true);
   });
 
-  it('hasTrustBadges: any of reported / statusFlag / occupancy', () => {
-    expect(hasTrustBadges({ nonexistentReports: 0, statusFlag: null, occupancy: null })).toBe(
+  it('hasTrustBadges: any of reported / openStatus / occupancy', () => {
+    expect(hasTrustBadges({ nonexistentReports: 0, openStatus: null, occupancy: null })).toBe(
       false,
     );
-    expect(hasTrustBadges({ nonexistentReports: 2, statusFlag: null, occupancy: null })).toBe(true);
+    expect(hasTrustBadges({ nonexistentReports: 2, openStatus: null, occupancy: null })).toBe(true);
     expect(
-      hasTrustBadges({ nonexistentReports: 0, statusFlag: 'CONFIRMED_OPEN', occupancy: null }),
+      hasTrustBadges({
+        nonexistentReports: 0,
+        openStatus: { state: 'CLOSED', reportedAt: '2026-09-11T12:00:00Z', reportCount: 1 },
+        occupancy: null,
+      }),
     ).toBe(true);
     expect(
       hasTrustBadges({
         nonexistentReports: 0,
-        statusFlag: null,
+        openStatus: null,
         occupancy: { band: 'FULL', reportCount: 1, lastReportedAt: '2026-09-11T12:07:00Z' },
       }),
     ).toBe(true);
+    // A fresh OPEN openStatus renders NO badge — it must not open the strip.
+    expect(
+      hasTrustBadges({
+        nonexistentReports: 0,
+        openStatus: { state: 'OPEN', reportedAt: '2026-09-11T12:00:00Z', reportCount: 2 },
+        occupancy: null,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -253,25 +356,25 @@ describe('lastVerifiedText (M8)', () => {
   it('a verified row reads "Last verified {ago}"', () => {
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: at(120), provenance: 'OFFICIAL', createdAt: at(60 * 24 * 400) },
+        { lastVerifiedAt: at(120), reviewStatus: 'CONFIRMED', createdAt: at(60 * 24 * 400) },
         NOW,
       ),
     ).toBe('Last verified 2 h ago');
   });
 
-  it('an UNDER_REVIEW row is the under-review signal: proposal age + no check', () => {
+  it('a NEW community row is the not-yet-verified signal: submission age + no check', () => {
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: null, provenance: 'UNDER_REVIEW', createdAt: at(60 * 24 * 3) },
+        { lastVerifiedAt: null, reviewStatus: 'NEW', createdAt: at(60 * 24 * 3) },
         NOW,
       ),
-    ).toBe('Proposed 3 d ago — not yet verified');
+    ).toBe('Newly added 3 d ago — not yet verified');
   });
 
-  it('a non-proposed row without a record says so plainly', () => {
-    for (const provenance of ['OFFICIAL', 'PARTNER_VERIFIED', 'COMMUNITY_REPORTED'] as const) {
+  it('a non-NEW row without a record says so plainly', () => {
+    for (const reviewStatus of ['CONFIRMED', 'REJECTED'] as const) {
       expect(
-        lastVerifiedText({ lastVerifiedAt: null, provenance, createdAt: at(60 * 24 * 400) }, NOW),
+        lastVerifiedText({ lastVerifiedAt: null, reviewStatus, createdAt: at(60 * 24 * 400) }, NOW),
       ).toBe('No verification record yet');
     }
   });

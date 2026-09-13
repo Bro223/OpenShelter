@@ -1,7 +1,10 @@
 package ee.sheltermap.persistence;
 
+import ee.sheltermap.domain.OpenStatusState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -10,13 +13,15 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code shelter_reviews}. The unique constraint
- * {@code (shelter_id, user_id)} — one review per user per shelter — is
- * enforced by the database (acceptance check in Step 3).
+ * JPA entity for {@code shelter_open_status} (V22 — live open/closed
+ * state, same level as capacity). The unique constraint
+ * {@code (shelter_id, user_id)} — one live state per user per shelter —
+ * is enforced by the database; {@code created_at} (refreshed by every
+ * re-tap) anchors the 2 h read-time freshness window.
  */
 @Entity
-@Table(name = "shelter_reviews")
-public class ShelterReviewEntity {
+@Table(name = "shelter_open_status")
+public class ShelterOpenStatusReportEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -28,21 +33,12 @@ public class ShelterReviewEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
-    private int rating;
-
-    @Column(nullable = false, length = 500)
-    private String comment;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private OpenStatusState state;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    /** When the 5th review report hid the review (V9, D2); NULL while visible. */
-    @Column(name = "hidden_at")
-    private Instant hiddenAt;
 
     public Long getId() {
         return id;
@@ -68,20 +64,12 @@ public class ShelterReviewEntity {
         this.userId = userId;
     }
 
-    public int getRating() {
-        return rating;
+    public OpenStatusState getState() {
+        return state;
     }
 
-    public void setRating(int rating) {
-        this.rating = rating;
-    }
-
-    public String getComment() {
-        return comment;
-    }
-
-    public void setComment(String comment) {
-        this.comment = comment;
+    public void setState(OpenStatusState state) {
+        this.state = state;
     }
 
     public Instant getCreatedAt() {
@@ -90,21 +78,5 @@ public class ShelterReviewEntity {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public Instant getHiddenAt() {
-        return hiddenAt;
-    }
-
-    public void setHiddenAt(Instant hiddenAt) {
-        this.hiddenAt = hiddenAt;
     }
 }

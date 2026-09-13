@@ -39,9 +39,12 @@ existing admin status endpoint SHALL return to NEW.
 The submission form SHALL let the submitter declare the location a
 private home or private shelter (stored as location_kind PRIVATE;
 default PUBLIC). Private rows remain public results but SHALL show a
-"Private location" badge on list rows, the detail page, and the admin
-list, with a detail-page note that it is a resident-offered location,
-not an official facility.
+"Private home (declared)" badge on list rows, the detail page, and the
+admin list, with a detail-page note that it is a resident-offered
+location, not an official facility. The declaration is a building-type
+claim only: the UI SHALL NOT derive or display any access policy
+("publicly available" yes/no) from it, and no filter SHALL hide
+PRIVATE rows.
 
 #### Scenario: Declared private home
 

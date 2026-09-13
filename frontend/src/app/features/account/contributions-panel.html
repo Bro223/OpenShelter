@@ -33,10 +33,10 @@
           <div class="contrib-row__info">
             <span class="contrib-row__title">
               {{ row.name }}
-              <!-- Trust state (community-review-queue; M7 wording): "Proposed" /
-                   "Community-reported" / "Rejected" — the /mine badge. -->
-              <span class="contrib-badge" [ngClass]="provenanceBadgeClass(row.provenance)">
-                {{ provenanceText(row.provenance) }}
+              <!-- Trust state (community-review-queue D5): "Newly added" /
+                   "Community-checked" / "Rejected" — the /mine badge. -->
+              <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
+                {{ sourceTrustLabel(row) }}
               </span>
               <!-- Info request (M10 slice 3): an OPEN moderator question —
                    the amber action chip; answered requests carry no chip
@@ -64,10 +64,7 @@
             @if (row.inaccurate) {
               <span class="contrib-row__note">{{ inaccurateWarning }}</span>
             }
-            <span class="contrib-row__meta">
-              {{ row.createdAt | date: 'medium' }} ·
-              {{ ratingText(row.averageRating, row.reviewCount) }}
-            </span>
+            <span class="contrib-row__meta">{{ row.createdAt | date: 'medium' }}</span>
           </div>
           <div class="contrib-row__actions">
             <a [routerLink]="['/shelters', row.id]" class="btn btn--ghost">View</a>
@@ -110,7 +107,7 @@
           <!-- two-step delete confirm (no window.confirm) -->
           @if (confirmingShelterDelete() === row.id) {
             <div class="confirm-strip">
-              <span> Delete this shelter permanently? Its reviews will be removed as well. </span>
+              <span> Delete this shelter permanently? </span>
               <div class="contrib-actions">
                 <button
                   type="button"
@@ -267,137 +264,6 @@
                 }
               </div>
             }
-          }
-        </li>
-      }
-    </ul>
-  }
-
-  <!-- ============================== Reviews ============================== -->
-  <h3 class="contributions-subtitle">Reviews</h3>
-
-  @if (reviewRows() === null && reviewLoadError() === null) {
-    <app-loading-indicator class="contributions-state" message="Loading your reviews…" />
-  } @else if (reviewLoadError(); as reviewErr) {
-    <p class="contributions-state contributions-state--error">{{ reviewErr }}</p>
-    <div class="contrib-actions">
-      <button type="button" class="btn btn--ghost" (click)="loadReviews()">Retry</button>
-    </div>
-  } @else if ((reviewRows() ?? []).length === 0) {
-    <p class="contributions-state">You haven't written any reviews yet.</p>
-  } @else {
-    <ul class="contrib-list">
-      @for (row of reviewRows() ?? []; track row.shelterId) {
-        <li class="contrib-row">
-          <div class="contrib-row__info">
-            <a
-              [routerLink]="['/shelters', row.shelterId]"
-              class="contrib-row__title contrib-row__title--link"
-            >
-              {{ row.shelterName }}
-            </a>
-            <span class="contrib-row__meta">
-              <app-rating-stars [rating]="row.rating" class="contrib-row__stars" />
-              · updated {{ row.updatedAt | date: 'medium' }}
-            </span>
-            @if (row.comment) {
-              <span class="contrib-row__comment">{{ row.comment }}</span>
-            }
-          </div>
-          <div class="contrib-row__actions">
-            @if (editingReviewShelterId() !== row.shelterId) {
-              <button
-                type="button"
-                class="btn btn--ghost"
-                (click)="startEditReview(row)"
-                [disabled]="busy()"
-              >
-                Edit
-              </button>
-            }
-            @if (confirmingReviewDelete() !== row.shelterId) {
-              <button
-                type="button"
-                class="btn btn--ghost btn--danger"
-                (click)="requestDeleteReview(row.shelterId)"
-                [disabled]="busy()"
-              >
-                Delete
-              </button>
-            }
-          </div>
-
-          @if (reviewRowError()?.shelterId === row.shelterId) {
-            <p class="row-error" role="alert">{{ reviewRowError()?.message }}</p>
-          }
-
-          @if (confirmingReviewDelete() === row.shelterId) {
-            <div class="confirm-strip">
-              <span>Delete your review of this shelter?</span>
-              <div class="contrib-actions">
-                <button
-                  type="button"
-                  class="btn btn--ghost btn--danger"
-                  (click)="confirmDeleteReview(row.shelterId)"
-                  [disabled]="busy()"
-                >
-                  {{ busy() ? 'Deleting…' : 'Confirm delete' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  (click)="cancelDeleteReview()"
-                  [disabled]="busy()"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          }
-
-          @if (editingReviewShelterId() === row.shelterId) {
-            <div class="contrib-edit">
-              <div class="field">
-                <span class="field-label">Rating (1–5 stars)</span>
-                <app-rating-stars
-                  mode="input"
-                  [selected]="editRating()"
-                  (selectionChange)="editRating.set($event)"
-                />
-              </div>
-
-              <div class="field">
-                <label for="contrib-review-comment">Comment (optional)</label>
-                <textarea
-                  id="contrib-review-comment"
-                  rows="2"
-                  maxlength="500"
-                  [formControl]="editComment"
-                ></textarea>
-                @if (editComment.touched && editComment.invalid) {
-                  <p class="field-error">Comment must be 500 characters or fewer.</p>
-                }
-              </div>
-
-              <div class="contrib-actions">
-                <button
-                  type="button"
-                  class="btn btn--primary"
-                  (click)="saveReviewEdit()"
-                  [disabled]="busy() || editComment.invalid"
-                >
-                  {{ busy() ? 'Saving…' : 'Save changes' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  (click)="cancelEditReview()"
-                  [disabled]="busy()"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
           }
         </li>
       }

@@ -6,7 +6,6 @@ import ee.sheltermap.app.InfoRequestNotFoundException;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
-import ee.sheltermap.app.OwnReviewReportException;
 import ee.sheltermap.app.NonSuspendableUserException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
@@ -120,8 +119,8 @@ public class ApiErrorHandler {
 
     /**
      * A report the user already made (shelter-trust-and-reports D1/D2):
-     * the per-target unique bound — same (shelter, user, type) or same
-     * (review, user). 409 so the client knows nothing was stored.
+     * the per-target unique bound — same (shelter, user, type). 409 so the
+     * client knows nothing was stored.
      */
     @ExceptionHandler(DuplicateReportException.class)
     ResponseEntity<ErrorResponse> duplicateReport(DuplicateReportException ex, HttpServletRequest request) {
@@ -262,16 +261,6 @@ public class ApiErrorHandler {
         return false;
     }
 
-    /**
-     * A user reporting their OWN review (shelter-trust-and-reports D2 —
-     * own content is edited or deleted, not reported). Same 403 family
-     * as the not-verified / not-author gates.
-     */
-    @ExceptionHandler(OwnReviewReportException.class)
-    ResponseEntity<ErrorResponse> ownReviewReport(OwnReviewReportException ex, HttpServletRequest request) {
-        return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
-    }
-
     @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class, AdminAccessException.class,
             SuspendedAccountException.class})
     ResponseEntity<ErrorResponse> forbidden(RuntimeException ex, HttpServletRequest request) {
@@ -281,7 +270,6 @@ public class ApiErrorHandler {
     @ExceptionHandler({
             ShelterNotFoundException.class,
             UserNotFoundException.class,
-            ShelterReviewNotFoundException.class,
             ReportNotFoundException.class,
             InfoRequestNotFoundException.class,
             NoResourceFoundException.class})

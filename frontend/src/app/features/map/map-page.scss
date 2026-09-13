@@ -70,8 +70,8 @@
 
 .map-page__sidebar {
   /* page-specific layout dimension (documented exception, not spacing).
-     344px (was 320px): the trust-chip row + rating select need the extra
-     room so the select's label ("Any", "4+ stars") is never clipped. */
+     344px (was 320px): the trust-chip row needs the extra room so the
+     chips wrap cleanly instead of clipping. */
   width: 344px;
   flex-shrink: 0;
   display: flex;
@@ -298,7 +298,7 @@
 
   /* The community unverified warning under a community nearest row:
      muted text on purpose — a caveat, NOT the crisis orange (the --color-cta
-     hue stays reserved for the CTA + the row emphasis). */
+     hue stays reserved for the CTA). */
   &--warning {
     color: var(--color-muted);
     margin-top: var(--space-4);
@@ -332,9 +332,10 @@
   }
 }
 
-/* Trust filters (shelter-trust-and-reports D6): the second row beside the
-   source chips — toggle chips in the same visual language (the combined
-   selector keeps ONE style source for both chip kinds) + the rating select.
+/* Trust filters (shelter-trust-and-reports D6, review model gone): the
+   second row beside the source chips — the "Open" (client-side) and
+   "Has capacity" (server-side) toggle chips in the same visual language
+   (the combined selector keeps ONE style source for both chip kinds).
    Every control is a new interactive target, so each carries the 48px
    minimum (the pre-existing source chips keep their M4 sizing). */
 .filter-trust {
@@ -342,12 +343,13 @@
   gap: var(--space-6);
   flex-wrap: wrap;
   align-items: center;
-  /* Equal spacing across the row: chips left, select right, the free
-     space split evenly between the controls. The row spans exactly the
-     shelter list's width, so its edges line up (nothing stands out). */
-  justify-content: space-between;
+  /* The chips FILL the row: each chip grows to share the space equally
+     (the row spans exactly the shelter list's width, so the chips' edges
+     line up with it — no dead space between text-width buttons). */
 
   .trust-chip {
+    flex: 1 1 0;
+    min-width: 0;
     padding: var(--space-6) var(--space-10);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
@@ -401,14 +403,6 @@
 
   &.shelter-row--selected {
     border-color: var(--color-primary);
-  }
-
-  /* The "Nearest shelter" emphasis (map-crisis-actions D2) — a TEMPORARY
-     highlight: same ring pattern as the selection, in the CTA orange.
-     Cleared on the next interaction or filter change (no new badge). */
-  &.shelter-row--nearest {
-    border-color: var(--color-cta);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-cta) 25%, transparent);
   }
 
   .shelter-row__name {
@@ -468,11 +462,13 @@
     color: var(--color-shelter-user);
   }
 
-  /* Trust badges (shelter-trust-and-reports D6). "Reported" is the single
-     reported affordance (the token, white text 5.18:1 — HC flips to dark on
-     the brightened fill). The statusFlag badges reuse the existing warning
-     / success tints. Occupancy is NEUTRAL on purpose: "space available" is
-     not a celebration and "full" is not a crisis — muted text, muted fill. */
+  /* Trust badges (shelter-trust-and-reports D6; open-status wave).
+     "Reported" is the single reported affordance (the token, white text
+     5.18:1 — HC flips to dark on the brightened fill). The fresh-CLOSED
+     badge reuses the existing warning tint (a fresh OPEN row renders no
+     badge at all — open is the default). Occupancy is NEUTRAL on purpose:
+     "space available" is not a celebration and "full" is not a crisis —
+     muted text, muted fill. */
   &.badge--reported {
     background: var(--color-reported);
     color: var(--color-bg-surface);
@@ -482,12 +478,6 @@
     background: var(--color-warning-bg);
     border: 1px solid var(--color-warning-border);
     color: var(--color-warning);
-  }
-
-  &.badge--open {
-    background: var(--color-success-bg);
-    border: 1px solid var(--color-success-border);
-    color: var(--color-success);
   }
 
   &.badge--occupancy {

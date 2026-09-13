@@ -9,18 +9,16 @@ import java.util.List;
  * The response of {@code GET /account/export} (legal-recovery M4, slice 1):
  * the caller's own data in one self-describing JSON document — profile
  * (name/e-mail/phone are decrypted at the persistence boundary, the domain
- * carries plaintext), every author-scoped shelter row (ALL statuses — the
- * export mirrors what the account actually submitted, including
- * auto-hidden/REJECT rows) and every review the user wrote (shelter names
- * batch-resolved, same idiom as {@code /account/reviews/mine}).
+ * carries plaintext) and every author-scoped shelter row (ALL statuses —
+ * the export mirrors what the account actually submitted, including
+ * auto-hidden/REJECT rows).
  *
  * <p>The frontend turns this body into a downloadable JSON file; the server
  * itself is a plain read.
  */
 public record DataExportResponse(
         ExportedProfile profile,
-        List<ExportedShelter> shelters,
-        List<ExportedReview> reviews) {
+        List<ExportedShelter> shelters) {
 
     /**
      * The account's identity anchor + verified levels. {@code phone} is
@@ -38,11 +36,5 @@ public record DataExportResponse(
                                   String source, String status, String reviewStatus,
                                   String locationKind, String description,
                                   Integer capacity, Instant createdAt) {
-    }
-
-    /** One review the user wrote — hidden reviews are included (the author
-     *  always sees their own; the public list is the one that hides them). */
-    public record ExportedReview(Long shelterId, String shelterName, int rating,
-                                 String comment, Instant createdAt, Instant updatedAt) {
     }
 }

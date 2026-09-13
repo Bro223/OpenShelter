@@ -17,7 +17,9 @@ import java.util.regex.Pattern;
  * ({@code q|ll|daddr|saddr=lat,lng} — Google, Apple {@code maps.apple.com}
  * {@code ?ll=}, Bing {@code bing.com/maps?q=}), then the Google share
  * path {@code !3d…!4d…}, then {@code /@lat,lng} (with an optional
- * {@code ,zoomz} suffix), then the generic first decimal pair anywhere
+ * {@code ,zoomz} suffix), then the Google search path
+ * {@code /search/lat(+|,)lng} (the 2026-09 {@code maps.app.goo.gl}
+ * redirect target), then the generic first decimal pair anywhere
  * in the URL. A coordinate-carrying segment written with an Estonian
  * decimal comma ({@code 58,25} — a comma decimal with no point decimal in
  * the segment) carries NO pair (F2-BE, 2026-09-11 review: FE parity with
@@ -45,9 +47,19 @@ public final class MapsUrlCoordinates {
     private static final Pattern AT_PAIR = Pattern.compile(
             "/@(-?\\d+(?:\\.\\d+)?),(-?\\d+(?:\\.\\d+)?)(?:,\\d+(?:\\.\\d+)?z)?");
 
-    /** Fallback: the first decimal {@code a,b} pair anywhere in the URL. */
+    /** Google search path (the 2026-09 {@code maps.app.goo.gl} redirect
+     *  target): {@code /search/58.999669,+27.289732} — comma and/or plus
+     *  (a URL-encoded space) as the separator — or the comma form
+     *  {@code /search/59.437,24.753}. Only the raw path forms are matched;
+     *  a percent-encoded separator is not decoded (like the query values). */
+    private static final Pattern SEARCH_PAIR = Pattern.compile(
+            "/search/(-?\\d+(?:\\.\\d+)?)[,\\s+]+(-?\\d+(?:\\.\\d+)?)");
+
+    /** Fallback: the first decimal {@code a,b} / {@code a+b} pair anywhere
+     *  in the URL — comma, plus (URL-encoded space) or whitespace as the
+     *  separator. */
     private static final Pattern GENERIC_PAIR = Pattern.compile(
-            "(-?\\d{1,3}(?:\\.\\d+)?),\\s*(-?\\d{1,3}(?:\\.\\d+)?)");
+            "(-?\\d{1,3}(?:\\.\\d+)?)[,\\s+]+(-?\\d{1,3}(?:\\.\\d+)?)");
 
     /** A plain {@code lat,lng} decimal pair (a query param value). */
     private static final Pattern DECIMAL_PAIR = Pattern.compile(
@@ -136,6 +148,17 @@ public final class MapsUrlCoordinates {
                 return genericPair(url);
             }
             return decimalPair(at.group(1), at.group(2));
+        }
+        Matcher search = SEARCH_PAIR.matcher(url);
+        if (search.find()) {
+            // F2-BE: /search/58,25 is a comma-decimal, not a pair — same
+            // treatment as the skipped /@ segment above: the segment
+            // carries no pair; the generic fallback (with its own body
+            // guard) is given the chance.
+            if (isDecimalComma(search.group(1) + "," + search.group(2))) {
+                return genericPair(url);
+            }
+            return decimalPair(search.group(1), search.group(2));
         }
         return genericPair(url);
     }

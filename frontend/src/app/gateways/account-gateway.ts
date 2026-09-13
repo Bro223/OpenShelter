@@ -8,7 +8,6 @@ import type {
   ConfirmChangeRequest,
   DataExportResponse,
   MeResponse,
-  MyReviewDto,
   ProfileUpdateRequest,
 } from '../core/models';
 
@@ -64,18 +63,9 @@ export class AccountGateway {
   }
 
   /**
-   * GET /account/reviews/mine -> the caller's reviews across ALL shelters
-   * (user-contributions): shelter id + name for navigation. Empty list when
-   * the user has no reviews.
-   */
-  myReviews(): Promise<MyReviewDto[]> {
-    return lastValueFrom(this.api.get<MyReviewDto[]>('/account/reviews/mine'));
-  }
-
-  /**
    * GET /account/export -> the caller's own data in one document (M4
-   * legal/recovery, slice 1): profile + shelters + reviews. The page turns
-   * the body into a downloadable JSON file.
+   * legal/recovery, slice 1): profile + shelters. The page turns the body
+   * into a downloadable JSON file.
    */
   exportData(): Promise<DataExportResponse> {
     return lastValueFrom(this.api.get<DataExportResponse>('/account/export'));

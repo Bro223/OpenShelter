@@ -3,10 +3,13 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
+import ee.sheltermap.domain.ShelterOpenStatusReport;
+import ee.sheltermap.domain.ShelterReport;
 import ee.sheltermap.domain.ShelterReportType;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -18,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,8 +34,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * trust-weighted 5-point auto-hide (five baseline reporters still hide
  * on the fifth report; trusted reporters faster; dampened reports count
  * zero; no re-hide after a manual restore / disarmed flag), the
- * duplicate dampening of self-interested negative votes, and the
- * occupancy upsert.
+ * duplicate dampening of self-interested negative votes, the occupancy
+ * upsert, the live open/closed state upsert (same level as capacity —
+ * not throttled, OPEN taps auto-confirm like OPEN_CONFIRMED reports) and
+ * the dismissed-report exclusion from the hide tally.
  */
 class ShelterReportServiceTest {
 
@@ -40,6 +46,7 @@ class ShelterReportServiceTest {
     private InMemoryShelterRepository shelters;
     private InMemoryShelterReportRepository reports;
     private InMemoryShelterOccupancyRepository occupancy;
+    private InMemoryShelterOpenStatusRepository openStatus;
     private InMemoryReportActionLog actionLog;
     private InMemoryModerationAuditLog audit;
     private InMemoryUserRepository users;
@@ -55,10 +62,12 @@ class ShelterReportServiceTest {
         shelters = new InMemoryShelterRepository();
         reports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
+        openStatus = new InMemoryShelterOpenStatusRepository();
         actionLog = new InMemoryReportActionLog(FIXED);
         audit = new InMemoryModerationAuditLog(FIXED);
         users = new InMemoryUserRepository();
-        service = new ShelterReportService(shelters, reports, occupancy, actionLog, audit, FIXED, 100.0);
+        service = new ShelterReportService(shelters, reports, occupancy, openStatus,
+                actionLog, audit, FIXED, 100.0);
 
         verified = user("Mari", true);
         unverified = user("Priit", false);
@@ -96,8 +105,12 @@ class ShelterReportServiceTest {
         assertThatThrownBy(() -> service.reportOccupancy(unverified, shelter.getId(),
                 OccupancyBand.FULL))
                 .isInstanceOf(NotVerifiedException.class);
+        assertThatThrownBy(() -> service.putOpenStatus(unverified, shelter.getId(),
+                OpenStatusState.OPEN))
+                .isInstanceOf(NotVerifiedException.class);
         assertThat(reports.findAll()).isEmpty();
         assertThat(occupancy.findAll()).isEmpty();
+        assertThat(openStatus.findAll()).isEmpty();
         // a rejected gate consumes no throttle budget
         assertThat(actionLog.actions()).isEmpty();
     }
@@ -108,6 +121,8 @@ class ShelterReportServiceTest {
                 ShelterReportType.NON_EXISTENT, null))
                 .isInstanceOf(ShelterNotFoundException.class);
         assertThatThrownBy(() -> service.reportOccupancy(verified, 999_999L, OccupancyBand.FULL))
+                .isInstanceOf(ShelterNotFoundException.class);
+        assertThatThrownBy(() -> service.putOpenStatus(verified, 999_999L, OpenStatusState.CLOSED))
                 .isInstanceOf(ShelterNotFoundException.class);
         assertThat(reports.findAll()).isEmpty();
     }
@@ -275,6 +290,102 @@ class ShelterReportServiceTest {
         service.reportOccupancy(user("Jaan", true), shelter.getId(), OccupancyBand.FULL);
 
         assertThat(occupancy.findAll()).hasSize(2);
+    }
+
+    // ---------- live open/closed state (same level as capacity) ----------
+
+    @Test
+    void openStatusUpsertsOneRowPerUserWithTheLatestState() {
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.CLOSED);
+
+        assertThat(openStatus.findAll()).hasSize(1);
+        ShelterOpenStatusReport stored = openStatus.findAll().get(0);
+        assertThat(stored.getState()).isEqualTo(OpenStatusState.CLOSED);
+        assertThat(stored.getCreatedAt()).isEqualTo(FIXED.instant());
+    }
+
+    @Test
+    void twoUsersKeepTwoOpenStatusRows() {
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
+        service.putOpenStatus(user("Jaan", true), shelter.getId(), OpenStatusState.CLOSED);
+
+        assertThat(openStatus.findAll()).hasSize(2);
+    }
+
+    @Test
+    void openStatusTapsAreNotThrottledAndConsumeNoBudget() {
+        actionLog.setMaxPerHour(3);
+        // three different actions exhaust the budget: report, occupancy, report
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        service.reportOccupancy(verified, shelter.getId(), OccupancyBand.FULL);
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.CLOSED, null);
+
+        // the throttled action is rejected...
+        assertThatThrownBy(() -> service.reportOccupancy(verified, shelter.getId(), OccupancyBand.SPACE))
+                .isInstanceOf(ReportThrottledException.class);
+        // ...while the open-status tap (a state, not a report action)
+        // keeps going and records nothing in the log
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.CLOSED);
+        assertThat(openStatus.findAll()).hasSize(1);
+        assertThat(actionLog.actions()).hasSize(3);
+    }
+
+    @Test
+    void anOpenTapFromAnotherUserAutoConfirmsANewRow() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.OPEN);
+
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).hasSize(1);
+        ModerationAuditLog.Row row = audit.rows().get(0);
+        assertThat(row.action()).isEqualTo(ModerationAuditLog.Action.AUTO_CONFIRM);
+        assertThat(row.shelterId()).isEqualTo(shelter.getId());
+        assertThat(row.moderatorId()).isEqualTo(verified.getId());
+        assertThat(row.previousStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(row.newStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(row.reason()).isNull();
+    }
+
+    @Test
+    void theSubmittersOwnOpenTapDoesNotConfirmAndAClosedTapNeverConfirms() {
+        RegisteredUser submitter = user("Submitter", true);
+        shelter.setCreatedBy(submitter.getId());
+        shelter.setReviewStatus(ReviewStatus.NEW);
+
+        service.putOpenStatus(submitter, shelter.getId(), OpenStatusState.OPEN);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+
+        service.putOpenStatus(verified, shelter.getId(), OpenStatusState.CLOSED);
+        assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void onlyNewUserRowsAreAutoConfirmedByOpenTaps() {
+        // a registry row: untouched, no audit
+        Shelter registry = new Shelter("Registri", new GeoPoint(58.9, 26.3),
+                ShelterStatus.ACTIVE, "ext-reg", ShelterSource.PAASETEAMET,
+                "Pikakaevu 3", "Harjumaa", "Tallinn linn", "01.01.2026", "SMIT");
+        shelters.save(registry);
+        service.putOpenStatus(verified, registry.getId(), OpenStatusState.OPEN);
+        assertThat(registry.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(audit.rows()).isEmpty();
+
+        // a REJECTED USER row: stays REJECTED, no audit
+        Shelter rejected = new Shelter("Keeldatud", new GeoPoint(59.4, 24.7),
+                ShelterStatus.INACTIVE, null, ShelterSource.USER);
+        rejected.setCreatedBy(user("S2", true).getId());
+        rejected.setReviewStatus(ReviewStatus.REJECTED);
+        shelters.save(rejected);
+        service.putOpenStatus(verified, rejected.getId(), OpenStatusState.OPEN);
+        assertThat(rejected.getReviewStatus()).isEqualTo(ReviewStatus.REJECTED);
+        assertThat(audit.rows()).isEmpty();
     }
 
     // ---------- auto-confirm (community-review-queue v2 D2) ----------
@@ -497,5 +608,52 @@ class ShelterReportServiceTest {
 
         assertThat(service.reportShelter(rival, shelter.getId(),
                 ShelterReportType.NON_EXISTENT, null)).isFalse();
+    }
+
+    // ---------- dismissed reports stop counting (admin-moderation) ----------
+
+    @Test
+    void aDismissedReportCountsNothingAndTheFifthUndismissedStillHides() {
+        // four baseline points: below the five-point tally
+        for (int i = 0; i < 4; i++) {
+            service.reportShelter(user("Voter" + i, true), shelter.getId(),
+                    ShelterReportType.NON_EXISTENT, null);
+        }
+        // the admin judged one of them invalid (the admin-moderation change
+        // owns the endpoint; here the domain stamp)
+        ShelterReport dismissed = reports.findByShelterId(shelter.getId()).get(0);
+        dismissed.markDismissed(FIXED.instant());
+        reports.save(dismissed);
+
+        // the fifth report: only four undismissed count → still ACTIVE
+        service.reportShelter(user("Voter5", true), shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.ACTIVE);
+
+        // the sixth report: five undismissed → hides
+        service.reportShelter(user("Voter6", true), shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null);
+        assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
+                .isEqualTo(ShelterStatus.INACTIVE);
+    }
+
+    @Test
+    void aDismissedReportExitsTheDisplayedCounts() {
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.NON_EXISTENT, null);
+        service.reportShelter(user("C1", true), shelter.getId(), ShelterReportType.CLOSED, null);
+        reports.findByShelterId(shelter.getId()).stream()
+                .filter(r -> r.getType() == ShelterReportType.NON_EXISTENT)
+                .findFirst().orElseThrow()
+                .markDismissed(FIXED.instant());
+
+        assertThat(reports.countByTypeForShelterIds(List.of(shelter.getId())).stream()
+                        .filter(c -> c.type() == ShelterReportType.NON_EXISTENT)
+                        .findAny()).isEmpty();
+        // the undismissed CLOSED report still counts
+        assertThat(reports.countByTypeForShelterIds(List.of(shelter.getId())).stream()
+                        .filter(c -> c.type() == ShelterReportType.CLOSED)
+                        .findFirst().orElseThrow().count())
+                .isEqualTo(1);
     }
 }

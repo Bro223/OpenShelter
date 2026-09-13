@@ -8,20 +8,16 @@ import {
   Validators,
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import type { MineShelterDto, MyReviewDto, UpdateShelterRequest } from '../../core/models';
-import { ReviewGateway } from '../../gateways/review-gateway';
+import type { MineShelterDto, UpdateShelterRequest } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
-import { AccountGateway } from '../../gateways/account-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
-  provenanceBadgeClass as provenanceBadgeClassShared,
-  provenanceText as provenanceTextShared,
-  ratingText as ratingTextShared,
+  sourceTrustLabel as sourceTrustLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
   INACCURATE_WARNING,
 } from '../../shared/shelter-copy';
-import { RatingStars } from '../../shared/rating-stars';
 
 /** Coordinate controls are required and within the geographic bounds (backend
  *  re-checks the same @DecimalMin/@DecimalMax). Estonia-ness is NOT checked
@@ -41,31 +37,27 @@ function coordinateValidator(min: number, max: number) {
 
 /**
  * "My contributions" panel on the /account page (user-contributions): the
- * caller's own shelters (list/edit/delete, inline) and reviews (list/edit/
- * delete, inline). One panel, two independent lists — each with its own
- * loading/empty/error state (the other list never blocks).
+ * caller's own shelters (list/edit/delete, inline). The reviews list is
+ * gone with the review model (owner decision).
  *
  * Edit = inline expanding form in the row (one open at a time, signals —
  * no modal). Delete = two-step confirm (the button arm + "Confirm delete?";
  * no window.confirm, consistent with the app's inline style).
  *
  * After a successful mutation the in-memory row is updated from the response
- * (no full refetch); a shelter delete also drops its review row locally
- * (mirrors the DB's ON DELETE CASCADE). Rejected mutations (400/403/404)
- * surface a row-level error via the standard banner copy mapping — the row
- * stays in its previous state.
+ * (no full refetch). Rejected mutations (400/403/404) surface a row-level
+ * error via the standard banner copy mapping — the row stays in its
+ * previous state.
  */
 @Component({
   selector: 'app-contributions-panel',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, RatingStars, LoadingIndicator],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, LoadingIndicator],
   templateUrl: './contributions-panel.html',
   styleUrl: './contributions-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ContributionsPanel implements OnInit {
   private readonly shelters = inject(ShelterGateway);
-  private readonly reviews = inject(ReviewGateway);
-  private readonly account = inject(AccountGateway);
 
   // ---- shelters list -------------------------------------------------------
   /** null = loading; [] = loaded and empty. The /mine projection carries the
@@ -74,20 +66,11 @@ export class ContributionsPanel implements OnInit {
   /** Load failure (non-null -> error state with Retry). */
   protected readonly shelterLoadError = signal<string | null>(null);
 
-  // ---- reviews list --------------------------------------------------------
-  protected readonly reviewRows = signal<MyReviewDto[] | null>(null);
-  protected readonly reviewLoadError = signal<string | null>(null);
-
-  // ---- inline edit state (one open at a time, across both lists) -----------
+  // ---- inline edit state (one open at a time) ------------------------------
   protected readonly editingShelterId = signal<number | null>(null);
-  protected readonly editingReviewShelterId = signal<number | null>(null);
-  /** The review edit's current rating (pre-filled from the row; public so
-   *  specs can drive it — page convention: forms public). */
-  readonly editRating = signal<number>(5);
 
   // ---- two-step delete state -----------------------------------------------
   protected readonly confirmingShelterDelete = signal<number | null>(null);
-  protected readonly confirmingReviewDelete = signal<number | null>(null);
 
   // ---- info request (M10 slice 3) ---------------------------------------------
   /** The row whose inline info-request panel is open (null = closed) —
@@ -102,23 +85,19 @@ export class ContributionsPanel implements OnInit {
 
   // ---- row-level mutation errors (backend rejected an edit/delete) ---------
   protected readonly shelterRowError = signal<{ id: number; message: string } | null>(null);
-  protected readonly reviewRowError = signal<{ shelterId: number; message: string } | null>(null);
 
   protected readonly busy = signal(false);
 
-  /** W24: the shared rating summary copy, exposed to the template. */
-  protected readonly ratingText = ratingTextShared;
   /** The single-sourced "reported inaccurate" warning (M10 slice 4):
    *  the note line on a moderator-marked own row — the row stays visible,
    *  the flag is the treatment. */
   protected readonly inaccurateWarning = INACCURATE_WARNING;
-  /** Provenance badge copy (shelter-provenance-taxonomy M6): the server-
-   *  derived taxonomy value — the hidden rows (REPORTED_INACTIVE /
-   *  REJECTED) say what happened to them on the owner's list. */
-  protected readonly provenanceText = provenanceTextShared;
-  /** The provenance badge tone: UNDER_REVIEW amber, REJECTED danger,
-   *  COMMUNITY_REPORTED green, REPORTED_INACTIVE grey. */
-  protected readonly provenanceBadgeClass = provenanceBadgeClassShared;
+  /** Source/trust badge copy (community-review-queue D5): the trust-state
+   *  label — the hidden rows (REJECTED) say what happened to them on the
+   *  owner's list. */
+  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  /** The trust badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
+  protected readonly communityBadgeClass = communityBadgeClassShared;
 
   /**
    * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
@@ -160,16 +139,8 @@ export class ContributionsPanel implements OnInit {
     validators: [coordinateValidator(-180, 180)],
   });
 
-  // ---- review edit form ------------------------------------------------------
-  readonly editComment = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.maxLength(500)],
-  });
-
   ngOnInit(): void {
-    // Both lists load in parallel; each owns its loading/empty/error state.
     this.loadShelters();
-    this.loadReviews();
   }
 
   // -------------------------------------------------------------------------
@@ -182,15 +153,6 @@ export class ContributionsPanel implements OnInit {
       .mine()
       .then((rows) => this.shelterRows.set(rows))
       .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
-  }
-
-  loadReviews(): void {
-    this.reviewRows.set(null);
-    this.reviewLoadError.set(null);
-    this.account
-      .myReviews()
-      .then((rows) => this.reviewRows.set(rows))
-      .catch((error: unknown) => this.reviewLoadError.set(bannerMessage(error, 'shelter')));
   }
 
   // -------------------------------------------------------------------------
@@ -208,8 +170,6 @@ export class ContributionsPanel implements OnInit {
     this.editCapacity.markAsUntouched();
     this.editLatitude.markAsUntouched();
     this.editLongitude.markAsUntouched();
-    // only one inline edit form at a time
-    this.editingReviewShelterId.set(null);
     this.editingShelterId.set(row.id);
   }
 
@@ -269,10 +229,6 @@ export class ContributionsPanel implements OnInit {
           r.id === id ? { ...updated, reviewNote: r.reviewNote, infoRequest: r.infoRequest } : r,
         ),
       );
-      // a renamed shelter keeps its review rows in sync (self-review case)
-      this.reviewRows.update((rows) =>
-        (rows ?? []).map((r) => (r.shelterId === id ? { ...r, shelterName: updated.name } : r)),
-      );
       this.editingShelterId.set(null);
       this.shelterRowError.update((e) => (e && e.id === id ? null : e));
     } catch (error: unknown) {
@@ -291,8 +247,8 @@ export class ContributionsPanel implements OnInit {
     this.confirmingShelterDelete.set(null);
   }
 
-  /** Step 2: DELETE /api/shelters/{id}; the row (and its cascaded review row)
-   *  are removed from the lists in place. */
+  /** Step 2: DELETE /api/shelters/{id}; the row is removed from the list in
+   *  place. */
   async confirmDeleteShelter(id: number): Promise<void> {
     if (this.busy()) {
       return;
@@ -301,8 +257,6 @@ export class ContributionsPanel implements OnInit {
     try {
       await this.shelters.remove(id);
       this.shelterRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
-      // the DB cascades the shelter's reviews — mirror that in memory
-      this.reviewRows.update((rows) => (rows ?? []).filter((r) => r.shelterId !== id));
       this.shelterRowError.update((e) => (e && e.id === id ? null : e));
     } catch (error: unknown) {
       this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
@@ -384,81 +338,6 @@ export class ContributionsPanel implements OnInit {
     } catch (error: unknown) {
       this.shelterRowError.set({ id: row.id, message: bannerMessage(error, 'shelter') });
     } finally {
-      this.busy.set(false);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Review rows: navigate (routerLink in the template), inline edit, delete
-  // -------------------------------------------------------------------------
-  startEditReview(row: MyReviewDto): void {
-    this.editRating.set(row.rating);
-    this.editComment.setValue(row.comment ?? '');
-    this.editComment.markAsUntouched();
-    this.editingShelterId.set(null);
-    this.editingReviewShelterId.set(row.shelterId);
-  }
-
-  cancelEditReview(): void {
-    this.editingReviewShelterId.set(null);
-  }
-
-  /** PUT /api/shelters/{shelterId}/reviews/mine (the per-shelter author-only
-   *  update endpoint). The response has no updatedAt (ShelterReviewDto), so
-   *  the row's timestamp is bumped locally to "now" — the DB updated_at moved
-   *  in the same request. */
-  async saveReviewEdit(): Promise<void> {
-    const shelterId = this.editingReviewShelterId();
-    if (this.busy() || shelterId === null) {
-      return;
-    }
-    if (this.editComment.invalid) {
-      this.editComment.markAsTouched();
-      return;
-    }
-    const comment = this.editComment.value.trim();
-    this.busy.set(true);
-    try {
-      const updated = await this.reviews.updateMine(shelterId, this.editRating(), comment || null);
-      const now = new Date().toISOString();
-      this.reviewRows.update((rows) =>
-        (rows ?? []).map((r) =>
-          r.shelterId === shelterId
-            ? { ...r, rating: updated.rating, comment: updated.comment, updatedAt: now }
-            : r,
-        ),
-      );
-      this.editingReviewShelterId.set(null);
-      this.reviewRowError.update((e) => (e && e.shelterId === shelterId ? null : e));
-    } catch (error: unknown) {
-      this.reviewRowError.set({ shelterId, message: bannerMessage(error, 'shelter') });
-    } finally {
-      this.busy.set(false);
-    }
-  }
-
-  requestDeleteReview(shelterId: number): void {
-    this.confirmingReviewDelete.set(shelterId);
-  }
-
-  cancelDeleteReview(): void {
-    this.confirmingReviewDelete.set(null);
-  }
-
-  /** Step 2: DELETE /api/shelters/{shelterId}/reviews/mine (204). */
-  async confirmDeleteReview(shelterId: number): Promise<void> {
-    if (this.busy()) {
-      return;
-    }
-    this.busy.set(true);
-    try {
-      await this.reviews.deleteMine(shelterId);
-      this.reviewRows.update((rows) => (rows ?? []).filter((r) => r.shelterId !== shelterId));
-      this.reviewRowError.update((e) => (e && e.shelterId === shelterId ? null : e));
-    } catch (error: unknown) {
-      this.reviewRowError.set({ shelterId, message: bannerMessage(error, 'shelter') });
-    } finally {
-      this.confirmingReviewDelete.set(null);
       this.busy.set(false);
     }
   }

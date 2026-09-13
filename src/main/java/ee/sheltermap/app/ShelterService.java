@@ -298,7 +298,7 @@ public class ShelterService {
     }
 
     /**
-     * Deletes a shelter row; its reviews cascade via the DB constraint.
+     * Deletes a shelter row; its reports and occupancy cascade via the DB constraints.
      *
      * <p>Edit history (M10 slice 2, D4): a DELETED row is appended BEFORE
      * the delete in the same transaction (the moderation-audit convention

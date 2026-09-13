@@ -38,7 +38,7 @@
             <dt>Name</dt>
             <dd>
               {{ auth.name() }}
-              <!-- Provenance-style badge (admin-moderation D5): the admin kind
+              <!-- Kind badge (admin-moderation D5): the admin kind
                    is the truth server-side; the store's isAdmin comes from
                    the fetched profile (always present, false for regulars). -->
               @if (auth.isAdmin()) {
@@ -338,9 +338,7 @@
     <!-- ============================== My contributions ============================== -->
     <section class="change-panel">
       <h2 class="panel-title">My contributions</h2>
-      <p class="panel-copy">
-        The shelters you submitted and the reviews you wrote — edit or remove them here.
-      </p>
+      <p class="panel-copy">The shelters you submitted — edit or remove them here.</p>
       <app-contributions-panel />
     </section>
 
@@ -349,7 +347,7 @@
       <h2 class="panel-title">Your data</h2>
       <p class="panel-copy">
         Download a JSON file with everything tied to your account — your profile (name, email,
-        phone), the shelters you submitted and the reviews you wrote.
+        phone) and the shelters you submitted.
       </p>
       <button
         type="button"
@@ -367,8 +365,8 @@
       <h2 class="panel-title">Delete account</h2>
       <p class="panel-copy">
         Erases your account and everything tied to it. Shelters you declared as a private home are
-        removed; public shelters you submitted stay on the map without a submitter; your reviews are
-        removed. This cannot be undone.
+        removed; public shelters you submitted stay on the map without a submitter. This cannot be
+        undone.
       </p>
       <div class="field">
         <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>

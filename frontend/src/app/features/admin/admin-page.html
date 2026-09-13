@@ -45,16 +45,6 @@
       type="button"
       role="tab"
       class="btn btn--ghost admin-tab"
-      [class.admin-tab--active]="tab() === 'reviews'"
-      [attr.aria-selected]="tab() === 'reviews' ? 'true' : 'false'"
-      (click)="switchTab('reviews')"
-    >
-      Review reports
-    </button>
-    <button
-      type="button"
-      role="tab"
-      class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'alerts'"
       [attr.aria-selected]="tab() === 'alerts' ? 'true' : 'false'"
       (click)="switchTab('alerts')"
@@ -100,7 +90,6 @@
               <th scope="col">Name</th>
               <th scope="col">Address</th>
               <th scope="col">Submitter</th>
-              <th scope="col">Created</th>
               <th scope="col" class="admin-table__actions-head">Actions</th>
             </tr>
           </thead>
@@ -129,7 +118,6 @@
                     <span class="admin-muted">—</span>
                   }
                 </td>
-                <td>{{ row.createdAt | date: 'medium' }}</td>
                 <td class="admin-cell--actions admin-cell--actions-review">
                   <button
                     type="button"
@@ -221,8 +209,6 @@
               <th scope="col">Name</th>
               <th scope="col">Source</th>
               <th scope="col">Status</th>
-              <th scope="col">Rating</th>
-              <th scope="col">Reviews</th>
               <th scope="col">Reports</th>
               <th scope="col">Occupancy</th>
               <th scope="col">Submitter</th>
@@ -245,11 +231,11 @@
                   }
                 </td>
                 <td>
-                  <!-- Provenance + trust state (community-review-queue; M7
-                       wording): the public wording — USER rows say "Proposed"
-                       / "Community-reported" / "Rejected". -->
-                  <span class="badge" [ngClass]="provenanceBadgeClass(row.provenance)">
-                    {{ provenanceText(row.provenance) }}
+                  <!-- Source/trust state (community-review-queue D5):
+                       registry rows say which registry; USER rows say
+                       "Newly added" / "Community-checked" / "Rejected". -->
+                  <span class="badge" [ngClass]="communityBadgeClass(row)">
+                    {{ sourceTrustLabel(row) }}
                   </span>
                   @if (row.inaccurate) {
                     <span class="badge badge--inaccurate">{{ inaccurateBadge }}</span>
@@ -269,18 +255,7 @@
                   } @else {
                     <span class="admin-muted">Active</span>
                   }
-                  @if (flagText(row.statusFlag); as flag) {
-                    <span
-                      class="badge"
-                      [class.badge--closed]="row.statusFlag === 'REPORTED_CLOSED'"
-                      [class.badge--open]="row.statusFlag === 'CONFIRMED_OPEN'"
-                    >
-                      {{ flag }}
-                    </span>
-                  }
                 </td>
-                <td>{{ ratingText(row.rating, row.reviewCount) }}</td>
-                <td>{{ row.reviewCount }}</td>
                 <td>{{ row.nonexistentReports }}</td>
                 <td>
                   @if (occupancyText(row.occupancy); as occ) {
@@ -593,69 +568,6 @@
                   [disabled]="busy()"
                 >
                   {{ busy() ? 'Working…' : 'Dismiss' }}
-                </button>
-              }
-            </div>
-          </li>
-        }
-      </ul>
-    }
-  }
-
-  <!-- =========================== Review reports ========================== -->
-  @if (tab() === 'reviews') {
-    @if (reviewRows() === null && reviewLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading review reports…" />
-    } @else if (reviewLoadError(); as loadErr) {
-      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadReviews()">Retry</button>
-    } @else if ((reviewRows() ?? []).length === 0) {
-      <p class="admin-state">No review reports.</p>
-    } @else {
-      <ul class="admin-queue">
-        @for (row of reviewRows() ?? []; track row.id) {
-          <li class="admin-queue-row">
-            <div class="admin-queue-row__info">
-              <span class="admin-queue-row__title">
-                <a [routerLink]="['/shelters', row.shelterId]">{{ row.shelterName }}</a>
-                @if (row.reviewHidden) {
-                  <span class="badge badge--hidden">Hidden</span>
-                }
-              </span>
-              <!-- The review excerpt: rating + comment (the admin decides
-                   from what the reviewer actually wrote). -->
-              <span class="admin-queue-row__review">
-                <app-rating-stars [rating]="row.reviewRating" />
-                @if (row.reviewComment) {
-                  <span class="admin-queue-row__detail">“{{ row.reviewComment }}”</span>
-                }
-              </span>
-              <span class="admin-queue-row__meta">
-                {{ reasonLabel(row.reason) }} · {{ reporterText(row) }} ·
-                {{ ageText(row.createdAt) }}
-              </span>
-              @if (row.detail) {
-                <span class="admin-queue-row__detail">“{{ row.detail }}”</span>
-              }
-            </div>
-            <div class="admin-queue-row__actions">
-              @if (row.reviewHidden) {
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  (click)="restoreReview(row)"
-                  [disabled]="busy()"
-                >
-                  {{ busy() ? 'Working…' : 'Restore' }}
-                </button>
-              } @else {
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  (click)="hideReview(row)"
-                  [disabled]="busy()"
-                >
-                  {{ busy() ? 'Working…' : 'Hide' }}
                 </button>
               }
             </div>
