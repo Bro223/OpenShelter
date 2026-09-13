@@ -194,15 +194,28 @@ app:
     # <= 0 disables recording.
     alerts-retained: 200
   registry:
-    # Päästeamet shelter data, served as a Maa-amet WFS layer (VARJEKOHT).
-    # Override with REGISTRY_BASE_URL if the service endpoint moves.
-    base-url: ${REGISTRY_BASE_URL:https://xgis.maaamet.ee/xgis2/service/1pdl2oh}
+    # Päästeamet shelter data. The old Maa-amet WFS layer (1pdl2oh) no
+    # longer publishes a service — every WFS request 404s (Maa-amet lists
+    # the layer as "Ei ole saadaval"), so the official source is the
+    # Rescue Board open-data CSV (roadmap M5, official-dataset-csv):
+    # semicolon CSV, header id;nimi;aadress;lest_x;lest_y, EPSG:3301.
+    # Override with REGISTRY_BASE_URL if the file moves (default when unset:
+    # https://opendata.smit.ee/gis/varjumiskohad.csv — also the fallback in
+    # RegistryProperties).
+    base-url: ${REGISTRY_BASE_URL:}
     page-size: 100
     max-retries: 3
     politeness-delay: 250ms
-    # Which client impl to use: 'paasteamet' (real HTTP) or
+    # Which client impl to use: 'csv' (official open-data bulk CSV —
+    # default), 'paasteamet' (legacy WFS client, kept as an alternate) or
     # 'dev' (local fixture)
-    client: ${REGISTRY_CLIENT:paasteamet}
+    client: ${REGISTRY_CLIENT:csv}
+    # The publisher's open-data page — surfaced on the UI provenance line
+    # (GET /api/data-source). Licence wording stays unasserted until the
+    # publisher's explainer PDF is readable (marked TODO in design.md).
+    # Default when unset: the rescue.ee open-data page (see
+    # RegistryProperties for the URL).
+    official-url: ${REGISTRY_OFFICIAL_URL:}
     # Set to true to run one import on startup (manual trigger, Step 5)
     run-on-startup: false
     # Weekly automatic sync (product decision). Chosen solution: Spring's

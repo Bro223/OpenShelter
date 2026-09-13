@@ -114,7 +114,23 @@
   .shell-footer__legal {
     max-width: var(--content-max-width);
     margin: 0 auto;
-    padding: var(--space-6) var(--space-20) var(--space-16);
+    padding: var(--space-6) var(--space-20);
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-primary);
+    }
+
+    span {
+      margin: 0 var(--space-6);
+    }
+  }
+
+  .shell-footer__data {
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+    padding: 0 var(--space-20) var(--space-16);
     font-size: var(--text-sm);
     color: var(--color-muted);
 

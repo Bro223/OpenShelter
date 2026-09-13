@@ -27,7 +27,8 @@ class PaasteametRegistryClientTest {
     private static final String BASE = "http://registry.test";
 
     private static final RegistryProperties PROPS = new RegistryProperties(
-            BASE, 2, 1, Duration.ZERO, "paasteamet", true, "0 0 3 * * MON", "Europe/Tallinn");
+            BASE, 2, 1, Duration.ZERO, "paasteamet",
+            "https://official.test/avaandmed", true, "0 0 3 * * MON", "Europe/Tallinn");
 
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

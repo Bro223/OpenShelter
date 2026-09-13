@@ -1,5 +1,6 @@
 package ee.sheltermap.ingestion;
 
+import ee.sheltermap.app.DataImportLog;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -52,34 +53,59 @@ public class ShelterImportService {
     private final ShelterRepository shelters;
     private final Clock clock;
     private final TransactionTemplate txTemplate;
+    /** Audit sink for every run (data_imports, M5) — null in plain unit tests. */
+    private final DataImportLog importLog;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     /** Test constructor — no transaction manager (in-memory repos are not transactional). */
     public ShelterImportService(ShelterRegistryClient client, ShelterParser parser,
                                 ShelterRepository shelters, Clock clock) {
-        this(client, parser, shelters, clock, null);
+        this(client, parser, shelters, clock, null, null);
+    }
+
+    /** Test constructor — transaction manager, no audit log. */
+    public ShelterImportService(ShelterRegistryClient client, ShelterParser parser,
+                                ShelterRepository shelters, Clock clock,
+                                PlatformTransactionManager txManager) {
+        this(client, parser, shelters, clock, txManager, null);
     }
 
     @Autowired
     public ShelterImportService(ShelterRegistryClient client, ShelterParser parser,
                                 ShelterRepository shelters, Clock clock,
-                                PlatformTransactionManager txManager) {
+                                PlatformTransactionManager txManager,
+                                DataImportLog importLog) {
         this.client = Objects.requireNonNull(client, "client");
         this.parser = Objects.requireNonNull(parser, "parser");
         this.shelters = Objects.requireNonNull(shelters, "shelters");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.txTemplate = txManager == null ? null : new TransactionTemplate(txManager);
+        this.importLog = importLog; // nullable — unit fakes may omit it
     }
 
     public ImportResult importFromRegistry() {
         if (!running.compareAndSet(false, true)) {
             log.warn("Registry import already running — skipping overlapping run");
-            return ImportResult.skipped(clock.instant());
+            ImportResult result = ImportResult.skipped(clock.instant());
+            recordAudit(result, "SKIPPED", null);
+            return result;
         }
         try {
             Instant at = clock.instant();
             try {
-                List<RegistryShelterDto> dtos = client.fetchAll();
+                RegistryFetch fetched = client.fetch();
+                if (fetched.notModified()) {
+                    // 304: the local copy already is the latest — apply
+                    // nothing (a delist over an empty set would wipe the
+                    // source) and do not count it as a failure.
+                    ImportResult result = new ImportResult(0, 0, 0, 0, 0, at, false,
+                            fetched.dataVersion());
+                    recordAudit(result, "NOT_MODIFIED", null);
+                    log.info("Registry import: upstream unchanged ({}), nothing to apply",
+                            fetched.dataVersion());
+                    return result;
+                }
+                List<RegistryShelterDto> dtos = fetched.rows();
                 // B7e: per-row length pre-check BEFORE the single apply
                 // transaction. An oversized value would abort the whole
                 // single-transaction import at the DB; the documented
@@ -100,13 +126,17 @@ public class ShelterImportService {
                                     + "sourceAttribution<=255) — counted as skipped",
                             oversize);
                 }
-                ImportResult result = applyImport(dtos, fitting, oversize, at);
+                ImportResult result = applyImport(dtos, fitting, oversize, at,
+                        fetched.dataVersion());
                 log.info("Registry import finished: created={} updated={} removed={} skipped={} failed={}",
                         result.created(), result.updated(), result.removed(), result.skipped(), result.failed());
+                recordAudit(result, "OK", null);
                 return result;
             } catch (RegistryUnavailableException e) {
                 log.error("Registry import failed: {}", e.getMessage());
-                return ImportResult.failure(at);
+                ImportResult result = ImportResult.failure(at);
+                recordAudit(result, "FAILED", e.getMessage());
+                return result;
             }
         } finally {
             running.set(false);
@@ -116,16 +146,16 @@ public class ShelterImportService {
     /** Transactional apply phase — fetch already happened outside the tx. */
     private ImportResult applyImport(List<RegistryShelterDto> fetched,
                                      List<RegistryShelterDto> fitting,
-                                     int oversize, Instant at) {
+                                     int oversize, Instant at, String dataVersion) {
         if (txTemplate == null) {
-            return doImport(fetched, fitting, oversize, at);
+            return doImport(fetched, fitting, oversize, at, dataVersion);
         }
-        return txTemplate.execute(status -> doImport(fetched, fitting, oversize, at));
+        return txTemplate.execute(status -> doImport(fetched, fitting, oversize, at, dataVersion));
     }
 
     private ImportResult doImport(List<RegistryShelterDto> fetched,
                                   List<RegistryShelterDto> fitting,
-                                  int oversize, Instant at) {
+                                  int oversize, Instant at, String dataVersion) {
         List<Shelter> parsed = parser.parse(fitting);
         int skipped = oversize + (fitting.size() - parsed.size());
 
@@ -167,7 +197,27 @@ public class ShelterImportService {
         } else {
             removed = shelters.deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds);
         }
-        return new ImportResult(created, updated, removed, skipped, 0, at, false);
+        return new ImportResult(created, updated, removed, skipped, 0, at, false, dataVersion);
+    }
+
+    /**
+     * Appends one data_imports audit row for the run (M5). A failing audit
+     * write must never break the import itself — the run's outcome is
+     * already settled, the audit is best-effort observability.
+     */
+    private void recordAudit(ImportResult result, String status, String errorMessage) {
+        if (importLog == null) {
+            return;
+        }
+        try {
+            importLog.record(new DataImportLog.Row(
+                    client.source().name(), result.sourceVersion(), result.at(),
+                    result.created(), result.updated(), result.removed(),
+                    status, errorMessage));
+        } catch (RuntimeException e) {
+            log.error("Failed to record the data_imports audit row (status {}): {}",
+                    status, e.toString());
+        }
     }
 
     /**

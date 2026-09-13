@@ -604,3 +604,23 @@ export interface DataExportResponse {
   shelters: DataExportShelter[];
   reviews: DataExportReview[];
 }
+
+/** One data_imports audit row — the newest (GET /api/data-source, M5). */
+export interface DataSourceLastImport {
+  /** ISO-8601 instant. */
+  at: string;
+  /** OK | FAILED | NOT_MODIFIED | SKIPPED */
+  status: string;
+  /** Upstream version stamp (HTTP Last-Modified / ETag), when published. */
+  sourceVersion: string | null;
+  recordsAdded: number;
+  recordsUpdated: number;
+  recordsRemoved: number;
+}
+
+/** GET /api/data-source — where the map's official data comes from (M5). */
+export interface DataSourceDto {
+  sourceName: string;
+  officialUrl: string;
+  lastImport: DataSourceLastImport | null;
+}

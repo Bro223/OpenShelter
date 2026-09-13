@@ -3,7 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
-import type { TokenResponse } from '../core/models';
+import { DataSourceGateway } from '../gateways/data-source-gateway';
+import type { DataSourceDto, TokenResponse } from '../core/models';
 import { AuthStore } from '../session/auth-store';
 import { PageShell } from './page-shell';
 
@@ -28,12 +29,18 @@ class FakeAccountGateway {
   confirmPhoneChange = vi.fn();
 }
 
+/** Hand-written fake — the provenance line is non-critical, hidden by default. */
+class FakeDataSourceGateway {
+  fetch = vi.fn();
+}
+
 @Component({ template: '<p>map stub</p>' })
 class MapStub {}
 
 describe('PageShell', () => {
   let gateway: FakeAuthGateway;
   let account: FakeAccountGateway;
+  let dataSource: FakeDataSourceGateway;
   let store: AuthStore;
   let router: Router;
   let fixture: ReturnType<typeof TestBed.createComponent<PageShell>>;
@@ -42,6 +49,8 @@ describe('PageShell', () => {
     localStorage.clear();
     gateway = new FakeAuthGateway();
     account = new FakeAccountGateway();
+    dataSource = new FakeDataSourceGateway();
+    dataSource.fetch.mockResolvedValue(null);
     account.me.mockResolvedValue({
       name: 'Test User',
       email: 'user@example.ee',
@@ -61,6 +70,7 @@ describe('PageShell', () => {
         ]),
         { provide: AuthGateway, useValue: gateway as unknown as AuthGateway },
         { provide: AccountGateway, useValue: account as unknown as AccountGateway },
+        { provide: DataSourceGateway, useValue: dataSource as unknown as DataSourceGateway },
       ],
     });
     store = TestBed.inject(AuthStore);
@@ -378,6 +388,46 @@ describe('PageShell', () => {
 
       expect(hostRemove).toHaveBeenCalledWith('keydown', expect.anything());
       expect(routerUnsubscribe).toHaveBeenCalled();
+    });
+  });
+
+  describe('data provenance line (official-dataset-csv M5)', () => {
+    const DS: DataSourceDto = {
+      sourceName: 'Päästeamet',
+      officialUrl: 'https://www.rescue.ee/et/juhend/avaandmed/avalikud-varjumiskohad',
+      lastImport: {
+        at: '2026-09-13T06:30:00Z',
+        status: 'OK',
+        sourceVersion: 'Sun, 06 Sep 2026 21:02:21 GMT',
+        recordsAdded: 0,
+        recordsUpdated: 303,
+        recordsRemoved: 0,
+      },
+    };
+
+    it('shows publisher, last import and the official link once provenance resolves', async () => {
+      // re-mock BEFORE the shell is created — the fetch fires in the constructor
+      dataSource.fetch.mockResolvedValue(DS);
+      const f = TestBed.createComponent(PageShell);
+      f.detectChanges();
+      await f.whenStable();
+      f.detectChanges();
+
+      const element = f.nativeElement as HTMLElement;
+      const t = element.textContent ?? '';
+      expect(t).toContain('Shelter data: Päästeamet');
+      expect(t).toContain('last import');
+      const link = element.querySelector('a[href="' + DS.officialUrl + '"]');
+      expect(link).not.toBeNull();
+      expect(link?.textContent?.trim()).toBe('official open data');
+    });
+
+    it('hides the line while loading and when the fetch failed', async () => {
+      // the default fake resolves null — the line must stay hidden
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(text()).not.toContain('Shelter data:');
     });
   });
 });

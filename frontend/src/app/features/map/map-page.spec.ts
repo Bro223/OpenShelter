@@ -6,6 +6,7 @@ import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import type { ShelterDto, ShelterSourceFilter, VerificationLevel } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { AuthStore } from '../../session/auth-store';
 import { PageShell } from '../../shared/page-shell';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
@@ -241,6 +242,7 @@ describe('MapPage', () => {
           { path: 'shelters/:id', component: ShelterDetailStub },
         ]),
         { provide: ShelterGateway, useValue: gateway as unknown as ShelterGateway },
+        { provide: DataSourceGateway, useValue: { fetch: () => Promise.resolve(null) } },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
         { provide: AuthStore, useValue: store },
       ],

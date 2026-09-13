@@ -86,4 +86,17 @@
     <span aria-hidden="true">&middot;</span>
     <a routerLink="/terms">Terms of use</a>
   </nav>
+  <!-- official-dataset-csv (roadmap M5): data provenance — who publishes
+       the official shelter data, the official open-data page, and when the
+       last import ran. Non-critical: hidden while loading or on API error. -->
+  @if (dataSource(); as ds) {
+    <p class="shell-footer__data">
+      Shelter data: {{ ds.sourceName }}
+      @if (ds.lastImport; as last) {
+        <span aria-hidden="true">&middot;</span> last import {{ last.at | date: 'short' }}
+      }
+      <span aria-hidden="true">&middot;</span>
+      <a [href]="ds.officialUrl" target="_blank" rel="noopener">official open data</a>
+    </p>
+  }
 </footer>

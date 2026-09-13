@@ -26,4 +26,15 @@ public interface ShelterRegistryClient {
      * @throws RegistryUnavailableException when the registry cannot be reached
      */
     List<RegistryShelterDto> fetchAll();
+
+    /**
+     * Fetch like {@link #fetchAll()}, plus the upstream data version when
+     * the source publishes one (HTTP Last-Modified / ETag) and a 304
+     * "not modified" marker (official-dataset-csv M5). The default wraps
+     * {@code fetchAll()} unchanged, so version-less sources (WFS, dev
+     * fixture) need no override.
+     */
+    default RegistryFetch fetch() {
+        return RegistryFetch.of(fetchAll());
+    }
 }

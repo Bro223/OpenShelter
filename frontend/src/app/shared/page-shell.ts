@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -8,6 +9,8 @@ import {
 } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { ThemeStore } from '../core/theme-store';
+import { type DataSourceDto } from '../core/models';
+import { DataSourceGateway } from '../gateways/data-source-gateway';
 import { AuthStore } from '../session/auth-store';
 
 /**
@@ -23,7 +26,7 @@ import { AuthStore } from '../session/auth-store';
  */
 @Component({
   selector: 'app-page-shell',
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, DatePipe],
   templateUrl: './page-shell.html',
   styleUrl: './page-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,6 +41,21 @@ export class PageShell implements OnDestroy {
       burger is hidden at desktop widths). */
   readonly menuOpen = signal(false);
 
+  /** Data provenance for the footer line (official-dataset-csv M5):
+      publisher + official link + last import. Stays null while loading or
+      when the API fails — the line is non-critical and hides itself. */
+  readonly dataSource = signal<DataSourceDto | null>(null);
+
+  constructor() {
+    // Escape closes the menu: host-level keydown listener (fires wherever
+    // in the page focus is), removed in ngOnDestroy.
+    this.host.nativeElement.addEventListener('keydown', this.onKeydown);
+    // One fire-and-forget fetch per app boot (the shell is never destroyed).
+    inject(DataSourceGateway)
+      .fetch()
+      .then((ds) => this.dataSource.set(ds));
+  }
+
   /** Any completed navigation closes the open menu (bound to
       NavigationEnd — close on any). Unsubscribed in ngOnDestroy. */
   private readonly routerClose = this.router.events.subscribe((event) => {
@@ -48,12 +66,6 @@ export class PageShell implements OnDestroy {
 
   protected readonly auth = this.store;
   protected readonly theme = this.themeStore;
-
-  constructor() {
-    // Escape closes the menu: host-level keydown listener (fires wherever
-    // in the page focus is), removed in ngOnDestroy.
-    this.host.nativeElement.addEventListener('keydown', this.onKeydown);
-  }
 
   ngOnDestroy(): void {
     this.host.nativeElement.removeEventListener('keydown', this.onKeydown);

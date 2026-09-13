@@ -204,6 +204,9 @@ public class SecurityConfig {
                 // so it is NOT part of the public shelter GETs below.
                 .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
+                // Public provenance read (official-dataset-csv M5): the app-wide
+                // footer shows source + official link + last import to everyone.
+                .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(headersFilter, UsernamePasswordAuthenticationFilter.class)

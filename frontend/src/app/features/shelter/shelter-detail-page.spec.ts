@@ -12,6 +12,7 @@ import type {
 } from '../../core/models';
 import { ReviewGateway } from '../../gateways/review-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { ShelterDetailPage } from './shelter-detail-page';
@@ -234,6 +235,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
           { path: 'shelters/:id', component: ShelterDetailPage },
         ]),
         { provide: ShelterGateway, useValue: shelterGateway as unknown as ShelterGateway },
+        { provide: DataSourceGateway, useValue: { fetch: () => Promise.resolve(null) } },
         { provide: ReviewGateway, useValue: reviewGateway as unknown as ReviewGateway },
         { provide: AuthStore, useValue: store },
         { provide: LeafletService, useValue: leaflet as unknown as LeafletService },
