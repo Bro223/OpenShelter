@@ -6,13 +6,18 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterReview;
+import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.domain.UserData;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * The account surface behind {@code GET /account/me} +
@@ -92,10 +97,7 @@ public class AccountService {
         if (reviews.isEmpty()) {
             return List.of();
         }
-        Map<Long, String> shelterNames = shelterRepository
-                .findByIds(reviews.stream().map(ShelterReview::getShelterId).collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(Shelter::getId, Shelter::getName));
+        Map<Long, String> shelterNames = shelterNames(reviews);
         return reviews.stream()
                 .map(review -> new MyReviewDto(
                         review.getShelterId(),
@@ -105,5 +107,56 @@ public class AccountService {
                         review.getCreatedAt(),
                         review.getUpdatedAt()))
                 .toList();
+    }
+
+    /**
+     * GET /account/export (legal-recovery M4, slice 1): the caller's own
+     * data in one document — profile (name/e-mail/phone decrypted at the
+     * persistence boundary + verified levels), EVERY author-scoped shelter
+     * row (all statuses — the export mirrors what the account submitted,
+     * including auto-hidden ones) and every review (shelter names
+     * batch-resolved as in {@link #myReviews}). A pure read: nothing is
+     * updated, nothing is logged.
+     */
+    @Transactional(readOnly = true)
+    public DataExportResponse dataExport(RegisteredUser user) {
+        UserData data = user.getData();
+        DataExportResponse.ExportedProfile profile = new DataExportResponse.ExportedProfile(
+                data.name(), data.email(), data.phone(),
+                Stream.of(VerificationLevel.values()).filter(data.levels()::contains).toList());
+
+        List<DataExportResponse.ExportedShelter> shelters =
+                shelterRepository.findByCreatedBy(user.getId()).stream()
+                        .map(s -> new DataExportResponse.ExportedShelter(
+                                s.getId(), s.getName(), s.getAddress(),
+                                s.getLocation() == null ? null : s.getLocation().lat(),
+                                s.getLocation() == null ? null : s.getLocation().lng(),
+                                s.getSource().name(), s.getStatus().name(),
+                                s.getReviewStatus().name(), s.getLocationKind().name(),
+                                s.getDescription(), s.getCapacity(), s.getCreatedAt()))
+                        .toList();
+
+        List<ShelterReview> reviews = reviewRepository.findByUserId(user.getId());
+        Map<Long, String> reviewShelterNames = shelterNames(reviews);
+        List<DataExportResponse.ExportedReview> exportedReviews = reviews.isEmpty() ? List.of()
+                : reviews.stream()
+                        .map(review -> new DataExportResponse.ExportedReview(
+                                review.getShelterId(),
+                                reviewShelterNames.getOrDefault(review.getShelterId(), "Unknown"),
+                                review.getRating(), review.getComment(),
+                                review.getCreatedAt(), review.getUpdatedAt()))
+                        .toList();
+
+        return new DataExportResponse(profile, shelters, exportedReviews);
+    }
+
+    /** One batched read of shelter names by id (no N+1; empty map if none). */
+    private Map<Long, String> shelterNames(Collection<ShelterReview> reviews) {
+        Set<Long> ids = reviews.stream().map(ShelterReview::getShelterId).collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return shelterRepository.findByIds(ids).stream()
+                .collect(Collectors.toMap(Shelter::getId, Shelter::getName));
     }
 }

@@ -349,4 +349,40 @@ export class AccountPage implements OnDestroy {
       countdown.start(api.retryAfterSeconds ?? 60);
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Your data (M4 legal/recovery, slice 1): export download.
+  // -------------------------------------------------------------------------
+
+  /**
+   * "Download my data" — fetch GET /account/export and hand the browser a
+   * JSON file. The client-side Blob is the download mechanism; the server
+   * is a plain read and never streams a file. Reuses the shared busy flag
+   * (the fetch is the only account-page action in flight).
+   */
+  async downloadData(): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.error.set(null);
+    this.success.set(null);
+    this.busy.set(true);
+    try {
+      const data = await this.account.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `openshelter-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      this.success.set('Your data export has been downloaded.');
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'account'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
 }

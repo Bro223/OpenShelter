@@ -479,10 +479,7 @@ export interface AdminAuditRow {
  * The M3 throttle/abuse alert kinds (GET /admin/alerts, abuse-limits slice
  * 4) — the closed backend vocabulary.
  */
-export type AdminAlertKind =
-  | 'submission-daily-cap'
-  | 'otp-contact-cap'
-  | 'near-duplicate';
+export type AdminAlertKind = 'submission-daily-cap' | 'otp-contact-cap' | 'near-duplicate';
 
 /**
  * One row of GET /admin/alerts (the M3 admin alerts, newest first).
@@ -561,4 +558,49 @@ export interface MyReviewDto {
   createdAt: string;
   /** ISO-8601 instant. */
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// M4 legal/recovery — data export (GET /account/export)
+// ---------------------------------------------------------------------------
+
+/** One author-scoped shelter row in the M4 data export (all statuses). */
+export interface DataExportShelter {
+  id: number;
+  name: string;
+  /** null for USER submissions — a registry-only field. */
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source: string;
+  status: string;
+  reviewStatus: string;
+  locationKind: string;
+  description: string | null;
+  capacity: number | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
+
+/** One review in the M4 data export (shelter name resolved server-side). */
+export interface DataExportReview {
+  shelterId: number;
+  shelterName: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** GET /account/export — the caller's own data in one document (M4 slice 1). */
+export interface DataExportResponse {
+  profile: {
+    name: string;
+    email: string;
+    /** null for the provisioned admin (no phone route). */
+    phone: string | null;
+    levels: VerificationLevel[];
+  };
+  shelters: DataExportShelter[];
+  reviews: DataExportReview[];
 }

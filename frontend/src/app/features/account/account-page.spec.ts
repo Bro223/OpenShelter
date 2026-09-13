@@ -74,8 +74,15 @@ class FakeAccountGateway {
   confirmPhoneChange = vi.fn();
   /** The embedded contributions panel loads on init — default to empty. */
   myReviews = vi.fn();
+  /** M4 slice 1 — the export document; default to an empty document. */
+  exportData = vi.fn();
   constructor() {
     this.myReviews.mockResolvedValue([]);
+    this.exportData.mockResolvedValue({
+      profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+      shelters: [],
+      reviews: [],
+    });
   }
 }
 
@@ -856,6 +863,58 @@ describe('AccountPage', () => {
 
       expect(buttonByText(element, 'Send in 45s')?.disabled).toBe(true);
       expect(buttonByText(element, 'Send SMS code to my phone')?.disabled).toBe(false);
+    });
+  });
+
+  // ---- your data: export download (M4 legal/recovery, slice 1) -----------------
+
+  describe('your data (export)', () => {
+    it('the export button fetches /account/export and downloads a JSON file', async () => {
+      const doc = {
+        profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+        shelters: [],
+        reviews: [],
+      };
+      account.exportData.mockResolvedValue(doc);
+      const createObjectURL = vi.fn(() => 'blob:fake');
+      const revokeObjectURL = vi.fn();
+      Object.defineProperty(URL, 'createObjectURL', { value: createObjectURL, configurable: true });
+      Object.defineProperty(URL, 'revokeObjectURL', { value: revokeObjectURL, configurable: true });
+      const clickedRef: { el: HTMLAnchorElement | null } = { el: null };
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+        clickedRef.el = this;
+      });
+
+      const { page, element, fixture } = await open();
+      const button = element.querySelector<HTMLButtonElement>('#download-data');
+      expect(button).not.toBeNull();
+
+      await page.downloadData();
+      fixture.detectChanges();
+
+      expect(account.exportData).toHaveBeenCalledTimes(1);
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(clickedRef.el).not.toBeNull();
+      expect(clickedRef.el?.download).toMatch(/^openshelter-data-export-\d{4}-\d{2}-\d{2}\.json$/);
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(text(fixture)).toContain('Your data export has been downloaded.');
+      click.mockRestore();
+    });
+
+    it('a failed export shows the banner and downloads nothing', async () => {
+      account.exportData.mockRejectedValue(apiError(500, 'boom', '/account/export'));
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+      const { page, fixture } = await open();
+
+      await page.downloadData();
+      fixture.detectChanges();
+
+      expect(account.exportData).toHaveBeenCalledTimes(1);
+      expect(click).not.toHaveBeenCalled();
+      expect(text(fixture)).toContain('Something went wrong. Please try again.');
+      click.mockRestore();
     });
   });
 });

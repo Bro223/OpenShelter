@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
  *   <li>{@code GET /account/reviews/mine} — the user's reviews across ALL
  *       shelters with shelter id + name (user-contributions; a cross-shelter
  *       list has no per-shelter parent, so it sits on this group)</li>
+ *   <li>{@code GET /account/export} — the caller's own data (profile +
+ *       shelters + reviews) as one JSON document (legal-recovery M4)</li>
  * </ul>
  *
  * <p>All endpoints require a Bearer JWT (default security rule). The user is
@@ -144,6 +146,18 @@ public class AccountController {
     @GetMapping("/reviews/mine")
     public List<MyReviewDto> myReviews() {
         return accountService.myReviews(currentUser());
+    }
+
+    /**
+     * GET /account/export (legal-recovery M4, slice 1) — the caller's own
+     * data (profile + every author-scoped shelter row + every review) as
+     * one JSON document. Same auth rule as {@code /me} (valid JWT, user
+     * from the token) and, like {@code /me}, no rate bucket (cheap read).
+     * The frontend turns the body into a downloadable file.
+     */
+    @GetMapping("/export")
+    public DataExportResponse dataExport() {
+        return accountService.dataExport(currentUser());
     }
 
     private void requireRate(HttpServletRequest http) {

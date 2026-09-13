@@ -126,4 +126,18 @@ describe('AccountGateway', () => {
     expect(api.get).toHaveBeenCalledWith('/account/reviews/mine');
     expect(result).toEqual([]);
   });
+
+  it('exportData GETs /account/export and returns the document (M4 slice 1)', async () => {
+    const doc = {
+      profile: { name: 'Kontakt Muutus', email: 'kontakt@example.ee', phone: '+37250004444', levels: [] },
+      shelters: [],
+      reviews: [],
+    };
+    api.get.mockReturnValue(of(doc));
+
+    const result = await gateway.exportData();
+
+    expect(api.get).toHaveBeenCalledWith('/account/export');
+    expect(result).toEqual(doc);
+  });
 });

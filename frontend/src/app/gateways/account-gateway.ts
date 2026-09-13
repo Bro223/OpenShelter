@@ -6,6 +6,7 @@ import type {
   ChangeEmailRequest,
   ChangePhoneRequest,
   ConfirmChangeRequest,
+  DataExportResponse,
   MeResponse,
   MyReviewDto,
   ProfileUpdateRequest,
@@ -69,5 +70,14 @@ export class AccountGateway {
    */
   myReviews(): Promise<MyReviewDto[]> {
     return lastValueFrom(this.api.get<MyReviewDto[]>('/account/reviews/mine'));
+  }
+
+  /**
+   * GET /account/export -> the caller's own data in one document (M4
+   * legal/recovery, slice 1): profile + shelters + reviews. The page turns
+   * the body into a downloadable JSON file.
+   */
+  exportData(): Promise<DataExportResponse> {
+    return lastValueFrom(this.api.get<DataExportResponse>('/account/export'));
   }
 }

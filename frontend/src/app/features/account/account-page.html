@@ -343,5 +343,23 @@
       </p>
       <app-contributions-panel />
     </section>
+
+    <!-- ============================== Your data (M4) ============================== -->
+    <section class="change-panel">
+      <h2 class="panel-title">Your data</h2>
+      <p class="panel-copy">
+        Download a JSON file with everything tied to your account — your profile
+        (name, email, phone), the shelters you submitted and the reviews you wrote.
+      </p>
+      <button
+        type="button"
+        id="download-data"
+        class="btn btn--ghost"
+        (click)="downloadData()"
+        [disabled]="busy()"
+      >
+        {{ busy() ? 'Preparing…' : 'Download my data (JSON)' }}
+      </button>
+    </section>
   }
 </section>
