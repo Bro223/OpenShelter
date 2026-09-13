@@ -107,7 +107,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterUserReturnsOnlyUserRowsAsDtos() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, null, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, null, null, null);
 
         assertThat(dtos).extracting(ShelterDto::name)
                 .containsExactly("User House");
@@ -117,7 +117,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterRegistryReturnsOnlyImportedRows() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.REGISTRY, null, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.REGISTRY, null, null, null);
 
         assertThat(dtos).extracting(ShelterDto::name)
                 .containsExactlyInAnyOrder("Paasteamet House", "City House");
@@ -127,7 +127,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void filterAllReturnsEverything() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null);
 
         assertThat(dtos).hasSize(3);
     }
@@ -139,7 +139,7 @@ class ShelterQueryServiceTest {
         shelters.save(hidden);
         hidden.setCreatedBy(7L);
 
-        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, null))
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null))
                 .extracting(ShelterDto::name)
                 .doesNotContain("Peidetud varjend");
         // the owner list keeps hidden rows (D5) and carries their derived state
@@ -310,7 +310,7 @@ class ShelterQueryServiceTest {
                 .orElseThrow().yourOccupancyBand()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().yourOccupancyBand()).isNull();
         // the list projection never carries it (detail-only field)
-        assertThat(service.findAll(ShelterSourceFilter.USER, null, null, null, null).get(0).yourOccupancyBand())
+        assertThat(service.findAll(ShelterSourceFilter.USER, null, null, null).get(0).yourOccupancyBand())
                 .isNull();
     }
 
@@ -322,30 +322,14 @@ class ShelterQueryServiceTest {
         hidden.markHidden(NOW);
         reviews.save(hidden);
 
-        List<ShelterDto> reviewed = service.findAll(ShelterSourceFilter.ALL, true, null, null, null);
+        List<ShelterDto> reviewed = service.findAll(ShelterSourceFilter.ALL, true, null, null);
 
         assertThat(reviewed).extracting(ShelterDto::name).containsExactly("User House");
 
         // the negation keeps the unreviewed ones
-        List<ShelterDto> unreviewed = service.findAll(ShelterSourceFilter.ALL, false, null, null, null);
+        List<ShelterDto> unreviewed = service.findAll(ShelterSourceFilter.ALL, false, null, null);
         assertThat(unreviewed).extracting(ShelterDto::name)
                 .containsExactlyInAnyOrder("Peidetud arvustus", "Paasteamet House", "City House");
-    }
-
-    @Test
-    void minRatingFilterNeverMatchesReviewlessShelters() {
-        reviews.save(new ShelterReview(userShelter.getId(), 1L, 5, ""));
-        long lower = save("Madalam", ShelterSource.USER).getId();
-        reviews.save(new ShelterReview(lower, 2L, 3, ""));
-
-        List<ShelterDto> atLeastFour = service.findAll(ShelterSourceFilter.ALL, null, 4, null, null);
-
-        assertThat(atLeastFour).extracting(ShelterDto::name).containsExactly("User House");
-
-        // exactly at the bar still matches
-        List<ShelterDto> atLeastThree = service.findAll(ShelterSourceFilter.ALL, null, 3, null, null);
-        assertThat(atLeastThree).extracting(ShelterDto::name)
-                .containsExactlyInAnyOrder("User House", "Madalam");
     }
 
     @Test
@@ -355,18 +339,19 @@ class ShelterQueryServiceTest {
                 null, null, null, null, null, null, 40);
         shelters.save(withCapacity);
 
-        List<ShelterDto> withCap = service.findAll(ShelterSourceFilter.ALL, null, null, true, null);
+        List<ShelterDto> withCap = service.findAll(ShelterSourceFilter.ALL, null, true, null);
 
         assertThat(withCap).extracting(ShelterDto::name).containsExactly("Mahupolu varjend");
 
-        List<ShelterDto> withoutCap = service.findAll(ShelterSourceFilter.ALL, null, null, false, null);
+        List<ShelterDto> withoutCap = service.findAll(ShelterSourceFilter.ALL, null, false, null);
         assertThat(withoutCap).extracting(ShelterDto::name).doesNotContain("Mahupolu varjend");
     }
 
     @Test
     void trustFiltersComposeWithTheSourceFilter() {
-        // USER + reviewed + ≥ 4 + capacity: only this row qualifies — the
-        // other USER rows miss one filter each (no review / no capacity)
+        // USER + reviewed + capacity: only this row qualifies — the other
+        // USER row misses one filter (no review). (M11: the rating filter
+        // is gone from this compose — the rating is context, not a lever.)
         Shelter qualified = new Shelter("Kvalifitseeritud", new GeoPoint(59.4, 24.7),
                 ShelterStatus.ACTIVE, null, ShelterSource.USER,
                 null, null, null, null, null, null, 40);
@@ -377,7 +362,7 @@ class ShelterQueryServiceTest {
                 null, null, null, null, null, null, 10);
         shelters.save(unreviewed);
 
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, true, 4, true, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.USER, true, true, null);
 
         assertThat(dtos).extracting(ShelterDto::name).containsExactly("Kvalifitseeritud");
     }
@@ -420,7 +405,7 @@ class ShelterQueryServiceTest {
 
         // The exchange is private between the admin and the author — it must
         // not leak on the public list or the detail read.
-        ShelterDto publicRow = service.findAll(ShelterSourceFilter.ALL, null, null, null, null)
+        ShelterDto publicRow = service.findAll(ShelterSourceFilter.ALL, null, null, null)
                 .stream().filter(dto -> dto.id().equals(userShelter.getId())).findFirst().orElseThrow();
         assertThat(publicRow.infoRequest()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().infoRequest()).isNull();
@@ -483,7 +468,7 @@ class ShelterQueryServiceTest {
         Shelter second = save("Second User House", ShelterSource.USER);
         second.setCreatedBy(saveUser("Jaan", "jaan@example.ee", true));
 
-        Map<String, Boolean> byName = service.findAll(ShelterSourceFilter.USER, null, null, null, null).stream()
+        Map<String, Boolean> byName = service.findAll(ShelterSourceFilter.USER, null, null, null).stream()
                 .collect(Collectors.toMap(ShelterDto::name, ShelterDto::submitterVerified));
 
         assertThat(byName).containsEntry("User House", true)
@@ -492,7 +477,7 @@ class ShelterQueryServiceTest {
 
     @Test
     void dtoNeverLeaksTheEntity() {
-        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null, null);
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, null);
         // the returned objects are records (DTOs), not the domain Shelter
         assertThat(dtos).allMatch(dto -> dto instanceof ShelterDto);
         // and the repo still holds exactly the domain entities

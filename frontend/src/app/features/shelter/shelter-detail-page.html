@@ -191,7 +191,8 @@
       </section>
 
       <!-- Report this shelter (shelter-trust-and-reports D1/D6): the typed
-           report (verified only, one per type), free text for OTHER. -->
+           report (verified only, one per type). M11: the factual types
+           (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
       <section class="detail-section" aria-labelledby="report-shelter-heading">
         <h2 class="section-title" id="report-shelter-heading">Report this shelter</h2>
         @if (auth.initialized() && auth.authenticated()) {
@@ -221,7 +222,7 @@
                     </label>
                   }
                 </fieldset>
-                @if (reportType() === 'OTHER') {
+                @if (reportDetailPlaceholder(); as placeholder) {
                   <div class="field">
                     <label for="report-detail">Details (optional)</label>
                     <textarea
@@ -229,7 +230,7 @@
                       rows="2"
                       maxlength="500"
                       [formControl]="reportDetail"
-                      placeholder="What should the community know?"
+                      [placeholder]="placeholder"
                     ></textarea>
                     @if (reportDetail.touched && reportDetail.invalid) {
                       <p class="field-error">Details must be 500 characters or fewer.</p>

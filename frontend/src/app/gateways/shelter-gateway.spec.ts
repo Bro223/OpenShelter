@@ -93,17 +93,16 @@ describe('ShelterGateway', () => {
 
   it.each([
     ['ALL', { reviewed: true }, '/api/shelters?reviewed=true'],
-    ['ALL', { minRating: 4 }, '/api/shelters?minRating=4'],
     ['ALL', { hasCapacity: true }, '/api/shelters?hasCapacity=true'],
     [
       'COMMUNITY_REPORTED',
-      { reviewed: true, minRating: 3 },
-      '/api/shelters?provenance=COMMUNITY_REPORTED&reviewed=true&minRating=3',
+      { reviewed: true },
+      '/api/shelters?provenance=COMMUNITY_REPORTED&reviewed=true',
     ],
     [
       'OFFICIAL',
-      { reviewed: true, minRating: 3, hasCapacity: true },
-      '/api/shelters?provenance=OFFICIAL&reviewed=true&minRating=3&hasCapacity=true',
+      { reviewed: true, hasCapacity: true },
+      '/api/shelters?provenance=OFFICIAL&reviewed=true&hasCapacity=true',
     ],
   ] as [ProvenanceFilter, ShelterTrustFilter, string][])(
     'list composes %j for %s into %s',
@@ -120,7 +119,7 @@ describe('ShelterGateway', () => {
   it('list omits inactive trust filters (false/undefined -> no param)', async () => {
     api.get.mockReturnValue(of([REGISTRY_ROW]));
 
-    await gateway.list('ALL', { reviewed: false, hasCapacity: false, minRating: undefined });
+    await gateway.list('ALL', { reviewed: false, hasCapacity: false });
 
     // The bare list path when nothing is active (the M4 `?source=ALL`
     // response, byte-identical server-side).

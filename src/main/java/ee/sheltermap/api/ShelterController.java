@@ -99,9 +99,10 @@ public class ShelterController {
      * The public list. {@code source} as before (D5: ACTIVE rows only —
      * auto-hidden shelters are absent); the optional trust filters combine
      * with it in the projection: {@code reviewed} (at least one visible
-     * review; {@code false} = the negation), {@code minRating} 1..5
-     * (anything else 400; shelters with no reviews never match),
-     * {@code hasCapacity} (capacity data present).
+     * review; {@code false} = the negation) and {@code hasCapacity}
+     * (capacity data present). (M11 rating demotion: the {@code minRating}
+     * rating filter is gone — the rating is context, not a lever; a stray
+     * {@code minRating} param is ignored, not an error.)
      *
      * <p>{@code provenance} (shelter-provenance-taxonomy M6): optional
      * taxonomy filter — keeps rows whose server-derived provenance matches
@@ -114,11 +115,9 @@ public class ShelterController {
     @GetMapping
     public List<ShelterDto> list(@RequestParam(defaultValue = "ALL") ShelterSourceFilter source,
                                  @RequestParam(required = false) Boolean reviewed,
-                                 @RequestParam(required = false) Integer minRating,
                                  @RequestParam(required = false) Boolean hasCapacity,
                                  @RequestParam(required = false) Provenance provenance) {
-        requireValidMinRating(minRating);
-        return queryService.findAll(source, reviewed, minRating, hasCapacity, provenance);
+        return queryService.findAll(source, reviewed, hasCapacity, provenance);
     }
 
     /**
@@ -207,13 +206,6 @@ public class ShelterController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void reportOccupancy(@PathVariable long id, @Valid @RequestBody OccupancyReportRequest request) {
         reportService.reportOccupancy(currentUser(), id, request.band());
-    }
-
-    /** minRating is 1..5 stars; anything else is a malformed value (400). */
-    private static void requireValidMinRating(Integer minRating) {
-        if (minRating != null && (minRating < 1 || minRating > 5)) {
-            throw new InvalidShelterException("minRating must be between 1 and 5");
-        }
     }
 
     /**

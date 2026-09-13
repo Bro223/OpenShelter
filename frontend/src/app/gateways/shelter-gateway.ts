@@ -41,7 +41,7 @@ export class ShelterGateway {
    * backend keeps `?source=` for compatibility).
    *
    * `trust` (optional, D5) composes with the provenance filter: reviewed=
-   * true, minRating=1..5, hasCapacity=true. Inactive filters are omitted
+   * true, hasCapacity=true. Inactive filters are omitted
    * from the query string entirely (the default call is `/api/shelters`,
    * byte-identical to M4's default `?source=ALL` response).
    */
@@ -129,8 +129,9 @@ export class ShelterGateway {
 /**
  * The list query string: `provenance` first, only when not ALL (M6 — the
  * old `source` param is no longer sent by the FE), trust filters appended
- * in a fixed order (reviewed, minRating, hasCapacity) — only when active.
- * No filters -> exactly `/api/shelters`.
+ * in a fixed order (reviewed, hasCapacity) — only when active. (M11:
+ * the minRating rating filter is gone — the rating is context, not a
+ * lever.) No filters -> exactly `/api/shelters`.
  */
 function listPath(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): string {
   const params: string[] = [];
@@ -139,9 +140,6 @@ function listPath(provenance: ProvenanceFilter, trust?: ShelterTrustFilter): str
   }
   if (trust?.reviewed === true) {
     params.push('reviewed=true');
-  }
-  if (trust?.minRating !== undefined) {
-    params.push(`minRating=${trust.minRating}`);
   }
   if (trust?.hasCapacity === true) {
     params.push('hasCapacity=true');

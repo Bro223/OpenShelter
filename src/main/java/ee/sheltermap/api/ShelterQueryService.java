@@ -53,9 +53,11 @@ import java.util.stream.Collectors;
  *
  * <p>D5: the public list projection is ACTIVE-only (auto-hidden shelters
  * disappear from the map and list); the trust filters ({@code reviewed},
- * {@code minRating}, {@code hasCapacity}) are applied in-memory over the
+ * {@code hasCapacity}) are applied in-memory over the
  * already-fetched list (Estonia-scale data; the ratings/counts are
- * computed here anyway — no new SQL surface).
+ * computed here anyway — no new SQL surface). (M11 rating demotion:
+ * the {@code minRating} rating filter is gone — the rating is context,
+ * not a lever.)
  *
  * <p>Community trust (community-review-queue v2 D2): the public list and
  * detail reads are UNCHANGED by the review model — there is no blocking
@@ -112,17 +114,17 @@ public class ShelterQueryService {
     /**
      * The public list: ACTIVE rows only (D5) — with the optional trust
      * filters applied in-memory. {@code reviewed} keeps shelters with at
-     * least one VISIBLE review (hidden ones don't count); {@code minRating}
-     * compares the visible average — a shelter with 0 reviews never
-     * matches (its average is null); {@code hasCapacity} keeps shelters
-     * with capacity data. A {@code false} boolean is the negation.
+     * least one VISIBLE review (hidden ones don't count);
+     * {@code hasCapacity} keeps shelters with capacity data. A
+     * {@code false} boolean is the negation. (M11: the minRating rating
+     * filter is gone — the rating is context, not a lever.)
      * NEW community rows are listed like any other ACTIVE row
      * (community-review-queue v2 D2 — no visibility gate).
      */
     public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean reviewed,
-                                    Integer minRating, Boolean hasCapacity, Provenance provenance) {
+                                    Boolean hasCapacity, Provenance provenance) {
         List<ShelterDto> dtos = toDtos(shelterRepository.findAllActiveBySourceIn(source.sources()), null);
-        return applyTrustFilters(dtos, reviewed, minRating, hasCapacity, provenance);
+        return applyTrustFilters(dtos, reviewed, hasCapacity, provenance);
     }
 
     /** The single-shelter read without a caller (internal projections). */
@@ -493,15 +495,13 @@ public class ShelterQueryService {
      *  whose derived taxonomy value matches — in-memory over the projected
      *  list, the same Estonia-scale precedent as the trust filters. */
     private static List<ShelterDto> applyTrustFilters(List<ShelterDto> dtos, Boolean reviewed,
-                                                      Integer minRating, Boolean hasCapacity,
+                                                      Boolean hasCapacity,
                                                       Provenance provenance) {
-        if (reviewed == null && minRating == null && hasCapacity == null && provenance == null) {
+        if (reviewed == null && hasCapacity == null && provenance == null) {
             return dtos;
         }
         return dtos.stream()
                 .filter(dto -> reviewed == null || (dto.reviewCount() > 0) == reviewed)
-                .filter(dto -> minRating == null
-                        || (dto.averageRating() != null && dto.averageRating() >= minRating))
                 .filter(dto -> hasCapacity == null || (dto.capacity() != null) == hasCapacity)
                 .filter(dto -> provenance == null || dto.provenance() == provenance)
                 .toList();

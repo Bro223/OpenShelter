@@ -263,8 +263,6 @@ export type ShelterStatusFlag = 'REPORTED_CLOSED' | 'CONFIRMED_OPEN';
 export interface ShelterTrustFilter {
   /** reviewed=true — at least one visible (non-hidden) review. */
   reviewed?: boolean;
-  /** Minimum average rating (1..5); a shelter with 0 reviews never matches. */
-  minRating?: number;
   /** hasCapacity=true — capacity data present. */
   hasCapacity?: boolean;
 }

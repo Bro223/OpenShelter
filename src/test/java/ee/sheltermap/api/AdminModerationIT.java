@@ -573,6 +573,45 @@ class AdminModerationIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void factualReportDetailsReachTheAdminQueueAndBinaryTypesDropThem() throws Exception {
+        // M11: the factual types carry their detail into the admin queue;
+        // the binary types store the claim without the text.
+        long a = seedShelter("Suletud koht", ShelterSource.USER);
+        long b = seedShelter("Viga asukoht", ShelterSource.USER);
+        String token = adminToken();
+
+        mvc.perform(post("/api/shelters/" + a + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Suletaja", "suletaja@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"CLOSED\",\"detail\":\"suletud 12.05\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + b + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Asukohataja", "asukohataja@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"WRONG_LOCATION\",\"detail\":\"päris aadress on 5\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/shelters/" + b + "/reports")
+                        .header("Authorization", "Bearer " + verifiedToken("Poisitaja", "poisitaja@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"NON_EXISTENT\",\"detail\":\"sõna maha\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/admin/reports").param("shelterId", String.valueOf(a))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("CLOSED"))
+                .andExpect(jsonPath("$[0].detail").value("suletud 12.05"));
+
+        mvc.perform(get("/admin/reports").param("shelterId", String.valueOf(b))
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.type == 'WRONG_LOCATION')].detail",
+                        org.hamcrest.Matchers.contains("päris aadress on 5")))
+                .andExpect(jsonPath("$[?(@.type == 'NON_EXISTENT')].detail",
+                        org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
+    }
+
+    @Test
     void reportsForAnUnknownShelterAre404() throws Exception {
         expectError(mvc.perform(get("/admin/reports").param("shelterId", "999999")
                         .header("Authorization", "Bearer " + adminToken())),

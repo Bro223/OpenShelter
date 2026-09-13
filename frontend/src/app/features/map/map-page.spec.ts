@@ -1192,9 +1192,10 @@ describe('MapPage', () => {
 
   // ---------------------------------------------------------------------------
   // Trust filters + reported/occupancy presentation (shelter-trust-and-
-  // reports D5/D6): Reviewed / Has capacity toggle chips + the rating
-  // select, all composable with the source chips — every change is a
-  // server refetch with the matching query params, then the list rebuild.
+  // reports D5/D6): Reviewed / Has capacity toggle chips, all composable
+  // with the source chips — every change is a server refetch with the
+  // matching query params, then the list rebuild. (M11 rating demotion:
+  // the rating select is gone — no rating control of any kind on the map.)
   // ---------------------------------------------------------------------------
   describe('trust filters (shelter-trust-and-reports D5/D6)', () => {
     beforeEach(() => {
@@ -1213,45 +1214,30 @@ describe('MapPage', () => {
       );
     });
 
-    /** The two toggle chips + the rating select of the trust row. */
+    /** The two toggle chips of the trust row (M11: no rating control). */
     function trustControls(element: HTMLElement): {
       reviewed: HTMLButtonElement;
       hasCapacity: HTMLButtonElement;
-      select: HTMLSelectElement;
     } {
       const chips = [...element.querySelectorAll<HTMLButtonElement>('.trust-chip')];
-      const select = element.querySelector<HTMLSelectElement>('.filter-rating select');
-      if (chips.length !== 2 || select === null) {
+      if (chips.length !== 2) {
         throw new Error('trust filter controls not rendered');
       }
-      return { reviewed: chips[0], hasCapacity: chips[1], select };
+      return { reviewed: chips[0], hasCapacity: chips[1] };
     }
 
-    function setRating(element: HTMLElement, value: string): void {
-      const { select } = trustControls(element);
-      select.value = value;
-      select.dispatchEvent(new Event('change'));
-    }
-
-    it('renders the Reviewed / Has capacity toggle chips and the rating select beside the source chips', async () => {
+    it('renders the Reviewed / Has capacity toggle chips beside the source chips (no rating control — M11)', async () => {
       const { element } = await open('/map');
 
-      const { reviewed, hasCapacity, select } = trustControls(element);
+      const { reviewed, hasCapacity } = trustControls(element);
       expect(reviewed.textContent?.trim()).toBe('Reviewed');
       expect(hasCapacity.textContent?.trim()).toBe('Has capacity');
-      // Neither toggle is active initially; the select starts on Any rating.
+      // Neither toggle is active initially; no rating control at all.
       expect(reviewed.classList.contains('chip--active')).toBe(false);
       expect(reviewed.getAttribute('aria-pressed')).toBe('false');
       expect(hasCapacity.getAttribute('aria-pressed')).toBe('false');
-      expect(select.value).toBe('');
-      expect([...select.options].map((o) => o.textContent?.trim())).toEqual([
-        'Any rating',
-        '1★+',
-        '2★+',
-        '3★+',
-        '4★+',
-        '5★+',
-      ]);
+      expect(element.querySelector('.filter-rating')).toBeNull();
+      expect(element.querySelector('select')).toBeNull();
       // The provenance chips (M6 — replacing the old three source chips)
       // stay untouched, still first in the row.
       const provenanceChips = [...element.querySelectorAll<HTMLButtonElement>('.chip')];
@@ -1292,23 +1278,7 @@ describe('MapPage', () => {
       expect(gateway.list).toHaveBeenLastCalledWith('ALL');
     });
 
-    it('the rating select refetches with minRating (4★+ -> minRating=4) and Any clears it', async () => {
-      const { element, fixture } = await open('/map');
-
-      setRating(element, '4');
-      await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { minRating: 4 });
-
-      setRating(element, '1');
-      await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { minRating: 1 });
-
-      setRating(element, ''); // Any rating again
-      await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
-    });
-
-    it('the trust filters combine with the provenance chips (Community + Reviewed + 3★+)', async () => {
+    it('the trust filters combine with the provenance chips (Community + Reviewed + Has capacity)', async () => {
       const { element, fixture } = await open('/map');
       const { reviewed, hasCapacity } = trustControls(element);
 
@@ -1318,13 +1288,10 @@ describe('MapPage', () => {
       await settle(fixture);
       hasCapacity.click();
       await settle(fixture);
-      setRating(element, '3');
-      await settle(fixture);
 
       // One request carrying the whole composed state (D5 scenario).
       expect(gateway.list).toHaveBeenLastCalledWith('COMMUNITY_REPORTED', {
         reviewed: true,
-        minRating: 3,
         hasCapacity: true,
       });
       // The list rebuilt from that response (the community rows, name-sorted).

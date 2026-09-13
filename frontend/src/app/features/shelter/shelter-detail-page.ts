@@ -180,13 +180,31 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly isPrivateLocation = isPrivateLocation;
 
   // ---- trust layer (shelter-trust-and-reports D1/D2/D4/D6) ------------------
-  /** The five report types + their picker labels (D1). */
-  protected readonly REPORT_TYPES: { value: ShelterReportType; label: string }[] = [
+  /** The five report types + their picker labels (D1). M11 (factual report
+   *  fields): the factual types (CLOSED / WRONG_LOCATION / OTHER) carry the
+   *  detail field's per-type placeholder; the binary types stay claim-only. */
+  protected readonly REPORT_TYPES: {
+    value: ShelterReportType;
+    label: string;
+    detailPlaceholder?: string;
+  }[] = [
     { value: 'NON_EXISTENT', label: 'It does not exist' },
-    { value: 'CLOSED', label: 'It is closed' },
+    {
+      value: 'CLOSED',
+      label: 'It is closed',
+      detailPlaceholder: 'When did it close, if you know?',
+    },
     { value: 'OPEN_CONFIRMED', label: 'It is open' },
-    { value: 'WRONG_LOCATION', label: 'The location is wrong' },
-    { value: 'OTHER', label: 'Something else' },
+    {
+      value: 'WRONG_LOCATION',
+      label: 'The location is wrong',
+      detailPlaceholder: 'What is the actual address?',
+    },
+    {
+      value: 'OTHER',
+      label: 'Something else',
+      detailPlaceholder: 'What should the community know?',
+    },
   ];
 
   /** The four review-report reasons + their picker labels (D2). */
@@ -553,10 +571,26 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
+   * M11 (factual report fields): the detail field's per-type placeholder for
+   * the picked type — null for the binary types (the claim stands alone).
+   * The template renders the field whenever this is non-null, and submit
+   * sends a non-blank detail exactly then.
+   */
+  reportDetailPlaceholder(): string | null {
+    const type = this.reportType();
+    if (type === null) {
+      return null;
+    }
+    const option = this.REPORT_TYPES.find((t) => t.value === type);
+    return option?.detailPlaceholder ?? null;
+  }
+
+  /**
    * Submit the typed report (verified only — the template gates it). One
    * report per (shelter, user, type): a 409 answers with a PLAIN
-   * sentence-case line in the picker (not an error banner). detail is sent
-   * only for OTHER and only when non-blank.
+   * sentence-case line in the picker (not an error banner). M11: detail is
+   * sent for the factual types (CLOSED / WRONG_LOCATION / OTHER) and only
+   * when non-blank.
    */
   async submitReport(): Promise<void> {
     const id = this.id();
@@ -565,12 +599,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     const detail = this.reportDetail.value.trim();
-    if (type === 'OTHER' && this.reportDetail.invalid) {
+    if (this.reportDetailPlaceholder() !== null && this.reportDetail.invalid) {
       this.reportDetail.markAsTouched();
       return;
     }
     const request: ReportShelterRequest = { type };
-    if (type === 'OTHER' && detail !== '') {
+    if (this.reportDetailPlaceholder() !== null && detail !== '') {
       request.detail = detail;
     }
     this.reporting.set(true);

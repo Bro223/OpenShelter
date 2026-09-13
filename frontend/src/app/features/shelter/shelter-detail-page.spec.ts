@@ -1160,7 +1160,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
     // ----- shelter report (D2/D6) --------------------------------------
 
-    it('verified: the shelter Report picker opens with the five D2 types and a free-text area for OTHER', async () => {
+    it('verified: the shelter Report picker opens with the five D1 types and a factual detail field for the factual types (M11)', async () => {
       const { element, fixture } = await open('/shelters/1');
       const section = sectionOf(element, 'report-shelter-heading');
       expect(section).not.toBeNull();
@@ -1187,14 +1187,26 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section!.textContent).toContain('It is open');
       expect(section!.textContent).toContain('The location is wrong');
       expect(section!.textContent).toContain('Something else');
-      // Free-text appears only once OTHER is picked (it is optional text,
-      // max 500 — no other type sends a detail).
+      // The detail field appears only once a factual type is picked
+      // (optional text, max 500 — the binary types send no detail).
+      expect(form.querySelector('#report-detail')).toBeNull();
+
+      pickRadio(form, 'It is closed');
+      fixture.detectChanges(); // zoneless: flush the reportType signal update
+      expect(form.querySelector('#report-detail')).not.toBeNull();
+      expect(form.querySelector<HTMLTextAreaElement>('#report-detail')!.placeholder).toBe(
+        'When did it close, if you know?',
+      );
+
+      pickRadio(form, 'It does not exist');
+      fixture.detectChanges(); // the binary type drops the field again
       expect(form.querySelector('#report-detail')).toBeNull();
 
       pickRadio(form, 'Something else');
       fixture.detectChanges(); // zoneless: flush the reportType signal update
       const detail = form.querySelector<HTMLTextAreaElement>('#report-detail');
       expect(detail).not.toBeNull();
+      expect(detail!.placeholder).toBe('What should the community know?');
       detail!.value = 'Wrong address, moved to Pärnu.';
       detail!.dispatchEvent(new Event('input'));
       expect(form.querySelector<HTMLTextAreaElement>('#report-detail')!.value).toBe(
@@ -1274,6 +1286,32 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(shelterGateway.report).toHaveBeenCalledWith(1, {
         type: 'OTHER',
         detail: 'Wrong address, moved to Pärnu.',
+      });
+      expect(text(fixture)).toContain('Your report was submitted.');
+      expect(section.querySelector('form')).toBeNull(); // picker closed
+    });
+
+    it('verified: CLOSED submits with its factual detail (M11)', async () => {
+      const { element, fixture } = await open('/shelters/1');
+      const section = sectionOf(element, 'report-shelter-heading')!;
+      [...section.querySelectorAll('button')]
+        .find((b) => (b.textContent ?? '').trim() === 'Report')!
+        .click();
+      fixture.detectChanges(); // zoneless: flush the picker-open signal update
+      const form = section.querySelector('form')!;
+
+      pickRadio(form, 'It is closed');
+      fixture.detectChanges(); // zoneless: flush the reportType signal update
+      const detail = form.querySelector<HTMLTextAreaElement>('#report-detail')!;
+      detail.value = 'Closed in May, board is up.';
+      detail.dispatchEvent(new Event('input'));
+      form.requestSubmit();
+      await settle(fixture);
+
+      expect(shelterGateway.report).toHaveBeenCalledTimes(1);
+      expect(shelterGateway.report).toHaveBeenCalledWith(1, {
+        type: 'CLOSED',
+        detail: 'Closed in May, board is up.',
       });
       expect(text(fixture)).toContain('Your report was submitted.');
       expect(section.querySelector('form')).toBeNull(); // picker closed

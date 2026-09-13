@@ -37,7 +37,7 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 - ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
   reports (the 5th "does not exist" auto-hides the shelter from the public list/map), review
   reports (the 5th hides the review), live occupancy bands (display-only, 2 h freshness),
-  trust filters on the public list (`reviewed` / `minRating` / `hasCapacity`), the 10-active-
+  trust filters on the public list (`reviewed` / `hasCapacity` — M11 demoted the rating: the minRating filter is gone, the star display stays read-only), the 10-active-
   shelter submission cap, a durable per-user report throttle (10 report-type actions /
   rolling hour, advisory-locked check-and-record) and `V9__shelter_trust_and_reports.sql` —
   **433 backend tests green**, plus the frontend trust wave (trust filter chips + rating
@@ -246,7 +246,7 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | POST   | `/account/phone-change/confirm`            | JWT                     | Complete phone change with the email code (200/400)                                                                                                                                                         |
 | POST   | `/verify/request`                          | JWT                     | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap)                                                                                                                    |
 | POST   | `/verify/confirm`                          | JWT                     | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200)                                                                                        |
-| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount` — **ACTIVE rows only** (auto-hidden shelters are absent); optional trust filters `reviewed=true`, `minRating=1..5` (else 400), `hasCapacity=true` compose with `source`, applied server-side; rows carry the trust state (`nonexistentReports`, `statusFlag`, `occupancy`) |
+| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount` — **ACTIVE rows only** (auto-hidden shelters are absent); optional trust filters `reviewed=true`, `hasCapacity=true` compose with `source`, applied server-side (M11: the `minRating` rating filter is gone — the star display stays a read-only summary); rows carry the trust state (`nonexistentReports`, `statusFlag`, `occupancy`) |
 | GET    | `/api/shelters/{id}`                       | public                  | Shelter detail (`ShelterDetailDto` — the list fields + the caller's `yourOccupancyBand`); **all statuses** (an auto-hidden shelter stays reachable here and by its owner) |
 | POST   | `/api/shelters`                            | JWT + verified          | Submit a shelter → 201 + Location; 409 when the caller already has 10 ACTIVE USER shelters (the cap; ADMIN kind exempt) |
 | GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows; **all statuses** — auto-hidden rows included, the contributions panel marks them) |

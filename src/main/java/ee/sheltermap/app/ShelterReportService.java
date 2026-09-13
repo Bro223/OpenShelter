@@ -257,9 +257,18 @@ public class ShelterReportService {
         }
     }
 
-    /** {@code detail} is free text for {@code OTHER} reports, ignored otherwise. */
+    /**
+     * M11 (factual report fields): {@code detail} is the factual substance
+     * of the factual report types — the "when" of a {@code CLOSED} report,
+     * the actual address of a {@code WRONG_LOCATION} report, the free text
+     * of {@code OTHER} — and is stored for them. The binary types
+     * {@code NON_EXISTENT} / {@code OPEN_CONFIRMED} keep ignoring it: the
+     * type alone is the claim.
+     */
     private static String detailFor(ShelterReportType type, String detail) {
-        return type == ShelterReportType.OTHER ? detail : null;
+        return type == ShelterReportType.CLOSED
+                || type == ShelterReportType.WRONG_LOCATION
+                || type == ShelterReportType.OTHER ? detail : null;
     }
 
     private Shelter requireShelter(long shelterId) {

@@ -131,14 +131,26 @@ class ShelterReportServiceTest {
     }
 
     @Test
-    void otherReportKeepsItsDetailAndOtherTypesDropIt() {
+    void factualTypesKeepTheirDetailBinaryTypesDropIt() {
         service.reportShelter(verified, shelter.getId(), ShelterReportType.OTHER, "põhjendus");
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.CLOSED, "suletud 12.05");
+        service.reportShelter(verified, shelter.getId(), ShelterReportType.WRONG_LOCATION, "päris aadress 5");
         service.reportShelter(verified, shelter.getId(), ShelterReportType.NON_EXISTENT, "ära unune");
 
         assertThat(reports.findAll().stream()
                         .filter(r -> r.getType() == ShelterReportType.OTHER)
                         .findFirst().orElseThrow().getDetail())
                 .isEqualTo("põhjendus");
+        // M11: the factual types keep their detail
+        assertThat(reports.findAll().stream()
+                        .filter(r -> r.getType() == ShelterReportType.CLOSED)
+                        .findFirst().orElseThrow().getDetail())
+                .isEqualTo("suletud 12.05");
+        assertThat(reports.findAll().stream()
+                        .filter(r -> r.getType() == ShelterReportType.WRONG_LOCATION)
+                        .findFirst().orElseThrow().getDetail())
+                .isEqualTo("päris aadress 5");
+        // the binary types stay claim-only: the detail is dropped
         assertThat(reports.findAll().stream()
                         .filter(r -> r.getType() == ShelterReportType.NON_EXISTENT)
                         .findFirst().orElseThrow().getDetail())

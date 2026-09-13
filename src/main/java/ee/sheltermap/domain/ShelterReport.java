@@ -8,8 +8,11 @@ import java.util.Objects;
  *
  * <p>At most one report of a given type per user per shelter (unique
  * {@code shelterId + userId + type}, enforced by the database).
- * {@code detail} is the optional free text of {@code OTHER} reports —
- * {@code null} for the other types.
+ * {@code detail} is the factual substance of the factual report types
+ * (M11): the "when" of a {@code CLOSED} report, the actual address of a
+ * {@code WRONG_LOCATION} report, the free text of {@code OTHER} —
+ * {@code null} for the binary types {@code NON_EXISTENT} /
+ * {@code OPEN_CONFIRMED}.
  */
 public class ShelterReport {
 
@@ -91,7 +94,7 @@ public class ShelterReport {
         return type;
     }
 
-    /** Free text of {@code OTHER} reports; {@code null} otherwise. */
+    /** Factual detail (M11): stored for {@code CLOSED} / {@code WRONG_LOCATION} / {@code OTHER}; {@code null} for the binary types. */
     public String getDetail() {
         return detail;
     }

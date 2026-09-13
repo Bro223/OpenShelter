@@ -913,34 +913,6 @@ class ShelterReportIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void minRatingFilterNeverMatchesReviewlessShelters() throws Exception {
-        long high = seedShelter("Kõrge", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + high + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("K1", "k1@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(5, "")))
-                .andExpect(status().isCreated());
-        long low = seedShelter("Madal", ShelterSource.USER);
-        mvc.perform(post("/api/shelters/" + low + "/reviews")
-                        .header("Authorization", "Bearer " + verifiedToken("K2", "k2@example.ee"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(reviewBody(3, "")))
-                .andExpect(status().isCreated());
-        seedShelter("Arvustuseta", ShelterSource.USER);
-
-        mvc.perform(get("/api/shelters").param("minRating", "4"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Kõrge")));
-        mvc.perform(get("/api/shelters").param("minRating", "3"))
-                .andExpect(jsonPath("$[*].name",
-                        org.hamcrest.Matchers.containsInAnyOrder("Kõrge", "Madal")));
-        // 0-review shelters never match any minRating ≥ 1
-        mvc.perform(get("/api/shelters").param("minRating", "1"))
-                .andExpect(jsonPath("$[*].name",
-                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("Arvustuseta"))));
-    }
-
-    @Test
     void hasCapacityFilterKeepsSheltersWithCapacityData() throws Exception {
         String token = verifiedToken("Maht", "maht@example.ee");
         mvc.perform(post("/api/shelters")
@@ -960,7 +932,8 @@ class ShelterReportIT extends AbstractPersistenceIT {
 
     @Test
     void trustFiltersComposeWithTheSourceFilter() throws Exception {
-        // USER + reviewed + minRating 3 → the intersection
+        // USER + reviewed + hasCapacity → the intersection (M11: the
+        // minRating filter is gone — a stray param is ignored, not an error)
         String token = verifiedToken("Liitja", "liitja@example.ee");
         mvc.perform(post("/api/shelters")
                         .header("Authorization", "Bearer " + token)
@@ -985,18 +958,21 @@ class ShelterReportIT extends AbstractPersistenceIT {
         mvc.perform(get("/api/shelters")
                         .param("source", "USER")
                         .param("reviewed", "true")
-                        .param("minRating", "3")
                         .param("hasCapacity", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Kõik korras")));
     }
 
     @Test
-    void invalidMinRatingIs400() throws Exception {
-        expectError(mvc.perform(get("/api/shelters").param("minRating", "0")), 400, "Bad Request");
-        expectError(mvc.perform(get("/api/shelters").param("minRating", "6")), 400, "Bad Request");
-        expectError(mvc.perform(get("/api/shelters").param("minRating", "-1")), 400, "Bad Request");
-        expectError(mvc.perform(get("/api/shelters").param("minRating", "abc")), 400, "Bad Request");
+    void theStrayMinRatingParamIsIgnoredNotAnError() throws Exception {
+        // M11: the rating filter is gone — old clients that still send
+        // minRating get the unfiltered list (Spring drops unknown params),
+        // never a 400.
+        seedShelter("Muinene", ShelterSource.USER);
+        mvc.perform(get("/api/shelters").param("minRating", "4"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/shelters").param("minRating", "abc"))
+                .andExpect(status().isOk());
     }
 
     // ---------- public list ACTIVE-only (D5) ----------

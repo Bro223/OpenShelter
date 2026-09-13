@@ -464,7 +464,7 @@ public class AdminModerationService {
      * GET /admin/audit — the moderation audit trail, newest first
      * (community-review-queue D4). {@code limit} is 1..{@value
      * #AUDIT_MAX_LIMIT} (default {@value #AUDIT_DEFAULT_LIMIT}); anything
-     * else is a 400 (the minRating bound vocabulary). Shelter names and
+     * else is a 400 (the 1..200 bound vocabulary). Shelter names and
      * moderator names resolve in ONE batched lookup each (no N+1); a
      * gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
      * outlives a hard delete).

@@ -57,19 +57,6 @@ const PROVENANCE_FILTERS: { value: ProvenanceFilter; label: string }[] = [
 ];
 
 /**
- * The rating `<select>` options (shelter-trust-and-reports D6): the first
- * option is "Any rating" (no minRating param); the rest are "N★+".
- */
-const RATING_FILTERS: { value: number | null; label: string }[] = [
-  { value: null, label: 'Any rating' },
-  { value: 1, label: '1★+' },
-  { value: 2, label: '2★+' },
-  { value: 3, label: '3★+' },
-  { value: 4, label: '4★+' },
-  { value: 5, label: '5★+' },
-];
-
-/**
  * Per-error copy for the "Nearest shelter" action (map-crisis-actions D2) —
  * the submit page's geolocation vocabulary, MIRRORED here, not shared (the
  * W9/W15 duplication convention: documented, not shared across features).
@@ -116,8 +103,10 @@ export function straightLineText(km: number): string {
  * blue, PARTNER_VERIFIED yellow, COMMUNITY_REPORTED green, UNDER_REVIEW
  * amber, plus the reported-state orange override) + a sidebar list,
  * provenance-filter chips that refetch server-side, trust filters
- * (shelter-trust-and-reports D6: Reviewed / Has capacity toggle chips + a
- * rating select — all composable, all server-side), a legend, and
+ * (shelter-trust-and-reports D6: Reviewed / Has capacity toggle chips —
+ * all composable, all server-side; M11 rating demotion dropped the rating
+ * select — the star summary stays a read-only display, not a filter),
+ * a legend, and
  * loading/empty/error states.
  *
  * Thin shell (01-TASK.md §7): state in signals, business behaviour delegated —
@@ -157,7 +146,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly injector = inject(EnvironmentInjector);
 
   protected readonly provenanceFilters = PROVENANCE_FILTERS;
-  protected readonly ratingFilters = RATING_FILTERS;
   /** W24: the shared provenance copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
    *  server-derived provenance (shelter-provenance-taxonomy M6); the trust
@@ -190,8 +178,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly reviewed = signal(false);
   /** Has capacity toggle chip -> `hasCapacity=true`. */
   protected readonly hasCapacity = signal(false);
-  /** Rating select -> `minRating=1..5`; null = "Any rating" (no param). */
-  protected readonly minRating = signal<number | null>(null);
 
   protected readonly shelters = signal<ShelterDto[]>([]);
   protected readonly loading = signal(false);
@@ -274,26 +260,19 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.load(this.filter());
   }
 
-  /** Rating select change (D6) — "" = Any rating (null), else 1..5. */
-  setMinRating(event: Event): void {
-    const raw = (event.target as HTMLSelectElement).value;
-    this.minRating.set(raw === '' ? null : Number(raw));
-    this.load(this.filter());
-  }
-
   /**
    * The active trust filters, or undefined when none are active (D5).
    * An undefined result keeps the legacy single-arg `list(source)` call
    * shape — the query string is byte-identical to M4 until a trust filter
-   * is actually set.
+   * is actually set. (M11: the minRating rating filter is gone — the
+   * rating is context, not a lever.)
    */
   private activeTrustFilter(): ShelterTrustFilter | undefined {
-    if (!this.reviewed() && !this.hasCapacity() && this.minRating() === null) {
+    if (!this.reviewed() && !this.hasCapacity()) {
       return undefined;
     }
     return {
       reviewed: this.reviewed() || undefined,
-      minRating: this.minRating() ?? undefined,
       hasCapacity: this.hasCapacity() || undefined,
     };
   }
