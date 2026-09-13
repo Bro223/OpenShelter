@@ -1,13 +1,15 @@
 # OpenShelter — One-Page Brief
 
-**What it is.** A full-stack web app that turns Estonia's official bomb-shelter
-registry (Maa-amet WFS, ~300 shelters) into a public, browsable, community-verified
-shelter map. Spring Boot + PostgreSQL backend, Angular 22 + Leaflet frontend.
+**What it is.** A full-stack web app that turns Estonia's official shelter
+registry (Päästeamet open data, ~300 shelters, refreshed weekly) into a public,
+browsable, community-verified shelter map. Spring Boot + PostgreSQL backend,
+Angular 22 + Leaflet frontend.
 
 ## What the app does
 
 **Accounts & security**
-- Register (name, email, phone, Estonian personal code, password) → login → logout.
+
+- Register (name, email, phone, password — no national ID code) → login → logout.
   Argon2id password hashing; JWT access tokens (15 min) + refresh tokens (30 days,
   hashed at rest, rotated on every refresh).
 - **Password reset** — emailed 6-digit code (works even if you're locked out);
@@ -18,48 +20,76 @@ shelter map. Spring Boot + PostgreSQL backend, Angular 22 + Leaflet frontend.
   sent to your current phone; changing your phone by an email code sent to your current
   email. Stealing one channel is never enough to hijack the account.
 - **Account page** — real profile + real verification status (`/account/me`),
-  password-confirmed edit of name/personal code, list of all your reviews.
+  password-confirmed edit of name, list of all your reviews.
 - **Abuse prevention** — every send/attempt path is rate-limited (per-IP + per-user
   buckets), 60s resend cooldowns, 5-sends/day cap per channel (file-backed, survives
   restarts), anti-enumeration everywhere (login and reset always answer the same).
+- **Privacy by architecture** — e-mail/phone are AES-256-GCM encrypted at rest behind
+  a blind index (a stolen DB dump does not reveal identities); the app refuses to
+  boot without the keys.
+- **Your data** — export it as JSON; delete the account (private data purged, your
+  public shelters stay on the map without the authorship link).
 
 **Browsing (public, no login)**
-- Leaflet **map** of all shelters + synchronized list; source filter
-  (all / registry / user-submitted).
+
+- Leaflet **map** of all shelters + synchronized list; **provenance markers + legend**
+  (Official / Partner / Community-reported / Proposed / Reported) with a matching
+  filter; trust filters (reviewed, has capacity).
 - Shelter **detail page** — name, address, county/municipality, coordinates,
-  capacity, description, provenance (Registry vs Community), average rating and
-  review count, **"Navigate" / "Open in Apple Maps"** deep links.
+  capacity, description, provenance badge, average rating (read-only) and review
+  count, **last-verified line** + community-report count, current occupancy
+  ("Reported full" while fresh), **"Navigate" / "Open in Apple Maps"** deep links
+  and straight-line distance-from-you.
 - **Reviews** — public review list per shelter.
+- **Community reports** — report a shelter ("does not exist" / "closed" /
+  "confirmed open" / "wrong location" / other — the **5th trust-weighted "does not
+  exist" report takes the shelter off the public map**, admin-restore only, never
+  re-hidden), report a review (the 5th hides it), or report how full it is right
+  now (shown to everyone while fresh).
 
 **Contributing (verified users)**
+
 - **Submit a shelter** — name, address (free-text or Google Maps link, auto-resolved
-  to coordinates, Estonia-bounded), capacity, description; listed immediately (no
-  moderation).
+  to coordinates, Estonia-bounded), capacity, description; listed immediately as
+  **Proposed** (no moderation) — community confirmations move it to
+  Community-reported. Caps: 10 active shelters, 5 per rolling day, near-duplicate
+  detection (same name + ≤100 m → 409).
 - **Manage your own submissions** — list, edit, or delete your own shelters from the
   account page ("My contributions"); author-only, registry rows unmanageable.
 - **Rate & review** — one review per user per shelter (re-rating updates), author-only
-  update/delete. Community ratings are the quality mechanism — there is no moderator.
+  update/delete. Ratings are a **read-only signal** (the filter was demoted, not
+  removed) — the quality mechanism is community reports, worked after the fact by a
+  single env-provisioned admin (report queues, mark inaccurate, request info,
+  suspend; every action audited; registry rows are read-only).
 
 **Data (the living registry)**
-- **Weekly automatic ingestion** from the Maa-amet WFS layer (Mon 03:00
-  Europe/Tallinn), coordinates reprojected EPSG:3301 → WGS84. The importer creates/
-  updates/delists **registry rows only** — user submissions are never touched.
+
+- **Weekly automatic ingestion** of the Päästeamet open-data CSV (Mon 03:00
+  Europe/Tallinn; Last-Modified versioning — a 304 is a no-op, not a failure),
+  coordinates reprojected EPSG:3301 → WGS84. The importer creates/updates/delists
+  **registry rows only** — user submissions are never touched. Every run is audited
+  and the footer shows source + official open-data link + last-import date.
 
 **UI**
-- 8 routes: map (default), shelter detail, submit, login, register, reset, verify,
-  account. High-contrast (black/yellow) accessibility theme toggle, design-token
-  system, responsive down to narrow screens, crisis-first (one primary action per
-  screen, words beside every color-coded status).
+
+- 11 routes: map (default), shelter detail, submit, login, register, reset, verify,
+  account, privacy, terms, admin (the moderation panel). High-contrast (black/yellow)
+  accessibility theme toggle, design-token system, responsive down to 360 px,
+  **bilingual EN/ET switcher** (app chrome translated, feature pages in progress),
+  crisis-first (one primary action per screen, words beside every color-coded
+  status).
 
 ## Quality bar
 
-360 backend + 588 frontend automated tests, all green; PostgreSQL integration tests
-via Testcontainers; two completed security/code-review campaigns (uniqueness races,
-transactional import, N+1 removal, canonical phone/email, Twilio fail-fast,
-reset-code brute-force fix, prod JWT guard); architecture docs (PlantUML + build
-packs) re-synced to code after every milestone.
+706 backend + 887 frontend automated tests, all green (2026-09-13); PostgreSQL
+integration tests via Testcontainers; three completed security/review efforts —
+2026-09-08 campaign (reset-code brute-force, XFF-spoofing fix, fail-closed prod JWT
+guard), 2026-09-11 wave (uniqueness races, transactional import, N+1 removal,
+canonical phone/email, Twilio fail-fast, full-history secret scan), 2026-09-13
+twelve-attack threat model + operations runbook + 11 API security pins;
+architecture docs (PlantUML + build packs) re-synced to code after every milestone.
 
-**Status (Sept 2026).** Fully functional end-to-end (register → verify → browse →
-submit → review → manage). Remaining: real Smart-ID integration, i18n
-(EST/EN/RUS/UA), saved shelters, community status reports, PWA offline cache,
-production deployment.
+**Status (13 Sept 2026).** Fully functional end-to-end (register → verify → browse →
+submit → review → report → manage), bilingual app chrome (ET/EN). Remaining: real
+Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
+PWA offline cache, production deployment.
