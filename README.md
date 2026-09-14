@@ -1,19 +1,21 @@
 # OpenShelter
 
 Backend for an Estonia public-shelter map: verified user registration, password auth with
-JWT sessions, shelter data ingested automatically from the official registry, user-submitted
-shelters with community ratings (the rating system **is** the moderation — no moderator).
-Users manage their own contributions — list/edit/delete their own shelters and reviews from
-the account page (M8, `user-contributions`). On top, a community trust layer (shelter-
-trust-and-reports) keeps the map honest without a moderator: users report shelters that no
-longer exist (the 5th such report takes the shelter off the public map), report bad reviews
-(the 5th hides the review), and report how full a shelter is right now (shown to everyone
-while fresh). A single env-provisioned admin (admin-moderation) works the trust layer's report
-queues — restore/delete user shelters, triage shelter reports, hide/restore reviews — from a
-moderation panel that is invisible to everyone else.
+JWT sessions, shelter data ingested automatically from the official registry, and
+user-submitted shelters that the community verifies — a submission lands as NEW and is
+promoted to CONFIRMED by community confirmation (there is no star-rating review model: that
+layer was removed by `V21__drop_reviews.sql`, so nothing rates a row).
+Users manage their own contributions — list/edit/delete their own shelters from the account
+page (M8, `user-contributions`). On top, a community trust layer (shelter-trust-and-reports)
+keeps the map honest without a moderator: users report shelters that no longer exist (the 5th
+such report takes the shelter off the public map), report the live open/closed state, and
+report how full a shelter is right now (shown to everyone while fresh). A single
+env-provisioned admin (admin-moderation) works the trust layer's queues — restore/delete user
+shelters, triage shelter reports, suspend accounts, mark listings inaccurate, review the
+audit trail — from a moderation panel that is invisible to everyone else.
 
 **Frontend in [`frontend/`](frontend/)** — Angular 22 SPA (map browse with trust filters,
-auth, verification, shelter submission, community reviews and reports); run/build docs in
+auth, verification, shelter submission, community reports); run/build docs in
 [frontend/README.md](frontend/README.md).
 
 > Built step by step from the task pack in [`context and tasks/agent/`](context%20and%20tasks/agent/):
@@ -22,24 +24,27 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 
 ## Status
 
+> Dated build log. The review/rating model that the earlier waves below mention was later
+> removed (`V21__drop_reviews.sql`) — **Features** and **API** describe the current surface.
+
 - ✅ **Admin moderation (admin-moderation)** — the env-provisioned admin + moderation API:
   `ADMIN_EMAIL`/`ADMIN_PASSWORD` provision one ADMIN-kind account at startup (create-if-absent,
   never re-hashed, no-op when either var is unset; login through the normal `/auth/login`),
   fresh `UserKind.ADMIN` lookup per `/admin/*` request (no JWT role claim — 401 anonymous /
   403 non-admin, a demotion takes effect on the next request), the `/admin/*` surface
   (all-shelters list incl. hidden + search, user-shelter hide/restore — a restore disarms
-  auto-hide — and hard delete, the shelter-report queue with idempotent dismiss, the
-  review-report queue with idempotent hide/restore; registry rows are import-owned → 409),
-  `isAdmin` on `GET /account/me`, `V10__admin_moderation.sql` (`shelter_reports.dismissed_at`)
-  — **464 backend tests green** plus the frontend `/admin` page (guard + admin-only nav item,
-  three tabs, account-page badge, `AdminGateway`) at **723 frontend tests across 38 spec
-  files** (both counted 2026-09-12), all green.
+  auto-hide — and hard delete, the shelter-report queue with idempotent dismiss; registry rows
+  are import-owned → 409), `isAdmin` on `GET /account/me`, `V10__admin_moderation.sql`
+  (`shelter_reports.dismissed_at`) — the frontend `/admin` page (guard + admin-only nav item,
+  tabs, account-page badge, `AdminGateway`) ships with it. Current repo-wide counts:
+  **679 backend tests / 870 frontend tests** (counted 2026-09-15 on this tree;
+  the per-wave numbers further down are historical).
 - ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
-  reports (the 5th "does not exist" auto-hides the shelter from the public list/map), review
-  reports (the 5th hides the review), live occupancy bands (display-only, 2 h freshness),
-  trust filters on the public list (`reviewed` / `hasCapacity` — M11 demoted the rating: the minRating filter is gone, the star display stays read-only), the 10-active-
-  shelter submission cap, a durable per-user report throttle (10 report-type actions /
-  rolling hour, advisory-locked check-and-record) and `V9__shelter_trust_and_reports.sql` —
+  reports (the 5th "does not exist" auto-hides the shelter from the public list/map), live
+  occupancy bands (display-only, 2 h freshness), trust filters on the public list
+  (`hasCapacity` / `provenance`), the 10-active-shelter submission cap, a durable per-user
+  report throttle (10 report-type actions / rolling hour, advisory-locked check-and-record)
+  and `V9__shelter_trust_and_reports.sql` —
   **433 backend tests green**, plus the frontend trust wave (trust filter chips + rating
   select, the orange reported marker + legend, the badge set, detail-page report pickers,
   the "Report how full" 3-band picker, the contributions-panel hidden state, the
@@ -57,14 +62,14 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 - ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
 - ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
-  (email/phone), so the full loop works: register → verify → add shelter → review.
+  (email/phone), so the full loop works: register → verify → add shelter → report.
 - ✅ **Anti-spam throttle on verification** — resend cooldown + per-user daily cap (file-backed,
   survives restarts) + per-IP bucket → 429.
 - ✅ **Real SMS channel** — Twilio Programmable Messaging implemented (send-only; OTP logic stays
   on our side), E.164 normalization, swappable via `app.sms.provider`.
 - ✅ **Hardening pass (code review)** — duplicate registration → 409, unique email/phone +
   one-active-claim constraints (V3), register rate limiting, X-Forwarded-For-aware buckets,
-  atomic password reset + import, no-N+1 rating aggregates, stored `description`/`capacity`,
+  atomic password reset + import, no-N+1 trust aggregates, stored `description`/`capacity`,
   CORS, SMTP delivery failures never surface as 500s. See [Hardening](#hardening-pass).
 - ⚠️ **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
   dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), SMS delivery needs
@@ -82,7 +87,8 @@ auth, verification, shelter submission, community reviews and reports); run/buil
   per-(IP, email) anti-guess bucket.
 - **Verification over HTTP**: `POST /verify/request` / `POST /verify/confirm` (JWT required)
   for email OTP and phone OTP; Smart-ID stub rejected up front; codes hashed, expiring,
-  attempt-limited. Verified users gain `canWrite()` (submit shelters, review).
+  attempt-limited. Verified users gain `canWrite()` (submit shelters, report, answer an
+  information request).
 - **Cross-channel contact change**: `POST /account/email-change/request` + `/confirm` and
   `POST /account/phone-change/request` + `/confirm` (JWT required). Changing the email is
   verified by an SMS code to the current phone; changing the phone by an email code to the
@@ -107,25 +113,26 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 - **E-mail channels**: `DevSmtpSender` (console, default, `app.mail.provider=dev`) and
   `SmtpPulseSmtpSender` (real SMTP via `spring-boot-starter-mail`, `app.mail.provider=smtp-pulse`,
   credentials from `SMTP_USERNAME`/`SMTP_PASSWORD` env vars only) — exactly one bean at runtime.
-- **Shelter ingestion**: weekly automatic sync (Mon 03:00 Europe/Tallinn) from the
-  **Maa-amet WFS** (`https://xgis.maaamet.ee/xgis2/service/1pdl2oh`, `typeName=VARJEKOHT`),
-  EPSG:3301 → WGS84 transformation via proj4j, pagination + retry/backoff + politeness delay,
+- **Shelter ingestion**: weekly automatic sync (Mon 03:00 Europe/Tallinn) from the official
+  **Päästeamet open-data CSV** (`https://opendata.smit.ee/gis/varjumiskohad.csv`, semicolon-
+  separated `id;nimi;aadress;lest_x;lest_y`), EPSG:3301 → WGS84 transformation via proj4j,
+  `If-Modified-Since` revalidation + retry/backoff + politeness delay,
   **registry rows only** — user-submitted rows are never touched by the importer.
-- **Shelter API**: public read endpoints with source filter, trust filters and rating
-  aggregates — the public list is ACTIVE-only (auto-hidden shelters are absent) and carries
-  the server-computed trust state (report counts, status flag, fresh occupancy); the detail
-  read is public for all statuses and adds the caller's own occupancy band; adding a shelter
-  requires an authenticated, verified user; **community reviews** — one review per user per
-  shelter (re-rating = update), author-only update/delete.
+  (`REGISTRY_CLIENT=paasteamet` is the legacy Maa-amet WFS alternate — that
+  service no longer publishes the layer; see *Deploy* step 5.)
+- **Shelter API**: public read endpoints with source, capacity and provenance filters — the
+  public list is ACTIVE-only (auto-hidden shelters are absent) and carries the server-computed
+  trust state (report counts, community review status, provenance, last-verified stamp, fresh
+  occupancy and open state); the detail read is public for all statuses and adds the caller's
+  own occupancy band and open state; adding a shelter requires an authenticated, verified user.
+  There is no star rating/review — that layer was removed by `V21__drop_reviews.sql`.
 - **Trust & reports (shelter-trust-and-reports)** — the community keeps the map honest, no
   moderator. Verified users report a shelter ("it does not exist" / "it is closed" / "it is
   open" / wrong location / other — one report per user per type) and the **5th "does not
   exist" report automatically hides the shelter from the public list and map** (the owner
   still sees it, marked hidden; restoring is admin-only — later reports never re-hide). Closed
   vs open reports net to a display flag ("Reported closed" / "Confirmed open") that never
-  hides. Reviews can be reported (four reasons, one per user per review — the **5th hides the
-  review** from everyone except its author, and it drops out of the rating, the count and the
-  `reviewed` filter). Anyone verified can report how full a shelter is right now (three bands,
+  hides. Anyone verified can report how full a shelter is right now (three bands,
   one live report per user, latest wins — shown to everyone while fresh: 2 h window, latest
   fresh band wins, hedged "Reported full" at one agreeing report, firm at two+; display-only,
   it never hides or filters). All report endpoints share one durable per-user throttle — 10
@@ -134,15 +141,18 @@ auth, verification, shelter submission, community reviews and reports); run/buil
   nothing is recorded). Submissions are capped at 10 ACTIVE USER shelters (409; ADMIN kind
   exempt).
 - **User contributions (M8)**: submitting users can list, edit and delete their OWN
-  USER-source shelters (`GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}`) and list
-  their own reviews across all shelters (`GET /account/reviews/mine`). `shelters.created_by`
+  USER-source shelters (`GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}`) and
+  answer the admin's information request on their own row
+  (`POST /api/shelters/{id}/info-request/reply`). `shelters.created_by`
   (V7, nullable — registry/legacy rows have no author) links a submission to its author;
   404 if the shelter is absent, 403 if it exists but is not the caller's (registry and
-  legacy rows are unmanageable by anyone); deleting a shelter cascades to its reviews.
+  legacy rows are unmanageable by anyone); deleting a shelter cascades to its reports and
+  occupancy.
 - **Uniform error shape** (`ErrorResponse`) across the whole API; `@RestControllerAdvice`.
 - **Admin moderation (admin-moderation)** — a single env-provisioned admin works the trust
-  layer's report queues; the rating/submission flow stays community-moderated (no moderator
-  touches ratings or reviews the community didn't flag).
+  layer's queues; submission moderation stays community-driven — `POST
+  /admin/shelters/{id}/review` is the rare manual override, and no moderator touches rows the
+  community didn't flag.
   - **Provisioning**: set `ADMIN_EMAIL` + `ADMIN_PASSWORD` in the environment (dev values
     live in the gitignored `.env`). At startup the `AdminSeeder` creates the account **only if
     no user with that email exists** (create-if-absent — it never overwrites an existing user,
@@ -158,12 +168,10 @@ auth, verification, shelter submission, community reviews and reports); run/buil
     request — no role in the JWT): list **every** shelter including auto-hidden ones (with
     report counts, occupancy, the submitter's name, name/address search); **hide/restore
     user shelters** (a restore is the manual change that disarms auto-hide — later "does
-    not exist" reports never re-hide that shelter); **hard-delete a user shelter** (reviews
-    and reports cascade); **triage the shelter-report queue** (newest first, with the
-    reporter's name + email — idempotent dismiss keeps the row, recorded as resolved);
-    **hide/restore reviews** from the review-report queue (immediate, idempotent — a hide can
-    land before the 5th-report threshold; a restore re-joins the review to the rating,
-    count and `reviewed` filter); **suspend/unsuspend a registered user** (idempotent,
+    not exist" reports never re-hide that shelter); **hard-delete a user shelter** (shelter
+    reports and occupancy cascade); **triage the shelter-report queue** (newest first, with
+    the reporter's name + email — idempotent dismiss keeps the row, recorded as resolved);
+    **suspend/unsuspend a registered user** (idempotent,
     audited with the account as subject — while suspended, login, refresh and every
     token-bearing request are refused; the user's shelters stay on the map); **view a
     shelter's edit history** (who created/edited/deleted it and which field moved where —
@@ -179,7 +187,7 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations (`V1__schema.sql`, `V2__shelter_registry_fields.sql`, `V3__hardening.sql`, `V4__contact_change.sql`, `V5__shelter_created_at.sql`, `V6__password_reset_attempts.sql`, `V7__shelter_created_by.sql`, `V8__review_hardening.sql`, `V9__shelter_trust_and_reports.sql`, `V10__admin_moderation.sql`)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations `V1`–`V22` (SQL, `src/main/resources/db/migration/`) plus the Java-based `V13` (`V13PiiEncryptionMigration` — PII-at-rest encryption + blind-index backfill, M2)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -188,12 +196,12 @@ auth, verification, shelter submission, community reviews and reports); run/buil
 
 | Package        | Contents                                                                                                                                                                                                                                                                     |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `domain`       | `User` hierarchy (incl. `AdminUser` — the env-provisioned admin, admin-moderation), `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `ShelterReview`, enums, value records — pure Java, no Spring                                                                                                                                              |
+| `domain`       | `User` hierarchy (incl. `AdminUser` — the env-provisioned admin, admin-moderation), `VerificationClaim`/`Policy`/`Rules`, `Shelter`, `Provenance`/`ReviewStatus`, enums, value records — pure Java, no Spring                                                                                                                                              |
 | `app`          | `UserService`, `ShelterService`, `LocationResolveService`, `MapsUrlCoordinates`, `RedirectClient` + `HttpUrlRedirectClient`, `AppInfo`, repository **interfaces**, `NotVerifiedException`                                                                                                                                                   |
 | `verification` | `VerificationProvider` + 3 impls, `SmsSender`/`SmtpSender` + impls, `VerificationService`, `PendingVerification`, `VerificationProperties`                                                                                                                                   |
 | `auth`         | `UserCredentials`, `PasswordHasher`, `TokenService`, `AuthService`, `PasswordResetService`, `ContactChangeService`, `AccountService`, `AuthController`, `AccountController`, `ClientIps`, `Codes`, `Hashes`, `RateLimiter`, `JwtProperties`, `ContactChangeProperties`, `AdminSeeder` (env-provisioned admin, admin-moderation), DTOs |
-| `ingestion`    | `ShelterRegistryClient` (WFS), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                                            |
-| `api`          | `ShelterController`, `ReviewController`, `LocationController`, `AdminController` + `AdminModerationService` (admin-moderation), query/review services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
+| `ingestion`    | `ShelterRegistryClient` (csv/paasteamet/dev clients), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                     |
+| `api`          | `ShelterController`, `LocationController`, `DataSourceController`, `AdminController` + `AdminModerationService` (admin-moderation), the dev `EmailTestController`/`SmsTestController` diagnostics, query services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
 | `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                      |
 | `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
 
@@ -203,8 +211,8 @@ on nothing. Cross-package access goes through interfaces only.
 ## Data flow
 
 ```
-Maa-amet WFS (VARJEKOHT, EPSG:3301)
-      │  PaasteametRegistryClient (pagination, retry/backoff, politeness)
+Päästeamet open-data CSV (id;nimi;aadress;lest_x;lest_y, EPSG:3301)
+      │  CsvRegistryClient (bulk download, If-Modified-Since, retry/backoff, politeness)
       ▼
 LEst97Transformer  ── EPSG:3301 → WGS84 (proj4j)
       ▼
@@ -214,18 +222,18 @@ ShelterImportService ── upsert by externalId, delist missing (the fetched re
 PostgreSQL (all registry fields stored: name, address, county, municipality,
            coordinates, data-as-of, source attribution)
       ▼
-GET /api/shelters  ── lean projection (id, name, address, lat/lng, rating) for the UI
+GET /api/shelters  ── lean projection (id, name, address, lat/lng, trust/provenance) for the UI
 ```
 
 The UI only ever talks to the local API for app data — never to the external
-WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
+the external source. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 `0 0 3 * * MON`, Europe/Tallinn) or manually on boot (see below).
 
 ### External services
 
 | Service       | Who talks to it                                                                               | Purpose / policy                                                                                                                                                                                                                                                                                                                                                                              |
 | ------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Maa-amet WFS  | backend only (weekly import + manual trigger)                                                 | registry shelters (EPSG:3301 → WGS84)                                                                                                                                                                                                                                                                                                                                                         |
+| Päästeamet    | backend only (weekly import + manual trigger)                                                 | registry shelters (EPSG:3301 → WGS84)                                                                                                                                                                                                                                                                                                                                                          |
 | OSM Nominatim | **frontend only** — `/submit` address search (`frontend/src/app/gateways/geocode-gateway.ts`) | Estonia-restricted geocoding (`countrycodes=ee`, limit 5, jsonv2), no API key. Client-side **≥1000 ms request spacing** (1 req/s usage policy; the browser sends the expected `Referer`/`Accept-Language`). The UI always renders the required attribution "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to the search box, and a search failure never blocks submission. |
 
 ## API
@@ -239,36 +247,42 @@ WFS. The DB is refreshed **weekly** by `RegistryScheduler` (`@Scheduled`, cron
 | POST   | `/auth/password-reset/request`             | —                       | Always 200 ("if the account exists, we emailed a 6-digit code")                                                                                                                                             |
 | POST   | `/auth/password-reset/confirm`             | —                       | `{email, code, newPassword}` — set new password with the emailed code; revokes all sessions                                                                                                                 |
 | GET    | `/account/me`                              | JWT                     | The caller's real profile + real verified claims + `isAdmin` (admin-moderation: always present, true only for the ADMIN-kind account — the frontend's gate for the nav item and the `/admin` route) (`MeResponse` — the frontend's single source of truth)                                                                                                     |
-| PUT    | `/account/profile`                         | JWT                     | Update the name with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                   |
+| PUT    | `/account/profile`                         | JWT                     | Update the name with current-password confirmation → fresh `MeResponse`; wrong password → 401 (nothing updated)                                                     |
+| GET    | `/account/export`                          | JWT                     | The caller's own data (profile + every author-scoped shelter row) as one JSON document → 200 `DataExportResponse` (the frontend turns it into a download) |
+| DELETE | `/account`                                 | JWT + verified          | Account erasure → 204 — private homes purged, public community rows orphaned (map data outlives accounts), credentials/claims/tokens/reports cascade; a repeat call is an idempotent no-op |
 | POST   | `/account/email-change/request`            | JWT                     | Start email change → **SMS code to current phone** (202)                                                                                                                                                    |
 | POST   | `/account/email-change/confirm`            | JWT                     | Complete email change with the SMS code (200/400)                                                                                                                                                           |
 | POST   | `/account/phone-change/request`            | JWT                     | Start phone change → **email code to current email** (202)                                                                                                                                                  |
 | POST   | `/account/phone-change/confirm`            | JWT                     | Complete phone change with the email code (200/400)                                                                                                                                                         |
 | POST   | `/verify/request`                          | JWT                     | Request email/phone verification code → 202 (429 if throttled: 60s cooldown / daily cap)                                                                                                                    |
 | POST   | `/verify/confirm`                          | JWT                     | Confirm with the code → claim added (400 wrong/expired; 409 if already verified — idempotent re-confirm returns 200)                                                                                        |
-| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters with `averageRating`/`reviewCount` — **ACTIVE rows only** (auto-hidden shelters are absent); optional trust filters `reviewed=true`, `hasCapacity=true` compose with `source`, applied server-side (M11: the `minRating` rating filter is gone — the star display stays a read-only summary); rows carry the trust state (`nonexistentReports`, `statusFlag`, `occupancy`) |
+| GET    | `/api/shelters?source=ALL\|USER\|REGISTRY` | public                  | List shelters — **ACTIVE rows only** (auto-hidden shelters are absent); optional filters `hasCapacity=true` and `provenance=` (enum) compose with `source`, applied server-side (a stray `minRating` param is ignored); every row carries the trust state (`nonexistentReports`, `reportCount`, `lastVerifiedAt`, `openStatus`, `occupancy`, `reviewStatus`, `provenance`, `inaccurate`) |
 | GET    | `/api/shelters/{id}`                       | public                  | Shelter detail (`ShelterDetailDto` — the list fields + the caller's `yourOccupancyBand`); **all statuses** (an auto-hidden shelter stays reachable here and by its owner) |
 | POST   | `/api/shelters`                            | JWT + verified          | Submit a shelter → 201 + Location; 409 when the caller already has 10 ACTIVE USER shelters (the cap; ADMIN kind exempt) |
 | GET    | `/api/shelters/mine`                       | JWT                     | The caller's own shelters (never other users' or registry rows; **all statuses** — auto-hidden rows included, the contributions panel marks them) |
 | PUT    | `/api/shelters/{id}`                       | JWT + verified + author | Update own shelter (name/description/capacity/lat/lng; bbox re-checked) → 200 `ShelterDto`; 404 absent / 403 not the author (registry/legacy rows)                                                          |
-| DELETE | `/api/shelters/{id}`                       | JWT + verified + author | Delete own shelter → 204 (reviews cascade); 404 absent / 403 not the author                                                                                                                                 |
-| POST   | `/api/shelters/{id}/reports`               | JWT + verified          | Report a shelter `{type, detail?}` (NON_EXISTENT / CLOSED / OPEN_CONFIRMED / WRONG_LOCATION / OTHER; detail only for OTHER, ≤ 500) → 204; 404 unknown shelter, 409 duplicate (shelter, user, type — checked before the throttle budget), 429 report throttle. The 5th NON_EXISTENT auto-hides an ACTIVE shelter (never re-hides after a manual status change) |
+| DELETE | `/api/shelters/{id}`                       | JWT + verified + author | Delete own shelter → 204 (its reports and occupancy cascade); 404 absent / 403 not the author                                                                                                                                 |
+| POST   | `/api/shelters/{id}/reports`               | JWT + verified          | Report a shelter `{type, detail?}` (NON_EXISTENT / CLOSED / OPEN_CONFIRMED / WRONG_LOCATION / OTHER; detail only for OTHER, ≤ 500) → 200 `{"damped": true\|false}` (the dampening outcome); 404 unknown shelter, 409 duplicate (shelter, user, type — checked before the throttle budget), 429 report throttle. The 5th NON_EXISTENT auto-hides an ACTIVE shelter (never re-hides after a manual status change) |
 | PUT    | `/api/shelters/{id}/occupancy`             | JWT + verified          | Report how full `{band}` (SPACE / GETTING_FULL / FULL) → 204 upsert — one live band per user per shelter, latest wins (no 409: a re-PUT is the update); 404 unknown shelter, 429 throttle. Display-only: 2 h freshness at read time, latest fresh band wins, hedged at one agreeing report, firm at two+ — never hides or filters |
 | POST   | `/api/geo/resolve`                         | JWT                     | Resolve a `maps.app.goo.gl` short link → `{latitude, longitude}` (per-IP 5/min → 429; 400 one generic message when no pair / outside Estonia / other host; 502 one generic retry-later on upstream failure) |
-| GET    | `/account/reviews/mine`                    | JWT                     | The caller's reviews across all shelters (`shelterId`, `shelterName`, rating, comment, timestamps)                                                                                                          |
-| GET    | `/api/shelters/{id}/reviews`               | public                  | Reviews for a shelter                                                                                                                                                                                       |
-| POST   | `/api/shelters/{id}/reviews`               | JWT + verified          | Review (upsert: re-rating updates)                                                                                                                                                                          |
-| PUT    | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Update own review                                                                                                                                                                                           |
-| DELETE | `/api/shelters/{id}/reviews/mine`          | JWT + verified + author | Delete own review                                                                                                                                                                                           |
-| POST   | `/api/shelters/{id}/reviews/{reviewId}/reports` | JWT + verified | Report a review `{reason, detail?}` (FALSY_DATA / NOT_RELEVANT / SPAM / OTHER) → 204; 403 own review or not verified, 404 unknown shelter/review, 409 duplicate (review, user), 429 throttle. The 5th report hides the review (set once, cleared only by admin moderation; the author still sees it, marked hidden) |
-| GET    | `/admin/shelters?status=&source=&q=`       | JWT + ADMIN kind        | **Every shelter incl. hidden** (id-ordered) with `nonexistentReports`, `statusFlag`, fresh `occupancy`, `reviewCount`/`rating` and the submitter's name; `status`/`source` exact-match filters, `q` = case-insensitive name/address substring → 200 `AdminShelterDto[]` (401 anonymous, 403 non-admin — fresh kind lookup per request) |
+| POST   | `/api/shelters/{id}/info-request/reply`    | JWT + verified + author | The submitter's ONE-TIME answer to the admin's information request `{message}` → 204; 404 unknown shelter or no request, 403 not the author, 409 a second answer (the row is kept) |
+| PUT    | `/api/shelters/{id}/open-status`           | JWT + verified          | Report the live open/closed state `{state: OPEN\|CLOSED}` → 204 upsert — one state per user per shelter, latest wins; 404 unknown shelter, 400 unknown enum value; **not throttled** (a tap is a state, not a report) |
+| GET    | `/api/data-source`                         | public                  | Where the official shelter data comes from: the publisher, its open-data page and the newest import audit (status, source version, added/updated/removed counts) → 200 `DataSourceDto` |
+| GET    | `/admin/shelters?status=&source=&q=`       | JWT + ADMIN kind        | **Every shelter incl. hidden** (id-ordered) with `nonexistentReports`, `openStatus`, fresh `occupancy`, `reviewStatus`/`reviewNote`, `provenance`, `locationKind`, `inaccurate`, the info request and the submitter's name; `status`/`source` exact-match filters, `q` = case-insensitive name/address substring → 200 `AdminShelterDto[]` (401 anonymous, 403 non-admin — fresh kind lookup per request) |
 | POST   | `/admin/shelters/{id}/status`              | JWT + ADMIN kind        | `{"status": "ACTIVE" \| "INACTIVE"}` — manual hide/restore of a USER shelter → 204; a **restore disarms auto-hide permanently** (later NON_EXISTENT reports never re-hide); 400 missing/unknown status, 404 unknown shelter, **409 registry row** (import-owned) |
-| DELETE | `/admin/shelters/{id}`                     | JWT + ADMIN kind        | Hard delete of a USER shelter (reviews, shelter reports, review reports, occupancy cascade) → 204; 404 unknown shelter, 409 registry row (import-owned) |
+| DELETE | `/admin/shelters/{id}`                     | JWT + ADMIN kind        | Hard delete of a USER shelter (shelter reports and occupancy cascade) → 204; 404 unknown shelter, 409 registry row (import-owned) |
 | GET    | `/admin/reports?shelterId=`                | JWT + ADMIN kind        | The shelter-report queue, **newest first**, with the shelter's live status + the reporter's profile name + email (admin-only data); optional `shelterId` filter (unknown shelter → 404) → 200 `AdminShelterReportDto[]` |
 | POST   | `/admin/reports/{id}/dismiss`              | JWT + ADMIN kind        | Mark a shelter report resolved → 204 — **idempotent** (a re-dismiss is a no-op); the row is KEPT, stamped `dismissed_at` once (V10); 404 unknown report |
-| GET    | `/admin/review-reports`                    | JWT + ADMIN kind        | The review-report queue, newest first, **hidden reviews included** with their hidden marker + the review excerpt (rating + comment) → 200 `AdminReviewReportDto[]` |
-| POST   | `/admin/reviews/{id}/hide`                 | JWT + ADMIN kind        | Immediate hide of the reviewed review (`{id}` = the REVIEW's id) → 204 — **idempotent**; can fire before the 5th-report threshold; hiding never deletes the row; 404 unknown review |
-| POST   | `/admin/reviews/{id}/restore`              | JWT + ADMIN kind        | Clear the review's hidden state (`{id}` = the REVIEW's id) → 204 — **idempotent**; the review re-joins the rating, count and `reviewed` filter; 404 unknown review |
+| GET    | `/admin/shelters/{id}/history`             | JWT + ADMIN kind        | The shelter's edit history, ascending: CREATED / EDITED (server-parsed field changes) / DELETED, with snapshot + batched actor names → 200 `AdminShelterHistoryDto[]`; a deleted shelter's history still serves; registry rows answer an empty list |
+| POST   | `/admin/shelters/{id}/request-info`        | JWT + ADMIN kind        | Ask the submitter for details `{message}` → 204; one exchange per shelter (the replied row is kept → 409 on a second request), 404 unknown shelter, 409 registry rows |
+| POST   | `/admin/shelters/{id}/mark-inaccurate`     | JWT + ADMIN kind        | Mark a USER shelter inaccurate (`{reason?}` optional) → 204 — **idempotent**; the row STAYS visible with the `inaccurate` flag; 404 unknown shelter, 409 registry rows |
+| POST   | `/admin/shelters/{id}/clear-inaccurate`    | JWT + ADMIN kind        | Clear the inaccurate mark → 204 — **idempotent**, audited; 404 unknown shelter, 409 registry rows |
+| POST   | `/admin/shelters/{id}/review`              | JWT + ADMIN kind        | The community-review decision `{action: CONFIRM\|REJECT, reason?}` → 200 `{"ok":true}`; CONFIRM promotes the row to CONFIRMED (status untouched), REJECT hides it (REJECTED + INACTIVE, reason stored as the note); 404 unknown shelter, 409 registry rows |
+| GET    | `/admin/audit?limit=`                      | JWT + ADMIN kind        | The moderation audit trail, newest first — every moderation-relevant action (admin AND automatic) with the shelter name resolved at read time → 200 `AdminAuditDto[]`; `limit` 1..200 (default 100) |
+| GET    | `/admin/alerts?limit=`                     | JWT + ADMIN kind        | The throttle-abuse alerts, newest first: the daily submission cap (429), the per-contact OTP cap (429) and the near-duplicate rejection (409) → 200 `AdminAlertDto[]`; `limit` 1..200 (default 50). **In-memory** — clears on restart, so it is a triage view, not a durable log |
+| GET    | `/admin/users`                             | JWT + ADMIN kind        | Every REGISTERED and ADMIN account with its suspension state, id-ordered → 200 `AdminUserDto[]` |
+| POST   | `/admin/users/{id}/suspend`                | JWT + ADMIN kind        | Suspend a registered account → 204 — **idempotent**; login, refresh and every in-flight token stop working immediately; 404 unknown id, 409 ADMIN/GUEST targets (lockout vector) |
+| POST   | `/admin/users/{id}/unsuspend`              | JWT + ADMIN kind        | Lift the suspension → 204 — **idempotent**, audited; same 404/409 |
 | POST   | `/dev/email-test`                          | JWT + opt-in            | **SMTP diagnostic** — sends a real email and reports `sent`/error truthfully (disabled by default, see below)                                                                                               |
 | POST   | `/dev/sms-test`                            | JWT + opt-in            | **SMS diagnostic** — sends a real SMS via the active sender and reports provider + E.164 recipient (disabled by default, see below)                                                                         |
 | GET    | `/actuator/health`                         | public                  | Health check                                                                                                                                                                                                |
@@ -336,7 +350,8 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; expect 464 green)
+# 3. Run tests (Testcontainers spins its own postgres:16; 679 backend tests green —
+#    counted 2026-09-13, docs/whitepaper.md §8)
 mvn test
 
 # 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
@@ -364,7 +379,7 @@ curl http://localhost:8080/actuator/health
 ### One-off import of the real registry data
 
 ```bash
-# Fetches all ~300 shelters from the live WFS, transforms to WGS84, stores them
+# Fetches all ~300 shelters from the official open-data CSV, transforms to WGS84, stores them
 ./dev-start.sh --run-registry
 # (equivalent: SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.run-on-startup=true")
 ```
@@ -375,7 +390,7 @@ Then the data is served by `GET /api/shelters`:
 curl http://localhost:8080/api/shelters | python3 -m json.tool | head -50
 ```
 
-### Dev fixture instead of the live WFS
+### Dev fixture instead of the live source
 
 ```bash
 SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.client=dev --app.registry.run-on-startup=true"
@@ -413,8 +428,8 @@ naming convention is reserved; shell-exported env vars take precedence over `.en
 | `CONTACT_CHANGE_CODE_TTL_SECONDS`                                | `900`                                                                       | Contact-change code validity window (15 min)                                     |
 | `CONTACT_CHANGE_MAX_ATTEMPTS`                                    | `5`                                                                         | Max wrong contact-change codes before the request is rejected                    |
 | `DEV_EMAIL_TEST_ENABLED`                                         | `false`                                                                     | Enables `POST /dev/email-test` (SMTP diagnostic, JWT required)                   |
-| `REGISTRY_BASE_URL`                                              | Maa-amet WFS URL                                                            | Registry endpoint                                                                |
-| `REGISTRY_CLIENT`                                                | `paasteamet`                                                                | `paasteamet` (real HTTP) or `dev` (local fixture)                                |
+| `REGISTRY_BASE_URL`                                              | Päästeamet open-data CSV URL                                                | Registry endpoint                                                                |
+| `REGISTRY_CLIENT`                                                | `csv`                                                                       | `csv` (real HTTP), `paasteamet` (legacy WFS) or `dev` (local fixture)            |
 | `CORS_ALLOWED_ORIGINS`                                           | `http://localhost:5173,http://localhost:3000`                               | Browser origins allowed to call the API                                          |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD`                                 | — (empty = no admin exists)                                                 | The env-provisioned admin (admin-moderation): both set + no user with that email → an ADMIN-kind account is created at startup (create-if-absent — never re-hashed; login through the normal `/auth/login`); either unset → no admin, `/admin/*` answers 403 for everyone. **No defaults are committed** — the dev values live in the gitignored `.env` |
 | `PII_AES_KEY` / `PII_HMAC_KEY`                                    | — (empty = **the app refuses to boot**)                                     | PII at rest (M2): 32-byte base64 AES-GCM data key + HMAC blind-index key. Generate: `openssl rand -base64 32` (once per key). Dev values live in the gitignored `.env`; **never committed, never logged** — see “PII at rest” below |
@@ -613,14 +628,16 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 
 - Auth (register/login/refresh/logout/password-reset) with Argon2id + JWT + rate limiting
 - **Verification over HTTP** (`POST /verify/request` + `/verify/confirm`, email/phone) — the
-  write path is now reachable: verified users can submit shelters and review
+  write path is now reachable: verified users can submit shelters, report and answer an
+  information request
 - **Cross-channel contact change** (`POST /account/*-change/request` + `/confirm`) — email
   change verified by SMS, phone change by email
-- Shelter ingestion from the live Maa-amet WFS + weekly scheduler + manual trigger
-- Public read API with rating aggregates, verified-write API for shelters and reviews, and
-  the community trust layer (shelter/review reports with auto-hide, live occupancy, trust
-  filters)
-- Persistence (Flyway V1–V10, JPA, `ddl-auto=validate`), uniform error handling
+- Shelter ingestion from the official Päästeamet open-data CSV + weekly scheduler +
+  manual trigger
+- Public read API with the trust/provenance aggregates, a verified-write API for shelters,
+  reports and occupancy, and the community trust layer (shelter reports with auto-hide, live
+  occupancy and open state, provenance, trust filters)
+- Persistence (Flyway `V1`–`V22` + the Java `V13`, JPA, `ddl-auto=validate`), uniform error handling
 - Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
 **Known gaps / next steps:**
@@ -635,8 +652,8 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 2. **nearest/bbox search + paging** — documented as deferred, not built.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete + M7/M8 additions);
-   the honest deferral list (per-shelter `reviews/mine` endpoint, paging/nearest-bbox search,
-   i18n, MapLibre, httpOnly cookies, SSR, e2e framework) is in
+   the honest deferral list (paging/nearest-bbox search, i18n, MapLibre, httpOnly cookies,
+   SSR, e2e framework) is in
    [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
 5. **2026-09-08 review deferrals** — the low-severity tail (reset-token global prune
    scheduler, TokenBucket sweep race, send-log UTC-midnight assumption, 403-vs-401
