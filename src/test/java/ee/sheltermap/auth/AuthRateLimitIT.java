@@ -54,13 +54,13 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
             mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Spam\",\"email\":\"spam" + i + "@example.ee\","
                                     + "\"phone\":\"+37250009" + i + "\","
-                                    + "\"password\":\"s3cret\"}"))
+                                    + "\"password\":\"s3cret123\"}"))
                     .andExpect(status().isCreated());
         }
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Spam\",\"email\":\"spam9@example.ee\","
                                 + "\"phone\":\"+3725000999\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.message").value("Too many requests"));

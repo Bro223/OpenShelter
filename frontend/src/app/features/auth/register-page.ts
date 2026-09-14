@@ -3,6 +3,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
 import type { RegisterRequest } from '../../core/models';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -19,7 +20,7 @@ import { bannerMessage } from '../../shared/error-copy';
  */
 @Component({
   selector: 'app-register-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, TranslatePipe],
   templateUrl: './register-page.html',
   styleUrl: './register-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

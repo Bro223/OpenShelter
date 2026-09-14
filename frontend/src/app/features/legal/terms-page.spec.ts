@@ -23,20 +23,40 @@ describe('TermsPage', () => {
     return element.textContent ?? '';
   }
 
-  it('renders the terms title and the section headings', () => {
+  it('renders the title, the last-updated line and a table of contents', () => {
     expect(text()).toContain('Terms of use');
-    expect(text()).toContain('What OpenShelter is');
-    expect(text()).toContain('Accounts and verification');
-    expect(text()).toContain('Contributions');
-    expect(text()).toContain('Trust labels');
-    expect(text()).toContain('Personal data');
-    expect(text()).toContain('No warranty');
-    expect(text()).toContain('Changes to these terms');
+    expect(text()).toContain('Last updated');
+    const toc = element.querySelector('.legal-page__toc');
+    expect(toc).not.toBeNull();
+    expect(toc?.querySelectorAll('ol li').length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('renders the section headings', () => {
+    for (const heading of [
+      'Acceptance of these terms',
+      'What OpenShelter is',
+      'Eligibility and accounts',
+      'Account security',
+      'Rules for contributions',
+      'Prohibited content and behaviour',
+      'Official versus community information',
+      'Emergency disclaimer',
+      'No warranty',
+      'Open-source license',
+    ]) {
+      expect(text()).toContain(heading);
+    }
   });
 
   it('keeps the app-wide safety framing: not official, 112 first', () => {
     expect(text()).toContain('not an official emergency service');
+    expect(text()).toContain('not an emergency service');
     expect(text()).toContain('112');
+  });
+
+  it('states the emergency disclaimer plainly', () => {
+    expect(text()).toContain('must not be your only source of emergency information');
+    expect(text()).toContain('Do not enter private property');
   });
 
   it('states the contribution limits honestly (caps, not bans)', () => {
@@ -47,6 +67,13 @@ describe('TermsPage', () => {
 
   it('pins the verified-user vs verified-shelter gap', () => {
     expect(text()).toContain('verified user is not a verified shelter');
+    expect(text()).toContain('not automatically a safe, legal, accessible');
+  });
+
+  it('carries visible placeholders for unconfirmed legal details', () => {
+    expect(text()).toContain('[APPLICABLE LAW TO BE CONFIRMED]');
+    expect(text()).toContain('[DISPUTE RESOLUTION TO BE CONFIRMED]');
+    expect(text()).toContain('[CONTACT EMAIL]');
   });
 
   it('links to the privacy policy', () => {

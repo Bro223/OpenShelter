@@ -78,14 +78,33 @@ class FileVerificationSendLogTest {
     @Test
     void ignoresCorruptedLines() throws Exception {
         long recent = Instant.parse("2026-09-01T09:00:00Z").toEpochMilli();
-        Files.writeString(logPath(), "1\tEMAIL\ta@example.ee\tnot-a-timestamp\n"
+        Files.writeString(logPath(), "1\tEMAIL\tnot-a-timestamp\n"
                 + "garbage line\n"
-                + "2\tPHONE\t+37250000000\t" + recent + "\n");
+                + "2\tPHONE\t" + recent + "\n"
+                // legacy 4-field line (contact column): still loads, contact ignored
+                + "3\tEMAIL\tlegacy@example.ee\t" + recent + "\n");
 
         FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
 
         assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isZero();
         assertThat(log.countToday(2L, VerificationLevel.PHONE)).isEqualTo(1);
+        assertThat(log.countToday(3L, VerificationLevel.EMAIL)).isEqualTo(1);
+    }
+
+    @Test
+    void theContactIsNotPersistedInTheLogFile() throws Exception {
+        // P2-5: the log file is unencrypted — a raw e-mail/phone in it is a
+        // PII leak. Only (userId, level, timestamp) may be stored; the
+        // cooldown/cap math needs nothing else.
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+        log.record(1L, VerificationLevel.EMAIL, "secret-contact@example.ee", CLOCK.instant());
+
+        String file = Files.readString(logPath());
+        assertThat(file).doesNotContain("secret-contact@example.ee");
+        assertThat(file).contains("1\tEMAIL\t");
+        // ...and the count math still works across a restart
+        FileVerificationSendLog reloaded = new FileVerificationSendLog(logPath(), CLOCK);
+        assertThat(reloaded.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(1);
     }
 
     @Test

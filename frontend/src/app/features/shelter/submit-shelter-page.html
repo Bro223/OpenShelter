@@ -1,9 +1,9 @@
 <section class="submit-page">
-  <a routerLink="/map" class="back-link">&larr; Back to the map</a>
+  <a routerLink="/map" class="back-link">&larr; {{ 'submit.backToMap' | t }}</a>
 
   <header>
-    <h1 class="page-title">Submit a shelter</h1>
-    <p class="page-subtitle">Add a community bomb shelter to the map.</p>
+    <h1 class="page-title">{{ 'submit.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'submit.subtitle' | t }}</p>
   </header>
 
   <app-banner severity="error" [message]="error()" />
@@ -13,29 +13,29 @@
        page. The form stays for a second submission. -->
   @if (submitted(); as created) {
     <div class="submit-success" role="status">
-      <p>Your location is now listed and marked as newly added. Community reports confirm it.</p>
+      <p>{{ 'submit.successBody' | t }}</p>
       <p class="submit-success__links">
-        <a [routerLink]="['/shelters', created.id]">View your location</a>
-        <a routerLink="/account">View your contributions</a>
+        <a [routerLink]="['/shelters', created.id]">{{ 'submit.success.viewLocation' | t }}</a>
+        <a routerLink="/account">{{ 'submit.success.viewContributions' | t }}</a>
       </p>
     </div>
   }
   @if (verifyLink()) {
     <p class="verify-hint">
-      This account no longer has a verified claim.
-      <a routerLink="/verify">Go to verification</a>
+      {{ 'submit.verifyHint' | t }}
+      <a routerLink="/verify">{{ 'submit.verifyHint.link' | t }}</a>
     </p>
   }
 
   <form class="submit-form" [formGroup]="form" (ngSubmit)="submit()">
     <div class="field">
-      <label for="shelter-name">Name *</label>
+      <label for="shelter-name">{{ 'submit.nameLabel' | t }}</label>
       <input
         id="shelter-name"
         type="text"
         formControlName="name"
         maxlength="200"
-        placeholder="e.g. Kalamaja community shelter"
+        [placeholder]="'submit.namePlaceholder' | t"
         autocomplete="off"
       />
       @if (name().touched && name().invalid) {
@@ -43,29 +43,29 @@
         <p class="field-error">
           {{
             name().errors?.['maxlength']
-              ? 'Name must be 200 characters or fewer.'
-              : 'A name is required.'
+              ? ('submit.name.tooLong' | t)
+              : ('submit.name.required' | t)
           }}
         </p>
       }
     </div>
 
     <div class="field">
-      <label for="shelter-description">Description (optional)</label>
+      <label for="shelter-description">{{ 'submit.descriptionLabel' | t }}</label>
       <textarea
         id="shelter-description"
         rows="4"
         formControlName="description"
         maxlength="2000"
-        placeholder="Access, conditions, who runs it…"
+        [placeholder]="'submit.descriptionPlaceholder' | t"
       ></textarea>
       @if (description().invalid && description().touched) {
-        <p class="field-error">Description must be 2000 characters or fewer.</p>
+        <p class="field-error">{{ 'submit.description.tooLong' | t }}</p>
       }
     </div>
 
     <div class="field">
-      <label for="shelter-capacity">Capacity (optional, 1–100 000 people)</label>
+      <label for="shelter-capacity">{{ 'submit.capacityLabel' | t }}</label>
       <input
         id="shelter-capacity"
         type="number"
@@ -73,10 +73,10 @@
         max="100000"
         step="1"
         formControlName="capacity"
-        placeholder="e.g. 40"
+        [placeholder]="'submit.capacityPlaceholder' | t"
       />
       @if (capacity().invalid && capacity().touched) {
-        <p class="field-error">Capacity must be a whole number between 1 and 100 000.</p>
+        <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
       }
     </div>
 
@@ -86,20 +86,19 @@
     <div class="field">
       <label class="checkbox-field" for="shelter-private">
         <input id="shelter-private" type="checkbox" formControlName="privateLocation" />
-        This is a private home or private shelter (a resident offers it as a refuge spot)
+        {{ 'submit.privateLabel' | t }}
       </label>
     </div>
 
     <fieldset class="field location-field">
-      <legend>Location *</legend>
-      <p class="field-note">
-        Paste coordinates (59.4370, 24.7535) or a map link, search an Estonian address, use "Use my
-        location", or click the map. It must be inside Estonia.
-      </p>
+      <legend>{{ 'submit.locationLegend' | t }}</legend>
+      <p class="field-note">{{ 'submit.locationNote' | t }}</p>
       <div #mapEl class="submit-map"></div>
 
       <div class="location-smart">
-        <label class="location-label" for="shelter-location-input">Coordinates or map link</label>
+        <label class="location-label" for="shelter-location-input">{{
+          'submit.locationLabel' | t
+        }}</label>
         <div class="location-smart-row">
           <input
             id="shelter-location-input"
@@ -107,7 +106,7 @@
             [value]="locationText()"
             (input)="onLocationTextChange($event)"
             (keydown.enter)="onLocationSubmitKey($event)"
-            placeholder="59.4370, 24.7535 — or paste a Google Maps link"
+            [placeholder]="'submit.locationPlaceholder' | t"
             autocomplete="off"
             [disabled]="resolvingLink() || locating()"
           />
@@ -117,18 +116,18 @@
             (click)="applyLocationInput()"
             [disabled]="resolvingLink() || locating()"
           >
-            {{ resolvingLink() ? 'Resolving…' : 'Set location' }}
+            {{ resolvingLink() ? ('submit.location.resolving' | t) : ('submit.location.set' | t) }}
           </button>
         </div>
         <p class="location-note">
-          An address from the search below fills this field only while it is empty.
+          {{ 'submit.location.prefillNote' | t }}
         </p>
       </div>
 
       <div class="location-search">
-        <label class="location-label" for="shelter-address-search"
-          >Search an Estonian address</label
-        >
+        <label class="location-label" for="shelter-address-search">{{
+          'submit.addressLabel' | t
+        }}</label>
         <div class="location-search-row">
           <input
             id="shelter-address-search"
@@ -136,19 +135,19 @@
             [value]="addressQuery()"
             (input)="onAddressQueryChange($event)"
             (keydown.enter)="onAddressSearchKey($event)"
-            placeholder="e.g. Lossi 2, Tartu"
+            [placeholder]="'submit.addressPlaceholder' | t"
             autocomplete="off"
             [disabled]="searching()"
           />
           <button type="button" class="btn" (click)="startAddressSearch()" [disabled]="searching()">
-            {{ searching() ? 'Searching…' : 'Search' }}
+            {{ searching() ? ('submit.searching' | t) : ('submit.search' | t) }}
           </button>
         </div>
         <p class="location-attribution">
-          Address data
-          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
-            >© OpenStreetMap contributors</a
-          >
+          {{ 'submit.attributionLead' | t }}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">{{
+            'submit.osmAttribution' | t
+          }}</a>
         </p>
         @if (addressResults().length !== 0) {
           <ul class="address-results">
@@ -178,7 +177,7 @@
           (click)="useMyLocation()"
           [disabled]="locating() || resolvingLink()"
         >
-          {{ locating() ? 'Locating…' : 'Use my location' }}
+          {{ locating() ? ('submit.locating' | t) : ('submit.useMyLocation' | t) }}
         </button>
       </div>
 
@@ -196,7 +195,7 @@
     </fieldset>
 
     <button type="submit" class="btn btn--primary" [disabled]="pending()">
-      {{ pending() ? 'Submitting…' : 'Submit shelter' }}
+      {{ pending() ? ('submit.submitting' | t) : ('submit.submit' | t) }}
     </button>
   </form>
 </section>

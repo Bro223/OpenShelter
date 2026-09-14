@@ -251,13 +251,15 @@ public class ShelterController {
         updated.setCreatedAt(shelter.getCreatedAt());
         updated.setCreatedBy(shelter.getCreatedBy());
         // Admin-owned state is preserved through the owner's edit (the
-        // save copies every domain field): the trust-layer disarm flag
-        // and the community trust state (a PUT must never let the owner
-        // reset review_status/review_note — including "self-confirming"
-        // a NEW row by editing it).
+        // save copies every domain field): the trust-layer disarm flag,
+        // the community trust state and the admin "inaccurate" mark (a
+        // PUT must never let the owner reset review_status/review_note —
+        // including "self-confirming" a NEW row by editing it).
         updated.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
         updated.setReviewStatus(shelter.getReviewStatus());
         updated.setReviewNote(shelter.getReviewNote());
+        updated.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
+        updated.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
         // The private-home declaration is updatable; absent = keep current.
         updated.setLocationKind(request.locationKind() == null
                 ? shelter.getLocationKind() : request.locationKind());

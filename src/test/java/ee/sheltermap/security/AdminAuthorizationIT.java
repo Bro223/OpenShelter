@@ -87,9 +87,9 @@ class AdminAuthorizationIT extends AbstractPersistenceIT {
     private String registerVerified(String name, String email, String phone) throws Exception {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + name + "\",\"email\":\"" + email + "\","
-                                + "\"phone\":\"" + phone + "\",\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"" + phone + "\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
-        String token = login(email, "s3cret");
+        String token = login(email, "s3cret123");
         mvc.perform(post("/verify/request").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
@@ -135,7 +135,7 @@ class AdminAuthorizationIT extends AbstractPersistenceIT {
 
     @Test
     void aRegisteredNonAdminGets403OnAdminEndpoints() throws Exception {
-        String token = login(registerAndLoginPlain("plain@example.ee", "+37250020001"), "s3cret");
+        String token = login(registerAndLoginPlain("plain@example.ee", "+37250020001"), "s3cret123");
         mvc.perform(get("/admin/shelters").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.status").value(403))
@@ -145,7 +145,7 @@ class AdminAuthorizationIT extends AbstractPersistenceIT {
     private String registerAndLoginPlain(String email, String phone) throws Exception {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Plain User\",\"email\":\"" + email + "\","
-                                + "\"phone\":\"" + phone + "\",\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"" + phone + "\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
         return email;
     }

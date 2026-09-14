@@ -35,6 +35,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -51,7 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.admin.email=admin@example.ee",
-        "app.admin.password=admin",
+        "app.admin.password=admin-pass-1",
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         // The per-IP login bucket too (default 20): sibling IT contexts share
@@ -122,7 +123,7 @@ class MarkInaccurateIT extends AbstractPersistenceIT {
 
     private String adminToken() throws Exception {
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin\"}"))
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
@@ -253,6 +254,33 @@ class MarkInaccurateIT extends AbstractPersistenceIT {
         assertThat(shelters.findById(id).orElseThrow().getInaccurateMarkedAt()).isNull();
         assertThat(auditCount(admin, "MARK_INACCURATE")).isEqualTo(1);
         assertThat(auditCount(admin, "CLEAR_INACCURATE")).isEqualTo(1);
+    }
+
+    @Test
+    void anOwnerPutOnAMarkedRowKeepsTheAdminInaccurateMark() throws Exception {
+        Account submitter = verifiedAccount("Liisa", "liisa@example.ee", "pass123");
+        long id = submitShelter(submitter, "Keldri varjend");
+        String admin = adminToken();
+
+        markInaccurate(admin, id, "{\"reason\":\"Uks on suletud\"}");
+        Shelter marked = shelters.findById(id).orElseThrow();
+        assertThat(marked.getInaccurateMarkedAt()).isNotNull();
+        assertThat(marked.getInaccurateMarkedBy()).isNotNull();
+
+        // the owner edits their own shelter — the admin mark must survive
+        // the edit (an owner PUT must never clear an admin moderation stamp)
+        mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + submitter.accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Keldri varjend 2\",\"latitude\":58.51,\"longitude\":24.51,"
+                                + "\"description\":\"Kelder\",\"capacity\":12}"))
+                .andExpect(status().isOk());
+
+        Shelter after = shelters.findById(id).orElseThrow();
+        assertThat(after.getInaccurateMarkedAt()).isEqualTo(marked.getInaccurateMarkedAt());
+        assertThat(after.getInaccurateMarkedBy()).isEqualTo(marked.getInaccurateMarkedBy());
+        // and the public surface still carries the flag
+        assertThat(JsonPath.<Object>read(publicRow(id), "$.inaccurate")).isEqualTo(true);
     }
 
     @Test

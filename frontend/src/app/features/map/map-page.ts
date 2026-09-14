@@ -13,6 +13,8 @@ import {
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
+import type { MessageKey } from '../../core/i18n/messages';
 import type {
   ShelterDto,
   ShelterSourceFilter,
@@ -48,40 +50,48 @@ import {
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
 
-/** The three source-filter chips (server-side `?source=` refetch, design 4). */
-const SOURCE_FILTERS: { value: ShelterSourceFilter; label: string }[] = [
-  { value: 'ALL', label: 'All' },
-  { value: 'REGISTRY', label: 'Registry' },
-  { value: 'USER', label: 'User' },
+/** The three source-filter chips (server-side `?source=` refetch, design 4).
+ *  `value` is the API param (never translated); the label is a message key
+ *  resolved through the `t` pipe in the template (i18n-et-en M14 slice 2). */
+const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
+  { value: 'ALL', labelKey: 'map.filter.all' },
+  { value: 'REGISTRY', labelKey: 'map.filter.registry' },
+  { value: 'USER', labelKey: 'map.filter.user' },
 ];
 
 /**
- * Per-error copy for the "Nearest shelter" action (map-crisis-actions D2) —
- * the submit page's geolocation vocabulary, MIRRORED here, not shared (the
- * W9/W15 duplication convention: documented, not shared across features).
- * The trailing alternatives differ — the map page has no map-pick/link
- * fallback, only a retry.
+ * Message keys for the "Nearest shelter" action's inline errors
+ * (map-crisis-actions D2), resolved through the `t` pipe in the template
+ * (i18n-et-en M14 slice 2). The vocabulary mirrors the /submit geolocation
+ * errors; the W9/W15 duplication convention keeps it documented, not
+ * shared. The map page has no map-pick or link fallback, only a retry.
  */
-const NEAREST_COPY = {
-  denied: 'Location permission is off. Allow location access in your browser, then try again.',
-  timeout: 'Finding your location timed out. Try again in a moment.',
-  unsupported: 'Your browser does not support location access. Check your browser settings.',
-  unavailable: 'Your location could not be determined right now. Try again in a moment.',
-  insecure: 'Location access needs a secure (https) connection.',
-} as const;
+const NEAREST_KEY: Record<
+  'denied' | 'timeout' | 'unsupported' | 'unavailable' | 'insecure',
+  MessageKey
+> = {
+  denied: 'map.nearest.denied',
+  timeout: 'map.nearest.timeout',
+  unsupported: 'map.nearest.unsupported',
+  unavailable: 'map.nearest.unavailable',
+  insecure: 'map.nearest.insecure',
+};
 
-/** The inline states of the address search (location-navigation M12) —
- *  MIRRORED from the /submit page's GEOCODE_ERROR_COPY (the W9/W15
+/** The inline states of the address search (location-navigation M12). The
+ *  copy is MIRRORED from the /submit page's GEOCODE_ERROR_KEY (the W9/W15
  *  duplication convention: documented, not shared across features); the
- *  trailing alternatives differ — the browse page has no map-pick/link
- *  fallback, its alternative is the geolocation CTA. A failed search
- *  changes NOTHING else: no anchor, no pin, list untouched. */
+ *  trailing alternatives differ because the browse page has no map-pick or
+ *  link fallback (its alternative is the geolocation CTA). A failed search
+ *  changes nothing else: no anchor, no pin, list untouched. */
 type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
 
-const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
-  'no-results': 'No Estonian address found — try another address, or “Show shelters around you”.',
-  'rate-limited': 'The address search is busy — please wait a moment and try again.',
-  network: 'Address search is unreachable right now. Try “Show shelters around you” instead.',
+/** Message keys for the inline address-search failures (location-navigation
+ *  M12); resolved through the `t` pipe (i18n-et-en M14 slice 2). The /submit
+ *  mirror keeps the same W9/W15 duplication convention. */
+const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
+  'no-results': 'map.geocode.noResults',
+  'rate-limited': 'map.geocode.rateLimited',
+  network: 'map.geocode.network',
 };
 
 /** Neighbourhood scale for the anchor fly (M12): the anchor is a
@@ -154,7 +164,7 @@ function nearestShelterAt(
  */
 @Component({
   selector: 'app-map-page',
-  imports: [NgClass, RouterLink, BannerComponent, LoadingIndicator],
+  imports: [NgClass, RouterLink, BannerComponent, LoadingIndicator, TranslatePipe],
   providers: [LeafletService],
   templateUrl: './map-page.html',
   styleUrl: './map-page.scss',
@@ -205,9 +215,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
   protected readonly hasTrustBadges = hasTrustBadgesShared;
   /** The address-search inline state (location-navigation M12) — the
    *  template renders the mapped copy, the kind stays in code. */
-  protected readonly anchorErrorText = (): string | null => {
+  protected readonly anchorErrorText = (): MessageKey | null => {
     const kind = this.anchorError();
-    return kind === null ? null : GEOCODE_ERROR_COPY[kind];
+    return kind === null ? null : GEOCODE_ERROR_KEY[kind];
   };
   protected readonly filter = signal<ShelterSourceFilter>('ALL');
 
@@ -251,8 +261,9 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** The loaded list was empty when the action ran — the "add the first one"
    *  offer (with the /submit link for authenticated users). */
   protected readonly nearestEmpty = signal(false);
-  /** The last locate failure's per-error copy (null = none). */
-  protected readonly nearestError = signal<string | null>(null);
+  /** The last locate failure's message key (null = none); the template
+   *  resolves it through the `t` pipe (i18n-et-en M14 slice 2). */
+  protected readonly nearestError = signal<MessageKey | null>(null);
 
   // ---- address-search anchor (location-navigation M12) ------------------
   /** The search input's content (a capture affordance, not a field). */
@@ -451,13 +462,13 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return;
     }
     if (window.isSecureContext === false) {
-      this.nearestError.set(NEAREST_COPY.insecure);
+      this.nearestError.set(NEAREST_KEY.insecure);
       return;
     }
     const geolocation = navigator.geolocation;
     // jsdom leaves navigator.geolocation undefined — `!` covers null AND undefined.
     if (!geolocation || typeof geolocation.getCurrentPosition !== 'function') {
-      this.nearestError.set(NEAREST_COPY.unsupported);
+      this.nearestError.set(NEAREST_KEY.unsupported);
       return;
     }
     this.locating.set(true);
@@ -471,7 +482,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         // Duck-typed code read (the submit page's pattern — jsdom does not
         // define GeolocationPositionError). List and map are untouched.
         const code = typeof err?.code === 'number' ? err.code : 2;
-        let kind: keyof typeof NEAREST_COPY;
+        let kind: keyof typeof NEAREST_KEY;
         if (code === 1) {
           kind = 'denied';
         } else if (code === 3) {
@@ -479,7 +490,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         } else {
           kind = 'unavailable';
         }
-        this.nearestError.set(NEAREST_COPY[kind]);
+        this.nearestError.set(NEAREST_KEY[kind]);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );

@@ -70,9 +70,12 @@ app:
     # Env-provisioned admin (admin-moderation D1): an ApplicationRunner
     # creates the ADMIN-kind account at startup only when BOTH are set;
     # empty = no admin exists and the app behaves exactly as without this
-    # capability. Values ONLY via env vars, never committed.
-    email: ${ADMIN_EMAIL:}
-    password: ${ADMIN_PASSWORD:}
+    # capability. DELIBERATELY no ${ADMIN_PASSWORD:} placeholder here:
+    # tests must not inherit the developer's local .env (spring-dotenv) —
+    # admin provisioning in ITs is explicit per class (@TestPropertySource),
+    # and a plain test context must never seed.
+    email:
+    password:
   pii:
     # PII-at-rest (M2): 32-byte base64 keys, env ONLY, never committed.
     # Missing/invalid => the app fails closed at boot (PiiKeys — same

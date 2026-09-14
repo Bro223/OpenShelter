@@ -28,6 +28,7 @@
   --color-bg-subtle: #f6f7f8; /* inset note background (proof-note) */
   --color-surface-hover: #f0f0f2; /* ghost button hover fill */
   --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay */
+  --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
 
   /* Brand */
   --color-primary: #0b5cad;
@@ -242,6 +243,7 @@
   --color-bg-subtle: #1f1f1f;
   --color-surface-hover: #262626;
   --color-surface-overlay: rgba(20, 20, 20, 0.92); /* dark twin of the white legend card */
+  --color-backdrop: rgba(0, 0, 0, 0.7); /* darker modal overlay on the dark theme */
 
   /* Brand */
   --color-primary: #7db8f0; /* link/focus colour AND btn--primary fill (text flips to #141414) */

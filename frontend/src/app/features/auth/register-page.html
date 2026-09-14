@@ -1,70 +1,61 @@
 @if (registered()) {
   <section class="auth-card">
-    <h1 class="page-title">Account created</h1>
-    <p class="page-subtitle">
-      Your account is ready. Please log in, then verify your email address — a verification code
-      will be sent to it.
-    </p>
-    <a routerLink="/login" class="btn btn--primary">Log in</a>
+    <h1 class="page-title">{{ 'authPage.register.createdTitle' | t }}</h1>
+    <p class="page-subtitle">{{ 'authPage.register.createdBody' | t }}</p>
+    <a routerLink="/login" class="btn btn--primary">{{ 'authPage.register.submit' | t }}</a>
   </section>
 } @else {
   <section class="auth-card">
-    <h1 class="page-title">Create account</h1>
-    <p class="page-subtitle">
-      Anonymous viewing is free — an account lets you submit shelters and reviews once verified.
-    </p>
+    <h1 class="page-title">{{ 'authPage.register.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'authPage.register.subtitle' | t }}</p>
 
     <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
       <div class="field">
-        <label for="register-name">Full name</label>
+        <label for="register-name">{{ 'authPage.register.nameLabel' | t }}</label>
         <input id="register-name" type="text" formControlName="name" autocomplete="name" />
         @if (form.controls.name.touched && form.controls.name.invalid) {
-          <p class="field-error">Name is required.</p>
+          <p class="field-error">{{ 'authPage.register.nameRequired' | t }}</p>
         }
       </div>
 
       <div class="field">
-        <label for="register-email">Email</label>
+        <label for="register-email">{{ 'authPage.register.emailLabel' | t }}</label>
         <input
           id="register-email"
           type="email"
           formControlName="email"
           autocomplete="email"
-          placeholder="you@example.ee"
+          [placeholder]="'authPage.register.emailPlaceholder' | t"
         />
         <!-- legal-recovery (roadmap M4): why-we-collect copy — verification
              + account recovery, the only two uses (see /privacy). -->
-        <p class="field-note">
-          We send you a verification code here and use it later for password resets.
-        </p>
+        <p class="field-note">{{ 'authPage.register.emailNote' | t }}</p>
         @if (duplicate()?.field === 'email') {
           <p class="field-error">{{ duplicate()?.message }}</p>
         } @else if (form.controls.email.touched && form.controls.email.invalid) {
-          <p class="field-error">A valid email is required.</p>
+          <p class="field-error">{{ 'authPage.register.emailRequired' | t }}</p>
         }
       </div>
 
       <div class="field">
-        <label for="register-phone">Phone</label>
+        <label for="register-phone">{{ 'authPage.register.phoneLabel' | t }}</label>
         <input
           id="register-phone"
           type="tel"
           formControlName="phone"
           autocomplete="tel"
-          placeholder="+3725… or 5xxxxxxx"
+          [placeholder]="'authPage.register.phonePlaceholder' | t"
         />
-        <p class="field-note">
-          We send you a verification code here; you can log in with it later too.
-        </p>
+        <p class="field-note">{{ 'authPage.register.phoneNote' | t }}</p>
         @if (duplicate()?.field === 'phone') {
           <p class="field-error">{{ duplicate()?.message }}</p>
         } @else if (form.controls.phone.touched && form.controls.phone.invalid) {
-          <p class="field-error">Phone is required.</p>
+          <p class="field-error">{{ 'authPage.register.phoneRequired' | t }}</p>
         }
       </div>
 
       <div class="field">
-        <label for="register-password">Password</label>
+        <label for="register-password">{{ 'authPage.register.passwordLabel' | t }}</label>
         <input
           id="register-password"
           type="password"
@@ -72,17 +63,28 @@
           autocomplete="new-password"
         />
         @if (form.controls.password.touched && form.controls.password.invalid) {
-          <p class="field-error">Password is required.</p>
+          <p class="field-error">{{ 'authPage.register.passwordRequired' | t }}</p>
         }
       </div>
 
       <app-banner severity="error" [message]="error()" />
 
       <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
-        {{ pending() ? 'Creating account…' : 'Create account' }}
+        {{ pending() ? ('authPage.register.submitting' | t) : ('authPage.register.submit' | t) }}
       </button>
     </form>
 
-    <p class="auth-links">Already have an account? <a routerLink="/login">Log in</a></p>
+    <p class="auth-links">
+      {{ 'authPage.register.agreeLead' | t }}
+      <a routerLink="/terms">{{ 'authPage.register.agreeTerms' | t }}</a>
+      {{ 'authPage.register.agreeAnd' | t }}
+      <a routerLink="/privacy">{{ 'authPage.register.agreePrivacy' | t }}</a
+      >{{ 'authPage.register.agreeTail' | t }}
+    </p>
+
+    <p class="auth-links">
+      {{ 'authPage.register.haveAccount' | t }}
+      <a routerLink="/login">{{ 'authPage.register.submit' | t }}</a>
+    </p>
   </section>
 }

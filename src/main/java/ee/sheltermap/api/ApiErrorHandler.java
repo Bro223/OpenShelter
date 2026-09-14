@@ -42,6 +42,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.TransactionSystemException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -80,6 +81,19 @@ public class ApiErrorHandler {
             MethodArgumentTypeMismatchException.class})
     ResponseEntity<ErrorResponse> malformed(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Malformed request", request);
+    }
+
+    /**
+     * A wrong HTTP method on a MAPPED path (e.g. DELETE on
+     * {@code /api/shelters/{id}/occupancy}): the DispatcherServlet throws
+     * before any controller runs, and without this handler the catch-all
+     * below would turn a plain client mistake into a 500. 405 is the
+     * honest answer.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ResponseEntity<ErrorResponse> methodNotSupported(HttpRequestMethodNotSupportedException ex,
+                                                     HttpServletRequest request) {
+        return error(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed", request);
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)

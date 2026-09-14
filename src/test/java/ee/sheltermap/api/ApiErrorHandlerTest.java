@@ -7,6 +7,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.transaction.TransactionSystemException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,6 +70,17 @@ class ApiErrorHandlerTest {
         ResponseEntity<ErrorResponse> response = handler.transactionSystem(ex, request);
 
         assertThat(response.getStatusCode().value()).isEqualTo(409);
+    }
+
+    @Test
+    void wrongMethodOnAMappedPathMapsTo405Not500() {
+        // a wrong method on a mapped path (e.g. DELETE /api/shelters/42) is
+        // a plain client mistake — the catch-all must not turn it into a 500
+        ResponseEntity<ErrorResponse> response = handler.methodNotSupported(
+                new HttpRequestMethodNotSupportedException("DELETE"), request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(405);
+        assertThat(response.getBody().message()).isEqualTo("Method not allowed");
     }
 
     @Test

@@ -45,7 +45,7 @@ class EmailTestControllerAllowlistIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Mail Testija\",\"email\":\"mailtest@example.ee\",\"phone\":\"+37250007777\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -106,7 +106,7 @@ class EmailTestControllerAllowlistIT extends AbstractPersistenceIT {
 
     private String loginAndGetAccessToken() throws Exception {
         MvcResult result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mailtest@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mailtest@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");

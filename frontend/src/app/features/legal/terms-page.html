@@ -1,79 +1,213 @@
 <article class="legal-page">
   <h1 class="page-title">Terms of use</h1>
+  <p class="legal-page__updated">Last updated: 13 September 2026</p>
 
-  <section>
+  <nav class="legal-page__toc" aria-label="Table of contents">
+    <ol>
+      <li><a routerLink="/terms" fragment="acceptance">Acceptance of these terms</a></li>
+      <li><a routerLink="/terms" fragment="service">What OpenShelter is</a></li>
+      <li><a routerLink="/terms" fragment="eligibility">Eligibility and accounts</a></li>
+      <li><a routerLink="/terms" fragment="security">Account security</a></li>
+      <li><a routerLink="/terms" fragment="rules">Rules for contributions</a></li>
+      <li><a routerLink="/terms" fragment="prohibited">Prohibited content and behaviour</a></li>
+      <li><a routerLink="/terms" fragment="license">Intellectual property and your license</a></li>
+      <li><a routerLink="/terms" fragment="moderation">Moderation and removal</a></li>
+      <li><a routerLink="/terms" fragment="official">Official versus community information</a></li>
+      <li><a routerLink="/terms" fragment="emergency">Emergency disclaimer</a></li>
+      <li><a routerLink="/terms" fragment="warranty">No warranty</a></li>
+      <li><a routerLink="/terms" fragment="liability">Limitation of responsibility</a></li>
+      <li><a routerLink="/terms" fragment="third-party">Third-party links and services</a></li>
+      <li><a routerLink="/terms" fragment="availability">Service availability and changes</a></li>
+      <li><a routerLink="/terms" fragment="source">Open-source license</a></li>
+      <li><a routerLink="/terms" fragment="law">Applicable law and disputes</a></li>
+      <li><a routerLink="/terms" fragment="contact">Contact</a></li>
+    </ol>
+  </nav>
+
+  <section id="acceptance">
+    <h2>Acceptance of these terms</h2>
+    <p>
+      By using OpenShelter, you agree to these terms of use. If you do not agree, do not use the
+      application. Continuing to use the application after a change means you accept the updated
+      terms.
+    </p>
+  </section>
+
+  <section id="service">
     <h2>What OpenShelter is</h2>
     <p>
-      OpenShelter is a community-maintained list of shelters and safe places. It is
-      <strong>not an official emergency service</strong>. In an emergency, call
-      <strong>112</strong> and rely on official information: the Rescue Board and Maa-amet. Nothing
-      on this site is a substitute for official guidance.
+      OpenShelter is an independent, community-maintained map of shelters and safe places in
+      Estonia. It combines official open data from the Estonian Rescue Board (Päästeamet) with
+      locations submitted by community members.
     </p>
-  </section>
-
-  <section>
-    <h2>Accounts and verification</h2>
     <p>
-      You may browse the map without an account. To submit shelters or reviews you need an account,
-      and an account becomes contributing after you verify both your e-mail address and your phone
-      number with one-time codes. You are responsible for keeping your password safe and for the
-      accuracy of the contacts you register.
+      OpenShelter is <strong>not an official emergency service</strong> and not a government
+      service. In an emergency, call <strong>112</strong> and follow the instructions of the
+      Estonian Rescue Board, local authorities and emergency services.
     </p>
   </section>
 
-  <section>
-    <h2>Contributions</h2>
+  <section id="eligibility">
+    <h2>Eligibility and accounts</h2>
+    <p>
+      You may browse the map without an account. To submit shelters or reports you need an account,
+      and the account becomes contributing after you verify both your e-mail address and your phone
+      number with one-time codes. You are responsible for the accuracy of the contacts you register.
+    </p>
+  </section>
+
+  <section id="security">
+    <h2>Account security</h2>
+    <p>
+      You are responsible for keeping your password safe and for everything done through your
+      account. Do not share your password or your one-time verification codes. If you believe your
+      account has been compromised, reset your password.
+    </p>
+  </section>
+
+  <section id="rules">
+    <h2>Rules for contributions</h2>
     <ul>
       <li>
         Submit only places you know to exist, with details accurate to the best of your knowledge.
-        Deliberately false or misleading shelter data is abuse of the service.
       </li>
       <li>
-        To keep the list usable, the app applies limits: a daily cap on how many shelters one
-        account may submit, a cap on how often one-time codes may be requested, and detection of
-        near-duplicate submissions. Exceeding a limit produces an error and a suggested wait — it is
-        not a ban.
+        Report locations (as closed, inaccurate, or no longer existing) truthfully and only from
+        what you actually know.
       </li>
       <li>
-        Submissions enter the list as community reports. Community reports and moderator actions can
-        hide or remove abusive content; a submission can therefore be reviewed, hidden or rejected.
+        Do not submit a private home as a public shelter. If you submit a location that is a private
+        home, declare it as such.
+      </li>
+      <li>
+        The application applies limits to keep the list usable: a daily cap on submissions, a cap on
+        how often one-time codes may be requested, and detection of near-duplicate submissions.
+        Exceeding a limit produces an error and a suggested wait; it is not a ban.
       </li>
     </ul>
   </section>
 
-  <section>
-    <h2>Trust labels</h2>
+  <section id="prohibited">
+    <h2>Prohibited content and behaviour</h2>
+    <p>You must not:</p>
+    <ul>
+      <li>submit false, misleading, unsafe or malicious shelter data or reports;</li>
+      <li>submit private homes as public shelters without declaring them as private;</li>
+      <li>spam, automate access, or attempt to attack or overload the application;</li>
+      <li>attempt to access another user's account or the administrator functions;</li>
+      <li>submit content that is unlawful, defamatory, or that exposes someone's private data.</li>
+    </ul>
     <p>
-      A <em>verified user</em> has proved ownership of an e-mail address and a phone number. That
-      says nothing about the accuracy of what they submit:
-      <strong>a verified user is not a verified shelter</strong>. Shelter rows carry their own trust
-      state (new, confirmed, or hidden), which is what the map's filters operate on.
+      Deliberately false or misleading shelter data is abuse of the service and may lead to removal
+      of content or suspension of your account.
     </p>
   </section>
 
-  <section>
-    <h2>Personal data</h2>
+  <section id="license">
+    <h2>Intellectual property and your license</h2>
     <p>
-      How your e-mail, phone, password and submitted content are collected, stored, protected and
-      deleted is set out in the
+      By submitting a shelter or report, you grant OpenShelter a non-exclusive, worldwide,
+      royalty-free license to store, display and modify that content for the purpose of operating
+      the map and moderating it. You keep ownership of what you submit, and you can edit or remove
+      your own shelters.
+    </p>
+  </section>
+
+  <section id="moderation">
+    <h2>Moderation and removal</h2>
+    <p>
+      Submissions enter the list as community reports. Moderators can review, hide, correct or
+      remove user-submitted content, and can suspend accounts that abuse the service. A submission
+      can therefore be reviewed, hidden or rejected.
+    </p>
+  </section>
+
+  <section id="official">
+    <h2>Official versus community information</h2>
+    <p>
+      The application distinguishes between information sources. Locations marked as "Registry" come
+      from official open data. Locations marked "Newly added" or "Community-checked" were submitted
+      by community members. A <em>verified user</em> has proved ownership of an e-mail address and a
+      phone number; that says nothing about the accuracy of what they submit.
+      <strong>A verified user is not a verified shelter.</strong>
+    </p>
+    <p>
+      A community-submitted location is not automatically a safe, legal, accessible, public or
+      operational shelter. Treat community submissions with caution, especially during an emergency.
+    </p>
+  </section>
+
+  <section id="emergency">
+    <h2>Emergency disclaimer</h2>
+    <p>
+      OpenShelter is not an emergency service and must not be your only source of emergency
+      information. Official instructions from the Estonian Rescue Board, local authorities and
+      emergency services always take priority over anything shown in this application. In an
+      emergency, call <strong>112</strong>.
+    </p>
+    <p>
+      Do not enter private property or abandoned buildings based only on information shown by
+      OpenShelter.
+    </p>
+  </section>
+
+  <section id="warranty">
+    <h2>No warranty</h2>
+    <p>
+      The list is provided as-is, for community benefit, without warranty of any kind. We do not
+      guarantee that any location is open, safe, accessible, available, suitable or still
+      operational.
+    </p>
+  </section>
+
+  <section id="liability">
+    <h2>Limitation of responsibility</h2>
+    <p>
+      To the extent permitted by law, OpenShelter accepts no liability for decisions made in
+      reliance on the list. This paragraph is intended to be reasonable and is subject to legal
+      review; it does not attempt to exclude liability that cannot be excluded by law.
+    </p>
+  </section>
+
+  <section id="third-party">
+    <h2>Third-party links and services</h2>
+    <p>
+      The application links to external services, including the Estonian Rescue Board, Maa-amet and
+      OpenStreetMap. We are not responsible for the content or availability of those services. How
+      personal data is shared with service providers is described in the
       <a routerLink="/privacy">privacy policy</a>.
     </p>
   </section>
 
-  <section>
-    <h2>No warranty</h2>
+  <section id="availability">
+    <h2>Service availability and changes</h2>
     <p>
-      The list is provided as-is, for community benefit, without warranty of any kind. We do not
-      guarantee that any shelter is open, available, safe or suitable for you, and we accept no
-      liability for decisions made in reliance on the list.
+      The application is provided free of charge and may change or be unavailable at any time
+      without notice. We may add, change or remove features.
     </p>
   </section>
 
-  <section>
-    <h2>Changes to these terms</h2>
+  <section id="source">
+    <h2>Open-source license</h2>
     <p>
-      These terms may be updated as the app evolves; the version on this page is the one in force
-      when you read it. Continuing to use the site after a change means you accept the new terms.
+      The OpenShelter source code is available under the MIT License. This governs the source code,
+      not the shelter data, which remains subject to its own sources and to these terms.
+    </p>
+  </section>
+
+  <section id="law">
+    <h2>Applicable law and disputes</h2>
+    <p>
+      These terms are governed by [APPLICABLE LAW TO BE CONFIRMED]. Disputes will be resolved in
+      [DISPUTE RESOLUTION TO BE CONFIRMED].
+    </p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>
+      Questions about these terms can be sent to [CONTACT EMAIL]. OpenShelter is also governed by
+      the <a routerLink="/privacy">privacy policy</a>.
     </p>
   </section>
 </article>

@@ -3,6 +3,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../../session/auth-store';
 import { safeReturnUrl } from '../../core/guards';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
 
@@ -16,7 +17,7 @@ import { bannerMessage } from '../../shared/error-copy';
  */
 @Component({
   selector: 'app-login-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, TranslatePipe],
   templateUrl: './login-page.html',
   styleUrl: './login-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
 import type {
   GeocodeResult,
   ShelterDto,
@@ -133,6 +134,18 @@ const FAR = shelter({
   longitude: 24.802,
 });
 const USER_POSITION = { latitude: 59.438, longitude: 24.756, accuracy: 20 };
+/** Sorts FIRST by name ("Aegviidu" < "Kalamaja") but sits ~45 km from
+ *  USER_POSITION — the fixture that makes the user-position sort OBSERVABLE:
+ *  with it in the list, the distance order differs from the name order, so
+ *  "Kalamaja leads" proves the distance sort, not the default name sort. */
+const ALPHA_FAR = shelter({
+  id: 13,
+  name: 'Aegviidu Shelter',
+  address: 'Mäe 1, Aegviidu',
+  source: 'MUNICIPALITY',
+  latitude: 59.3,
+  longitude: 25.5,
+});
 
 /** Geolocation seam (the submit page spec's pattern): stub
  *  navigator.geolocation with a hand-written fake. */
@@ -313,6 +326,13 @@ describe('MapPage', () => {
 
   function text(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
+  }
+
+  /** The sidebar row names in rendered DOM order (the live `sorted()` view). */
+  function rowNames(element: HTMLElement): string[] {
+    return [...element.querySelectorAll<HTMLElement>('.shelter-row')].map(
+      (row) => row.querySelector('.shelter-row__name')?.textContent?.trim() ?? '',
+    );
   }
 
   describe('map lifecycle (one instance per visit, no leaks between visits)', () => {
@@ -977,17 +997,22 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
-    it('a failed retry clears the stale Nearest line and row emphasis (F1)', async () => {
+    it('a failed retry clears the stale Nearest line (F1)', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
+      gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
       const { element, fixture } = await open('/map');
 
-      // First locate: success — the "Show shelters around you: …" line + row emphasis are up.
+      // First locate: success — the one-line result is up, the list is
+      // distance-sorted to the user position, and NO row is emphasized.
       cta(element).click();
       geo.settle(USER_POSITION);
       await settle(fixture);
       expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
-      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      // The user-position sort: Kalamaja (≈125 m) leads, and Aegviidu —
+      // FIRST in the name sort — trails by distance (≈45 km).
+      expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
 
       // Second locate: permission denied.
       cta(element).click();
@@ -1000,10 +1025,9 @@ describe('MapPage', () => {
       const errorLine = element.querySelector<HTMLElement>('.nearest-line--error');
       expect(errorLine?.textContent).toContain('Location permission is off');
       expect(errorLine?.getAttribute('role')).toBe('alert');
-      // No stale success state: the line AND the emphasis are gone (the
-      // template chain must not short-circuit on the previous success).
+      // No stale success state: the result line is gone (the template
+      // chain must not short-circuit on the previous success).
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
-      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
       // The map stays where the first success left it — the user position
       // at the regional zoom, untouched by the failed retry.
       expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
@@ -1032,13 +1056,18 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([]);
     });
 
-    it('a row click clears the Nearest emphasis (temporary, D2)', async () => {
+    it('a row click clears the Nearest result line (temporary, D2)', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
+      gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
       const { element, fixture } = await open('/map');
 
       cta(element).click();
       await settle(fixture);
-      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      // The user-position sort: Kalamaja (≈125 m) leads, and Aegviidu —
+      // FIRST in the name sort — trails by distance (≈45 km).
+      expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
 
       const farRow = [...element.querySelectorAll<HTMLButtonElement>('.shelter-row')].find((r) =>
         r.textContent?.includes('Nõmme Shelter'),
@@ -1046,27 +1075,46 @@ describe('MapPage', () => {
       farRow.click();
       fixture.detectChanges();
 
-      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
-      // The manual selection won the map (and the "Show shelters around you: …" line is gone).
+      // The one-line result is gone — the manual selection supersedes it —
+      // and the row carries the SELECTION accent, never a nearest emphasis.
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      expect(element.querySelector('.shelter-row--selected')?.textContent).toContain(
+        'Nõmme Shelter',
+      );
+      // The manual selection won the map: street-level fly to the clicked row.
+      expect(leaflet.flyToCalls).toEqual([
+        [USER_POSITION.latitude, USER_POSITION.longitude, 14],
+        [FAR.latitude, FAR.longitude, SHELTER_ZOOM],
+      ]);
+      // The user position stays true: the distance sort PERSISTS across a
+      // manual selection (only a new around-you run replaces it).
+      expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
     });
 
-    it('a filter change clears the Nearest emphasis (D2)', async () => {
+    it('a filter change clears the Nearest result line (D2)', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(source === 'ALL' ? [NEAR, FAR] : [FAR]),
+        Promise.resolve(source === 'ALL' ? [NEAR, FAR, ALPHA_FAR] : [FAR]),
       );
       const { element, fixture } = await open('/map');
 
       cta(element).click();
       await settle(fixture);
-      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      // The user-position sort is up: Kalamaja first, Aegviidu last
+      // (name order would put Aegviidu first).
+      expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
 
       [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry
       await settle(fixture);
 
-      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      // The refetch replaced the list — the stale one-line result is gone
+      // and no row carries any nearest emphasis.
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      expect(rowNames(element)).toEqual(['Nõmme Shelter']);
     });
   });
 
@@ -1325,34 +1373,39 @@ describe('MapPage', () => {
       expect(element.querySelector('.anchor-search__result')).not.toBeNull();
     });
 
-    it('setting an anchor supersedes the nearest emphasis (the next-interaction convention)', async () => {
-      gateway.list.mockResolvedValue([NEAR, FAR]);
+    it('setting an anchor supersedes the nearest result (the next-interaction convention)', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
       geocode.search.mockResolvedValue(ANCHOR_RESULT);
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       const { element, fixture } = await open('/map');
 
       element.querySelector<HTMLButtonElement>('.map-cta')!.click();
       await settle(fixture);
-      expect(element.querySelector('.shelter-row--nearest')).not.toBeNull();
       expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
 
       await typeAndSearch(element, fixture, 'Pikaliiva 5');
       await settle(fixture);
       element.querySelector<HTMLButtonElement>('.anchor-search__result')!.click();
       await settle(fixture);
 
-      // The anchor is the new reference — the nearest emphasis + line are
-      // gone, the anchor line is up.
-      expect(element.querySelector('.shelter-row--nearest')).toBeNull();
+      // The anchor is the new reference — the one-line result is gone, the
+      // anchor line is up, and the row nearest the searched point (Nõmme,
+      // the anchor's own address) takes the selection accent.
       expect(text(fixture)).not.toContain('Show shelters around you: Kalamaja Shelter');
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
       expect(element.querySelector('.anchor-line')).not.toBeNull();
+      expect(element.querySelector('.shelter-row--selected')?.textContent).toContain(
+        'Nõmme Shelter',
+      );
     });
   });
 
   // ---------------------------------------------------------------------------
-  // Scroll the row into view: a marker click or a nearest success moves the
-  // accented row into view inside the sidebar list (the user sees WHAT was
-  // zoomed to, not just a zoomed-in point on the map).
+  // Scroll the row into view: a marker click moves the accented row into
+  // view inside the sidebar list (the user sees WHAT was zoomed to, not just
+  // a zoomed-in point on the map). A nearest success does NOT — the nearest
+  // is a result line, never a focus (the owner's correction).
   // ---------------------------------------------------------------------------
   describe('scroll the row into view (marker click / nearest)', () => {
     beforeEach(() => {
@@ -1379,22 +1432,24 @@ describe('MapPage', () => {
       );
     });
 
-    it('a nearest success scrolls the emphasized row into view with block: nearest (smooth)', async () => {
-      gateway.list.mockResolvedValue([NEAR, FAR]);
+    it('a nearest success does NOT scroll or emphasize any row (the owner correction)', async () => {
+      gateway.list.mockResolvedValue([NEAR, FAR, ALPHA_FAR]);
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
       const { element, fixture } = await open('/map');
 
       (element.querySelector('.map-cta') as HTMLButtonElement).click();
       await settle(fixture);
 
-      expect(scrollSpy).toHaveBeenCalledTimes(1);
-      expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' });
-      expect(scrollSpy.mock.instances[0]).toBe(
-        element.querySelector<HTMLElement>('[data-shelter-id="11"]'),
-      );
-      expect(element.querySelector('.shelter-row--nearest')?.textContent).toContain(
-        'Kalamaja Shelter',
-      );
+      // The nearest is the action's RESULT, not a focus: no row is
+      // emphasized, selected, or scrolled into view — the list stays
+      // unfocused (the owner's correction).
+      expect(scrollSpy).not.toHaveBeenCalled();
+      expect(element.querySelectorAll('.shelter-row--nearest')).toHaveLength(0);
+      expect(element.querySelector('.shelter-row--selected')).toBeNull();
+      // The payoff instead: the one-line result + the user-position sort
+      // (Kalamaja first, Aegviidu — first in the name sort — last).
+      expect(text(fixture)).toContain('Show shelters around you: Kalamaja Shelter');
+      expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
     });
 
     it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
@@ -1732,6 +1787,52 @@ describe('MapPage', () => {
 
       expect(element.querySelector('.badge--occupancy')).toBeNull();
       expect(text(fixture)).not.toContain('min ago');
+    });
+  });
+
+  describe('"How OpenShelter works" block (Workstream A)', () => {
+    beforeEach(() => {
+      gateway.list.mockResolvedValue(ALL_ROWS);
+    });
+
+    it('renders the mechanics block under the map with the honest disclaimers', async () => {
+      const { element } = await open('/map');
+
+      const how = element.querySelector('.map-page__how');
+      expect(how).not.toBeNull();
+      expect(how?.textContent).toContain('How OpenShelter works');
+      expect(how?.textContent).toContain('an official government system');
+      expect(how?.textContent).toContain('not an emergency service');
+      expect(how?.textContent).toContain('call 112');
+      expect(how?.textContent).toContain('never sent to our servers');
+      expect(how?.textContent).toContain('cannot guarantee');
+      // The redesigned editorial layout: a lede carrying the positioning,
+      // body paragraphs (sources / reports / nearest), and the standing
+      // guarantee paragraph.
+      const lede = how?.querySelector('.map-page__how-lede');
+      expect(lede?.textContent).toContain('not an emergency service');
+      expect(lede?.textContent).toContain('call 112');
+      const guarantee = how?.querySelector('.map-page__how-guarantee');
+      expect(guarantee?.textContent).toContain('cannot guarantee');
+      // The old "Example" five-step list is gone with the redesign.
+      expect(how?.querySelectorAll('.map-page__how-example li').length).toBe(0);
+      expect(how?.querySelector('ol')).toBeNull();
+      expect(how?.textContent).not.toContain('Example');
+    });
+
+    it('never presents itself as an official emergency service', async () => {
+      const { element } = await open('/map');
+      const how = element.querySelector('.map-page__how');
+      expect(how?.textContent).toContain('not an emergency service');
+      expect(how?.textContent).not.toContain('official emergency service');
+    });
+
+    it('renders the block in Estonian after a locale switch', async () => {
+      TestBed.inject(I18nService).setLocale('et');
+      const { element } = await open('/map');
+      const how = element.querySelector('.map-page__how');
+      expect(how?.textContent).toContain('Kuidas OpenShelter töötab');
+      expect(how?.textContent).toContain('hädaabiteenus');
     });
   });
 });

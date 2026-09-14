@@ -46,7 +46,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Mari\",\"email\":\"mari@example.ee\",\"phone\":\"+37250000001\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -91,7 +91,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"mari2@example.ee\","
                                 + "\"phone\":\"+37250000001\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isConflict());
     }
 
@@ -105,14 +105,14 @@ class AuthApiIT extends AbstractPersistenceIT {
         // race-safe backstop)
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"MARI@EXAMPLE.EE\",\"phone\":\"+37250000002\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
 
         // phone-variant twin: national format of the registered E.164 -> 409
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"mari3@example.ee\",\"phone\":\"50000001\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -122,7 +122,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         registerUser();
         // 50000001 -> +37250000001 (E.164 normalization at the login boundary)
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"50000001\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"50000001\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty());
@@ -136,7 +136,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"" + longName + "\",\"email\":\"big@example.ee\","
                                 + "\"phone\":\"+37250000010\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
 
@@ -147,6 +147,30 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void shortRegistrationAndResetPasswordsAreRejectedWith400() throws Exception {
+        // P2-3: the 8-character minimum is enforced at the boundary —
+        // a short registration password is a 400 validation failure, no row
+        mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Mari\",\"email\":\"mari@example.ee\",\"phone\":\"+37250000001\","
+                                + "\"password\":\"s3c\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        assertThat(users.findByEmail("mari@example.ee")).isNull();
+
+        // and on reset confirm: a valid code + a short new password -> 400,
+        // the old password still logs in
+        registerUser();
+        requestReset();
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"short\"}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -164,7 +188,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
         // right password -> TokenResponse
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty())
@@ -246,7 +270,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
         // confirm with code + new password -> 200
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass1\"}"))
                 .andExpect(status().isOk());
 
         // the pre-reset session is dead (all refresh tokens revoked)
@@ -256,10 +280,10 @@ class AuthApiIT extends AbstractPersistenceIT {
 
         // the old password no longer logs in; the new one does
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"newpass\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"newpass1\"}"))
                 .andExpect(status().isOk());
 
         // the code is single-use -> second confirm is 400
@@ -276,7 +300,7 @@ class AuthApiIT extends AbstractPersistenceIT {
         String wrong = code.equals("000000") ? "000001" : "000000";
 
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass1\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
 
@@ -288,7 +312,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
         // the password is unchanged
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk());
     }
 
@@ -302,12 +326,12 @@ class AuthApiIT extends AbstractPersistenceIT {
         // same status + generic message whether the email was ever requested
         // or the code is simply wrong — no account-existence oracle on confirm
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ghost@example.ee\",\"code\":\"000000\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"ghost@example.ee\",\"code\":\"000000\",\"newPassword\":\"newpass1\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid or expired reset code"))
                 .andExpect(jsonPath("$.error").value("Bad Request"));
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass1\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid or expired reset code"))
                 .andExpect(jsonPath("$.error").value("Bad Request"));
@@ -322,14 +346,14 @@ class AuthApiIT extends AbstractPersistenceIT {
 
         for (int i = 0; i < 5; i++) {
             mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass\"}"))
+                            .content("{\"email\":\"mari@example.ee\",\"code\":\"" + wrong + "\",\"newPassword\":\"newpass1\"}"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
         }
 
         // even the CORRECT code is now rejected with the same generic 400
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass\"}"))
+                        .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"newpass1\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid or expired reset code"));
     }
@@ -415,7 +439,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     private String loginAndGetRefreshToken() throws Exception {
         MvcResult result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.refreshToken");
@@ -423,7 +447,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     private String loginAndGetAccessToken() throws Exception {
         MvcResult result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"mari@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");

@@ -1,0 +1,50 @@
+/* The first-level data-usage notice (Workstream B), rendered as a centered
+   modal overlay. The backdrop dims the page (the --color-backdrop token);
+   the dialog is a surface card. Token-only styling (the design-tokens.spec
+   police) - no literal colours, sizes or weights. */
+
+.consent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000; /* above the shell-menu (1100) and the map legend (1000) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+  background: var(--color-backdrop);
+}
+
+.consent-dialog {
+  width: 100%;
+  max-width: 30rem; /* layout dimension, not a type token */
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-24);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+
+  &__title {
+    margin: 0 0 var(--space-8);
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &__body {
+    margin: 0 0 var(--space-16);
+    color: var(--color-muted);
+    line-height: 1.5;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-12);
+  }
+
+  &__privacy {
+    color: var(--color-primary);
+    font-size: var(--text-md);
+  }
+}

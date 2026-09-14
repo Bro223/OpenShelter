@@ -49,7 +49,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Veri Kasutaja\",\"email\":\"veri@example.ee\",\"phone\":\"+37250008888\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -207,7 +207,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
 
     private String loginAndGetAccessToken() throws Exception {
         MvcResult result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"veri@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"veri@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");

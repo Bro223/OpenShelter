@@ -1,7 +1,7 @@
 <section class="map-page">
   <header class="map-page__header">
-    <h1 class="page-title">Shelter map</h1>
-    <p class="page-subtitle">Find registered and community-submitted bomb shelters in Estonia.</p>
+    <h1 class="page-title">{{ 'map.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'map.subtitle' | t }}</p>
   </header>
 
   <div class="map-page__layout">
@@ -13,17 +13,17 @@
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
-          Registry
+          {{ 'map.legend.registry' | t }}
         </span>
         <!-- Trust palette (community-review-queue D5): NEW community rows
              are amber, CONFIRMED stay green. -->
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
-          New by community
+          {{ 'map.legend.new' | t }}
         </span>
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
-          Confirmed by community
+          {{ 'map.legend.confirmed' | t }}
         </span>
         <!-- Reported state (shelter-trust-and-reports D6): the single
              orange "reported" affordance — beats the trust colour. -->
@@ -32,7 +32,7 @@
             class="shelter-marker shelter-marker--reported legend-swatch"
             aria-hidden="true"
           ></span>
-          Reported
+          {{ 'map.legend.reported' | t }}
         </span>
       </div>
     </div>
@@ -57,10 +57,7 @@
              the CTA is the only geolocation trigger and the browser prompt
              is the consent; the nearest ranking is client-side (no backend
              call), so the promise "never sent" is the actual behavior. -->
-        <p class="map-page__geo-note">
-          Your browser asks first — your location is never sent to our servers and is used only to
-          find the nearest shelter.
-        </p>
+        <p class="map-page__geo-note">{{ 'map.geoNote' | t }}</p>
         <!-- Address-search anchor (location-navigation M12): the fallback
              for the geolocation CTA when location is denied, times out or
              is unavailable — the SAME gateway + usage-policy contract as
@@ -68,15 +65,15 @@
              browse context. Public: no auth needed. A failed search changes
              nothing else (no anchor, no pin, list untouched). -->
         <div class="map-page__anchor-search">
-          <label class="anchor-search__label" for="anchor-search-input"
-            >Find shelters near an address</label
-          >
+          <label class="anchor-search__label" for="anchor-search-input">{{
+            'map.anchorLabel' | t
+          }}</label>
           <div class="anchor-search__row">
             <input
               id="anchor-search-input"
               class="anchor-search__input"
               type="text"
-              placeholder="Street or place in Estonia"
+              [placeholder]="'map.anchorPlaceholder' | t"
               [value]="anchorQuery()"
               (input)="onAnchorQueryChange($event)"
               (keydown)="onAnchorSearchKey($event)"
@@ -89,25 +86,25 @@
               [disabled]="anchorSearching() || anchorQuery().trim() === ''"
               [attr.aria-busy]="anchorSearching()"
             >
-              {{ anchorSearching() ? 'Searching…' : 'Search' }}
+              {{ anchorSearching() ? ('map.searching' | t) : ('map.search' | t) }}
             </button>
           </div>
           <!-- Nominatim usage policy: the attribution is REQUIRED and always
                rendered next to the search box (the /submit convention),
                success or failure. -->
           <p class="anchor-search__attribution">
-            Addresses:
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener"
-              >© OpenStreetMap contributors</a
-            >
+            {{ 'map.attributionLead' | t }}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">{{
+              'map.osmAttribution' | t
+            }}</a>
           </p>
           @if (anchorErrorText(); as msg) {
             @if (anchorError() === 'no-results') {
-              <p class="anchor-search__error">{{ msg }}</p>
+              <p class="anchor-search__error">{{ msg | t }}</p>
             } @else {
               <!-- The two real failures get the alert role (the /submit
                    convention): no-results is information, not an alarm. -->
-              <p class="anchor-search__error" role="alert">{{ msg }}</p>
+              <p class="anchor-search__error" role="alert">{{ msg | t }}</p>
             }
           }
           @if (anchorResults().length) {
@@ -130,7 +127,7 @@
           }
         </div>
         @if (auth.initialized() && auth.authenticated()) {
-          <a routerLink="/submit" class="btn btn--ghost btn--block">Add shelter</a>
+          <a routerLink="/submit" class="btn btn--ghost btn--block">{{ 'map.addShelter' | t }}</a>
         }
       </div>
 
@@ -158,13 +155,13 @@
         }
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
-          No listed locations around you yet.
+          {{ 'map.nearestEmpty' | t }}
           @if (auth.initialized() && auth.authenticated()) {
-            <a routerLink="/submit">You can add the first one.</a>
+            <a routerLink="/submit">{{ 'map.nearestEmpty.addFirst' | t }}</a>
           }
         </p>
       } @else if (nearestError(); as nearestMsg) {
-        <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg }}</p>
+        <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg | t }}</p>
       }
 
       @if (anchor(); as a) {
@@ -172,8 +169,10 @@
              searched point the per-row distances are measured from, with
              its single Clear action. -->
         <p class="anchor-line" role="status">
-          Searched: <span class="anchor-line__label">{{ a.label }}</span>
-          <button type="button" class="anchor-line__clear" (click)="clearAnchor()">Clear</button>
+          {{ 'map.searched' | t }} <span class="anchor-line__label">{{ a.label }}</span>
+          <button type="button" class="anchor-line__clear" (click)="clearAnchor()">
+            {{ 'map.clear' | t }}
+          </button>
         </p>
       }
 
@@ -185,7 +184,7 @@
             [class.chip--active]="filter() === chip.value"
             (click)="setFilter(chip.value)"
           >
-            {{ chip.label }}
+            {{ chip.labelKey | t }}
           </button>
         }
       </div>
@@ -202,7 +201,7 @@
           [attr.aria-pressed]="openOnly()"
           (click)="toggleOpen()"
         >
-          Open
+          {{ 'map.chipOpen' | t }}
         </button>
         <button
           type="button"
@@ -211,7 +210,7 @@
           [attr.aria-pressed]="hasCapacity()"
           (click)="toggleHasCapacity()"
         >
-          Has capacity
+          {{ 'map.chipHasCapacity' | t }}
         </button>
       </div>
 
@@ -220,9 +219,9 @@
       }
 
       @if (loading()) {
-        <app-loading-indicator class="sidebar-state" message="Loading shelters…" />
+        <app-loading-indicator class="sidebar-state" [message]="'map.loading' | t" />
       } @else if (showEmpty()) {
-        <p class="sidebar-state">No shelters match this filter.</p>
+        <p class="sidebar-state">{{ 'map.emptyFilter' | t }}</p>
       } @else if (sorted().length) {
         <ul #listEl class="shelter-list" aria-label="Shelters">
           @for (shelter of sorted(); track shelter.id) {
@@ -301,9 +300,9 @@
                 <a
                   class="shelter-row__details btn btn--ghost"
                   [routerLink]="['/shelters', shelter.id]"
-                  [attr.aria-label]="'View details for ' + shelter.name"
+                  [attr.aria-label]="('map.viewDetailsFor' | t) + shelter.name"
                 >
-                  View details →
+                  {{ 'map.viewDetails' | t }} →
                 </a>
               }
             </li>
@@ -316,4 +315,27 @@
            occupy belongs to the shelter list again. -->
     </aside>
   </div>
+
+  <!-- "How OpenShelter works" (Workstream A): plain-language mechanics
+       block under the map layout. Editorial layout, not a card: the page
+       background continues, a single top hairline divides the block from
+       the map, and the copy sits in a width-capped column for a
+       comfortable line length (map-page.scss). Rhythm: the first
+       paragraph is the lede (larger type — it carries the "not an
+       emergency service, call 112" positioning) and the last is the
+       standing guarantee (quiet medium weight). The old "Example"
+       five-step list is gone — it read templated and restates what the
+       sources/report paragraphs already say (the how.example* keys stay
+       in the catalogs, unused). It is the only i18n'd copy on this page
+       today (the rest of the map chrome is still hardcoded English until
+       M14 slice 2); the badge terms are quoted verbatim so the text
+       matches what the map shows. -->
+  <section class="map-page__how" aria-labelledby="how-title">
+    <h2 class="map-page__how-title" id="how-title">{{ 'how.title' | t }}</h2>
+    <p class="map-page__how-lede">{{ 'how.what' | t }}</p>
+    <p>{{ 'how.sources' | t }}</p>
+    <p>{{ 'how.report' | t }}</p>
+    <p>{{ 'how.nearest' | t }}</p>
+    <p class="map-page__how-guarantee">{{ 'how.guarantee' | t }}</p>
+  </section>
 </section>

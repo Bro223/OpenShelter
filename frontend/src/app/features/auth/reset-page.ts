@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -31,7 +32,7 @@ export type ResetMode = 'request' | 'sent';
  */
 @Component({
   selector: 'app-reset-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, TranslatePipe],
   templateUrl: './reset-page.html',
   styleUrl: './reset-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

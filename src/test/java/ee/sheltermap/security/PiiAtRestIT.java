@@ -57,7 +57,7 @@ class PiiAtRestIT extends AbstractPersistenceIT {
 
     private static final String EMAIL = "mari@example.ee";
     private static final String PHONE = "+37250000001";
-    private static final String PASSWORD = "s3cret";
+    private static final String PASSWORD = "s3cret123";
 
     @Autowired
     MockMvc mvc;

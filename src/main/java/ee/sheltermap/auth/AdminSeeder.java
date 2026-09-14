@@ -23,6 +23,9 @@ import java.util.Objects;
  *       (kind is the truth), and the app behaves exactly as if this
  *       capability were absent — dev boxes without the vars keep working,
  *       prod is opt-in.</li>
+ *   <li>{@code app.admin.password} present but shorter than 8 characters
+ *       → fail fast at startup (refuse to seed a weak admin password —
+ *       the same minimum the registration boundary enforces).</li>
  *   <li>A user with that email ALREADY exists (any kind) → no-op. The seeder
  *       NEVER re-hashes, flips kind or touches claims, so an in-app password
  *       change survives restarts and deployments, and a normal account that
@@ -70,6 +73,13 @@ public class AdminSeeder implements ApplicationRunner {
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
             log.info("Admin provisioning disabled (app.admin.email/password unset) — no admin exists");
             return;
+        }
+        if (password.length() < 8) {
+            // A misconfigured (weak) admin password must fail the boot,
+            // not seed a 403-unreachable-by-design account nobody can
+            // log in to properly — same 8-char minimum as /auth/register.
+            throw new IllegalStateException(
+                    "app.admin.password must be at least 8 characters long — refusing to seed a weak admin password");
         }
         if (users.findByEmail(email) != null) {
             // Create-if-absent: whatever row holds this email (REGISTERED or a

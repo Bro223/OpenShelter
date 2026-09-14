@@ -47,7 +47,7 @@ class VerificationDailyCapIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Daily Cap Kasutaja\",\"email\":\"daily-cap@example.ee\",\"phone\":\"+37250006666\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -85,7 +85,7 @@ class VerificationDailyCapIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"daily-cap@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"daily-cap@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String token = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");

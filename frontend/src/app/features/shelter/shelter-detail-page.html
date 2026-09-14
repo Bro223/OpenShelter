@@ -1,12 +1,12 @@
 @if (notFound()) {
   <section class="shelter-detail shelter-detail--not-found">
-    <h1 class="page-title">Shelter not found</h1>
-    <p class="page-subtitle">No shelter with this ID exists — it may have been removed.</p>
-    <a routerLink="/map" class="btn btn--primary">Back to the map</a>
+    <h1 class="page-title">{{ 'detail.notFoundTitle' | t }}</h1>
+    <p class="page-subtitle">{{ 'detail.notFoundBody' | t }}</p>
+    <a routerLink="/map" class="btn btn--primary">{{ 'detail.backToMap' | t }}</a>
   </section>
 } @else {
   <section class="shelter-detail">
-    <a routerLink="/map" class="back-link">&larr; Back to the map</a>
+    <a routerLink="/map" class="back-link">&larr; {{ 'detail.backToMap' | t }}</a>
 
     <header class="shelter-detail__header">
       <div class="shelter-detail__title-row">
@@ -70,8 +70,12 @@
                navigation app, they do not navigate within it, and they do
                not compete with the back link. -->
           <div class="shelter-detail__navigate">
-            <a [href]="navigateUrl(s)" target="_blank" rel="noopener">Navigate</a>
-            <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">Open in Apple Maps</a>
+            <a [href]="navigateUrl(s)" target="_blank" rel="noopener">{{
+              'detail.navigate' | t
+            }}</a>
+            <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">{{
+              'detail.appleMaps' | t
+            }}</a>
             <!-- Distance from you (location-navigation M12): the page's
                  ONLY geolocation trigger — browser asks first, the point
                  never leaves the device, the result is the straight-line
@@ -136,7 +140,7 @@
          picture of WHERE the shelter is: static marker, no picking, no
          marker navigation. -->
     <section class="detail-section" aria-labelledby="location-heading">
-      <h2 class="section-title" id="location-heading">Location</h2>
+      <h2 class="section-title" id="location-heading">{{ 'detail.locationHeading' | t }}</h2>
       <div #mapEl class="shelter-detail__map"></div>
     </section>
 
@@ -145,7 +149,7 @@
     } @else if (shelter(); as s) {
       @if (hasUserDetails()) {
         <section class="detail-section">
-          <h2 class="section-title">Details</h2>
+          <h2 class="section-title">{{ 'detail.detailsHeading' | t }}</h2>
           @if (s.description) {
             <p class="detail-description">{{ s.description }}</p>
           }
@@ -162,10 +166,10 @@
            Verified viewers report; unverified/anonymous get the existing
            redirect vocabulary. -->
       <section class="detail-section" aria-labelledby="occupancy-heading">
-        <h2 class="section-title" id="occupancy-heading">Report how full</h2>
+        <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
-            <div class="band-picker" role="group" aria-label="How full is this shelter right now?">
+            <div class="band-picker" role="group" [attr.aria-label]="'detail.occupancy.aria' | t">
               @for (band of BANDS; track band.value) {
                 <button
                   type="button"
@@ -175,7 +179,7 @@
                   [disabled]="reporting()"
                   (click)="reportBand(band.value)"
                 >
-                  {{ band.label }}
+                  {{ band.labelKey | t }}
                 </button>
               }
             </div>
@@ -184,18 +188,18 @@
             }
           } @else {
             <div class="my-review-prompt">
-              <p>Verify your email or phone to report how full this shelter is.</p>
+              <p>{{ 'detail.verify.occupancy' | t }}</p>
               <a
                 routerLink="/verify"
                 [queryParams]="{ returnUrl: '/shelters/' + id() }"
                 class="btn btn--primary"
-                >Verify your account</a
+                >{{ 'detail.verifyAccount' | t }}</a
               >
             </div>
           }
         } @else {
           <div class="my-review-prompt">
-            <p>Log in to report how full this shelter is.</p>
+            <p>{{ 'detail.login.occupancy' | t }}</p>
           </div>
         }
       </section>
@@ -209,13 +213,13 @@
            Open is the default: a fresh OPEN renders no row badge, the
            picker is where the signal lives. -->
       <section class="detail-section" aria-labelledby="open-status-heading">
-        <h2 class="section-title" id="open-status-heading">Report open/closed</h2>
+        <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div
               class="open-status-picker"
               role="group"
-              aria-label="Is this shelter open right now?"
+              [attr.aria-label]="'detail.openStatus.aria' | t"
             >
               @for (option of OPEN_STATES; track option.value) {
                 <button
@@ -226,24 +230,24 @@
                   [disabled]="reporting()"
                   (click)="reportOpenStatus(option.value)"
                 >
-                  {{ option.label }}
+                  {{ option.labelKey | t }}
                 </button>
               }
             </div>
           } @else {
             <div class="my-review-prompt">
-              <p>Verify your email or phone to report whether this shelter is open.</p>
+              <p>{{ 'detail.verify.open' | t }}</p>
               <a
                 routerLink="/verify"
                 [queryParams]="{ returnUrl: '/shelters/' + id() }"
                 class="btn btn--primary"
-                >Verify your account</a
+                >{{ 'detail.verifyAccount' | t }}</a
               >
             </div>
           }
         } @else {
           <div class="my-review-prompt">
-            <p>Log in to report whether this shelter is open.</p>
+            <p>{{ 'detail.login.open' | t }}</p>
           </div>
         }
       </section>
@@ -252,7 +256,7 @@
            report (verified only, one per type). M11: the factual types
            (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
       <section class="detail-section" aria-labelledby="report-shelter-heading">
-        <h2 class="section-title" id="report-shelter-heading">Report this shelter</h2>
+        <h2 class="section-title" id="report-shelter-heading">{{ 'detail.reportThis' | t }}</h2>
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             @if (!reportOpen()) {
@@ -262,11 +266,11 @@
                 [disabled]="reporting()"
                 (click)="openReport()"
               >
-                Report
+                {{ 'detail.report' | t }}
               </button>
             } @else {
               <form class="report-form" (submit)="$event.preventDefault(); submitReport()">
-                <fieldset class="report-options" aria-label="Report type">
+                <fieldset class="report-options" [attr.aria-label]="'detail.reportType.aria' | t">
                   @for (option of REPORT_TYPES; track option.value) {
                     <label class="report-option">
                       <input
@@ -276,13 +280,13 @@
                         [checked]="reportType() === option.value"
                         (change)="onReportTypeChange($event)"
                       />
-                      {{ option.label }}
+                      {{ option.labelKey | t }}
                     </label>
                   }
                 </fieldset>
                 @if (reportDetailPlaceholder(); as placeholder) {
                   <div class="field">
-                    <label for="report-detail">Details (optional)</label>
+                    <label for="report-detail">{{ 'detail.reportDetailLabel' | t }}</label>
                     <textarea
                       id="report-detail"
                       rows="2"
@@ -291,7 +295,7 @@
                       [placeholder]="placeholder"
                     ></textarea>
                     @if (reportDetail.touched && reportDetail.invalid) {
-                      <p class="field-error">Details must be 500 characters or fewer.</p>
+                      <p class="field-error">{{ 'detail.reportDetailError' | t }}</p>
                     }
                   </div>
                 }
@@ -304,7 +308,7 @@
                     class="btn btn--primary"
                     [disabled]="reporting() || reportType() === null || reportDetail.invalid"
                   >
-                    {{ reporting() ? 'Submitting…' : 'Submit report' }}
+                    {{ reporting() ? ('detail.submitting' | t) : ('detail.submitReport' | t) }}
                   </button>
                   <button
                     type="button"
@@ -312,25 +316,25 @@
                     (click)="closeReport()"
                     [disabled]="reporting()"
                   >
-                    Cancel
+                    {{ 'detail.cancel' | t }}
                   </button>
                 </div>
               </form>
             }
           } @else {
             <div class="my-review-prompt">
-              <p>Verify your email or phone to report this shelter.</p>
+              <p>{{ 'detail.verify.report' | t }}</p>
               <a
                 routerLink="/verify"
                 [queryParams]="{ returnUrl: '/shelters/' + id() }"
                 class="btn btn--primary"
-                >Verify your account</a
+                >{{ 'detail.verifyAccount' | t }}</a
               >
             </div>
           }
         } @else {
           <div class="my-review-prompt">
-            <p>Log in to report this shelter.</p>
+            <p>{{ 'detail.login.report' | t }}</p>
           </div>
         }
       </section>
@@ -342,7 +346,7 @@
            reports)" otherwise). Same rule the map's "Open" chip filters
            on (single source, shelter-copy). -->
       <section class="detail-section" aria-labelledby="info-heading">
-        <h2 class="section-title" id="info-heading">Info</h2>
+        <h2 class="section-title" id="info-heading">{{ 'detail.infoHeading' | t }}</h2>
         <dl class="fact-list">
           <div class="fact-list__row">
             <dt class="fact-list__label">Status</dt>

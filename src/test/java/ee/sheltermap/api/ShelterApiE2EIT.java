@@ -83,7 +83,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"E2E Kasutaja\",\"email\":\"e2e@example.ee\","
                                 + "\"phone\":\"+37250009999\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
 
         // 2. verify via the dev (capturing) e-mail sender — real service bean,
@@ -104,7 +104,7 @@ class ShelterApiE2EIT extends AbstractPersistenceIT {
 
         // 3. login -> access token
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"e2e@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"e2e@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String accessToken = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");

@@ -1,0 +1,23 @@
+@if (!consent.decided()) {
+  <div class="consent-overlay">
+    <section
+      class="consent-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="consent-title"
+      aria-describedby="consent-body"
+      tabindex="-1"
+      #dialog
+      (keydown)="onKeydown($event)"
+    >
+      <h2 class="consent-dialog__title" id="consent-title">{{ 'consent.title' | t }}</h2>
+      <p class="consent-dialog__body" id="consent-body">{{ 'consent.body' | t }}</p>
+      <div class="consent-dialog__actions">
+        <button type="button" class="btn btn--primary" (click)="consent.acknowledge()">
+          {{ 'consent.acknowledge' | t }}
+        </button>
+        <a routerLink="/privacy" class="consent-dialog__privacy">{{ 'consent.privacyLink' | t }}</a>
+      </div>
+    </section>
+  </div>
+}

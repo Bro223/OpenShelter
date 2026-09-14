@@ -511,6 +511,62 @@
   margin-top: var(--space-4);
 }
 
+/* "How OpenShelter works" (Workstream A): plain-language mechanics block
+   under the map layout. Editorial layout, deliberately NOT a card: no
+   border box, no background surface, no rounded corners — the page
+   background continues through the block and a single thin top hairline
+   (the documented 1px line-weight exception) divides it from the map.
+   The copy column is width-capped for a comfortable line length (65ch —
+   a page-specific layout dimension, like the sidebar width) and stays
+   left-aligned with the rest of the map chrome; at narrow widths 65ch
+   exceeds the content width, so the block simply runs full width. Rhythm
+   instead of uniformity: the lede paragraph sits one type step up (it
+   carries the "not an emergency service, call 112" positioning) and the
+   closing guarantee gets a quiet medium weight. No @media needed: the
+   column and the action-free content reflow on their own at any width. */
+.map-page__how {
+  flex-shrink: 0;
+  max-width: 65ch; /* comfortable line length (documented exception, not spacing) */
+  margin-top: var(--space-32);
+  padding-top: var(--space-24);
+  padding-bottom: var(--space-48);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--text-base);
+
+  p {
+    margin: 0 0 var(--space-12);
+    line-height: 1.6;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+
+  .map-page__how-title {
+    margin: 0 0 var(--space-20);
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-title);
+    line-height: 1.3;
+  }
+
+  /* Lede: what OpenShelter is — and is not (the positioning statement
+     with the "call 112" line). One type step above the body copy and a
+     touch more air below it. */
+  .map-page__how-lede {
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-16);
+  }
+
+  /* The standing guarantee: the closing line of the block. Quiet
+     emphasis (medium weight, no colour change) and a little more air
+     above it, so it reads as the end of the explanation rather than the
+     next item in a uniform stack. */
+  .map-page__how-guarantee {
+    margin-top: var(--space-16);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
 /* M6 responsive (breakpoint: --bp-narrow; @media cannot consume var()):
    map on top, sidebar full-width below; no horizontal scroll at mobile
    widths. Wide-width rendering (and every class name) is untouched.

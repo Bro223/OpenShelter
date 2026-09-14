@@ -15,6 +15,7 @@ import { TranslatePipe } from '../core/i18n/translate-pipe';
 import { type DataSourceDto } from '../core/models';
 import { DataSourceGateway } from '../gateways/data-source-gateway';
 import { AuthStore } from '../session/auth-store';
+import { ConsentBanner } from './consent-banner.component';
 
 /**
  * The app frame (01 puml, shared/): brand + nav header on top of the routed
@@ -29,7 +30,7 @@ import { AuthStore } from '../session/auth-store';
  */
 @Component({
   selector: 'app-page-shell',
-  imports: [RouterOutlet, RouterLink, DatePipe, UpperCasePipe, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, DatePipe, UpperCasePipe, TranslatePipe, ConsentBanner],
   templateUrl: './page-shell.html',
   styleUrl: './page-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

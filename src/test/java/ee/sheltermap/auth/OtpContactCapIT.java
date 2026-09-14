@@ -94,10 +94,10 @@ class OtpContactCapIT extends AbstractPersistenceIT {
     private String registerAndLogin(String email, String phone) throws Exception {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Contact Cap Kasutaja\",\"email\":\"" + email + "\",\"phone\":\"" + phone
-                                + "\",\"password\":\"s3cret\"}"))
+                                + "\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"" + email + "\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"" + email + "\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
@@ -163,7 +163,7 @@ class OtpContactCapIT extends AbstractPersistenceIT {
     @Test
     void registerEmailCapThrottlesRepeatedRegistration() throws Exception {
         String body = "{\"name\":\"Repeat Register\",\"email\":\"repeat-reg@example.ee\",\"phone\":\"+37250007779\","
-                + "\"password\":\"s3cret\"}";
+                + "\"password\":\"s3cret123\"}";
 
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isCreated());

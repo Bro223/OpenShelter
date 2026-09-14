@@ -47,7 +47,7 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Throttle Kasutaja\",\"email\":\"throttle@example.ee\",\"phone\":\"+37250007777\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -81,7 +81,7 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"throttle@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"throttle@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String token = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");

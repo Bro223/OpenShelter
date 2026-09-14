@@ -2,6 +2,7 @@ package ee.sheltermap.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * Password-reset confirmation payload (03-auth.puml). The e-mail scopes the
@@ -11,5 +12,5 @@ import jakarta.validation.constraints.NotBlank;
 public record PasswordResetConfirmRequest(
         @NotBlank @Email String email,
         @NotBlank String code,
-        @NotBlank String newPassword) {
+        @NotBlank @Size(min = 8, message = "Password must be at least 8 characters long") String newPassword) {
 }

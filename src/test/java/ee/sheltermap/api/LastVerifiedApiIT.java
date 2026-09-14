@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.admin.email=admin@example.ee",
-        "app.admin.password=admin",
+        "app.admin.password=admin-pass-1",
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",

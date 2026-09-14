@@ -1,112 +1,284 @@
 <article class="legal-page">
   <h1 class="page-title">Privacy policy</h1>
+  <p class="legal-page__updated">Last updated: 13 September 2026</p>
 
-  <section>
-    <h2>What we collect</h2>
+  <nav class="legal-page__toc" aria-label="Table of contents">
+    <ol>
+      <li><a routerLink="/privacy" fragment="who">Who operates OpenShelter</a></li>
+      <li><a routerLink="/privacy" fragment="scope">Scope of this policy</a></li>
+      <li><a routerLink="/privacy" fragment="collect">What personal data we collect</a></li>
+      <li><a routerLink="/privacy" fragment="why">Why we process each category</a></li>
+      <li>
+        <a routerLink="/privacy" fragment="verification">Account creation and verification</a>
+      </li>
+      <li><a routerLink="/privacy" fragment="location">Location and geolocation</a></li>
+      <li><a routerLink="/privacy" fragment="content">User-generated content</a></li>
+      <li><a routerLink="/privacy" fragment="cookies">Cookies and browser storage</a></li>
+      <li><a routerLink="/privacy" fragment="third-parties">Third-party service providers</a></li>
+      <li><a routerLink="/privacy" fragment="sharing">Data sharing</a></li>
+      <li><a routerLink="/privacy" fragment="retention">Data retention</a></li>
+      <li><a routerLink="/privacy" fragment="rights">Your rights under the GDPR</a></li>
+      <li><a routerLink="/privacy" fragment="security">Data security</a></li>
+      <li><a routerLink="/privacy" fragment="children">Children</a></li>
+      <li><a routerLink="/privacy" fragment="changes">Changes to this policy</a></li>
+      <li><a routerLink="/privacy" fragment="contact">Contact</a></li>
+    </ol>
+  </nav>
+
+  <section id="who">
+    <h2>Who operates OpenShelter</h2>
     <p>
-      When you create an account we store your <strong>full name</strong>,
-      <strong>e-mail address</strong>, <strong>phone number</strong> and <strong>password</strong>.
-      When you contribute to the map we store what you submit: shelters, reviews and reports. We do
-      not collect anything else about you — there is no advertising and no tracking.
+      OpenShelter is an open-source, community-maintained map of shelters and safe places in
+      Estonia. It is operated by [OPERATOR LEGAL NAME], [POSTAL ADDRESS]. The data protection
+      contact is [DATA PROTECTION CONTACT].
+    </p>
+    <p>
+      OpenShelter is <strong>not an official government service</strong> and not an emergency
+      service. Official shelter data shown in the application is imported from the Estonian Rescue
+      Board (Päästeamet) open data, but the application itself is operated independently.
     </p>
   </section>
 
-  <section>
-    <h2>Why we collect your e-mail and phone</h2>
+  <section id="scope">
+    <h2>Scope of this policy</h2>
     <p>
-      We ask for both an e-mail address and a phone number because an account is only useful after
-      you prove it is yours. We send a one-time code to each of them to
-      <strong>verify your identity</strong>; until both are verified you can log in but not submit.
-      The same two contacts are how you <strong>recover your account</strong> — password reset uses
-      your e-mail, and changing either contact is confirmed with a code to the new value. We use
-      them for these purposes only.
+      This policy describes how OpenShelter collects, uses, stores and deletes personal data when
+      you use the web application. It is intended to describe the application's actual behaviour. It
+      does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and
+      OpenStreetMap).
     </p>
   </section>
 
-  <section>
-    <h2>How we store and protect your data</h2>
+  <section id="collect">
+    <h2>What personal data we collect</h2>
+    <p>We collect only what the application needs to work. When you create an account we store:</p>
+    <ul>
+      <li>your <strong>full name</strong>;</li>
+      <li>your <strong>e-mail address</strong>;</li>
+      <li>your <strong>phone number</strong>;</li>
+      <li>your <strong>password</strong>, stored only as a one-way hash.</li>
+    </ul>
+    <p>
+      We do <strong>not</strong> collect a national identification code, and we do not use
+      advertising, analytics or cross-site tracking. When you contribute to the map we store the
+      content you submit (shelters and reports), as described under
+      <a routerLink="/privacy" fragment="content">user-generated content</a>.
+    </p>
+  </section>
+
+  <section id="why">
+    <h2>Why we process each category</h2>
+    <p>Each category is processed for a specific purpose, and for no other purpose:</p>
     <ul>
       <li>
-        Your e-mail address and phone number are <strong>encrypted at rest</strong>
-        (AES-256-GCM). Lookups such as login and duplicate checks run on a separate one-way index
-        that cannot be turned back into your contact — the encrypted values themselves are never
-        compared.
+        <strong>Name</strong> - shown on your account and, for public submissions, on the map.
       </li>
       <li>
-        Your password is stored as a <strong>one-way hash</strong>. Nobody, including us, can read
-        it back; recovery is always by code, never by asking us.
+        <strong>E-mail address</strong> - account verification, password resets and cross-channel
+        confirmation when you change your phone number.
       </li>
       <li>
-        The encryption keys are kept outside the database, are never written into the code or the
-        logs.
+        <strong>Phone number</strong> - account verification, sign-in and cross-channel confirmation
+        when you change your e-mail address.
+      </li>
+      <li>
+        <strong>Password</strong> - authentication. It is stored only as a one-way hash, so it can
+        never be read back.
+      </li>
+      <li>
+        <strong>Submitted content</strong> - shown on the public map and used by administrators for
+        moderation and abuse prevention.
       </li>
     </ul>
-  </section>
-
-  <section>
-    <h2>Your location</h2>
     <p>
-      We only ever see location when <em>you</em> ask for it. The “Show shelters around you” button
-      and the “Use my location” option on the submit form first show your browser’s own permission
-      prompt — declining leaves you exactly where you were. On the map, the nearest shelter is
-      worked out <strong>inside your browser</strong>; your live position is never sent to our
-      servers. If you submit a shelter at your position, only the coordinate you chose is stored, as
-      part of that submission. We never infer your location from your IP address.
+      The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED]. This document is intended
+      to describe the processing; it is not a legal opinion.
     </p>
   </section>
 
-  <section>
-    <h2>Who sees your data</h2>
+  <section id="verification">
+    <h2>Account creation and verification</h2>
+    <p>
+      You may browse the map without an account. To submit shelters or reports you must create an
+      account and verify both your e-mail address and your phone number. Verification works by
+      sending a one-time code to each contact; until both are verified you can sign in but cannot
+      contribute.
+    </p>
+    <p>
+      Password resets are performed by a one-time code sent to your e-mail address. Changing your
+      e-mail address is confirmed with a code sent to your current phone number, and changing your
+      phone number is confirmed with a code sent to your current e-mail address.
+    </p>
+    <p>
+      To prevent abuse, the application applies rate limits on code requests and on shelter
+      submissions, and detects near-duplicate submissions. Exceeding a limit produces an error, not
+      a ban.
+    </p>
+  </section>
+
+  <section id="location">
+    <h2>Location and geolocation</h2>
+    <p>
+      We only ever see your location when <em>you</em> ask for it. The "Show shelters around you"
+      button and the "Use my location" option on the submit form first show your browser's own
+      permission prompt. If you decline, nothing changes.
+    </p>
+    <p>
+      On the map, the nearest shelter is worked out <strong>inside your browser</strong>; your live
+      position is never sent to our servers. If you submit a shelter at your position, only the
+      coordinate you choose is stored, as part of that submission.
+    </p>
+    <p>
+      We <strong>never</strong> infer your location from your IP address. Address search uses the
+      OpenStreetMap Nominatim service; a search request is sent only when you deliberately search
+      for an address.
+    </p>
+  </section>
+
+  <section id="content">
+    <h2>User-generated content</h2>
+    <p>
+      When you contribute, the application stores your shelters and your reports (for example, that
+      a location is closed, inaccurate, or no longer exists). This content becomes part of the
+      public community map. You can edit or remove your own shelters from the
+      <a routerLink="/account">account page</a>; reports are reviewed by administrators.
+    </p>
+    <p>
+      Moderators can review, hide, correct or remove user-submitted content. The application keeps a
+      moderation record so decisions can be audited.
+    </p>
+  </section>
+
+  <section id="cookies">
+    <h2>Cookies and browser storage</h2>
+    <p>
+      OpenShelter does not use advertising cookies. It stores only the following items in your
+      browser's local storage, each of which is technically necessary:
+    </p>
+    <ul>
+      <li>a <strong>sign-in token</strong> that keeps you logged in across page reloads;</li>
+      <li>your <strong>language preference</strong> (Estonian or English);</li>
+      <li>your <strong>display preference</strong> (high-contrast mode).</li>
+    </ul>
+    <p>
+      Your access token is held in memory only and is discarded when you close the tab. No third
+      party receives these items, and there are no optional analytics or tracking technologies to
+      accept or reject.
+    </p>
+  </section>
+
+  <section id="third-parties">
+    <h2>Third-party service providers</h2>
+    <p>We use a small number of third-party services, each only to deliver a specific function:</p>
+    <ul>
+      <li>
+        an <strong>e-mail delivery service</strong> (SendPulse, via SMTP) to send verification and
+        password-reset codes. It receives the destination e-mail address to deliver the message.
+      </li>
+      <li>
+        a <strong>text-message service</strong> (Twilio) to send verification codes. It receives the
+        destination phone number to deliver the message.
+      </li>
+      <li>
+        <strong>OpenStreetMap</strong> map tiles and the Nominatim geocoding service, which receive
+        the map area you view or the address you search for.
+      </li>
+    </ul>
+    <p>
+      The official shelter data is imported from the Estonian Rescue Board (Päästeamet) open data;
+      that is an inbound data source, not a service we send your data to. Whether any of these
+      providers involves an international transfer is [TO BE CONFIRMED].
+    </p>
+  </section>
+
+  <section id="sharing">
+    <h2>Data sharing</h2>
     <p>
       We do not sell your personal data and do not share it for advertising or any other commercial
-      purpose. The only third parties involved are the e-mail and SMS services that deliver the
-      one-time verification and reset codes; they see the destination contact in order to send the
-      message. Shelter data you submit becomes part of the public community list, attributed to no
-      one once any account is deleted.
+      purpose. The only disclosures are to the service providers listed above, in order to deliver
+      the messages you request. Shelter data you submit becomes part of the public community list;
+      after you delete your account, public submissions remain on the map without attribution.
     </p>
   </section>
 
-  <section>
-    <h2>Your choices</h2>
+  <section id="retention">
+    <h2>Data retention</h2>
     <p>
-      Every right below works from the <a routerLink="/account">account page</a> — no request
-      needed:
+      Your account data is kept for as long as your account exists. Deleting your account removes
+      your account data: shelters you declared as a private home are removed, and public shelters
+      you submitted stay on the map without a submitter. We do not currently run automatic deletion
+      of inactive accounts.
     </p>
+    <p>
+      The retention period for moderation records and for content left on the map after account
+      deletion is [RETENTION PERIOD TO BE CONFIRMED].
+    </p>
+  </section>
+
+  <section id="rights">
+    <h2>Your rights under the GDPR</h2>
+    <p>If you are in the European Economic Area, you have the right to:</p>
     <ul>
       <li>
-        <strong>Download your data</strong> — a JSON export of your profile and everything you
-        submitted.
+        <strong>Access</strong> and <strong>portability</strong> - download a JSON export of your
+        profile and everything you submitted from the <a routerLink="/account">account page</a>.
       </li>
       <li>
-        <strong>Delete your account</strong> — your declared private shelters are removed, your
-        public submissions stay on the map without attribution, your reviews are removed, and you
-        are logged out everywhere.
+        <strong>Rectification</strong> - correct your name, or change your e-mail address or phone
+        number (each confirmed with a code).
       </li>
       <li>
-        <strong>Change your e-mail or phone</strong> — confirmed with a one-time code to the new
-        value.
+        <strong>Erasure</strong> - delete your account from the
+        <a routerLink="/account">account page</a>. Public submissions are orphaned rather than
+        deleted, as described above.
       </li>
-      <li><strong>Reset your password</strong> — by code to your e-mail.</li>
+      <li>
+        <strong>Restriction</strong> and <strong>objection</strong> - contact the data protection
+        contact below.
+      </li>
     </ul>
-  </section>
-
-  <section>
-    <h2>How long we keep your data</h2>
     <p>
-      Your account data is kept for as long as your account exists; deleting the account removes it.
-      We do not currently run automatic deletion of inactive accounts, and we will update this
-      policy if that changes.
+      You can also complain to the Estonian Data Protection Inspectorate (Andmekaitse Inspektsioon).
     </p>
   </section>
 
-  <section>
-    <h2>Contact and changes</h2>
+  <section id="security">
+    <h2>Data security</h2>
     <p>
-      There is no general inbox yet — the ways to reach us are the account flows above (the
-      password-reset and contact-change codes are sent to your registered e-mail). We may update
-      this policy as the app evolves; the version you read on this page is the one in force when you
-      read it. OpenShelter is governed by the
-      <a routerLink="/terms">terms of use</a> as well.
+      Your e-mail address and phone number are <strong>encrypted at rest</strong> (AES-256-GCM).
+      Lookups such as sign-in and duplicate checks run on a separate one-way index that cannot be
+      turned back into your contact. Your password is stored as a one-way Argon2 hash. The
+      encryption keys are kept outside the database and are never written into code or logs.
+    </p>
+    <p>
+      The application applies rate limits on verification codes, password resets and submissions,
+      sends security headers on every response, and requires HTTPS for location access. No security
+      measure can guarantee absolute safety, but these measures reduce common risks.
+    </p>
+  </section>
+
+  <section id="children">
+    <h2>Children</h2>
+    <p>
+      OpenShelter is not directed at children and does not knowingly collect the personal data of
+      children. The application does not currently check a user's age.
+    </p>
+  </section>
+
+  <section id="changes">
+    <h2>Changes to this policy</h2>
+    <p>
+      We may update this policy as the application evolves. The version on this page is the one in
+      force when you read it. Material changes will be reflected in the "Last updated" date above.
+    </p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy or about your data can be sent to [CONTACT EMAIL], or to the data
+      protection contact at [DATA PROTECTION CONTACT]. OpenShelter is also governed by the
+      <a routerLink="/terms">terms of use</a>.
     </p>
   </section>
 </article>

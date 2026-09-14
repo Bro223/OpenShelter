@@ -7,6 +7,7 @@ import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit test for the env-provisioned admin (admin-moderation D1):
@@ -83,6 +84,17 @@ class AdminSeederTest {
         UserCredentials stored = credentials.findByUserId(admin.getId());
         assertThat(hasher.verify("new-password", stored.getPasswordHash())).isTrue();
         assertThat(hasher.verify(PASSWORD, stored.getPasswordHash())).isFalse();
+    }
+
+    @Test
+    void aShortAdminPasswordRefusesToSeed() {
+        // the 8-char minimum (same as /auth/register): a weak configured
+        // password must fail the boot loudly, not seed a weak admin
+        assertThatThrownBy(() -> seeder(EMAIL, "short").run(null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("at least 8");
+        // nothing was created before the failure
+        assertThat(users.findAll()).isEmpty();
     }
 
     @Test

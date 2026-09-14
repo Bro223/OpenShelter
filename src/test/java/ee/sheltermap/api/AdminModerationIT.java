@@ -47,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.admin.email=admin@example.ee",
-        "app.admin.password=admin",
+        "app.admin.password=admin-pass-1",
         "app.ratelimit.login-capacity=1000",
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
@@ -109,7 +109,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
     private String adminToken() throws Exception {
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin\"}"))
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");

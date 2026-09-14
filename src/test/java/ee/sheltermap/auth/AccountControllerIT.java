@@ -58,7 +58,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Kontakt Muutus\",\"email\":\"kontakt@example.ee\",\"phone\":\"+37250004444\","
-                    + "\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -101,7 +101,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"kontakt@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"kontakt@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
@@ -227,7 +227,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
         // P2 race: another account claims that address before A confirms
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Konkurent\",\"email\":\"vaidlustatud@example.ee\","
-                                + "\"phone\":\"+37250007777\",\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"+37250007777\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
 
         // A's confirm must surface as 409 (uniform ErrorResponse), never 500
@@ -408,7 +408,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Korrektitud Nimi\","
-                                + "\"currentPassword\":\"s3cret\"}"))
+                                + "\"currentPassword\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Korrektitud Nimi"))
                 // untouched fields come back unchanged
@@ -445,7 +445,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"   \","
-                                + "\"currentPassword\":\"s3cret\"}"))
+                                + "\"currentPassword\":\"s3cret123\"}"))
                 .andExpect(status().isBadRequest());
 
         RegisteredUser stored = users.findByEmail("kontakt@example.ee");
@@ -459,7 +459,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
         mvc.perform(put("/account/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Väline Isik\","
-                                + "\"currentPassword\":\"s3cret\"}"))
+                                + "\"currentPassword\":\"s3cret123\"}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -484,7 +484,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Kontakt Muutus\","
-                                + "\"currentPassword\":\"s3cret\"}"))
+                                + "\"currentPassword\":\"s3cret123\"}"))
                 .andExpect(status().isOk());
 
         RegisteredUser stored = users.findByEmail("kontakt@example.ee");

@@ -11,6 +11,9 @@ import {
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import type { MessageKey } from '../../core/i18n/messages';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { CreateShelterRequest, GeocodeResult, ShelterDto } from '../../core/models';
 import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
@@ -55,34 +58,27 @@ type LocationErrorKind =
   | 'short-link-unavailable';
 
 /** One copy per failure reason — rendered inline in the location fieldset. */
-const LOCATION_ERROR_COPY: Record<LocationErrorKind, string> = {
-  missing: 'Pick a location on the map, paste coordinates or a link, or use "Use my location".',
-  'no-pair':
-    'No recognizable coordinates in that text. Paste a pair like 59.4370, 24.7535 or a map link — or use "Use my location" / the map.',
-  'out-of-bounds': 'The location is outside Estonia.',
-  invalid:
-    'That does not look like coordinates. Use a pair like 59.4370, 24.7535, a DMS string, or a map link.',
-  'decimal-comma': 'Use a decimal point: 59.4370, 24.7535 (Estonian decimal-comma detected).',
-  'geo-denied':
-    'Location permission is off. Allow location access in your browser — or pick the spot on the map / paste a link.',
-  'geo-unavailable':
-    'Your location could not be determined right now. Pick the spot on the map or paste a link.',
-  'geo-timeout': 'Finding your location timed out. Pick the spot on the map or paste a link.',
-  'geo-insecure':
-    'Location access needs a secure (https) connection. Pick the spot on the map or paste a link.',
-  'short-link-failed':
-    'Could not find coordinates in that link. Use a full Google Maps link or pick the spot on the map.',
-  'short-link-rate-limited': 'Too many link lookups — please wait a minute and then try again.',
-  'short-link-unavailable':
-    'Location lookup is temporarily unavailable. Try again in a moment, or pick the spot on the map.',
+const LOCATION_ERROR_KEY: Record<LocationErrorKind, MessageKey> = {
+  missing: 'submit.loc.missing',
+  'no-pair': 'submit.loc.noPair',
+  'out-of-bounds': 'submit.loc.outOfBounds',
+  invalid: 'submit.loc.invalid',
+  'decimal-comma': 'submit.loc.decimalComma',
+  'geo-denied': 'submit.loc.geoDenied',
+  'geo-unavailable': 'submit.loc.geoUnavailable',
+  'geo-timeout': 'submit.loc.geoTimeout',
+  'geo-insecure': 'submit.loc.geoInsecure',
+  'short-link-failed': 'submit.loc.shortLinkFailed',
+  'short-link-rate-limited': 'submit.loc.shortLinkRateLimited',
+  'short-link-unavailable': 'submit.loc.shortLinkUnavailable',
 };
 
-const SOURCE_LABEL: Record<LocationSource, string> = {
-  typed: 'typed coordinates',
-  link: 'the map link',
-  geolocation: 'your device location',
-  'map-pick': 'the map',
-  'address-search': 'the address search',
+const SOURCE_KEY: Record<LocationSource, MessageKey> = {
+  typed: 'submit.hint.source.typed',
+  link: 'submit.hint.source.link',
+  geolocation: 'submit.hint.source.geolocation',
+  'map-pick': 'submit.hint.source.map',
+  'address-search': 'submit.hint.source.address',
 };
 
 /** The inline states of the address search (shelter-address-search). A search
@@ -90,10 +86,10 @@ const SOURCE_LABEL: Record<LocationSource, string> = {
  * form submission — search is an optional capture mode, not a gate. */
 type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
 
-const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
-  'no-results': 'No Estonian address found — try the map, a link, or "Use my location".',
-  'rate-limited': 'The address search is busy — please wait a moment and try again.',
-  network: 'Address search is unreachable right now. Use the map or a link instead.',
+const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
+  'no-results': 'submit.geocode.noResults',
+  'rate-limited': 'submit.geocode.rateLimited',
+  network: 'submit.geocode.network',
 };
 
 /**
@@ -118,7 +114,7 @@ const GEOCODE_ERROR_COPY: Record<GeocodeErrorKind, string> = {
  */
 @Component({
   selector: 'app-submit-shelter-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, TranslatePipe],
   providers: [LeafletService],
   templateUrl: './submit-shelter-page.html',
   styleUrl: './submit-shelter-page.scss',
@@ -129,6 +125,8 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private readonly geo = inject(GeoGateway);
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
+  /** Resolves the location capture copy (i18n-et-en M14 slice 2). */
+  private readonly i18n = inject(I18nService);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
@@ -220,7 +218,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   protected locationReadout(): string {
     const picked = this.location();
     return picked === null
-      ? 'No location yet'
+      ? this.i18n.t('submit.location.empty')
       : `${picked.latitude.toFixed(5)}, ${picked.longitude.toFixed(5)}`;
   }
 
@@ -230,20 +228,19 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     if (picked === null) {
       return null;
     }
-    let hint = `Location from ${SOURCE_LABEL[picked.source]}`;
+    let hint = this.i18n.t('submit.hint.from') + this.i18n.t(SOURCE_KEY[picked.source]);
     if (picked.swapped) {
-      hint +=
-        ' — detected as longitude, latitude, so the values were swapped to place them inside Estonia';
+      hint += this.i18n.t('submit.hint.swapped');
     }
     if (picked.accuracyM !== null) {
-      hint += ` (accuracy about ${Math.round(picked.accuracyM)} m — drag the pin if needed)`;
+      hint += this.i18n.t('submit.hint.accuracy', { m: Math.round(picked.accuracyM) });
     }
     return hint;
   }
 
   protected locationErrorText(): string | null {
     const kind = this.locationError();
-    return kind === null ? null : LOCATION_ERROR_COPY[kind];
+    return kind === null ? null : this.i18n.t(LOCATION_ERROR_KEY[kind]);
   }
 
   /**
@@ -471,7 +468,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
 
   protected addressErrorText(): string | null {
     const kind = this.addressError();
-    return kind === null ? null : GEOCODE_ERROR_COPY[kind];
+    return kind === null ? null : this.i18n.t(GEOCODE_ERROR_KEY[kind]);
   }
 
   /**

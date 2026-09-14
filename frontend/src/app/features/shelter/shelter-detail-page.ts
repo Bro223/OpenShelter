@@ -14,6 +14,9 @@ import { DatePipe, NgClass } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import type { MessageKey } from '../../core/i18n/messages';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import type {
   OccupancyBand,
@@ -117,7 +120,15 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
  */
 @Component({
   selector: 'app-shelter-detail-page',
-  imports: [RouterLink, NgClass, DatePipe, ReactiveFormsModule, BannerComponent, LoadingIndicator],
+  imports: [
+    RouterLink,
+    NgClass,
+    DatePipe,
+    ReactiveFormsModule,
+    BannerComponent,
+    LoadingIndicator,
+    TranslatePipe,
+  ],
   providers: [LeafletService],
   templateUrl: './shelter-detail-page.html',
   styleUrl: './shelter-detail-page.scss',
@@ -128,6 +139,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
   private readonly leaflet = inject(LeafletService);
+  /** Resolves the report detail field's per-type placeholder (i18n-et-en M14 slice 2). */
+  private readonly i18n = inject(I18nService);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
@@ -207,34 +220,34 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  type stays claim-only. */
   protected readonly REPORT_TYPES: {
     value: ShelterReportType;
-    label: string;
-    detailPlaceholder?: string;
+    labelKey: MessageKey;
+    detailKey?: MessageKey;
   }[] = [
-    { value: 'NON_EXISTENT', label: 'It does not exist' },
+    { value: 'NON_EXISTENT', labelKey: 'detail.reportType.nonExistent' },
     {
       value: 'WRONG_LOCATION',
-      label: 'The location is wrong',
-      detailPlaceholder: 'What is the actual address?',
+      labelKey: 'detail.reportType.wrongLocation',
+      detailKey: 'detail.reportDetailPlaceholder.wrongLocation',
     },
     {
       value: 'OTHER',
-      label: 'Something else',
-      detailPlaceholder: 'What should the community know?',
+      labelKey: 'detail.reportType.other',
+      detailKey: 'detail.reportDetailPlaceholder.other',
     },
   ];
 
   /** The three occupancy bands (D4) — the picker's large buttons. */
-  protected readonly BANDS: { value: OccupancyBand; label: string }[] = [
-    { value: 'SPACE', label: 'Space available' },
-    { value: 'GETTING_FULL', label: 'Getting full' },
-    { value: 'FULL', label: 'Full' },
+  protected readonly BANDS: { value: OccupancyBand; labelKey: MessageKey }[] = [
+    { value: 'SPACE', labelKey: 'detail.band.space' },
+    { value: 'GETTING_FULL', labelKey: 'detail.band.gettingFull' },
+    { value: 'FULL', labelKey: 'detail.band.full' },
   ];
 
   /** The two open/closed states (open-status wave) — the picker's large
    *  buttons, the band picker's language mirrored 1:1. */
-  protected readonly OPEN_STATES: { value: OpenState; label: string }[] = [
-    { value: 'OPEN', label: 'Open now' },
-    { value: 'CLOSED', label: 'Closed now' },
+  protected readonly OPEN_STATES: { value: OpenState; labelKey: MessageKey }[] = [
+    { value: 'OPEN', labelKey: 'detail.openState.open' },
+    { value: 'CLOSED', labelKey: 'detail.openState.closed' },
   ];
 
   /** The shelter-report picker is open (the "Report" button toggles it). */
@@ -656,7 +669,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       return null;
     }
     const option = this.REPORT_TYPES.find((t) => t.value === type);
-    return option?.detailPlaceholder ?? null;
+    return option?.detailKey ? this.i18n.t(option.detailKey) : null;
   }
 
   /**
