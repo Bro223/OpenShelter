@@ -22,9 +22,9 @@ type ChangePhase = 'form' | 'code' | 'done';
  *    profile, a verified label when the level is in the real claim set, or a
  *    "Complete verification" CTA deep-linking /verify
  *  - CHANGE PANELS: the M3 cross-channel email/phone change flows, ported.
- *  - MY CONTRIBUTIONS (user-contributions): the caller's own shelters and
- *    reviews in one panel — inline edit + two-step delete (ContributionsPanel,
- *    its own loading/empty/error state per list).
+ *  - MY CONTRIBUTIONS (user-contributions): the caller's own shelters in one
+ *    panel — inline edit + two-step delete (ContributionsPanel, its own
+ *    loading/empty/error state). The reviews list went with the review model.
  *
  * All values come from the REAL profile in AuthStore (GET /account/me,
  * fetched at boot/login). After any claims-changing event (contact change) or

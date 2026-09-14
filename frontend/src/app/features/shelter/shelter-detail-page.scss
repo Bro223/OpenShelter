@@ -266,7 +266,10 @@
   }
 }
 
-.my-review-prompt {
+/* Login/verify gate of a report section (occupancy, open status, report a
+   shelter): the prompt plus the /verify link shown when the caller cannot
+   report yet. */
+.report-gate-prompt {
   display: flex;
   flex-direction: column;
   align-items: flex-start;

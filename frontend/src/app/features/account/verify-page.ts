@@ -107,7 +107,7 @@ export class VerifyPage implements OnDestroy {
 
   /**
    * Where to send the user once they are verified — set by
-   * {@link verifiedGuard} (and the review/submit prompts) as
+   * {@link verifiedGuard} (and the submit/report prompts) as
    * {@code /verify?returnUrl=…}. The login page already preserves the
    * destination; the verify page must too (reviewer finding N1), so a user
    * who verifies from a shelter detail or /submit lands back there instead of

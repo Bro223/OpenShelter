@@ -44,7 +44,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
-/** The seven moderation tabs: the review queue FIRST, the audit trail LAST
+/** The six moderation tabs: the review queue FIRST, the audit trail LAST
  *  (community-review-queue); the Users tab sits before the audit (M10
  *  slice 1). */
 export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'audit';
@@ -119,9 +119,6 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  *    dismiss. Dismissed rows stay in the queue, DIMMED (audit trail — the
  *    choice over filtering: the admin sees what was resolved). Rows whose
  *    shelter is INACTIVE get a "Restore shelter" shortcut.
- *  - REVIEW REPORTS — the review-report queue: shelter, review excerpt
- *    (stars + comment, hidden badge), reason, reporters, Hide/Restore.
- *    The action targets the REVIEW id, not the report row's id.
  *  - ALERTS — the M3 throttle-abuse ring (abuse-limits slice 4): the
  *    daily submission cap (429), the per-contact OTP cap (429) and the
  *    near-duplicate rejection (409), newest first. Read-only; the ring
@@ -329,9 +326,9 @@ export class AdminPage implements OnInit {
 
   ngOnInit(): void {
     // The default tab (Unconfirmed) filters the shelters list, so that list
-    // loads immediately; reports/reviews/audit load lazily on first switch
-    // (a visit after a load keeps the in-memory rows — the queue does not
-    // refetch itself).
+    // loads immediately; reports/alerts/users/audit load lazily on first
+    // switch (a visit after a load keeps the in-memory rows — the queue
+    // does not refetch itself).
     this.loadShelters();
   }
 
@@ -509,7 +506,7 @@ export class AdminPage implements OnInit {
   }
 
   /** Step 2: DELETE /admin/shelters/{id} (204). The row is removed in place;
-   *  reviews/reports/occupancy cascade server-side. */
+   *  reports/occupancy cascade server-side. */
   async confirmDelete(id: number): Promise<void> {
     if (this.busy()) {
       return;

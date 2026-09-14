@@ -558,6 +558,13 @@ export type AdminAuditAction =
  * `previousStatus`/`newStatus` are the review_status transition (DELETE:
  * previous = review_status, new = null) — null when the action has no
  * status pair to show (e.g. report dismiss, review hide/restore).
+ *
+ * The trail is append-only — a row persists after the subject is resolved,
+ * so the UI renders "(after reply)" when the shelter is already back on the
+ * map. `action` reflects the transition at the time the row was written (or
+ * a bulk import); the REVIEW_HIDE/REVIEW_RESTORE values persist in
+ * historical rows even though the review model is gone (the audit tab
+ * renders them read-only).
  */
 export interface AdminAuditRow {
   id: number;
@@ -636,14 +643,7 @@ export interface AdminAlertRow {
   at: string;
 }
 
-/**
- * One row of GET /admin/audit (newest first). The audit trail is append-
- * only — a row persists after a reply, so it renders "(after reply)" when
- * the shelter is already back on the map. `action` reflects the row's
- * review-status transition at the time it was written (or a bulk import).
- * The REVIEW_HIDE/REVIEW_RESTORE values persist in historical rows even
- * though the review model is gone (the audit tab renders them read-only).
- */
+/** One shelter the caller owns, as returned by GET /account/export (M4 slice 1). */
 export interface DataExportShelter {
   id: number;
   name: string;

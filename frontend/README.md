@@ -2,9 +2,8 @@
 
 Angular SPA for the OpenShelter public-shelter map (Estonia): browse the registry +
 user-submitted shelters on a map, register and verify an account, submit shelters,
-review them (the community rating **is** the moderation), and manage the account —
-including one's own contributions (M8: list/edit/delete own shelters + reviews in
-the account page's "My contributions" panel).
+report listed locations, and manage the account — including one's own contributions
+(M8: list/edit/delete own shelters in the account page's "My contributions" panel).
 
 The Spring Boot backend lives in the repo root (`src/`); the backend task pack is in
 `context-and-tasks/agent/`. This frontend was built from the task pack in
@@ -66,20 +65,25 @@ src/
 │   │                  #   toggle, 'openshelter-theme' localStorage key), guards (auth/guest/verified),
 │   │                  #   ApiInterceptor, titleGuard (route titles), models
 │   ├── session/       # AuthStore (session state + REAL profile from /account/me)
-│   ├── gateways/      # auth / verify / account / shelter / review / geo-gateway.ts /
-│   │                  #   geocode-gateway.ts — HTTP, no UI (geocode = raw fetch to Nominatim)
+│   ├── gateways/      # auth / verify / account / shelter / geo / geocode / admin /
+│   │                  #   data-source (*-gateway.ts) — HTTP, no UI
+│   │                  #   (geocode = raw fetch to Nominatim)
 │   ├── features/
 │   │   ├── auth/      # login, register, reset (guestGuard)
 │   │   ├── account/   # verify (cross-channel), contact change, ContributionsPanel (M8)
+│   │   ├── admin/     # the moderation tool (adminGuard): unconfirmed review queue,
+│   │   │              #   shelters, shelter reports, alerts, users, audit
+│   │   ├── legal/     # privacy + terms static pages (no backend)
 │   │   ├── map/       # browse: Leaflet map + list + source filter (default route);
 │   │   │              #   crisis actions: "Nearest shelter" CTA + "Add shelter" entry (auth-only)
-│   │   └── shelter/   # detail + reviews (review-form), submit; detail header carries the
+│   │   └── shelter/   # detail + submit; the detail header carries the
 │   │                  #   "Navigate" + "Open in Apple Maps" deep links
 │   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent,
-│   │                  #   LoadingIndicator (real component, role=status), RatingStars,
-│   │                  #   LeafletService, error-copy, form-helpers, shelter-copy,
+│   │                  #   LoadingIndicator (real component, role=status), LeafletService,
+│   │                  #   error-copy, form-helpers, shelter-copy,
 │   │                  #   location-input.ts (pure location-string parser)
-│   ├── app.routes.ts  # 8 routes — every one carries data.title + titleGuard
+│   ├── app.routes.ts  # 11 component routes + 2 redirects ('', '**') — every
+│   │                  #   one carries data.title + titleGuard
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
 └── styles.scss        # design tokens (the single source of truth) + global rules;
@@ -140,10 +144,6 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 
 ## Deferrals (v1, honest list)
 
-- **`GET /shelters/{id}/reviews/mine` (per-shelter)** — still no such endpoint; the detail
-  page loads all reviews and finds "mine" client-side (fine at v1 review counts). M8 built the
-  cross-shelter list instead — `GET /account/reviews/mine`, consumed by the account page's
-  "My contributions" panel.
 - **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
   (≈300). Nearest-neighbor/bbox search (`GET /api/shelters/nearest`-style, would need a
   GeoService + PostGIS GIST index) is documented as deferred on the backend — **no such
@@ -158,7 +158,7 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 - **SSR / prerender** — client-rendered SPA; v1 is a JS app by design.
 - **e2e framework** — no `ng e2e`; the milestones were verified by manual E2E against
   the live backend (the M6 manual journey: browse → narrow-viewport reflow → register →
-  login → verify EMAIL → submit shelter → review (★5) → account, run headless with a
+  login → verify EMAIL → submit shelter → account, run headless with a
   scripted Chromium/CDP driver — zero console errors).
 
 ## Docs

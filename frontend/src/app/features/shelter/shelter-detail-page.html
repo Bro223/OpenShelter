@@ -187,7 +187,7 @@
               <p class="occupancy-line">{{ occupancyText(occ) }}</p>
             }
           } @else {
-            <div class="my-review-prompt">
+            <div class="report-gate-prompt">
               <p>{{ 'detail.verify.occupancy' | t }}</p>
               <a
                 routerLink="/verify"
@@ -198,7 +198,7 @@
             </div>
           }
         } @else {
-          <div class="my-review-prompt">
+          <div class="report-gate-prompt">
             <p>{{ 'detail.login.occupancy' | t }}</p>
           </div>
         }
@@ -235,7 +235,7 @@
               }
             </div>
           } @else {
-            <div class="my-review-prompt">
+            <div class="report-gate-prompt">
               <p>{{ 'detail.verify.open' | t }}</p>
               <a
                 routerLink="/verify"
@@ -246,7 +246,7 @@
             </div>
           }
         } @else {
-          <div class="my-review-prompt">
+          <div class="report-gate-prompt">
             <p>{{ 'detail.login.open' | t }}</p>
           </div>
         }
@@ -322,7 +322,7 @@
               </form>
             }
           } @else {
-            <div class="my-review-prompt">
+            <div class="report-gate-prompt">
               <p>{{ 'detail.verify.report' | t }}</p>
               <a
                 routerLink="/verify"
@@ -333,7 +333,7 @@
             </div>
           }
         } @else {
-          <div class="my-review-prompt">
+          <div class="report-gate-prompt">
             <p>{{ 'detail.login.report' | t }}</p>
           </div>
         }

@@ -79,7 +79,7 @@ export class AdminGateway {
   }
 
   /**
-   * DELETE /admin/shelters/{id} -> 204. Hard delete; reviews, reports and
+   * DELETE /admin/shelters/{id} -> 204. Hard delete; reports and
    * occupancy cascade (backend). USER rows only (409), 404 unknown.
    */
   deleteShelter(id: number): Promise<void> {

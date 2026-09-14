@@ -1,8 +1,8 @@
 <section class="account-card">
   <h1 class="page-title">Verify your account</h1>
   <p class="page-subtitle">
-    Verified accounts can submit shelters and write reviews. Prove you own your email and phone —
-    the codes arrive out-of-band, one per channel.
+    Verified accounts can submit shelters and report listed locations. Prove you own your email and
+    phone — the codes arrive out-of-band, one per channel.
   </p>
 
   <ul class="level-chips" aria-label="Verification status">
@@ -94,7 +94,7 @@
     <section class="verify-panel verify-panel--done">
       <h2 class="panel-title">You're fully verified</h2>
       <p class="panel-copy">
-        Your email and phone are verified — you can now submit shelters and write reviews.
+        Your email and phone are verified — you can now submit shelters and report listed locations.
       </p>
       <div class="panel-actions">
         @if (returnUrl) {
@@ -106,11 +106,13 @@
       </div>
     </section>
   } @else if (auth.isVerified() && returnUrl) {
-    <!-- One claim is enough to review/submit (backend canWrite): a user
+    <!-- One claim is enough to submit/report (backend canWrite): a user
          redirected here by verifiedGuard (e.g. from /submit) can continue
          once any channel is verified instead of being forced to do both. -->
     <section class="verify-panel verify-panel--done">
-      <p class="panel-copy">You're verified. You can submit shelters and write reviews.</p>
+      <p class="panel-copy">
+        You're verified. You can submit shelters and report listed locations.
+      </p>
       <div class="panel-actions">
         <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
       </div>
