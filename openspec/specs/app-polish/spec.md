@@ -86,8 +86,8 @@ the happy path.
 
 #### Scenario: Happy path is quiet
 
-- **WHEN** a user traverses the happy path (browse → register → login → verify → submit →
-  review)
+- **WHEN** a user traverses the happy path (browse → register → login → verify → submit a
+  shelter)
 - **THEN** no errors appear in the browser console
 
 ### Requirement: Production build
@@ -123,11 +123,10 @@ replace(s) the framework boilerplate.
 #### Scenario: Deferrals are honest
 
 - **WHEN** the README describes v1 scope
-- **THEN** it explicitly lists the true deferred items (the per-shelter `reviews/mine` endpoint,
-  paging / nearest-bbox search, i18n, MapLibre migration, httpOnly-cookie auth, SSR/prerender,
-  e2e framework) as deferrals rather than implying they exist — while `GET /account/me` and
-  `GET /account/reviews/mine` are documented as SHIPPED features (implemented with the account
-  profile and user-contributions changes), not deferrals
+- **THEN** it explicitly lists the true deferred items (paging / nearest-bbox search, i18n,
+  MapLibre migration, httpOnly-cookie auth, SSR/prerender, e2e framework) as deferrals rather
+  than implying they exist — while `GET /account/me` is documented as a SHIPPED feature
+  (implemented with the account-profile change), not a deferral
 
 ### Requirement: Outgoing user messages SHALL carry the product name
 

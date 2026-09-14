@@ -35,7 +35,7 @@ NOT contain a submission item.
 
 The map page SHALL load all shelters from the backend (`GET /api/shelters`, no paging) and render
 them both as markers on a map and as rows in a sidebar list, each showing the shelter name,
-address (when present), a source badge, and its rating summary.
+address (when present), and a source badge.
 
 #### Scenario: Shelters exist
 
@@ -47,11 +47,6 @@ address (when present), a source badge, and its rating summary.
 
 - **WHEN** a shelter row has a null address (user-submitted rows)
 - **THEN** the sidebar row renders without an address line and without a layout break
-
-#### Scenario: Shelter has no ratings
-
-- **WHEN** a shelter row has a null average rating and zero reviews
-- **THEN** the row shows an explicit "no ratings yet" indication rather than an invented zero
 
 ### Requirement: Source filter
 

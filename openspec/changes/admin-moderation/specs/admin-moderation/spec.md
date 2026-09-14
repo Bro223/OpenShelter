@@ -62,14 +62,14 @@ item.
 "INACTIVE"}` SHALL set the shelter's status (manual hide/restore); a
 restore SHALL count as the manual status change that disarms
 auto-re-hide (per the shelter-reports spec). `DELETE /admin/shelters/{id}`
-SHALL hard-delete the shelter with cascade (reviews, reports, occupancy
-rows). Both SHALL accept only `source=USER` rows — registry rows SHALL
+SHALL hard-delete the shelter with cascade (reports, occupancy rows).
+Both SHALL accept only `source=USER` rows — registry rows SHALL
 be rejected with 409 and carry no admin actions in the UI (the registry
 import owns their lifecycle and rebuilds them as ACTIVE on every run).
 `GET /admin/shelters` SHALL list every shelter including hidden ones,
-with report counts, status flag, occupancy, and review counts, filterable
-by status/source and by name/address substring `q`. Unknown ids SHALL
-answer 404.
+with report counts, status flag, occupancy, and the submitter's profile
+name, filterable by status/source and by name/address substring `q`.
+Unknown ids SHALL answer 404.
 
 #### Scenario: Admin restores an auto-hidden shelter
 
@@ -80,8 +80,8 @@ answer 404.
 #### Scenario: Admin deletes a spam shelter
 
 - **WHEN** the admin hard-deletes a user shelter
-- **THEN** the shelter, its reviews, and its report rows are gone and the
-  public list is clean
+- **THEN** the shelter and its report rows are gone and the public
+  list is clean
 
 #### Scenario: Registry rows are not admin-manageable
 
@@ -94,12 +94,7 @@ answer 404.
 `GET /admin/reports` SHALL return the shelter report queue (type,
 shelter reference, reporter profile name and email, age) newest first.
 `POST /admin/reports/{id}/dismiss` SHALL mark a report resolved
-(idempotent). `GET /admin/review-reports` SHALL return the review report
-queue (shelter, review excerpt, reason, reporter, hidden state) newest
-first. `POST /admin/reviews/{id}/hide` SHALL hide a review immediately
-(idempotent) and `POST /admin/reviews/{id}/restore` SHALL clear its
-hidden state, restoring participation in rating, count, and the reviewed
-filter (idempotent). Unknown ids SHALL answer 404.
+(idempotent). Unknown ids SHALL answer 404.
 
 #### Scenario: Admin works through the queue
 
@@ -108,28 +103,21 @@ filter (idempotent). Unknown ids SHALL answer 404.
 - **THEN** the shelter is public again and the dismissed report stays
   recorded as resolved
 
-#### Scenario: Admin hides a review before the threshold
-
-- **WHEN** a review with 2 spam reports is hidden by the admin
-- **THEN** it is treated as hidden (excluded from rating, count, and the
-  reviewed filter) without waiting for the 5th report
-
 ### Requirement: Admin UI
 
 The frontend SHALL provide a `/admin` route, reachable only for
 `isAdmin` users (non-admin visit → redirect to `/`), with a nav item
-rendered only for admins. The page SHALL have three tabs — Shelters
+rendered only for admins. The page SHALL have two tabs — Shelters
 (table with inline Hide/Activate and Delete-with-confirm on user rows;
-registry rows read-only; text search), Shelter reports (queue with
-dismiss; hidden-shelter rows highlighted), and Review reports (queue
-with Hide/Restore and hidden badge) — built on the existing design
+registry rows read-only; text search) and Shelter reports (queue with
+dismiss; hidden-shelter rows highlighted) — built on the existing design
 tokens with 48px minimum action targets. The account page SHALL show an
 "Admin" badge for the admin account.
 
 #### Scenario: Admin sees the panel
 
 - **WHEN** the admin is logged in and opens the app
-- **THEN** the nav offers "Admin" and `/admin` renders the three tabs
+- **THEN** the nav offers "Admin" and `/admin` renders the two tabs
 
 #### Scenario: Regular user never sees it
 
