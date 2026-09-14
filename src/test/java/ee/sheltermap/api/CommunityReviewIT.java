@@ -192,10 +192,18 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].reviewStatus").value("NEW"))
                 .andExpect(jsonPath("$[0].reviewNote").doesNotExist());
 
-        // the admin "Unconfirmed" queue (USER + NEW + ACTIVE) has it
-        List<Shelter> queue =
-                shelters.findActiveBySourceAndReviewStatus(ShelterSource.USER, ReviewStatus.NEW);
-        assertThat(queue).extracting(Shelter::getId).contains(id);
+        // the admin "Unconfirmed" queue (USER + NEW + ACTIVE) has it —
+        // asserted through the production admin queue
+        // (AdminModerationService.listShelters → ShelterQueryService
+        // .findAllForAdmin, the surface the Unconfirmed tab reads), not a
+        // repository seam
+        mvc.perform(get("/admin/shelters").param("source", "USER").param("status", "ACTIVE")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].reviewStatus")
+                        .value(org.hamcrest.Matchers.contains("NEW")))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].submitter").value(
+                        org.hamcrest.Matchers.contains("Autor")));
     }
 
     // ---------- automatic trust: community confirmation ----------

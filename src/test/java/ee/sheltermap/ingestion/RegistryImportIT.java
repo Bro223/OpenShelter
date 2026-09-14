@@ -51,7 +51,9 @@ class RegistryImportIT extends AbstractPersistenceIT {
         assertThat(result.skipped()).isEqualTo(2);        // blank name + outside Estonia
         assertThat(result.failed()).isZero();
 
-        List<Shelter> registry = shelters.findAllBySourceIn(List.of(ShelterSource.PAASETEAMET));
+        List<Shelter> registry = shelters.findAll().stream()
+                .filter(s -> s.getSource() == ShelterSource.PAASETEAMET)
+                .toList();
         assertThat(registry).hasSize(3); // PK-0001, PK-0002, PK-0005 — PK-OLD was delisted
         assertThat(registry).extracting(Shelter::getName)
                 .contains("Tallinna varjend 1", "Tartu keldri varjend", "Narva varjend");
@@ -61,7 +63,9 @@ class RegistryImportIT extends AbstractPersistenceIT {
                 && "Tallinn".equals(s.getMunicipality()));
 
         // user-added shelter is untouched by the importer
-        List<Shelter> user = shelters.findAllBySourceIn(List.of(ShelterSource.USER));
+        List<Shelter> user = shelters.findAll().stream()
+                .filter(s -> s.getSource() == ShelterSource.USER)
+                .toList();
         assertThat(user).anyMatch(s -> s.getName().equals("My shelter"));
     }
 
@@ -74,6 +78,6 @@ class RegistryImportIT extends AbstractPersistenceIT {
         assertThat(second.created()).isZero();
         assertThat(second.updated()).isEqualTo(3);
         assertThat(second.skipped()).isEqualTo(2);
-        assertThat(shelters.findAllBySourceIn(List.of(ShelterSource.PAASETEAMET))).hasSize(3);
+        assertThat(shelters.findAll()).filteredOn(s -> s.getSource() == ShelterSource.PAASETEAMET).hasSize(3);
     }
 }

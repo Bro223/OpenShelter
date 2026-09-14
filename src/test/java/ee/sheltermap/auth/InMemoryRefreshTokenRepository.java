@@ -46,14 +46,6 @@ public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
                         : record);
     }
 
-    @Override
-    public int countActiveByUserId(Long userId) {
-        return (int) store.values().stream()
-                .filter(record -> record.userId().equals(userId))
-                .filter(record -> record.revokedAt() == null)
-                .count();
-    }
-
     public List<RefreshTokenRecord> all() {
         return List.copyOf(store.values());
     }

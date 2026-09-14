@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Bird-rule test (Step 1 acceptance): guest can't write,
@@ -15,6 +16,8 @@ class UserHierarchyTest {
     private static final String NAME = "Aleks";
     private static final String EMAIL = "aleks@example.com";
     private static final String PHONE = "+37250000000";
+    /** A pinned stamp — the caller owns it, so the domain never reads the wall clock. */
+    private static final Instant REVOKED_AT = Instant.parse("2026-09-11T12:00:00Z");
 
     private static VerificationClaim claim(VerificationLevel level, String externalRef) {
         return new VerificationClaim(level, "dev-" + level.name().toLowerCase(), externalRef, Instant.now());
@@ -43,7 +46,7 @@ class UserHierarchyTest {
         user.addVerification(claim(VerificationLevel.SMART_ID, "smart-id-ext-ref"));
         assertThat(user.levels()).containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.SMART_ID);
 
-        user.revoke(VerificationLevel.EMAIL);
+        user.revoke(VerificationLevel.EMAIL, REVOKED_AT);
         assertThat(user.levels()).containsExactly(VerificationLevel.SMART_ID);
         assertThat(user.canWrite()).isTrue(); // still verified via SMART_ID
     }
@@ -53,7 +56,7 @@ class UserHierarchyTest {
         RegisteredUser user = new RegisteredUser(NAME, EMAIL, PHONE);
         user.addVerification(claim(VerificationLevel.PHONE, PHONE));
 
-        user.revoke(VerificationLevel.PHONE);
+        user.revoke(VerificationLevel.PHONE, REVOKED_AT);
 
         assertThat(user.levels()).isEmpty();
         assertThat(user.canWrite()).isFalse();
@@ -73,6 +76,9 @@ class UserHierarchyTest {
         user.addVerification(claim(VerificationLevel.EMAIL, EMAIL));
         assertThat(snapshot.levels()).isEmpty();
         assertThat(user.getData().levels()).containsExactly(VerificationLevel.EMAIL);
+        // …and the snapshot's collection cannot be mutated through the snapshot
+        assertThatThrownBy(() -> snapshot.levels().add(VerificationLevel.SMART_ID))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test

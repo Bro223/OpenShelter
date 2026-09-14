@@ -110,7 +110,6 @@ public class AccountService {
         return new DataExportResponse(profile, shelters);
     }
 
-    /** One batched read of shelter names by id (no N+1; empty map if none). */
     /**
      * DELETE /account (legal-recovery M4, slice 2) — the account erasure,
      * one transaction:

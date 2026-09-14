@@ -1,14 +1,12 @@
 package ee.sheltermap.app;
 
 import ee.sheltermap.domain.RegisteredUser;
-import ee.sheltermap.domain.User;
-import ee.sheltermap.domain.UserData;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 
 /**
- * Profile lifecycle: registration, snapshots, account deletion.
+ * Profile lifecycle: registration and lookups.
  *
  * <p>The password captured at registration is <em>not</em> handled here —
  * profile and credentials are separate aggregates (see auth context,
@@ -30,12 +28,6 @@ public class UserService {
         userRepository.save(user);
         return user;
     }
-
-    /** Immutable snapshot — callers never get live entity internals. */
-    public UserData getData(User user) {
-        return user.getData();
-    }
-
 
     /**
      * Login lookup (03-auth.puml contract): resolves by email when the contact

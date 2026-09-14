@@ -127,6 +127,17 @@ class ShelterReportServiceTest {
         assertThat(reports.findAll()).isEmpty();
     }
 
+    /**
+     * The stored reports of one type for one shelter — the observation the
+     * (production-dead) repository count used to be pulled through.
+     */
+    private long storedReports(long shelterId, ShelterReportType type) {
+        return reports.findAll().stream()
+                .filter(r -> r.getShelterId().longValue() == shelterId)
+                .filter(r -> r.getType() == type)
+                .count();
+    }
+
     @Test
     void duplicateShelterReportIsRejectedWithoutConsumingBudget() {
         service.reportShelter(verified, shelter.getId(), ShelterReportType.NON_EXISTENT, null);
@@ -135,14 +146,14 @@ class ShelterReportServiceTest {
                 ShelterReportType.NON_EXISTENT, null))
                 .isInstanceOf(DuplicateReportException.class);
 
-        assertThat(reports.countByShelterIdAndType(shelter.getId(), ShelterReportType.NON_EXISTENT))
+        assertThat(storedReports(shelter.getId(), ShelterReportType.NON_EXISTENT))
                 .isEqualTo(1);
         // one action recorded (the first report), the duplicate consumed nothing
         assertThat(actionLog.actions()).hasSize(1);
 
         // a DIFFERENT type for the same shelter is allowed
         service.reportShelter(verified, shelter.getId(), ShelterReportType.CLOSED, null);
-        assertThat(reports.countByShelterIdAndType(shelter.getId(), ShelterReportType.CLOSED)).isEqualTo(1);
+        assertThat(storedReports(shelter.getId(), ShelterReportType.CLOSED)).isEqualTo(1);
     }
 
     @Test
@@ -197,7 +208,7 @@ class ShelterReportServiceTest {
 
         assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.ACTIVE);
-        assertThat(reports.countByShelterIdAndType(shelter.getId(), ShelterReportType.NON_EXISTENT))
+        assertThat(storedReports(shelter.getId(), ShelterReportType.NON_EXISTENT))
                 .isEqualTo(4);
     }
 
@@ -252,7 +263,7 @@ class ShelterReportServiceTest {
 
         assertThat(shelters.findById(shelter.getId()).orElseThrow().getStatus())
                 .isEqualTo(ShelterStatus.ACTIVE);
-        assertThat(reports.countByShelterIdAndType(shelter.getId(), ShelterReportType.NON_EXISTENT))
+        assertThat(storedReports(shelter.getId(), ShelterReportType.NON_EXISTENT))
                 .isEqualTo(7);
     }
 

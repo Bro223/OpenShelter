@@ -41,11 +41,6 @@ public class InMemoryShelterRepository implements ShelterRepository {
     }
 
     @Override
-    public void saveAll(List<Shelter> shelters) {
-        shelters.forEach(this::save);
-    }
-
-    @Override
     public int deleteBySourceAndExternalIdNotIn(ShelterSource source, List<String> externalIds) {
         if (externalIds == null || externalIds.isEmpty()) {
             // mirror the JPA impl: refuse a blind wipe of an entire source
@@ -62,13 +57,6 @@ public class InMemoryShelterRepository implements ShelterRepository {
     @Override
     public List<Shelter> findAll() {
         return List.copyOf(store.values());
-    }
-
-    @Override
-    public List<Shelter> findAllBySourceIn(List<ShelterSource> sources) {
-        return store.values().stream()
-                .filter(s -> sources.contains(s.getSource()))
-                .toList();
     }
 
     @Override
@@ -122,15 +110,6 @@ public class InMemoryShelterRepository implements ShelterRepository {
     public List<Shelter> findByCreatedBy(Long userId) {
         return store.values().stream()
                 .filter(s -> Objects.equals(s.getCreatedBy(), userId))
-                .toList();
-    }
-
-    @Override
-    public List<Shelter> findActiveBySourceAndReviewStatus(ShelterSource source, ReviewStatus reviewStatus) {
-        return store.values().stream()
-                .filter(s -> s.getSource() == source)
-                .filter(s -> s.getReviewStatus() == reviewStatus)
-                .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
                 .toList();
     }
 

@@ -1,5 +1,6 @@
 package ee.sheltermap.domain;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -83,12 +84,16 @@ public class RegisteredUser extends User {
         this.name = Objects.requireNonNull(newName, "newName");
     }
 
-    /** Revokes the active claim for {@code level}, if any. No-op otherwise. */
-    public void revoke(VerificationLevel level) {
+    /**
+     * Revokes the active claim for {@code level} at {@code revokedAt}, if
+     * any. No-op otherwise. The stamp comes from the caller (the
+     * Clock-injected service), so tests can pin it.
+     */
+    public void revoke(VerificationLevel level, Instant revokedAt) {
         verifications.stream()
                 .filter(c -> c.getLevel() == level && !c.isRevoked())
                 .findFirst()
-                .ifPresent(VerificationClaim::revoke);
+                .ifPresent(c -> c.revoke(revokedAt));
     }
 
     /** Derived, never stored: levels of all non-revoked claims. */

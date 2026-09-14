@@ -20,7 +20,4 @@ public interface SpringDataRefreshTokenRepository extends JpaRepository<RefreshT
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update RefreshTokenEntity r set r.revokedAt = :now where r.userId = :userId and r.revokedAt is null")
     int revokeAllByUserId(@Param("userId") Long userId, @Param("now") Instant now);
-
-    /** V8 (S4): the user's active (unrevoked) tokens. */
-    long countByUserIdAndRevokedAtIsNull(Long userId);
 }

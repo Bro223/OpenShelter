@@ -159,7 +159,7 @@ class ShelterImportServiceTest {
                 dto("PK-1", "A", 59.4, 24.7))).importFromRegistry();
 
         assertThat(result.removed()).isZero();
-        assertThat(repo.findAllBySourceIn(List.of(ShelterSource.USER))).hasSize(1);
+        assertThat(repo.findAll()).filteredOn(s -> s.getSource() == ShelterSource.USER).hasSize(1);
     }
 
     @Test
@@ -171,7 +171,7 @@ class ShelterImportServiceTest {
                 dto("PK-1", "A", 59.4, 24.7))).importFromRegistry();
 
         assertThat(result.removed()).isZero();
-        assertThat(repo.findAllBySourceIn(List.of(ShelterSource.MUNICIPALITY))).hasSize(1);
+        assertThat(repo.findAll()).filteredOn(s -> s.getSource() == ShelterSource.MUNICIPALITY).hasSize(1);
     }
 
     @Test

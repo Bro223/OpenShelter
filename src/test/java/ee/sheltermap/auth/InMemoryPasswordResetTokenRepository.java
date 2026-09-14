@@ -42,11 +42,6 @@ public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
     }
 
     @Override
-    public PasswordResetToken findByTokenHash(String tokenHash) {
-        return store.get(tokenHash);
-    }
-
-    @Override
     public PasswordResetToken findActiveByUserId(Long userId, Instant now) {
         return store.values().stream()
                 .filter(t -> userId.equals(t.getUserId()))
@@ -67,14 +62,6 @@ public class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
         store.values().removeIf(t -> userId.equals(t.getUserId())
                 && !t.isUsed()
                 && !t.isExpired(now));
-    }
-
-    @Override
-    public void markUsed(Long id, Instant now) {
-        store.values().stream()
-                .filter(t -> id.equals(t.getId()))
-                .findFirst()
-                .ifPresent(t -> t.markUsed(now));
     }
 
     @Override

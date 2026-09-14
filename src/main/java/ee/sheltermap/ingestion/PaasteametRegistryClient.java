@@ -36,7 +36,10 @@ import java.util.List;
  * only ever sees latitude/longitude.
  */
 @Service
-@ConditionalOnProperty(name = "app.registry.client", havingValue = "paasteamet", matchIfMissing = true)
+// No matchIfMissing: the registry client defaults to 'csv' (RegistryProperties +
+// application.yml), so the legacy WFS client activates only when explicitly
+// selected — the property is always supplied, so nothing depends on the fallback.
+@ConditionalOnProperty(name = "app.registry.client", havingValue = "paasteamet")
 public class PaasteametRegistryClient implements ShelterRegistryClient {
 
     private static final Logger log = LoggerFactory.getLogger(PaasteametRegistryClient.class);

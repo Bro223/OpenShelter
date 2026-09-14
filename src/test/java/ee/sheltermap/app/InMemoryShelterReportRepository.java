@@ -43,13 +43,6 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
-    public long countByShelterIdAndType(long shelterId, ShelterReportType type) {
-        return store.values().stream()
-                .filter(r -> r.getShelterId() == shelterId && r.getType() == type)
-                .count();
-    }
-
-    @Override
     public List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type) {
         // (shelter, user, type) uniqueness ⇒ one row per reporter.
         // Dismissed reports are excluded (the admin's invalid verdict).
@@ -79,8 +72,11 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
         // (shelter, user) -> newest OPEN_CONFIRMED createdAt
         Map<Long, Map<Long, Instant>> latest = new HashMap<>();
         for (ShelterReport r : store.values()) {
+            // Dismissed reports are excluded (the admin's invalid verdict),
+            // mirroring the JPA query's "dismissedAt is null" filter.
             if (r.getType() != ShelterReportType.OPEN_CONFIRMED
-                    || !shelterIds.contains(r.getShelterId())) {
+                    || !shelterIds.contains(r.getShelterId())
+                    || r.isDismissed()) {
                 continue;
             }
             latest.computeIfAbsent(r.getShelterId(), k -> new HashMap<>())

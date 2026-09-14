@@ -33,12 +33,6 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
     }
     @Override
     @Transactional(readOnly = true)
-    public PasswordResetToken findByTokenHash(String tokenHash) {
-        return tokens.findByTokenHash(tokenHash).map(JpaPasswordResetTokenRepository::toDomain).orElse(null);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public PasswordResetToken findActiveByUserId(Long userId, Instant now) {
         return tokens.findFirstByUserIdAndUsedAtIsNullAndExpiresAtGreaterThan(userId, now)
                 .map(JpaPasswordResetTokenRepository::toDomain)
@@ -49,12 +43,6 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
     @Transactional
     public void deleteActiveByUserId(Long userId, Instant now) {
         tokens.deleteActiveByUserId(userId, now);
-    }
-
-    @Override
-    @Transactional
-    public void markUsed(Long id, Instant now) {
-        tokens.markUsed(id, now);
     }
 
     @Override

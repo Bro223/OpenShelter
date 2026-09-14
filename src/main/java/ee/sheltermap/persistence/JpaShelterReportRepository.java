@@ -69,12 +69,6 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public long countByShelterIdAndType(long shelterId, ShelterReportType type) {
-        return reports.countByShelterIdAndType(shelterId, type);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<DampedReporter> reportersByShelterIdAndType(long shelterId, ShelterReportType type) {
         return reports.reportersByShelterAndType(shelterId, type).stream()
                 .map(row -> new DampedReporter(

@@ -48,12 +48,14 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         user.addVerification(claim);
         users.save(user);
 
-        claim.revoke();
+        claim.revoke(Instant.parse("2026-09-11T12:00:00Z"));
         users.save(user);
 
         RegisteredUser loaded = (RegisteredUser) users.findById(user.getId());
         assertThat(loaded.claims()).hasSize(1);
         assertThat(loaded.claims().iterator().next().isRevoked()).isTrue();
+        assertThat(loaded.claims().iterator().next().getRevokedAt())
+                .isEqualTo(Instant.parse("2026-09-11T12:00:00Z"));
         assertThat(loaded.levels()).isEmpty();
         assertThat(loaded.canWrite()).isFalse();
     }

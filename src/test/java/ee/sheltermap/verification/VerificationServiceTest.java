@@ -135,7 +135,7 @@ class VerificationServiceTest {
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
         assertThat(user.canWrite()).isTrue();
 
-        user.revoke(VerificationLevel.PHONE);
+        user.revoke(VerificationLevel.PHONE, clock.instant());
 
         assertThat(user.levels()).isEmpty();
         assertThat(user.canWrite()).isFalse();

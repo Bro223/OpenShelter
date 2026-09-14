@@ -613,4 +613,21 @@ class ShelterQueryServiceTest {
 
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
     }
+
+    @Test
+    void aDismissedOpenConfirmedReportStopsVerifyingTheRow() {
+        userShelter.setCreatedBy(1L);
+        ShelterReport confirmation = new ShelterReport(userShelter.getId(), 2L,
+                ShelterReportType.OPEN_CONFIRMED, null, NOW.minus(Duration.ofHours(3)));
+        reports.save(confirmation);
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt())
+                .isEqualTo(NOW.minus(Duration.ofHours(3)));
+
+        // The admin's dismissal is the invalid verdict: the report stops
+        // influencing anything — the "Last verified" stamp included.
+        confirmation.markDismissed(NOW);
+        reports.save(confirmation);
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+    }
 }

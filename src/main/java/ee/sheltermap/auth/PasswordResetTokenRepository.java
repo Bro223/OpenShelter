@@ -15,13 +15,6 @@ public interface PasswordResetTokenRepository {
     void save(PasswordResetToken token);
 
     /**
-     * {@code null} if no token has this hash. The confirm path resolves by
-     * account ({@link #findActiveByUserId}); this lookup is currently used
-     * only by the persistence tests, kept as a seam capability.
-     */
-    PasswordResetToken findByTokenHash(String tokenHash);
-
-    /**
      * The user's single active (unused, unexpired) token, or {@code null}
      * when the user has no pending code.
      */
@@ -29,9 +22,6 @@ public interface PasswordResetTokenRepository {
 
     /** Deletes the user's active (unused, unexpired) token, if any. */
     void deleteActiveByUserId(Long userId, Instant now);
-
-    /** Marks the token used at {@code now} (caller-supplied for uniform clock injection). */
-    void markUsed(Long id, Instant now);
 
     /**
      * Rotation protection (S1b, V8 {@code created_at}): the user's most

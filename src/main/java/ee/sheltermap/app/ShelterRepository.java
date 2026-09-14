@@ -23,14 +23,10 @@ public interface ShelterRepository {
     /** Reads one shelter by id (contract from 05-shelter-api.puml). */
     Optional<Shelter> findById(Long id);
 
-    void saveAll(List<Shelter> shelters);
-
     /** Deletes rows of {@code source} whose externalId is NOT in the keep-list; returns count. */
     int deleteBySourceAndExternalIdNotIn(ShelterSource source, List<String> externalIds);
 
     List<Shelter> findAll();
-
-    List<Shelter> findAllBySourceIn(List<ShelterSource> sources);
 
     /**
      * The public list projection (shelter-trust-and-reports D5): only
@@ -68,14 +64,6 @@ public interface ShelterRepository {
 
     /** All shelters created by {@code userId} — the author-scoped "my shelters" query (V7). */
     List<Shelter> findByCreatedBy(Long userId);
-
-    /**
-     * The admin "Unconfirmed" queue (community-review-queue v2): the
-     * ACTIVE shelters of one source in one review state, id-ordered
-     * (same stable order as the other listings, B7a). The queue itself
-     * is USER + NEW.
-     */
-    List<Shelter> findActiveBySourceAndReviewStatus(ShelterSource source, ReviewStatus reviewStatus);
 
     /** Batched read by id (one query — name resolution without N+1). */
     List<Shelter> findByIds(Collection<Long> ids);

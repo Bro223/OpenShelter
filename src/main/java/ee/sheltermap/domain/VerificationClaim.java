@@ -71,7 +71,13 @@ public class VerificationClaim {
         return revokedAt != null;
     }
 
-    public void revoke() {
-        this.revokedAt = Instant.now();
+    /**
+     * Revokes the claim at {@code revokedAt}. The stamp is supplied by the
+     * caller (the Clock-injected service) — like
+     * {@link ShelterReport#markDismissed(Instant)}, the domain never reads
+     * the wall clock itself, so tests can pin the instant.
+     */
+    public void revoke(Instant revokedAt) {
+        this.revokedAt = Objects.requireNonNull(revokedAt, "revokedAt");
     }
 }

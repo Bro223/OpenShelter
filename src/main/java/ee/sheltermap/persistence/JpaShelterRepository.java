@@ -89,14 +89,6 @@ public class JpaShelterRepository implements ShelterRepository {
 
     @Override
     @Transactional
-    public void saveAll(List<Shelter> list) {
-        for (Shelter shelter : list) {
-            save(shelter);
-        }
-    }
-
-    @Override
-    @Transactional
     public int deleteBySourceAndExternalIdNotIn(ShelterSource source, List<String> externalIds) {
         if (externalIds == null || externalIds.isEmpty()) {
             // Nothing to keep — refuse a blind wipe of an entire source.
@@ -109,12 +101,6 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional(readOnly = true)
     public List<Shelter> findAll() {
         return shelters.findAll().stream().map(JpaShelterRepository::toDomain).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Shelter> findAllBySourceIn(List<ShelterSource> sources) {
-        return shelters.findAllBySourceInOrderByIdAsc(sources).stream().map(JpaShelterRepository::toDomain).toList();
     }
 
     @Override
@@ -159,15 +145,6 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional(readOnly = true)
     public List<Shelter> findByCreatedBy(Long userId) {
         return shelters.findByCreatedByOrderByIdAsc(userId).stream().map(JpaShelterRepository::toDomain).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<Shelter> findActiveBySourceAndReviewStatus(ShelterSource source, ReviewStatus reviewStatus) {
-        return shelters.findAllBySourceAndReviewStatusAndStatusOrderByIdAsc(
-                        source, reviewStatus, ShelterStatus.ACTIVE).stream()
-                .map(JpaShelterRepository::toDomain)
-                .toList();
     }
 
     @Override

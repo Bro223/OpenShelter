@@ -17,9 +17,6 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     Optional<ShelterEntity> findByExternalId(String externalId);
 
-    /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
-    List<ShelterEntity> findAllBySourceInOrderByIdAsc(Collection<ShelterSource> sources);
-
     /** Public list (V9, D5): the same stable order, ACTIVE rows only. */
     List<ShelterEntity> findAllBySourceInAndStatusOrderByIdAsc(Collection<ShelterSource> sources,
                                                                ShelterStatus status);
@@ -41,13 +38,6 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
 
     /** Stable order between requests (B7a): id-ascending, no arbitrary heap order. */
     List<ShelterEntity> findByCreatedByOrderByIdAsc(Long createdBy);
-
-    /**
-     * Admin "Unconfirmed" queue (V11, community-review-queue v2): one
-     * source in one review state, ACTIVE rows only, stable id order.
-     */
-    List<ShelterEntity> findAllBySourceAndReviewStatusAndStatusOrderByIdAsc(
-            ShelterSource source, ReviewStatus reviewStatus, ShelterStatus status);
 
     List<ShelterEntity> findByIdIn(Collection<Long> ids);
 

@@ -23,9 +23,11 @@ public interface ShelterReportRepository {
      * The newest {@code OPEN_CONFIRMED} report per (shelter, reporter) for
      * the given shelter ids in ONE query (last-verified-meta M8). The
      * reporter id rides along so the projection can drop the submitter's
-     * own report — a self-confirm is never a verification. (shelter,
-     * reporter) pairs without an OPEN_CONFIRMED report are absent from the
-     * result.
+     * own report — a self-confirm is never a verification. Admin-dismissed
+     * reports are excluded — the dismissal is the admin's invalid verdict,
+     * so the report stops influencing anything, this stamp included.
+     * (shelter, reporter) pairs without an OPEN_CONFIRMED report are absent
+     * from the result.
      */
     record ConfirmedAt(long shelterId, long userId, Instant latestAt) {
     }
@@ -42,8 +44,6 @@ public interface ShelterReportRepository {
     void save(ShelterReport report);
 
     boolean existsByShelterIdAndUserIdAndType(long shelterId, long userId, ShelterReportType type);
-
-    long countByShelterIdAndType(long shelterId, ShelterReportType type);
 
     /**
      * The distinct reporters of one type for one shelter with their damp

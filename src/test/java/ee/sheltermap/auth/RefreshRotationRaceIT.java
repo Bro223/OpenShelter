@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * S4 (2026-09-08 review, backend W3): the refresh-rotation TOCTOU. Two
@@ -22,7 +23,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * (conditional {@code UPDATE ... WHERE revoked_at IS NULL}, row-lock
  * serialized) must let exactly one through — the other gets
  * {@link InvalidRefreshTokenException} (→ 401), and afterwards the user
- * holds exactly ONE active refresh token (the winner's new one).
+ * holds exactly ONE live refresh token (the winner's new one).
+ *
+ * <p>The surviving-session half is asserted through the PRODUCTION rotation
+ * path ({@link TokenService#refresh}), not a repository read: the presented
+ * token is refused, the winner's rotated token rotates on, and the token it
+ * replaced is refused in turn — at no point is a second, independently
+ * redeemable token left behind. The "exactly one" direction is carried by
+ * the single winner above: a double rotation would show up as a second
+ * successful redemption, and a token issued outside the claim would have no
+ * redeemable hash at all.
  *
  * <p>Deliberately NOT {@code @Transactional}: the worker threads run in
  * their own transactions and need the user + issued token committed to be
@@ -53,6 +63,7 @@ class RefreshRotationRaceIT extends AbstractPersistenceIT {
 
         CyclicBarrier barrier = new CyclicBarrier(2);
         ExecutorService pool = Executors.newFixedThreadPool(2);
+        TokenResponse remembered = null;
         try {
             Future<TokenResponse> first = pool.submit(raceRefresh(barrier, refreshToken));
             Future<TokenResponse> second = pool.submit(raceRefresh(barrier, refreshToken));
@@ -62,6 +73,7 @@ class RefreshRotationRaceIT extends AbstractPersistenceIT {
                 try {
                     TokenResponse won = attempt.get(30, TimeUnit.SECONDS);
                     successes++;
+                    remembered = won;
                     assertThat(won.refreshToken()).isNotEqualTo(refreshToken); // rotated
                 } catch (java.util.concurrent.ExecutionException ex) {
                     assertThat(ex.getCause()).isInstanceOf(InvalidRefreshTokenException.class);
@@ -71,11 +83,21 @@ class RefreshRotationRaceIT extends AbstractPersistenceIT {
         } finally {
             pool.shutdownNow();
         }
+        final TokenResponse winner = remembered;
+        assertThat(winner).isNotNull();
 
-        // the presented token is dead, and exactly ONE new active token
-        // exists for the user (no double rotation)
+        // the presented token is dead (its row is revoked) ...
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex(refreshToken)).revokedAt()).isNotNull();
-        assertThat(refreshTokens.countActiveByUserId(user.getId())).isEqualTo(1);
+        assertThatThrownBy(() -> tokens.refresh(refreshToken))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+
+        // ... the ONE surviving session is the winner's rotated token, and
+        // redeeming it spends it in turn: the user never ends up with two
+        // independently redeemable tokens
+        TokenResponse rotated = tokens.refresh(winner.refreshToken());
+        assertThat(rotated.refreshToken()).isNotEqualTo(winner.refreshToken());
+        assertThatThrownBy(() -> tokens.refresh(winner.refreshToken()))
+                .isInstanceOf(InvalidRefreshTokenException.class);
     }
 
     private java.util.concurrent.Callable<TokenResponse> raceRefresh(CyclicBarrier barrier, String token) {

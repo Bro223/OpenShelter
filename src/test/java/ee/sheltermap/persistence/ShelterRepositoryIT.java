@@ -40,25 +40,17 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void findAllAndFindAllBySourceIn() {
+    void findAllAndFindAllActiveBySourceIn() {
         shelters.save(shelter("A", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "a"));
         shelters.save(shelter("B", ShelterStatus.ACTIVE, ShelterSource.MUNICIPALITY, "b"));
         shelters.save(shelter("C", ShelterStatus.ACTIVE, ShelterSource.USER, null));
 
         assertThat(shelters.findAll()).hasSize(3);
-        assertThat(shelters.findAllBySourceIn(List.of(ShelterSource.PAASETEAMET, ShelterSource.MUNICIPALITY)))
+        // the public list query (D5): ACTIVE rows of the requested sources only
+        assertThat(shelters.findAllActiveBySourceIn(List.of(ShelterSource.PAASETEAMET, ShelterSource.MUNICIPALITY)))
                 .hasSize(2)
                 .extracting(Shelter::getSource)
                 .doesNotContain(ShelterSource.USER);
-    }
-
-    @Test
-    void saveAllPersistsAll() {
-        shelters.saveAll(List.of(
-                shelter("A", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "a"),
-                shelter("B", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "b")));
-
-        assertThat(shelters.findAll()).hasSize(2);
     }
 
     @Test
@@ -79,7 +71,7 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
         // other sources untouched
         assertThat(shelters.findByExternalId("m1")).isPresent();
         // user-submitted row untouched (also by SQL NULL semantics)
-        assertThat(shelters.findAllBySourceIn(List.of(ShelterSource.USER))).hasSize(1);
+        assertThat(shelters.findAllActiveBySourceIn(List.of(ShelterSource.USER))).hasSize(1);
     }
 
     @Test
@@ -107,7 +99,7 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
         Shelter a2 = userShelterWithAuthor("A2", authorA.getId());
         Shelter b1 = userShelterWithAuthor("B1", authorB.getId());
         Shelter legacy = shelter("Legacy No Author", ShelterStatus.ACTIVE, ShelterSource.USER, null);
-        shelters.saveAll(List.of(a1, a2, b1, legacy));
+        List.of(a1, a2, b1, legacy).forEach(shelters::save);
 
         assertThat(shelters.findByCreatedBy(authorA.getId()))
                 .extracting(Shelter::getName)
@@ -121,7 +113,7 @@ class ShelterRepositoryIT extends AbstractPersistenceIT {
     void findByIdsReturnsExactlyTheRequestedRows() {
         Shelter a = shelter("A", ShelterStatus.ACTIVE, ShelterSource.PAASETEAMET, "a");
         Shelter b = shelter("B", ShelterStatus.ACTIVE, ShelterSource.MUNICIPALITY, "b");
-        shelters.saveAll(List.of(a, b));
+        List.of(a, b).forEach(shelters::save);
 
         assertThat(shelters.findByIds(List.of(a.getId())))
                 .extracting(Shelter::getName)

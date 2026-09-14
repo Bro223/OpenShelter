@@ -26,7 +26,4 @@ public interface RefreshTokenRepository {
     int revoke(String tokenHash);
 
     void revokeAllForUser(Long userId);
-
-    /** How many of the user's tokens are still active (unrevoked). */
-    int countActiveByUserId(Long userId);
 }
