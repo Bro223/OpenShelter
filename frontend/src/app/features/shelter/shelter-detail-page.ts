@@ -57,6 +57,12 @@ import {
   LeafletService,
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
+import {
+  getCurrentPositionHighAccuracy,
+  GeolocationError,
+  type GeolocationFailureKind,
+  haversineKm,
+} from '../../shared/geolocation';
 
 /**
  * Per-error copy for the "Distance from you" action (location-navigation
@@ -66,26 +72,13 @@ import {
  * retry-of-a-list: its alternatives are the two deep links beside the
  * action.
  */
-const DISTANCE_COPY = {
+const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
   denied: 'Location permission is off. Allow location access in your browser, then try again.',
   timeout: 'Finding your location timed out. Try again in a moment.',
   unsupported: 'Your browser does not support location access. Check your browser settings.',
   unavailable: 'Your location could not be determined right now. Try again in a moment.',
   insecure: 'Location access needs a secure (https) connection.',
-} as const;
-
-/** Great-circle distance in kilometres (Haversine) — the client-side
- *  distance-from-you computation (the map page's own copy, mirrored: the
- *  W9/W15 convention, the D2 "no new endpoint" precedent). */
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (deg: number): number => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
+};
 
 /**
  * /shelters/:id — the public shelter detail page (M5), replacing the M4
@@ -504,13 +497,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * "Distance from you" (location-navigation M12): the map CTA's EXACT
-   * geolocation options ({ enableHighAccuracy: true, timeout: 10000,
-   * maximumAge: 0 }) + secure-context guard, then the Haversine distance
-   * to the shelter's own coordinates, computed CLIENT-SIDE — no backend
-   * call, no IP geolocation (locked). On success: the honesty line
-   * "≈ … straight line from you" (never a walking-route or official
-   * claim). On failure: per-error copy (the map CTA's mirrored
+   * "Distance from you" (location-navigation M12): the shared high-accuracy
+   * geolocation mechanism (the map CTA's exact options, the secure-context
+   * guard and the error mapping — shared/geolocation.ts), then the
+   * Haversine distance to the shelter's own coordinates, computed CLIENT-
+   * SIDE — no backend call, no IP geolocation (locked). On success: the
+   * honesty line "≈ … straight line from you" (never a walking-route or
+   * official claim). On failure: per-error copy (the map CTA's mirrored
    * vocabulary); the page stays otherwise untouched. Public so specs can
    * drive it (page convention).
    */
@@ -523,46 +516,22 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     // not leave the stale distance line beside the error.
     this.distanceKm.set(null);
     this.distanceError.set(null);
-    if (window.isSecureContext === false) {
-      this.distanceError.set(DISTANCE_COPY.insecure);
-      return;
-    }
-    const geolocation = navigator.geolocation;
-    // jsdom leaves navigator.geolocation undefined — `!` covers null AND
-    // undefined (the map page's guard).
-    if (!geolocation || typeof geolocation.getCurrentPosition !== 'function') {
-      this.distanceError.set(DISTANCE_COPY.unsupported);
-      return;
-    }
     this.distancePending.set(true);
-    geolocation.getCurrentPosition(
-      (position) => {
+    // The mechanism (secure-context + API guards, the request options, the
+    // error-code mapping) is shared/geolocation.ts (F-14); the per-kind
+    // COPY stays page-local (the W9/W15 mirror — DISTANCE_COPY).
+    void getCurrentPositionHighAccuracy().then(
+      (coords) => {
         this.distancePending.set(false);
         this.distanceKm.set(
-          haversineKm(
-            position.coords.latitude,
-            position.coords.longitude,
-            shelter.latitude,
-            shelter.longitude,
-          ),
+          haversineKm(coords.latitude, coords.longitude, shelter.latitude, shelter.longitude),
         );
       },
-      (err) => {
+      (failure: unknown) => {
         this.distancePending.set(false);
-        // Duck-typed code read (the map page's pattern — jsdom does not
-        // define GeolocationPositionError).
-        const code = typeof err?.code === 'number' ? err.code : 2;
-        let kind: keyof typeof DISTANCE_COPY;
-        if (code === 1) {
-          kind = 'denied';
-        } else if (code === 3) {
-          kind = 'timeout';
-        } else {
-          kind = 'unavailable';
-        }
+        const kind = failure instanceof GeolocationError ? failure.kind : 'unavailable';
         this.distanceError.set(DISTANCE_COPY[kind]);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }
 

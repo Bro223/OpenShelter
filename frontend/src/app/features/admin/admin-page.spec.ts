@@ -385,6 +385,8 @@ describe('AdminPage', () => {
     // Step 1 armed — nothing was called yet.
     expect(admin.deleteShelter).not.toHaveBeenCalled();
     expect(element.textContent).toContain('Delete this shelter permanently?');
+    // F-04: the prompt is a live region, so arming is announced.
+    expect(element.querySelector('.admin-confirm[role="status"]')).not.toBeNull();
 
     buttonByText(element, 'Confirm delete')!.click();
     await fixture.whenStable();
@@ -1180,6 +1182,8 @@ describe('AdminPage', () => {
     // armed: the confirm strip replaces the action buttons
     expect(row.textContent).toContain('Suspend this account?');
     expect(row.textContent).toContain('Confirm suspend');
+    // F-04: the prompt is a live region, so arming is announced.
+    expect(row.querySelector('.admin-confirm[role="status"]')).not.toBeNull();
 
     buttonByText(row, 'Confirm suspend')!.click();
     await fixture.whenStable();

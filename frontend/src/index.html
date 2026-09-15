@@ -15,6 +15,9 @@
       // Pre-paint theme (accessibility-and-provenance D2): apply the persisted
       // high-contrast preference BEFORE the app bundle paints — no flash/FOUC.
       // Only 'high-contrast' is ever stored; absent key = the light default.
+      // The typed form of this logic is core/prepaint.ts — prepaint.spec.ts
+      // runs THIS script source against the same guarantees, so keep them in
+      // lockstep (a divergence fails the suite).
       try {
         if (localStorage.getItem('openshelter-theme') === 'high-contrast') {
           document.documentElement.setAttribute('data-theme', 'high-contrast');
@@ -28,6 +31,9 @@
       // BEFORE the app bundle paints — <html lang> is correct for screen
       // readers / spellcheck from first paint. Only 'en'/'et' are ever
       // stored; absent or invalid key = the static lang="en" default.
+      // The typed form of this logic is core/prepaint.ts — prepaint.spec.ts
+      // runs THIS script source against the same guarantees, so keep them in
+      // lockstep (a divergence fails the suite).
       try {
         var openshelterLocale = localStorage.getItem('openshelter-locale');
         if (openshelterLocale === 'en' || openshelterLocale === 'et') {

@@ -9,64 +9,64 @@
   <app-banner severity="error" [message]="error()" />
 
   <!-- Tabs: the review queue FIRST, the audit trail LAST (community-review-queue).
-       The queues load lazily on first switch. -->
-  <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+       The queues load lazily on first switch.
+       Accessibility F-03: a plain group of pressed-state toggles, NOT a
+       role="tablist" widget — the panels are inline @if blocks (a real
+       role="tabpanel" would need a wrapper element that breaks the .admin
+       column's gaps), so the switcher follows the app's existing
+       aria-pressed group pattern (the language switcher) instead of
+       announcing tabs that do not behave like tabs. -->
+  <div class="admin-tabs" role="group" aria-label="Admin sections">
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'unconfirmed'"
-      [attr.aria-selected]="tab() === 'unconfirmed' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'unconfirmed' ? 'true' : 'false'"
       (click)="switchTab('unconfirmed')"
     >
       Unconfirmed
     </button>
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'shelters'"
-      [attr.aria-selected]="tab() === 'shelters' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'shelters' ? 'true' : 'false'"
       (click)="switchTab('shelters')"
     >
       Shelters
     </button>
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'reports'"
-      [attr.aria-selected]="tab() === 'reports' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'reports' ? 'true' : 'false'"
       (click)="switchTab('reports')"
     >
       Shelter reports
     </button>
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'alerts'"
-      [attr.aria-selected]="tab() === 'alerts' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'alerts' ? 'true' : 'false'"
       (click)="switchTab('alerts')"
     >
       Alerts
     </button>
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'users'"
-      [attr.aria-selected]="tab() === 'users' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'users' ? 'true' : 'false'"
       (click)="switchTab('users')"
     >
       Users
     </button>
     <button
       type="button"
-      role="tab"
       class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'audit'"
-      [attr.aria-selected]="tab() === 'audit' ? 'true' : 'false'"
+      [attr.aria-pressed]="tab() === 'audit' ? 'true' : 'false'"
       (click)="switchTab('audit')"
     >
       Audit log
@@ -83,7 +83,12 @@
     } @else if (unconfirmedRows().length === 0) {
       <p class="admin-state">No unconfirmed community locations.</p>
     } @else {
-      <div class="admin-table-wrap">
+      <div
+        class="admin-table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Unconfirmed community locations"
+      >
         <table class="admin-table">
           <thead>
             <tr>
@@ -202,7 +207,7 @@
     } @else if ((shelterRows() ?? []).length === 0) {
       <p class="admin-state">No shelters.</p>
     } @else {
-      <div class="admin-table-wrap">
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Shelters">
         <table class="admin-table">
           <thead>
             <tr>
@@ -319,7 +324,7 @@
                         {{ inaccurateFor() === row.id ? 'Close mark' : 'Mark inaccurate' }}
                       </button>
                     }
-                    @if (confirmingDelete() !== row.id) {
+                    @if (!shelterDeleteConfirm.isArmed(row.id)) {
                       @if (row.status === 'ACTIVE') {
                         <button
                           type="button"
@@ -342,6 +347,7 @@
                       <button
                         type="button"
                         class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-trigger]="row.id"
                         (click)="requestDelete(row.id)"
                         [disabled]="busy()"
                       >
@@ -349,11 +355,17 @@
                       </button>
                     } @else {
                       <!-- two-tap confirm (no window.confirm, the app's inline
-                           style — same as the contributions panel). -->
-                      <span class="admin-confirm">Delete this shelter permanently?</span>
+                           style). The shared ConfirmAction owns the state
+                           machine, the focus move onto Confirm and the focus
+                           restore to Delete on cancel (F-04/F-12); the prompt
+                           is a live region so arming is announced. -->
+                      <span class="admin-confirm" role="status"
+                        >Delete this shelter permanently?</span
+                      >
                       <button
                         type="button"
                         class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-focus]="row.id"
                         (click)="confirmDelete(row.id)"
                         [disabled]="busy()"
                       >
@@ -587,7 +599,7 @@
     } @else if ((alertsRows() ?? []).length === 0) {
       <p class="admin-state">No throttled or abusive activity yet.</p>
     } @else {
-      <div class="admin-table-wrap">
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Abuse alerts">
         <table class="admin-table admin-table--audit">
           <thead>
             <tr>
@@ -625,7 +637,7 @@
     } @else if ((userRows() ?? []).length === 0) {
       <p class="admin-state">No accounts yet.</p>
     } @else {
-      <div class="admin-table-wrap">
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Accounts">
         <table class="admin-table">
           <thead>
             <tr>
@@ -668,11 +680,14 @@
                 </td>
                 <td class="admin-cell--actions">
                   @if (row.kind === 'REGISTERED') {
-                    @if (confirmingUserAction() !== null && confirmingUserAction()!.id === row.id) {
+                    @if (userActionConfirm.isArmed(row.id)) {
                       <!-- two-tap confirm (no window.confirm, the app's inline
-                           style — same as the shelter delete). -->
-                      <span class="admin-confirm">
-                        @if (confirmingUserAction()!.action === 'suspend') {
+                           style). The shared ConfirmAction owns the state
+                           machine, the focus move onto Confirm and the focus
+                           restore to Suspend/Unsuspend on cancel (F-04/F-12);
+                           the prompt is a live region so arming is announced. -->
+                      <span class="admin-confirm" role="status">
+                        @if (userActionConfirm.armed()!.value === 'suspend') {
                           Suspend this account? It loses login, refresh and its open session; its
                           shelters stay on the map.
                         } @else {
@@ -682,14 +697,15 @@
                       <button
                         type="button"
                         class="btn btn--ghost"
-                        [class.btn--danger]="confirmingUserAction()!.action === 'suspend'"
-                        (click)="confirmUserAction(row.id, confirmingUserAction()!.action)"
+                        [class.btn--danger]="userActionConfirm.armed()!.value === 'suspend'"
+                        [attr.data-confirm-focus]="row.id"
+                        (click)="confirmUserAction(row.id, userActionConfirm.armed()!.value)"
                         [disabled]="busy()"
                       >
                         {{
                           busy()
                             ? 'Working…'
-                            : confirmingUserAction()!.action === 'suspend'
+                            : userActionConfirm.armed()!.value === 'suspend'
                               ? 'Confirm suspend'
                               : 'Confirm unsuspend'
                         }}
@@ -706,6 +722,7 @@
                       <button
                         type="button"
                         class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-trigger]="row.id"
                         (click)="requestUserAction(row.id, 'suspend')"
                         [disabled]="busy()"
                       >
@@ -715,6 +732,7 @@
                       <button
                         type="button"
                         class="btn btn--ghost"
+                        [attr.data-confirm-trigger]="row.id"
                         (click)="requestUserAction(row.id, 'unsuspend')"
                         [disabled]="busy()"
                       >
@@ -744,7 +762,7 @@
     } @else if ((auditRows() ?? []).length === 0) {
       <p class="admin-state">No moderation actions yet.</p>
     } @else {
-      <div class="admin-table-wrap">
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Audit log">
         <table class="admin-table admin-table--audit">
           <thead>
             <tr>

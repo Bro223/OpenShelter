@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { DatePipe, NgClass } from '@angular/common';
 import {
   type AbstractControl,
@@ -10,6 +17,7 @@ import {
 import { RouterLink } from '@angular/router';
 import type { MineShelterDto, UpdateShelterRequest } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { ConfirmAction } from '../../shared/confirm-action';
 import { bannerMessage } from '../../shared/error-copy';
 import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
 import { LoadingIndicator } from '../../shared/loading-indicator';
@@ -58,6 +66,7 @@ function coordinateValidator(min: number, max: number) {
 })
 export class ContributionsPanel implements OnInit {
   private readonly shelters = inject(ShelterGateway);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // ---- shelters list -------------------------------------------------------
   /** null = loading; [] = loaded and empty. The /mine projection carries the
@@ -70,7 +79,10 @@ export class ContributionsPanel implements OnInit {
   protected readonly editingShelterId = signal<number | null>(null);
 
   // ---- two-step delete state -----------------------------------------------
-  protected readonly confirmingShelterDelete = signal<number | null>(null);
+  /** The two-step delete confirm: the armed shelter id (no window.confirm).
+   *  The shared ConfirmAction owns the state machine, the focus move onto
+   *  Confirm and the focus restore to Delete on cancel (F-04/F-12). */
+  protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
 
   // ---- info request (M10 slice 3) ---------------------------------------------
   /** The row whose inline info-request panel is open (null = closed) —
@@ -240,11 +252,11 @@ export class ContributionsPanel implements OnInit {
 
   /** Step 1 of the two-step delete: arm the confirm strip. */
   requestDeleteShelter(id: number): void {
-    this.confirmingShelterDelete.set(id);
+    this.shelterDeleteConfirm.arm(id);
   }
 
   cancelDeleteShelter(): void {
-    this.confirmingShelterDelete.set(null);
+    this.shelterDeleteConfirm.cancel();
   }
 
   /** Step 2: DELETE /api/shelters/{id}; the row is removed from the list in
@@ -264,7 +276,7 @@ export class ContributionsPanel implements OnInit {
       if (this.infoFor() === id) {
         this.closeInfo();
       }
-      this.confirmingShelterDelete.set(null);
+      this.shelterDeleteConfirm.disarm();
       this.busy.set(false);
     }
   }

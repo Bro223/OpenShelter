@@ -18,7 +18,8 @@ import { AccountPage } from './features/account/account-page';
  *  - M4: the real Leaflet map replaces the /map placeholder
  *        + /shelters/:id stub (public) — marker/row navigation lands here
  *  - M5: the real /shelters/:id detail page replaces the stub (still public —
- *        the review area branches in-component), /submit (AuthGuard + VerifiedGuard)
+ *        the trust-layer controls branch on auth/verification in-component),
+ *        /submit (AuthGuard + VerifiedGuard)
  *  - M6: every route carries `data.title` + titleGuard — the browser tab
  *        shows "<Page> — OpenShelter" (core/title.ts, tested in title.spec.ts).
  *        /shelters/:id and /submit are loadComponent-lazy (bundle budget —
@@ -73,12 +74,13 @@ export const routes: Routes = [
     data: { title: 'title.terms' },
     canActivate: [titleGuard],
   },
-  // Public: anonymous visitors see the detail without the review controls;
-  // the page itself branches on auth/verification (design decision 2).
+  // Public: anonymous visitors see the detail without the trust-layer
+  // controls (report / occupancy / open-closed); the page itself branches
+  // on auth/verification (design decision 2).
   {
     path: 'shelters/:id',
-    // Lazy (M6 bundle budget): the detail page + review form are only needed
-    // after a marker/row click, not for first paint of the map.
+    // Lazy (M6 bundle budget): the detail page is only needed after a
+    // marker/row click, not for first paint of the map.
     loadComponent: () =>
       import('./features/shelter/shelter-detail-page').then((m) => m.ShelterDetailPage),
     data: { title: 'title.shelterDetail' },

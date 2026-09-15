@@ -378,13 +378,21 @@
           placeholder="DELETE"
         />
       </div>
+      <!-- The armed state is a live region (accessibility F-04): a button that
+           merely enables is not reliably announced, and the shared
+           ConfirmAction keeps focus in the input (the typed word IS the step). -->
+      @if (accountDeleteConfirm.isArmed(accountDeleteKey)) {
+        <p class="field-note" role="status">
+          Erasure armed — select “Delete my account” to confirm.
+        </p>
+      }
       <div class="panel-actions">
         <button
           type="button"
           id="delete-account"
           class="btn btn--ghost btn--danger"
           (click)="deleteAccount()"
-          [disabled]="busy() || !deleteArmed()"
+          [disabled]="busy() || !accountDeleteConfirm.isArmed(accountDeleteKey)"
         >
           {{ busy() ? 'Deleting…' : 'Delete my account' }}
         </button>

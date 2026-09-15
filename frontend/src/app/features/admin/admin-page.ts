@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   inject,
   OnInit,
   computed,
@@ -40,6 +41,7 @@ import {
   INACCURATE_BADGE,
 } from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
+import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 
 registerLocaleData(localeEnGB, 'en-GB');
@@ -153,6 +155,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
 })
 export class AdminPage implements OnInit {
   private readonly admin = inject(AdminGateway);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // ---- tabs ----------------------------------------------------------------
   protected readonly tab = signal<AdminTab>('unconfirmed');
@@ -233,11 +236,12 @@ export class AdminPage implements OnInit {
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly userRows = signal<AdminUserDto[] | null>(null);
   protected readonly userLoadError = signal<string | null>(null);
-  /** Two-tap suspend/unsuspend confirm: the armed target (null = closed). */
-  protected readonly confirmingUserAction = signal<{
-    id: number;
-    action: 'suspend' | 'unsuspend';
-  } | null>(null);
+  /** Two-tap suspend/unsuspend confirm (accessibility F-12): the armed row
+   *  id, carrying which action was armed — the shared ConfirmAction owns the
+   *  state machine, the focus move and the focus restore. */
+  protected readonly userActionConfirm = new ConfirmAction<number, 'suspend' | 'unsuspend'>(
+    this.host.nativeElement,
+  );
 
   // ---- shared UI state ---------------------------------------------------------
   /** One in-flight mutation at a time (the row buttons all share it). */
@@ -246,7 +250,7 @@ export class AdminPage implements OnInit {
   protected readonly success = signal<string | null>(null);
 
   /** Two-tap delete confirm: the armed shelter id (no window.confirm). */
-  protected readonly confirmingDelete = signal<number | null>(null);
+  protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
 
   // ---- shared copy helpers (exposed to the template) ---------------------------
   protected readonly reporterText = reporterText;
@@ -460,7 +464,7 @@ export class AdminPage implements OnInit {
   onSearchSubmit(): void {
     this.shelterQuery.set(this.searchQuery.value.trim());
     this.clearFeedback();
-    this.confirmingDelete.set(null);
+    this.shelterDeleteConfirm.disarm();
     this.closeHistory();
     this.closeInfo();
     this.closeInaccurate();
@@ -498,11 +502,11 @@ export class AdminPage implements OnInit {
   /** Step 1 of the two-tap delete: arm the confirm strip for the row. */
   requestDelete(id: number): void {
     this.clearFeedback();
-    this.confirmingDelete.set(id);
+    this.shelterDeleteConfirm.arm(id);
   }
 
   cancelDelete(): void {
-    this.confirmingDelete.set(null);
+    this.shelterDeleteConfirm.cancel();
   }
 
   /** Step 2: DELETE /admin/shelters/{id} (204). The row is removed in place;
@@ -529,7 +533,7 @@ export class AdminPage implements OnInit {
       if (this.inaccurateFor() === id) {
         this.closeInaccurate();
       }
-      this.confirmingDelete.set(null);
+      this.shelterDeleteConfirm.disarm();
       this.busy.set(false);
     }
   }
@@ -787,7 +791,7 @@ export class AdminPage implements OnInit {
   loadUsers(): void {
     this.userRows.set(null);
     this.userLoadError.set(null);
-    this.confirmingUserAction.set(null);
+    this.userActionConfirm.disarm();
     this.admin
       .listUsers()
       .then((rows) => this.userRows.set(rows))
@@ -797,11 +801,11 @@ export class AdminPage implements OnInit {
   /** Step 1 of the two-tap confirm: arm the confirm strip for the row. */
   requestUserAction(id: number, action: 'suspend' | 'unsuspend'): void {
     this.clearFeedback();
-    this.confirmingUserAction.set({ id, action });
+    this.userActionConfirm.arm(id, action);
   }
 
   cancelUserAction(): void {
-    this.confirmingUserAction.set(null);
+    this.userActionConfirm.cancel();
   }
 
   /**
@@ -826,7 +830,7 @@ export class AdminPage implements OnInit {
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter'));
     } finally {
-      this.confirmingUserAction.set(null);
+      this.userActionConfirm.disarm();
       this.busy.set(false);
     }
   }

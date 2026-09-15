@@ -52,8 +52,17 @@
 }
 
 /* ---- shelters table -------------------------------------------------------- */
+/* Keyboard handle for the horizontally scrollable tables (accessibility F-02,
+   WCAG 2.1.1): each wrapper is a labelled, focusable region (tabindex="0" +
+   role="region" in the template), so a keyboard user can scroll it and the
+   focus ring shows which table has focus. */
 .admin-table-wrap {
   overflow-x: auto;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 
 .admin-table {
@@ -269,7 +278,7 @@
   }
 }
 
-/* ---- queue rows (reports + review reports) --------------------------------- */
+/* ---- queue rows (shelter reports) ------------------------------------------ */
 .admin-queue {
   list-style: none;
   margin: 0;

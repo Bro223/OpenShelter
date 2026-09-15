@@ -198,7 +198,9 @@ describe('design tokens (M6)', () => {
     ['--color-warning', '--color-warning-bg'],
     ['--color-info', '--color-info-bg'],
     ['--color-success', '--color-success-bg'],
-    // Review-form error text on the page surface.
+    // Admin editor error text on the page surface — .admin-reason__error
+    // (admin-page.scss, the reject-reason 400 line) is the pair's only live
+    // consumer (the review form is gone).
     ['--color-error', '--color-bg-surface'],
     // Button text: btn--primary and the crisis CTA both set their text to
     // --color-bg-surface (light: white on blue/orange; high-contrast flips

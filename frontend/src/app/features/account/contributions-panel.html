@@ -88,10 +88,11 @@
                 Edit
               </button>
             }
-            @if (confirmingShelterDelete() !== row.id) {
+            @if (!shelterDeleteConfirm.isArmed(row.id)) {
               <button
                 type="button"
                 class="btn btn--ghost btn--danger"
+                [attr.data-confirm-trigger]="row.id"
                 (click)="requestDeleteShelter(row.id)"
                 [disabled]="busy()"
               >
@@ -104,14 +105,18 @@
             <p class="row-error" role="alert">{{ shelterRowError()?.message }}</p>
           }
 
-          <!-- two-step delete confirm (no window.confirm) -->
-          @if (confirmingShelterDelete() === row.id) {
+          <!-- two-step delete confirm (no window.confirm). The shared
+               ConfirmAction owns the state machine, the focus move onto Confirm
+               and the focus restore to Delete on cancel (F-04/F-12); the prompt
+               is a live region so arming is announced. -->
+          @if (shelterDeleteConfirm.isArmed(row.id)) {
             <div class="confirm-strip">
-              <span> Delete this shelter permanently? </span>
+              <span role="status"> Delete this shelter permanently? </span>
               <div class="contrib-actions">
                 <button
                   type="button"
                   class="btn btn--ghost btn--danger"
+                  [attr.data-confirm-focus]="row.id"
                   (click)="confirmDeleteShelter(row.id)"
                   [disabled]="busy()"
                 >

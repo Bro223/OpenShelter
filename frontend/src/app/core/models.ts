@@ -557,14 +557,15 @@ export type AdminAuditAction =
  * the resolved "Deleted shelter" text, so the field is a plain string.
  * `previousStatus`/`newStatus` are the review_status transition (DELETE:
  * previous = review_status, new = null) — null when the action has no
- * status pair to show (e.g. report dismiss, review hide/restore).
+ * status pair to show (e.g. report dismiss).
  *
  * The trail is append-only — a row persists after the subject is resolved,
  * so the UI renders "(after reply)" when the shelter is already back on the
  * map. `action` reflects the transition at the time the row was written (or
- * a bulk import); the REVIEW_HIDE/REVIEW_RESTORE values persist in
- * historical rows even though the review model is gone (the audit tab
- * renders them read-only).
+ * a bulk import). The review-model values (REVIEW_HIDE / REVIEW_RESTORE)
+ * can never reach the tab: V21 deleted exactly those moderation rows when
+ * it dropped the review model — the union keeps the values only for the
+ * label map's vocabulary.
  */
 export interface AdminAuditRow {
   id: number;

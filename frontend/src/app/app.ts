@@ -1,4 +1,4 @@
-import { Component, inject, type OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, type OnInit } from '@angular/core';
 import { AuthStore } from './session/auth-store';
 import { PageShell } from './shared/page-shell';
 
@@ -12,6 +12,7 @@ import { PageShell } from './shared/page-shell';
   imports: [PageShell],
   templateUrl: './app.html',
   styleUrl: './app.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App implements OnInit {
   private readonly auth = inject(AuthStore);

@@ -348,6 +348,8 @@ describe('ContributionsPanel', () => {
 
     // step 1: the confirm strip is armed, nothing deleted yet
     expect(element.textContent).toContain('Delete this shelter permanently?');
+    // F-04: the prompt is a live region, so arming is announced.
+    expect(element.querySelector('.confirm-strip [role="status"]')).not.toBeNull();
     expect(shelters.remove).not.toHaveBeenCalled();
     expect(element.textContent).toContain('Community Cellar');
 

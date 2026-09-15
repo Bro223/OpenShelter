@@ -68,17 +68,19 @@
    *   --color-danger  #8c1d18  — the DARK red for page-level error surfaces:
    *       banners, field errors, the two-step delete confirm, danger
    *       buttons. Highest-contrast red in the app.
-   *   --color-error   #c0392b  — the BRIGHTER red used ONLY by the M5
-   *       review form (its .field-error + the over-limit counter). Inline
-   *       form feedback on the detail page is intentionally more vivid so
-   *       it reads as "fix this field" against the page-level banners.
-   *       Collapsing it onto --color-danger would change visible contrast
-   *       of the form errors (5.4:1 vs 9.1:1) — kept as two tokens.
+   *   --color-error   #c0392b  — the BRIGHTER red used ONLY by the admin
+   *       moderation inline editors (admin-page.scss .admin-reason__error:
+   *       the reject-reason, info-request and mark-inaccurate error lines).
+   *       In-context field feedback is intentionally more vivid than the
+   *       page-level banner red so it reads as "fix this field".
+   *       Collapsing it onto --color-danger would change the visible
+   *       contrast of those error lines (5.4:1 vs 9.1:1) — kept as two
+   *       tokens.
    */
   --color-danger: #8c1d18; /* page-level error text (banners, field errors) */
   --color-danger-bg: #fdecea;
   --color-danger-border: #f5c6c3;
-  --color-error: #c0392b; /* M5 review-form error text (slightly brighter red) */
+  --color-error: #c0392b; /* admin moderation inline error text (slightly brighter red) */
   --color-warning: #7a4d00;
   --color-warning-bg: #fff7e6;
   --color-warning-border: #ffd591;
@@ -322,6 +324,31 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
+/* Skip link (accessibility F-01, WCAG 2.4.1): the shell renders it as its
+   first element and keeps it off-screen until it takes keyboard focus, then
+   it reveals over the header — the first Tab jumps straight into the routed
+   page (main#main in page-shell.html). Shell chrome, so it lives here with
+   the other global element styles. The z-index clears the <900px dropdown
+   menu panel (1100) so the revealed link is never covered. */
+.skip-link {
+  position: absolute;
+  top: var(--space-8);
+  left: -9999px;
+  z-index: 1200;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-primary);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+
+  &:focus-visible {
+    left: var(--space-16);
+  }
+}
+
 /* Global element colours (HC contrast audit, 2026-09-11): form controls and
    links take their text colour from the token palette instead of the UA
    stylesheet. The UA defaults (black control text, blue unvisited links) do
@@ -455,7 +482,8 @@ textarea {
   justify-content: center;
 }
 
-/* two-step delete: armed danger button (used by the contributions panel) */
+/* Shared danger button: the destructive-action variant, used by the admin
+   moderation tables (Delete/Reject) and the contributions panel's Delete. */
 .btn--danger {
   border-color: var(--color-danger-border);
   color: var(--color-danger);

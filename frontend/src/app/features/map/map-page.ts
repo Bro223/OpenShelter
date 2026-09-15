@@ -49,6 +49,12 @@ import {
   LeafletService,
   SHELTER_ZOOM,
 } from '../../shared/leaflet-service';
+import {
+  getCurrentPositionHighAccuracy,
+  GeolocationError,
+  type GeolocationFailureKind,
+  haversineKm,
+} from '../../shared/geolocation';
 
 /** The three source-filter chips (server-side `?source=` refetch, design 4).
  *  `value` is the API param (never translated); the label is a message key
@@ -66,10 +72,7 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
  * errors; the W9/W15 duplication convention keeps it documented, not
  * shared. The map page has no map-pick or link fallback, only a retry.
  */
-const NEAREST_KEY: Record<
-  'denied' | 'timeout' | 'unsupported' | 'unavailable' | 'insecure',
-  MessageKey
-> = {
+const NEAREST_KEY: Record<GeolocationFailureKind, MessageKey> = {
   denied: 'map.nearest.denied',
   timeout: 'map.nearest.timeout',
   unsupported: 'map.nearest.unsupported',
@@ -103,19 +106,6 @@ const ANCHOR_ZOOM = 14;
  *  the NEIGHBOURHOOD around the user's own position — not a single
  *  shelter's street. Same scale as the anchor fly, separate intent. */
 const AROUND_ZOOM = 14;
-
-/** Great-circle distance in kilometres (Haversine) — the client-side
- *  nearest-shelter + address-anchor distance computation (D2: no new
- *  endpoint). */
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (deg: number): number => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371 * Math.asin(Math.sqrt(a));
-}
 
 /** The closest row to a point (or null for an empty list) + its distance. */
 function nearestShelterAt(
@@ -432,10 +422,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * "Nearest shelter" (map-crisis-actions D1/D2): high-accuracy geolocation
-   * with the submit page's exact options ({ enableHighAccuracy: true,
-   * timeout: 10000, maximumAge: 0 }), then the closest shelter computed
-   * CLIENT-SIDE from the already-loaded list — no backend call. On success:
+   * "Nearest shelter" (map-crisis-actions D1/D2): a high-accuracy
+   * geolocation request (the shared mechanism, options and error mapping —
+   * shared/geolocation.ts), then the closest shelter computed CLIENT-SIDE
+   * from the already-loaded list — no backend call. On success:
    * the map flies to the USER'S OWN POSITION at regional scale
    * (AROUND_ZOOM 14 — a neighbourhood, not a single shelter's street) and
    * does NOT select any row; the nearest shelter stays the RESULT of the
@@ -461,38 +451,21 @@ export class MapPage implements AfterViewInit, OnDestroy {
       this.nearestEmpty.set(true);
       return;
     }
-    if (window.isSecureContext === false) {
-      this.nearestError.set(NEAREST_KEY.insecure);
-      return;
-    }
-    const geolocation = navigator.geolocation;
-    // jsdom leaves navigator.geolocation undefined — `!` covers null AND undefined.
-    if (!geolocation || typeof geolocation.getCurrentPosition !== 'function') {
-      this.nearestError.set(NEAREST_KEY.unsupported);
-      return;
-    }
     this.locating.set(true);
-    geolocation.getCurrentPosition(
-      (position) => {
+    // The mechanism (secure-context + API guards, the request options, the
+    // error-code mapping) is shared/geolocation.ts (F-14); the per-kind
+    // COPY stays page-local (the W9/W15 mirror — NEAREST_KEY).
+    void getCurrentPositionHighAccuracy().then(
+      (coords) => {
         this.locating.set(false);
-        this.focusNearestShelter(position.coords.latitude, position.coords.longitude);
+        this.focusNearestShelter(coords.latitude, coords.longitude);
       },
-      (err) => {
+      (failure: unknown) => {
         this.locating.set(false);
-        // Duck-typed code read (the submit page's pattern — jsdom does not
-        // define GeolocationPositionError). List and map are untouched.
-        const code = typeof err?.code === 'number' ? err.code : 2;
-        let kind: keyof typeof NEAREST_KEY;
-        if (code === 1) {
-          kind = 'denied';
-        } else if (code === 3) {
-          kind = 'timeout';
-        } else {
-          kind = 'unavailable';
-        }
+        // List and map are untouched.
+        const kind = failure instanceof GeolocationError ? failure.kind : 'unavailable';
         this.nearestError.set(NEAREST_KEY[kind]);
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }
 

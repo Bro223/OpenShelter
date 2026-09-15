@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  OnDestroy,
+  signal,
+} from '@angular/core';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
@@ -6,6 +13,7 @@ import { AuthStore } from '../../session/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { ContributionsPanel } from './contributions-panel';
 import { BannerComponent } from '../../shared/banner.component';
+import { ConfirmAction } from '../../shared/confirm-action';
 import { bannerMessage, COPY } from '../../shared/error-copy';
 import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
 import { ResendCountdown } from '../../shared/resend-countdown';
@@ -52,6 +60,7 @@ type ChangePhase = 'form' | 'code' | 'done';
 })
 export class AccountPage implements OnDestroy {
   private readonly account = inject(AccountGateway);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
 
@@ -360,25 +369,37 @@ export class AccountPage implements OnDestroy {
     nonNullable: true,
   });
 
-  /** Armed once the confirm word is exactly typed. Mirrored into a signal
-   *  (the FormControl value is not a signal) so the OnPush view refreshes
-   *  when it flips — the template reads the signal, never the control. */
-  protected readonly deleteArmed = signal(false);
+  /** Armed once the confirm word is exactly typed, through the shared
+   *  ConfirmAction (accessibility F-12). `accountDeleteKey` is the single
+   *  arming key on this page (ConfirmAction's attribute-safe token). */
+  protected readonly accountDeleteKey = 'account';
+  protected readonly accountDeleteConfirm = new ConfirmAction<string>(this.host.nativeElement);
 
   constructor() {
-    this.deleteConfirm.valueChanges.subscribe((value) => this.deleteArmed.set(value === 'DELETE'));
+    // Typing DELETE arms the erasure; any other value disarms it (the typed
+    // word IS the first step). Focus deliberately stays in the input: the
+    // armed state is announced by the role="status" note in the template
+    // instead of by a focus move on every keystroke.
+    this.deleteConfirm.valueChanges.subscribe((value) => {
+      if (value === 'DELETE') {
+        this.accountDeleteConfirm.arm(this.accountDeleteKey);
+      } else {
+        this.accountDeleteConfirm.disarm();
+      }
+    });
   }
 
   /**
-   * "Delete my account" — the two-step type-to-confirm erasure. The
-   * button stays disarmed until DELETE is typed; on success the backend
-   * has already erased everything (private homes purged, public rows
-   * orphaned, the rest cascaded), so the local session ends and the page
-   * leaves for the map — the best-effort /auth/logout revocation is a
-   * no-op server-side (the refresh tokens died with the account).
+   * "Delete my account" — the two-step type-to-confirm erasure (the armed
+   * state comes from the shared ConfirmAction). The button stays disarmed
+   * until DELETE is typed; on success the backend has already erased
+   * everything (private homes purged, public rows orphaned, the rest
+   * cascaded), so the local session ends and the page leaves for the map —
+   * the best-effort /auth/logout revocation is a no-op server-side (the
+   * refresh tokens died with the account).
    */
   async deleteAccount(): Promise<void> {
-    if (this.busy() || !this.deleteArmed()) {
+    if (this.busy() || !this.accountDeleteConfirm.isArmed(this.accountDeleteKey)) {
       return;
     }
     this.error.set(null);

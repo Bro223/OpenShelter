@@ -1,0 +1,125 @@
+import { FormControl } from '@angular/forms';
+import {
+  CAPACITY_MAX,
+  CAPACITY_MIN,
+  CODE_SIX_DIGITS,
+  capacityValidator,
+  nameBlankValidator,
+  readCoordinate,
+} from './form-helpers';
+
+/**
+ * Direct table spec of the shared form helpers (F-10) — the last shared/*
+ * module without a spec, though all four exports are production-used
+ * (the /submit and contributions-panel shelter forms). Each export gets a
+ * table with valid / invalid / empty / boundary rows; the capacity table
+ * reads the exported bounds, so a bounds change moves the boundary rows
+ * with it.
+ */
+
+describe('CODE_SIX_DIGITS (the OTP input pattern)', () => {
+  const rows = [
+    { value: '000000', matches: true, note: 'all zeros — the lowest six-digit code (boundary)' },
+    { value: '123456', matches: true, note: 'an ordinary six-digit code' },
+    { value: '999999', matches: true, note: 'all nines — the highest six-digit code (boundary)' },
+    { value: '12345', matches: false, note: 'five digits — one short (boundary)' },
+    { value: '1234567', matches: false, note: 'seven digits — one long (boundary)' },
+    { value: '12345a', matches: false, note: 'a letter sneaked in' },
+    { value: '12 345', matches: false, note: 'an internal space' },
+    { value: '12345 ', matches: false, note: 'a trailing space' },
+    { value: '', matches: false, note: 'the empty string' },
+  ];
+
+  it.each(rows)('$note', ({ value, matches }) => {
+    expect(CODE_SIX_DIGITS.test(value)).toBe(matches);
+  });
+});
+
+describe('readCoordinate (a coordinate out of a number control)', () => {
+  const rows = [
+    {
+      value: 59.437 as number | string | null,
+      expected: 59.437,
+      note: 'a plain number passes through',
+    },
+    { value: 0, expected: 0, note: 'zero is a coordinate, not an empty input' },
+    { value: -12.5, expected: -12.5, note: 'a negative number passes through' },
+    { value: Number.NaN, expected: null, note: 'a non-finite number (NaN) is treated as empty' },
+    {
+      value: Number.POSITIVE_INFINITY,
+      expected: null,
+      note: 'a non-finite number (Infinity) is treated as empty',
+    },
+    { value: null, expected: null, note: 'an empty input (null) stays null' },
+    { value: '', expected: null, note: 'an empty string stays null' },
+    { value: '   ', expected: null, note: 'whitespace-only stays null' },
+    { value: '59.437', expected: 59.437, note: 'a numeric string parses' },
+    {
+      value: '  24.754  ',
+      expected: 24.754,
+      note: 'a padded numeric string parses (Number trims)',
+    },
+    { value: '0', expected: 0, note: 'the string "0" parses (it is not empty)' },
+    { value: '-12.5', expected: -12.5, note: 'a negative numeric string parses' },
+    { value: 'abc', expected: null, note: 'a non-numeric string stays null' },
+    { value: '12.5.6', expected: null, note: 'a malformed number stays null' },
+  ];
+
+  it.each(rows)('$note', ({ value, expected }) => {
+    expect(readCoordinate(value)).toBe(expected);
+  });
+});
+
+describe('capacityValidator (optional; 1..100_000 when present)', () => {
+  const rows = [
+    { value: null, expected: null, note: 'null — the optional field is empty' },
+    { value: undefined, expected: null, note: 'undefined — the optional field is empty' },
+    { value: '', expected: null, note: 'an empty string — the optional field is empty' },
+    { value: '   ', expected: null, note: 'whitespace-only — the optional field is empty' },
+    { value: CAPACITY_MIN, expected: null, note: 'the lower bound is valid (boundary)' },
+    { value: CAPACITY_MAX, expected: null, note: 'the upper bound is valid (boundary)' },
+    { value: 500, expected: null, note: 'an interior value is valid' },
+    {
+      value: '250',
+      expected: null,
+      note: 'a numeric string is valid (the control value may not be a number)',
+    },
+    { value: 0, expected: { capacity: true }, note: 'below the lower bound (boundary)' },
+    {
+      value: CAPACITY_MAX + 1,
+      expected: { capacity: true },
+      note: 'one over the upper bound (boundary)',
+    },
+    { value: 10_000_000, expected: { capacity: true }, note: 'far above the upper bound' },
+    { value: 1.5, expected: { capacity: true }, note: 'a fraction is not a capacity' },
+    { value: '1.5', expected: { capacity: true }, note: 'a fractional string is not a capacity' },
+    { value: 'abc', expected: { capacity: true }, note: 'a non-numeric string' },
+    { value: Number.NaN, expected: { capacity: true }, note: 'NaN' },
+  ];
+
+  it('the capacity bounds mirror the backend (1..100_000)', () => {
+    expect(CAPACITY_MIN).toBe(1);
+    expect(CAPACITY_MAX).toBe(100_000);
+  });
+
+  it.each(rows)('$note', ({ value, expected }) => {
+    expect(capacityValidator(new FormControl(value))).toEqual(expected);
+  });
+});
+
+describe('nameBlankValidator (the @NotBlank mirror)', () => {
+  const rows = [
+    { value: 'OpenShelter', expected: null, note: 'a plain name' },
+    { value: '  Tallinn  ', expected: null, note: 'a padded name (trim leaves text)' },
+    { value: 'x', expected: null, note: 'a single character — the minimum (boundary)' },
+    { value: '', expected: { blank: true }, note: 'the empty string' },
+    { value: '   ', expected: { blank: true }, note: 'whitespace-only — the @NotBlank case' },
+    { value: '\t\n ', expected: { blank: true }, note: 'tabs and newlines are whitespace too' },
+    { value: null, expected: { blank: true }, note: 'null — the control was never filled' },
+    { value: undefined, expected: { blank: true }, note: 'undefined' },
+  ];
+
+  it.each(rows)('$note', ({ value, expected }) => {
+    expect(nameBlankValidator(new FormControl(value))).toEqual(expected);
+  });
+});

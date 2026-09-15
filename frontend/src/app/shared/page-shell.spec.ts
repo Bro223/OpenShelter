@@ -88,6 +88,22 @@ describe('PageShell', () => {
     expect(fixture.nativeElement.querySelector('router-outlet')).not.toBeNull();
   });
 
+  it('opens with the skip link onto the routed content (accessibility F-01)', () => {
+    fixture.detectChanges();
+    const element = fixture.nativeElement as HTMLElement;
+    // The shell's FIRST element: off-screen until keyboard focus (styles.scss
+    // .skip-link), then the first Tab jumps past the whole nav.
+    const first = element.firstElementChild as HTMLElement;
+    expect(first.tagName).toBe('A');
+    expect(first.classList).toContain('skip-link');
+    expect(first.getAttribute('href')).toBe('#main');
+    // The landing target: the outlet container is programmatically focusable,
+    // so the next Tab continues into the page instead of back to the nav.
+    const main = element.querySelector('main#main');
+    expect(main, 'the outlet container must carry id="main"').not.toBeNull();
+    expect(main?.getAttribute('tabindex')).toBe('-1');
+  });
+
   it('hides auth controls until init settled, then shows log in / register for guests', async () => {
     fixture.detectChanges();
     expect(text()).not.toContain('Log in');

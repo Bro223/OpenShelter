@@ -1,3 +1,9 @@
+<!-- Skip link (accessibility F-01, WCAG 2.4.1): the shell's FIRST element —
+     off-screen until it takes keyboard focus, then it reveals over the header
+     so the first Tab jumps past the whole nav into the routed page
+     (<main id="main" tabindex="-1"> below). -->
+<a class="skip-link" href="#main">Skip to content</a>
+
 <app-consent-banner />
 
 <header class="shell-header">
@@ -85,7 +91,9 @@
   </div>
 </header>
 
-<main class="shell-body">
+<!-- The routed content. tabindex="-1" is the skip link's landing target:
+     focusing it moves the next Tab into the page instead of back to the nav. -->
+<main class="shell-body" id="main" tabindex="-1">
   <router-outlet />
 </main>
 
