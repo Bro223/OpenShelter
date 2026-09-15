@@ -24,6 +24,10 @@
         <!-- 2.6.x is the springdoc line aligned to Boot 3.3.x / Java 21.
              2.7+ targets Boot 3.4+ — do not bump without review (SW-A1). -->
         <springdoc.version>2.6.0</springdoc.version>
+        <!-- HTML sanitizer for admin-authored guidance bodies
+             (crisis-guidance D2). Bumps need review: the parser behaviour
+             is part of the security boundary, not just a version number. -->
+        <jsoup.version>1.23.2</jsoup.version>
     </properties>
 
     <dependencies>
@@ -127,6 +131,18 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+        <!-- HTML sanitizer for crisis-guidance bodies (crisis-guidance D2).
+             A LIBRARY, deliberately not hand-rolled: sanitizer bypasses
+             come from parser DIFFERENTIALS between what the sanitizer
+             parses and what the browser executes, so the parser must be a
+             maintained implementation (jsoup) with the allowlist declared
+             on top (BodySanitizer's Safelist). This is the ONLY new
+             dependency of the crisis-guidance change; no npm change. -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
         </dependency>
 
         <!-- Ops / health -->

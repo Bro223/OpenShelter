@@ -1,0 +1,256 @@
+package ee.sheltermap.domain;
+
+import java.time.Instant;
+import java.util.Objects;
+
+/**
+ * One crisis-guidance post (crisis-guidance D1/D4/D6).
+ *
+ * <p>The hero image is a <b>reference</b> ({@code heroImageId}), never an
+ * image URL or a copy: the reference is always either a live media asset
+ * or {@code null}, so no broken image can reach a page — deleting the
+ * asset nulls the reference (the FK's {@code ON DELETE SET NULL}), and a
+ * post with a {@code null} hero renders no image element at all. Alt text
+ * is mandatory iff a hero is set (the V23 CHECK mirrors the same rule).
+ *
+ * <p>Publication state (D4): publishing stamps {@code publishedAt} from
+ * the instant the caller passes (the service's injected Clock);
+ * unpublishing clears it, so a re-publish stamps a FRESH instant and the
+ * post re-enters the public list at the top of the non-pinned order.
+ * {@code updatedAt} moves on every write ({@code createdAt} on create).
+ *
+ * <p>Pure Java — no Spring imports in {@code domain/} (a repo invariant).
+ */
+public class GuidancePost {
+
+    private Long id;
+    private String slug;
+    private String title;
+    private String bodyHtml;
+    private String locale;
+    private GuidanceStatus status;
+    private boolean pinned;
+    private Long heroImageId;
+    private String heroImageAlt;
+    private Instant publishedAt;
+    private final Long createdBy;
+    private final Instant createdAt;
+    private Instant updatedAt;
+
+    private GuidancePost() {
+    }
+
+    /**
+     * Creates a new DRAFT post — the ONLY way a fresh post comes into
+     * being (the persistence layer uses {@link #restored} for stored
+     * rows). The caller — the guidance service — owns the creation stamp
+     * (its injected Clock), so the domain never reaches for the wall
+     * clock. An explicit "create and publish" is a follow-up
+     * {@link #publish(Instant)} call on the same object.
+     */
+    public static GuidancePost draft(String slug, String title, String bodyHtml, String locale,
+                                     boolean pinned, Long heroImageId, String heroImageAlt,
+                                     Long createdBy, Instant now) {
+        GuidancePost post = new GuidancePost();
+        post.slug = requireText(slug, "slug");
+        post.title = requireText(title, "title");
+        post.bodyHtml = requireText(bodyHtml, "bodyHtml");
+        post.locale = requireText(locale, "locale");
+        post.pinned = pinned;
+        post.heroImageId = heroImageId;
+        post.heroImageAlt = heroImageAlt;
+        requireHeroAltPairing(heroImageId, heroImageAlt);
+        post.status = GuidanceStatus.DRAFT;
+        post.publishedAt = null;
+        post.createdBy = createdBy;
+        Instant createdAt = Objects.requireNonNull(now, "now");
+        post.createdAt = createdAt;
+        post.updatedAt = createdAt;
+        return post;
+    }
+
+    /**
+     * Restores a stored row (persistence round-trip): the full field set
+     * including the id, the status and its stamped instant. The V23
+     * CHECKs guarantee the stored invariants (status/publishedAt
+     * pairing, hero/alt pairing), so this does not re-validate them.
+     */
+    public static GuidancePost restored(Long id, String slug, String title, String bodyHtml,
+                                        String locale, GuidanceStatus status, boolean pinned,
+                                        Long heroImageId, String heroImageAlt, Instant publishedAt,
+                                        Long createdBy, Instant createdAt, Instant updatedAt) {
+        GuidancePost post = new GuidancePost();
+        post.id = id;
+        post.slug = slug;
+        post.title = title;
+        post.bodyHtml = bodyHtml;
+        post.locale = locale;
+        post.status = Objects.requireNonNull(status, "status");
+        post.pinned = pinned;
+        post.heroImageId = heroImageId;
+        post.heroImageAlt = heroImageAlt;
+        post.publishedAt = publishedAt;
+        post.createdBy = createdBy;
+        post.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        post.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
+        return post;
+    }
+
+    /**
+     * Full replace of the editable fields (a PUT keeps the slug the
+     * service resolved — passing it here verbatim). The publication
+     * state, the author and {@code createdAt} never move here;
+     * {@code updatedAt} moves to the caller's instant.
+     */
+    public void update(String slug, String title, String bodyHtml, String locale, boolean pinned,
+                       Long heroImageId, String heroImageAlt, Instant now) {
+        this.slug = requireText(slug, "slug");
+        this.title = requireText(title, "title");
+        this.bodyHtml = requireText(bodyHtml, "bodyHtml");
+        this.locale = requireText(locale, "locale");
+        this.pinned = pinned;
+        this.heroImageId = heroImageId;
+        this.heroImageAlt = heroImageAlt;
+        requireHeroAltPairing(heroImageId, heroImageAlt);
+        this.updatedAt = Objects.requireNonNull(now, "now");
+    }
+
+    /**
+     * Publishes: stamps {@code publishedAt} and moves {@code updatedAt}
+     * to the caller's instant. Idempotent — a second call on a published
+     * post keeps the earlier stamp (the "publishing twice is a no-op"
+     * idiom; the service writes no second audit row either).
+     */
+    public void publish(Instant now) {
+        if (status == GuidanceStatus.DRAFT) {
+            Instant stamped = Objects.requireNonNull(now, "now");
+            this.status = GuidanceStatus.PUBLISHED;
+            this.publishedAt = stamped;
+            this.updatedAt = stamped;
+        }
+    }
+
+    /**
+     * Unpublishes: back to DRAFT, {@code publishedAt} cleared (the V23
+     * CHECK enforces the pairing). Idempotent on a draft. This method
+     * carries no instant (frozen signature), so {@code updatedAt} is
+     * stamped by the persistence layer on the following save.
+     */
+    public void unpublish() {
+        if (status == GuidanceStatus.PUBLISHED) {
+            this.status = GuidanceStatus.DRAFT;
+            this.publishedAt = null;
+        }
+    }
+
+    /**
+     * Clears the hero image (id and alt together, D8): the post stays
+     * fully renderable — no image element, title and body intact. The
+     * asset itself is untouched in the media library.
+     */
+    public void clearHero() {
+        this.heroImageId = null;
+        this.heroImageAlt = null;
+    }
+
+    private static String requireText(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + " is required");
+        }
+        return value;
+    }
+
+    /**
+     * Alt text mandatory iff a hero image is set (the V23 CHECK and the
+     * service's 400 enforce the same rule; this keeps the domain honest
+     * on its own): both directions refuse.
+     */
+    private static void requireHeroAltPairing(Long heroImageId, String heroImageAlt) {
+        boolean hasHero = heroImageId != null;
+        boolean hasAlt = heroImageAlt != null && !heroImageAlt.isBlank();
+        if (hasHero && !hasAlt) {
+            throw new IllegalArgumentException("heroImageAlt is required when a hero image is set");
+        }
+        if (!hasHero && hasAlt) {
+            throw new IllegalArgumentException("heroImageAlt is meaningless without a hero image");
+        }
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    /** Assigned by persistence; {@code null} until persisted. */
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    /**
+     * Persistence sync (the persistence layer only): after an update
+     * save, the stored {@code updated_at} stamp (the repository's Clock)
+     * is the authority, and the in-memory object mirrors it.
+     */
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    /** The stored (sanitized) body — the admin read returns it verbatim (D2). */
+    public String getBodyHtml() {
+        return bodyHtml;
+    }
+
+    /** The stored locale (D11: a stored attribute, no translation workflow in v1). */
+    public String getLocale() {
+        return locale;
+    }
+
+    public GuidanceStatus getStatus() {
+        return status;
+    }
+
+    public boolean isPublished() {
+        return status == GuidanceStatus.PUBLISHED;
+    }
+
+    /** Pinning floats a published post to the top of the public list (D6). */
+    public boolean isPinned() {
+        return pinned;
+    }
+
+    /** The hero image's media-asset id; {@code null} when the post has no hero. */
+    public Long getHeroImageId() {
+        return heroImageId;
+    }
+
+    /** The hero image's alt text (mandatory iff a hero is set); {@code null} without a hero. */
+    public String getHeroImageAlt() {
+        return heroImageAlt;
+    }
+
+    /** Stamped by {@link #publish(Instant)}, cleared by {@link #unpublish()}; {@code null} for drafts. */
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
+
+    /** The authoring account; may dangle after an erasure (FK SET NULL, V7 precedent). */
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    /** Moves on every write; visible in the admin list only (D4). */
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+}
