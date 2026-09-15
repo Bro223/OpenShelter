@@ -1,11 +1,11 @@
 {
   "started_at": "2026-09-14T23:19:44.555691Z",
-  "updated_at": "2026-09-15T00:27:16Z",
+  "updated_at": "2026-09-15T00:46:29Z",
   "budget_hours_soft": 3,
   "budget_hours_hard": 4,
   "phase": "fixing",
-  "last_wave": "Wave 1 (WS-1, WS-7, WS-5): 26 of 32 attempted items reviewer-verified closed, 6 left open; reviewer verdict needs-fix / merge BLOCK (mvn clean test red: AuthRequestConstraintParityTest 7/7 + OpenApiContractIT x-admin-only 1/8).",
-  "open_items": 42,
+  "last_wave": "Wave 2 (WS-6, WS-5, WS-3): frontend docs sweep + a11y fix + context-and-tasks diagram/contract re-sync; reviewer verdict needs-fix (WS-3 code and WS-5 edits correct/keepable; WS-6 sweep incomplete). 23 work rows newly closed (D17, D23, the 13 WS-6 rows, the 8 WS-3 rows); D9, F-04, D21, ORCH-1, ORCH-2 kept open; new follow-up ORCH-10 (review model still in frontend/docs/agent/{01-TASK,06-CONTEXT-SHELTER,07-STEPS}.md). Orchestrator gates still owed: npm test, mvn clean test, openspec validate --all + the D21 git mv.",
+  "open_items": 17,
   "model_policy": {
     "intended": {
       "token_heavy": "hpc-vllm/Qwen3.8-27B",
