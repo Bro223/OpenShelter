@@ -1,4 +1,4 @@
--- official-dataset-csv (roadmap M5): audit trail for registry import runs.
+-- official-dataset-csv: audit trail for registry import runs.
 -- One row per run of ShelterImportService.importFromRegistry() — including
 -- the runs that change nothing (NOT_MODIFIED / SKIPPED) and the ones that
 -- never reached the registry (FAILED). The row is the single source for the

@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * M15 — the admin authorization surface pinned over the real security
+ * The admin authorization surface pinned over the real security
  * chain with an env-provisioned admin (threat model A11): anonymous
  * /admin/** is a 401, a registered non-admin is a 403, both carrying the
  * hardening headers and no cookie; the env-provisioned admin gets 200; and

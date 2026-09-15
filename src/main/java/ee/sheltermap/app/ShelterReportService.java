@@ -35,7 +35,7 @@ import java.util.Objects;
  * open/closed state tap does NOT count — a tap is a state, not a report
  * action, so it records nothing in the action log.
  *
- * <p>Auto-hide (D1, trust-weighted since community-self-moderation M9):
+ * <p>Auto-hide (D1, trust-weighted since community-self-moderation):
  * an {@code ACTIVE} shelter whose {@code auto_hide_disarmed} is
  * {@code false} becomes {@code INACTIVE} on the {@code NON_EXISTENT}
  * report insert that brings the shelter's trust-weighted hide tally —
@@ -58,9 +58,9 @@ import java.util.Objects;
  * reporting user is the actor of record). The submitter's own positive
  * report never promotes; registry and already-confirmed rows are
  * untouched. This is the primary trust flow — no human in the loop —
- * and trust weighting never gates the positive side (M9).
+ * and trust weighting never gates the positive side.
  *
- * <p>Duplicate dampening (M9, D3): a {@code NON_EXISTENT} report is
+ * <p>Duplicate dampening (D3): a {@code NON_EXISTENT} report is
  * stored {@code damped} when the reporter holds their own other USER
  * listing of the same place (same normalized name within
  * {@code app.limits.duplicate-coord-meters} haversine, any status) — a
@@ -90,7 +90,7 @@ public class ShelterReportService {
     private final ReportActionLog actionLog;
     private final ModerationAuditLog audit;
     private final Clock clock;
-    /** The M3 near-duplicate haversine tolerance — one spelling of the duplicate rule (M9, D3). */
+    /** The near-duplicate haversine tolerance — one spelling of the duplicate rule (D3). */
     private final double duplicateCoordMeters;
 
     public ShelterReportService(ShelterRepository shelters,
@@ -114,7 +114,7 @@ public class ShelterReportService {
     /**
      * Stores the user's report for a shelter.
      *
-     * @return {@code true} when the stored report was dampened (M9, D3)
+     * @return {@code true} when the stored report was dampened (D3)
      *         — recorded, flagged in the admin queue, contributing 0 to
      *         the weighted hide tally
      * @throws NotVerifiedException         guest or unverified registered user (→ 403)
@@ -135,7 +135,7 @@ public class ShelterReportService {
         boolean damped = false;
         boolean reachesAutoHide = false;
         if (type == ShelterReportType.NON_EXISTENT) {
-            // M9: the negative half of the self-moderation loop is
+            // The negative half of the self-moderation loop is
             // trust-weighted and dampened; the positive half below is
             // untouched (the locked auto-trust).
             damped = isDampenedFor(user.getId(), shelter);
@@ -233,7 +233,7 @@ public class ShelterReportService {
     }
 
     /**
-     * The shelter's current trust-weighted hide tally (M9, D2) — the sum
+     * The shelter's current trust-weighted hide tally (D2) — the sum
      * of the weights of its distinct {@code NON_EXISTENT} reporters,
      * dampened reports contributing 0, admin-dismissed reports excluded
      * entirely (one row per reporter by the (shelter, user, type)
@@ -246,7 +246,7 @@ public class ShelterReportService {
     }
 
     /**
-     * The reporter's derived trust weight (M9, D1): re-derived from the
+     * The reporter's derived trust weight (D1): re-derived from the
      * rows that already exist — the reporter's own submissions and the
      * moderation audit trail. No stored score, no drift; a rolled-back
      * report leaves no score behind.
@@ -260,12 +260,12 @@ public class ShelterReportService {
     }
 
     /**
-     * The duplicate dampening (M9, D3): {@code true} when the reporter
+     * The duplicate dampening (D3): {@code true} when the reporter
      * holds their OWN other USER listing of the same place — the same
      * normalized name within {@code duplicateCoordMeters} haversine of
      * the reported shelter, the reporter's row in ANY status (a deleted
      * row is simply gone, so it cannot damp), the target row itself
-     * excluded. Reuses the M3 duplicate rule's statics — one spelling of
+     * excluded. Reuses the duplicate rule's statics — one spelling of
      * "duplicate" in the codebase.
      */
     private boolean isDampenedFor(long reporterId, Shelter target) {
@@ -281,7 +281,7 @@ public class ShelterReportService {
     }
 
     /**
-     * The 4→5 auto-hide (M9: the weighted-tally crossing), the ONLY path
+     * The 4→5 auto-hide (the weighted-tally crossing), the ONLY path
      * that auto-hides (D1): an ACTIVE shelter whose disarm flag is still
      * {@code false} becomes INACTIVE. A manual status change or a
      * disarmed flag leaves the shelter alone.
@@ -316,7 +316,7 @@ public class ShelterReportService {
     }
 
     /**
-     * M11 (factual report fields): {@code detail} is the factual substance
+     * {@code detail} is the factual substance
      * of the factual report types — the "when" of a {@code CLOSED} report,
      * the actual address of a {@code WRONG_LOCATION} report, the free text
      * of {@code OTHER} — and is stored for them. The binary types

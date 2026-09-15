@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Audit log for registry import runs (official-dataset-csv, M5).
+ * Audit log for registry import runs (official-dataset-csv).
  *
  * <p>One row per run of {@code ShelterImportService.importFromRegistry()} —
  * a successful apply ({@code OK}), a registry-down abort ({@code FAILED}),
@@ -18,8 +18,8 @@ import java.util.Optional;
 public interface DataImportLog {
 
     /**
-     * The run statuses that VERIFY a source's rows (last-verified-meta
-     * M8): {@code OK} (data applied) and {@code NOT_MODIFIED} (a 304
+     * The run statuses that VERIFY a source's rows (last-verified-meta):
+     * {@code OK} (data applied) and {@code NOT_MODIFIED} (a 304
      * re-check — the rows are confirmed current as of that run). A
      * {@code FAILED} or {@code SKIPPED} run verifies nothing.
      */
@@ -52,7 +52,7 @@ public interface DataImportLog {
     /**
      * The newest row for one source with a verifying status
      * ({@link #VERIFIED_STATUSES}) — the "last verified" stamp for that
-     * source's rows (M8); empty when the source has no verified run yet.
+     * source's rows; empty when the source has no verified run yet.
      */
     Optional<Row> findLatestVerifiedBySource(String sourceName);
 }

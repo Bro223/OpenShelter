@@ -21,7 +21,7 @@ public interface ShelterReportRepository {
 
     /**
      * The newest {@code OPEN_CONFIRMED} report per (shelter, reporter) for
-     * the given shelter ids in ONE query (last-verified-meta M8). The
+     * the given shelter ids in ONE query (last-verified-meta). The
      * reporter id rides along so the projection can drop the submitter's
      * own report — a self-confirm is never a verification. Admin-dismissed
      * reports are excluded — the dismissal is the admin's invalid verdict,
@@ -34,7 +34,7 @@ public interface ShelterReportRepository {
 
     /**
      * One distinct reporter of a given type for one shelter, with the
-     * stored damp flag (community-self-moderation M9, D3) — the input of
+     * stored damp flag (community-self-moderation, D3) — the input of
      * the weighted auto-hide tally. The (shelter, user, type) uniqueness
      * makes one row per reporter.
      */
@@ -47,7 +47,7 @@ public interface ShelterReportRepository {
 
     /**
      * The distinct reporters of one type for one shelter with their damp
-     * flag (M9, D3) — the weighted auto-hide tally input (one query).
+     * flag (D3) — the weighted auto-hide tally input (one query).
      * Admin-dismissed reports are excluded — the dismissal is the admin's
      * invalid verdict, so the report stops influencing the tally.
      */
@@ -62,7 +62,7 @@ public interface ShelterReportRepository {
      */
     List<ReportTypeCount> countByTypeForShelterIds(Collection<Long> shelterIds);
 
-    /** Batched newest OPEN_CONFIRMED per (shelter, reporter) — the "last verified" input (M8). */
+    /** Batched newest OPEN_CONFIRMED per (shelter, reporter) — the "last verified" input. */
     List<ConfirmedAt> latestOpenConfirmedByShelterIds(Collection<Long> shelterIds);
 
     /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation D3). */

@@ -14,7 +14,7 @@ public interface SpringDataPendingContactChangeRepository extends JpaRepository<
     Optional<PendingContactChangeEntity> findByUserIdAndType(Long userId, ContactChangeType type);
 
     /**
-     * S2 (2026-09-11 review): atomic attempts increment — the ROW is the
+     * Atomic attempts increment — the ROW is the
      * lock. A concurrent burst of wrong-code confirms each bumps the counter
      * once instead of all writing attempts=k+1 from a stale read. Updates 0
      * rows when the row is already at (or past) the cap.

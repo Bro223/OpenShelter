@@ -17,7 +17,7 @@ import java.time.Instant;
  * purpose: the full registry record (county, municipality, data-as-of,
  * attribution) is stored locally but not dumped here — the UI gets only
  * what the map needs. {@code description}/{@code capacity} are
- * USER-submission details (stored since the V3 hardening pass).
+ * USER-submission details (stored since the V3 migration).
  * {@code submitterVerified} is {@code true} when the shelter's creator exists
  * and has a completed verification, {@code false} for registry shelters (no
  * author) and for creators whose account no longer exists
@@ -49,7 +49,7 @@ import java.time.Instant;
  * with the "Private location" badge). {@code reviewNote} is the admin's
  * REJECT reason, {@code null} while nothing is said.
  *
- * <p>Provenance taxonomy (shelter-provenance-taxonomy M6): {@code provenance}
+ * <p>Provenance taxonomy (shelter-provenance-taxonomy): {@code provenance}
  * is the server-derived single answer to "where does this row come from"
  * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW /
  * REPORTED_INACTIVE / REJECTED — see {@link Provenance} for the derivation
@@ -57,7 +57,7 @@ import java.time.Instant;
  * public list; the hidden two ride on the detail, {@code /mine} and admin
  * projections. The UI never re-derives it.
  *
- * <p>Last-verified meta (last-verified-meta M8): {@code reportCount} is the
+ * <p>Last-verified meta (last-verified-meta): {@code reportCount} is the
  * TOTAL community shelter-report count (all types; {@code nonexistentReports}
  * stays the NON_EXISTENT subset that drives the orange "Reported" badge),
  * and {@code lastVerifiedAt} is the per-entry verification stamp — registry
@@ -67,14 +67,14 @@ import java.time.Instant;
  * action. {@code null} = never verified (the UNDER_REVIEW "not yet verified"
  * signal on the UI).
  *
- * <p>Information request (moderation-dashboard-completion M10 slice 3):
+ * <p>Information request (moderation-dashboard-completion):
  * {@code infoRequest} is the moderator→submitter exchange for this row —
  * set on the {@code /mine} projection ONLY (the submitter's own surface);
  * {@code null} on the public list and detail reads (the exchange is
  * private between the admin and the author). The admin's own view carries
  * it on {@link AdminShelterDto} instead, with the requester's name.
  *
- * <p>Mark inaccurate (moderation-dashboard-completion M10 slice 4):
+ * <p>Mark inaccurate (moderation-dashboard-completion):
  * {@code inaccurate} is the server-derived moderator flag (the V20 stamp on
  * the row is set — idempotent mark/clear behind the admin endpoints). A
  * marked row stays visible with status and provenance untouched; the UI
@@ -194,7 +194,7 @@ public record ShelterDto(
     }
 
     /**
-     * The moderator→submitter information request of this row (M10 slice 3)
+     * The moderator→submitter information request of this row
      * — the {@code /mine} projection only (null on the public list and
      * detail reads). {@code replyMessage}/{@code repliedAt} are null until
      * the submitter has answered (one-time reply; the row is kept after).

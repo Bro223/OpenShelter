@@ -1,5 +1,5 @@
 /**
- * Pre-paint boot logic (F-11): the two inline <head> scripts in index.html
+ * Pre-paint boot logic: the two inline <head> scripts in index.html
  * apply the persisted theme and UI language BEFORE the app bundle paints —
  * no theme flash/FOUC, and <html lang> is correct for screen readers /
  * spellcheck from first paint. The inline scripts stay the page's entry

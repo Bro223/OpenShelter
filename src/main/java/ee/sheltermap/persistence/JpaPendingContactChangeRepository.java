@@ -13,7 +13,7 @@ import java.util.Optional;
 /**
  * JPA implementation of {@link PendingContactChangeRepository} (approach B —
  * plain domain class + separate entity, mirroring {@code PendingVerification}).
- * PII-at-rest (M2): the target contact is stored encrypted — the domain
+ * PII-at-rest: the target contact is stored encrypted — the domain
  * object keeps the plain value.
  */
 @Repository
@@ -46,7 +46,7 @@ public class JpaPendingContactChangeRepository implements PendingContactChangeRe
     @Override
     @Transactional
     public int incrementAttempts(Long id, int maxAttempts) {
-        // S2: the conditional UPDATE is the atomic increment — row count 0
+        // The conditional UPDATE is the atomic increment — row count 0
         // means "already at the cap" (another confirm won the race) or the
         // row is gone.
         return changes.incrementAttempts(id, maxAttempts);

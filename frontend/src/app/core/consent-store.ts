@@ -2,8 +2,8 @@ import { Injectable, signal } from '@angular/core';
 
 /**
  * Where the first-level data-usage decision lives in localStorage. The app
- * has NO optional cookies, trackers or analytics (see the frontend README
- * and the M3 cookie audit), so the only stored decision is the necessary-
+ * has NO optional cookies, trackers or analytics (see the frontend README),
+ * so the only stored decision is the necessary-
  * only acknowledgment. It mirrors the ThemeStore persistence shape: a key
  * constant + try/catch so private-mode storage degrades to a session-only
  * acknowledgment that simply re-asks on the next load.

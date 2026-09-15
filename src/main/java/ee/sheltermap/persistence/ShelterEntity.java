@@ -75,7 +75,7 @@ public class ShelterEntity {
     private Instant createdAt;
 
     /**
-     * Optimistic-lock counter (B7b, column added by the V8 migration).
+     * Optimistic-lock counter (column added by the V8 migration).
      * A concurrent writer bumps it between a reader's SELECT and UPDATE,
      * the UPDATE matches zero rows and the flush raises an
      * {@code OptimisticLockException} instead of silently clobbering.
@@ -89,7 +89,7 @@ public class ShelterEntity {
 
     /**
      * Auto-hide disarm flag (V9, D1): while FALSE the 5th NON_EXISTENT
-     * report may auto-hide the shelter; the admin restore (later change)
+     * report may auto-hide the shelter; the admin restore
      * sets it TRUE.
      */
     @Column(name = "auto_hide_disarmed", nullable = false)
@@ -115,7 +115,7 @@ public class ShelterEntity {
     @Column(name = "location_kind", nullable = false, length = 10)
     private LocationKind locationKind;
 
-    /** "Mark inaccurate" stamp (V20, M10 slice 4); NULL = not marked. */
+    /** "Mark inaccurate" stamp (V20); NULL = not marked. */
     @Column(name = "inaccurate_marked_at")
     private Instant inaccurateMarkedAt;
 

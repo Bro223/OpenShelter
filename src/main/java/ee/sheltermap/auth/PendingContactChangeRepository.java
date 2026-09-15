@@ -17,9 +17,8 @@ public interface PendingContactChangeRepository {
      * Atomically increments the attempts counter of the row with the given
      * id — the increment happens IN THE STORE (a single conditional UPDATE),
      * not as a read-modify-write round trip, so a concurrent burst of
-     * wrong-code confirms cannot lose each other's counts (S2,
-     * 2026-09-11 review: each request used to read attempts=k and write
-     * k+1, so a burst added one, not N).
+     * wrong-code confirms cannot lose each other's counts: a read-modify-write
+     * cycle would add one attempt per burst, not N).
      *
      * @param id          the pending change row
      * @param maxAttempts increment only while the stored counter is below

@@ -22,14 +22,14 @@ public class VerificationClaim {
     public VerificationClaim(VerificationLevel level, String provider, String externalRef, Instant verifiedAt) {
         this.level = Objects.requireNonNull(level, "level");
         this.provider = Objects.requireNonNull(provider, "provider");
-        // May be null: a legacy row whose stored ref is blank (pre-M1 dev
-        // DB) carries no external reference.
+        // May be null: a legacy row whose stored ref is blank carries no
+        // external reference.
         this.externalRef = externalRef;
         this.verifiedAt = Objects.requireNonNull(verifiedAt, "verifiedAt");
     }
 
     /**
-     * Full-state constructor used by the persistence layer (Step 3) to
+     * Full-state constructor used by the persistence layer to
      * restore a previously revoked claim from storage.
      */
     public VerificationClaim(VerificationLevel level, String provider, String externalRef,

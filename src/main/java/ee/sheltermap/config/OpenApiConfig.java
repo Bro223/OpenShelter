@@ -26,16 +26,16 @@ import org.springframework.context.annotation.Configuration;
 import java.util.List;
 
 /**
- * The OpenAPI document assembly (SW wave): metadata, the bearer security
+ * The OpenAPI document assembly: metadata, the bearer security
  * scheme, the uniform error contract and the group split.
  *
  * <p>The document is a complete map of the attack surface, so it is
  * dev-gated twice: {@code SPRINGDOC_ENABLED} defaults to false in both
  * {@code application.yml} files, and {@link ApiDocsGuard} refuses to boot
  * on a non-dev/test profile when the flag is set (a copied dev {@code .env}
- * must never publish the admin API map). The security chain (SW-C1, owned
- * by the backend workstream) additionally permits {@code /v3/api-docs/**}
- * + {@code /swagger-ui/**} only under dev/test.
+ * must never publish the admin API map). The security chain additionally
+ * permits {@code /v3/api-docs/**} + {@code /swagger-ui/**} only under
+ * dev/test.
  *
  * <p>Metadata sources this document points at:
  * {@code context-and-tasks/05-shelter-api.puml} (the read contract, cited by

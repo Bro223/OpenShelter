@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the shelter report + occupancy service
- * (shelter-trust-and-reports D1/D3/D4, community-self-moderation M9):
+ * (shelter-trust-and-reports D1/D3/D4, community-self-moderation):
  * the verified gate, 404s, the per-target duplicate 409 (before any
  * throttle budget is consumed), the per-hour throttle 429, the
  * trust-weighted 5-point auto-hide (five baseline reporters still hide
@@ -128,8 +128,8 @@ class ShelterReportServiceTest {
     }
 
     /**
-     * The stored reports of one type for one shelter — the observation the
-     * (production-dead) repository count used to be pulled through.
+     * The stored reports of one type for one shelter, counted over the
+     * in-memory repository's rows.
      */
     private long storedReports(long shelterId, ShelterReportType type) {
         return reports.findAll().stream()
@@ -167,7 +167,7 @@ class ShelterReportServiceTest {
                         .filter(r -> r.getType() == ShelterReportType.OTHER)
                         .findFirst().orElseThrow().getDetail())
                 .isEqualTo("põhjendus");
-        // M11: the factual types keep their detail
+        // the factual types keep their detail
         assertThat(reports.findAll().stream()
                         .filter(r -> r.getType() == ShelterReportType.CLOSED)
                         .findFirst().orElseThrow().getDetail())
@@ -475,7 +475,7 @@ class ShelterReportServiceTest {
         assertThat(audit.rows()).isEmpty();
     }
 
-    // ---------- trust-weighted auto-hide (community-self-moderation M9) ----------
+    // ---------- trust-weighted auto-hide (community-self-moderation) ----------
 
     /** A reporter with one CONFIRMED USER submission of their own (weight 2), far from the target. */
     private RegisteredUser trustedUser(String name) {
@@ -518,7 +518,7 @@ class ShelterReportServiceTest {
                 .isEqualTo(ShelterStatus.INACTIVE);
     }
 
-    /** The rival's own listing of the same place — the dampening vector (M9, D3). */
+    /** The rival's own listing of the same place — the dampening vector (D3). */
     private RegisteredUser rivalWithOwnListing(String name, boolean ownRowActive) {
         RegisteredUser u = user(name, true);
         Shelter own = new Shelter("Kesklinna varjend", new GeoPoint(59.4001, 24.7001),

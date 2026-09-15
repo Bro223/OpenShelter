@@ -7,9 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 /**
  * OpenShelter backend — application entry point.
  *
- * <p>Step 0: project skeleton only. No endpoints, no business logic yet;
- * the packages {@code domain}, {@code app}, {@code verification}, {@code auth},
- * {@code ingestion}, {@code api}, {@code persistence} are filled in later steps.</p>
+ * <p>The packages {@code domain}, {@code app}, {@code verification},
+ * {@code auth}, {@code ingestion}, {@code api} and {@code persistence} hold
+ * the application code; this class is the entry point only.</p>
  */
 @SpringBootApplication
 @ConfigurationPropertiesScan

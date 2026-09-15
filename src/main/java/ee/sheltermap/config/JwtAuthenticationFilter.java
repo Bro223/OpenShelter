@@ -17,14 +17,14 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Spring-side implementation of {@link JwtTokenService} validation (Step 4).
+ * Spring-side implementation of {@link JwtTokenService} validation.
  *
  * <p>Reads {@code Authorization: Bearer &lt;accessToken&gt;}, validates the
  * JWT and, on success, sets an {@link org.springframework.security.core.Authentication}
  * whose principal is the user id and whose authorities carry the single
  * {@code ADMIN} grant — ONLY from a fresh per-request, column-only
  * {@code UserRepository.isAdmin} read (never a token claim, never a blanket
- * grant): the {@code /admin/**} chain matcher (B6, 2026-09-15 hardening)
+ * grant): the {@code /admin/**} chain matcher
  * needs the authority, and a demoted admin loses it on the very next
  * request, like the suspension read below. Invalid/missing/expired tokens
  * leave the
@@ -33,7 +33,7 @@ import java.util.List;
  * explicitly in the filter chain to avoid double execution as a servlet
  * filter.
  *
- * <p>Suspension (moderation-dashboard-completion M10 slice 1): a VALID token
+ * <p>Suspension (moderation-dashboard-completion): a VALID token
  * of a SUSPENDED account authenticates nothing — a fresh {@code
  * UserRepository.isSuspended} column-only read per token-bearing request
  * (the admin-moderation D2 idiom: the DB is the truth, never a token claim)
@@ -42,7 +42,7 @@ import java.util.List;
  * the filter runs on every token-bearing request and must not pay the
  * domain mapping (PII decrypt) or trip a demoted admin's null phone. A
  * DELETED account is the opposite case and keeps the erasure contract
- * (legal-recovery M4 slice 2): unknown ids answer false, the JWT stays
+ * (legal-recovery): unknown ids answer false, the JWT stays
  * valid until expiry (the repeat DELETE /account stays a 204 no-op).
  */
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -63,11 +63,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             try {
                 Long userId = tokenService.validateAccessToken(token);
-                // A suspended account's in-flight tokens die here (M10
-                // slice 1): the fresh column read, not the token, is the
+                // A suspended account's in-flight tokens die here: the fresh
+                // column read, not the token, is the
                 // truth (deleted accounts authenticate as before — false).
                 if (userId != null && !users.isSuspended(userId)) {
-                    // B6 (2026-09-15 hardening): the /admin/** chain matcher
+                    // The /admin/** chain matcher
                     // needs the ADMIN authority — granted ONLY from this
                     // fresh per-request kind read (same column-only idiom
                     // as the isSuspended check above, never a token claim).

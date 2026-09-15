@@ -87,7 +87,7 @@ export class LeafletService {
   markerClick: ((shelterId: number) => void) | null = null;
 
   /**
-   * Set by the page (M5 /submit mini-map); invoked with [lat, lng] whenever
+   * Set by the page (the /submit mini-map); invoked with [lat, lng] whenever
    * the map surface is clicked or the pick marker is dragged.
    */
   mapClick: ((latitude: number, longitude: number) => void) | null = null;
@@ -95,7 +95,7 @@ export class LeafletService {
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
   private pickMarker: L.Marker | null = null;
-  /** The browse anchor pin (location-navigation M12, /map address search):
+  /** The browse anchor pin (location-navigation, /map address search):
    *  its OWN field — it must coexist with the shelter markers, so it is
    *  never added to (or cleared by) the markers layer group. */
   private anchorMarker: L.Marker | null = null;
@@ -172,7 +172,7 @@ export class LeafletService {
   /**
    * Centers the map on the point. `zoom` is optional: when given, fly AND
    * zoom to that level (the street-level shelter view, SHELTER_ZOOM); when
-   * omitted, keep the current zoom (the original M4 country-level behaviour).
+   * omitted, keep the current zoom (the country-level behaviour).
    */
   flyTo(latitude: number, longitude: number, zoom?: number): void {
     if (zoom === undefined) {
@@ -231,7 +231,7 @@ export class LeafletService {
   }
 
   /**
-   * Drops (or moves) the single location-pick marker (M5 /submit mini-map).
+   * Drops (or moves) the single location-pick marker (the /submit mini-map).
    * Draggable: a drag-end reports the new point through `mapClick`, so the
    * page's signals stay the single source of truth. Null args remove the
    * marker. No-ops before create / after destroy.
@@ -271,8 +271,8 @@ export class LeafletService {
   }
 
   /**
-   * Drops (or moves) the single BROWSE ANCHOR pin (location-navigation
-   * M12, /map address search): the searched address the per-row
+   * Drops (or moves) the single BROWSE ANCHOR pin (location-navigation,
+   * /map address search): the searched address the per-row
    * distances are measured from. NON-draggable and non-interactive —
    * unlike the /submit pick marker, the anchor is derived from a geocoded
    * address, not freehand: dragging it would move the reference point to

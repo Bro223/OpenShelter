@@ -171,11 +171,11 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
     @Test
     void wrongCodesLockOutTheConfirmEndpointAndPersistAttempts() throws Exception {
-        // H2 (2026-09-10 review): the confirm endpoint is NOT rate-bucketed,
+        // The confirm endpoint is NOT rate-bucketed,
         // so the 5-attempt lockout on the pending row is the only
         // brute-force guard. Every failed attempt must PERSIST across calls
-        // — the old throw-inside-@Transactional rolled the increment back on
-        // each wrong code and the lockout was unreachable over HTTP.
+        // — a throw inside @Transactional rolls the increment back on
+        // each wrong code, so the lockout is unreachable over HTTP.
         String token = registerAndLogin();
         mvc.perform(post("/account/email-change/request")
                         .header("Authorization", "Bearer " + token)
@@ -224,7 +224,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                 .andExpect(status().isAccepted());
         String changeCode = codeFrom(sms.last().message());
 
-        // P2 race: another account claims that address before A confirms
+        // The race: another account claims that address before A confirms
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Konkurent\",\"email\":\"vaidlustatud@example.ee\","
                                 + "\"phone\":\"+37250007777\",\"password\":\"s3cret123\"}"))

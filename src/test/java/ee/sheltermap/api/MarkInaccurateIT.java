@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the admin "mark inaccurate" flag
- * (moderation-dashboard-completion M10 slice 4) — full-stack MockMvc
+ * (moderation-dashboard-completion) — full-stack MockMvc
  * against the real services, security chain, JWT filter and Postgres:
  * the mark (204, USER rows only — registry 409, unknown 404) sets the
  * V20 stamp and the public {@code inaccurate} flag on the list, the

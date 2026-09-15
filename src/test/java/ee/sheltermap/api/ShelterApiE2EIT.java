@@ -33,8 +33,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>The whole flow runs over real HTTP (MockMvc) with the real security
  * chain, JWT filter, services and Postgres. Verification is driven through
- * the REAL {@link VerificationService} bean (W18: the hand-built service with
- * a throwaway in-memory send log is gone) — the e-mail channel is still
+ * the REAL {@link VerificationService} bean and its durable send log, not a
+ * hand-built double — the e-mail channel is still
  * stubbed to the capturing dev sender via the {@code @Primary} bean below,
  * so the token can be read out of the "sent" message. The durable send log
  * is isolated per JVM run by {@link AbstractPersistenceIT}.

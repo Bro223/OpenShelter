@@ -1,6 +1,6 @@
 # Spec Delta: shelter-reports (factual-reports-rating-demotion, M11)
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Typed shelter reports
 

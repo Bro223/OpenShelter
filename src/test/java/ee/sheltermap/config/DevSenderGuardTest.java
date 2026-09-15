@@ -8,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the fail-closed dev-sender guard (2026-09-10 review H3):
+ * Unit tests for the fail-closed dev-sender guard:
  * the check keys on the ACTIVE PROFILES — the ENVIRONMENT's resolved set
- * (S3, 2026-09-11 review: profile groups/defaults are only visible there,
+ * (profile groups/defaults are only visible there,
  * not in the raw property string) — a blank profile set or any non-dev/test
  * profile with a dev (or blank) mail/sms provider is refused, the same way
  * {@code production} is.
@@ -65,7 +65,7 @@ class DevSenderGuardTest {
 
     @Test
     void mixedProfileWithAProductionEntryIsRefused() {
-        // M2: "production,dev" is not a dev deploy — the exemption needs the
+        // "production,dev" is not a dev deploy — the exemption needs the
         // ENTIRE active set to be a subset of {dev, test}.
         assertThatThrownBy(() -> new DevSenderGuard(env("production", "dev"), "dev", "dev"))
                 .isInstanceOf(IllegalStateException.class);

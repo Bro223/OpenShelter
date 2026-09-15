@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the last-verified meta (last-verified-meta M8) — full-
+ * Acceptance IT for the last-verified meta (last-verified-meta) — full-
  * stack MockMvc against the real services, security chain, JWT filter and
  * Postgres: the per-entry {@code lastVerifiedAt} stamp (registry rows from
  * the newest verifying import; community rows from the newest non-submitter

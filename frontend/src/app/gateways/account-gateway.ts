@@ -63,8 +63,8 @@ export class AccountGateway {
   }
 
   /**
-   * GET /account/export -> the caller's own data in one document (M4
-   * legal/recovery, slice 1): profile + shelters. The page turns the body
+   * GET /account/export -> the caller's own data in one document
+   * (legal-recovery): profile + shelters. The page turns the body
    * into a downloadable JSON file.
    */
   exportData(): Promise<DataExportResponse> {
@@ -72,7 +72,7 @@ export class AccountGateway {
   }
 
   /**
-   * DELETE /account -> 204 (M4 legal/recovery, slice 2): the account
+   * DELETE /account -> 204 (legal-recovery): the account
    * erasure — the backend purges the declared private-home shelters,
    * orphans the public community rows and cascades the rest. A repeat
    * call is a no-op, so a double click never hard-fails.

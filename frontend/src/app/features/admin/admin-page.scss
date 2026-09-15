@@ -52,8 +52,8 @@
 }
 
 /* ---- shelters table -------------------------------------------------------- */
-/* Keyboard handle for the horizontally scrollable tables (accessibility F-02,
-   WCAG 2.1.1): each wrapper is a labelled, focusable region (tabindex="0" +
+/* Keyboard handle for the horizontally scrollable tables (WCAG 2.1.1):
+   each wrapper is a labelled, focusable region (tabindex="0" +
    role="region" in the template), so a keyboard user can scroll it and the
    focus ring shows which table has focus. */
 .admin-table-wrap {
@@ -128,7 +128,7 @@
   margin-left: var(--space-4);
 }
 
-/* Marked-inaccurate line under the row name (M10 slice 4): the single-
+/* Marked-inaccurate line under the row name: the single-
    sourced warning sentence in the warning tone — a caveat, not the crisis
    orange (the same token pair as the badge). */
 .admin-inaccurate {
@@ -143,7 +143,7 @@
   font-weight: var(--font-weight-medium);
 }
 
-/* Inline edit-history panel (M10 slice 2): a muted, small, read-only
+/* Inline edit-history panel: a muted, small, read-only
    expansion under the shelter row — one line per event, the field
    changes wrap under their event on narrow widths. */
 .admin-history {
@@ -269,7 +269,7 @@
     color: var(--color-muted);
   }
 
-  /* "Inaccurate" (M10 slice 4): the moderator flag — the warning token
+  /* "Inaccurate": the moderator flag — the warning token
      pair (the same amber the public UI uses for the fresh-CLOSED badge). */
   &.badge--inaccurate {
     background: var(--color-warning-bg);

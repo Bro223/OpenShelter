@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the PII-at-rest crypto core (M2): the AES-GCM {@code v1:}
+ * Unit tests for the PII-at-rest crypto core: the AES-GCM {@code v1:}
  * envelope, the HMAC-SHA256 blind index, and the fail-closed key
  * validation. Pure unit — no Spring context, no database.
  */

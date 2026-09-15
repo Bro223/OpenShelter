@@ -85,7 +85,7 @@ class LocationResolveServiceTest {
 
     @Test
     void entryWithNonDefaultPortIsNotFoundAndNeverFetched() {
-        // n1: http://maps.app.goo.gl:8080/ must fail the entry check — the
+        // http://maps.app.goo.gl:8080/ must fail the entry check — the
         // whitelist is host AND default port, not just host
         assertThatNotFound(service.resolve("http://maps.app.goo.gl:8080/abc"));
         assertThat(client.fetches).isZero();
@@ -93,7 +93,7 @@ class LocationResolveServiceTest {
 
     @Test
     void httpEntryIsUpgradedToHttpsBeforeTheFirstFetch() {
-        // S5 (2026-09-11 review): a pasted http://maps.app.goo.gl/… link is
+        // A pasted http://maps.app.goo.gl/… link is
         // legitimate — Google upgrades it to https on the first hop, and
         // the no-scheme-change rule would reject THAT hop without the entry
         // upgrade (502 for a valid link). The walk must start on https.
@@ -110,7 +110,7 @@ class LocationResolveServiceTest {
 
     @Test
     void entryUserInfoIsStrippedBeforeTheFirstFetch() {
-        // S6 (2026-09-11 review): a pasted https://user:pass@maps.app.goo.gl/…
+        // A pasted https://user:pass@maps.app.goo.gl/…
         // entry passes the host check but must not transmit an
         // Authorization: Basic header to Google — the userInfo is dropped
         // when the entry is normalized.
@@ -199,7 +199,7 @@ class LocationResolveServiceTest {
         assertThatNotFound(service.resolve(START));
     }
 
-    // ---------- hop re-validation (M1) — violations are rejected BEFORE any fetch ----------
+    // ---------- hop re-validation — violations are rejected BEFORE any fetch ----------
 
     @Test
     void hopToCloudMetadataIpIsUpstreamFailureAndNeverFetched() {

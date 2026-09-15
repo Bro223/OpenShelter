@@ -25,19 +25,20 @@ type ChangePhase = 'form' | 'code' | 'done';
  * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
  * 03 puml):
  *  - IDENTITY: name with a password-confirmed inline edit form (no national
- *    ID code is collected anywhere — remove-national-id M1)
+ *    ID code is collected anywhere — remove-national-id)
  *  - CONTACTS: email + phone rows showing the REAL value from the fetched
  *    profile, a verified label when the level is in the real claim set, or a
  *    "Complete verification" CTA deep-linking /verify
- *  - CHANGE PANELS: the M3 cross-channel email/phone change flows, ported.
+ *  - CHANGE PANELS: the cross-channel email/phone change flows.
  *  - MY CONTRIBUTIONS (user-contributions): the caller's own shelters in one
  *    panel — inline edit + two-step delete (ContributionsPanel, its own
- *    loading/empty/error state). The reviews list went with the review model.
+ *    loading/empty/error state). There is no reviews list — the app has no
+ *    review model.
  *
  * All values come from the REAL profile in AuthStore (GET /account/me,
  * fetched at boot/login). After any claims-changing event (contact change) or
  * a profile edit the page calls `refreshProfile()`, so labels and values are
- * always server state — the old "session-only current value" caveat is gone.
+ * always server state — no session-only copy of a value.
  *
  * Cross-channel rule (backend-enforced, mirrored in the copy — never
  * re-implemented): changing EMAIL is proven by an SMS code to the CURRENT
@@ -210,9 +211,9 @@ export class AccountPage implements OnDestroy {
       const ack = await this.account.requestEmailChange(target);
       this.emailCountdown.start(ack.resendAvailableAfterSeconds ?? 60);
       this.emailPhase.set('code');
-      // Reviewer F5: the backend pins the target at request time — lock the
-      // target input for the rest of the flow via the control's disabled
-      // state (FormControlDirective swallows a [disabled] property binding).
+      // The backend pins the target at request time — lock the target input
+      // for the rest of the flow via the control's disabled state
+      // (FormControlDirective swallows a [disabled] property binding).
       this.newEmail.disable();
     } catch (error) {
       this.startCountdownFromThrottle(error, this.emailCountdown);
@@ -258,8 +259,8 @@ export class AccountPage implements OnDestroy {
 
   emailStartOver(): void {
     this.emailPhase.set('form');
-    // Reviewer N14: a stale confirm error (e.g. the 400 banner from a wrong
-    // code) must not linger in the fresh form phase.
+    // A stale confirm error (e.g. the 400 banner from a wrong code) must
+    // not linger in the fresh form phase.
     this.error.set(null);
     this.newEmail.enable();
     this.emailCode.setValue('');
@@ -285,8 +286,8 @@ export class AccountPage implements OnDestroy {
       const ack = await this.account.requestPhoneChange(target);
       this.phoneCountdown.start(ack.resendAvailableAfterSeconds ?? 60);
       this.phonePhase.set('code');
-      // Reviewer F5: same as the email flow — the target is pinned server-
-      // side at request time and locked client-side for the rest of the flow.
+      // Same as the email flow — the target is pinned server-side at
+      // request time and locked client-side for the rest of the flow.
       this.newPhone.disable();
     } catch (error) {
       this.startCountdownFromThrottle(error, this.phoneCountdown);
@@ -328,7 +329,7 @@ export class AccountPage implements OnDestroy {
 
   phoneStartOver(): void {
     this.phonePhase.set('form');
-    // Reviewer N14: same as emailStartOver — clear the stale error banner.
+    // Same as emailStartOver — clear the stale error banner.
     this.error.set(null);
     this.newPhone.enable();
     this.phoneCode.setValue('');
@@ -361,7 +362,7 @@ export class AccountPage implements OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Delete account (M4 legal/recovery, slice 2): type-to-confirm erasure.
+  // Delete account (legal-recovery): type-to-confirm erasure.
   // -------------------------------------------------------------------------
 
   /** The confirm word the user must type to arm the delete (no window.confirm). */
@@ -370,7 +371,7 @@ export class AccountPage implements OnDestroy {
   });
 
   /** Armed once the confirm word is exactly typed, through the shared
-   *  ConfirmAction (accessibility F-12). `accountDeleteKey` is the single
+   *  ConfirmAction (accessibility): `accountDeleteKey` is the single
    *  arming key on this page (ConfirmAction's attribute-safe token). */
   protected readonly accountDeleteKey = 'account';
   protected readonly accountDeleteConfirm = new ConfirmAction<string>(this.host.nativeElement);
@@ -417,7 +418,7 @@ export class AccountPage implements OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Your data (M4 legal/recovery, slice 1): export download.
+  // Your data (legal-recovery): export download.
   // -------------------------------------------------------------------------
 
   /**

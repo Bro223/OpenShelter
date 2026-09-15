@@ -4,8 +4,7 @@ package ee.sheltermap.auth;
  * Deterministic stand-in for {@link PasswordHasher} — keeps unit tests
  * fast. Mirrors the real Argon2 hasher on the one path the login timing
  * equalizer depends on: the literal password {@code "dummy"} verifies
- * against {@link AuthService#DUMMY_PASSWORD_HASH} (S1, 2026-09-11 review) —
- * the dummy constant is a real Argon2 hash of "dummy" (pinned by
+ * against {@link AuthService#DUMMY_PASSWORD_HASH} — the dummy constant is a real Argon2 hash of "dummy" (pinned by
  * {@code Argon2PasswordHasherTest}), so a stub that forgot this case would
  * exercise a different unknown-contact code path than production.
  */

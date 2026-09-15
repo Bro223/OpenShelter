@@ -33,8 +33,8 @@ public class GuidancePost {
     private Long heroImageId;
     private String heroImageAlt;
     private Instant publishedAt;
-    private final Long createdBy;
-    private final Instant createdAt;
+    private Long createdBy;
+    private Instant createdAt;
     private Instant updatedAt;
 
     private GuidancePost() {

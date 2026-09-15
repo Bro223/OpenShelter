@@ -5,12 +5,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 /** Spring Data repository for {@link GuidancePostEntity} — internal to the persistence layer. */
 public interface SpringDataGuidancePostRepository extends JpaRepository<GuidancePostEntity, Long> {
 
     /** A draft holds a slug too — the V23 unique constraint spans every post. */
-    GuidancePostEntity findBySlug(String slug);
+    Optional<GuidancePostEntity> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
 

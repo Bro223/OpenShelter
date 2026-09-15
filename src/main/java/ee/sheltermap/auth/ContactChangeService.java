@@ -92,7 +92,7 @@ public class ContactChangeService {
     /**
      * Completes an email change once the SMS code is verified.
      *
-     * <p>Mirrors {@code AuthService.resetPassword} (2026-09-10 review H2):
+     * <p>Mirrors {@code AuthService.resetPassword}:
      * the code failure is returned, not thrown — this transaction then
      * COMMITS the failed-attempt increment instead of rolling it back, so
      * the 5-attempt lockout actually holds across HTTP calls. The
@@ -111,7 +111,7 @@ public class ContactChangeService {
         String target = change.getTarget();
         // The target may have been claimed by another account between request
         // and confirm (it was checked at request time only) — re-check, and
-        // convert a DB-level race into the same 409 (P2 fix).
+        // convert a DB-level race into the same 409.
         if (userRepository.findByEmail(target) != null) {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
@@ -153,7 +153,7 @@ public class ContactChangeService {
 
     /**
      * Completes a phone change once the email code is verified (same
-     * return-the-failure shape as {@link #confirmEmailChange} — H2).
+     * return-the-failure shape as {@link #confirmEmailChange}).
      */
     @Transactional
     public ContactChangeResult confirmPhoneChange(RegisteredUser user, String code) {
@@ -163,7 +163,7 @@ public class ContactChangeService {
             return ContactChangeResult.failure(failure);
         }
         String target = change.getTarget();
-        // P2 fix: re-check the target (claimed between request and confirm?)
+        // Re-check the target (claimed between request and confirm?)
         // and convert a DB-level race into the same 409.
         if (userRepository.findByPhone(target) != null) {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
@@ -213,14 +213,14 @@ public class ContactChangeService {
 
     /**
      * Checks the code against the pending change. A WRONG code increments
-     * the attempts ATOMICALLY at the store (a conditional UPDATE — S2,
-     * 2026-09-11 review: the old read-modify-write lost updates under a
+     * the attempts ATOMICALLY at the store (a conditional UPDATE: a
+     * read-modify-write would lose updates under a
      * concurrent wrong-code burst, every request reading attempts=k and
      * writing k+1) and returns the user-facing message — the failure is
      * then committed by the enclosing transaction (the method returns, it
      * never throws for it), which is what makes the lockout persist across
-     * HTTP calls (2026-09-10 review H2: the old throw-inside-transaction
-     * rolled the increment back on every wrong code).
+     * HTTP calls: throwing inside the transaction would
+     * roll the increment back on every wrong code.
      *
      * @return {@code null} when the code verifies; otherwise the 400 message
      *         ("Invalid code" / "Code expired, request a new one" /
@@ -250,7 +250,7 @@ public class ContactChangeService {
 
     /**
      * The user-facing validity window, derived from the configured code TTL
-     * (hardening: the copy must not hardcode a TTL that is configurable).
+     * (the copy must not hardcode a TTL that is configurable).
      */
     private long codeTtlMinutes() {
         return properties.codeTtlSeconds() / 60;

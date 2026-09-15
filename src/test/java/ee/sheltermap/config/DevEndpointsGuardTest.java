@@ -8,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the fail-closed dev-endpoint guard (wave-2, W17): the check
- * keys on the ACTIVE PROFILES — the ENVIRONMENT's resolved set (S3,
- * 2026-09-11 review: profile groups/defaults are only visible there, not in
+ * Unit tests for the fail-closed dev-endpoint guard: the check
+ * keys on the ACTIVE PROFILES — the ENVIRONMENT's resolved set (profile
+ * groups/defaults are only visible there, not in
  * the raw property string) — not on the literal word "prod": a blank
  * profile set or any non-dev/test profile with a dev diagnostic flag enabled
  * is refused the same way {@code production} is.
@@ -35,7 +35,7 @@ class DevEndpointsGuardTest {
 
     @Test
     void mixedProfileWithAProductionEntryIsChecked() {
-        // M2 (2026-09-10 review): "production,dev" is NOT a dev deploy — the
+        // "production,dev" is NOT a dev deploy — the
         // exemption needs the entire active set to be a subset of {dev, test}.
         for (Environment env : new Environment[]{env("production", "dev"), env("dev", "prod")}) {
             assertThatThrownBy(() -> new DevEndpointsGuard(env, true, false))

@@ -78,13 +78,13 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     capacity: null,
     submitterVerified: false,
     nonexistentReports: 0,
-    reportCount: 0, // M8 total (all report types)
+    reportCount: 0, // total (all report types)
     openStatus: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3) — USER fixtures override
     locationKind: 'PUBLIC', // D7 default — no private declaration
-    lastVerifiedAt: null, // M8 — null = never verified
-    inaccurate: false, // M10 slice 4 — no moderator mark on this row
+    lastVerifiedAt: null, // null = never verified
+    inaccurate: false, // no moderator mark on this row
     ...overrides,
   };
 }
@@ -174,8 +174,8 @@ function stubGeolocation(behavior: {
 /** A geolocation fake the test settles BY HAND (locating-state
  *  assertions). Requests are QUEUED in call order — settle()/fail() resolve
  *  them one by one, so a spec can run a first locate to success and a
- *  second to a failure (the F1 regression: a stale `nearest` after a
- *  failed retry). */
+ *  second to a failure (a stale `nearest` after a failed retry is the
+ *  regression under test). */
 function deferredGeolocation(): {
   fake: ReturnType<typeof vi.fn>;
   settle: (position: { latitude: number; longitude: number; accuracy: number }) => void;
@@ -228,7 +228,7 @@ function fakeAuthStore(
   } as unknown as AuthStore;
 }
 
-/** /shelters/:id target for RouterLink navigation (M5 lands the real page). */
+/** /shelters/:id target for RouterLink navigation (the real detail page). */
 @Component({ template: '<p>detail stub</p>' })
 class ShelterDetailStub {}
 
@@ -653,8 +653,8 @@ describe('MapPage', () => {
       const selected = element.querySelector<HTMLElement>('.shelter-row--selected');
       expect(selected).not.toBeNull();
       expect(selected?.textContent).toContain('Community Cellar');
-      // The marker click ALSO zooms now (M4 kept the country zoom — the map
-      // already showed the point; the payoff of a click is the zoom-in).
+      // The marker click ALSO zooms — the map already shows the point, so
+      // the click's payoff is the zoom-in.
       expect(leaflet.flyToCalls).toEqual([[BASEMENT.latitude, BASEMENT.longitude, SHELTER_ZOOM]]);
       // No navigation — the user stays on the map; the details action now
       // exists on the selected row.
@@ -718,7 +718,7 @@ describe('MapPage', () => {
           (a.textContent ?? '').includes('Add shelter'),
         ),
       ).toBe(false);
-      // Geolocation consent line (legal-recovery M4 slice 4): the CTA is
+      // Geolocation consent line (legal-recovery): the CTA is
       // always paired with the "browser asks first / never sent" promise.
       const geoNote = element.querySelector('.map-page__geo-note') as Element | null;
       expect(geoNote).not.toBeNull();
@@ -798,7 +798,7 @@ describe('MapPage', () => {
 
     it('a marked nearest row shows the single-sourced inaccurate warning under the result', async () => {
       // The flagged USER row is nearest: the map's unverified treatment shows
-      // the community line for EVERY USER nearest row, and the M10-slice-4
+      // the community line for EVERY USER nearest row, and the marked-row
       // warning adds the single-sourced "reported inaccurate" line.
       const MARKED = shelter({
         id: 32,
@@ -973,7 +973,7 @@ describe('MapPage', () => {
 
       expect(button.disabled).toBe(true);
       expect(button.textContent).toContain('Finding your location…');
-      // F10: the CTA signals its in-flight state to assistive tech.
+      // The CTA signals its in-flight state to assistive tech.
       expect(button.getAttribute('aria-busy')).toBe('true');
       // The submit page's geolocation options, mirrored (read the real
       // values off the page — a change here is a spec change).
@@ -989,7 +989,7 @@ describe('MapPage', () => {
       expect(button.disabled).toBe(false);
       expect(button.textContent).toContain('Show shelters around you');
       expect(button.getAttribute('aria-busy')).toBe('false');
-      // F10: the success line is an aria status (the error line already
+      // The success line is an aria status (the error line already
       // carries role=alert — asserted in the denied test above).
       expect(element.querySelector('.nearest-line')?.getAttribute('role')).toBe('status');
       // The locate settled: the map flew to the user's position at the
@@ -1119,7 +1119,7 @@ describe('MapPage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Address-search anchor (location-navigation M12): the browse fallback for
+  // Address-search anchor (location-navigation): the browse fallback for
   // the geolocation CTA — the SAME gateway + contract as /submit (client-side
   // Nominatim), rendered in the map sidebar; selecting a result anchors the
   // per-row straight-line distances + the distance sort.
@@ -1233,7 +1233,7 @@ describe('MapPage', () => {
       // The list is empty (the source filter has no matches) when the
       // selection lands: the page re-loads with the CURRENT filter and the
       // nearest row is selected once the load settles.
-      let sourceCalls: ShelterSourceFilter[] = [];
+      const sourceCalls: ShelterSourceFilter[] = [];
       gateway.list.mockImplementation((source: ShelterSourceFilter) => {
         sourceCalls.push(source);
         // First load (initial render): empty. The selection's refresh
@@ -1501,8 +1501,8 @@ describe('MapPage', () => {
   // Practical filter chips (review model gone): "Open" (client-side — the
   // BE has no open/closed param: the loaded list is filtered and the markers
   // re-render, no refetch) and "Has capacity" (server-side ?hasCapacity=).
-  // Both compose with the source chips. (M11 rating demotion + review
-  // removal: no rating or review control of any kind on the map.)
+  // Both compose with the source chips. No rating or review control of any
+  // kind on the map.
   // ---------------------------------------------------------------------------
   describe('practical filter chips (Open + Has capacity)', () => {
     beforeEach(() => {
@@ -1515,7 +1515,7 @@ describe('MapPage', () => {
       );
     });
 
-    /** The two toggle chips of the trust row (M11: no rating control). */
+    /** The two toggle chips of the trust row (no rating control). */
     function trustControls(element: HTMLElement): {
       open: HTMLButtonElement;
       hasCapacity: HTMLButtonElement;
@@ -1726,7 +1726,7 @@ describe('MapPage', () => {
       const { element } = await open('/map');
 
       const badge = element.querySelector('.badge--reported');
-      // M8: the count — the nonexistentReports subset that drives the badge.
+      // The count — the nonexistentReports subset that drives the badge.
       expect(badge?.textContent?.trim()).toBe('Reported (2)');
       // The row keeps its trust badge too (the orange is the single
       // marker affordance; the row text keeps the community label).

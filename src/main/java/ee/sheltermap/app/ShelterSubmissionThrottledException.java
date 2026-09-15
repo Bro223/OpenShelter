@@ -1,8 +1,8 @@
 package ee.sheltermap.app;
 
 /**
- * The caller hit the per-user DAILY shelter-submission cap (abuse-limits
- * M3) — {@code app.limits.daily-submissions-per-user} submissions within
+ * The caller hit the per-user DAILY shelter-submission cap (abuse-limits)
+ * — {@code app.limits.daily-submissions-per-user} submissions within
  * the rolling 24 h window. Maps to HTTP 429 (uniform {@code ErrorResponse})
  * via the global exception handler.
  *

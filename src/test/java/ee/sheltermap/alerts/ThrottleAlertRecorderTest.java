@@ -10,7 +10,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The admin alert ring (abuse-limits M3 slice 4): newest-first ordering,
+ * The admin alert ring (abuse-limits): newest-first ordering,
  * oldest-first eviction past the retention bound, limit clamping, the
  * disabled mode ({@code retained <= 0}) and the subject normalization
  * (the alert's contact subject matches the limiter's bucket key).

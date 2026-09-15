@@ -32,26 +32,39 @@ public interface ModerationAuditLog {
         CONFIRM,
         AUTO_CONFIRM,
         REJECT,
-        // User-scoped rows (moderation-dashboard-completion M10 slice 1):
+        // User-scoped rows (moderation-dashboard-completion):
         // the action has no shelter (shelterId null) and names the target
         // account in subjectUserId.
         USER_SUSPEND,
         USER_UNSUSPEND,
-        // Mark-inaccurate pair (moderation-dashboard-completion M10 slice 4):
+        // Mark-inaccurate pair (moderation-dashboard-completion):
         // shelter-scoped actions on the public `inaccurate` flag (the stamp
         // itself lives on the shelter row, the trail records the decision).
         MARK_INACCURATE,
-        CLEAR_INACCURATE
+        CLEAR_INACCURATE,
+        // Guidance/media rows (crisis-guidance D12): the action names its
+        // subject in the row's subjectLabel (a snapshot — no FK to the new
+        // tables); both shelterId and subjectUserId are null for these rows.
+        GUIDANCE_PUBLISH,
+        GUIDANCE_UNPUBLISH,
+        GUIDANCE_DELETE,
+        MEDIA_DELETE
     }
 
-    /** One audit row as read by the admin projection. */
+    /**
+     * One audit row as read by the admin projection. {@code subjectLabel}
+     * (crisis-guidance D12) is the human-readable subject snapshot of a
+     * guidance/media row (e.g. {@code Guidance post "…" (slug)}); NULL for
+     * every pre-V23 row, and resolved FIRST at read time when present
+     * (shelter/account fallback only when it is null).
+     */
     record Row(Long id, Long shelterId, Long subjectUserId, Long moderatorId, Action action, String reason,
-               ReviewStatus previousStatus, ReviewStatus newStatus, Instant createdAt) {
+               ReviewStatus previousStatus, ReviewStatus newStatus, Instant createdAt, String subjectLabel) {
     }
 
     /**
      * The newest confirming action ({@code CONFIRM} or {@code AUTO_CONFIRM})
-     * per shelter for a batch of ids in ONE query (last-verified-meta M8)
+     * per shelter for a batch of ids in ONE query (last-verified-meta)
      * — a verification stamp on the row. Shelters without a confirming
      * action are absent from the result.
      */
@@ -69,7 +82,7 @@ public interface ModerationAuditLog {
      * REJECTED row is the exception — REJECTED→NEW) and
      * {@code newStatus = null} for DELETE (the row is gone).
      *
-     * <p>User-scoped rows (M10 slice 1): {@code shelterId} is null and
+     * <p>User-scoped rows: {@code shelterId} is null and
      * {@code subjectUserId} names the target account (USER_SUSPEND /
      * USER_UNSUSPEND); shelter-scoped rows pass a non-null {@code
      * shelterId} and a null {@code subjectUserId}.
@@ -78,14 +91,26 @@ public interface ModerationAuditLog {
                 ReviewStatus previousStatus, ReviewStatus newStatus);
 
     /**
+     * Records one guidance/media action in the caller's transaction
+     * (crisis-guidance D12): a row with NO shelter and NO subject account
+     * — the subject is the {@code subjectLabel} snapshot (e.g. {@code
+     * Guidance post "…" (slug)}) that outlives the deleted target, exactly
+     * like a dangling {@code shelter_id} renders "Deleted shelter". The
+     * {@code reason} is the free-text note, when one is given. The
+     * existing {@link #record} signature and every call site of it stay
+     * untouched.
+     */
+    void recordLabeled(long moderatorId, Action action, String subjectLabel, String reason);
+
+    /**
      * The reporter's own rows of one action — the second input of the
-     * derived trust weight (community-self-moderation M9, D1): how many of
+     * derived trust weight (community-self-moderation, D1): how many of
      * the reporter's positive reports caused an AUTO_CONFIRM promotion.
      */
     long countByModeratorAndAction(long moderatorId, Action action);
 
     /**
-     * Erasure redaction (legal-recovery M4 slice 2): nulls the free-text
+     * Erasure redaction (legal-recovery): nulls the free-text
      * {@code reason} on the rows for the given shelters — the note is
      * written to the (possibly erased) submitter and may echo their
      * contacts. The action rows themselves survive (audit integrity).
@@ -99,6 +124,6 @@ public interface ModerationAuditLog {
      */
     List<Row> findLatest(int limit);
 
-    /** Batched newest CONFIRM / AUTO_CONFIRM action per shelter — the "last verified" input (M8). */
+    /** Batched newest CONFIRM / AUTO_CONFIRM action per shelter — the "last verified" input. */
     List<LatestConfirmation> latestConfirmationByShelterIds(Collection<Long> shelterIds);
 }

@@ -14,15 +14,15 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 /**
- * PII-at-rest crypto (M2): AES-256-GCM encryption with a version-tagged
+ * PII-at-rest crypto: AES-256-GCM encryption with a version-tagged
  * envelope, and the HMAC-SHA256 blind index that keeps uniqueness +
  * login lookups working without storing plaintext.
  *
  * <p>Envelope: {@code v1:} + Base64URL(12-byte nonce ‖ ciphertext+tag).
  * The {@code v1:} prefix is the key-slot tag — it lets the V13 migration
  * detect already-converted rows (idempotent reruns) and is the hook for
- * key rotation (a re-encrypting migration writes the next slot tag; see
- * design.md D6). Only the active slot is decryptable by this class; a
+ * key rotation (a re-encrypting migration writes the next slot tag). Only
+ * the active slot is decryptable by this class; a
  * foreign/unversioned value fails closed instead of being guessed.
  *
  * <p>The blind index is deterministic (same canonical contact ⇒ same

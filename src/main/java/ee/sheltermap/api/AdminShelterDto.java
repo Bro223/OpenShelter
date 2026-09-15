@@ -27,20 +27,20 @@ import java.time.Instant;
  * {@code locationKind} is the private-home declaration (the "Private
  * location" badge renders on this surface too).
  *
- * <p>Provenance taxonomy (shelter-provenance-taxonomy M6): {@code provenance}
+ * <p>Provenance taxonomy (shelter-provenance-taxonomy): {@code provenance}
  * is the same server-derived value as on {@link ShelterDto} — this is the
  * one surface where all six values are reachable (the list keeps hidden
  * rows), so the admin badge renders REPORTED_INACTIVE / REJECTED tones
  * here.
  *
- * <p>Information request (moderation-dashboard-completion M10 slice 3):
+ * <p>Information request (moderation-dashboard-completion):
  * {@code infoRequest} is the moderator→submitter exchange for this row —
  * null when none exists. The admin sees the request together with the
  * submitter's reply here (audit posture: the row is kept after the reply),
  * with the requesting admin's profile name ("Unknown" after erasure —
  * no FK on requested_by).
  *
- * <p>Mark inaccurate (moderation-dashboard-completion M10 slice 4):
+ * <p>Mark inaccurate (moderation-dashboard-completion):
  * {@code inaccurate} is the same server-derived flag as on
  * {@link ShelterDto} — the admin list is where the mark is managed, so the
  * row carries the state its Mark/Inaccurate actions toggle.
@@ -90,7 +90,7 @@ public record AdminShelterDto(
         InfoRequest infoRequest) {
 
     /**
-     * The moderator→submitter information request of this row (M10 slice 3);
+     * The moderator→submitter information request of this row;
      * null when none exists. {@code replyMessage}/{@code repliedAt} are null
      * until the submitter has answered (one-time reply; the row is kept
      * after). {@code requestedByName} is the asking admin's profile name —

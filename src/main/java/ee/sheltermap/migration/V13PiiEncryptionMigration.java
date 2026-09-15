@@ -13,7 +13,7 @@ import java.sql.SQLException;
 import java.util.Objects;
 
 /**
- * V13 — PII at rest (M2). One atomic Flyway Java migration:
+ * V13 — PII at rest. One atomic Flyway Java migration:
  *
  * <ol>
  *   <li>widen the five PII text columns to {@code VARCHAR(1024)} (the
@@ -35,7 +35,7 @@ import java.util.Objects;
  *
  * <p>A pre-existing row pair whose canonical contacts collide (e.g. a
  * legacy {@code Foo@x.com} next to {@code foo@x.com} — legal under the old
- * case-SENSITIVE unique index, impossible after the P2 normalization)
+ * case-SENSITIVE unique index, impossible after contact normalization)
  * makes step 4 impossible: the migration then fails loudly with the
  * colliding rows instead of silently destroying data. Dedupe first, then
  * {@code flyway repair} + rerun (fresh databases convert zero rows).

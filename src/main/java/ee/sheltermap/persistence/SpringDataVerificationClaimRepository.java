@@ -14,7 +14,7 @@ public interface SpringDataVerificationClaimRepository extends JpaRepository<Ver
     List<VerificationClaimEntity> findByUserId(Long userId);
 
     /**
-     * Removes exactly the claim rows with the given ids (N10 diff-based
+     * Removes exactly the claim rows with the given ids (diff-based
      * save: only REMOVED claims go away — kept rows keep their ids).
      *
      * <p>Must be a BULK delete ({@code @Modifying}): a derived delete would

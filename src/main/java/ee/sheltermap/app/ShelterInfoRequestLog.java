@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * The moderator→submitter information request (moderation-dashboard-
- * completion M10 slice 3) — ONE row per shelter (the UNIQUE shelter_id
+ * completion) — ONE row per shelter (the UNIQUE shelter_id
  * bound): the admin asks, the submitter answers ONCE on their own row,
  * and the row is KEPT after the reply (audit posture — never deleted).
  *

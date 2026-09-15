@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * M15 — the account-recovery (password reset) flow pinned end-to-end over
+ * The account-recovery (password reset) flow pinned end-to-end over
  * HTTP (threat model A4/A5): the request ack is uniform for a known and an
  * unknown e-mail (no existence oracle, no send for the unknown one), the
  * re-issue cooldown is silent, the 6-digit code fails with one generic 400

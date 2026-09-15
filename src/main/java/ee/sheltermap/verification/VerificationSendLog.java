@@ -37,11 +37,11 @@ public interface VerificationSendLog {
     void record(long userId, VerificationLevel level, String contact, Instant sentAt);
 
     /**
-     * Atomic check-and-record (2026-09-10 review M16): decides whether
+     * Atomic check-and-record: decides whether
      * {@code (userId, level)} may send right now — cooldown first, then the
      * per-UTC-day cap — and, when allowed, records the send in the SAME
-     * lock-held step. The old read-read-record across separately
-     * synchronized methods let a burst pass both reads before either
+     * lock-held step — a read-read-record across separately
+     * synchronized methods would let a burst pass both reads before either
      * recorded.
      *
      * <p>{@code cooldownSeconds} &le; 0 disables the cooldown check and

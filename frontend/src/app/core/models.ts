@@ -5,7 +5,7 @@
  * Spring controllers/records in src/main/java/ee/sheltermap. JSON is
  * camelCase and maps 1:1 — nothing is renamed or reshaped here.
  *
- * NOTE (deliberate deviation, reported in the M1 hand-off): 02-CONTEXT-API.md
+ * NOTE (deliberate deviation): 02-CONTEXT-API.md
  * types `ShelterDto.address` as `string`, but the backend stores `null` for
  * USER-submitted rows (ShelterController passes null for all registry fields
  * and the Shelter entity keeps that null) — so the honest type here is
@@ -105,7 +105,7 @@ export interface ConfirmChangeRequest {
 
 /** Profile edit (PUT /account/profile): name only, password-confirmed.
  *  Email/phone are deliberately absent — they stay on the cross-channel flows.
- *  No national ID code is collected anywhere (remove-national-id M1). */
+ *  No national ID code is collected anywhere (remove-national-id). */
 export interface ProfileUpdateRequest {
   name: string;
   currentPassword: string;
@@ -182,7 +182,7 @@ export interface ReportShelterRequest {
 
 /**
  * The write outcome of a shelter report (POST /api/shelters/{id}/reports)
- * (community-self-moderation M9, D4): `damped` is true when the stored
+ * (community-self-moderation D4): `damped` is true when the stored
  * report is a self-interested rival vote (the reporter holds their own
  * other USER listing of the same place) — recorded and flagged in the
  * admin queue, counting zero toward the weighted auto-hide tally.
@@ -226,7 +226,7 @@ export interface PutOpenStatusRequest {
 }
 
 /**
- * Server-derived open/closed block (open-status wave — computed at read
+ * Server-derived open/closed block — computed at read
  * time over the last 2 h of open-status reports, the same window and
  * reportCount semantics as the occupancy block: 1 = the UI hedges
  * ("Reported closed"), >= 2 = firm ("Closed")). `null` on the DTO =
@@ -310,7 +310,7 @@ export interface ShelterDto {
    * the public list simply no longer contains the row.
    */
   nonexistentReports: number;
-  /** Fresh open/closed (open-status wave); null = nothing fresh in the last 2 h. */
+  /** Fresh open/closed; null = nothing fresh in the last 2 h. */
   openStatus: OpenStatusDto | null;
   /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
   occupancy: ShelterOccupancy | null;
@@ -325,12 +325,12 @@ export interface ShelterDto {
   locationKind: LocationKind;
   /**
    * TOTAL community shelter-report count, all types (last-verified-meta
-   * M8, backend-computed) — the `nonexistentReports` subset is what drives
+   * backend-computed) — the `nonexistentReports` subset is what drives
    * the orange "Reported" badge; this is the whole community-signal count.
    */
   reportCount: number;
   /**
-   * Per-entry "last verified" stamp (last-verified-meta M8, backend-
+   * Per-entry "last verified" stamp (last-verified-meta, backend-
    * computed, ISO-8601): registry rows carry the newest non-failed import
    * of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED
    * do not); community rows the newest non-submitter OPEN_CONFIRMED check
@@ -340,7 +340,7 @@ export interface ShelterDto {
   lastVerifiedAt: string | null;
   /**
    * "Mark inaccurate" moderator flag (moderation-dashboard-completion
-   * M10 slice 4, backend-computed from the V20 stamp): a marked row stays
+   * backend-computed from the V20 stamp): a marked row stays
    * visible with status and trust state untouched — the UI renders the
    * single-sourced warning on the unverified-treatment surfaces.
    */
@@ -364,7 +364,7 @@ export interface ShelterDetailDto extends ShelterDto {
  * the public list projection (incl. reviewStatus + locationKind) plus the
  * admin's `reviewNote` — the REJECT reason, stored server-side and shown
  * under the row's status badge (community-review-queue D2) — and the row's
- * moderator→submitter information request (M10 slice 3, `infoRequest`;
+ * moderator→submitter information request (`infoRequest`;
  * null when none). The exchange is private: the public list/detail DTOs
  * carry it as null and this surface is the only place it renders for the
  * submitter.
@@ -396,7 +396,7 @@ export interface ReviewShelterResponse {
 }
 
 /**
- * The moderator→submitter information request of a row (M10 slice 3):
+ * The moderator→submitter information request of a row:
  * the admin asks a question on a USER shelter, the submitter answers ONCE
  * on their own row, and the row is kept after the reply (audit posture —
  * never deleted). `replyMessage`/`repliedAt` are null while the request is
@@ -442,7 +442,7 @@ export interface AdminOccupancy {
 }
 
 /**
- * The admin's view of one account (GET /admin/users, M10 slice 1):
+ * The admin's view of one account (GET /admin/users):
  * REGISTERED + ADMIN rows only (guests have no credentials to suspend,
  * so the backend skips them). `suspendedAt` null = active. E-mail is
  * admin-only data — never rendered outside the /admin feature.
@@ -488,11 +488,11 @@ export interface AdminShelterDto {
   /** PRIVATE rows carry the "Private location" badge on this surface too. */
   locationKind: LocationKind;
   /**
-   * "Mark inaccurate" moderator flag (M10 slice 4) — the same value as on
+   * "Mark inaccurate" moderator flag — the same value as on
    * the public DTO; the admin list is where the mark is managed.
    */
   inaccurate: boolean;
-  /** The row's moderator→submitter information request (M10 slice 3);
+  /** The row's moderator→submitter information request;
    *  null when none. Carries the submitter's reply once given (the row is
    *  kept after the reply — audit posture). */
   infoRequest: AdminInfoRequestDto | null;
@@ -523,7 +523,7 @@ export interface AdminShelterReportDto {
   reporterEmail: string | null;
   /** ISO-8601 instant. */
   createdAt: string;
-  /** Dampened self-interested negative vote (M9): stored + flagged, counts 0. */
+  /** Dampened self-interested negative vote: stored + flagged, counts 0. */
   damped: boolean;
   /** Dismissed rows stay in the queue, dimmed (the admin's audit trail). */
   dismissed: boolean;
@@ -569,7 +569,7 @@ export type AdminAuditAction =
  */
 export interface AdminAuditRow {
   id: number;
-  /** null on user-scoped rows (USER_SUSPEND / USER_UNSUSPEND — M10 slice 1). */
+  /** null on user-scoped rows (USER_SUSPEND / USER_UNSUSPEND). */
   shelterId: number | null;
   /** Resolved at read time: a shelter row's name ("Deleted shelter" when
    *  the row is gone) OR the suspended account ("Account: name (email)" /
@@ -587,7 +587,7 @@ export interface AdminAuditRow {
   createdAt: string;
 }
 
-/** One server-parsed field change of an EDITED history row (M10 slice 2).
+/** One server-parsed field change of an EDITED history row.
  *  `from`/`to` are display strings — null = the field was absent
  *  (e.g. a first-set description). */
 export interface AdminShelterHistoryFieldChange {
@@ -597,7 +597,7 @@ export interface AdminShelterHistoryFieldChange {
 }
 
 /**
- * One row of GET /admin/shelters/{id}/history (M10 slice 2, ascending over
+ * One row of GET /admin/shelters/{id}/history (ascending over
  * the shelter's lifecycle): CREATED on submission, EDITED on an owner PUT
  * that moved fields (the changes are parsed server-side — the UI renders,
  * never parses JSON), DELETED on a user or admin hard delete. The history
@@ -619,14 +619,14 @@ export interface AdminShelterHistoryEvent {
 }
 
 /**
- * The M3 throttle/abuse alert kinds (GET /admin/alerts, abuse-limits slice
- * 4) — the closed backend vocabulary.
+ * The throttle/abuse alert kinds (GET /admin/alerts, abuse-limits) — the
+ * closed backend vocabulary.
  */
 export type AdminAlertKind = 'submission-daily-cap' | 'otp-contact-cap' | 'near-duplicate';
 
 /**
- * One row of GET /admin/alerts (the M3 admin alerts, newest first).
- * The ring is IN-MEMORY on the backend (W16 — cleared on a restart), so
+ * One row of GET /admin/alerts (the admin alerts, newest first).
+ * The ring is IN-MEMORY on the backend (cleared on a restart), so
  * this is a triage view, not a durable log. `subject` is the flagged
  * account or contact ('user:<id>' / 'contact:<value>');
  * `retryAfterSeconds` is present only for the 429 alerts.
@@ -644,7 +644,7 @@ export interface AdminAlertRow {
   at: string;
 }
 
-/** One shelter the caller owns, as returned by GET /account/export (M4 slice 1). */
+/** One shelter the caller owns, as returned by GET /account/export. */
 export interface DataExportShelter {
   id: number;
   name: string;
@@ -662,7 +662,7 @@ export interface DataExportShelter {
   createdAt: string;
 }
 
-/** GET /account/export — the caller's own data in one document (M4 slice 1). */
+/** GET /account/export — the caller's own data in one document. */
 export interface DataExportResponse {
   profile: {
     name: string;
@@ -674,7 +674,7 @@ export interface DataExportResponse {
   shelters: DataExportShelter[];
 }
 
-/** One data_imports audit row — the newest (GET /api/data-source, M5). */
+/** One data_imports audit row — the newest (GET /api/data-source). */
 export interface DataSourceLastImport {
   /** ISO-8601 instant. */
   at: string;
@@ -687,7 +687,7 @@ export interface DataSourceLastImport {
   recordsRemoved: number;
 }
 
-/** GET /api/data-source — where the map's official data comes from (M5). */
+/** GET /api/data-source — where the map's official data comes from. */
 export interface DataSourceDto {
   sourceName: string;
   officialUrl: string;

@@ -9,14 +9,14 @@ import java.util.Map;
 
 /**
  * Persistence seam for {@link User}. Real implementation in
- * {@code ee.sheltermap.persistence} (Step 3); tests use an in-memory fake.
+ * {@code ee.sheltermap.persistence}; tests use an in-memory fake.
  */
 public interface UserRepository {
 
     void save(User user);
 
     /**
-     * Deletes the user row (legal-recovery M4 slice 2 — account erasure).
+     * Deletes the user row (legal-recovery — account erasure).
      * The JPA implementation relies on the DB FK policy — every child
      * {@code user_id} is ON DELETE CASCADE and {@code shelters.created_by}
      * is ON DELETE SET NULL (the erasure service orphans the public rows
@@ -37,7 +37,7 @@ public interface UserRepository {
     RegisteredUser findByPhone(String phone);
 
     /**
-     * Batched lookup by ids (hardening: removes the N+1 author lookup in
+     * Batched lookup by ids — removes the N+1 author lookup in
      * shelter listings). Missing ids are simply absent from the result map.
      */
     Map<Long, User> findByIds(Collection<Long> ids);
@@ -53,18 +53,18 @@ public interface UserRepository {
     boolean isAdmin(long userId);
 
     /**
-     * Whether the row behind {@code userId} is suspended (M10 slice 1) —
+     * Whether the row behind {@code userId} is suspended —
      * the COLUMN-ONLY read the JWT filter uses per token-bearing request
      * (no domain mapping, no PII decrypt; unknown ids are {@code false},
      * the same convention as {@link #isAdmin} — a deleted account's token
-     * keeps authenticating, the erasure contract from legal-recovery M4
-     * slice 2: the JWT stays valid until expiry). Suspension is the only
+     * keeps authenticating, the erasure contract from legal-recovery: the
+     * JWT stays valid until expiry). Suspension is the only
      * case where a valid token authenticates nothing.
      */
     boolean isSuspended(long userId);
 
     /**
-     * Every user row (moderation-dashboard-completion M10 slice 1 — the
+     * Every user row (moderation-dashboard-completion — the
      * admin Users tab lists REGISTERED + ADMIN accounts; the projection
      * filters the kinds, the seam returns all of them so the "the list is
      * the whole account population" invariant stays in one place).

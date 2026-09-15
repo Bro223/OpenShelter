@@ -77,7 +77,7 @@ public class InMemoryUserRepository implements UserRepository {
     @Override
     public boolean isSuspended(long userId) {
         // Unknown ids are false (the JPA convention): a deleted account's
-        // token keeps authenticating until expiry (legal-recovery M4 slice 2).
+        // token keeps authenticating until expiry (legal-recovery).
         User user = store.get(userId);
         return user != null && user.isSuspended();
     }

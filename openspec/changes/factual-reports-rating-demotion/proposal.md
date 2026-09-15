@@ -6,7 +6,7 @@ Two adjustments to the trust layer's balance. First, community reports
 are one click: only `OTHER` carries free text, so a "closed" or
 "location is wrong" report has no factual substance for the admin queue
 (no "when", no actual address). Second, the rating is framed as the
-map's primary trust instrument — a "N★+" filter select sits in the trust
+map's primary trust instrument — a "N-star-plus" filter select sits in the trust
 filter row — while the actual trust levers are community reports + admin
 moderation. Locked decision: ratings are DEMOTED, not removed — reviews
 stay postable, the average keeps displaying (read-only star display),
@@ -23,7 +23,7 @@ but the filter goes and the rating-first framing retires.
   row — no admin-side change.
 - **Rating demotion.** `minRating` is removed from `GET /api/shelters`
   (the parameter, its 400 validation, the in-memory filter) and from the
-  map (the "N★+" select, the gateway param, the `TrustFilters` model
+  map (the "N-star-plus" select, the gateway param, the `TrustFilters` model
   field). A request that still carries `minRating` is silently ignored
   (Spring drops unknown params) — the filter no longer exists.
 - **Framing sync.** The API table and the puml design note retire the

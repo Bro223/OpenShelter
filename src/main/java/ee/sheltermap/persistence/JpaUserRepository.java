@@ -20,13 +20,13 @@ import java.util.stream.Collectors;
 
 /**
  * JPA implementation of {@link UserRepository} (approach B). Claims are
- * owned by the user and mapped diff-based (N10): unchanged rows keep their
+ * owned by the user and mapped diff-based: unchanged rows keep their
  * ids across saves, only missing claims are inserted and only removed ones
  * deleted — so claim ids are stable for the lifetime of the claim.
  *
- * <p>PII-at-rest (M2): e-mail/phone resolution goes through the HMAC blind
- * index — {@code findByEmail} canonicalizes lower-case (replacing the old
- * {@code findByEmailIgnoreCase}), {@code findByPhone} expects the canonical
+ * <p>PII-at-rest: e-mail/phone resolution goes through the HMAC blind
+ * index — {@code findByEmail} canonicalizes lower-case, {@code findByPhone}
+ * expects the canonical
  * E.164 form the login/register paths already produce.
  */
 @Repository
@@ -56,8 +56,8 @@ public class JpaUserRepository implements UserRepository {
     }
 
     /**
-     * Diff-based claim mapping (N10 — the old replace-all strategy churned
-     * every claim id on every user save). A claim row is matched to the
+     * Diff-based claim mapping: replacing every row on each save would churn
+     * every claim id. A claim row is matched to the
      * domain claim on (level, externalRef, revokedAt): unchanged rows are
      * kept as-is with their id copied back onto the domain claim, only
      * MISSING claims are inserted and only REMOVED ones are bulk-deleted.
@@ -70,7 +70,7 @@ public class JpaUserRepository implements UserRepository {
      * survive it.
      */
     private void saveClaims(Long userId, RegisteredUser registered) {
-        // PII-at-rest (M2): the stored external_ref is the v1: envelope —
+        // PII-at-rest: the stored external_ref is the v1: envelope —
         // diff on the DECRYPTED contact so the (level, contact, revokedAt)
         // identity matches the domain claim's plaintext ref (no id churn).
         // A blank stored ref ("absent", stored as '' because the column is
@@ -104,7 +104,7 @@ public class JpaUserRepository implements UserRepository {
         }
     }
 
-    /** Claim identity for the save diff (N10): level + contact + revocation state. */
+    /** Claim identity for the save diff: level + contact + revocation state. */
     private record ClaimKey(VerificationLevel level, String externalRef, Instant revokedAt) {
     }
 
@@ -132,8 +132,8 @@ public class JpaUserRepository implements UserRepository {
     @Override
     @Transactional(readOnly = true)
     public RegisteredUser findByEmail(String email) {
-        // Canonicalize lower-case (replaces the old findByEmailIgnoreCase —
-        // the blind index is only deterministic for the canonical form).
+        // Canonicalize lower-case — the blind index is only deterministic
+        // for the canonical form.
         // REGISTERED and ADMIN rows are returned (kind is restored by the
         // mapper): the admin logs in through the normal /auth/login
         // (admin-moderation D1), and the registration pre-check must see
@@ -192,7 +192,7 @@ public class JpaUserRepository implements UserRepository {
     @Override
     @Transactional(readOnly = true)
     public boolean isSuspended(long userId) {
-        // Column-only on purpose (M10 slice 1): the filter runs on EVERY
+        // Column-only on purpose: the filter runs on EVERY
         // token-bearing request, so it must not pay the domain mapping
         // (PII decrypt, claims load) — and a demoted admin's null phone
         // must not surface as a mapping NPE on a per-request path.

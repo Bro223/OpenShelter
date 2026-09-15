@@ -24,11 +24,10 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit test for the JWT filter (TG2, 2026-09-15): parse/accept/reject had no
- * direct test — it was covered only indirectly by the authenticated ITs — so
- * the three doors this filter enforces had no focused guard: a valid token
- * authenticates the user, an ADMIN account carries the {@code ADMIN} authority
- * the {@code /admin/**} matcher needs (B6), and every other input (suspended
+ * Unit test for the JWT filter, whose three doors need a focused guard:
+ * a valid token authenticates the user, an ADMIN account carries the
+ * {@code ADMIN} authority the {@code /admin/**} matcher needs, and every
+ * other input (suspended
  * account, expired token, malformed token, no header) leaves the request
  * anonymous so the entry point answers 401.
  *

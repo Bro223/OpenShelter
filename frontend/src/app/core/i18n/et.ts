@@ -1,7 +1,7 @@
 import type { Messages } from './messages';
 
 /**
- * The Estonian catalog (i18n-et-en M14 slice 1). The app's official data is
+ * The Estonian catalog (i18n-et-en). The app's official data is
  * Estonian (Päästeamet registry, Maa-amet) and the whitepaper's
  * internationalization item reads "Estonian first" — this catalog is the
  * other half of the chrome. Brand name (OpenShelter) and the official
@@ -56,7 +56,7 @@ export const ET: Messages = {
   'consent.privacyLink': 'Loe privaatsuspoliitikat',
 
   // --- "Kuidas OpenShelter töötab" block (map page). UI labels stay in
-  // English because the map badges are not translated yet (M14 slice 2).
+  // English because the map badges are not translated yet.
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
@@ -154,7 +154,7 @@ export const ET: Messages = {
   'authPage.privacyPolicy': 'Privaatsuspoliitika',
   'authPage.termsOfUse': 'Kasutustingimused',
 
-  // --- map page (M14 slice 2). The around-you CTA stays English (see
+  // --- map page. The around-you CTA stays English (see
   // messages.ts), so the geocode copy quotes that English label, as the how
   // block already does.
   'map.title': 'Varjupaikade kaart',
@@ -198,7 +198,7 @@ export const ET: Messages = {
   'map.geocode.network':
     'Aadressiotsingule ei pääse praegu ligi. Proovi selle asemel "Show shelters around you".',
 
-  // --- shelter detail page (M14 slice 2).
+  // --- shelter detail page.
   'detail.backToMap': 'Tagasi kaardile',
   'detail.notFoundTitle': 'Varjupaika ei leitud',
   'detail.notFoundBody': 'Sellise ID-ga varjupaika ei ole. See on tõenäoliselt eemaldatud.',
@@ -238,7 +238,7 @@ export const ET: Messages = {
   'detail.cancel': 'Tühista',
   'detail.verifyAccount': 'Kinnita oma konto',
 
-  // --- submit shelter page (M14 slice 2). Quoted button labels use the
+  // --- submit shelter page. Quoted button labels use the
   // Estonian label (the button is translated on this page).
   'submit.backToMap': 'Tagasi kaardile',
   'submit.title': 'Lisa varjupaik',

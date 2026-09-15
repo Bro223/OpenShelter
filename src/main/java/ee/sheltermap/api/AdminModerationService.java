@@ -83,10 +83,10 @@ public class AdminModerationService {
     /** The read-time rendering of a gone shelter's name in the audit trail (D4). */
     public static final String DELETED_SHELTER_NAME = "Deleted shelter";
 
-    /** The read-time rendering of a gone subject account in the audit trail (M10 slice 1). */
+    /** The read-time rendering of a gone subject account in the audit trail. */
     public static final String DELETED_ACCOUNT_NAME = "Deleted account";
 
-    /** Plain-spoken 409 for a suspend/unsuspend of a non-REGISTERED account (M10 slice 1). */
+    /** Plain-spoken 409 for a suspend/unsuspend of a non-REGISTERED account. */
     public static final String NON_REGISTERED_SUSPENSION_MESSAGE =
             "Only registered user accounts can be suspended";
 
@@ -180,7 +180,7 @@ public class AdminModerationService {
      * <p>The audit row is recorded BEFORE the delete (D4): the same
      * transaction commits both, and the dangling shelter_id keeps the row
      * readable — the name renders "Deleted shelter" at read time. The
-     * delete also appends the DELETED edit-history row (M10 slice 2)
+     * delete also appends the DELETED edit-history row
      * actor-attributed to the moderating admin, through the same service
      * choke point as the author route.
      */
@@ -194,7 +194,7 @@ public class AdminModerationService {
     }
 
     /**
-     * POST /admin/shelters/{id}/request-info (M10 slice 3) — store the
+     * POST /admin/shelters/{id}/request-info — store the
      * moderator→submitter information request on a USER shelter: the
      * submitter sees it on their own row (/mine) and answers ONCE; the
      * admin sees the request with the reply on this list. USER rows only
@@ -216,7 +216,7 @@ public class AdminModerationService {
     }
 
     /**
-     * POST /admin/shelters/{id}/mark-inaccurate (M10 slice 4) — set the
+     * POST /admin/shelters/{id}/mark-inaccurate — set the
      * public "reported inaccurate" flag on a USER shelter. The row stays
      * visible: status and provenance are untouched, only the V20 stamp is
      * written (the reason, when given, rides on the audit row — the mark is
@@ -241,7 +241,7 @@ public class AdminModerationService {
     }
 
     /**
-     * POST /admin/shelters/{id}/clear-inaccurate (M10 slice 4) — clear the
+     * POST /admin/shelters/{id}/clear-inaccurate — clear the
      * flag (idempotent: clearing an unmarked row is a no-op that records no
      * audit row). Same 404/409 guards as {@link #markInaccurate}; a fresh
      * clear records CLEAR_INACCURATE in this transaction.
@@ -386,7 +386,7 @@ public class AdminModerationService {
         if (rows.isEmpty()) {
             return List.of();
         }
-        // User-scoped rows (M10 slice 1) carry a null shelterId + a
+        // User-scoped rows carry a null shelterId + a
         // subjectUserId; both reference sets are resolved in ONE batched
         // lookup each (no N+1), dangling ids included (rendered at read
         // time — "Deleted shelter" / "Deleted account").
@@ -418,7 +418,7 @@ public class AdminModerationService {
 
     /**
      * GET /admin/shelters/{id}/history — the shelter's edit history, ASCENDING
-     * (moderation-dashboard-completion M10 slice 2, D4): CREATED on
+     * (moderation-dashboard-completion, D4): CREATED on
      * submission, EDITED on an owner PUT that moved fields (server-parsed
      * {@code {field, from, to}} tuples — the FE renders, never parses),
      * DELETED on a user or admin hard delete. Actor names resolve in ONE
@@ -457,16 +457,23 @@ public class AdminModerationService {
     }
 
     /**
-     * The audit row's subject text (M10 slice 1): a shelter row renders
+     * The audit row's subject text: a shelter row renders
      * the shelter name (or "Deleted shelter" once the row is gone); a
      * user-scoped row renders "Account: name (email)" (or "Deleted
-     * account" after the target's erasure). The DTO shape is unchanged —
-     * this text occupies the existing shelter-name slot, which the
-     * frontend labels "Subject".
+     * account" after the target's erasure). A guidance/media row
+     * (crisis-guidance D12) resolves its stored {@code subjectLabel}
+     * FIRST — the label snapshot that outlives the deleted target; only
+     * a NULL label (every pre-V23 row) falls through to the shelter /
+     * account resolution, so no existing row changes behaviour. The DTO
+     * shape is unchanged — this text occupies the existing shelter-name
+     * slot, which the frontend labels "Subject".
      */
     private static String auditSubjectName(ModerationAuditLog.Row row,
                                            Map<Long, String> shelterNames,
                                            Map<Long, User> subjects) {
+        if (row.subjectLabel() != null) {
+            return row.subjectLabel();
+        }
         if (row.shelterId() != null) {
             return shelterNames.getOrDefault(row.shelterId(), DELETED_SHELTER_NAME);
         }
@@ -481,8 +488,8 @@ public class AdminModerationService {
     }
 
     /**
-     * GET /admin/users — the account list behind the Users tab (M10
-     * slice 1): every REGISTERED and ADMIN account, id-ordered, with its
+     * GET /admin/users — the account list behind the Users tab:
+     * every REGISTERED and ADMIN account, id-ordered, with its
      * suspension state. GUEST rows are filtered out (no credentials to
      * suspend); the ADMIN row is listed so the provisioned account is
      * visible but not suspendable. One pass over the whole table — the
@@ -498,7 +505,7 @@ public class AdminModerationService {
     }
 
     /**
-     * POST /admin/users/{id}/suspend (M10 slice 1) — set the suspension
+     * POST /admin/users/{id}/suspend — set the suspension
      * stamp on a REGISTERED account (idempotent: re-suspending an
      * already-suspended account is a no-op that records no audit row).
      * Unknown id → 404; ADMIN/GUEST → 409 (the provisioned admin is a
@@ -520,7 +527,7 @@ public class AdminModerationService {
     }
 
     /**
-     * POST /admin/users/{id}/unsuspend (M10 slice 1) — clear the stamp
+     * POST /admin/users/{id}/unsuspend — clear the stamp
      * (idempotent: unsuspending an active account is a no-op that records
      * no audit row). The same 404/409 guards as {@link #suspendUser}.
      */

@@ -32,10 +32,10 @@ import java.util.stream.Collectors;
  * Login, reset-request and registration are guarded by token buckets keyed
  * per real client IP (X-Forwarded-For aware — see {@link ClientIps}) and,
  * for login/reset, per contact. Login additionally passes a per-IP aggregate
- * bucket (anti credential-stuffing, W5) and reset-confirm a per-(IP, email)
- * anti-guess bucket (W1). Registration additionally passes the rolling
- * per-e-mail cap (abuse-limits M3 slice 2), and its 429s land in the
- * admin alert ring (M3 slice 4).
+ * bucket (anti credential-stuffing) and reset-confirm a per-(IP, email)
+ * anti-guess bucket. Registration additionally passes the rolling
+ * per-e-mail cap (abuse-limits), and its 429s land in the
+ * admin alert ring.
  */
 @Tag(name = "Auth",
         description = "The public auth surface: registration, login, refresh "
@@ -102,15 +102,15 @@ public class AuthController {
     @SecurityRequirements({})
     public void register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
         requireRate(registerRateLimiter, clientIp(http));
-        // M3 slice 2: per-e-mail rolling cap on registration ATTEMPTS
+        // Per-e-mail rolling cap on registration ATTEMPTS
         // ("register:" namespace — independent of the "verify:" send cap),
         // every attempt counts (a duplicate-409 retry is still an attempt),
         // the same semantics as the per-IP bucket above. 429 + Retry-After
         // instead of a bare 409 loop once the window is full.
         RollingContactOtpLimiter.Result contact = contactOtpLimiter.tryAcquire("register:" + request.email());
         if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
-            // M3 slice 4: the throttled contact lands in the admin alert
-            // ring (in-memory, W16) before the 429 goes out.
+            // The throttled contact lands in the admin alert ring
+            // (in-memory) before the 429 goes out.
             alerts.otpContactCap(request.email(), contact.retryAfterSeconds());
             throw new VerificationThrottledException("Too many registration attempts with this e-mail",
                     contact.retryAfterSeconds());
@@ -137,7 +137,7 @@ public class AuthController {
     @SecurityRequirements({})
     public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         String ip = clientIp(http);
-        // W5: BOTH buckets must pass — the per-IP aggregate (one IP hammering
+        // BOTH buckets must pass — the per-IP aggregate (one IP hammering
         // many accounts) and the per-(IP, contact) bucket below.
         requireRate(loginIpRateLimiter, ip);
         requireRate(loginRateLimiter, ip + "|" + normalizedContact(request.emailOrPhone()));
@@ -204,7 +204,7 @@ public class AuthController {
     })
     @SecurityRequirements({})
     public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest http) {
-        // W1: per-(IP, email) anti-guess bucket — a 6-digit code must not be
+        // Per-(IP, email) anti-guess bucket — a 6-digit code must not be
         // brute-forceable through the confirm endpoint.
         requireRate(resetConfirmRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
         authService.resetPassword(request.email(), request.code(), request.newPassword());
@@ -221,7 +221,7 @@ public class AuthController {
     }
 
     /**
-     * Normalizes a login contact for rate-limit keying (W5): e-mail → trim +
+     * Normalizes a login contact for rate-limit keying: e-mail → trim +
      * lowercase; a phone-like value (no {@code @}) → E.164 (lenient, never
      * throws) then lowercase — so {@code 50000001} and {@code +37250000001}
      * share one bucket (same canonical identity as the lookup).

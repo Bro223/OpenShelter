@@ -21,7 +21,7 @@ import {
 type ExpectedPair = { lat: number; lng: number; swapped?: boolean };
 type ExpectedFailure = {
   reason: 'no-pair' | 'out-of-bounds' | 'invalid' | 'decimal-comma';
-  /** When set, the parser's internal detail must match EXACTLY (n2/H4). */
+  /** When set, the parser's internal detail must match EXACTLY. */
   detail?: string;
 };
 
@@ -69,7 +69,7 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { lat: 59.437, lng: 24.7535 },
   },
   { name: 'plain-integer-coords', input: '59 24', expected: { lat: 59, lng: 24 } },
-  // --- Estonian decimal-comma (H4): the comma is the decimal mark, never a
+  // --- Estonian decimal-comma: the comma is the decimal mark, never a
   //     separator. Refused with its own reason — the value is never
   //     guessed/converted (the page renders the "use a decimal point" copy).
   {
@@ -83,13 +83,12 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F7 (deliberate spec-table update, review round 2): the guard stands
-    // down when a point-decimal exists anywhere, and the mixed input used
-    // to fall through to the separator pair (59, 4370) -> out-of-bounds —
-    // a WRONG diagnosis. The real problem is the mixed separators, so the
-    // reason is now decimal-comma (the guard's own copy explains the fix).
-    // Rejection stays; the label changed. (The comma-as-separator SUCCESS
-    // regression pin is 'plain-comma-space' above.)
+    // The guard stands down when a point-decimal exists anywhere, so a mixed
+    // comma/point input never reaches the separator pair (59, 4370) ->
+    // out-of-bounds, a WRONG diagnosis. The real problem is the mixed
+    // separators, so the reason is decimal-comma (the guard's own copy
+    // explains the fix). Rejection stays; the comma-as-separator SUCCESS
+    // regression pin is 'plain-comma-space' above.
     name: 'decimal-comma-mixed-with-point',
     input: '59,4370 24.75',
     expected: { reason: 'decimal-comma' },
@@ -184,7 +183,7 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
   },
   { name: 'dms-bare-degree-invalid', input: '59°', expected: { reason: 'invalid' } },
   {
-    // n2: a DMS value + a plain decimal is a TWO-value input — "a single DMS
+    // A DMS value + a plain decimal is a TWO-value input — "a single DMS
     // value" misdescribes it; the mix gets its own message. Rejection stays.
     name: 'dms-plus-decimal-mix',
     input: `59°26'13"N 24.7535`,
@@ -194,7 +193,7 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     },
   },
   {
-    // F3 (H4): Estonian comma-minutes. The minutes group only reads POINT
+    // Estonian comma-minutes. The minutes group only reads POINT
     // decimals, so without the DMS guard `26,5'` is silently dropped and
     // the degrees alone pin (59, 24.75) — inside the Estonia box, ~49 km
     // off. Refused as decimal-comma, never guessed.
@@ -203,8 +202,8 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F3 spaced-hemisphere variant: same comma-minutes, hemisphere letters
-    // that the pre-fix parser left unconsumed.
+    // Spaced-hemisphere variant: same comma-minutes, hemisphere letters the
+    // parser would otherwise leave unconsumed.
     name: 'dms-comma-minutes-spaced-hemispheres',
     input: `59° 26,5' N 24° 45' E`,
     expected: { reason: 'decimal-comma' },
@@ -286,7 +285,7 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { lat: 59.437, lng: 24.7535 },
   },
   {
-    // H4 URL guard: comma-decimals in the coordinate-carrying part of the
+    // URL guard: comma-decimals in the coordinate-carrying part of the
     // URL (path + query; the scheme+host is always dotted) with no
     // point-decimal -> decimal-comma, not a silent (58, 25) pin.
     name: 'url-generic-decimal-comma',
@@ -294,29 +293,28 @@ const CASES: ReadonlyArray<{ name: string; input: string; expected: Expected }> 
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F2 (H4): the known-pattern paths run BEFORE the generic fallback, so
-    // the guard must run on the segment that yields the pair — the raw
-    // param VALUE. Apple ll with comma-decimals used to pin (58, 25),
-    // ~27 km off.
+    // The known-pattern paths run BEFORE the generic fallback, so the guard
+    // must run on the segment that yields the pair — the raw param VALUE.
+    // Apple ll with comma-decimals would otherwise pin (58, 25), ~27 km off.
     name: 'url-param-decimal-comma',
     input: 'https://maps.apple.com/?ll=58,25;24,9&q=x',
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F2 (H4): Google q carrying comma-decimals (the pre-fix (58, 25) pin).
+    // Google q carrying comma-decimals (otherwise the (58, 25) pin).
     name: 'url-q-decimal-comma',
     input: 'https://maps.google.com/maps?q=58,25&z=14',
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F2 (H4): the /@lat,lng path pattern — guard on the matched span.
+    // The /@lat,lng path pattern — guard on the matched span.
     name: 'url-atpath-decimal-comma',
     input: 'https://example.com/maps/@58,25/24,9',
     expected: { reason: 'decimal-comma' },
   },
   {
-    // F2 (H4): the /search/lat,lng path pattern — guard on the matched span
-    // (the 2026-09 redirect shape with a comma-decimal must not pin (58, 25)).
+    // The /search/lat,lng path pattern — guard on the matched span (the
+    // redirect shape with a comma-decimal must not pin (58, 25)).
     name: 'url-searchpath-decimal-comma',
     input: 'https://www.google.com/maps/search/58,25',
     expected: { reason: 'decimal-comma' },

@@ -7,11 +7,10 @@
 The backend SHALL provide `GET /account/export` for authenticated users,
 returning the caller's own data as one JSON document: the profile (name,
 e-mail, phone — decrypted at the persistence boundary — plus the verified
-levels), every shelter row the user created (all statuses, author-scoped),
-and every review the user wrote (with the shelter's id and name). The
-endpoint SHALL require a valid JWT (401 anonymous) and SHALL NOT add a
-rate bucket beyond the standard `/account` rules. Another user's rows
-SHALL NOT appear in the document.
+levels), and every shelter row the user created (all statuses,
+author-scoped). The endpoint SHALL require a valid JWT (401 anonymous)
+and SHALL NOT add a rate bucket beyond the standard `/account` rules.
+Another user's rows SHALL NOT appear in the document.
 
 #### Scenario: Anonymous export
 
@@ -20,23 +19,19 @@ SHALL NOT appear in the document.
 
 #### Scenario: User with contributions
 
-- **WHEN** a verified user who submitted one shelter and wrote one review
-  on it calls the endpoint
+- **WHEN** a verified user who submitted one shelter calls the endpoint
 - **THEN** the API answers 200 with `profile` (decrypted e-mail/phone +
-  verified levels), `shelters` containing exactly the user's row and
-  `reviews` containing the review with the shelter's id + name
+  verified levels) and `shelters` containing exactly the user's row
 
 #### Scenario: Author scoping
 
 - **WHEN** user A exports while user B has also submitted a shelter
-- **THEN** A's document contains only A's rows — B's shelter and reviews
-  are absent
+- **THEN** A's document contains only A's rows — B's shelter is absent
 
 #### Scenario: User without contributions
 
-- **WHEN** a verified user with no shelters and no reviews calls the
-  endpoint
-- **THEN** the API answers 200 with `shelters: []` and `reviews: []`
+- **WHEN** a verified user with no shelters calls the endpoint
+- **THEN** the API answers 200 with `shelters: []`
 
 ### Requirement: Account deletion
 

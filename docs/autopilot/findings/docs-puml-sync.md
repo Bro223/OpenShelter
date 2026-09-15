@@ -219,7 +219,7 @@ citation alone (it is a live test).
 **Claims:** l.5 `### Requirement: Community review list` declared `MODIFIED`.
 **Code/effect:** the current spec no longer contains that requirement (removed and recorded in
 `openspec/changes/archive/2026-09-14-remove-shelter-reviews/`), so `openspec validate --all` reports
-`ℹ shelter-detail-reviews/spec.md: Archive would refuse this delta: shelter-detail-reviews MODIFIED failed for header
+`shelter-detail-reviews/spec.md: Archive would refuse this delta: shelter-detail-reviews MODIFIED failed for header
 "### Requirement: Community review list" - not found`. `openspec/changes/legal-recovery/tasks.md:13,30` has the same class of
 rot (it cites the removed `/account/reviews/mine` + a `myReviews` refactor).
 **Fix:** drop the `Community review list` delta from `shelter-trust-and-reports` (it is a shipped change; the requirement it

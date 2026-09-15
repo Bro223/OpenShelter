@@ -32,7 +32,7 @@ import java.util.Base64;
 public abstract class AbstractPersistenceIT {
 
     /**
-     * Fixed PII keys for the IT suite (M2) — TEST-ONLY values; production
+     * Fixed PII keys for the IT suite — TEST-ONLY values; production
      * keys come from the environment and are never committed. All zeros:
      * the tests exercise the encryption path, not key strength.
      */
@@ -68,7 +68,7 @@ public abstract class AbstractPersistenceIT {
         // @Transactional, so a small pool is plenty and keeps the suite green.
         registry.add("spring.datasource.hikari.maximum-pool-size", () -> "4");
         registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
-        // PII-at-rest (M2): the app is fail-closed without the keys — every
+        // PII-at-rest: the app is fail-closed without the keys — every
         // IT context gets the fixed test keys here.
         registry.add("app.pii.aes-key", () -> TEST_PII_AES_KEY);
         registry.add("app.pii.hmac-key", () -> TEST_PII_HMAC_KEY);
@@ -125,7 +125,7 @@ public abstract class AbstractPersistenceIT {
     private PiiCrypto piiCrypto;
 
     /**
-     * PII-at-rest (M2): raw-JDBC user lookup by the e-mail's blind index —
+     * PII-at-rest: raw-JDBC user lookup by the e-mail's blind index —
      * the {@code users.email} column holds ciphertext, never plaintext.
      */
     protected final long userIdByEmail(String email) {

@@ -52,8 +52,8 @@ const USER_ROW: AdminShelterDto = {
   reviewStatus: 'NEW',
   reviewNote: null,
   locationKind: 'PUBLIC',
-  infoRequest: null, // M10 slice 3 — no moderator question on this row
-  inaccurate: false, // M10 slice 4 — no mark on this row
+  infoRequest: null, // no moderator question on this row
+  inaccurate: false, // no mark on this row
 };
 
 const USER_ROW_HIDDEN: AdminShelterDto = {
@@ -77,8 +77,8 @@ const REGISTRY_ROW: AdminShelterDto = {
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   reviewNote: null,
   locationKind: 'PUBLIC',
-  infoRequest: null, // M10 slice 3
-  inaccurate: false, // M10 slice 4 — no mark on this row
+  infoRequest: null, // no moderator question
+  inaccurate: false, // no mark on this row
 };
 
 /** A second NEW community row with a higher (newer) id — the queue
@@ -115,7 +115,7 @@ const REPORT_ROW_INACTIVE: AdminShelterReportDto = {
   createdAt: ago(5 * 60_000),
 };
 
-/** The edit-history fixture (M10 slice 2): ascending, snapshot-named, the
+/** The edit-history fixture: ascending, snapshot-named, the
  *  EDITED row's changes parsed server-side (capacity first set: from null). */
 const HISTORY_EVENTS: AdminShelterHistoryEvent[] = [
   {
@@ -385,7 +385,7 @@ describe('AdminPage', () => {
     // Step 1 armed — nothing was called yet.
     expect(admin.deleteShelter).not.toHaveBeenCalled();
     expect(element.textContent).toContain('Delete this shelter permanently?');
-    // F-04: the prompt is a live region, so arming is announced.
+    // The prompt is a live region, so arming is announced.
     expect(element.querySelector('.admin-confirm[role="status"]')).not.toBeNull();
 
     buttonByText(element, 'Confirm delete')!.click();
@@ -424,7 +424,7 @@ describe('AdminPage', () => {
     expect(row.querySelectorAll('button').length).toBe(0);
   });
 
-  // ---- shelter history (M10 slice 2) -------------------------------------------
+  // ---- shelter history ---------------------------------------------------------
 
   it('a USER row gets a History button that opens the inline event list', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
@@ -476,7 +476,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Gone');
   });
 
-  // ---- info request (M10 slice 3) ------------------------------------------------
+  // ---- info request --------------------------------------------------------------
 
   it('a USER row gets an Info button that opens the question editor', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
@@ -618,7 +618,7 @@ describe('AdminPage', () => {
     expect(element.querySelector('#info-request-message')).not.toBeNull();
   });
 
-  // ---- mark inaccurate (M10 slice 4) -------------------------------------------------
+  // ---- mark inaccurate ---------------------------------------------------------------
 
   it('an unmarked USER row gets a Mark inaccurate button that opens the reason editor', async () => {
     admin.listShelters.mockResolvedValue([USER_ROW]);
@@ -973,7 +973,7 @@ describe('AdminPage', () => {
     expect(element.querySelectorAll('tr.admin-row').length).toBe(1);
   });
 
-  // ---- alerts tab (M3 slice 4) --------------------------------------------------
+  // ---- alerts tab ---------------------------------------------------------------
 
   it('switching to the Alerts tab loads the ring lazily; rows render when/type/subject/detail/retry-after', async () => {
     admin.listShelters.mockResolvedValue([]);
@@ -1134,7 +1134,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('No moderation actions yet.');
   });
 
-  // ---- users tab (M10 slice 1) -------------------------------------------------
+  // ---- users tab ---------------------------------------------------------------
 
   it('switching to the Users tab loads accounts lazily; rows render name/e-mail/kind/status', async () => {
     admin.listShelters.mockResolvedValue([]);
@@ -1182,7 +1182,7 @@ describe('AdminPage', () => {
     // armed: the confirm strip replaces the action buttons
     expect(row.textContent).toContain('Suspend this account?');
     expect(row.textContent).toContain('Confirm suspend');
-    // F-04: the prompt is a live region, so arming is announced.
+    // The prompt is a live region, so arming is announced.
     expect(row.querySelector('.admin-confirm[role="status"]')).not.toBeNull();
 
     buttonByText(row, 'Confirm suspend')!.click();

@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>registry down → {@code ImportResult} with {@code failed = 1}, no crash.</li>
  * </ul>
  *
- * <p>Hardening (code-review pass): the {@link AtomicBoolean} overlap guard
+ * <p>The {@link AtomicBoolean} overlap guard
  * lives HERE — the scheduler and the startup runner share it, so a manual run
  * can never overlap a scheduled one. The network fetch happens OUTSIDE the
  * transaction (never hold a DB connection across HTTP calls); only the
@@ -53,7 +53,7 @@ public class ShelterImportService {
     private final ShelterRepository shelters;
     private final Clock clock;
     private final TransactionTemplate txTemplate;
-    /** Audit sink for every run (data_imports, M5) — null in plain unit tests. */
+    /** Audit sink for every run (data_imports) — null in plain unit tests. */
     private final DataImportLog importLog;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -106,7 +106,7 @@ public class ShelterImportService {
                     return result;
                 }
                 List<RegistryShelterDto> dtos = fetched.rows();
-                // B7e: per-row length pre-check BEFORE the single apply
+                // Per-row length pre-check BEFORE the single apply
                 // transaction. An oversized value would abort the whole
                 // single-transaction import at the DB; the documented
                 // contract is "skipped and counted, never fatal".
@@ -183,7 +183,7 @@ public class ShelterImportService {
             }
         }
 
-        // B7e: delist ONLY the source this run actually fetched. A source
+        // Delist ONLY the source this run actually fetched. A source
         // without a fetcher (e.g. MUNICIPALITY today) keeps its rows — a
         // delist over an empty fetched set would wipe them. The fetched
         // source is declared by the client, so when a second registry
@@ -201,7 +201,7 @@ public class ShelterImportService {
     }
 
     /**
-     * Appends one data_imports audit row for the run (M5). A failing audit
+     * Appends one data_imports audit row for the run. A failing audit
      * write must never break the import itself — the run's outcome is
      * already settled, the audit is best-effort observability.
      */

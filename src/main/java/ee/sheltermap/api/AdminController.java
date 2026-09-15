@@ -50,7 +50,7 @@ import java.util.Map;
  * community
  * review decisions (community-review-queue v2 D2: CONFIRM/REJECT — the
  * rare manual override), the moderation audit trail (v2 D4), and the
- * M3 throttle-abuse alerts (abuse-limits slice 4: the in-memory ring the
+ * throttle-abuse alerts (abuse-limits: the in-memory ring the
  * caps + duplicate detector append to). All writes are single-row; no
  * bulk endpoints. Reporter identity is served from this API ONLY.
  */
@@ -135,7 +135,7 @@ public class AdminController {
     }
 
     /**
-     * The shelter's edit history (M10 slice 2), ascending: CREATED / EDITED
+     * The shelter's edit history, ascending: CREATED / EDITED
      * (server-parsed field changes) / DELETED, with snapshot names and
      * batched actor names. 404 only when the shelter is absent AND has no
      * history rows (a deleted shelter's history still serves — the
@@ -160,7 +160,7 @@ public class AdminController {
     }
 
     /**
-     * The moderator→submitter information request (M10 slice 3): stores the
+     * The moderator→submitter information request: stores the
      * question on the shelter; the submitter sees it on their own row and
      * answers once — the admin sees the request with the reply on the
      * shelter list. 204; 404 unknown shelter; 409 registry rows
@@ -182,7 +182,7 @@ public class AdminController {
     }
 
     /**
-     * Mark a USER shelter inaccurate (M10 slice 4): the row stays visible,
+     * Mark a USER shelter inaccurate: the row stays visible,
      * the public DTOs carry {@code inaccurate: true} and the UI renders the
      * warning. Optional reason rides on the audit row. 204 (idempotent);
      * 404 unknown shelter; 409 registry rows (import-owned).
@@ -200,7 +200,7 @@ public class AdminController {
                 request == null ? null : request.reason());
     }
 
-    /** Clear the inaccurate mark (M10 slice 4) — idempotent, audited. 204; 404; 409. */
+    /** Clear the inaccurate mark — idempotent, audited. 204; 404; 409. */
     @PostMapping("/shelters/{id}/clear-inaccurate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Clear the inaccurate mark",
@@ -260,9 +260,9 @@ public class AdminController {
     }
 
     /**
-     * The M3 throttle-abuse alerts (abuse-limits slice 4), newest first:
+     * The throttle-abuse alerts (abuse-limits), newest first:
      * the daily submission cap (429), the per-contact OTP cap (429) and the
-     * near-duplicate rejection (409). The ring is IN-MEMORY (W16 — it
+     * near-duplicate rejection (409). The ring is IN-MEMORY (it
      * clears on a backend restart), so this is a triage view, not a durable
      * log. {@code limit} is 1..200, default 50 (anything else 400 — same
      * idiom as {@code /admin/audit}).
@@ -322,7 +322,7 @@ public class AdminController {
     }
 
     /**
-     * The account list behind the Users tab (M10 slice 1): every REGISTERED
+     * The account list behind the Users tab: every REGISTERED
      * and ADMIN account with its suspension state, id-ordered.
      */
     @GetMapping("/users")
@@ -339,7 +339,7 @@ public class AdminController {
     }
 
     /**
-     * Suspend a registered account (M10 slice 1): login, refresh rotation
+     * Suspend a registered account: login, refresh rotation
      * and every in-flight token stop working immediately. 204 (idempotent);
      * 404 unknown id; 409 admin/guest targets (lockout vector / no
      * credentials). Audited as USER_SUSPEND with the account as subject.
@@ -355,7 +355,7 @@ public class AdminController {
         moderation.suspendUser(requireAdmin(), id);
     }
 
-    /** Lift a suspension (M10 slice 1) — idempotent, audited. Same 204/404/409. */
+    /** Lift a suspension — idempotent, audited. Same 204/404/409. */
     @PostMapping("/users/{id}/unsuspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Lift a suspension",

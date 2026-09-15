@@ -1,7 +1,7 @@
 import { ConfirmAction } from './confirm-action';
 
 /**
- * The shared destructive-confirm primitive (accessibility F-04/F-12): one
+ * The shared destructive-confirm primitive: one
  * owner of the armed state machine AND the focus move, exercised against the
  * same `[data-confirm-*]` markup the components render.
  *

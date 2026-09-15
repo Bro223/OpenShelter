@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * The response of {@code GET /account/export} (legal-recovery M4, slice 1):
+ * The response of {@code GET /account/export} (legal-recovery):
  * the caller's own data in one self-describing JSON document — profile
  * (name/e-mail/phone are decrypted at the persistence boundary, the domain
  * carries plaintext) and every author-scoped shelter row (ALL statuses —

@@ -30,7 +30,15 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
     public synchronized void record(Long shelterId, Long subjectUserId, long moderatorId, Action action,
                                     String reason, ReviewStatus previousStatus, ReviewStatus newStatus) {
         rows.add(new Row(nextId++, shelterId, subjectUserId, moderatorId, action, reason,
-                previousStatus, newStatus, clock.instant()));
+                previousStatus, newStatus, clock.instant(), null));
+    }
+
+    @Override
+    public synchronized void recordLabeled(long moderatorId, Action action, String subjectLabel,
+                                           String reason) {
+        // Crisis-guidance D12: a guidance/media row — no shelter, no subject account.
+        rows.add(new Row(nextId++, null, null, moderatorId, action, reason,
+                null, null, clock.instant(), subjectLabel));
     }
 
     @Override
@@ -60,7 +68,8 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
             Row row = rows.get(i);
             if (row.shelterId() != null && shelterIds.contains(row.shelterId()) && row.reason() != null) {
                 rows.set(i, new Row(row.id(), row.shelterId(), row.subjectUserId(), row.moderatorId(),
-                        row.action(), null, row.previousStatus(), row.newStatus(), row.createdAt()));
+                        row.action(), null, row.previousStatus(), row.newStatus(), row.createdAt(),
+                        row.subjectLabel()));
                 redacted++;
             }
         }

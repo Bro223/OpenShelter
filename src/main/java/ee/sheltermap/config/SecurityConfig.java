@@ -40,7 +40,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Spring Security wiring (Step 4).
+ * Spring Security wiring.
  *
  * <p>Stateless JWT sessions: the auth endpoints and the public shelter
  * GETs are permit-all, everything else requires a valid access token (via
@@ -69,8 +69,8 @@ public class SecurityConfig {
     }
 
     /**
-     * Aggregate per-IP bucket on {@code POST /auth/login} (2026-09-08 review
-     * W5): blocks one IP hammering many accounts (credential stuffing) even
+     * Aggregate per-IP bucket on {@code POST /auth/login}: blocks one IP
+     * hammering many accounts (credential stuffing) even
      * though each per-contact bucket stays under its own limit. Both this
      * and {@link #loginRateLimiter} must pass for a login to proceed.
      */
@@ -85,8 +85,8 @@ public class SecurityConfig {
     }
 
     /**
-     * Per-(IP, e-mail) bucket on {@code POST /auth/password-reset/confirm}
-     * (2026-09-08 review W1): a 6-digit code is guessable, so the confirm
+     * Per-(IP, e-mail) bucket on {@code POST /auth/password-reset/confirm}:
+     * a 6-digit code is guessable, so the confirm
      * path is rate-limited independently of the reset-request bucket.
      */
     @Bean
@@ -110,7 +110,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Rolling per-contact OTP cap (abuse-limits M3 slice 2): max OTP events
+     * Rolling per-contact OTP cap (abuse-limits): max OTP events
      * (a real code send, or a registration attempt) per normalized e-mail /
      * E.164 phone within a rolling window, across users — the volume valve
      * on Twilio/SMTP cost on top of the per-(user, level) throttle. Binds
@@ -125,10 +125,10 @@ public class SecurityConfig {
     }
 
     /**
-     * The admin alert ring (abuse-limits M3 slice 4): the M3 cap +
+     * The admin alert ring (abuse-limits): the throttle caps and the
      * duplicate detectors append their throttled (429) and repeat-report
      * (409) events here; {@code GET /admin/alerts} reads it newest first.
-     * In-memory, same single-instance constraint (W16) as the limiters;
+     * In-memory, same single-instance constraint as the limiters;
      * {@code retained <= 0} disables recording.
      */
     @Bean
@@ -157,7 +157,7 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS for the browser frontend (hardening pass). Allowed origins are
+     * CORS for the browser frontend. Allowed origins are
      * configurable via {@code app.cors.allowed-origins} (default local dev
      * origins). Preflight (OPTIONS) is handled by Spring Security's CORS
      * filter before authorization.
@@ -185,7 +185,7 @@ public class SecurityConfig {
                                                    CorsConfigurationSource corsConfigurationSource,
                                                    Clock clock,
                                                    Environment env) throws Exception {
-        // M3 slice 5: the hardening headers go BEFORE the JWT filter (the
+        // The hardening headers go BEFORE the JWT filter (the
         // same reference position, registered first = runs first), so the
         // headers are present on the 401/403 error bodies too — the entry
         // point writes those after both filters have run.
@@ -213,11 +213,16 @@ public class SecurityConfig {
                     // so it is NOT part of the public shelter GETs below.
                     .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
                     .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
-                    // Public provenance read (official-dataset-csv M5): the app-wide
+                    // Public provenance read (official-dataset-csv): the app-wide
                     // footer shows source + official link + last import to everyone.
                     .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
+                    // Public crisis-guidance reads (crisis-guidance D3): the /blog
+                    // pages and their hero images are readable anonymously. GETs
+                    // ONLY — the write side is /admin/** (ADMIN kind, per-request
+                    // lookup), already covered by the rule below.
+                    .requestMatchers(HttpMethod.GET, "/api/guidance/**", "/api/media/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                    // Chain-level guard for the admin surface (B6): the ADMIN
+                    // Chain-level guard for the admin surface: the ADMIN
                     // authority comes from the JwtAuthenticationFilter's fresh
                     // per-request kind read (never a token claim). Additive
                     // defence-in-depth — the in-handler requireAdmin() fresh
@@ -226,8 +231,7 @@ public class SecurityConfig {
                     .requestMatchers("/admin/**").hasAuthority("ADMIN");
                 // The API document is a complete map of the attack surface,
                 // so it is unauthenticated-readable ONLY in a dev/test-only
-                // profile (non-empty active set, every entry dev/test —
-                // SW-C1: the statement block exists for this condition).
+                // profile (non-empty active set, every entry dev/test).
                 if (Profiles.isDevTestOnly(env)) {
                     auth.requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml",
                             "/swagger-ui/**", "/swagger-ui.html").permitAll();

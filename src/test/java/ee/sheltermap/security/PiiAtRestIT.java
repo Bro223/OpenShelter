@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for PII at rest (M2): a registered contact is stored as
+ * Acceptance IT for PII at rest: a registered contact is stored as
  * {@code v1:} ciphertext + HMAC blind index, lookups still resolve
  * (e-mail case-insensitive, phone E.164), duplicates still 409, and
  * {@code /account/me} still returns plaintext. The V13 migration tests run
@@ -181,7 +181,7 @@ class PiiAtRestIT extends AbstractPersistenceIT {
                     .isEqualTo(pii.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, "+37250000002"));
 
             // an absent (blank) contact stays blank: no ciphertext, no hash —
-            // the dev-DB shape that used to crash the migration
+            // the dev-DB shape the migration must handle
             Map<String, Object> noPhone = j13.queryForMap(
                     "SELECT email, phone, email_hash, phone_hash FROM users WHERE name = 'NoPhone'");
             assertThat((String) noPhone.get("email")).startsWith("v1:");
@@ -276,7 +276,7 @@ class PiiAtRestIT extends AbstractPersistenceIT {
                 .migrate();
     }
 
-    /** The pre-M2 data: plaintext contacts in every column the V13 touches. */
+    /** The legacy data: plaintext contacts in every column the V13 touches. */
     private static void seedLegacyPlaintext(Connection conn) throws SQLException {
         String hex64 = "0".repeat(64);
         try (Statement statement = conn.createStatement()) {
@@ -288,8 +288,9 @@ class PiiAtRestIT extends AbstractPersistenceIT {
             statement.execute(
                     "INSERT INTO verification_claims (user_id, level, provider, external_ref, verified_at) "
                             + "VALUES (1, 'EMAIL', 'EMAIL', 'legacy@example.ee', now())");
-            // a legacy blank ref (the pre-M1 dev-DB shape of the provisioned
-            // admin's SMART_ID claim) — V13 must leave it as-is, not fail
+            // a legacy blank ref (the provisioned admin's SMART_ID claim,
+            // dev-DB shape from before the national-ID removal) — V13 must
+            // leave it as-is, not fail
             statement.execute(
                     "INSERT INTO verification_claims (user_id, level, provider, external_ref, verified_at) "
                             + "VALUES (3, 'SMART_ID', 'system', '', now())");

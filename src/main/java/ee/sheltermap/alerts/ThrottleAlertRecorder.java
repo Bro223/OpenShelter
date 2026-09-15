@@ -11,12 +11,12 @@ import java.util.Objects;
 
 /**
  * The bounded in-memory ring behind {@code GET /admin/alerts}
- * (abuse-limits M3 slice 4): the M3 cap + duplicate detectors append their
+ * (abuse-limits): the throttle caps and duplicate detectors append their
  * throttled (429) and repeat-report (409) events here. Oldest events are
  * evicted first once {@code retained} rows are filled; {@code id} is a
  * monotonic sequence (ring-local, resets on restart).
  *
- * <p><strong>Single-instance constraint (W16):</strong> the ring is process
+ * <p><strong>Single-instance constraint:</strong> the ring is process
  * memory — a restart clears it, and N replicas each see only their own
  * share of the events. Accepted for an admin triage surface (the caps
  * themselves carry the same constraint); the upgrade path is a durable

@@ -12,7 +12,7 @@ import java.util.Optional;
 
 /**
  * Persistence seam for {@link Shelter}. Real implementation in
- * {@code ee.sheltermap.persistence} (Step 3); tests use an in-memory fake.
+ * {@code ee.sheltermap.persistence}; tests use an in-memory fake.
  */
 public interface ShelterRepository {
 
@@ -44,7 +44,7 @@ public interface ShelterRepository {
 
     /**
      * The user's USER submissions created since {@code createdAtAfter}
-     * (abuse-limits M3) — the input of the per-user DAILY submission cap.
+     * (abuse-limits) — the input of the per-user DAILY submission cap.
      * Deletions free the count (rows are gone); the active cap and the
      * admin surface cover the churn vector.
      */
@@ -53,7 +53,7 @@ public interface ShelterRepository {
 
     /**
      * The user's USER submissions in one review state — the first input of
-     * the derived reporter trust weight (community-self-moderation M9, D1).
+     * the derived reporter trust weight (community-self-moderation, D1).
      */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);

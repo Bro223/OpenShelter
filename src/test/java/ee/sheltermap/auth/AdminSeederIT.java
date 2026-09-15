@@ -74,7 +74,7 @@ class AdminSeederIT extends AbstractPersistenceIT {
     }
 
     private long adminId() {
-        // PII-at-rest (M2): users.email holds ciphertext — look up by blind index.
+        // PII-at-rest: users.email holds ciphertext — look up by blind index.
         return userIdByEmail("admin@example.ee");
     }
 

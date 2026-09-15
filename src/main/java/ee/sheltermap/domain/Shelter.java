@@ -64,7 +64,7 @@ public class Shelter {
     /** The submitter's private-home declaration (community-review-queue v2 D7). */
     private LocationKind locationKind = LocationKind.PUBLIC;
     /**
-     * "Mark inaccurate" stamp (moderation-dashboard-completion M10 slice 4):
+     * "Mark inaccurate" stamp (moderation-dashboard-completion):
      * set by the admin mark, cleared by the admin clear; {@code null} = not
      * marked. The row stays visible — this is a public warning flag, not a
      * lifecycle state (status and reviewStatus are untouched).
@@ -121,8 +121,8 @@ public class Shelter {
     }
 
     /**
-     * Status transition — the only caller in this change is the trust
-     * layer's auto-hide (D1). Kept deliberately plain: the admin restore
+     * Status transition — the only caller is the trust layer's auto-hide.
+     * Kept deliberately plain: the admin restore
      * (admin-moderation) reuses it.
      */
     public void setStatus(ShelterStatus status) {
@@ -218,7 +218,7 @@ public class Shelter {
         return capacity;
     }
 
-    /** "Mark inaccurate" stamp (M10 slice 4); {@code null} while unmarked. */
+    /** "Mark inaccurate" stamp; {@code null} while unmarked. */
     public Instant getInaccurateMarkedAt() {
         return inaccurateMarkedAt;
     }

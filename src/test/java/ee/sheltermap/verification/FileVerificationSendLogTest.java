@@ -93,7 +93,7 @@ class FileVerificationSendLogTest {
 
     @Test
     void theContactIsNotPersistedInTheLogFile() throws Exception {
-        // P2-5: the log file is unencrypted — a raw e-mail/phone in it is a
+        // The log file is unencrypted — a raw e-mail/phone in it is a
         // PII leak. Only (userId, level, timestamp) may be stored; the
         // cooldown/cap math needs nothing else.
         FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
@@ -131,7 +131,7 @@ class FileVerificationSendLogTest {
 
     @Test
     void concurrentTryRecordHonorsTheDailyCapExactly() throws Exception {
-        // S7 (2026-09-11 review): the atomic tryRecord (M16) under a real
+        // The atomic tryRecord under a real
         // burst — 50 threads released by one latch, maxPerDay=2, cooldown 0.
         // A check-then-act race would let more than 2 threads past both
         // reads; the cap must hold at EXACTLY 2 OKs, the rest DAILY_CAP.

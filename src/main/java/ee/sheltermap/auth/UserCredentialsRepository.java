@@ -2,7 +2,7 @@ package ee.sheltermap.auth;
 
 /**
  * Persistence seam for {@link UserCredentials}. Real implementation in
- * {@code ee.sheltermap.persistence} (Step 3); tests may use a fake.
+ * {@code ee.sheltermap.persistence}; tests may use a fake.
  */
 public interface UserCredentialsRepository {
 

@@ -99,7 +99,7 @@ describe('PageShell', () => {
     expect(first.tagName).toBe('A');
     expect(first.classList).toContain('skip-link');
     expect(first.getAttribute('href')).toBe('#main');
-    // The label is catalog-driven (ORCH-6), so it follows the active locale
+    // The label is catalog-driven, so it follows the active locale
     // instead of being hardcoded English: assert the binding, not a literal.
     expect(first.textContent?.trim()).toBe(TestBed.inject(I18nService).t('nav.skip'));
     // The landing target: the outlet container is programmatically focusable,
@@ -109,7 +109,7 @@ describe('PageShell', () => {
     expect(main?.getAttribute('tabindex')).toBe('-1');
   });
 
-  /* Route-change focus (accessibility F-04): a client-side route swap
+  /* Route-change focus: a client-side route swap
      replaces the page without a document load, so the shell has to land the
      keyboard on the routed content itself. The modal case is the consent
      overlay — it links to /privacy, so a route change can complete while the
@@ -184,8 +184,8 @@ describe('PageShell', () => {
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('a[href="/account"]')).not.toBeNull();
-    // M7: the standalone Verify nav item is gone — verification is a
-    // per-contact label on /account; /verify stays reachable by route.
+    // No standalone Verify nav item: verification is a per-contact label on
+    // /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
     // admin-moderation D5: a regular user's nav is unchanged — no Admin item.
     expect(element.querySelector('a[href="/admin"]')).toBeNull();
@@ -456,7 +456,7 @@ describe('PageShell', () => {
     });
   });
 
-  /* Language switcher (i18n-et-en M14 slice 1): the active locale's
+  /* Language switcher (i18n-et-en): the active locale's
      button carries aria-pressed; the choice persists (openshelter-locale)
      and flips <html lang> + the whole chrome. jsdom cannot measure media
      queries, so the acceptance is the DOM/aria/state wiring, not the CSS. */

@@ -1,14 +1,14 @@
 /**
- * The message catalog contract (i18n-et-en M14 slice 1). Both locale
+ * The message catalog contract (i18n-et-en). Both locale
  * catalogs (`en.ts` / `et.ts`) are typed against this interface, so a key
  * missing from EITHER side is a compile error; the runtime key-parity
  * guard in `i18n.spec.ts` is the backstop (and rejects empty values).
  *
  * Key namespaces: `nav.*` header nav, `auth.*` session controls,
  * `footer.*` the app-wide footer, `title.*` route titles (consumed by
- * titleGuard via route data), the rest single chrome strings. Slice 2+ of
- * M14 extends this interface with the feature-page copy (shelter trust
- * copy, forms, errors).
+ * titleGuard via route data), the rest single chrome strings. The
+ * interface also carries the feature-page copy (shelter trust copy, forms,
+ * errors).
  */
 export interface Messages {
   // --- header: burger + nav
@@ -17,7 +17,7 @@ export interface Messages {
   'nav.map': string;
   'nav.account': string;
   'nav.admin': string;
-  /** Skip-to-content link (accessibility F-01), the shell's first element. */
+  /** Skip-to-content link, the shell's first element. */
   'nav.skip': string;
 
   // --- header: actions
@@ -40,7 +40,7 @@ export interface Messages {
   // --- footer: legal links
   'footer.privacy': string;
   'footer.terms': string;
-  // --- footer: data provenance line (official-dataset-csv M5)
+  // --- footer: data provenance line (official-dataset-csv)
   'footer.dataSource': string;
   'footer.lastImport': string;
   'footer.officialOpenData': string;
@@ -152,10 +152,10 @@ export interface Messages {
   'authPage.privacyPolicy': string;
   'authPage.termsOfUse': string;
 
-  // --- map page (i18n-et-en M14 slice 2: the browse surface). The around-you
-  // CTA ("Show shelters around you") is intentionally NOT keyed here: the
-  // how.nearest copy quotes that exact English label, and how.* is out of
-  // scope for this slice, so the button stays English to keep the quote true.
+  // --- map page (i18n-et-en: the browse surface). The around-you CTA
+  // ("Show shelters around you") is intentionally NOT keyed here: the
+  // how.nearest copy quotes that exact English label, so the button stays
+  // English to keep the quote true.
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
@@ -193,9 +193,8 @@ export interface Messages {
   'map.geocode.rateLimited': string;
   'map.geocode.network': string;
 
-  // --- shelter detail page (i18n-et-en M14 slice 2). The Distance-from-you
-  // action (its button + DISTANCE_COPY) and the Status/Capacity data labels
-  // are out of scope for this slice and stay English.
+  // --- shelter detail page (i18n-et-en). The Distance-from-you action (its
+  // button + DISTANCE_COPY) and the Status/Capacity data labels stay English.
   'detail.backToMap': string;
   'detail.notFoundTitle': string;
   'detail.notFoundBody': string;
@@ -234,7 +233,7 @@ export interface Messages {
   'detail.cancel': string;
   'detail.verifyAccount': string;
 
-  // --- submit shelter page (i18n-et-en M14 slice 2: the contribute surface).
+  // --- submit shelter page (i18n-et-en: the contribute surface).
   'submit.backToMap': string;
   'submit.title': string;
   'submit.subtitle': string;

@@ -13,6 +13,41 @@ requirement below.
 ID code is dropped by the V12 migration and read by nothing. The account
 page's identity section offers the name-only password-confirmed edit.
 
+## ADDED Requirements
+
+### Requirement: Profile editing (name, password-confirmed)
+
+The application SHALL let an authenticated user correct their NAME from
+the account page. The edit SHALL be confirmed by the account's current
+password so a stolen session cannot rewrite the identity anchor. Email,
+phone and any identity code are NOT part of this form: email/phone stay
+on the existing cross-channel proof flows, and no national ID code is
+collected anywhere in the app.
+
+#### Scenario: User corrects their name
+
+- **WHEN** an authenticated user enters the current password plus a
+  corrected name
+- **THEN** the change is persisted and the account page shows the
+  updated name
+
+#### Scenario: Wrong current password
+
+- **WHEN** the password does not match the account's stored hash
+- **THEN** the change is rejected (401-style error surfaced inline) and
+  nothing is updated
+
+#### Scenario: Validation failure
+
+- **WHEN** the new name is blank
+- **THEN** the backend rejects the request with a 400 and the form shows
+  the validation error
+
+#### Scenario: Unauthenticated profile write
+
+- **WHEN** no valid JWT is presented
+- **THEN** the endpoint answers 401 and no data changes
+
 ## MODIFIED Requirements
 
 ### Requirement: Real profile fetch (GET /account/me)
@@ -54,39 +89,6 @@ the `/admin` route guard.
   email/phone
 - **THEN** the store re-fetches the profile so verification labels and
   contact values reflect the change immediately
-
-### Requirement: Profile editing (name, password-confirmed)
-
-The application SHALL let an authenticated user correct their NAME from
-the account page. The edit SHALL be confirmed by the account's current
-password so a stolen session cannot rewrite the identity anchor. Email,
-phone and any identity code are NOT part of this form: email/phone stay
-on the existing cross-channel proof flows, and no national ID code is
-collected anywhere in the app.
-
-#### Scenario: User corrects their name
-
-- **WHEN** an authenticated user enters the current password plus a
-  corrected name
-- **THEN** the change is persisted and the account page shows the
-  updated name
-
-#### Scenario: Wrong current password
-
-- **WHEN** the password does not match the account's stored hash
-- **THEN** the change is rejected (401-style error surfaced inline) and
-  nothing is updated
-
-#### Scenario: Validation failure
-
-- **WHEN** the new name is blank
-- **THEN** the backend rejects the request with a 400 and the form shows
-  the validation error
-
-#### Scenario: Unauthenticated profile write
-
-- **WHEN** no valid JWT is presented
-- **THEN** the endpoint answers 401 and no data changes
 
 ### Requirement: Account page replaces contact-only page
 

@@ -7,14 +7,14 @@ import type { Messages } from './messages';
 import { TranslatePipe } from './translate-pipe';
 
 /**
- * i18n-et-en M14 slice 1: the locale service, the translation lookup and
+ * i18n-et-en: the locale service, the translation lookup and
  * the catalog-parity guard.
  *
  *  - Mechanism: default locale (no stored pref = en), stored preference,
  *    invalid-value fallback, setLocale persistence + <html lang>.
- *  - Seam: t() + {param} interpolation (the seam the slice 2+ domain copy
- *    runs on — no chrome key carries a placeholder yet, so the pure
- *    interpolate() helper is unit-tested directly).
+ *  - Seam: t() + {param} interpolation (the seam the domain copy runs on —
+ *    no chrome key carries a placeholder yet, so the pure interpolate()
+ *    helper is unit-tested directly).
  *  - Guard: en/et catalogs stay key-complete and value-complete, so an
  *    untranslated string can never silently ship blank.
  */

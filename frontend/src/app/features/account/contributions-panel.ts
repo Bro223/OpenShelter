@@ -81,10 +81,10 @@ export class ContributionsPanel implements OnInit {
   // ---- two-step delete state -----------------------------------------------
   /** The two-step delete confirm: the armed shelter id (no window.confirm).
    *  The shared ConfirmAction owns the state machine, the focus move onto
-   *  Confirm and the focus restore to Delete on cancel (F-04/F-12). */
+   *  Confirm and the focus restore to Delete on cancel. */
   protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
 
-  // ---- info request (M10 slice 3) ---------------------------------------------
+  // ---- info request -----------------------------------------------------------
   /** The row whose inline info-request panel is open (null = closed) —
    *  one inline panel at a time, like the edit forms. */
   protected readonly infoFor = signal<number | null>(null);
@@ -100,7 +100,7 @@ export class ContributionsPanel implements OnInit {
 
   protected readonly busy = signal(false);
 
-  /** The single-sourced "reported inaccurate" warning (M10 slice 4):
+  /** The single-sourced "reported inaccurate" warning:
    *  the note line on a moderator-marked own row — the row stays visible,
    *  the flag is the treatment. */
   protected readonly inaccurateWarning = INACCURATE_WARNING;
@@ -135,7 +135,7 @@ export class ContributionsPanel implements OnInit {
       Validators.required,
       Validators.maxLength(200),
       // Whitespace-only names pass Validators.required — mirror the backend
-      // @NotBlank so we never PUT "   " (shared with /submit, A3).
+      // @NotBlank so we never PUT "   " (shared with /submit).
       nameBlankValidator,
     ],
   });
@@ -282,7 +282,7 @@ export class ContributionsPanel implements OnInit {
   }
 
   // -------------------------------------------------------------------------
-  // Info request (M10 slice 3): the moderator's question + the one-time reply
+  // Info request: the moderator's question + the one-time reply
   // -------------------------------------------------------------------------
   /**
    * Toggle the inline info-request panel for a row that carries a request.

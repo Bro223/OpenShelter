@@ -36,7 +36,7 @@ class PhoneNumbersTest {
 
     @Test
     void doesNotDoublePrefixAmbiguous372Numbers() {
-        // P2 fix: "37212345" must NOT become "+37237212345" (that would be
+        // "37212345" must NOT become "+37237212345" (that would be
         // misrouted to Estonia). Left as-is so the channel surfaces the
         // invalid number instead of silently sending to the wrong country.
         assertThat(PhoneNumbers.normalizeE164("37212345")).isEqualTo("37212345");

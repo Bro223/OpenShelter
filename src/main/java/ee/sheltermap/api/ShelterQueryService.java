@@ -38,8 +38,8 @@ import java.util.stream.Collectors;
  * Read side of the shelter API. Returns <strong>DTOs only, never
  * entities</strong> (05-shelter-api.puml). Creator
  * verification state, report counts and fresh occupancy are each computed
- * in <strong>one batched query</strong> per listing — no N+1 (hardening
- * pass; previously one {@code findByShelterId} per shelter; the creator
+ * in <strong>one batched query</strong> per listing instead of one
+ * {@code findByShelterId} per shelter — no N+1 (the creator
  * batch is accessibility-and-provenance D3; the trust batch is
  * shelter-trust-and-reports D1/D4).
  *
@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  * <p>D5: the public list projection is ACTIVE-only (auto-hidden shelters
  * disappear from the map and list); the trust filter
  * ({@code hasCapacity}) is applied in-memory over the
- * already-fetched list (Estonia-scale data). (M11 rating demotion, completed
+ * already-fetched list (Estonia-scale data). (Rating demotion, completed
  * by V21: the {@code minRating} query parameter no longer exists on the
  * model — an unknown {@code minRating} parameter is ignored for API
  * compatibility.)
@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
  * REJECTED rows are hidden, and that through the existing status
  * INACTIVE mechanism.
  *
- * <p>Last-verified meta (last-verified-meta M8): every DTO also carries
+ * <p>Last-verified meta (last-verified-meta): every DTO also carries
  * {@code reportCount} (the TOTAL community report count — all types,
  * summed over the existing batched per-type counts) and
  * {@code lastVerifiedAt} (registry rows: the newest non-failed import of
@@ -114,7 +114,7 @@ public class ShelterQueryService {
      * The public list: ACTIVE rows only (D5) — with the optional trust
      * filter applied in-memory.
      * {@code hasCapacity} keeps shelters with capacity data.
-     * A {@code false} boolean is the negation. (M11/V21: no {@code minRating}
+     * A {@code false} boolean is the negation. (V21: no {@code minRating}
      * parameter exists any more — an unknown {@code minRating} is ignored for
      * API compatibility.)
      * NEW community rows are listed like any other ACTIVE row
@@ -146,7 +146,7 @@ public class ShelterQueryService {
 
     /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows).
      *  The /mine projection additionally carries each row's moderator→submitter
-     *  information request (M10 slice 3) — the exchange is private, so the
+     *  information request — the exchange is private, so the
      *  public list and detail reads never fetch it. */
     public List<ShelterDto> findByCreatedBy(long userId) {
         return toDtos(shelterRepository.findByCreatedBy(userId), null, true);
@@ -178,7 +178,7 @@ public class ShelterQueryService {
      * The batched trust lookups (one query each — no N+1) shared by the
      * public list and the admin list projections:
      * creators (the provenance/trust submitter join), report counts by
-     * type, the fresh occupancy rows, and the last-verified stamp (M8).
+     * type, the fresh occupancy rows, and the last-verified stamp.
      */
     private Batches batchesFor(List<Shelter> shelters) {
         return batchesFor(shelters, false);
@@ -209,10 +209,10 @@ public class ShelterQueryService {
         // occupancy); latest tap wins, agreeing count, newest timestamp.
         Map<Long, ShelterDto.OpenStatus> openStatus = deriveOpenStatus(openStatusRepository
                 .findFreshByShelterIds(ids, clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW)));
-        // Last verified (M8): the per-shelter verification stamp (see the
+        // Last verified: the per-shelter verification stamp (see the
         // lastVerifiedFor derivation comment).
         Map<Long, Instant> lastVerified = lastVerifiedFor(shelters, ids);
-        // Information request (M10 slice 3): the per-shelter exchange row
+        // Information request: the per-shelter exchange row
         // (at most one per shelter — the UNIQUE bound) + the requesting
         // admin (batched — the admin projection renders the name; /mine
         // ignores it). Fetched ONLY for the /mine and admin projections.
@@ -241,7 +241,7 @@ public class ShelterQueryService {
     }
 
     /**
-     * M8: the per-entry "last verified" stamp. Registry rows carry the
+     * The per-entry "last verified" stamp. Registry rows carry the
      * newest VERIFYING import of their source (OK or NOT_MODIFIED — a 304
      * re-check is a verification; FAILED / SKIPPED runs verify nothing;
      * one lookup per distinct source in the batch, at most two). USER rows
@@ -511,7 +511,7 @@ public class ShelterQueryService {
     }
 
     /** D5: the trust filters over the projected list (absent = no filter).
-     *  {@code provenance} (shelter-provenance-taxonomy M6) keeps the rows
+     *  {@code provenance} (shelter-provenance-taxonomy) keeps the rows
      *  whose derived taxonomy value matches — in-memory over the projected
      *  list, the same Estonia-scale precedent as the trust filters. */
     private static List<ShelterDto> applyTrustFilters(List<ShelterDto> dtos, Boolean hasCapacity,

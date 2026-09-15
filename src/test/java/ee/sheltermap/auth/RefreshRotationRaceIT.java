@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * S4 (2026-09-08 review, backend W3): the refresh-rotation TOCTOU. Two
+ * The refresh-rotation TOCTOU: two
  * threads redeem the SAME refresh token simultaneously; the atomic claim
  * (conditional {@code UPDATE ... WHERE revoked_at IS NULL}, row-lock
  * serialized) must let exactly one through — the other gets

@@ -18,9 +18,9 @@ audit trail — from a moderation panel that is invisible to everyone else.
 auth, verification, shelter submission, community reports); run/build docs in
 [frontend/README.md](frontend/README.md).
 
-> Built step by step from the task pack in [`context and tasks/agent/`](context%20and%20tasks/agent/):
+> Built step by step from the task pack in [`context and tasks/agent/`](context-and-tasks/agent/):
 > `01-TASK.md` is the contract, `07-STEPS.md` the build plan, the puml files in
-> [`context and tasks/`](context%20and%20tasks/) the source-of-truth UML.
+> [`context and tasks/`](context-and-tasks/) the source-of-truth UML.
 
 ## Status
 
@@ -44,12 +44,12 @@ auth, verification, shelter submission, community reports); run/build docs in
   occupancy bands (display-only, 2 h freshness), trust filters on the public list
   (`hasCapacity` / `provenance`), the 10-active-shelter submission cap, a durable per-user
   report throttle (10 report-type actions / rolling hour, advisory-locked check-and-record)
-  and `V9__shelter_trust_and_reports.sql` —
-  **433 backend tests green**, plus the frontend trust wave (trust filter chips + rating
-  select, the orange reported marker + legend, the badge set, detail-page report pickers,
-  the "Report how full" 3-band picker, the contributions-panel hidden state, the
-  `--color-reported` token) at **657 frontend tests across 35 spec files** (both counted
-  2026-09-11), all green.
+  and `V9__shelter_trust_and_reports.sql` — **433 backend tests green at the time of that
+  wave**, plus the frontend trust wave (trust filter chips + rating select, the orange
+  reported marker + legend, the badge set, detail-page report pickers, the "Report how full"
+  3-band picker, the contributions-panel hidden state, the `--color-reported` token) at
+  **657 frontend tests across 35 spec files** (both counted 2026-09-11 — historical; the
+  tree now runs 719 backend / 953 frontend, counted 2026-09-15 above), all green.
 - **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
   backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave) —
   2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
@@ -207,6 +207,53 @@ auth, verification, shelter submission, community reports); run/build docs in
 
 Dependency rule: `api`/`auth`/`ingestion` → `app`/`verification` → `domain`. `domain` depends
 on nothing. Cross-package access goes through interfaces only.
+
+## Documentation
+
+The repo holds 200-plus markdown files and only a handful are linked from this one, so here
+is the map — grouped by who each set is for.
+
+### Product & public documents
+
+For readers outside the build — what the project is, and how to consume the API:
+
+- [docs/whitepaper.md](docs/whitepaper.md) — the full whitepaper (product, security,
+  architecture, the verification discipline)
+- [docs/whitepaper-brief.md](docs/whitepaper-brief.md) — the one-page brief of the same
+- [docs/external-review-ask.md](docs/external-review-ask.md) — the cover sheet for an outside
+  reviewer (municipality, researcher, civil-protection contact)
+- [docs/security/](docs/security/) — the threat model (`threat-model.md`) and the operations
+  runbook (`operations.md`)
+- [docs/api/openapi.json](docs/api/openapi.json) — the machine-readable API contract
+  (readable summary under [API](#api))
+
+### Operating documents (how to build, run, test, ship)
+
+For the developer / operator:
+
+- [README.md](README.md) (this file) — backend: run, configure, deploy, current state
+- [frontend/README.md](frontend/README.md) — the Angular SPA: run, build, test, v1 deferrals
+- [qa/](qa/) — the QA map: test plan, feature matrix, security + accessibility checklists
+- [context-and-tasks/](context-and-tasks/) — the source-of-truth UML (`.puml` files) plus the
+  backend agent task pack (`agent/`: `01-TASK.md` the contract, `07-STEPS.md` the build plan)
+- [frontend/docs/](frontend/docs/) — the frontend flow diagrams (`.puml` files) plus the
+  frontend agent pack (`agent/`)
+- [docs/agentic-development.md](docs/agentic-development.md) — how this repo is developed
+  with AI agents (topologies, verification discipline, surviving records)
+
+### Internal process records (dated evidence, not guidance)
+
+For the archaeologist — what a specific run or review found, not instructions to follow:
+
+- [docs/code-review/](docs/code-review/) — the review records (2026-09-08 review output +
+  fix log, 2026-09-14 P2 audit, the review-process docs)
+- [docs/autopilot/](docs/autopilot/) — one hardening run's ledger (`findings/LEDGER.md`),
+  run log (`RUNLOG.md`) and report (`AUTOPILOT-REPORT-2026-09-15.md`)
+- [.agent-orchestration/](.agent-orchestration/) — an earlier run's artifacts (task ledger,
+  decision log, audit report, risk register, model usage)
+- [openspec/](openspec/) — the spec-driven change record: [openspec/specs/](openspec/specs/)
+  is the current behavioral truth, [openspec/changes/](openspec/changes/) holds in-flight
+  changes plus the `archive/` of the completed ones
 
 ## Data flow
 

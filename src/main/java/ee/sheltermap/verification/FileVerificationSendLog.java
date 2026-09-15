@@ -25,7 +25,7 @@ import java.util.Objects;
  * <p>Format: one line per send, tab-separated:
  * {@code <userId>\t<level>\t<epochMillis>}. The cooldown/cap math needs
  * only (userId, level, timestamp), so the raw contact is NOT persisted
- * (P2-5: PII in an unencrypted log file). Legacy 4-field lines (with a
+ * (PII in an unencrypted log file). Legacy 4-field lines (with a
  * contact column) are still parsed — the contact field is ignored.
  * Lines are appended on every send and loaded into memory at startup;
  * entries older than the retention window are pruned so the file cannot
@@ -89,7 +89,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
     @Override
     public synchronized SendDecision tryRecord(long userId, VerificationLevel level, String contact,
                                                Instant now, long cooldownSeconds, int maxPerDay) {
-        // M16: check + record under ONE lock hold. The helper calls re-enter
+        // Check + record under ONE lock hold. The helper calls re-enter
         // the (reentrant) monitor, so a burst cannot pass both reads before
         // either records.
         Instant lastSentAt = lastSentAt(userId, level);

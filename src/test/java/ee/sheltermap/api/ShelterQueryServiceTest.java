@@ -385,7 +385,7 @@ class ShelterQueryServiceTest {
         assertThat(service.findByCreatedBy(99L)).isEmpty();
     }
 
-    // ---------- information request on the /mine projection (M10 slice 3) ----------
+    // ---------- information request on the /mine projection ----------
 
     @Test
     void theMineProjectionCarriesTheInfoRequestButThePublicReadsDoNot() {
@@ -480,7 +480,7 @@ class ShelterQueryServiceTest {
         assertThat(shelters.findAll()).hasSize(3);
     }
 
-    // ---------- last-verified meta (last-verified-meta M8) ----------
+    // ---------- last-verified meta (last-verified-meta) ----------
 
     @Test
     void reportCountSumsAllReportTypes() {

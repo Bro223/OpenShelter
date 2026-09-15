@@ -47,8 +47,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
 registerLocaleData(localeEnGB, 'en-GB');
 
 /** The six moderation tabs: the review queue FIRST, the audit trail LAST
- *  (community-review-queue); the Users tab sits before the audit (M10
- *  slice 1). */
+ *  (community-review-queue); the Users tab sits before the audit. */
 export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
@@ -56,7 +55,7 @@ export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'user
 export const REJECT_REASON_MAX = 500;
 
 /** The info-request question's hard limit — mirrored by the backend
- *  contract (M10 slice 3, V19 column bound): required, at most 2000. */
+ *  contract (V19 column bound): required, at most 2000. */
 export const INFO_REQUEST_MAX = 2000;
 
 /** Shelter-report type labels (queue column + row meta). OPEN_CONFIRMED
@@ -87,14 +86,14 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   CLEAR_INACCURATE: 'Inaccurate cleared',
 };
 
-/** Shelter-history action labels (M10 slice 2 — the Shelters-tab panel). */
+/** Shelter-history action labels (the Shelters-tab panel). */
 export const SHELTER_HISTORY_ACTION_LABEL: Record<AdminShelterHistoryEvent['action'], string> = {
   CREATED: 'Created',
   EDITED: 'Edited',
   DELETED: 'Deleted',
 };
 
-/** M3 alert kind labels (abuse-limits slice 4): human copy for the
+/** Alert kind labels (abuse-limits): human copy for the
  *  machine kind values. */
 export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
   'submission-daily-cap': 'Daily submission cap',
@@ -121,7 +120,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  *    dismiss. Dismissed rows stay in the queue, DIMMED (audit trail — the
  *    choice over filtering: the admin sees what was resolved). Rows whose
  *    shelter is INACTIVE get a "Restore shelter" shortcut.
- *  - ALERTS — the M3 throttle-abuse ring (abuse-limits slice 4): the
+ *  - ALERTS — the throttle-abuse ring (abuse-limits): the
  *    daily submission cap (429), the per-contact OTP cap (429) and the
  *    near-duplicate rejection (409), newest first. Read-only; the ring
  *    is in-memory on the backend (cleared on a restart — a triage view,
@@ -138,7 +137,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  * review actions are the exception: they refetch the shelters list so the
  * unconfirmed queue and the Shelters tab both reflect the new state.
  *
- *  - USERS (before the audit, M10 slice 1) — the account list: name, e-mail,
+ *  - USERS (before the audit) — the account list: name, e-mail,
  *    kind, suspension state. Suspend is two-tap (arm + confirm, like the
  *    shelter delete) and idempotent server-side; a suspended row is dimmed
  *    with a "Suspended" badge and an Unsuspend action. Admin-kind rows are
@@ -189,13 +188,13 @@ export class AdminPage implements OnInit {
   /** Search input (public so specs can drive it — page convention). */
   readonly searchQuery = new FormControl('', { nonNullable: true });
 
-  // ---- shelter history (M10 slice 2, D4) ---------------------------------------
+  // ---- shelter history ---------------------------------------------------------
   /** The row whose inline history panel is open (null = closed). */
   protected readonly historyFor = signal<number | null>(null);
   /** The open panel's events — null = loading, [] = loaded and empty. */
   protected readonly historyEvents = signal<AdminShelterHistoryEvent[] | null>(null);
 
-  // ---- info request (M10 slice 3) -------------------------------------------------
+  // ---- info request ---------------------------------------------------------------
   /** The row whose inline info-request panel is open (null = closed). */
   protected readonly infoFor = signal<number | null>(null);
   /** The question editor: required (non-blank — the shared blank validator),
@@ -205,7 +204,7 @@ export class AdminPage implements OnInit {
     validators: [Validators.required, nameBlankValidator, Validators.maxLength(INFO_REQUEST_MAX)],
   });
 
-  // ---- mark inaccurate (M10 slice 4) -----------------------------------------------
+  // ---- mark inaccurate -------------------------------------------------------------
   /** The row whose inline mark-inaccurate editor is open (null = closed).
    *  Only opened for UNMARKED USER rows — a marked row shows the clear
    *  action directly, no editor. */
@@ -232,11 +231,11 @@ export class AdminPage implements OnInit {
   protected readonly alertsRows = signal<AdminAlertRow[] | null>(null);
   protected readonly alertsLoadError = signal<string | null>(null);
 
-  // ---- users tab (M10 slice 1) ----------------------------------------------------
+  // ---- users tab ------------------------------------------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly userRows = signal<AdminUserDto[] | null>(null);
   protected readonly userLoadError = signal<string | null>(null);
-  /** Two-tap suspend/unsuspend confirm (accessibility F-12): the armed row
+  /** Two-tap suspend/unsuspend confirm (accessibility): the armed row
    *  id, carrying which action was armed — the shared ConfirmAction owns the
    *  state machine, the focus move and the focus restore. */
   protected readonly userActionConfirm = new ConfirmAction<number, 'suspend' | 'unsuspend'>(
@@ -263,7 +262,7 @@ export class AdminPage implements OnInit {
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   protected readonly isPrivateLocation = isPrivateLocationShared;
   /** The single-sourced "reported inaccurate" warning + the admin-list
-   *  badge (M10 slice 4). */
+   *  badge. */
   protected readonly inaccurateWarning = INACCURATE_WARNING;
   protected readonly inaccurateBadge = INACCURATE_BADGE;
 
@@ -295,7 +294,7 @@ export class AdminPage implements OnInit {
     return AUDIT_ACTION_LABEL[action];
   }
 
-  /** M3 alert kind label (the machine value → human copy). */
+  /** Alert kind label (the machine value → human copy). */
   protected alertKindLabel(kind: AdminAlertKind): string {
     return ALERT_KIND_LABEL[kind];
   }
@@ -539,7 +538,7 @@ export class AdminPage implements OnInit {
   }
 
   // -------------------------------------------------------------------------
-  // Info request (M10 slice 3)
+  // Info request
   // -------------------------------------------------------------------------
   /**
    * Toggle the inline info-request panel for a USER row. A row WITHOUT a
@@ -667,7 +666,7 @@ export class AdminPage implements OnInit {
   }
 
   // -------------------------------------------------------------------------
-  // Shelter history (M10 slice 2, D4)
+  // Shelter history
   // -------------------------------------------------------------------------
   /**
    * Toggle the inline edit-history panel for a USER row. The panel lists
@@ -774,7 +773,7 @@ export class AdminPage implements OnInit {
   }
 
   // -------------------------------------------------------------------------
-  // Alerts tab (M3 slice 4)
+  // Alerts tab
   // -------------------------------------------------------------------------
   loadAlerts(): void {
     this.alertsRows.set(null);
@@ -786,7 +785,7 @@ export class AdminPage implements OnInit {
   }
 
   // -------------------------------------------------------------------------
-  // Users tab (M10 slice 1)
+  // Users tab
   // -------------------------------------------------------------------------
   loadUsers(): void {
     this.userRows.set(null);

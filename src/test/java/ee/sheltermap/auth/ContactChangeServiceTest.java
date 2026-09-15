@@ -130,7 +130,7 @@ class ContactChangeServiceTest {
 
         for (int i = 0; i < 5; i++) {
             int attempt = i + 1;
-            // H2: a code failure is RETURNED, not thrown (the 400 is raised
+            // A code failure is RETURNED, not thrown (the 400 is raised
             // at the controller boundary) — the attempts increment persists
             // either way, which is what the InMemory repo already showed.
             ContactChangeResult result = service.confirmEmailChange(user, wrong);
@@ -150,7 +150,7 @@ class ContactChangeServiceTest {
 
     @Test
     void incrementAttemptsIsStoreAtomicAndStopsAtTheCap() {
-        // S2 (2026-09-11 review): the lockout counter is incremented IN THE
+        // The lockout counter is incremented IN THE
         // STORE, not by a read-modify-write. At the cap the increment must
         // affect 0 rows instead of writing past the counter.
         RegisteredUser user = user("mari@example.ee", "+37250000001");

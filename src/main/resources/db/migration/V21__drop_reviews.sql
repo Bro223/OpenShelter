@@ -4,7 +4,7 @@
 -- (shelter_reports), which stays.
 --
 -- 1) Legacy audit rows for the deleted admin actions (REVIEW_HIDE /
---    REVIEW_RESTORE) are erased: the Action enum no longer has those
+--    REVIEW_RESTORE) are erased: the Action enum has no such
 --    values, and moderation_actions rows load through the entity's enum
 --    field (an unknown value would 500 /admin/audit).
 -- 2) Legacy report-throttle rows of the deleted REVIEW_REPORT action type

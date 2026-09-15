@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Bulk-CSV client for the official Päästeamet shelter dataset
- * (official-dataset-csv, roadmap M5).
+ * (official-dataset-csv).
  *
  * <p>The old Maa-amet WFS layer ({@code 1pdl2oh}) no longer publishes a
  * service ("Ei ole saadaval" — every WFS request 404s), so the official

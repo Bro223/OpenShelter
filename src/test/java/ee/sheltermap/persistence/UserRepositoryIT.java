@@ -72,7 +72,7 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         users.save(user); // nothing changed
 
         assertThat(user.getId()).isNotNull();
-        assertThat(emailClaim.getId()).isEqualTo(firstId); // N10: no id churn
+        assertThat(emailClaim.getId()).isEqualTo(firstId); // no id churn
     }
 
     @Test

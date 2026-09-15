@@ -38,10 +38,10 @@ class FakeShelterGateway {
   });
   list = vi.fn(async (): Promise<ShelterDto[]> => []);
   create = vi.fn();
-  /** Trust layer (shelter-trust-and-reports) — resolves the M9 damp flag (plain by default). */
+  /** Trust layer (shelter-trust-and-reports) — resolves the damp flag (plain by default). */
   report = vi.fn(async (): Promise<ShelterReportResult> => ({ damped: false }));
   reportOccupancy = vi.fn(async (): Promise<void> => undefined);
-  /** Open-status wave — the live open/closed upsert (204, void). */
+  /** The live open/closed upsert (204, void). */
   putOpenStatus = vi.fn(async (): Promise<void> => undefined);
 }
 
@@ -119,13 +119,13 @@ function registryShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDeta
     capacity: null,
     submitterVerified: false, // registry rows have no creator (D3)
     nonexistentReports: 0,
-    reportCount: 0, // M8 total (all report types)
+    reportCount: 0, // total (all report types)
     openStatus: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill (D3)
     locationKind: 'PUBLIC',
-    lastVerifiedAt: null, // M8 — null = never verified
-    inaccurate: false, // M10 slice 4 — no moderator mark on this row
+    lastVerifiedAt: null, // null = never verified
+    inaccurate: false, // no moderator mark on this row
     yourOccupancyBand: null, // the detail projection's extra field (D5)
     yourOpenStatus: null, // the detail projection's open-status pre-select
     ...overrides,
@@ -321,7 +321,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
     it('a marked row carries the single-sourced inaccurate warning in the header', async () => {
       // A CONFIRMED community row: the unverified block is absent, so the
-      // single .community-warning IS the M10-slice-4 treatment.
+      // single .community-warning IS the marked-row treatment.
       shelterGateway.rows.set(
         8,
         userShelter({
@@ -385,7 +385,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(el8.querySelector('.community-warning')).not.toBeNull();
     });
 
-    // ----- last-verified meta (M8) ---------------------------------------
+    // ----- last-verified meta --------------------------------------------
 
     it('a verified row shows the last-verified line from the server stamp', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
@@ -575,7 +575,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Distance from you (location-navigation M12): the page's ONLY
+  // Distance from you (location-navigation): the page's ONLY
   // geolocation trigger — client-side Haversine to the shelter's own point,
   // the D6 straight-line honesty format, the map CTA's mirrored error copy.
   // ---------------------------------------------------------------------------
@@ -895,7 +895,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       );
       const { element } = await open('/shelters/1');
 
-      // M8: the count — the nonexistentReports subset that drives the badge.
+      // The count — the nonexistentReports subset that drives the badge.
       expect(element.querySelector('.badge--reported')?.textContent?.trim()).toBe('Reported (2)');
       // A fresh firm CLOSED net (two+) is the amber badge, firm copy.
       expect(element.querySelector('.badge--closed')?.textContent?.trim()).toBe('Closed');
@@ -937,7 +937,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.badge--occupancy')).toBeNull();
     });
 
-    // ----- practical info block (open-status wave) -------------------
+    // ----- practical info block --------------------------------------
 
     it('the info block reads "Reported closed" for a fresh lone CLOSED report (hedged)', async () => {
       shelterGateway.rows.set(
@@ -1300,7 +1300,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('.band-btn')).toBeNull();
     });
 
-    // ----- report open/closed (open-status wave) -----------------------
+    // ----- report open/closed -------------------------------------------
 
     it('verified: the two 48px state buttons preselect from yourOpenStatus', async () => {
       shelterGateway.rows.set(1, registryShelter({ yourOpenStatus: 'CLOSED' }));

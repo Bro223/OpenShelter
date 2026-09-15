@@ -203,7 +203,7 @@ nearest/bbox + paging documented as deferred, not built.
 
 ---
 
-## Step 7 — Hardening pass (code review) ✅ DONE
+## Step 7 — Hardening pass (code review) DONE
 
 **Inputs:** the completed Steps 0–6 + a whole-system code review.
 

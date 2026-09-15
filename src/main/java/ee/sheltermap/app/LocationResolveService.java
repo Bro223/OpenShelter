@@ -20,7 +20,7 @@ import java.util.function.LongSupplier;
  *   <li>entry pinned — only a default-port {@code http(s)://maps.app.goo.gl}
  *       URL is ever fetched (the only host the client sends; a non-default
  *       port fails the entry check as well). The entry is then NORMALIZED
- *       before the walk (S5 + S6, 2026-09-11 review): {@code http} is
+ *       before the walk: {@code http} is
  *       upgraded to {@code https} — Google does exactly this on the first
  *       hop anyway, and without the upgrade a legitimate pasted
  *       {@code http://…} link would be rejected by the no-scheme-change hop
@@ -149,15 +149,15 @@ public class LocationResolveService {
     }
 
     /**
-     * The normalized entry URL for the walk (S5 + S6, 2026-09-11 review):
+     * The normalized entry URL for the walk:
      * <ul>
      *   <li>{@code http} is UPGRADED to {@code https} — Google upgrades the
      *       same hop itself, and the no-scheme-change rule on HOPS would
      *       reject that first hop for a pasted {@code http://…} entry, so
-     *       the walk is pinned to https up front (S5);</li>
+     *       the walk is pinned to https up front;</li>
      *   <li>userInfo is DROPPED — a pasted {@code https://user:pass@…} entry
      *       must not leak the pasted credentials to Google as an
-     *       {@code Authorization: Basic} header (S6).</li>
+     *       {@code Authorization: Basic} header.</li>
      * </ul>
      * The host is re-emitted canonical (lower-case whitelist host, default
      * port); the raw path/query/fragment are preserved as-is (no

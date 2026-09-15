@@ -84,7 +84,7 @@ public class ShelterController {
     /**
      * 403 message for author-scoped shelter mutations (update/delete) —
      * duplicated here because both branches of
-     * {@link #requireVerifiedRegisteredUser()} reject with it (de-slop K5).
+     * {@link #requireVerifiedRegisteredUser()} reject with it.
      */
     private static final String MODIFY_SHELTERS_MESSAGE =
             "A verified account is required to modify shelters";
@@ -119,7 +119,7 @@ public class ShelterController {
      * removed in V21 with the rating model — an unknown {@code minRating}
      * param is ignored for API compatibility, not an error.)
      *
-     * <p>{@code provenance} (shelter-provenance-taxonomy M6): optional
+     * <p>{@code provenance} (shelter-provenance-taxonomy): optional
      * taxonomy filter — keeps rows whose server-derived provenance matches
      * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW are
      * the only values reachable in the ACTIVE-only list; REPORTED_INACTIVE
@@ -202,7 +202,7 @@ public class ShelterController {
         if (!user.canWrite()) {
             throw new NotVerifiedException(ShelterService.SUBMIT_SHELTERS_MESSAGE);
         }
-        // P2 fix: user-submitted shelters get the same Estonia bounding-box
+        // User-submitted shelters get the same Estonia bounding-box
         // sanity check the registry parser applies — no ocean shelters.
         requireInsideEstonia(request.latitude(), request.longitude());
         Shelter shelter = new Shelter(
@@ -238,7 +238,7 @@ public class ShelterController {
 
     /**
      * POST /api/shelters/{id}/info-request/reply — the submitter's ONE-TIME
-     * answer to the admin's information request (M10 slice 3): 204. Author
+     * answer to the admin's information request: 204. Author
      * only — the same 404/403 vocabulary as the other author-scoped
      * mutations (PUT/DELETE); 404 when the row has no request; 409 on a
      * second answer (the row is kept after the reply — audit posture).
@@ -262,7 +262,7 @@ public class ShelterController {
      * shelter per type (shelter-trust-and-reports D1). Verified users
      * only (same 403 vocabulary as submissions); 404 unknown shelter;
      * 409 duplicate (shelter, user, type); 429 report throttle. The
-     * body answers the dampening outcome (community-self-moderation M9,
+     * body answers the dampening outcome (community-self-moderation,
      * D4): {@code {"damped": true|false}}.
      */
     @PostMapping("/{id}/reports")
@@ -385,7 +385,7 @@ public class ShelterController {
     }
 
     /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reports and occupancy cascade.
-     *  The DELETED history row (M10 slice 2) is actor-attributed to the submitter. */
+     *  The DELETED history row is actor-attributed to the submitter. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete the caller's own shelter",

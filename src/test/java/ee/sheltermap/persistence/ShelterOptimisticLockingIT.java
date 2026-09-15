@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * B7b: the {@code shelters.version} column (V8) backs optimistic locking.
+ * The {@code shelters.version} column (V8) backs optimistic locking.
  * Saving a row whose version was bumped underneath the reader must fail with
  * an optimistic-lock error instead of silently clobbering the concurrent
  * write — the error then propagates up to the API layer's 409 mapping.

@@ -61,7 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.login-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0",
-        // the AGGREGATE per-IP login bucket (W5 credential-stuffing valve)
+        // the AGGREGATE per-IP login bucket (the credential-stuffing valve)
         // is in-memory per context and shared by every login in it — this
         // class logs the admin in more than the default 20 times, so it
         // runs its own context with a raised cap (AdminModerationIT stays
@@ -231,7 +231,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[0].reviewStatus").value("CONFIRMED"));
 
         // the AUTO_CONFIRM audit row: the REPORTING user is the actor
-        Long confirmerId = userIdByEmail("kinnitaja@example.ee"); // PII-at-rest (M2): hash lookup
+        Long confirmerId = userIdByEmail("kinnitaja@example.ee"); // PII-at-rest: hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT action FROM moderation_actions WHERE shelter_id = ?", String.class, id))
                 .isEqualTo("AUTO_CONFIRM");
@@ -272,7 +272,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
     void anAdminConfirmConfirmsWithoutTouchingTheStatus() throws Exception {
         String author = verifiedToken("Autor", "autor4@example.ee");
         long id = createShelterViaApi(author, "Manuaalselt");
-        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
+        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest: hash lookup
 
         mvc.perform(post("/admin/shelters/" + id + "/review")
                         .header("Authorization", "Bearer " + adminToken())
@@ -466,7 +466,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$[4].previousStatus").value("NEW"))
                 .andExpect(jsonPath("$[4].newStatus").value("CONFIRMED"));
         // the AUTO_CONFIRM actor is the REPORTING user, not an admin
-        Long kinnitajaId = userIdByEmail("kinnitaja2@example.ee"); // PII-at-rest (M2): hash lookup
+        Long kinnitajaId = userIdByEmail("kinnitaja2@example.ee"); // PII-at-rest: hash lookup
         entityManager.flush();
         assertThat(jdbc.queryForObject(
                         "SELECT moderator_id FROM moderation_actions WHERE action = 'AUTO_CONFIRM' "
@@ -486,7 +486,7 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                 400, "Bad Request");
 
         // every row's actor is the acting user (admin or the reporter)
-        Long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
+        Long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest: hash lookup
         assertThat(jdbc.queryForObject(
                         "SELECT COUNT(*) FROM moderation_actions WHERE moderator_id = ?",
                         Integer.class, adminId)).isEqualTo(4);

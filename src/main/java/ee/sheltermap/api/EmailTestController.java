@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * endpoint must NOT do that: {@code sent:false} + the relay error is exactly
  * the diagnostic you need.
  *
- * <p><strong>Safety (hardening pass):</strong> disabled by default
+ * <p><strong>Safety:</strong> disabled by default
  * ({@code app.dev-email-test.enabled=true} / {@code DEV_EMAIL_TEST_ENABLED=true}
  * to enable), requires a valid JWT (falls under
  * {@code anyRequest().authenticated()}), and — unless

@@ -30,7 +30,7 @@ class ShelterServiceTest {
     private InMemoryUserRepository users;
     private InMemoryShelterHistoryLog history;
     private ShelterService service;
-    /** The M3 slice-4 alert ring under test's services (the alerts
+    /** The alert ring under test's services (the alerts
      *  themselves are unit-tested in ThrottleAlertRecorderTest). */
     private final ThrottleAlertRecorder alerts = new ThrottleAlertRecorder(128);
 
@@ -66,7 +66,7 @@ class ShelterServiceTest {
     @Test
     void guestCannotAddPlace() {
         assertThatThrownBy(() -> service.addPlace(new GuestUser(), userPlace()))
-                .isInstanceOf(NotVerifiedException.class); // 403-mapped (B7c)
+                .isInstanceOf(NotVerifiedException.class); // 403-mapped
 
         assertThat(repo.findAll()).isEmpty();
     }
@@ -78,7 +78,7 @@ class ShelterServiceTest {
         user.setId(1L);
 
         assertThatThrownBy(() -> service.addPlace(user, userPlace()))
-                .isInstanceOf(NotVerifiedException.class); // 403-mapped (B7c)
+                .isInstanceOf(NotVerifiedException.class); // 403-mapped
 
         assertThat(repo.findAll()).isEmpty();
     }
@@ -151,7 +151,7 @@ class ShelterServiceTest {
      * In-memory repo that mimics {@code JpaShelterRepository}'s internal
      * guard: a save for a known id whose row is gone throws
      * {@code IllegalStateException} (the guard stays in the repository —
-     * n12 only maps it at the service boundary).
+     * the service boundary only maps it).
      */
     private static final class GuardedShelterRepository extends InMemoryShelterRepository {
         @Override
@@ -165,7 +165,7 @@ class ShelterServiceTest {
 
     @Test
     void updatePlaceOnAConcurrentlyDeletedShelterMapsToNotFound() {
-        // n12 (2026-09-10 review): a concurrent DELETE commits between the
+        // A concurrent DELETE commits between the
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
@@ -226,7 +226,7 @@ class ShelterServiceTest {
         assertThat(service.findMine(1L)).isEmpty();
     }
 
-    // ---------- edit history (moderation-dashboard-completion M10 slice 2, D4) ----------
+    // ---------- edit history (moderation-dashboard-completion D4) ----------
 
     @Test
     void addPlaceRecordsCreatedHistoryAttributedToTheSubmitter() {
@@ -386,7 +386,7 @@ class ShelterServiceTest {
         assertThat(repo.findAll()).hasSize(11);
     }
 
-    // ---------- near-duplicate detection (abuse-limits M3 slice 3) ----------
+    // ---------- near-duplicate detection (abuse-limits) ----------
 
     @Test
     void sameNameSamePointIsRejectedWithTheExistingRowId() {

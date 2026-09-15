@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 
 /**
  * Dev-only diagnostic endpoint — {@code POST /dev/sms-test} (mirror of
- * {@code /dev/email-test}, hardening pass: the phone channel had no way to be
+ * {@code /dev/email-test}: the phone channel had no way to be
  * exercised end-to-end without digging through logs). Sends a real SMS through
  * the active {@link SmsSender} and reports which provider handled it plus the
  * E.164-normalized recipient.

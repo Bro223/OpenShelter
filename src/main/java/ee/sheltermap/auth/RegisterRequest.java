@@ -12,7 +12,7 @@ import jakarta.validation.constraints.Size;
  * global DIVE handler would also 400, but validation keeps the error at
  * the input layer).
  *
- * <p>No national ID code (remove-national-id M1): the app no longer
+ * <p>No national ID code (remove-national-id): the app never
  * collects one; SMART_ID verification, when it lands, proves identity via
  * an external PKI flow that stores no code.
  */

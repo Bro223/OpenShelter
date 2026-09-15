@@ -16,7 +16,7 @@ public abstract class User {
     private Long id;
 
     /**
-     * Suspension stamp (moderation-dashboard-completion M10 slice 1) —
+     * Suspension stamp (moderation-dashboard-completion) —
      * non-null while the account is suspended. An INDEFINITE suspension
      * an admin lifts manually (no expiry policy exists); the state is a
      * plain account attribute, enforced by fresh lookups at the three

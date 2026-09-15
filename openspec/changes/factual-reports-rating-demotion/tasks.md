@@ -18,7 +18,7 @@
 
 ## Slice 3 — Rating demotion (FE)
 
-- [x] Map: drop the "N★+" select (template, `RATING_FILTERS`,
+- [x] Map: drop the "N-star-plus" select (template, `RATING_FILTERS`,
       `minRating` signal, `setMinRating`, scss) + the gateway param +
       the `TrustFilters.minRating` model field; specs updated
 - [x] Report dialog: detail field for `CLOSED` / `WRONG_LOCATION` /

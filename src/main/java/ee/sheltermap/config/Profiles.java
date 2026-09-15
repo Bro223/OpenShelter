@@ -5,14 +5,13 @@ import org.springframework.core.env.Environment;
 import java.util.Objects;
 
 /**
- * The one dev/test profile rule shared by the fail-closed startup guards
- * (S3, 2026-09-11 review).
+ * The one dev/test profile rule shared by the fail-closed startup guards.
  *
- * <p>The guards previously each parsed the raw
+ * <p>The guards read the RESOLVED active set, not the raw
  * {@code spring.profiles.active} PROPERTY string, which is blind to profile
  * GROUPS and {@code spring.profiles.default} — both materialize in the
- * ENVIRONMENT's resolved active set, not in the property. Reading
- * {@link Environment#getActiveProfiles()} instead sees the resolved set the
+ * ENVIRONMENT's resolved active set, not in the property. That is what
+ * {@link Environment#getActiveProfiles()} returns: the resolved set the
  * application actually runs with.
  *
  * <p>The rule itself is unchanged: the active set is dev/test-only when it

@@ -94,7 +94,7 @@ const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
 
 /**
  * /submit (AuthGuard + VerifiedGuard) — verified-user shelter submission
- * (05-shelter-review-flow.puml, M5 + shelter-location-input). Name (≤200),
+ * (05-shelter-review-flow.puml, shelter-location-input). Name (≤200),
  * optional description (≤2000), optional capacity (1–100 000), the
  * private-home declaration (community-review-queue D7: locationKind), and
  * a location captured five ways — smart text input (coordinate string /
@@ -125,7 +125,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   private readonly geo = inject(GeoGateway);
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
-  /** Resolves the location capture copy (i18n-et-en M14 slice 2). */
+  /** Resolves the location capture copy (i18n-et-en). */
   private readonly i18n = inject(I18nService);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
@@ -137,7 +137,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
         Validators.required,
         Validators.maxLength(200),
         // Whitespace-only names pass Validators.required — mirror the
-        // backend @NotBlank (reviewer N3) so we never POST "   ".
+        // backend @NotBlank so we never POST "   ".
         nameBlankValidator,
       ],
     }),
@@ -179,7 +179,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   protected readonly locationText = signal('');
 
   /**
-   * The monotonic capture generation (M3 — cross-mode capture race): every
+   * The monotonic capture generation (cross-mode capture race): every
    * capture start — geolocation, short-link resolve, smart-input parse, map
    * pick, address select — bumps this counter. Async callbacks capture
    * their generation at start and NO-OP once a newer capture has superseded
@@ -250,7 +250,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    */
   ngAfterViewInit(): void {
     this.leaflet.mapClick = (latitude, longitude) => {
-      // A pick is a capture — it supersedes any pending capture (M3).
+      // A pick is a capture — it supersedes any pending capture.
       this.captureGeneration++;
       // No flyTo: the user is already looking at the point (a re-center
       // during a pin drag would fight the gesture).
@@ -260,7 +260,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
-    // Drop the mini-map instance + listeners (page-scoped, M4 decision 3).
+    // Drop the mini-map instance + listeners (page-scoped, design decision 3).
     this.leaflet.destroy();
   }
 
@@ -289,7 +289,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
     }
     // This capture is current by definition — the bump matters for the
     // ASYNC captures: a pending geolocation/resolve must no-op once the
-    // user typed (M3).
+    // user typed.
     this.captureGeneration++;
     // Short links are opaque redirects — only the backend can read them.
     if (isGooShortLink(text)) {
@@ -333,7 +333,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
         this.locating.set(false);
         if (gen !== this.captureGeneration) {
           // Superseded by a newer capture (typed/picked/… while this was in
-          // flight) — the late settle must not overwrite the pin (M3).
+          // flight) — the late settle must not overwrite the pin.
           return;
         }
         this.setLocation(
@@ -349,7 +349,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
         this.locating.set(false);
         if (gen !== this.captureGeneration) {
           // Superseded — the late error must not run failLocation and clear
-          // the pin the user set in the meantime (M3).
+          // the pin the user set in the meantime.
           return;
         }
         // Duck-typed code read: jsdom does not define GeolocationPositionError.
@@ -371,17 +371,17 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
       const resolved = await this.geo.resolve(url);
       if (gen !== this.captureGeneration) {
         // Superseded by a newer capture while the resolve was in flight —
-        // the late success must not overwrite the pin (M3).
+        // the late success must not overwrite the pin.
         return;
       }
       this.setLocation(resolved.latitude, resolved.longitude, 'link');
     } catch (failure: unknown) {
       if (gen !== this.captureGeneration) {
         // Superseded — the late failure must not run failLocation and clear
-        // a pick made while the resolve was in flight (M3).
+        // a pick made while the resolve was in flight.
         return;
       }
-      // M5: 5xx = the backend's UPSTREAM resolution is temporarily
+      // A 5xx = the backend's UPSTREAM resolution is temporarily
       // unavailable (its own message says retry later); a network failure
       // = the API is unreachable. Neither is the user's link — retry-
       // oriented copy, not the not-found copy.
@@ -458,7 +458,7 @@ export class SubmitShelterPage implements AfterViewInit, OnDestroy {
    * decision 4: prefill, never overwrite; the help line states this).
    */
   protected selectAddressResult(result: GeocodeResult): void {
-    // A selection is a capture — it supersedes any pending capture (M3).
+    // A selection is a capture — it supersedes any pending capture.
     this.captureGeneration++;
     this.setLocation(result.latitude, result.longitude, 'address-search');
     if (this.locationText().trim() === '') {

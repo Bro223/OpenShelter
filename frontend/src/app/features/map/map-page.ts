@@ -58,7 +58,7 @@ import {
 
 /** The three source-filter chips (server-side `?source=` refetch, design 4).
  *  `value` is the API param (never translated); the label is a message key
- *  resolved through the `t` pipe in the template (i18n-et-en M14 slice 2). */
+ *  resolved through the `t` pipe in the template (i18n-et-en). */
 const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
   { value: 'ALL', labelKey: 'map.filter.all' },
   { value: 'REGISTRY', labelKey: 'map.filter.registry' },
@@ -68,9 +68,9 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
 /**
  * Message keys for the "Nearest shelter" action's inline errors
  * (map-crisis-actions D2), resolved through the `t` pipe in the template
- * (i18n-et-en M14 slice 2). The vocabulary mirrors the /submit geolocation
- * errors; the W9/W15 duplication convention keeps it documented, not
- * shared. The map page has no map-pick or link fallback, only a retry.
+ * (i18n-et-en). The vocabulary mirrors the /submit geolocation
+ * errors; the two pages keep divergent copy on purpose, so this list stays
+ * page-local. The map page has no map-pick or link fallback, only a retry.
  */
 const NEAREST_KEY: Record<GeolocationFailureKind, MessageKey> = {
   denied: 'map.nearest.denied',
@@ -80,24 +80,24 @@ const NEAREST_KEY: Record<GeolocationFailureKind, MessageKey> = {
   insecure: 'map.nearest.insecure',
 };
 
-/** The inline states of the address search (location-navigation M12). The
- *  copy is MIRRORED from the /submit page's GEOCODE_ERROR_KEY (the W9/W15
- *  duplication convention: documented, not shared across features); the
- *  trailing alternatives differ because the browse page has no map-pick or
- *  link fallback (its alternative is the geolocation CTA). A failed search
+/** The inline states of the address search (location-navigation). The
+ *  copy mirrors the /submit page's GEOCODE_ERROR_KEY rather than sharing it,
+ *  since the two pages keep their own copy on purpose; the trailing
+ *  alternatives differ because the browse page has no map-pick or link
+ *  fallback (its alternative is the geolocation CTA). A failed search
  *  changes nothing else: no anchor, no pin, list untouched. */
 type GeocodeErrorKind = 'no-results' | 'rate-limited' | 'network';
 
-/** Message keys for the inline address-search failures (location-navigation
- *  M12); resolved through the `t` pipe (i18n-et-en M14 slice 2). The /submit
- *  mirror keeps the same W9/W15 duplication convention. */
+/** Message keys for the inline address-search failures (location-navigation);
+ *  resolved through the `t` pipe (i18n-et-en). The /submit
+ *  mirror stays page-local for the same reason. */
 const GEOCODE_ERROR_KEY: Record<GeocodeErrorKind, MessageKey> = {
   'no-results': 'map.geocode.noResults',
   'rate-limited': 'map.geocode.rateLimited',
   network: 'map.geocode.network',
 };
 
-/** Neighbourhood scale for the anchor fly (M12): the anchor is a
+/** Neighbourhood scale for the anchor fly: the anchor is a
  *  searched ADDRESS, not a shelter — SHELTER_ZOOM 16 would hide the
  *  surroundings the search exists to compare. */
 const ANCHOR_ZOOM = 14;
@@ -127,7 +127,7 @@ function nearestShelterAt(
 
 /**
  * Public home for signed-out/signed-in users: '/map' (and '/', the default
- * route). The read-only shelter browse experience (M4): a Leaflet map with
+ * route). The read-only shelter browse experience: a Leaflet map with
  * divIcon markers toned by the trust palette (community-review-queue D5:
  * registry blue, community NEW amber, community CONFIRMED green, plus the
  * reported-state orange override) + a sidebar list, source-filter chips
@@ -177,23 +177,23 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly injector = inject(EnvironmentInjector);
 
   protected readonly sourceFilters = SOURCE_FILTERS;
-  /** W24: the shared source/trust copy, exposed to the template (Angular's
+  /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
    *  source label (registry) or the trust-state label (USER rows);
    *  the trust badges (D6) reuse the shared openStatus/occupancy copy. */
   protected readonly sourceTrustLabel = sourceTrustLabelShared;
   protected readonly communityBadgeClass = communityBadgeClassShared;
-  /** The row's fresh-CLOSED badge text (open-status wave) — fresh OPEN rows
-   *  render no badge (open is the default). */
+  /** The row's fresh-CLOSED badge text — fresh OPEN rows render no badge
+   *  (open is the default). */
   protected readonly openStatusBadgeText = openStatusBadgeTextShared;
   protected readonly occupancyText = occupancyTextShared;
-  /** The reported badge with its count (last-verified-meta M8). */
+  /** The reported badge with its count (last-verified-meta). */
   protected readonly reportedBadgeText = reportedBadgeTextShared;
   /** The nearest result's straight-line distance line (D6 honesty). */
   protected readonly straightLineText = straightLineText;
   /** The community unverified warning line (community-review-queue). */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
-  /** The single-sourced "reported inaccurate" warning (M10 slice 4). */
+  /** The single-sourced "reported inaccurate" warning. */
   protected readonly inaccurateWarning = INACCURATE_WARNING;
   /** The private-home declaration badge (D7). */
   protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
@@ -203,7 +203,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  in code, not in the template expressions. */
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
-  /** The address-search inline state (location-navigation M12) — the
+  /** The address-search inline state (location-navigation) — the
    *  template renders the mapped copy, the kind stays in code. */
   protected readonly anchorErrorText = (): MessageKey | null => {
     const kind = this.anchorError();
@@ -215,7 +215,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** Has capacity toggle chip -> `hasCapacity=true` (server-side). */
   protected readonly hasCapacity = signal(false);
   /** Open toggle chip (client-side): keeps the rows whose derived display
-   *  status reads OPEN (open-status wave: fresh OPEN + nothing-fresh),
+   *  status reads OPEN (fresh OPEN + nothing-fresh),
    *  dropping the fresh-CLOSED rows (and lifecycle-INACTIVE rows, which
    *  never reach the public list). The BE has no such param, so the chip
    *  filters the loaded list WITHOUT a refetch and re-renders the markers
@@ -252,10 +252,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  offer (with the /submit link for authenticated users). */
   protected readonly nearestEmpty = signal(false);
   /** The last locate failure's message key (null = none); the template
-   *  resolves it through the `t` pipe (i18n-et-en M14 slice 2). */
+   *  resolves it through the `t` pipe (i18n-et-en). */
   protected readonly nearestError = signal<MessageKey | null>(null);
 
-  // ---- address-search anchor (location-navigation M12) ------------------
+  // ---- address-search anchor (location-navigation) ----------------------
   /** The search input's content (a capture affordance, not a field). */
   protected readonly anchorQuery = signal('');
   /** True while the Nominatim search is in flight (button pending state). */
@@ -276,7 +276,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /**
    * Sidebar rows: the "Open" chip's client-side filter first, then the
    * distance sort — the around-you user position wins (the action's
-   * ranking), the browse anchor next (M12), the stable name sort is the
+   * ranking), the browse anchor next, the stable name sort is the
    * default and the tiebreak everywhere (05-CONTEXT-MAP).
    */
   protected readonly sorted = computed<ShelterDto[]>(() => {
@@ -345,10 +345,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /** Chip click — refetch with the server-side source param (no client
-   *  filter). Public so specs can drive it (M2 page convention).
+   *  filter). Public so specs can drive it (page convention).
    *  Re-selecting the ACTIVE chip retries the last failed refetch — the
    *  equality guard must not swallow that click while an error banner is
-   *  up (reviewer N8). */
+   *  up. */
   setFilter(source: ShelterSourceFilter): void {
     if (source === this.filter() && this.error() === null) {
       return;
@@ -374,7 +374,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /**
    * The active trust filter, or undefined when none is active (D5).
    * An undefined result keeps the legacy single-arg `list(source)` call
-   * shape — the query string is byte-identical to M4 until the filter is
+   * shape — the query string stays minimal (only `source`) until the filter is
    * actually set. (The `reviewed` param is gone with the review model;
    * "Open" is client-side and never reaches the query string.)
    */
@@ -386,7 +386,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * Row click: select (highlight) + fly the map to the shelter at street
    * level. Does NOT navigate — the selected row's "View details" link is
    * the explicit step to /shelters/{id} (design decision 5). Public so
-   * specs can drive it (M2 page convention).
+   * specs can drive it (page convention).
    */
   selectShelter(shelter: ShelterDto): void {
     // A manual selection supersedes the Nearest emphasis (D2: the temporary
@@ -439,7 +439,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
       return; // busy, or the list itself is loading/failed — an offer state
       // would mislead
     }
-    this.nearest.set(null); // F1: drop the LAST SUCCESS up front — a failed
+    this.nearest.set(null); // Drop the LAST SUCCESS up front — a failed
     // retry must not leave the stale "Nearest: X" line (and its row
     // emphasis, driven by the same signal) rendered next to the error.
     this.nearestKm.set(null);
@@ -453,8 +453,8 @@ export class MapPage implements AfterViewInit, OnDestroy {
     }
     this.locating.set(true);
     // The mechanism (secure-context + API guards, the request options, the
-    // error-code mapping) is shared/geolocation.ts (F-14); the per-kind
-    // COPY stays page-local (the W9/W15 mirror — NEAREST_KEY).
+    // error-code mapping) is shared/geolocation.ts; the per-kind
+    // COPY stays page-local and mirrored per kind (NEAREST_KEY).
     void getCurrentPositionHighAccuracy().then(
       (coords) => {
         this.locating.set(false);
@@ -486,7 +486,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     // new fetch.
     const hit = nearestShelterAt(latitude, longitude, this.shelters());
     if (hit === null) {
-      // F5: the list may have emptied (and FAILED to load) while the locate
+      // The list may have emptied (and FAILED to load) while the locate
       // was in flight — the error banner is the state; offering "add the
       // first one" beside it would mislead.
       if (this.error() === null) {
@@ -506,7 +506,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     // the list itself stays unfocused (distance-sorted via userPosition).
   }
 
-  // ---- address-search anchor (location-navigation M12) -------------------
+  // ---- address-search anchor (location-navigation) -----------------------
 
   protected onAnchorQueryChange(event: Event): void {
     this.anchorQuery.set((event.target as HTMLInputElement).value);
@@ -559,7 +559,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Selecting a result sets the BROWSE ANCHOR (M12): the anchor pin, the
+   * Selecting a result sets the BROWSE ANCHOR: the anchor pin, the
    * fly to neighbourhood scale, and every row's straight-line distance
    * follow this point. A selection supersedes the nearest emphasis (the
    * next-interaction-supersedes convention) and collapses the result list.
@@ -570,7 +570,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
    * fly: the camera already went to the searched point) — and scrolled
    * into view with block 'center'. The search result is an address, not a
    * shelter row, so "the shelter the user selected" is the nearest loaded
-   * row to that address (the M12 anchor contract: the search exists to
+   * row to that address (the anchor contract: the search exists to
    * compare the surroundings). If nothing is loaded, the list is re-loaded
    * with the CURRENT filters and the nearest row is selected once the load
    * settles (pendingAnchorSelection).
@@ -711,7 +711,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.nearestKm.set(null);
         this.nearestEmpty.set(false);
         this.leaflet.renderShelters([]);
-        // Same banner/error-copy path as every other page (reviewer N9):
+        // Same banner/error-copy path as every other page:
         // e.g. a 429 gets the rate-limited copy, not the raw backend text.
         this.error.set(bannerMessage(failure, 'shelter'));
         this.loading.set(false);

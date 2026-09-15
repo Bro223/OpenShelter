@@ -42,7 +42,7 @@ public class InMemoryVerificationSendLog implements VerificationSendLog {
     @Override
     public synchronized SendDecision tryRecord(long userId, VerificationLevel level, String contact,
                                                Instant now, long cooldownSeconds, int maxPerDay) {
-        // M16: check + record under ONE lock hold (same shape as the file log).
+        // Check + record under ONE lock hold (same shape as the file log).
         Instant lastSentAt = lastSentAt(userId, level);
         if (cooldownSeconds > 0 && lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
             return SendDecision.COOLDOWN;

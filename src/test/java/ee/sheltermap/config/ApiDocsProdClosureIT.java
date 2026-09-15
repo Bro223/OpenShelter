@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
- * The prod-closure proof (SW-H3): "readable in dev WITHOUT weakening the
+ * The prod-closure proof: "readable in dev WITHOUT weakening the
  * guards" must hold by construction, not by review.
  *
  * <p>The context boots under a NON-dev profile ({@code production} — the
@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * {@link AbstractPersistenceIT}, and both dev-diagnostic flags left off).
  * The docs flag stays at its yml default (false), so the springdoc
  * endpoints are absent AND fall outside the dev/test-only docs permit
- * (SW-C1) — every request to them must hit the default-deny
+ * — every request to them must hit the default-deny
  * {@code anyRequest().authenticated()} rule.
  *
  * <p>The explicit pins below are load-bearing: spring-dotenv loads the
@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * assert anything — and with them, the test proves the closure for ANY
  * local {@code .env}.
  *
- * <p>The sender pins (ORCH-4) close the same gap one door further in:
+ * <p>The sender pins close the same gap one door further in:
  * {@link DevSenderGuard} refuses a non-dev profile whose mail/sms provider
  * is blank/{@code dev}, so without them the boot would depend on the
  * untracked {@code .env} supplying {@code MAIL_PROVIDER=smtp-pulse} /

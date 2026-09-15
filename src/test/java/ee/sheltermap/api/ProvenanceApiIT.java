@@ -36,8 +36,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Acceptance IT for the provenance taxonomy (shelter-provenance-taxonomy
- * M6) — full-stack MockMvc against the real services, security chain, JWT
+ * Acceptance IT for the provenance taxonomy (shelter-provenance-taxonomy)
+ * — full-stack MockMvc against the real services, security chain, JWT
  * filter and Postgres: every one of the six taxonomy values is derived
  * server-side on the DTOs (public list, detail, /mine, admin list), the
  * optional {@code ?provenance=} filter narrows the public list, and an
@@ -147,7 +147,7 @@ class ProvenanceApiIT extends AbstractPersistenceIT {
         }
     }
 
-    /** The full M6 fixture: one row per taxonomy value. */
+    /** The full fixture: one row per taxonomy value. */
     private record Fixture(long officialId, long partnerId, long communityId, long newId,
                            long reportedInactiveId, long rejectedId) {
     }

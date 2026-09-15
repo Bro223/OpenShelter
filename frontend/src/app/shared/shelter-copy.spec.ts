@@ -90,7 +90,7 @@ describe('community + private copy (community-review-queue)', () => {
 
 /**
  * Trust-layer copy (shelter-trust-and-reports D4/D6): the map rows and the
- * detail header render the SAME strings — pinned here, the W24 way.
+ * detail header render the SAME strings — pinned here as single-sourced copy.
  */
 
 describe('openStatusBadgeText (open-status wave badges)', () => {
@@ -312,7 +312,7 @@ describe('trust-badge predicates (D6)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Last-verified meta (last-verified-meta M8): PINNED copy — a copy change
+// Last-verified meta (last-verified-meta): PINNED copy — a copy change
 // is a spec change.
 // ---------------------------------------------------------------------------
 

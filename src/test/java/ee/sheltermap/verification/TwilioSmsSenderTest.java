@@ -72,7 +72,7 @@ class TwilioSmsSenderTest {
 
     @Test
     void failFastWhenTwilioCredentialsAreMissing() {
-        // P2 fix: with app.sms.provider=twilio, missing credentials would make
+        // With app.sms.provider=twilio, missing credentials would make
         // every send fail silently (delivery errors are swallowed) — refuse to
         // start instead.
         assertThatCode(() -> new TwilioSmsSender("", "", "MG123", null))

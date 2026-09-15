@@ -8,7 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
 
 /**
- * Loads and validates the PII-at-rest keys (M2). Env-only, fail closed:
+ * Loads and validates the PII-at-rest keys. Env-only, fail closed:
  * a missing or malformed key fails context startup, so the app can never
  * silently run with PII unprotected (same pattern as {@code ProdJwtGuard}).
  *
@@ -17,7 +17,7 @@ import java.util.Base64;
  * environment / gitignored {@code .env} — never in the repo.
  *
  * <p>Key management and rotation: see README ("PII at rest") and
- * {@code openspec/changes/pii-at-rest/design.md} D6. A lost key makes the
+ * {@code openspec/changes/pii-at-rest/design.md}. A lost key makes the
  * affected accounts unloginable by contact — keep an offline backup.
  */
 @Component

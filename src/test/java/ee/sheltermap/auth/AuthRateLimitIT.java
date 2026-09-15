@@ -48,8 +48,8 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
 
     @Test
     void registerBurstOverCapacityReturns429() throws Exception {
-        // Registration is rate-limited per client IP (account-spam vector —
-        // hardening pass). Different emails share the IP bucket.
+        // Registration is rate-limited per client IP (the account-spam
+        // vector). Different emails share the IP bucket.
         for (int i = 0; i < 3; i++) {
             mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Spam\",\"email\":\"spam" + i + "@example.ee\","
@@ -84,7 +84,7 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
         // The IT's direct peer is 127.0.0.1 — trusted loopback by default
         // (app.ratelimit.trust-loopback), so X-Forwarded-For is honored and
         // each spoofed client IP gets its own (IP, contact) bucket: exhaust
-        // one, the other must be unaffected (S2 — an untrusted peer would
+        // one, the other must be unaffected (an untrusted peer would
         // ignore XFF entirely and everything would share the peer bucket).
         String body = "{\"emailOrPhone\":\"xff@example.ee\",\"password\":\"x\"}";
 

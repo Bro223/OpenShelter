@@ -9,22 +9,20 @@ import { VerifyPage } from './features/account/verify-page';
 import { AccountPage } from './features/account/account-page';
 
 /**
- * Route map (01 puml). Built up per milestone:
- *  - M2: /login /register /reset (GuestGuard) + home (/map, public)
- *  - M3: /verify + /account (AuthGuard)
- *  - M7: /account becomes the full AccountPage (real profile + per-contact
- *        verification labels + password-confirmed identity edit); the Verify
- *        top-nav item is removed — /verify stays for guard redirects + CTAs
- *  - M4: the real Leaflet map replaces the /map placeholder
- *        + /shelters/:id stub (public) — marker/row navigation lands here
- *  - M5: the real /shelters/:id detail page replaces the stub (still public —
- *        the trust-layer controls branch on auth/verification in-component),
- *        /submit (AuthGuard + VerifiedGuard)
- *  - M6: every route carries `data.title` + titleGuard — the browser tab
- *        shows "<Page> — OpenShelter" (core/title.ts, tested in title.spec.ts).
- *        /shelters/:id and /submit are loadComponent-lazy (bundle budget —
- *        see the angular.json budgets note); leaflet stays initial because
- *        the default /map route needs it.
+ * Route map (01 puml):
+ *  - /login /register /reset (GuestGuard) + home (/map, public)
+ *  - /verify + /account (AuthGuard); /account is the full AccountPage (real
+ *    profile + per-contact verification labels + password-confirmed identity
+ *    edit). Verify is not a top-nav item — /verify stays for guard redirects
+ *    and CTAs
+ *  - /map is the Leaflet browse map; /shelters/:id the public detail page
+ *    (marker/row navigation lands there; the trust-layer controls branch on
+ *    auth/verification in-component), /submit (AuthGuard + VerifiedGuard)
+ *  - every route carries `data.title` + titleGuard — the browser tab
+ *    shows "<Page> — OpenShelter" (core/title.ts, tested in title.spec.ts).
+ *    /shelters/:id and /submit are loadComponent-lazy (bundle budget —
+ *    see the angular.json budgets note); leaflet stays initial because
+ *    the default /map route needs it.
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'map' },
@@ -59,7 +57,7 @@ export const routes: Routes = [
     data: { title: 'title.account' },
     canActivate: [titleGuard, authGuard],
   },
-  // legal-recovery (roadmap M4): static legal pages, no backend — lazy for
+  // legal-recovery: static legal pages, no backend — lazy for
   // the same bundle-budget reason as the other rare routes.
   {
     path: 'privacy',
@@ -79,7 +77,7 @@ export const routes: Routes = [
   // on auth/verification (design decision 2).
   {
     path: 'shelters/:id',
-    // Lazy (M6 bundle budget): the detail page is only needed after a
+    // Lazy (bundle budget): the detail page is only needed after a
     // marker/row click, not for first paint of the map.
     loadComponent: () =>
       import('./features/shelter/shelter-detail-page').then((m) => m.ShelterDetailPage),
@@ -89,7 +87,7 @@ export const routes: Routes = [
   // Verified accounts only — mirrors the backend 403 (design decision 5).
   {
     path: 'submit',
-    // Lazy (M6 bundle budget): form + mini-map code defers until a verified
+    // Lazy (bundle budget): form + mini-map code defers until a verified
     // user actually opens the route.
     loadComponent: () =>
       import('./features/shelter/submit-shelter-page').then((m) => m.SubmitShelterPage),

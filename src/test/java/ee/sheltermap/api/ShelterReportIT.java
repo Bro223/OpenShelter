@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Trust layer acceptance (shelter-trust-and-reports D1/D2/D4/D5,
- * community-self-moderation M9) — full-stack MockMvc against the real
+ * community-self-moderation) — full-stack MockMvc against the real
  * services, security chain, JWT filter and Postgres, covering EVERY
  * scenario in specs/shelter-reports/spec.md plus the map-browse filter
  * scenarios and the shelter-submission cap: typed reports + derived
@@ -57,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.register-capacity=1000",
         "app.ratelimit.register-refill-per-second=0",
         // The active-cap tests submit 11 shelters in one window — lift the
-        // daily submission cap (abuse-limits M3) so it cannot fire first.
+        // daily submission cap (abuse-limits) so it cannot fire first.
         "app.limits.daily-submissions-per-user=100"
 })
 @Transactional
@@ -378,12 +378,12 @@ class ShelterReportIT extends AbstractPersistenceIT {
                         .value(org.hamcrest.Matchers.contains(7)));
     }
 
-    // ---------- trust-weighted auto-hide + duplicate dampening (M9) ----------
+    // ---------- trust-weighted auto-hide + duplicate dampening ----------
 
     @Test
     void aDampenedRivalReportCountsZeroInTheHideTally() throws Exception {
         // The rival's own listing of the same place is rejected (INACTIVE) —
-        // the displaced-rival vector: M3's cross-user 409 no longer blocks
+        // the displaced-rival vector: the cross-user 409 no longer blocks
         // the re-listing because only ACTIVE rows are scanned.
         String rival = verifiedToken("Rivaleer", "rivaleer@example.ee");
         long rivalRow = createShelterViaApi(rival, "Rivale varjend");
@@ -867,7 +867,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
 
     @Test
     void trustFiltersComposeWithTheSourceFilter() throws Exception {
-        // USER + hasCapacity → the intersection (M11: the minRating filter
+        // USER + hasCapacity → the intersection (the minRating filter
         // is gone — a stray param is ignored, not an error)
         String token = verifiedToken("Liitja", "liitja@example.ee");
         mvc.perform(post("/api/shelters")
@@ -887,7 +887,7 @@ class ShelterReportIT extends AbstractPersistenceIT {
 
     @Test
     void theStrayMinRatingParamIsIgnoredNotAnError() throws Exception {
-        // M11: the rating filter is gone — old clients that still send
+        // the rating filter is gone — old clients that still send
         // minRating get the unfiltered list (Spring drops unknown params),
         // never a 400.
         seedShelter("Muinene", ShelterSource.USER);

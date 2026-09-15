@@ -182,7 +182,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\",\"code\":\"" + firstCode + "\"}"))
                 .andExpect(status().isOk());
 
-        // P1 fix: requesting the already-verified level again -> 409, no code sent
+        // Requesting the already-verified level again -> 409, no code sent
         int sentBefore = smtp.sent().size();
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
@@ -192,7 +192,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.status").value(409));
         assertThat(smtp.sent()).hasSize(sentBefore);
 
-        // P1 fix: re-confirming an already-verified level is an idempotent no-op
+        // Re-confirming an already-verified level is an idempotent no-op
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)

@@ -41,16 +41,22 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
         GuidancePostEntity entity;
         if (post.getId() != null) {
             // UPDATE path: mutate the MANAGED row in place (the house
-            // idiom) and stamp updated_at from the Clock (D4).
+            // idiom), then stamp updated_at from the Clock (D4 — it moves
+            // on every write, and unpublish() carries no instant of its
+            // own, so this stamp is the rule for all update writes).
             entity = posts.findById(post.getId())
                     .orElseThrow(() -> new IllegalStateException(
                             "cannot save guidance post with unknown id " + post.getId()));
+            GuidancePostMapper.toEntity(entity, post);
             entity.setUpdatedAt(clock.instant());
         } else {
-            // INSERT path: fresh entity; the domain owns createdAt.
+            // INSERT path: fresh entity; the domain owns the creation
+            // stamps (draft(...) sets createdAt = updatedAt = now) — the
+            // column is NOT NULL, so the value is written, not defaulted.
             entity = new GuidancePostEntity();
+            GuidancePostMapper.toEntity(entity, post);
+            entity.setUpdatedAt(post.getUpdatedAt());
         }
-        GuidancePostMapper.toEntity(entity, post);
         posts.save(entity);
         post.setId(entity.getId());
         post.setUpdatedAt(entity.getUpdatedAt());

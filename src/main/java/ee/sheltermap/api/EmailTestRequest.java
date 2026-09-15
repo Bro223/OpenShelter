@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
  * {@code subject}/{@code message} are optional — they default to a fixed
  * test payload so a minimal {@code {"to":"..."}} body is enough.
  *
- * <p>B5 (2026-09-15 hardening): these are the only strings handed straight to
+ * <p>These are the only strings handed straight to
  * an outbound SMTP sender, so they carry the same boundary caps as every other
  * request record — a dev-only endpoint behind {@code DevEndpointsGuard} is
  * still an endpoint someone can point at a large body.

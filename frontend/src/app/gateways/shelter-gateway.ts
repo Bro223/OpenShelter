@@ -20,7 +20,7 @@ import type {
  * The door to the /api/shelters controller group (01-TASK.md §4: gateways are
  * the only way pages reach the API). Public read API — no auth. Both methods
  * return typed promises and throw ApiError on failure (mapped centrally by
- * ApiClient). `get` is used by the M5 detail page too.
+ * ApiClient). `get` serves the detail page too.
  *
  * Author-scoped mutations (user-contributions): `mine()` lists the caller's
  * own shelters; `update()`/`remove()` act on the caller's own shelter only
@@ -29,8 +29,8 @@ import type {
  * Trust layer (shelter-trust-and-reports): `report()` posts a typed shelter
  * report and `reportOccupancy()` upserts the caller's live band — both
  * verified-only (403), 404 on unknown shelter, 409 on a duplicate.
- * `putOpenStatus()` upserts the caller's live open/closed state (the
- * open-status wave) — same verified-only 403 vocabulary, 204 on success.
+ * `putOpenStatus()` upserts the caller's live open/closed state — same
+ * verified-only 403 vocabulary, 204 on success.
  */
 @Injectable({ providedIn: 'root' })
 export class ShelterGateway {
@@ -69,7 +69,7 @@ export class ShelterGateway {
    * the review state (community-review-queue): `reviewStatus` (NEW until
    * confirmed by the community or an admin) + `reviewNote` (the admin's
    * REJECT reason, when present) + `infoRequest` (the moderator→submitter
-   * information request, M10 slice 3 — null when none). The public
+   * information request — null when none). The public
    * list/detail DTOs carry reviewStatus/locationKind too (v2 contract) —
    * only reviewNote + infoRequest are owner-scoped.
    */
@@ -78,8 +78,8 @@ export class ShelterGateway {
   }
 
   /**
-   * POST /api/shelters/{id}/info-request/reply {message} -> 204 (M10 slice
-   * 3). The submitter's ONE-TIME answer to the admin's information
+   * POST /api/shelters/{id}/info-request/reply {message} -> 204. The
+   * submitter's ONE-TIME answer to the admin's information
    * request: author only (403), 404 when the row has no request, 409 on a
    * second answer (the row is kept after the reply — audit posture).
    */
@@ -106,7 +106,7 @@ export class ShelterGateway {
 
   /**
    * POST /api/shelters/{id}/reports -> 200 {"damped": true|false}
-   * (shelter-trust-and-reports D1; community-self-moderation M9 damp
+   * (shelter-trust-and-reports D1; community-self-moderation damp
    * flag). Verified accounts only: 403 (the standard redirect
    * vocabulary), 404 unknown shelter, 409 when the caller already
    * reported that type.
@@ -128,7 +128,7 @@ export class ShelterGateway {
   }
 
   /**
-   * PUT /api/shelters/{id}/open-status -> 204 (open-status wave): upsert —
+   * PUT /api/shelters/{id}/open-status -> 204: upsert —
    * one live open/closed state per user per shelter, latest edit wins.
    * Verified accounts only (403, the standard redirect vocabulary),
    * 404 unknown shelter.

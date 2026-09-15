@@ -35,7 +35,7 @@ class ShelterImportServiceTest {
         return new ShelterImportService(client, parser, repo, CLOCK);
     }
 
-    /** Capturing {@link DataImportLog} double (M5 audit rows). */
+    /** Capturing {@link DataImportLog} double (the import audit rows). */
     private static final class CapturingImportLog implements DataImportLog {
         final List<Row> rows = new ArrayList<>();
 

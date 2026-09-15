@@ -38,7 +38,7 @@
               <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
                 {{ sourceTrustLabel(row) }}
               </span>
-              <!-- Info request (M10 slice 3): an OPEN moderator question —
+              <!-- Info request: an OPEN moderator question —
                    the amber action chip; answered requests carry no chip
                    (the exchange stays viewable via the Info button). -->
               @if (row.infoRequest && row.infoRequest.replyMessage === null) {
@@ -59,7 +59,7 @@
             @if (row.reviewNote) {
               <span class="contrib-row__note">Admin note: {{ row.reviewNote }}</span>
             }
-            <!-- Marked inaccurate (M10 slice 4): the single-sourced warning
+            <!-- Marked inaccurate: the single-sourced warning
                  line — the row stays visible, the flag is the treatment. -->
             @if (row.inaccurate) {
               <span class="contrib-row__note">{{ inaccurateWarning }}</span>
@@ -107,7 +107,7 @@
 
           <!-- two-step delete confirm (no window.confirm). The shared
                ConfirmAction owns the state machine, the focus move onto Confirm
-               and the focus restore to Delete on cancel (F-04/F-12); the prompt
+               and the focus restore to Delete on cancel; the prompt
                is a live region so arming is announced. -->
           @if (shelterDeleteConfirm.isArmed(row.id)) {
             <div class="confirm-strip">
@@ -218,7 +218,7 @@
             </div>
           }
 
-          <!-- Info request (M10 slice 3): the moderator's question + the
+          <!-- Info request: the moderator's question + the
                one-time reply (open) or the stored reply (answered — the row
                is kept after the reply, audit posture). -->
           @if (infoFor() === row.id) {

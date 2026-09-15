@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 
 /**
- * Startup guard for the DEFAULT dev code senders (2026-09-10 review H3) —
+ * Startup guard for the DEFAULT dev code senders —
  * <strong>fails closed, same profile rule as {@link ProdJwtGuard} and
  * {@link DevEndpointsGuard}.</strong>
  *
@@ -20,9 +20,9 @@ import java.util.Arrays;
  * forgets the provider envs therefore boots fine and logs every code — an
  * OTP leak with the app still fully "working".
  *
- * <p>The rule is profile-keyed (S3: the resolved {@link Environment}
+ * <p>The rule is profile-keyed (the resolved {@link Environment}
  * active set, not the raw property string — exempt only when the ENTIRE
- * set is a subset of {@code dev, test} — M2), and reads the provider
+ * set is a subset of {@code dev, test}), and reads the provider
  * values the same way the sender beans do:
  *
  * <ul>
@@ -45,8 +45,8 @@ public class DevSenderGuard {
     public DevSenderGuard(Environment env,
                           @Value("${app.mail.provider:}") String mailProvider,
                           @Value("${app.sms.provider:}") String smsProvider) {
-        // S3: the resolved active profile set (groups/defaults only
-        // materialize in the ENVIRONMENT, not the raw property). M2: exempt
+        // The resolved active profile set (groups/defaults only
+        // materialize in the ENVIRONMENT, not the raw property). Exempt
         // only when the WHOLE active set is dev/test — "production,dev"
         // is not a dev deploy.
         boolean devLike = Profiles.isDevTestOnly(env);

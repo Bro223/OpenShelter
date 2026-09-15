@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Drift guard for the auth payload bounds (B1, 2026-09-15 hardening): the
+ * Drift guard for the auth payload bounds: the
  * seven auth request records must carry the boundary {@code @Size} caps —
  * email/emailOrPhone 255 (V1 column), password 200, code 16, refreshToken
  * 512 — so an oversized payload is a 400 at the input layer and never an

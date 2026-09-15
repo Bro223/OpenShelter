@@ -1,7 +1,7 @@
 package ee.sheltermap.app;
 
 /**
- * App-level display facts shared across packages (de-slop C1).
+ * App-level display facts shared across packages.
  *
  * <p>{@link #APP_DISPLAY_NAME} is the product name used in every
  * user-received message (e-mail, SMS, SMTP subject). It lives here —
@@ -10,7 +10,7 @@ package ee.sheltermap.app;
  * acyclic: {@code app} imports only {@code domain}) — so the brand
  * cannot drift between channels.
  *
- * <p>Deliberately NOT the old working name: the product is
+ * <p>Deliberately one spelling of the brand: the product is
  * OpenShelter (frontend {@code core/title.ts} APP_NAME, browser tabs,
  * User-Agent). {@code spring.application.name: shelter-map} and the
  * {@code ee.sheltermap} package are internal identifiers and stay as

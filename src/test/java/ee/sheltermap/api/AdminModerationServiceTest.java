@@ -142,7 +142,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
                 1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.CONFIRM, null,
-                ReviewStatus.NEW, ReviewStatus.CONFIRMED, NOW));
+                ReviewStatus.NEW, ReviewStatus.CONFIRMED, NOW, null));
     }
 
     @Test
@@ -169,7 +169,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getReviewNote()).isEqualTo("Pole varjend");
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
                 1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.REJECT, "Pole varjend",
-                ReviewStatus.CONFIRMED, ReviewStatus.REJECTED, NOW));
+                ReviewStatus.CONFIRMED, ReviewStatus.REJECTED, NOW, null));
     }
 
     @Test
@@ -211,7 +211,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.isAutoHideDisarmed()).isTrue(); // the restore disarms, as before
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
                 1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.STATUS_CHANGE, null,
-                ReviewStatus.REJECTED, ReviewStatus.NEW, NOW));
+                ReviewStatus.REJECTED, ReviewStatus.NEW, NOW, null));
     }
 
     @Test
@@ -247,7 +247,7 @@ class AdminModerationServiceTest {
         assertThat(shelters.findById(shelter.getId())).isEmpty();
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
                 1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.DELETE, null,
-                ReviewStatus.NEW, null, NOW));
+                ReviewStatus.NEW, null, NOW, null));
     }
 
     @Test
@@ -304,7 +304,7 @@ class AdminModerationServiceTest {
         assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(InvalidShelterException.class);
     }
 
-    // ---------- user suspension (M10 slice 1) ----------
+    // ---------- user suspension ----------
 
     @Test
     void suspendingARegisteredUserSetsTheStampAndAuditsWithTheAccountAsSubject() {
@@ -403,7 +403,7 @@ class AdminModerationServiceTest {
                 .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
     }
 
-    // ---------- edit-history projection (M10 slice 2, D4) ----------
+    // ---------- edit-history projection (D4) ----------
 
     @Test
     void historyOfAnAbsentShelterWithNoRowsIsA404() {
@@ -481,7 +481,7 @@ class AdminModerationServiceTest {
         return moved;
     }
 
-    // ---------- request-info (M10 slice 3) ----------
+    // ---------- request-info ----------
 
     @Test
     void aRequestInfoStoresTheExchangeOnTheRow() {
@@ -496,8 +496,8 @@ class AdminModerationServiceTest {
         assertThat(row.requestedAt()).isEqualTo(NOW);
         assertThat(row.replyMessage()).isNull();
         assertThat(row.repliedBy()).isNull();
-        // Deliberately NOT audited (the spec delta requires no audit row —
-        // the request row itself is the record).
+        // Not audited: the request row itself is the record, so no separate
+        // audit row is written.
         assertThat(audit.rows()).isEmpty();
     }
 
@@ -523,7 +523,7 @@ class AdminModerationServiceTest {
         assertThat(infoRequests.rows()).isEmpty();
     }
 
-    // ---------- mark inaccurate (M10 slice 4) ----------
+    // ---------- mark inaccurate ----------
 
     @Test
     void aMarkStampsTheRowAndAuditsWithTheReason() {
@@ -538,7 +538,7 @@ class AdminModerationServiceTest {
         assertThat(shelter.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
         assertThat(audit.rows()).containsExactly(new ModerationAuditLog.Row(
                 1L, shelter.getId(), null, adminId, ModerationAuditLog.Action.MARK_INACCURATE,
-                "Uks on suletud", ReviewStatus.NEW, ReviewStatus.NEW, NOW));
+                "Uks on suletud", ReviewStatus.NEW, ReviewStatus.NEW, NOW, null));
     }
 
     @Test

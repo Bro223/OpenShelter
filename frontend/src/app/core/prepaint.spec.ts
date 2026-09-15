@@ -10,16 +10,16 @@ import {
 } from './prepaint';
 
 /**
- * The pre-paint boot guarantees (F-11): two halves, one contract.
+ * The pre-paint boot guarantees: two halves, one contract.
  *
  * 1. The exported typed functions (core/prepaint.ts) — table-driven over
  *    the stored-value vocabulary: present + valid, present + invalid,
  *    absent, and the private-mode (throwing storage) row.
  * 2. The ACTUAL inline <head> scripts of index.html — the code the page
  *    executes before first paint — extracted from the HTML and evaluated
- *    against the same guarantees (the ledger's "spec that evaluates the
- *    script source", the only way to test what index.html really runs
- *    without a build-config change).
+ *    against the same guarantees (a spec that evaluates the script source
+ *    directly — the only way to test what index.html really runs without a
+ *    build-config change).
  *
  * The final describe runs BOTH halves over the same inputs and pins
  * identical outcomes, so the page and the module cannot drift apart

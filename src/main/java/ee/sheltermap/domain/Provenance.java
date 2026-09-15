@@ -1,7 +1,7 @@
 package ee.sheltermap.domain;
 
 /**
- * The provenance taxonomy (shelter-provenance-taxonomy M6) — the single
+ * The provenance taxonomy (shelter-provenance-taxonomy) — the single
  * server-side answer to "where does this row come from, and what is its
  * standing?". Derived at read time from the row's stored fields — never
  * stored, never client-computed.

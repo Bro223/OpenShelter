@@ -1,5 +1,5 @@
 /**
- * The supported UI locales (i18n-et-en, roadmap M14 — the whitepaper's
+ * The supported UI locales (i18n-et-en — the whitepaper's
  * "Internationalization — Estonian first, then EN/RUS/UA" item). `en` is
  * the original copy language and the default; `et` is Estonian. Adding a
  * locale = one entry here + one catalog file + a `LOCALES` mention in the

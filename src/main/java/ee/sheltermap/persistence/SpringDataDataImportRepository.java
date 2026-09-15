@@ -6,9 +6,9 @@ import java.util.Collection;
 import java.util.Optional;
 
 /**
- * Spring Data repository for {@code data_imports} (V15, M5). The id
+ * Spring Data repository for {@code data_imports} (V15). The id
  * tie-break keeps same-timestamp runs deterministic (the stable-order
- * discipline, B7a).
+ * discipline).
  */
 public interface SpringDataDataImportRepository extends JpaRepository<DataImportEntity, Long> {
 
@@ -16,7 +16,7 @@ public interface SpringDataDataImportRepository extends JpaRepository<DataImport
 
     Optional<DataImportEntity> findTopByOrderByImportedAtDescIdDesc();
 
-    /** Newest verifying run of one source (M8 "last verified" — OK / NOT_MODIFIED). */
+    /** Newest verifying run of one source ("last verified" — OK / NOT_MODIFIED). */
     Optional<DataImportEntity> findTopBySourceNameAndStatusInOrderByImportedAtDescIdDesc(
             String sourceName, Collection<String> statuses);
 }

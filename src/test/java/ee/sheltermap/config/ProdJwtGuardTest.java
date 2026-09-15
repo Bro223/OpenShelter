@@ -8,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the fail-closed JWT secret guard (S3 — 2026-09-08 review
- * W3): the check keys on the ACTIVE PROFILES — the ENVIRONMENT's resolved
- * set (S3, 2026-09-11 review: profile groups/defaults are only visible
+ * Unit tests for the fail-closed JWT secret guard: the check keys on the
+ * ACTIVE PROFILES — the ENVIRONMENT's resolved set (profile groups/defaults
+ * are only visible
  * there, not in the raw property string) — not on the literal word "prod":
  * a blank profile set or any non-dev/test profile gets the same refusal as
  * {@code production}.
@@ -32,13 +32,13 @@ class ProdJwtGuardTest {
     void devAndTestProfilesBootWithTheDefaultSecret() {
         assertThatCode(() -> new ProdJwtGuard(env("dev"), DEV_DEFAULT)).doesNotThrowAnyException();
         assertThatCode(() -> new ProdJwtGuard(env("test"), DEV_DEFAULT)).doesNotThrowAnyException();
-        // multi-entry set, the WHOLE set dev/test (M2)
+        // multi-entry set, the WHOLE set dev/test
         assertThatCode(() -> new ProdJwtGuard(env("dev", "test"), DEV_DEFAULT)).doesNotThrowAnyException();
     }
 
     @Test
     void mixedProfileWithAProductionEntryIsChecked() {
-        // M2 (2026-09-10 review): "production,dev" is NOT a dev deploy — the
+        // "production,dev" is NOT a dev deploy — the
         // exemption needs the entire active set to be a subset of {dev, test}.
         assertThatThrownBy(() -> new ProdJwtGuard(env("production", "dev"), DEV_DEFAULT))
                 .isInstanceOf(IllegalStateException.class)

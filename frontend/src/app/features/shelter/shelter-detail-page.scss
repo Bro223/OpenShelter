@@ -47,7 +47,7 @@
     color: var(--color-shelter-user);
   }
 
-  /* Trust badges (shelter-trust-and-reports D6; open-status wave) — the
+  /* Trust badges (shelter-trust-and-reports D6) — the
      same language as the map row badges: reported = the single reported
      token; closed = the existing warning tint (fresh OPEN rows render no
      badge at all — open is the default); occupancy = NEUTRAL ("space
@@ -134,7 +134,7 @@
     }
   }
 
-  /* Distance-from-you action (location-navigation M12): styled EXACTLY
+  /* Distance-from-you action (location-navigation): styled EXACTLY
      like the two deep links beside it (same size/colour/underline-on-
      hover) — a third secondary link, not a new affordance class. The
      resets undo the UA button defaults so it reads as a link. */
@@ -159,7 +159,7 @@
   }
 }
 
-/* The distance-from-you result line (location-navigation M12) — the same
+/* The distance-from-you result line (location-navigation) — the same
    muted meta language as the coordinate line: a measured fact (the D6
    straight-line honesty format + " from you"), not a caveat. */
 .shelter-detail__distance-line {
@@ -168,7 +168,7 @@
   font-size: var(--text-sm);
 }
 
-/* The distance-from-you per-error line (location-navigation M12) — the
+/* The distance-from-you per-error line (location-navigation) — the
    same danger language as the page's other inline errors; deliberately
    NOT the crisis orange (--color-cta stays reserved). */
 .shelter-detail__distance-error {
@@ -185,7 +185,7 @@
   font-size: var(--text-sm);
 }
 
-/* The last-verified line (M8) — the same muted meta language as the
+/* The last-verified line — the same muted meta language as the
    coordinate line: a fact about the row's freshness, not a caveat (the
    unverified caveat already lives in .community-warning above). */
 .shelter-detail__verified {
@@ -317,7 +317,7 @@
   color: var(--color-muted);
 }
 
-/* Report open/closed (open-status wave): two large state buttons — the
+/* Report open/closed: two large state buttons — the
    .band-picker language mirrored 1:1 (the .btn base carries the 48px
    minimum target; the active state is the user's CURRENT report, the
    optimistic tap in flight included). The pressed state is the primary

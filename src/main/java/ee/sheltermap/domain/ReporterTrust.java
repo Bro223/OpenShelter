@@ -3,7 +3,7 @@ package ee.sheltermap.domain;
 import java.util.Objects;
 
 /**
- * A reporter's derived trust weight (community-self-moderation M9, D1).
+ * A reporter's derived trust weight (community-self-moderation, D1).
  *
  * <p>The weight is NEVER stored: it is re-derived from the rows that
  * already exist (the reporter's own submissions + the moderation audit

@@ -151,7 +151,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     @Test
     void shortRegistrationAndResetPasswordsAreRejectedWith400() throws Exception {
-        // P2-3: the 8-character minimum is enforced at the boundary —
+        // The 8-character minimum is enforced at the boundary —
         // a short registration password is a 400 validation failure, no row
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Mari\",\"email\":\"mari@example.ee\",\"phone\":\"+37250000001\","
@@ -197,7 +197,7 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     @Test
     void loginWithDummyPasswordIsIndistinguishableFromAWrongPassword() throws Exception {
-        // S1 (2026-09-11 review): the login timing equalizer verifies an
+        // The login timing equalizer verifies an
         // UNKNOWN contact against the Argon2 hash of the literal password
         // "dummy" — so "dummy" PASSES the verify for a ghost account, and
         // only the post-verify null check keeps the answer a generic 401.

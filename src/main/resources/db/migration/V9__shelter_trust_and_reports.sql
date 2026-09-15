@@ -6,7 +6,7 @@
 -- D1: one report table, the TYPE routes the consequence.
 --   NON_EXISTENT -> auto-hide at 5 (see shelters.auto_hide_disarmed below)
 --   CLOSED / OPEN_CONFIRMED -> display flag only (never status)
---   WRONG_LOCATION / OTHER -> admin queue only (later change)
+--   WRONG_LOCATION / OTHER -> admin queue only
 -- One report per (shelter, user, type): the per-target abuse bound.
 CREATE TABLE shelter_reports (
     id BIGSERIAL PRIMARY KEY,
@@ -48,7 +48,7 @@ CREATE INDEX idx_shelter_occupancy_reports_user ON shelter_occupancy_reports (
 
 -- D2: review reports. One per (review, user); the 5th hides the review
 -- (shelter_reviews.hidden_at below). Hidden is cleared only by admin
--- moderation (later change), never automatically.
+-- moderation, never automatically.
 CREATE TABLE review_reports (
     id BIGSERIAL PRIMARY KEY,
     review_id BIGINT NOT NULL REFERENCES shelter_reviews (id) ON DELETE CASCADE,

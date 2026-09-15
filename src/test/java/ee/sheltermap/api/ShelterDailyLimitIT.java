@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the per-user DAILY shelter-submission cap
- * (abuse-limits M3): a rolling 24 h window on the submitting act — the
+ * (abuse-limits): a rolling 24 h window on the submitting act — the
  * {@code app.limits.daily-submissions-per-user}+1-th submission is a 429
  * with a uniform {@link ErrorResponse} and an exact {@code Retry-After}
  * countdown, the cap is per-user (other users are unaffected), ADMIN-kind

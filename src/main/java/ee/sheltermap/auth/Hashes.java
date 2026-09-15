@@ -21,7 +21,7 @@ final class Hashes {
     }
 
     /**
-     * Constant-time string comparison (W9) — no early exit on the first
+     * Constant-time string comparison — no early exit on the first
      * differing byte, so hash comparisons leak no prefix-length timing
      * channel. Use for every stored-vs-presented code/token hash compare.
      */

@@ -8,8 +8,8 @@ import java.util.Objects;
  *
  * <p>At most one report of a given type per user per shelter (unique
  * {@code shelterId + userId + type}, enforced by the database).
- * {@code detail} is the factual substance of the factual report types
- * (M11): the "when" of a {@code CLOSED} report, the actual address of a
+ * {@code detail} is the factual substance of the factual report types:
+ * the "when" of a {@code CLOSED} report, the actual address of a
  * {@code WRONG_LOCATION} report, the free text of {@code OTHER} —
  * {@code null} for the binary types {@code NON_EXISTENT} /
  * {@code OPEN_CONFIRMED}.
@@ -20,7 +20,7 @@ public class ShelterReport {
     /**
      * The trust-weighted {@code NON_EXISTENT} hide tally at which an ACTIVE
      * shelter is auto-hidden (shelter-trust-and-reports D1 — the 4→5
-     * transition; community-self-moderation M9 made the tally trust-
+     * transition; community-self-moderation made the tally trust-
      * weighted: each distinct reporter contributes their derived weight,
      * dampened reports 0 — five baseline reporters still hide on the
      * fifth report). A domain fact: the trust service enforces it, and
@@ -38,7 +38,7 @@ public class ShelterReport {
     /** When an admin dismissed this report (V10, admin-moderation D3); {@code null} while unresolved. */
     private Instant dismissedAt;
     /**
-     * Dampened flag (community-self-moderation M9, D3): set once at write
+     * Dampened flag (community-self-moderation, D3): set once at write
      * time when the reporter holds their own other USER listing of the
      * same place — a self-interested {@code NON_EXISTENT} vote that
      * contributes 0 to the weighted auto-hide tally. The report stays
@@ -92,7 +92,7 @@ public class ShelterReport {
         return type;
     }
 
-    /** Factual detail (M11): stored for {@code CLOSED} / {@code WRONG_LOCATION} / {@code OTHER}; {@code null} for the binary types. */
+    /** Factual detail: stored for {@code CLOSED} / {@code WRONG_LOCATION} / {@code OTHER}; {@code null} for the binary types. */
     public String getDetail() {
         return detail;
     }
@@ -121,13 +121,13 @@ public class ShelterReport {
         }
     }
 
-    /** {@code true} once the report was stored dampened (M9, D3). */
+    /** {@code true} once the report was stored dampened (D3). */
     public boolean isDamped() {
         return damped;
     }
 
     /**
-     * Marks the report dampened (M9, D3). Set ONCE at write time — a
+     * Marks the report dampened (D3). Set ONCE at write time — a
      * second call is a no-op, mirroring {@link #markDismissed}; the damp
      * decision never un-damps a stored row.
      */

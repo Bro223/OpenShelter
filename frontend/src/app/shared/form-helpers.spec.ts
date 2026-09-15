@@ -9,7 +9,7 @@ import {
 } from './form-helpers';
 
 /**
- * Direct table spec of the shared form helpers (F-10) — the last shared/*
+ * Direct table spec of the shared form helpers — the last shared/*
  * module without a spec, though all four exports are production-used
  * (the /submit and contributions-panel shelter forms). Each export gets a
  * table with valid / invalid / empty / boundary rows; the capacity table

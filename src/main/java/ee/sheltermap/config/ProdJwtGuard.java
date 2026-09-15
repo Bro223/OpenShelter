@@ -10,20 +10,20 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
- * Startup guard (hardening pass, reworked for the 2026-09-08 review W3) —
- * <strong>fails closed on the secret, not the profile name.</strong>
+ * Startup guard — <strong>fails closed on the secret, not the profile
+ * name.</strong>
  *
- * <p>The rule (S3, 2026-09-11 review: profile set read from the
- * {@link Environment}, not the raw property string — groups/defaults are
- * only visible in the resolved set) is inverted:
+ * <p>The rule reads the profile set from the {@link Environment}, not the
+ * raw property string — groups/defaults are
+ * only visible in the resolved set — and is inverted:
  *
  * <ul>
- *   <li>When the ENTIRE active profile set (the ENVIRONMENT's resolved set
- *       — S3) is a subset of exactly {@code dev} and {@code test} (and
+ *   <li>When the ENTIRE active profile set (the ENVIRONMENT's resolved set)
+ *       is a subset of exactly {@code dev} and {@code test} (and
  *       non-blank) → no check (dev parity — the published default secret
  *       is the point there). A mixed set like {@code production,dev} is
- *       NOT exempt (2026-09-10 review M2: the old any-match let one stray
- *       entry disable the guard).</li>
+ *       NOT exempt — an any-match rule would let one stray
+ *       entry disable the guard.</li>
  *   <li>Otherwise (blank profile, {@code production}, {@code prod-*},
  *       anything else) → refuse to boot when {@code app.jwt.secret} equals
  *       the published dev default ({@link #DEV_DEFAULT_SECRET}) <em>or</em>
@@ -46,9 +46,9 @@ public class ProdJwtGuard {
 
     public ProdJwtGuard(Environment env,
                         @Value("${app.jwt.secret:}") String secret) {
-        // S3: the resolved active profile set (profile groups and
+        // The resolved active profile set (profile groups and
         // spring.profiles.default only materialize in the ENVIRONMENT, not
-        // in the raw property). M2: exempt only when the WHOLE active set
+        // in the raw property). Exempt only when the WHOLE active set
         // is a subset of {dev, test} — "production,dev" is not a dev deploy.
         if (Profiles.isDevTestOnly(env)) {
             return; // dev/test parity: the published default secret is expected here

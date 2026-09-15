@@ -2,7 +2,7 @@ import { ApiError } from '../core/api-error';
 import { bannerMessage, COPY, type ErrorKind } from './error-copy';
 
 /**
- * Direct table spec of the bannerMessage status × kind matrix (N22).
+ * Direct table spec of the bannerMessage status × kind matrix.
  * Every branch in shared/error-copy.ts is pinned here; when a branch is
  * added, add its rows.
  *
@@ -147,7 +147,7 @@ const rows: Row[] = [
     expected: 'That value is already in use.',
   })),
 
-  // ---- 5xx: always the fixed generic copy, NEVER the body (N6).
+  // ---- 5xx: always the fixed generic copy, NEVER the body.
   ...KINDS.map((kind): Row => ({ status: 500, kind, message: 'boom', expected: COPY.serverError })),
   ...KINDS.map((kind): Row => ({ status: 502, kind, message: 'boom', expected: COPY.serverError })),
   ...KINDS.map((kind): Row => ({ status: 503, kind, message: 'boom', expected: COPY.serverError })),

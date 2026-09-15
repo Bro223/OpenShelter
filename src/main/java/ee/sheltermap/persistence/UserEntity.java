@@ -15,7 +15,7 @@ import java.time.Instant;
  * JPA entity for the single {@code users} table. Separate from the domain
  * {@code User} hierarchy (approach B) — the kind column discriminates.
  *
- * <p>PII-at-rest (M2): {@code email} / {@code phone} hold the
+ * <p>PII-at-rest: {@code email} / {@code phone} hold the
  * {@code v1:} AES-GCM envelope (ciphertext), never plaintext — the
  * {@code v13} V13 migration converted the legacy rows. {@code email_hash}
  * / {@code phone_hash} hold the HMAC blind index of the canonical value
@@ -51,7 +51,7 @@ public class UserEntity {
     @Column(name = "phone_hash", length = 64)
     private String phoneHash;
 
-    /** Suspension stamp (M10 slice 1); NULL while the account is active. */
+    /** Suspension stamp; NULL while the account is active. */
     @Column(name = "suspended_at")
     private Instant suspendedAt;
 

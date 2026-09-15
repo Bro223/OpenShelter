@@ -50,7 +50,7 @@ public class RegisteredUser extends User {
 
     /**
      * Read access to the full claim set, revoked ones included — needed by
-     * the persistence layer (Step 3) to store the aggregate. Business code
+     * the persistence layer to store the aggregate. Business code
      * should prefer {@link #levels()}.
      */
     public Set<VerificationClaim> claims() {

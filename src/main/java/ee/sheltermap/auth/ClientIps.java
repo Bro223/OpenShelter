@@ -5,8 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Set;
 
 /**
- * Resolves the real client IP for rate-limit keys (hardening pass, reworked
- * for the 2026-09-08 review — W2).
+ * Resolves the real client IP for rate-limit keys.
  *
  * <p><strong>Trust is explicit, hop-by-hop, and config-driven:</strong>
  * <ul>

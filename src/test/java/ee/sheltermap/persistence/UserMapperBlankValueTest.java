@@ -14,7 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * UserMapper blank-value contract (M2 fix): a stored BLANK PII value means
+ * UserMapper blank-value contract: a stored BLANK PII value means
  * "absent" — V13 leaves legacy blanks as-is (a no-phone admin's phone, an
  * empty legacy claim ref) and the mapper must read them back as
  * {@code null} instead of handing them to the fail-closed crypto, which

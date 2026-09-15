@@ -19,7 +19,7 @@ import static ee.sheltermap.domain.ReviewStatus.NEW;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The provenance taxonomy decision table (shelter-provenance-taxonomy M6):
+ * The provenance taxonomy decision table (shelter-provenance-taxonomy):
  * every row shape the app can produce, plus the precedence edges —
  * REJECTED beats everything; a reported-away (INACTIVE + 5 NON_EXISTENT)
  * row is REPORTED_INACTIVE even when official; an admin-hidden row without

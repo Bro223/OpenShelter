@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The OpenAPI contract gate (SW-H1 + SW-H5): the document must not drift
+ * The OpenAPI contract gate: the document must not drift
  * from the controllers, and it must never carry secrets, blind-index
  * columns or PII.
  *
@@ -33,10 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code /api/shelters/**} is public) and the {@code x-admin-only} marker
  * on every admin operation are asserted here, not reviewed.
  *
- * <p>The Swagger-UI assertion depends on SW-C1 (the profile-aware docs
- * permit in SecurityConfig, owned by the backend workstream of this wave):
- * under the test profile the docs URLs are permitAll, so the UI answers
- * 200.
+ * <p>The Swagger-UI assertion depends on the profile-aware docs permit in
+ * SecurityConfig: under the test profile the docs URLs are permitAll, so the
+ * UI answers 200.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
@@ -65,7 +64,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
 
     @Test
     void swaggerUiIsReachableUnderDevTestProfiles() throws Exception {
-        // SW-C1 permits /swagger-ui/** under dev/test only; the test profile
+        // The security chain permits /swagger-ui/** under dev/test only; the test profile
         // is the dev parity here.
         mvc.perform(get("/swagger-ui/index.html"))
                 .andExpect(status().isOk());
@@ -120,10 +119,13 @@ class OpenApiContractIT extends AbstractPersistenceIT {
     @Test
     void thePublicAndAuthenticatedSplitIsDocumented() throws Exception {
         JsonNode doc = doc();
-        // Genuinely public: the two shelter reads, the provenance read and
-        // the six /auth operations (all permitAll in SecurityConfig).
+        // Genuinely public: the two shelter reads, the provenance read,
+        // the crisis-guidance reads (index, detail and hero-image serving —
+        // the /blog pages read them anonymously) and the six /auth
+        // operations (all permitAll in SecurityConfig).
         for (String operation : new String[]{
                 "GET /api/shelters", "GET /api/shelters/{id}", "GET /api/data-source",
+                "GET /api/guidance", "GET /api/guidance/{slug}", "GET /api/media/{filename}",
                 "POST /auth/register", "POST /auth/login", "POST /auth/refresh",
                 "POST /auth/logout", "POST /auth/password-reset/request",
                 "POST /auth/password-reset/confirm"}) {
@@ -183,7 +185,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
 
     @Test
     void theDocumentNeverLeaksSecretsBlindIndexesOrPii() throws Exception {
-        // H5: the published document is a public surface — the sweep asserts
+        // The published document is a public surface — the sweep asserts
         // that blind-index columns, PII ciphertext envelopes and every
         // secret/config name stay out of it (string-level, over the whole
         // serialized document).
@@ -232,8 +234,8 @@ class OpenApiContractIT extends AbstractPersistenceIT {
 
     /**
      * The exact expected surface — every controller method that is not
-     * {@code @Hidden}. The /dev/* relays and the actuator endpoints are
-     * deliberately absent (asserted separately).
+     * {@code @Hidden}. The /dev/* relays and the actuator endpoints do not
+     * belong here; their absence is asserted separately.
      */
     private static Set<String> expectedInventory() {
         return Set.of(
@@ -264,6 +266,22 @@ class OpenApiContractIT extends AbstractPersistenceIT {
                 "GET /admin/users",
                 "POST /admin/users/{id}/suspend",
                 "POST /admin/users/{id}/unsuspend",
+                // GuidanceController (/api/guidance) + MediaController (/api/media)
+                "GET /api/guidance",
+                "GET /api/guidance/{slug}",
+                "GET /api/media/{filename}",
+                // AdminGuidanceController (/admin/guidance)
+                "GET /admin/guidance",
+                "GET /admin/guidance/{id}",
+                "POST /admin/guidance",
+                "PUT /admin/guidance/{id}",
+                "POST /admin/guidance/{id}/publish",
+                "POST /admin/guidance/{id}/unpublish",
+                "DELETE /admin/guidance/{id}",
+                // AdminMediaController (/admin/media)
+                "GET /admin/media",
+                "POST /admin/media",
+                "DELETE /admin/media/{id}",
                 // AuthController (/auth)
                 "POST /auth/register",
                 "POST /auth/login",

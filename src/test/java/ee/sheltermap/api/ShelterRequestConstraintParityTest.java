@@ -16,19 +16,18 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Drift guard (user-contributions review nit N4): {@link CreateShelterRequest}
+ * Drift guard: {@link CreateShelterRequest}
  * and {@link UpdateShelterRequest} must carry field-for-field IDENTICAL
  * validation constraints — create and update share the same bounds and bbox
  * gate, so a change to one must show up here.
  *
- * <p>ORCH-5 fix (2026-09-15): the constraints are read from each component's
+ * <p>The constraints are read from each component's
  * BACKING FIELD, never from {@link RecordComponent#getAnnotations()}. Jakarta's
  * constraints do not target {@code RECORD_COMPONENT}, so javac propagates them
  * to the field, the constructor parameter and the accessor only — the record
- * component itself carries nothing. The previous version of this guard read
- * the components, so it compared two empty maps and passed vacuously: it could
- * never have caught the drift it was written for. The field is also what Bean
- * Validation reads at runtime.
+ * component itself carries nothing. Reading the components would compare two
+ * empty maps and pass vacuously: it could catch no drift at all. The field is
+ * also what Bean Validation reads at runtime.
  *
  * <p>Three assertions, deliberately: the parity check (drift between create and
  * update), the absolute bound set (drift away from the documented limits), and a

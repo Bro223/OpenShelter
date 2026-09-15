@@ -18,13 +18,13 @@ const REGISTRY_ROW: ShelterDto = {
   capacity: null,
   submitterVerified: false, // registry rows have no creator (D3)
   nonexistentReports: 0,
-  reportCount: 0, // M8 total (all report types)
+  reportCount: 0, // total (all report types)
   openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
   locationKind: 'PUBLIC',
-  lastVerifiedAt: null, // M8 — no import run in this fixture
-  inaccurate: false, // M10 slice 4 — no moderator mark in this fixture
+  lastVerifiedAt: null, // null — no import run in this fixture
+  inaccurate: false, // no moderator mark in this fixture
 };
 
 const USER_ROW: ShelterDto = {

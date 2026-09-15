@@ -3,9 +3,9 @@ package ee.sheltermap.auth;
 import java.security.SecureRandom;
 
 /**
- * One-time code generation shared by all auth code flows (W15 — 2026-09-08
- * review): password reset (6-digit) and contact change (6-digit) used to
- * carry two private copies of the same generator.
+ * One-time code generation shared by all auth code flows: password reset
+ * (6-digit) and contact change (6-digit) both draw from this one
+ * generator.
  *
  * <p>Kept in {@code auth} on purpose: the {@code verification} package must
  * not depend on {@code auth} (01-TASK.md §4 dependency rule — auth already

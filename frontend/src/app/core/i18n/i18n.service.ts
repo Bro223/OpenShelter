@@ -6,7 +6,7 @@ import { EN } from './en';
 import { ET } from './et';
 
 /**
- * Where the UI language preference lives in localStorage (i18n-et-en M14).
+ * Where the UI language preference lives in localStorage (i18n-et-en).
  * Only `en`/`et` are ever stored — the default is the ABSENCE of the key
  * (mirrors the pre-paint script in index.html, which reads this same key
  * before first paint, and the ThemeStore persistence shape).
@@ -15,8 +15,8 @@ const LOCALE_KEY = 'openshelter-locale';
 
 /**
  * The default locale: `en`, the app's original copy language — a fresh
- * visitor sees exactly the pre-i18n UI (zero first-load behavior change in
- * slice 1). Flipping the default to `et` (whitepaper: "Estonian first") is
+ * visitor sees the UI exactly as authored (zero first-load behavior
+ * change). Flipping the default to `et` (whitepaper: "Estonian first") is
  * an owner decision for after the whole UI is translated: one line here +
  * the spec, no other change.
  */
@@ -27,7 +27,7 @@ const DEFAULT_LOCALE: Locale = 'en';
 const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET };
 
 /**
- * The UI language (i18n-et-en M14, slice 1: app chrome + route titles).
+ * The UI language (i18n-et-en: app chrome + route titles).
  *
  * Signal-based, the same persistence shape as ThemeStore: a key constant +
  * try/catch so private-mode storage degrades to a session-only preference.
@@ -37,8 +37,8 @@ const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET };
  * that covers the edge where that script was skipped.
  *
  * `t()` is the single lookup seam: templates use the `t` pipe
- * (`{{ 'nav.map' | t }}`), non-template code (titleGuard, and slice 2+ of
- * M14: shelter-copy/error-copy helpers) calls it directly with an optional
+ * (`{{ 'nav.map' | t }}`), non-template code (titleGuard, the
+ * shelter-copy/error-copy helpers) calls it directly with an optional
  * `{param}` interpolation map.
  */
 @Injectable({ providedIn: 'root' })

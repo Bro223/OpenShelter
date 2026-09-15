@@ -94,7 +94,7 @@ public class TwilioSmsSender implements SmsSender {
     }
 
     /**
-     * Log-safe phone mask (B5 — PII): keeps the leading {@code +} and the
+     * Log-safe phone mask (PII): keeps the leading {@code +} and the
      * first three digits (country code) and the LAST TWO digits, e.g.
      * {@code +37250000045} → {@code +372****45}. Logs must not carry the
      * full number (it is a login contact + account-recovery channel).

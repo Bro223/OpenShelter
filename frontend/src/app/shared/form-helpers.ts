@@ -1,15 +1,13 @@
 import { type AbstractControl, type ValidationErrors } from '@angular/forms';
 
 /**
- * Shared form helpers (A3/N3-F): the shelter-form logic that /submit and the
- * contributions panel used to carry as verbatim copies (the panel's comment
- * even said "same as POST" — now it literally IS the shared helper). One
- * implementation, both consumers.
+ * Shared form helpers: one implementation of the shelter-form rules for both
+ * the /submit form and the contributions panel, so the two cannot drift apart.
  */
 
 /** A 6-digit OTP (backend sixDigitCode()) — password-reset and the
  *  account change-proof codes. The input pattern only mirrors the
- *  generator — never stricter (reviewer N3: the regex lived in 3 pages). */
+ *  generator — never stricter. */
 export const CODE_SIX_DIGITS = /^\d{6}$/;
 
 /** The capacity bounds (backend CreateShelterRequest / UpdateShelterRequest:
@@ -50,7 +48,7 @@ export function capacityValidator(control: AbstractControl): ValidationErrors | 
 
 /**
  * Whitespace-only names pass Validators.required — mirrors the backend
- * @NotBlank so the UI never POSTs/PUTs "   " (reviewer N3).
+ * @NotBlank so the UI never POSTs/PUTs "   ".
  */
 export function nameBlankValidator(control: AbstractControl): ValidationErrors | null {
   return String(control.value ?? '').trim() === '' ? { blank: true } : null;

@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 
 /**
- * M6 token audit (spec: "Unified design tokens").
+ * Token audit (spec: "Unified design tokens").
  *
  * The token set lives once in src/styles.scss :root; component stylesheets
  * must reference tokens instead of literals. This spec makes that rule
@@ -132,7 +132,7 @@ describe('design tokens (M6)', () => {
     }
   });
 
-  /* --- F4: the theme is pinned HARD — name-set equality (both directions)
+  /* --- The theme is pinned HARD — name-set equality (both directions)
      + the contrast math behind the styles.scss "verified for this palette"
      comment. The math runs on the token LITERALS, so a value edit that
      breaks a WCAG threshold fails the suite instead of drifting. --- */
@@ -244,12 +244,12 @@ describe('design tokens (M6)', () => {
     ),
     // HC-only text pairs (not checked in light, where the value is a
     // graphical-object fill, not a text colour): --color-shelter-pick is the
-    // one "unchanged (map context)" token of the theme. The 2026-09-11 HC
-    // contrast audit brightened it to #ff8a80 as a safe superset so the
-    // token holds 4.5:1 on every HC surface if it ever serves as text (today
-    // it is used only as the /submit pin fill). The audit found no token pair
-    // below threshold — the user-reported dark-on-dark came from UA-default
-    // colours instead (see the "form controls and links" test below).
+    // one "unchanged (map context)" token of the theme. It is #ff8a80
+    // (brightened as a safe superset) so the token holds 4.5:1 on every HC
+    // surface if it ever serves as text (today it is used only as the
+    // /submit pin fill). No token pair sits below threshold — the
+    // user-reported dark-on-dark came from UA-default colours instead (see
+    // the "form controls and links" test below).
     ...HC_ONLY_TEXT_PAIRS.map(([fg, bg]) => ({
       theme: 'high-contrast' as const,
       fg,
@@ -379,10 +379,10 @@ describe('design tokens (M6)', () => {
   });
 
   /*
-   * Responsive mechanism (M6 layout-regression signal). jsdom cannot do real
+   * Responsive mechanism (the layout-regression signal). jsdom cannot do real
    * layout, so the acceptance is the mechanism itself: the map page re-stacks
    * at the narrow breakpoint and the shell chrome reflows instead of
-   * overflowing. The real narrow-width check is the manual M6 E2E step.
+   * overflowing. The real narrow-width check is a manual E2E step.
    */
   it('map page re-stacks map + sidebar at the narrow breakpoint', () => {
     const map = readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8');
@@ -415,7 +415,7 @@ describe('design tokens (M6)', () => {
   });
 
   it('styles.scss provides a global :focus-visible rule (keyboard-operable nav)', () => {
-    // M6 a11y audit: every interactive element (links, buttons, inputs,
+    // Every interactive element (links, buttons, inputs,
     // textareas) gets a visible focus ring even without component-scoped
     // focus styles.
     expect(stylesCss).toContain(':focus-visible');
@@ -447,7 +447,7 @@ describe('design tokens (M6)', () => {
     expect(stylesCss).toMatch(/\.btn \{[^}]*display: inline-flex/);
     expect(stylesCss).toMatch(/align-items: center/);
     expect(stylesCss).toMatch(/justify-content: center/);
-    // The block variant must NOT fall back to display: block (the M2 rule)
+    // The block variant must NOT fall back to display: block
     // — that leaves <a> buttons' labels left/top-aligned, because only
     // <button> elements get the UA button face's self-centring.
     expect(stylesCss).toMatch(/\.btn--block \{[^}]*display: flex/s);

@@ -22,14 +22,14 @@ import java.util.Objects;
 public class MediaAsset {
 
     private Long id;
-    private final String storedFilename;
-    private final String originalFilename;
-    private final String contentType;
-    private final int width;
-    private final int height;
-    private final long sizeBytes;
-    private final Long uploadedBy;
-    private final Instant createdAt;
+    private String storedFilename;
+    private String originalFilename;
+    private String contentType;
+    private int width;
+    private int height;
+    private long sizeBytes;
+    private Long uploadedBy;
+    private Instant createdAt;
 
     private MediaAsset() {
     }

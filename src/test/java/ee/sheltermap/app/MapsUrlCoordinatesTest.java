@@ -71,8 +71,8 @@ class MapsUrlCoordinatesTest {
                     "https://www.google.com/maps/search/51.5074,+0.1278"),
             Case.none("url-searchpath-decimal-comma",
                     "https://www.google.com/maps/search/58,25"),
-            // F2-BE (2026-09-11 review): Estonian decimal-comma parity with
-            // the FE H4 guard — a comma decimal with no point decimal in the
+            // Estonian decimal-comma parity with the frontend guard — a
+            // comma decimal with no point decimal in the
             // coordinate-carrying segment is a decimal-mark misuse, NOT a
             // pair. (58, 25) sits INSIDE the Estonia box, so these rows
             // prove the guard, not the bbox. Case names mirror the FE spec

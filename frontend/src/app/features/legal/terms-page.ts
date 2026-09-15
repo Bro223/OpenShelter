@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 /**
- * Static terms of use (M4 legal-recovery slice 3). No backend, no state —
+ * Static terms of use (legal-recovery). No backend, no state —
  * plain copy. Mirrors the app's own safety notice (not an official
  * emergency service, 112 first) and the locked trust model (verified user
  * ≠ verified shelter).

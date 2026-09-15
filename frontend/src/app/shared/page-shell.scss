@@ -9,7 +9,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex-wrap: wrap; /* M6: brand/nav/actions reflow instead of overflowing at narrow widths */
+  flex-wrap: wrap; /* brand/nav/actions reflow instead of overflowing at narrow widths */
   gap: var(--space-12) var(--space-24);
   padding: var(--space-12) var(--space-20);
   border-bottom: 1px solid var(--color-border-subtle);
@@ -64,7 +64,7 @@
   gap: var(--space-10);
 }
 
-/* Language switcher (i18n-et-en M14 slice 1): a compact two-button group
+/* Language switcher (i18n-et-en): a compact two-button group
    of the global .btn ghosts (48px target included); at <900 it stretches
    to the panel row width like the other action buttons. */
 .shell-lang {

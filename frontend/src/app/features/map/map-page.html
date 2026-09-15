@@ -53,12 +53,12 @@
         >
           {{ locating() ? 'Finding your location…' : 'Show shelters around you' }}
         </button>
-        <!-- legal-recovery (roadmap M4 slice 4): the explicit consent line —
+        <!-- legal-recovery: the explicit consent line —
              the CTA is the only geolocation trigger and the browser prompt
              is the consent; the nearest ranking is client-side (no backend
              call), so the promise "never sent" is the actual behavior. -->
         <p class="map-page__geo-note">{{ 'map.geoNote' | t }}</p>
-        <!-- Address-search anchor (location-navigation M12): the fallback
+        <!-- Address-search anchor (location-navigation): the fallback
              for the geolocation CTA when location is denied, times out or
              is unavailable — the SAME gateway + usage-policy contract as
              the /submit address search (shelter-address-search), in the
@@ -149,7 +149,7 @@
           <p class="nearest-line nearest-line--warning">{{ communityUnverifiedWarning }}</p>
         }
         @if (n.inaccurate) {
-          <!-- Marked inaccurate (M10 slice 4): the single-sourced warning —
+          <!-- Marked inaccurate: the single-sourced warning —
                the flag is the treatment, the row stays visible. -->
           <p class="nearest-line nearest-line--warning">{{ inaccurateWarning }}</p>
         }
@@ -165,7 +165,7 @@
       }
 
       @if (anchor(); as a) {
-        <!-- The active browse anchor (location-navigation M12): the
+        <!-- The active browse anchor (location-navigation): the
              searched point the per-row distances are measured from, with
              its single Clear action. -->
         <p class="anchor-line" role="status">
@@ -255,7 +255,7 @@
                   @if (isPrivateLocation(shelter)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>
                   }
-                  <!-- Address-anchor distance (location-navigation M12):
+                  <!-- Address-anchor distance (location-navigation):
                        the straight-line distance from the searched point —
                        the same honesty format as the nearest line, never a
                        route claim. Only while an anchor is active (the
@@ -267,8 +267,8 @@
                     }}</span>
                   }
                 </span>
-                <!-- Trust badges (shelter-trust-and-reports D6; open-status
-                     wave): orange "Reported" (nonexistentReports > 0), the
+                <!-- Trust badges (shelter-trust-and-reports D6): orange
+                     "Reported" (nonexistentReports > 0), the
                      fresh-CLOSED amber badge ("Reported closed" at one
                      fresh report, "Closed" at two+; a fresh OPEN row
                      renders NO badge — open is the default), and the
@@ -277,7 +277,7 @@
                 @if (hasTrustBadges(shelter)) {
                   <span class="shelter-row__badges">
                     @if (hasReports(shelter)) {
-                      <!-- M8: the count — the nonexistentReports subset
+                      <!-- The count — the nonexistentReports subset
                            that drives the badge (single-sourced). -->
                       <span class="badge badge--reported">{{
                         reportedBadgeText(shelter.nonexistentReports)
@@ -311,8 +311,8 @@
       }
 
       <!-- Safety notice lives in the page shell footer (page-shell.html):
-           it is app-wide, not map-only, and the sidebar space it used to
-           occupy belongs to the shelter list again. -->
+           it is app-wide, not map-only, and the shelter list below owns
+           the sidebar space. -->
     </aside>
   </div>
 
@@ -323,13 +323,13 @@
        comfortable line length (map-page.scss). Rhythm: the first
        paragraph is the lede (larger type — it carries the "not an
        emergency service, call 112" positioning) and the last is the
-       standing guarantee (quiet medium weight). The old "Example"
-       five-step list is gone — it read templated and restates what the
+       standing guarantee (quiet medium weight). The prose block is
+       deliberate: a five-step example list would restate what the
        sources/report paragraphs already say (the how.example* keys stay
        in the catalogs, unused). It is the only i18n'd copy on this page
-       today (the rest of the map chrome is still hardcoded English until
-       M14 slice 2); the badge terms are quoted verbatim so the text
-       matches what the map shows. -->
+       today (the rest of the map chrome is still hardcoded English);
+       the badge terms are quoted verbatim so the text matches what the
+       map shows. -->
   <section class="map-page__how" aria-labelledby="how-title">
     <h2 class="map-page__how-title" id="how-title">{{ 'how.title' | t }}</h2>
     <p class="map-page__how-lede">{{ 'how.what' | t }}</p>

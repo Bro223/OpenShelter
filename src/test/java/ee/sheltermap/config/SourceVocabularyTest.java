@@ -48,7 +48,18 @@ class SourceVocabularyTest {
             // finding ids issued by one review pass
             Pattern.compile("\\breviewer [NF]\\d+\\b"),
             // finding counts spelled out in prose
-            Pattern.compile("\\bN\\d+ finding\\b")
+            Pattern.compile("\\bN\\d+ finding\\b"),
+            // a swagger-ledger row id: no source identifier and no English
+            // word carries the SW-C prefix, so this shape is only ever a row
+            Pattern.compile("\\bSW-C\\d+\\b"),
+            // a bare id followed by the word review, finding or pass: the id
+            // on its own stays legal (h1 is an HTML heading, S3 a product
+            // name), so only the id-plus-word shape is matched
+            Pattern.compile("\\b[A-Z]\\d+ (?:review|finding|pass)\\b"),
+            // a calendar date followed by the word review: a dated pass
+            // reference. A date on its own stays legal — fixtures, fixed
+            // clocks and migration names carry them for real reasons
+            Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} review\\b")
     );
 
     /** Source trees scanned, relative to the module root. */

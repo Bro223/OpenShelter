@@ -38,11 +38,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Acceptance IT for the shelter edit history (moderation-dashboard-completion
- * M10 slice 2, D4) — full-stack MockMvc against the real services, security
- * chain, JWT filter and Postgres: the CREATED row on submission, the EDITED
- * row with exactly the moved fields (a no-op PUT records nothing), the
- * DELETED row on the admin hard delete, the history of a deleted shelter
- * surviving (the dangling shelter_id), and the admin-only 404/403 rules.
+ * D4) — full-stack MockMvc against the real services, security chain, JWT
+ * filter and Postgres: the CREATED row on submission, the EDITED row with
+ * exactly the moved fields (a no-op PUT records nothing), the DELETED row on
+ * the admin hard delete, the history of a deleted shelter surviving (the
+ * dangling shelter_id), and the admin-only 404/403 rules.
  */
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {

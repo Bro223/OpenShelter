@@ -65,12 +65,11 @@ import {
 } from '../../shared/geolocation';
 
 /**
- * Per-error copy for the "Distance from you" action (location-navigation
- * M12) — the map page's NEAREST_COPY vocabulary, MIRRORED here, not shared
- * (the W9/W15 duplication convention: documented, not shared across
- * features). The trailing alternatives differ — the detail page has no
- * retry-of-a-list: its alternatives are the two deep links beside the
- * action.
+ * Per-error copy for the "Distance from you" action (location-navigation) —
+ * the map page's NEAREST_COPY vocabulary mirrored here rather than
+ * shared: the two pages keep their own copy on purpose. The trailing
+ * alternatives differ — the detail page has no retry-of-a-list: its
+ * alternatives are the two deep links beside the action.
  */
 const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
   denied: 'Location permission is off. Allow location access in your browser, then try again.',
@@ -81,8 +80,8 @@ const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
 };
 
 /**
- * /shelters/:id — the public shelter detail page (M5), replacing the M4
- * stub at the same route (05-shelter-review-flow.puml).
+ * /shelters/:id — the public shelter detail page
+ * (05-shelter-review-flow.puml).
  *
  * Thin shell (01-TASK.md §7): state in signals, behaviour delegated —
  * gateways own the API, AuthStore owns the session. Fetches the shelter on
@@ -101,7 +100,7 @@ const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
  * mounted in every FOUND state — loading, error and shelter, all inside the
  * not-found @else branch (it is NOT inside the shelter branch, so the async
  * fetch never races the map). The not-found state renders no container at
- * all, so the map lifetime is tracked explicitly (M4): create() runs in
+ * all, so the map lifetime is tracked explicitly: create() runs in
  * ngAfterViewInit at the Estonia default (null-guarded when the container is
  * absent, e.g. an invalid :id on first load); a flip to the not-found state
  * (load 404 / invalid id) destroys the live map, otherwise the unmounted
@@ -132,7 +131,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
   private readonly leaflet = inject(LeafletService);
-  /** Resolves the report detail field's per-type placeholder (i18n-et-en M14 slice 2). */
+  /** Resolves the report detail field's per-type placeholder (i18n-et-en). */
   private readonly i18n = inject(I18nService);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
@@ -150,7 +149,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
 
   protected readonly auth = this.store;
 
-  /** W24: the shared source/trust copy, exposed to the template (Angular's
+  /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The header badge shows the
    *  source label (registry rows) or the trust-state label (USER rows,
    *  community-review-queue D5) and, from shelter-trust-and-reports, the
@@ -161,36 +160,35 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  "Open (no recent reports)") — the practical info block, shared rule
    *  with the map's "Open" chip. */
   protected readonly shelterStatusText = shelterStatusTextShared;
-  /** The list row's fresh-CLOSED badge (open-status wave) — the same copy
-   *  the status row uses; fresh OPEN rows render no badge. */
+  /** The list row's fresh-CLOSED badge — the same copy the status row uses;
+   *  fresh OPEN rows render no badge. */
   protected readonly openStatusBadgeText = openStatusBadgeTextShared;
   protected readonly occupancyText = occupancyTextShared;
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
-  /** Last-verified meta (M8): the reported badge with its count, the per-
+  /** Last-verified meta: the reported badge with its count, the per-
    *  entry verification line and the community report count line. */
   protected readonly reportedBadgeText = reportedBadgeTextShared;
   protected readonly lastVerifiedText = lastVerifiedTextShared;
   protected readonly communityReportsText = communityReportsTextShared;
-  /** The shared straight-line distance formatter (location-navigation
-   *  M12: moved to the shared copy module — the map rows + this page's
-   *  distance line consume the same honesty format). */
+  /** The shared straight-line distance formatter (location-navigation: the
+   *  map rows + this page's distance line consume the same honesty format). */
   protected readonly straightLineText = straightLineTextShared;
   protected readonly hasCommunityReports = hasCommunityReportsShared;
 
-  // ---- distance from you (location-navigation M12) -----------------------
+  // ---- distance from you (location-navigation) ---------------------------
   /** True while the geolocation request for the distance is in flight. */
   protected readonly distancePending = signal(false);
   /** The last success's straight-line distance in km (null = none yet). */
   protected readonly distanceKm = signal<number | null>(null);
   /** The last locate failure's per-error copy (null = none). A failure
    *  renders the error line and NO distance line (the success line clears
-   *  up front, the same F1 convention as the map CTA). */
+   *  up front, the same convention as the map CTA). */
   protected readonly distanceError = signal<string | null>(null);
   /** The unverified warning for NEW community rows (community-review-
    *  queue): rendered in the header next to the trust-state badge. */
   protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
-  /** The single-sourced "reported inaccurate" warning (M10 slice 4):
+  /** The single-sourced "reported inaccurate" warning:
    *  rendered in the header for a moderator-marked row — independent of
    *  the review state, the row stays visible. */
   protected readonly inaccurateWarning = INACCURATE_WARNING;
@@ -202,13 +200,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly isPrivateLocation = isPrivateLocation;
 
   // ---- trust layer (shelter-trust-and-reports D1/D4/D6) ----------------------
-  /** The three NEGATIVE report types + their picker labels (open-status
-   *  wave): the picker is negative-only now — "It does not exist" /
+  /** The three NEGATIVE report types + their picker labels: the picker is
+   *  negative-only — "It does not exist" /
    *  "The location is wrong" / "Something else". CLOSED and OPEN_CONFIRMED
    *  stay in the ShelterReportType union, the admin label map and the
    *  historical rendering (they exist in stored data), but the picker no
    *  longer offers either — open/closed moved to its own live-report
-   *  section below. M11 factual fields: the factual types (WRONG_LOCATION
+   *  section below. The factual types (WRONG_LOCATION
    *  / OTHER) carry the detail field's per-type placeholder; the binary
    *  type stays claim-only. */
   protected readonly REPORT_TYPES: {
@@ -236,7 +234,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     { value: 'FULL', labelKey: 'detail.band.full' },
   ];
 
-  /** The two open/closed states (open-status wave) — the picker's large
+  /** The two open/closed states — the picker's large
    *  buttons, the band picker's language mirrored 1:1. */
   protected readonly OPEN_STATES: { value: OpenState; labelKey: MessageKey }[] = [
     { value: 'OPEN', labelKey: 'detail.openState.open' },
@@ -256,19 +254,19 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
   private fetchSeq = 0;
 
-  /** The tapped open/closed state while the upsert is in flight (open-
-   *  status wave): the optimistic pressed state — cleared on settle, the
-   *  refetch's yourOpenStatus is the settled pre-select. */
+  /** The tapped open/closed state while the upsert is in flight: the
+   *  optimistic pressed state — cleared on settle, the refetch's
+   *  yourOpenStatus is the settled pre-select. */
   private readonly openStatusPending = signal<OpenState | null>(null);
 
-  /** True while the Location map instance is alive (M4 — see the afterRender
+  /** True while the Location map instance is alive (see the afterRender
    *  hook: the found branch re-mounts a fresh #mapEl after any not-found
    *  flip, so the page must know when the container outlived the map). */
   private locationMapAlive = false;
 
   constructor() {
     /**
-     * M4: fires after EVERY render of this component. The found branch
+     * Fires after EVERY render of this component. The found branch
      * RE-MOUNTS a fresh #mapEl after any not-found flip (which destroyed
      * the map) — this re-creates the instance the moment the fresh
      * container is in the DOM (create is a no-op while an instance is
@@ -305,7 +303,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Ensures the Location map instance matches the rendered container (M4):
+   * Ensures the Location map instance matches the rendered container:
    * creates it when the found branch's #mapEl is mounted and no instance is
    * alive (first load, or the re-mount after a not-found flip). No-op
    * otherwise — safe to call from every found render and load outcome.
@@ -322,7 +320,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * Drops the live Location map with the unmounting container (M4):
+   * Drops the live Location map with the unmounting container:
    * the not-found branch renders no #mapEl, so a live instance would leak with
    * its listeners. Null-safe when create was a no-op; the afterRender hook
    * re-arms on the next found render.
@@ -341,7 +339,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Reviewer N7: re-read the :id on EVERY navigation to this route — a
+    // Re-read the :id on EVERY navigation to this route — a
     // manual URL edit (/shelters/1 -> /shelters/2) must swap the data, not
     // keep the old shelter (a trust-layer write would otherwise land on the
     // wrong shelter). paramMap replays the current params on subscribe,
@@ -357,7 +355,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     if (raw === null || !Number.isInteger(parsed) || parsed <= 0) {
       // The not-found branch unmounts the map container — drop the live map
       // with it (null-safe when create was a no-op), else the instance and
-      // its listeners leak (M4).
+      // its listeners leak.
       this.destroyLocationMap();
       this.notFound.set(true);
       return;
@@ -374,7 +372,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     // The trust-layer pickers (D1/D4) belong to the previous shelter —
     // close them with the data they were reporting on.
     this.resetTrustPickers();
-    // F9: clear the PREVIOUS shelter's pin (showShelter(null) is the
+    // Clear the PREVIOUS shelter's pin (showShelter(null) is the
     // service's clear API) — the new fetch's pin lands on settle; without
     // this the stale marker sits over the map during the load.
     this.leaflet.showShelter(null);
@@ -393,7 +391,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Fetch the shelter. 404 -> not-found state; any other failure -> error
    * banner with the page chrome intact (shared convention). A failed
-   * post-write refetch clears the stale success notice (reviewer N12).
+   * post-write refetch clears the stale success notice.
    */
   load(): Promise<void> {
     const id = this.id();
@@ -411,7 +409,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
         this.shelter.set(value);
         // Location map: ensure the container holds a live instance (the
         // not-found flip destroyed it and the found re-render mounted a
-        // fresh div — M4), then fly to the shelter at street level + pin
+        // fresh div), then fly to the shelter at street level + pin
         // it. Both calls are safe no-ops when create() was skipped, so no
         // guard is needed here.
         this.ensureLocationMap();
@@ -422,13 +420,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
         if (seq !== this.fetchSeq) {
           return;
         }
-        // Reviewer N12: a failed post-write refetch must not leave the stale
+        // A failed post-write refetch must not leave the stale
         // success notice stacked above the error banner.
         this.notice.set(null);
         if (failure instanceof ApiError && failure.status === 404) {
           this.shelter.set(null);
           // The not-found branch unmounts the map container — destroy the
-          // live map with it (null-safe when create was a no-op) (M4).
+          // live map with it (null-safe when create was a no-op).
           this.destroyLocationMap();
           this.notFound.set(true);
           this.loading.set(false);
@@ -436,7 +434,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
         }
         this.error.set(bannerMessage(failure, 'shelter'));
         // The error state keeps the container mounted (placeholder) — if a
-        // prior not-found flip destroyed the map, re-create it here (M4);
+        // prior not-found flip destroyed the map, re-create it here;
         // a no-op when the instance is still alive.
         this.ensureLocationMap();
         this.loading.set(false);
@@ -497,7 +495,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * "Distance from you" (location-navigation M12): the shared high-accuracy
+   * "Distance from you" (location-navigation): the shared high-accuracy
    * geolocation mechanism (the map CTA's exact options, the secure-context
    * guard and the error mapping — shared/geolocation.ts), then the
    * Haversine distance to the shelter's own coordinates, computed CLIENT-
@@ -512,14 +510,14 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     if (this.distancePending() || shelter === null || !this.hasCoordinates(shelter)) {
       return; // busy, or no point to measure against
     }
-    // F1 convention: drop the last success up front — a failed retry must
+    // Drop the last success up front — a failed retry must
     // not leave the stale distance line beside the error.
     this.distanceKm.set(null);
     this.distanceError.set(null);
     this.distancePending.set(true);
     // The mechanism (secure-context + API guards, the request options, the
-    // error-code mapping) is shared/geolocation.ts (F-14); the per-kind
-    // COPY stays page-local (the W9/W15 mirror — DISTANCE_COPY).
+    // error-code mapping) is shared/geolocation.ts; the per-kind
+    // COPY stays page-local and mirrored per kind (DISTANCE_COPY).
     void getCurrentPositionHighAccuracy().then(
       (coords) => {
         this.distancePending.set(false);
@@ -562,10 +560,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  // ---- report open/closed (open-status wave) --------------------------------
+  // ---- report open/closed ------------------------------------------------
   /**
-   * The picker's pressed state for a state (open-status wave): the user's
-   * current live report (yourOpenStatus) OR the optimistic tap in flight —
+   * The picker's pressed state for a state: the user's current live report
+   * (yourOpenStatus) OR the optimistic tap in flight —
    * radio-style, exactly one of the two buttons can be pressed. The
    * refetch's yourOpenStatus is the settled pre-select, so the optimistic
    * flag clears with no flicker on success and reverts on failure.
@@ -627,7 +625,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * M11 (factual report fields): the detail field's per-type placeholder for
+   * The factual-report detail field's per-type placeholder for
    * the picked type — null for the binary types (the claim stands alone).
    * The template renders the field whenever this is non-null, and submit
    * sends a non-blank detail exactly then.
@@ -644,7 +642,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   /**
    * Submit the typed report (verified only — the template gates it). One
    * report per (shelter, user, type): a 409 answers with a PLAIN
-   * sentence-case line in the picker (not an error banner). M11: detail is
+   * sentence-case line in the picker (not an error banner). Detail is
    * sent for the factual types (CLOSED / WRONG_LOCATION / OTHER) and only
    * when non-blank.
    */
@@ -670,7 +668,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     try {
       const result = await this.gateway.report(id, request);
       this.closeReport();
-      // The damp flag picks the notice (M9): a self-interested rival vote
+      // The damp flag picks the notice: a self-interested rival vote
       // (the reporter's own similar listing) is recorded with reduced
       // weight and says so — single-sourced copy.
       this.notice.set({

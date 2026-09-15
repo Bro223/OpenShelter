@@ -27,10 +27,10 @@ public class AuthService {
      * config ever changes, that test fails and this constant must be
      * regenerated.
      *
-     * <p>Login timing equalizer (2026-09-08 review): unknown users (and
+     * <p>Login timing equalizer: unknown users (and
      * users with a missing hash) are verified against THIS hash, so every
-     * login runs exactly one Argon2 verification — response time no longer
-     * leaks whether the account exists. The answer stays the same generic
+     * login runs exactly one Argon2 verification — response time does not
+     * leak whether the account exists. The answer stays the same generic
      * {@link InvalidCredentialsException} either way.
      */
     static final String DUMMY_PASSWORD_HASH =
@@ -71,7 +71,7 @@ public class AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         Objects.requireNonNull(request, "request");
-        // Canonical email identity (P2 fix): lower-case BEFORE the uniqueness
+        // Canonical email identity: lower-case BEFORE the uniqueness
         // check. The V3 unique index is case-sensitive, so without this,
         // "Foo@x.com" and "foo@x.com" could both be stored (the pre-check is
         // case-insensitive) and login would later hit IncorrectResultSize.
@@ -79,7 +79,7 @@ public class AuthService {
         if (users.findByEmail(email) != null) {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
-        // Canonical phone identity (hardening): normalize to E.164 BEFORE the
+        // Canonical phone identity: normalize to E.164 BEFORE the
         // uniqueness check so "+37250000000" and "50000000" collide → 409.
         String phone = PhoneNumbers.normalizeE164(request.phone());
         if (users.findByPhone(phone) != null) {
@@ -99,7 +99,7 @@ public class AuthService {
      * Login by email or phone. One generic error for unknown user and wrong
      * password — the API never reveals which.
      *
-     * <p>Two guards keep the answer opaque (S1, 2026-09-11 review): the
+     * <p>Two guards keep the answer opaque: the
      * dummy-hash verify (absent user/hash verifies against
      * {@link #DUMMY_PASSWORD_HASH}) is the TIMING guard — every login runs
      * exactly one Argon2 verify, so latency never reveals whether the
@@ -112,7 +112,7 @@ public class AuthService {
      * existence.
      */
     public TokenResponse login(LoginRequest request) {
-        // P2 fix: normalize the phone before lookup so "51234567" matches an
+        // Normalize the phone before lookup so "51234567" matches an
         // account registered as "+37251234567" (the phone is canonical E.164).
         String contact = request.emailOrPhone();
         if (contact != null && !contact.contains("@")) {
@@ -132,7 +132,7 @@ public class AuthService {
         if (!passwordHasher.verify(request.password(), hashToVerify)) {
             throw new InvalidCredentialsException();
         }
-        // Existence guard (S1, 2026-09-11 review): verify passing is NOT a
+        // Existence guard: verify passing is NOT a
         // credential check — for an unknown contact the literal password
         // "dummy" verifies against the dummy hash (the timing equalizer).
         // Refuse here with the SAME generic error; without this check
@@ -142,7 +142,7 @@ public class AuthService {
         if (user == null) {
             throw new InvalidCredentialsException();
         }
-        // Suspension check (M10 slice 1) — AFTER the verify + existence
+        // Suspension check — AFTER the verify + existence
         // guard: a wrong password still gets the generic 401, so the 403
         // can only ever leak "suspended" to someone who already proved the
         // password (no unauthenticated account-state oracle).

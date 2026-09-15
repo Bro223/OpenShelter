@@ -62,7 +62,7 @@ class VerificationServiceTest {
         return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock, alerts);
     }
 
-    /** Contact cap off (M3 slice 2) — keeps the per-(user, level) throttle under test isolated. */
+    /** Contact cap off — keeps the per-(user, level) throttle under test isolated. */
     private RollingContactOtpLimiter disabledContactLimiter() {
         return new RollingContactOtpLimiter(0, Duration.ofHours(24), clock);
     }
@@ -199,8 +199,8 @@ class VerificationServiceTest {
 
         throttled.requestVerification(user, VerificationLevel.PHONE);
         // A second send within the cooldown is throttled (429) and leaves no
-        // second entry in the durable send log (2026-09-08 review fix — the
-        // old test only asserted that the NEXT line didn't throw).
+        // second entry in the durable send log — the throw alone would not
+        // prove the row was withheld.
         assertThatThrownBy(() -> throttled.requestVerification(user, VerificationLevel.PHONE))
                 .isInstanceOf(VerificationThrottledException.class);
         assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(1);
@@ -217,7 +217,7 @@ class VerificationServiceTest {
 
     @Test
     void perContactCapRejectsWithRetryAfterAndSendsNothing() {
-        // M3 slice 2: user-level throttle OFF (0, 0), rolling contact cap 1
+        // user-level throttle OFF (0, 0), rolling contact cap 1
         // per 24 h — the second send to the same contact is rejected by the
         // CONTACT cap (not the send log): same 429 exception, honest
         // Retry-After (full window — the clock has not moved), no second SMS.
@@ -236,7 +236,7 @@ class VerificationServiceTest {
 
     @Test
     void tryRecordIsOneAtomicDecisionWithTheSameSilentSkipRules() {
-        // M16 (2026-09-10 review): the decision the service maps to a 429
+        // The decision the service maps to a 429
         // comes from ONE atomic send-log operation. cooldown=0 skips the
         // cooldown, cap=0 skips the daily cap (silent-skip paths unchanged);
         // a rejected decision records nothing.

@@ -42,7 +42,7 @@
 
    The checkbox escapes the global `.field input { width: 100% }` form rule:
    as a flex child, width: 100% stretched it into a ~112px item at 360px
-   and displaced the label text (M13 mobile-responsive-polish — the same
+   and displaced the label text (mobile-responsive-polish — the same
    explicit native-size escape the detail page's report radios use in
    `.report-option input`). */
 .checkbox-field {

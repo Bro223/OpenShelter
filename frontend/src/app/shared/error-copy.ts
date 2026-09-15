@@ -10,27 +10,27 @@ export const COPY = {
   invalidCredentials: 'Invalid email/phone or password.',
   rateLimited: 'Too many attempts — please wait a moment and then try again.',
   unauthorized: 'Not authorized. Please log in again.',
-  // Verification (/verify, M3). The backend answers 429 for BOTH the 60 s
+  // Verification (/verify). The backend answers 429 for BOTH the 60 s
   // resend cooldown and the 5/day cap with one generic message, so the copy
-  // cannot promise a precise wait — see the M3 report for the gap.
+  // cannot promise a precise wait.
   verifyRateLimited:
     'Too many codes have been requested. Please wait a while before requesting another (codes are limited per day).',
   verifyBadCode: 'That code is invalid or has expired. Check it and try again.',
-  // Password-reset confirm (M2, code flow): wrong/expired/used/over-limit are
+  // Password-reset confirm (code flow): wrong/expired/used/over-limit are
   // ONE generic 400 — never reveal which check failed (anti-enumeration).
   resetBadCode: 'That code is invalid or has expired. Check the latest e-mail and try again.',
-  // Contact change (/account, M3). Request 400 ≈ "same as current value"
+  // Contact change (/account). Request 400 ≈ "same as current value"
   // (client validators already block blank/invalid input); the page special-
   // cases that copy before falling through here.
   accountRateLimited: 'Too many requests. Please wait a moment and then try again.',
   accountBadCode: 'That code is invalid or has expired. Please request a new one.',
   accountSameValue: 'That is already the value on your account — the new one must be different.',
   // Generic 400 fallback for the profile + shelter branches when the backend
-  // sent no validation message (named once — it used to be duplicated inline).
+  // sent no validation message (named once — every branch reuses it).
   checkInput: 'Please check your input and try again.',
   // 5xx + other unhandled server statuses: fixed generic copy. A non-JSON
   // body (e.g. a reverse-proxy HTML error page) must never be echoed into
-  // the banner verbatim (N6).
+  // the banner verbatim.
   serverError: 'Something went wrong. Please try again.',
 } as const;
 
@@ -87,7 +87,7 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
       // 5xx (and any other status >= 500): always the fixed generic copy —
       // never echo the body. A non-JSON body (reverse-proxy HTML such as
       // "<html>...502 Bad Gateway...</html>") must not surface verbatim
-      // (N6). Lower unhandled statuses keep the echo fallback.
+      // Lower unhandled statuses keep the echo fallback.
       if (api.status >= 500) {
         return COPY.serverError;
       }

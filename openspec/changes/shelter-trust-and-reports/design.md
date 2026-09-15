@@ -104,7 +104,7 @@ anonymous users null) so the occupancy picker can pre-select.
 
 - Chip row becomes: `All / Registry / User` (existing, unchanged) +
   toggle chip `Reviewed` + chip `Has capacity` + rating `<select>`
-  (`Any rating / 1★+ … 5★+`). All four combine with the source chips.
+  (Any rating / 1-star-plus … 5-star-plus). All four combine with the source chips.
 - List row + detail header badges: orange "Reported" (nonexistent > 0),
   amber "Reported closed" / green "Confirmed open" (statusFlag),
   neutral "Full · X min ago" (occupancy, never green — "space available"

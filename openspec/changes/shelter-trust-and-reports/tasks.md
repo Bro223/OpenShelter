@@ -40,7 +40,7 @@
 - [x] API client + gateway: report/occupancy endpoints, new list params
       (reviewed/minRating/hasCapacity), new DTO fields
 - [x] map-page: `Reviewed` + `Has capacity` chips, rating `<select>`
-      (Any/1★+…5★+), composable with source chips; refetch + rebuild
+      (Any/1-star-plus…5-star-plus), composable with source chips; refetch + rebuild
       pattern unchanged
 - [x] map-page: orange reported marker + "Reported" row badge
       (`nonexistentReports > 0`), `statusFlag` badges (amber/green),

@@ -7,11 +7,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Manual import trigger (Step 5 deliverable). Off by default so a normal
+ * Manual import trigger. Off by default so a normal
  * {@code spring-boot:run} never touches the network; enable with
  * {@code --app.registry.run-on-startup=true}. The result is logged by
  * {@link ShelterImportService} itself, and the overlap guard lives there too
- * (hardening pass) — a startup run can never overlap a scheduled one.
+ * — a startup run can never overlap a scheduled one.
  */
 @Configuration
 public class RegistryRunConfig {

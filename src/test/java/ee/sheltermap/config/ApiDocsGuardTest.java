@@ -8,10 +8,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for the fail-closed OpenAPI-documentation guard (SW wave) —
+ * Unit tests for the fail-closed OpenAPI-documentation guard —
  * the same shape as {@link ProdJwtGuardTest} and
  * {@link DevEndpointsGuardTest}: the check keys on the ACTIVE PROFILES —
- * the ENVIRONMENT's resolved set (S3: profile groups/defaults are only
+ * the ENVIRONMENT's resolved set (profile groups/defaults are only
  * visible there, not in the raw property string) — not on the literal
  * word "prod": a blank profile set or any non-dev/test profile with a
  * docs flag enabled gets the same refusal as {@code production}.
@@ -36,7 +36,7 @@ class ApiDocsGuardTest {
 
     @Test
     void mixedProfileWithAProductionEntryIsChecked() {
-        // M2 (2026-09-10 review): "production,dev" is NOT a dev deploy — the
+        // "production,dev" is NOT a dev deploy — the
         // exemption needs the entire active set to be a subset of {dev, test}.
         for (Environment env : new Environment[]{env("production", "dev"), env("dev", "prod")}) {
             assertThatThrownBy(() -> new ApiDocsGuard(env, true, false))

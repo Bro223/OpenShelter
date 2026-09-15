@@ -17,7 +17,6 @@ public interface TokenService {
     /**
      * Validates an access token and returns the user id it was issued to.
      * Throws {@link InvalidAccessTokenException} on any failure.
-     * (Added in Step 4 for the JWT authentication filter.)
      */
     Long validateAccessToken(String accessToken);
 }

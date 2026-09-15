@@ -28,7 +28,7 @@ public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
 
     @Override
     public int revoke(String tokenHash) {
-        // Mirrors the conditional UPDATE semantics (S4): claims revocation of
+        // Mirrors the conditional UPDATE semantics: claims revocation of
         // an UNKNOWN or ALREADY-REVOKED token claim 0 rows.
         RefreshTokenRecord record = store.get(tokenHash);
         if (record == null || record.revokedAt() != null) {

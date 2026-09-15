@@ -10,7 +10,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity for {@code data_imports} (V15, official-dataset-csv M5) — one
+ * JPA entity for {@code data_imports} (V15, official-dataset-csv) — one
  * row per registry import run, written by {@link JpaDataImportLog}.
  */
 @Entity

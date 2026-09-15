@@ -23,8 +23,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit test for the account export + erasure orchestration (TG1, 2026-09-15):
- * {@code AccountService} had no direct test while its peer services did, and
+ * Unit test for the account export + erasure orchestration:
  * erasure is the one flow that has to be exactly right — it deletes what is
  * private, keeps what the community contributed (authorless), never re-opens
  * trust state, and strips the free-text moderation notes that echo the erased

@@ -39,8 +39,8 @@ public class ShelterService {
 
     /**
      * 403 message for unverified shelter submissions — one public constant
-     * shared with {@code api.ShelterController} (de-slop K5, 2026-09-10
-     * review): the API layer pre-checks the same {@code canWrite()} rule.
+     * shared with {@code api.ShelterController}: the API layer pre-checks the
+     * same {@code canWrite()} rule.
      */
     public static final String SUBMIT_SHELTERS_MESSAGE =
             "A verified account is required to submit shelters";
@@ -53,10 +53,10 @@ public class ShelterService {
      */
     public static final int MAX_ACTIVE_SHELTERS_PER_USER = 10;
 
-    /** The daily submission window (abuse-limits M3): a rolling 24 h. */
+    /** The daily submission window (abuse-limits): a rolling 24 h. */
     static final Duration DAILY_SUBMISSION_WINDOW = Duration.ofHours(24);
 
-    /** Earth mean radius in metres (haversine, abuse-limits M3 slice 3). */
+    /** Earth mean radius in metres (haversine, abuse-limits). */
     static final double EARTH_RADIUS_METERS = 6_371_000;
 
     private final ShelterRepository shelterRepository;
@@ -128,7 +128,7 @@ public class ShelterService {
                 >= MAX_ACTIVE_SHELTERS_PER_USER) {
             throw new ShelterLimitExceededException();
         }
-        // Daily rate cap (abuse-limits M3): sliding 24 h window on the
+        // Daily rate cap (abuse-limits): sliding 24 h window on the
         // SUBMITTING act, independent of the active count. Deleting a row
         // frees its slot (the row is gone) — the churn vector stays bounded
         // by the active cap + the admin surface.
@@ -138,13 +138,13 @@ public class ShelterService {
                     user.getId(), ShelterSource.USER, windowStart);
             if (submitted >= dailySubmissionsPerUser) {
                 Integer retryAfter = retryAfterSeconds(windowStart, user.getId());
-                // M3 slice 4: the throttled account surfaces in the admin
-                // alerts ring (in-memory, W16) before the 429 goes out.
+                // The throttled account surfaces in the admin alerts ring
+                // (in-memory) before the 429 goes out.
                 alerts.submissionDailyCap(user.getId(), retryAfter);
                 throw new ShelterSubmissionThrottledException(retryAfter);
             }
         }
-        // Near-duplicate detection (abuse-limits M3 slice 3): an ACTIVE USER
+        // Near-duplicate detection (abuse-limits): an ACTIVE USER
         // row with the same normalized name within the coordinate tolerance
         // means the place is already on the map — 409 with the existing row
         // id (the client can point at it or edit it via PUT). Cross-user by
@@ -153,7 +153,7 @@ public class ShelterService {
         if (!userRepository.isAdmin(user.getId())) {
             findNearDuplicate(place)
                     .ifPresent(existing -> {
-                        // M3 slice 4: the re-report vector is an alert row,
+                        // The re-report vector is an alert row,
                         // not just a 409 — the admin sees the repeat reporter.
                         alerts.nearDuplicate(user.getId(), existing.getId());
                         throw new ShelterDuplicateException(existing.getId());
@@ -165,7 +165,7 @@ public class ShelterService {
         // is unchanged, the UI shows the "newly added" treatment.
         place.setReviewStatus(ReviewStatus.NEW);
         shelterRepository.save(place);
-        // Edit history (moderation-dashboard-completion M10 slice 2, D4):
+        // Edit history (moderation-dashboard-completion, D4):
         // CREATED joins this transaction, actor = the submitting account.
         history.record(place.getId(), place.getName(), user.getId(),
                 ShelterHistoryLog.Action.CREATED, null);
@@ -178,7 +178,7 @@ public class ShelterService {
 
     /**
      * The first ACTIVE USER row that is a near-duplicate of
-     * {@code candidate} (abuse-limits M3 slice 3): the same normalized name
+     * {@code candidate} (abuse-limits): the same normalized name
      * AND within {@code duplicateCoordMeters} haversine. USER rows carry no
      * address (a registry-only field), so name + coordinates are the whole
      * identity signal; fuzzier re-reports (same place, reworded name) stay
@@ -238,14 +238,14 @@ public class ShelterService {
      * Callers own the authorization (author check) and validation (field
      * bounds + the Estonia bbox) before calling this.
      *
-     * <p>Concurrent-DELETE race (2026-09-10 review n12): if the row was
+     * <p>Concurrent-DELETE race: if the row was
      * deleted between the caller's read and this save, the repository's
      * unknown-id guard surfaces as {@link IllegalStateException} — mapped
      * HERE (the service boundary) to the same 404 as a plain not-found,
      * never a 500. Mapped by re-reading the row (observable state, not
      * message parsing); the repository keeps its internal guard.
      *
-     * <p>Edit history (moderation-dashboard-completion M10 slice 2, D4):
+     * <p>Edit history (moderation-dashboard-completion, D4):
      * the old row is read FIRST (the diff needs it) — which tightens the
      * race: an absent row is a plain 404 before any diff, not only at the
      * save-time guard. An EDITED row is appended (this transaction) only
@@ -274,7 +274,7 @@ public class ShelterService {
 
     /**
      * The editable fields that MOVED between {@code current} and {@code
-     * next} (D4), in canonical order: name, description, capacity,
+     * next}, in canonical order: name, description, capacity,
      * latitude, longitude, locationKind. Empty = a no-op PUT (records no
      * history row).
      */
@@ -305,7 +305,7 @@ public class ShelterService {
     /**
      * Deletes a shelter row; its reports and occupancy cascade via the DB constraints.
      *
-     * <p>Edit history (M10 slice 2, D4): a DELETED row is appended BEFORE
+     * <p>Edit history: a DELETED row is appended BEFORE
      * the delete in the same transaction (the moderation-audit convention
      * — the row is written first, then its shelter_id dangles legally via
      * the no-FK column, so the deleted shelter's history stays findable).

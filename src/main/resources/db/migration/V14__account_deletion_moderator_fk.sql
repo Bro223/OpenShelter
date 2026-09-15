@@ -1,4 +1,4 @@
--- legal-recovery M4 slice 2: the account-erasure path (DELETE /account)
+-- legal-recovery: the account-erasure path (DELETE /account)
 -- must be able to remove a user who is an actor of record in the
 -- moderation audit trail — AUTO_CONFIRM rows name the REPORTING user, not
 -- an admin. The audit row survives the erasure with the moderator

@@ -32,8 +32,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Thin HTTP shell for verification (closes the Step-2 gap: verification was
- * service-level only, unreachable over HTTP).
+ * Thin HTTP shell for verification — exposes the service-level verification
+ * flow over HTTP.
  *
  * <p>{@code POST /verify/request} + {@code POST /verify/confirm} — both
  * require a Bearer JWT (default security rule: any request not explicitly
@@ -144,9 +144,9 @@ public class VerificationController {
         try {
             userRepository.save(user);
         } catch (DataIntegrityViolationException race) {
-            // P2 fix: two concurrent confirms of the same level+code both pass
+            // Two concurrent confirms of the same level+code both pass
             // the already-verified guard, and the losing insert violates the V3
-            // partial unique index. B6 fix: the in-memory claim set was ALREADY
+            // partial unique index. The in-memory claim set was ALREADY
             // mutated by confirmVerification, so `user.levels()` can never prove
             // persistence here — re-read the claim set from the DB and treat the
             // race as an idempotent success ONLY if this user's claim for the

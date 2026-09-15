@@ -96,7 +96,7 @@
     color: var(--color-danger);
   }
 
-  /* Info request (M10 slice 3): an OPEN moderator question — the amber
+  /* Info request: an OPEN moderator question — the amber
      action chip (needs the submitter's one-time reply); answered requests
      carry no chip. */
   &.contrib-badge--info {
@@ -177,7 +177,7 @@
   border-radius: var(--radius-md);
 }
 
-/* Info-request panel (M10 slice 3): the moderator's question + the reply
+/* Info-request panel: the moderator's question + the reply
    form / stored reply — the same subtle card as the edit form. */
 .contrib-info {
   margin-top: var(--space-12);

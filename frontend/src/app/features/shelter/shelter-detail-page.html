@@ -21,13 +21,13 @@
           @if (isPrivateLocation(s)) {
             <span class="badge badge--private">{{ privateLocationBadge }}</span>
           }
-          <!-- Trust badges (shelter-trust-and-reports D6; open-status
-               wave): same copy rules as the map list row — reported /
+          <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
+               as the map list row — reported /
                fresh-CLOSED (amber; fresh OPEN renders no badge) /
                occupancy. -->
           @if (hasTrustBadges(s)) {
             @if (hasReports(s)) {
-              <!-- M8: the count — the nonexistentReports subset that
+              <!-- The count — the nonexistentReports subset that
                    drives the badge (single-sourced with the map row). -->
               <span class="badge badge--reported">{{
                 reportedBadgeText(s.nonexistentReports)
@@ -52,7 +52,7 @@
           <p class="community-warning">{{ communityUnverifiedWarning }}</p>
         }
         @if (s.inaccurate) {
-          <!-- Marked inaccurate (M10 slice 4): the single-sourced warning —
+          <!-- Marked inaccurate: the single-sourced warning —
                the flag is the treatment, the row stays visible (status and
                trust state untouched). Independent of the review state. -->
           <p class="community-warning">{{ inaccurateWarning }}</p>
@@ -76,7 +76,7 @@
             <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">{{
               'detail.appleMaps' | t
             }}</a>
-            <!-- Distance from you (location-navigation M12): the page's
+            <!-- Distance from you (location-navigation): the page's
                  ONLY geolocation trigger — browser asks first, the point
                  never leaves the device, the result is the straight-line
                  honesty line under the coordinates (never a route claim). -->
@@ -103,7 +103,7 @@
         }
       }
       @if (distanceKm() !== null) {
-        <!-- Distance honesty (location-navigation M12, the D6 format): the
+        <!-- Distance honesty (location-navigation D6): the
              straight line from the user's browser position — never a
              walking-route or official claim. -->
         <p class="shelter-detail__distance-line num-tabular" role="status">
@@ -113,7 +113,7 @@
         <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
       }
       @if (shelter(); as s) {
-        <!-- Last verified (M8): the per-entry server-derived stamp. For
+        <!-- Last verified: the per-entry server-derived stamp. For
              NEW community rows the line IS the not-yet-verified signal
              ("Newly added X d ago — not yet verified"); the community
              report count rides on the same line when present.
@@ -204,7 +204,7 @@
         }
       </section>
 
-      <!-- Report open/closed (open-status wave): two large state buttons,
+      <!-- Report open/closed: two large state buttons,
            one tap, latest-wins — the "Report how full" section's structure
            mirrored 1:1 (same gates, same redirect vocabulary, same error
            handling). The user's current state is pre-selected from
@@ -253,7 +253,7 @@
       </section>
 
       <!-- Report this shelter (shelter-trust-and-reports D1/D6): the typed
-           report (verified only, one per type). M11: the factual types
+           report (verified only, one per type). The factual types
            (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
       <section class="detail-section" aria-labelledby="report-shelter-heading">
         <h2 class="section-title" id="report-shelter-heading">{{ 'detail.reportThis' | t }}</h2>
@@ -339,7 +339,7 @@
         }
       </section>
 
-      <!-- Practical info (review-model removal; open-status wave): the
+      <!-- Practical info (review-model removal): the
            derived display status — the FRESH open/closed reports first
            ("Reported closed" at one, "Closed" at two+, "Open"), then the
            lifecycle status ("Closed" for INACTIVE, "Open (no recent

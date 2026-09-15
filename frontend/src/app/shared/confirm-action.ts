@@ -10,7 +10,7 @@ export interface ArmedConfirm<K, V> {
  * Shared two-tap destructive-confirm primitive.
  *
  * The single owner of the state machine AND the keyboard/screen-reader
- * behaviour the four destructive confirm sites used to hand-roll:
+ * behaviour every destructive confirm site needs:
  *
  *  - the trigger calls `arm(key, value)` and the template renders its strip
  *    from `isArmed(key)` / `armed()`,

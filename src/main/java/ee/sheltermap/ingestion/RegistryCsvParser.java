@@ -5,7 +5,7 @@ import java.util.List;
 
 /**
  * Parser for the Päästeamet open-data shelter CSV
- * ({@code https://opendata.smit.ee/gis/varjumiskohad.csv}, official-dataset-csv M5).
+ * ({@code https://opendata.smit.ee/gis/varjumiskohad.csv}, official-dataset-csv).
  *
  * <p>Format (verified against the live file): UTF-8, semicolon-separated,
  * header {@code id;nimi;aadress;lest_x;lest_y}, every field double-quoted

@@ -16,7 +16,7 @@ import java.util.stream.Stream;
  * <p>{@code levels} holds exactly the levels that are actually verified for
  * this account (non-revoked claims), in enum order for a stable body — the
  * frontend adopts it as the single source of truth for its verification
- * labels (replacing the old session-only optimistic mirror).
+ * labels as the single source of truth.
  *
  * <p>{@code isAdmin} is always present (admin-moderation D2): the frontend
  * gates the admin route and nav item on it. It reflects the freshly loaded

@@ -4,7 +4,7 @@ import java.time.Instant;
 
 /**
  * Persistence seam for hashed refresh tokens (03-auth.puml). Real
- * implementation in {@code ee.sheltermap.persistence} (Step 3); tests may
+ * implementation in {@code ee.sheltermap.persistence}; tests may
  * use a fake.
  */
 public interface RefreshTokenRepository {
@@ -18,7 +18,7 @@ public interface RefreshTokenRepository {
      * Atomically claims revocation: a conditional
      * {@code UPDATE ... SET revoked_at=now WHERE token_hash=? AND revoked_at IS NULL}.
      * Concurrent racers serialize on the row lock — exactly one of them gets
-     * {@code 1}, the rest get {@code 0} (the rotation TOCTOU fix, S4).
+     * {@code 1}, the rest get {@code 0} (the rotation TOCTOU fix).
      *
      * @return the number of rows revoked ({@code 1} claimed, {@code 0} if
      *         the token was unknown or already revoked)

@@ -98,18 +98,16 @@
     flex: 1 1 0;
     min-height: 0;
 
-    /* Deliberately NO scroll-snap (2026-09-11). Both snap modes were tried
-       and the list was left snap-free because the user's fast mouse-wheel
-       spin dead-stopped under snap and free scrolling is the only regime
-       that guarantees proportional scrolling for every input:
-       • y proximity (f439b4e): controlled headless tests show discrete
-         fast spins still scroll (594/600px, with ±1px proximity settling
-         creep — visible micro-jitter), but real wheel momentum flings are
-         known to fight proximity snap containment in Chrome and the user
-         experienced exactly that: fast spin → no scroll at all.
-       • y mandatory with the stop-always variant (c1468f7, reverted c096f02):
-         true one-row carousel steps — user found it felt worse than free
-         scrolling.
+    /* No scroll-snap: fast mouse-wheel spins dead-stopped under both snap
+       modes, and free scrolling is the only regime that guarantees
+       proportional scrolling for every input:
+       • y proximity: controlled headless tests show discrete fast spins
+         still scroll (594/600px, with ±1px proximity settling creep —
+         visible micro-jitter), but real wheel momentum flings fight
+         proximity snap containment in Chrome: fast spin → no scroll at
+         all.
+       • y mandatory with the stop-always variant: true one-row carousel
+         steps, which feel worse than free scrolling.
        Snap-free verification (headless Chromium, 300 rows): normal spin
        6×100px → 600, fast spin 6×100px @16ms → 600 (held, no reset),
        decaying momentum flick → 885/885. The list is therefore a plain
@@ -137,7 +135,7 @@
   }
 }
 
-/* Geolocation consent line under the CTA (legal-recovery M4 slice 4):
+/* Geolocation consent line under the CTA (legal-recovery):
    muted, secondary — it explains the consent, not an action. */
 .map-page__geo-note {
   margin: 0;
@@ -145,7 +143,7 @@
   color: var(--color-muted);
 }
 
-/* Address-search anchor (location-navigation M12): the fallback for the
+/* Address-search anchor (location-navigation): the fallback for the
    geolocation CTA — the SAME Nominatim contract as /submit (one request
    per deliberate press, attribution always rendered), styled on the
    functional palette (the crisis orange stays reserved for the CTA). */
@@ -243,7 +241,7 @@
   }
 }
 
-/* The active anchor line (location-navigation M12): the searched point
+/* The active anchor line (location-navigation): the searched point
    the per-row distances are measured from + its single Clear action.
    Muted — a reference line, not an alarm (the .nearest-line family). */
 .anchor-line {
@@ -337,7 +335,7 @@
    "Has capacity" (server-side) toggle chips in the same visual language
    (the combined selector keeps ONE style source for both chip kinds).
    Every control is a new interactive target, so each carries the 48px
-   minimum (the pre-existing source chips keep their M4 sizing). */
+   minimum (the pre-existing source chips keep their sizing). */
 .filter-trust {
   display: flex;
   gap: var(--space-6);
@@ -423,7 +421,7 @@
     color: var(--color-muted);
   }
 
-  /* Address-anchor distance (location-navigation M12): the straight-line
+  /* Address-anchor distance (location-navigation): the straight-line
      distance from the searched point — the D6 honesty format, muted
      (secondary to the badges), tabular figures like every distance line. */
   .shelter-row__anchor-distance {
@@ -443,7 +441,7 @@
   padding-left: var(--space-12);
   padding-right: var(--space-12);
   text-align: left;
-  /* Deliberate opt-out of the .btn flex centering: this step reads as part
+  /* No .btn flex centering here: this step reads as part
      of the row above it, so its label stays left-aligned to the row's
      content (design decision 5). */
   justify-content: flex-start;
@@ -462,7 +460,7 @@
     color: var(--color-shelter-user);
   }
 
-  /* Trust badges (shelter-trust-and-reports D6; open-status wave).
+  /* Trust badges (shelter-trust-and-reports D6).
      "Reported" is the single reported affordance (the token, white text
      5.18:1 — HC flips to dark on the brightened fill). The fresh-CLOSED
      badge reuses the existing warning tint (a fresh OPEN row renders no
@@ -567,10 +565,10 @@
   }
 }
 
-/* M6 responsive (breakpoint: --bp-narrow; @media cannot consume var()):
+/* Responsive (breakpoint: --bp-narrow; @media cannot consume var()):
    map on top, sidebar full-width below; no horizontal scroll at mobile
    widths. Wide-width rendering (and every class name) is untouched.
-   900px (was 720px): tablet widths stack too — at <900px the side-by-side
+   900px: tablet widths stack too — at <900px the side-by-side
    344px sidebar + map leaves the filter row cramped, and stacked gives the
    chips/select the full width so content never clips. */
 @media (max-width: 900px) {

@@ -12,8 +12,8 @@ import jakarta.validation.constraints.Size;
  * {@code POST /api/shelters} body (05-shelter-api.puml).
  *
  * <p>{@code description} and {@code capacity} are USER-submission details and
- * are stored on the shelter (V3 hardening — previously validated then
- * silently dropped at the boundary).
+ * are stored on the shelter — the request boundary must not validate a value
+ * and then drop it.
  *
  * <p>{@code locationKind} is the private-home declaration
  * (community-review-queue v2 D7): {@code "PUBLIC" | "PRIVATE"} —

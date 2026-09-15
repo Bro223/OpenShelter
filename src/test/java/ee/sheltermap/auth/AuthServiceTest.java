@@ -60,12 +60,12 @@ class AuthServiceTest {
 
     @Test
     void loginUnknownContactWithDummyPasswordThrowsSameGenericError() {
-        // S1 (2026-09-11 review): the dummy verify is a timing equalizer, not
-        // a credential check — the literal password "dummy" verifies against
+        // The dummy verify is a timing equalizer, not a credential check —
+        // the literal password "dummy" verifies against
         // AuthService.DUMMY_PASSWORD_HASH (the stub mirrors the real hasher
         // here), so an unknown contact with "dummy" must still get the
-        // generic 401 — pre-fix, tokens.issue(null) would have NPE'd into a
-        // 500 and revealed the account does not exist.
+        // generic 401 — tokens.issue(null) would otherwise NPE into a 500
+        // and reveal the account does not exist.
         assertThatThrownBy(() -> auth.login(new LoginRequest("ghost@example.ee", "dummy")))
                 .isInstanceOf(InvalidCredentialsException.class)
                 .hasMessage("Invalid credentials");
@@ -73,7 +73,7 @@ class AuthServiceTest {
 
     @Test
     void loginKnownContactWithDummyPasswordThrowsSameGenericError() {
-        // S1: the "dummy" password is only special against the DUMMY hash —
+        // The "dummy" password is only special against the DUMMY hash —
         // a real stored hash still rejects it with the generic 401.
         registerMari();
         assertThatThrownBy(() -> auth.login(new LoginRequest("mari@example.ee", "dummy")))
@@ -83,7 +83,7 @@ class AuthServiceTest {
 
     @Test
     void loginRunsExactlyOneHashVerificationForUnknownAndKnownContacts() {
-        // Timing equalizer (2026-09-10 review H1): every login — unknown
+        // The timing equalizer: every login — unknown
         // contact, known contact with a wrong password, known contact with
         // the right one — must run verify() EXACTLY ONCE, so response time
         // never reveals whether the account exists.

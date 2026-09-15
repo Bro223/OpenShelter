@@ -7,7 +7,7 @@ import java.util.Optional;
 
 /**
  * Persistence seam for {@link PendingVerification}. Real implementation in
- * {@code ee.sheltermap.persistence} (Step 3); tests use an in-memory fake.
+ * {@code ee.sheltermap.persistence}; tests use an in-memory fake.
  */
 public interface PendingVerificationRepository {
 
@@ -16,7 +16,7 @@ public interface PendingVerificationRepository {
     /**
      * The still-valid (not expired) pending verification for user+level, if any.
      *
-     * @param now the reference "now" (W17: callers pass their injected clock,
+     * @param now the reference "now" (callers pass their injected clock,
      *            never a wall-clock read inside the repository)
      */
     Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level, Instant now);

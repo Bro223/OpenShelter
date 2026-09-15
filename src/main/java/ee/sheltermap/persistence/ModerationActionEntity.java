@@ -28,19 +28,28 @@ public class ModerationActionEntity {
 
     /** The target shelter — NO FK in the DB (deliberate): after a shelter
      *  delete the id dangles and the name resolves to "Deleted shelter".
-     *  Nullable since V17 (M10 slice 1): user-scoped rows (USER_SUSPEND /
+     *  Nullable since V17: user-scoped rows (USER_SUSPEND /
      *  USER_UNSUSPEND) have no shelter. */
     @Column(name = "shelter_id")
     private Long shelterId;
 
-    /** The target account of a user-scoped row (M10 slice 1); NULL for
+    /** The target account of a user-scoped row; NULL for
      *  shelter-scoped actions. NO FK in the DB: an account erasure must
      *  not erase the audit — the id dangles and renders "Deleted account". */
     @Column(name = "subject_user_id")
     private Long subjectUserId;
 
-    /** The acting user (V11, D4). Nullable since V14 (legal-recovery M4
-     *  slice 2): when the actor's account is erased the audit row survives
+    /** The human-readable subject snapshot (crisis-guidance D12): a
+     *  guidance post or a media asset named for the admin read. NO FK in
+     *  the DB: a deleted target must stay readable in the trail (the
+     *  label is a snapshot, like the dangling shelter_id). NULL for every
+     *  pre-V23 row — the read resolves it first and falls back to the
+     *  shelter/account resolution only when it is null. */
+    @Column(name = "subject_label", length = 300)
+    private String subjectLabel;
+
+    /** The acting user (V11, D4). Nullable since V14 (legal-recovery): when
+     *  the actor's account is erased the audit row survives
      *  and this reference dangles (ON DELETE SET NULL) — the admin read
      *  renders "Unknown" for it, like a deleted shelter. */
     @Column(name = "moderator_id")
@@ -87,6 +96,14 @@ public class ModerationActionEntity {
 
     public void setSubjectUserId(Long subjectUserId) {
         this.subjectUserId = subjectUserId;
+    }
+
+    public String getSubjectLabel() {
+        return subjectLabel;
+    }
+
+    public void setSubjectLabel(String subjectLabel) {
+        this.subjectLabel = subjectLabel;
     }
 
     public Long getModeratorId() {

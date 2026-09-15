@@ -7,8 +7,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * One row of a shelter's edit history (moderation-dashboard-completion M10
- * slice 2, D4) — ascending over the row's lifecycle events.
+ * One row of a shelter's edit history (moderation-dashboard-completion,
+ * D4) — ascending over the row's lifecycle events.
  *
  * <p>{@code shelterName} is the SNAPSHOT at event time (renames do not
  * rewrite history — an EDITED row after a rename shows the name as it was

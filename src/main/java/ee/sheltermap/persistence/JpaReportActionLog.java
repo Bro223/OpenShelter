@@ -21,7 +21,7 @@ import java.util.Objects;
  * decision must not extend itself); otherwise record the action.
  *
  * <p>Concurrency: the check-and-record is serialized per user with a
- * transaction-scoped advisory lock (the M16 discipline, DB-scoped — the
+ * transaction-scoped advisory lock (DB-scoped — the
  * log is durable, unlike the file-based verification send log). Two
  * concurrent report actions from the same user can therefore never both
  * read the pre-increment count. The lock releases when the surrounding

@@ -27,7 +27,7 @@
           autocomplete="email"
           [placeholder]="'authPage.register.emailPlaceholder' | t"
         />
-        <!-- legal-recovery (roadmap M4): why-we-collect copy — verification
+        <!-- legal-recovery: why-we-collect copy — verification
              + account recovery, the only two uses (see /privacy). -->
         <p class="field-note">{{ 'authPage.register.emailNote' | t }}</p>
         @if (duplicate()?.field === 'email') {

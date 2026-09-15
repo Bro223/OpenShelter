@@ -87,14 +87,14 @@ public class AdminSeeder implements ApplicationRunner {
                     "app.admin.password must be at least 8 characters long — refusing to seed a weak admin password");
         }
         if (users.findByEmail(email) != null) {
-            // Create-if-absent: whatever row holds this email (REGISTERED or a
-            // previously seeded ADMIN) is left completely untouched.
+            // Create-if-absent: whatever row already holds this email
+            // (REGISTERED or ADMIN) is left completely untouched.
             log.info("Admin e-mail {} already in use — seeder is a no-op", email);
             return;
         }
         // No phone on the account (null — it is outside the unique
         // uq_users_phone index, so it can never collide with any other user
-        // or be a login route); no national ID code is stored (M1) — the
+        // or be a login route); no national ID code is stored — the
         // pre-set SMART_ID claim carries the e-mail as its external ref.
         AdminUser admin = AdminUser.provisioned("Admin", email, clock.instant());
         users.save(admin);

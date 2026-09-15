@@ -1,4 +1,4 @@
--- Shelter Map — initial schema (Step 3).
+-- Shelter Map — initial schema.
 -- snake_case, singular table names; all FK deletes cascade from users.
 -- ddl-auto=validate must stay green against these definitions.
 

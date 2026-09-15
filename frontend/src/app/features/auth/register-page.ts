@@ -43,8 +43,8 @@ export class RegisterPage {
   /** 201 — account created, no session yet. */
   protected readonly registered = signal(false);
   /**
-   * Reviewer N16: the 409 body names the duplicated field ("an account with
-   * this email/phone already exists") — surface it INLINE on that field.
+   * The 409 body names the duplicated field ("an account with this
+   * email/phone already exists") — surface it inline on that field.
    * A 409 without a recognizable field keeps the banner fallback.
    */
   protected readonly duplicate = signal<{ field: 'email' | 'phone'; message: string } | null>(null);

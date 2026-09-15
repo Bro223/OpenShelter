@@ -10,7 +10,7 @@
 
   <!-- Tabs: the review queue FIRST, the audit trail LAST (community-review-queue).
        The queues load lazily on first switch.
-       Accessibility F-03: a plain group of pressed-state toggles, NOT a
+       A plain group of pressed-state toggles, NOT a
        role="tablist" widget — the panels are inline @if blocks (a real
        role="tabpanel" would need a wrapper element that breaks the .admin
        column's gaps), so the switcher follows the app's existing
@@ -228,7 +228,7 @@
                   @if (row.address) {
                     <span class="admin-muted">{{ row.address }}</span>
                   }
-                  <!-- Marked inaccurate (M10 slice 4): the single-sourced
+                  <!-- Marked inaccurate: the single-sourced
                        warning line — the row stays visible, the flag is the
                        treatment. -->
                   @if (row.inaccurate) {
@@ -278,7 +278,7 @@
                 </td>
                 <td class="admin-cell--actions">
                   @if (row.source === 'USER') {
-                    <!-- Edit-history toggle (M10 slice 2): USER rows only —
+                    <!-- Edit-history toggle: USER rows only —
                          registry import rows keep their own data_imports
                          audit and write no history rows. -->
                     <button
@@ -289,7 +289,7 @@
                     >
                       {{ historyFor() === row.id ? 'Close history' : 'History' }}
                     </button>
-                    <!-- Info-request toggle (M10 slice 3): the moderator→
+                    <!-- Info-request toggle: the moderator→
                          submitter exchange — question editor for rows
                          without a request, the exchange (with the answer
                          once given) for rows with one. USER rows only,
@@ -302,7 +302,7 @@
                     >
                       {{ infoFor() === row.id ? 'Close info' : 'Info' }}
                     </button>
-                    <!-- Mark inaccurate (M10 slice 4): the Clear action for a
+                    <!-- Mark inaccurate: the Clear action for a
                          marked row, the editor toggle for an unmarked one.
                          USER rows only, like History/Info. -->
                     @if (row.inaccurate) {
@@ -357,7 +357,7 @@
                       <!-- two-tap confirm (no window.confirm, the app's inline
                            style). The shared ConfirmAction owns the state
                            machine, the focus move onto Confirm and the focus
-                           restore to Delete on cancel (F-04/F-12); the prompt
+                           restore to Delete on cancel; the prompt
                            is a live region so arming is announced. -->
                       <span class="admin-confirm" role="status"
                         >Delete this shelter permanently?</span
@@ -385,7 +385,7 @@
                   }
                 </td>
               </tr>
-              <!-- Inline edit-history panel (M10 slice 2): the row's
+              <!-- Inline edit-history panel: the row's
                    lifecycle events ascending — action label, actor, time,
                    and "field: old → new" per moved field. The name
                    snapshot is not repeated (the changes carry it). -->
@@ -419,7 +419,7 @@
                   </td>
                 </tr>
               }
-              <!-- Inline info-request panel (M10 slice 3): a row WITHOUT a
+              <!-- Inline info-request panel: a row WITHOUT a
                    request gets the question editor (required, ≤2000); a row
                    WITH one shows the exchange read-only — the row is kept
                    after the reply (audit posture). -->
@@ -484,7 +484,7 @@
                   </td>
                 </tr>
               }
-              <!-- Inline mark-inaccurate editor (M10 slice 4): the optional
+              <!-- Inline mark-inaccurate editor: the optional
                    reason (blank/absent stores NULL on the audit row); the
                    row refetches on success like the other 204 actions. -->
               @if (inaccurateFor() === row.id) {
@@ -589,7 +589,7 @@
     }
   }
 
-  <!-- =========================== Alerts (M3) =========================== -->
+  <!-- ============================== Alerts ============================= -->
   @if (tab() === 'alerts') {
     @if (alertsRows() === null && alertsLoadError() === null) {
       <app-loading-indicator class="admin-state" message="Loading alerts…" />
@@ -627,7 +627,7 @@
   }
 
   <!-- ============================== Audit log ============================== -->
-  <!-- =========================== Users (M10 slice 1) =========================== -->
+  <!-- ================================== Users ================================== -->
   @if (tab() === 'users') {
     @if (userRows() === null && userLoadError() === null) {
       <app-loading-indicator class="admin-state" message="Loading accounts…" />
@@ -684,7 +684,7 @@
                       <!-- two-tap confirm (no window.confirm, the app's inline
                            style). The shared ConfirmAction owns the state
                            machine, the focus move onto Confirm and the focus
-                           restore to Suspend/Unsuspend on cancel (F-04/F-12);
+                           restore to Suspend/Unsuspend on cancel;
                            the prompt is a live region so arming is announced. -->
                       <span class="admin-confirm" role="status">
                         @if (userActionConfirm.armed()!.value === 'suspend') {
@@ -768,7 +768,7 @@
             <tr>
               <th scope="col">When</th>
               <th scope="col">Moderator</th>
-              <!-- "Subject" since M10 slice 1: a shelter row's name OR the
+              <!-- "Subject": a shelter row's name OR the
                    suspended account ("Account: name (email)" / "Deleted
                    account") — the server resolves both into one text. -->
               <th scope="col">Subject</th>

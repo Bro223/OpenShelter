@@ -111,7 +111,7 @@ class PaasteametRegistryClientTest {
 
     @Test
     void malformedJsonIsReportedAsRegistryUnavailable() {
-        // A 200 with an unparseable body is a DETERMINISTIC failure (B7d):
+        // A 200 with an unparseable body is a DETERMINISTIC failure:
         // retrying cannot fix it, so the client must fail fast with exactly
         // ONE request — no retry, no retry budget burned.
         server.expect(requestTo(wfsUrl(0)))

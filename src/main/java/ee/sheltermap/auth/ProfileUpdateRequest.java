@@ -13,7 +13,7 @@ import jakarta.validation.constraints.Size;
  * values are stored as given (registration has no canonicalization, so
  * editing must not be stricter). Email/phone are deliberately absent:
  * they stay governed by the cross-channel change flows. No national ID
- * code is collected anywhere (remove-national-id M1).
+ * code is collected anywhere (remove-national-id).
  */
 @Schema(description = "Profile-edit payload (PUT /account/profile): name "
         + "only, confirmed by the account's current password. E-mail and "

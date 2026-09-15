@@ -82,6 +82,10 @@ __pycache__/
 # File-backed verification send log (anti-spam daily cap) — survives restarts,
 # but must never be committed (contains contacts/timestamps).
 data/
+# Crisis-guidance media uploads: the default dir already sits under the data/
+# rule above — the explicit entry pins that, so a future change to the ignore
+# structure cannot silently start committing uploads.
+data/media/
 
 # JVM attach artifacts (JDK tools; never repo content)
 .attach_pid*

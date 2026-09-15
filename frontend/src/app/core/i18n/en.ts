@@ -1,11 +1,11 @@
 import type { Messages } from './messages';
 
 /**
- * The English catalog (i18n-et-en M14 slice 1) — the original copy,
- * verbatim: the EN strings ARE the current committed copy, so a user who
- * stays on the default locale sees exactly what the app showed before
- * i18n. Where the old templates spliced copy around markup (footer links),
- * the sentence is segmented into keys with the same rendered result.
+ * The English catalog (i18n-et-en) — the reference copy, verbatim: the EN
+ * strings ARE the committed copy, so a user on the default locale sees
+ * exactly what the app renders. Where a template spliced copy around markup
+ * (footer links), the sentence is segmented into keys with the same rendered
+ * result.
  */
 export const EN: Messages = {
   'menu.aria': 'Menu',
@@ -151,7 +151,7 @@ export const EN: Messages = {
   'authPage.privacyPolicy': 'Privacy Policy',
   'authPage.termsOfUse': 'Terms of Use',
 
-  // --- map page (M14 slice 2, the browse surface). Same verbatim rule as
+  // --- map page (the browse surface). Same verbatim rule as
   // the chrome: the EN strings ARE the current committed template + const
   // copy. The around-you CTA copy is NOT keyed here (see messages.ts).
   'map.title': 'Shelter map',
@@ -196,7 +196,7 @@ export const EN: Messages = {
   'map.geocode.network':
     'Address search is unreachable right now. Try “Show shelters around you” instead.',
 
-  // --- shelter detail page (M14 slice 2). Verbatim rule as above.
+  // --- shelter detail page. Verbatim rule as above.
   'detail.backToMap': 'Back to the map',
   'detail.notFoundTitle': 'Shelter not found',
   'detail.notFoundBody': 'No shelter with this ID exists — it may have been removed.',
@@ -235,7 +235,7 @@ export const EN: Messages = {
   'detail.cancel': 'Cancel',
   'detail.verifyAccount': 'Verify your account',
 
-  // --- submit shelter page (M14 slice 2, the contribute surface).
+  // --- submit shelter page (the contribute surface).
   'submit.backToMap': 'Back to the map',
   'submit.title': 'Submit a shelter',
   'submit.subtitle': 'Add a community bomb shelter to the map.',

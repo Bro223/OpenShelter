@@ -27,15 +27,15 @@ import type {
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/review         -> 200 {ok} (USER rows only)
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
- *   GET    /admin/shelters/{id}/history        -> AdminShelterHistoryEvent[] (M10 slice 2)
- *   POST   /admin/shelters/{id}/request-info   -> 204 (USER rows only; M10 slice 3)
- *   POST   /admin/shelters/{id}/mark-inaccurate -> 204 (USER rows only; M10 slice 4)
- *   POST   /admin/shelters/{id}/clear-inaccurate -> 204 (USER rows only; M10 slice 4)
+ *   GET    /admin/shelters/{id}/history        -> AdminShelterHistoryEvent[]
+ *   POST   /admin/shelters/{id}/request-info   -> 204 (USER rows only)
+ *   POST   /admin/shelters/{id}/mark-inaccurate -> 204 (USER rows only)
+ *   POST   /admin/shelters/{id}/clear-inaccurate -> 204 (USER rows only)
  *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
  *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
  *   GET    /admin/alerts?limit=                -> AdminAlertRow[] (newest 50)
- *   GET    /admin/users                        -> AdminUserDto[] (M10 slice 1)
+ *   GET    /admin/users                        -> AdminUserDto[]
  *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
  *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
  */
@@ -87,10 +87,10 @@ export class AdminGateway {
   }
 
   /**
-   * GET /admin/shelters/{id}/history -> the shelter's edit history, ASCENDING
-   * (M10 slice 2, D4): CREATED / EDITED (server-parsed field changes — the
-   * UI renders, never parses JSON) / DELETED, with snapshot names and
-   * resolved actor names. The history of a deleted shelter still serves
+   * GET /admin/shelters/{id}/history -> the shelter's edit history, ASCENDING:
+   * CREATED / EDITED (server-parsed field changes — the UI renders, never
+   * parses JSON) / DELETED, with snapshot names and resolved actor names.
+   * The history of a deleted shelter still serves
    * (404 only when the shelter is absent AND has no history rows); registry
    * import rows answer an empty list (the import keeps its own
    * data_imports audit).
@@ -100,8 +100,8 @@ export class AdminGateway {
   }
 
   /**
-   * POST /admin/shelters/{id}/request-info {message} -> 204 (M10 slice 3).
-   * The moderator→submitter information request: the submitter sees it on
+   * POST /admin/shelters/{id}/request-info {message} -> 204. The
+   * moderator→submitter information request: the submitter sees it on
    * their own row and answers once; the admin sees the request with the
    * reply on the shelter list. USER rows only (409 registry — import-
    * owned); 404 unknown id; 409 when the row already has a request (one
@@ -112,9 +112,9 @@ export class AdminGateway {
   }
 
   /**
-   * POST /admin/shelters/{id}/mark-inaccurate {reason?} -> 204 (M10 slice
-   * 4). Sets the public `inaccurate` flag on a USER shelter — the row
-   * stays visible (status and trust state untouched). The reason is
+   * POST /admin/shelters/{id}/mark-inaccurate {reason?} -> 204. Sets the
+   * public `inaccurate` flag on a USER shelter — the row stays visible
+   * (status and trust state untouched). The reason is
    * optional (the audit row stores it when given; blank/absent stores
    * NULL). USER rows only (409 registry — import-owned); 404 unknown id;
    * idempotent (re-marking an already-marked row is a no-op that audits
@@ -131,7 +131,7 @@ export class AdminGateway {
   }
 
   /**
-   * POST /admin/shelters/{id}/clear-inaccurate -> 204 (M10 slice 4).
+   * POST /admin/shelters/{id}/clear-inaccurate -> 204.
    * Clears the flag — idempotent (clearing an unmarked row is a no-op). Same
    * 404/409 guards as the mark.
    */
@@ -149,8 +149,8 @@ export class AdminGateway {
   }
 
   /**
-   * GET /admin/alerts -> the M3 throttle-abuse alerts (abuse-limits slice
-   * 4), newest first: the daily submission cap (429), the per-contact OTP
+   * GET /admin/alerts -> the throttle-abuse alerts (abuse-limits),
+   * newest first: the daily submission cap (429), the per-contact OTP
    * cap (429) and the near-duplicate rejection (409). Optional `limit`
    * (1..200, default 50 — the backend answers 400 outside). The ring is
    * in-memory on the backend, so it clears on a restart.
@@ -176,9 +176,9 @@ export class AdminGateway {
   }
 
   /**
-   * GET /admin/users -> the account list behind the Users tab (M10 slice
-   * 1): every REGISTERED + ADMIN account, id-ordered, with its
-   * suspension state (null = active).
+   * GET /admin/users -> the account list behind the Users tab: every
+   * REGISTERED + ADMIN account, id-ordered, with its suspension state
+   * (null = active).
    */
   listUsers(): Promise<AdminUserDto[]> {
     return lastValueFrom(this.api.get<AdminUserDto[]>('/admin/users'));

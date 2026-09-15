@@ -30,7 +30,7 @@ public interface ShelterRegistryClient {
     /**
      * Fetch like {@link #fetchAll()}, plus the upstream data version when
      * the source publishes one (HTTP Last-Modified / ETag) and a 304
-     * "not modified" marker (official-dataset-csv M5). The default wraps
+     * "not modified" marker (official-dataset-csv). The default wraps
      * {@code fetchAll()} unchanged, so version-less sources (WFS, dev
      * fixture) need no override.
      */

@@ -9,7 +9,7 @@ import java.util.Optional;
  * Spring Data repository for {@link UserEntity} — internal to the
  * persistence layer.
  *
- * <p>PII-at-rest (M2): lookups run on the HMAC blind indexes
+ * <p>PII-at-rest: lookups run on the HMAC blind indexes
  * ({@code email_hash} / {@code phone_hash}) — the {@code email} /
  * {@code phone} columns hold ciphertext and are never matched against.
  */
@@ -19,6 +19,6 @@ public interface SpringDataUserRepository extends JpaRepository<UserEntity, Long
 
     Optional<UserEntity> findByPhoneHash(String phoneHash);
 
-    /** Id-ordered full-table read (M10 slice 1 — the admin Users tab). */
+    /** Id-ordered full-table read (the admin Users tab). */
     List<UserEntity> findAllByOrderByIdAsc();
 }

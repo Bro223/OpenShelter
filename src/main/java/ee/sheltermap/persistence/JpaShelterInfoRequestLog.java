@@ -18,7 +18,7 @@ import java.util.Optional;
 
 /**
  * JPA implementation of {@link ShelterInfoRequestLog} (moderation-dashboard-
- * completion M10 slice 3). Write methods carry their own
+ * completion). Write methods carry their own
  * {@code @Transactional} (REQUIRED): the admin write joins the caller's
  * transaction (the service's), the author reply — issued from the
  * controller, which has none — runs find + save in its own, so the

@@ -21,7 +21,7 @@ import java.util.stream.Stream;
  * user's real profile (name, email, phone + the real verified
  * claim set) and the password-confirmed name edit. Also the data export
  * + account
- * erasure (legal-recovery M4).
+ * erasure (legal-recovery).
  *
  * <p>Email/phone are NOT editable here — they stay on the cross-channel
  * change flows ({@link ContactChangeService}). Identity fields have no
@@ -66,7 +66,7 @@ public class AccountService {
      *
      * <p>Validation is deliberately identical to registration (blank-only,
      * values stored as given — see {@link ProfileUpdateRequest}). No
-     * national ID code is collected or editable (remove-national-id M1).
+     * national ID code is collected or editable (remove-national-id).
      */
     @Transactional
     public MeResponse updateProfile(RegisteredUser user, ProfileUpdateRequest request) {
@@ -81,7 +81,7 @@ public class AccountService {
     }
 
     /**
-     * GET /account/export (legal-recovery M4, slice 1): the caller's own
+     * GET /account/export (legal-recovery): the caller's own
      * data in one document — profile (name/e-mail/phone decrypted at the
      * persistence boundary + verified levels) and EVERY author-scoped
      * shelter
@@ -111,7 +111,7 @@ public class AccountService {
     }
 
     /**
-     * DELETE /account (legal-recovery M4, slice 2) — the account erasure,
+     * DELETE /account (legal-recovery) — the account erasure,
      * one transaction:
      * <ol>
      *   <li>PURGE the declared private homes — the submitter's personal

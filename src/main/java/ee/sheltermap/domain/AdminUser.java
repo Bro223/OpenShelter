@@ -20,7 +20,7 @@ import java.time.Instant;
 public class AdminUser extends RegisteredUser {
 
     /**
-     * Persistence constructor (Step 3 style): the stored claims are
+     * Persistence constructor: the stored claims are
      * restored by the caller ({@code UserMapper}) — a reload reflects the
      * stored claim state, revoked ones included. The stored phone is null
      * for provisioned admins (no phone route — see the admin-only

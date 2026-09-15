@@ -1,11 +1,11 @@
 /**
- * Shared geolocation mechanics (F-14): the one-shot high-accuracy position
+ * Shared geolocation mechanics: the one-shot high-accuracy position
  * request the map "Nearest shelter" CTA and the detail page's "Distance
  * from you" action both run, the Geolocation error-code mapping, and the
  * Haversine distance both pages compute client-side (the D2 "no new
  * endpoint" precedent).
  *
- * Deliberately NOT shared (the W9/W15 duplication convention): the per-page
+ * Stays page-local on purpose: the per-page
  * FAILURE COPY. The map page maps the failure kinds to i18n message keys
  * (its NEAREST_KEY) and the detail page to plain copy (its DISTANCE_COPY)
  * — their trailing alternatives differ, so each page keeps its own

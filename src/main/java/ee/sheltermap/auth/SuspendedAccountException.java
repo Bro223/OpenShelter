@@ -1,7 +1,7 @@
 package ee.sheltermap.auth;
 
 /**
- * A suspended account attempted to authenticate (M10 slice 1) — the
+ * A suspended account attempted to authenticate — the
  * account exists and the credentials are correct, but the account is
  * suspended by an admin. Distinct from {@link InvalidCredentialsException}
  * (401): this is a 403 the user can act on ("my account was suspended"),

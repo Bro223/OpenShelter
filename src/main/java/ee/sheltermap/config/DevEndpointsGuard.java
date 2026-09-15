@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.Arrays;
 
 /**
- * Startup guard for the {@code /dev/*} diagnostic endpoints (wave-2, W17) —
+ * Startup guard for the {@code /dev/*} diagnostic endpoints —
  * <strong>fails closed, same rule as {@link ProdJwtGuard}.</strong>
  *
  * <p>{@code POST /dev/email-test} and {@code POST /dev/sms-test} are gated by
@@ -21,15 +21,15 @@ import java.util.Arrays;
  *
  * <p>The rule is profile-keyed, not name-keyed (dev parity, like
  * {@link ProdJwtGuard}) — read from the resolved {@link Environment}
- * active set, not the raw property (S3, 2026-09-11 review):
+ * active set, not the raw property:
  *
  * <ul>
- *   <li>When the ENTIRE active profile set (the resolved set — S3) is a
+ *   <li>When the ENTIRE active profile set (the resolved set) is a
  *       subset of exactly {@code dev} and {@code test} (and non-blank) →
  *       no check — the flags exist precisely to exercise the real channels
- *       locally. A mixed set like {@code production,dev} is NOT exempt
- *       (2026-09-10 review M2: the old any-match let one stray entry
- *       disable the guard).</li>
+ *       locally. A mixed set like {@code production,dev} is NOT exempt —
+ *       an any-match rule would let one stray entry
+ *       disable the guard.</li>
  *   <li>Otherwise (blank profile, {@code production}, {@code prod-*},
  *       anything else) → refuse to boot when EITHER dev flag is enabled.</li>
  * </ul>
@@ -45,7 +45,7 @@ public class DevEndpointsGuard {
     public DevEndpointsGuard(Environment env,
                              @Value("${app.dev-email-test.enabled:false}") boolean emailTestEnabled,
                              @Value("${app.dev-sms-test.enabled:false}") boolean smsTestEnabled) {
-        // S3: the resolved active profile set (groups/defaults only
+        // The resolved active profile set (groups/defaults only
         // materialize in the ENVIRONMENT, not the raw property).
         if (Profiles.isDevTestOnly(env) || (!emailTestEnabled && !smsTestEnabled)) {
             return; // dev/test parity, or no dev diagnostic surface is activated at all

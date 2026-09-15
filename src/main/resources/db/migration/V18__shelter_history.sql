@@ -1,5 +1,5 @@
--- Shelter Map — V18 (moderation-dashboard-completion M10, slice 2).
--- The append-only shelter edit history (design D4): one row per USER-shelter
+-- Shelter Map — V18 (moderation-dashboard-completion).
+-- The append-only shelter edit history: one row per USER-shelter
 -- lifecycle event — CREATED on submission, EDITED on an owner PUT that moved
 -- at least one editable field (name, description, capacity, latitude,
 -- longitude, locationKind), DELETED on a user or admin hard delete — written

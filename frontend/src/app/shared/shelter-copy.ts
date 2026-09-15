@@ -9,10 +9,9 @@ import type {
 } from '../core/models';
 
 /**
- * The shared shelter copy (W24): source/trust labels + the practical-info
- * status line, single-sourced for the consumers that used to carry divergent
- * inline copies — the map sidebar, the shelter detail header, the admin
- * list, and the contributions panel.
+ * The shared shelter copy: source/trust labels + the practical-info
+ * status line, single-sourced for its consumers — the map sidebar, the
+ * shelter detail header, the admin list, and the contributions panel.
  */
 
 /**
@@ -108,9 +107,10 @@ export const COMMUNITY_UNVERIFIED_WARNING =
   'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.';
 
 /**
- * The "reported inaccurate" warning (moderation-dashboard-completion M10
- * slice 4): the single-sourced sentence for a moderator-marked row. A
- * marked row stays visible with status and trust state untouched — the
+ * The "reported inaccurate" warning
+ * (moderation-dashboard-completion): the single-sourced sentence for a
+ * moderator-marked row. A marked row stays visible with status and trust
+ * state untouched — the
  * warning is the treatment. Rendered on every surface that renders the
  * unverified treatment: the map's around-you line, the detail header,
  * the /mine rows and the admin list. Exact copy is spec-pinned — a copy
@@ -119,7 +119,7 @@ export const COMMUNITY_UNVERIFIED_WARNING =
  */
 export const INACCURATE_WARNING = 'Reported inaccurate — details may be wrong';
 
-/** The admin-list badge for a moderator-marked row (M10 slice 4). */
+/** The admin-list badge for a moderator-marked row. */
 export const INACCURATE_BADGE = 'Inaccurate';
 
 /** True for rows carrying the private-home declaration. */
@@ -128,7 +128,7 @@ export function isPrivateLocation(shelter: { locationKind: LocationKind }): bool
 }
 
 /**
- * The shelter's derived display status (open-status wave): the FRESH
+ * The shelter's derived display status: the FRESH
  * open/closed reports outrank the lifecycle status — a fresh lone CLOSED
  * report hedges ("Reported closed"), a fresh firm one (two+) is firm
  * ("Closed"), a fresh OPEN reads "Open"; with nothing fresh the lifecycle
@@ -142,7 +142,7 @@ export function shelterStatusText(shelter: {
   status: ShelterStatus;
   openStatus: OpenStatusDto | null;
 }): string {
-  // A pre-wave BE omits the field entirely (undefined) — treat it as null
+  // An older BE omits the field entirely (undefined) — treat it as null
   // ("nothing fresh") so the FE ships ahead of the API safely.
   const fresh = shelter.openStatus ?? null;
   if (fresh !== null && fresh.state === 'CLOSED') {
@@ -158,13 +158,12 @@ export function shelterStatusText(shelter: {
 }
 
 /**
- * The map's "Open" chip predicate (open-status wave, same mechanism as
- * before, new source): keeps the rows whose derived display status reads
- * OPEN — fresh OPEN and nothing-fresh ("Open (no recent reports)") — and
- * drops the fresh-CLOSED rows (and lifecycle-INACTIVE rows, which never
- * reach the public list but the rule covers them). Client-side: the BE
- * has no open/closed param, the chip filters the loaded list without a
- * refetch.
+ * The map's "Open" chip predicate: keeps the rows whose derived display
+ * status reads OPEN — fresh OPEN and nothing-fresh ("Open (no recent
+ * reports)") — and drops the fresh-CLOSED rows (and lifecycle-INACTIVE rows,
+ * which never reach the public list but the rule covers them). Client-side:
+ * the BE has no open/closed param, the chip filters the loaded list without
+ * a refetch.
  */
 export function isOpenRow(shelter: {
   status: ShelterStatus;
@@ -178,13 +177,13 @@ export function isOpenRow(shelter: {
 
 // ---------------------------------------------------------------------------
 // Trust layer copy (shelter-trust-and-reports D6): the map rows and the
-// detail header render the SAME badge text — single-sourced here, the same
-// W24 way sourceTrustLabel is. Copy changes are spec changes; the pins live
-// in shelter-copy.spec.ts.
+// detail header render the SAME badge text — single-sourced here, like the
+// source/trust labels. Copy changes are spec changes; the pins live in
+// shelter-copy.spec.ts.
 // ---------------------------------------------------------------------------
 
 /**
- * The list row's open/closed badge text (open-status wave): a fresh
+ * The list row's open/closed badge text: a fresh
  * CLOSED row carries the amber badge — the same copy the status row uses
  * ("Reported closed" at exactly one fresh report, "Closed" at two+). A
  * fresh OPEN row carries NO badge (open is the default — no noise); null
@@ -192,7 +191,7 @@ export function isOpenRow(shelter: {
  * detail header render the same badge.
  */
 export function openStatusBadgeText(openStatus: OpenStatusDto | null): string | null {
-  // A pre-wave BE omits the field entirely (undefined) — treat it as null
+  // An older BE omits the field entirely (undefined) — treat it as null
   // ("nothing fresh") so the FE ships ahead of the API safely.
   const fresh = openStatus ?? null;
   if (fresh === null || fresh.state !== 'CLOSED') {
@@ -222,7 +221,7 @@ export function hasTrustBadges(shelter: {
 }
 
 // Report-submitted notices (shelter-trust-and-reports D6; the dampened
-// variant is community-self-moderation M9): the detail page banner picks
+// variant is community-self-moderation): the detail page banner picks
 // its text from the report's write outcome — single-sourced here, pinned
 // in shelter-copy.spec.ts.
 
@@ -230,9 +229,10 @@ export function hasTrustBadges(shelter: {
 export const REPORT_SUBMITTED = 'Your report was submitted.';
 
 /**
- * Dampened report notice (M9, D3/D4): the report was recorded with reduced
- * weight because the reporter has their own other listing of a similar
- * location — a self-interested vote that counts zero toward the hide.
+ * Dampened report notice (community-self-moderation D3/D4): the report was
+ * recorded with reduced weight because the reporter has their own other
+ * listing of a similar location — a self-interested vote that counts zero
+ * toward the hide.
  */
 export const REPORT_SUBMITTED_DAMPED =
   'Your report was recorded with reduced weight — you have your own listing of a similar location.';
@@ -283,7 +283,7 @@ export function occupancyText(occupancy: ShelterOccupancy, now: number = Date.no
 }
 
 // ---------------------------------------------------------------------------
-// Last-verified meta (last-verified-meta M8): the per-entry verification
+// Last-verified meta (last-verified-meta): the per-entry verification
 // stamp + the report counts, single-sourced like the rest of the trust
 // copy. The DATUM is server-derived (ShelterDto.lastVerifiedAt / reportCount);
 // these helpers only format. Copy changes are spec changes — pins live in
@@ -291,7 +291,7 @@ export function occupancyText(occupancy: ShelterOccupancy, now: number = Date.no
 // ---------------------------------------------------------------------------
 
 /**
- * The reported badge with its count (M8): "Reported (2)" — the count is the
+ * The reported badge with its count: "Reported (2)" — the count is the
  * `nonexistentReports` subset that drives the badge (not the total report
  * count). Rendered on the map row and the detail header wherever the
  * orange "Reported" badge appears.
@@ -301,7 +301,7 @@ export function reportedBadgeText(nonexistentReports: number): string {
 }
 
 /**
- * Relative text for a verification stamp (M8): coarser than
+ * Relative text for a verification stamp: coarser than
  * {@link recencyText} — occupancy freshness lives in minutes/hours, but a
  * verification stamp can be days or weeks old (an import from last week).
  * Under 7 days it stays relative; older stamps fall back to a concrete
@@ -345,7 +345,7 @@ export function verifiedAgoText(iso: string, now: number = Date.now()): string {
 }
 
 /**
- * The per-entry "last verified" line (M8): a verified row reads
+ * The per-entry "last verified" line: a verified row reads
  * "Last verified {ago}"; a NEW community row is never verified — its line
  * IS the not-yet-verified signal, pairing the submission age with the
  * missing check; any other row without a verification record (e.g. a dev
@@ -368,7 +368,7 @@ export function lastVerifiedText(
 }
 
 /**
- * The community report count line (M8): "1 community report" /
+ * The community report count line: "1 community report" /
  * "N community reports" — the TOTAL over all report types (the badge's
  * "Reported (n)" stays the NON_EXISTENT subset).
  */
@@ -376,7 +376,7 @@ export function communityReportsText(reportCount: number): string {
   return `${reportCount} community report${reportCount === 1 ? '' : 's'}`;
 }
 
-/** True when the DTO carries at least one community report of any type (M8). */
+/** True when the DTO carries at least one community report of any type. */
 export function hasCommunityReports(shelter: { reportCount: number }): boolean {
   return shelter.reportCount > 0;
 }
@@ -385,11 +385,10 @@ export function hasCommunityReports(shelter: { reportCount: number }): boolean {
  * The straight-line distance line (community-review-queue D6 — distance
  * honesty): "≈ 2.4 km straight line" (1 decimal), whole metres below 1 km
  * ("≈ 450 m straight line"). The copy NEVER claims a walking route or
- * official status — it states what it measures. Moved here in M12 from
- * map-page.ts (it is a pure formatter with two consumers — the map's
- * nearest line / address-anchor rows and the detail page's distance-from-
- * you line — so the shared copy module is its home; the geolocation ERROR
- * copy stays mirrored per feature, the W9/W15 convention).
+ * official status — it states what it measures. A pure formatter with two
+ * consumers — the map's nearest line / address-anchor rows and the detail
+ * page's distance-from-you line — so the shared copy module is its home;
+ * the geolocation ERROR copy stays mirrored per feature).
  */
 export function straightLineText(km: number): string {
   if (km < 1) {

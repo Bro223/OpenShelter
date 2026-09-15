@@ -46,7 +46,7 @@ export class PageShell implements OnDestroy {
       burger is hidden at desktop widths). */
   readonly menuOpen = signal(false);
 
-  /** Data provenance for the footer line (official-dataset-csv M5):
+  /** Data provenance for the footer line (official-dataset-csv):
       publisher + official link + last import. Stays null while loading or
       when the API fails — the line is non-critical and hides itself. */
   readonly dataSource = signal<DataSourceDto | null>(null);
@@ -62,7 +62,7 @@ export class PageShell implements OnDestroy {
   }
 
   /** True until the first NavigationEnd: that one is the initial document
-      load, where the browser's own focus start — and the F-01 skip link —
+      load, where the browser's own focus start — and the skip link —
       must win. */
   private firstNavigation = true;
 
@@ -78,7 +78,7 @@ export class PageShell implements OnDestroy {
 
   protected readonly auth = this.store;
   protected readonly theme = this.themeStore;
-  /** i18n-et-en M14: the chrome copy + the language switcher. `locale`
+  /** i18n-et-en: the chrome copy + the language switcher. `locale`
       is read in the template, so a switch triggers this component's
       change detection and the `pure: false` `t` pipe re-renders. */
   protected readonly i18n = this.i18nService;

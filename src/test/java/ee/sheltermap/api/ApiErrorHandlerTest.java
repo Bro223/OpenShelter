@@ -16,10 +16,10 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Direct-handler tests for the optimistic-lock 409 mapping (wave-2 OLE
- * hardening): a version conflict on an in-place mutation can surface in
- * THREE shapes — the raw JPA exception, the Spring DataAccessException
- * form, and the commit-time {@link TransactionSystemException} wrapping
+ * Direct-handler tests for the optimistic-lock 409 mapping: a version
+ * conflict on an in-place mutation can surface in THREE shapes — the raw
+ * JPA exception, the Spring DataAccessException form, and the commit-time
+ * {@link TransactionSystemException} wrapping
  * Hibernate's {@link StaleStateException} (the {@code JpaTransactionManager}
  * commit path, where no repository-call translation happens). All three are
  * client conflicts; anything else that reaches the commit handler stays a

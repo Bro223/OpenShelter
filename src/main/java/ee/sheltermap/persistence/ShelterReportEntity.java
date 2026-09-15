@@ -46,7 +46,7 @@ public class ShelterReportEntity {
     @Column(name = "dismissed_at")
     private Instant dismissedAt;
 
-    /** Dampened flag (V16, community-self-moderation M9, D3). */
+    /** Dampened flag (V16, community-self-moderation, D3). */
     @Column(nullable = false)
     private boolean damped;
 

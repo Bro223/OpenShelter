@@ -37,13 +37,13 @@ const SHELTER_ROW: ShelterDto = {
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
-  reportCount: 0, // M8 total (all report types)
+  reportCount: 0, // total (all report types)
   openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   locationKind: 'PUBLIC',
-  lastVerifiedAt: null, // M8 — null = never verified
-  inaccurate: false, // M10 slice 4 — no moderator mark on this row
+  lastVerifiedAt: null, // null = never verified
+  inaccurate: false, // no moderator mark on this row
 };
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -63,9 +63,9 @@ class FakeAccountGateway {
   confirmEmailChange = vi.fn();
   requestPhoneChange = vi.fn();
   confirmPhoneChange = vi.fn();
-  /** M4 slice 1 — the export document; default to an empty document. */
+  /** The export document; default to an empty document. */
   exportData = vi.fn();
-  /** M4 slice 2 — the account erasure (204, empty body). */
+  /** The account erasure (204, empty body). */
   deleteAccount = vi.fn();
   constructor() {
     this.deleteAccount.mockResolvedValue(undefined);
@@ -392,7 +392,7 @@ describe('AccountPage', () => {
     expect(account.updateProfile).not.toHaveBeenCalled();
   });
 
-  // ---- contact change panels (M3 behaviour preserved) ----------------------
+  // ---- contact change panels -----------------------------------------------
 
   it('renders both change panels with cross-channel proof copy naming the channel', async () => {
     const { element } = await open();
@@ -409,7 +409,7 @@ describe('AccountPage', () => {
   it('email send -> 202: normalises the address and moves to the code phase', async () => {
     const { page, element, fixture } = await open();
     // No surrounding whitespace: Validators.email rejects padded addresses
-    // (M2 finding) — the gateway must receive the lowercased form.
+    // — the gateway must receive the lowercased form.
     page.newEmail.setValue('New@Example.EE');
     account.requestEmailChange.mockResolvedValue(ACK);
 
@@ -418,7 +418,7 @@ describe('AccountPage', () => {
 
     expect(account.requestEmailChange).toHaveBeenCalledWith('new@example.ee');
     expect(element.querySelector('#change-email-code')).not.toBeNull();
-    // N5: the backend pins the target at request time — the target input
+    // The backend pins the target at request time — the target input
     // is locked for the rest of the flow.
     expect((element.querySelector('#change-email-new') as HTMLInputElement).disabled).toBe(true);
     expect(element.textContent).toContain(
@@ -848,7 +848,7 @@ describe('AccountPage', () => {
     });
   });
 
-  // ---- your data: export download (M4 legal/recovery, slice 1) -----------------
+  // ---- your data: export download (legal-recovery) -----------------------------
 
   describe('your data (export)', () => {
     it('the export button fetches /account/export and downloads a JSON file', async () => {

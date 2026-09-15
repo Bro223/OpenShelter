@@ -108,15 +108,14 @@ export class VerifyPage implements OnDestroy {
   /**
    * Where to send the user once they are verified — set by
    * {@link verifiedGuard} (and the submit/report prompts) as
-   * {@code /verify?returnUrl=…}. The login page already preserves the
-   * destination; the verify page must too (reviewer finding N1), so a user
-   * who verifies from a shelter detail or /submit lands back there instead of
-   * having to navigate manually. Null (no param / unsafe value) keeps the
-   * default post-verify actions.
+   * {@code /verify?returnUrl=…}. The verify page preserves it just as the
+   * login page does, so a user who verifies from a shelter detail or /submit
+   * lands back there instead of having to navigate manually. Null (no param /
+   * unsafe value) keeps the default post-verify actions.
    */
   protected readonly returnUrl = (() => {
     const raw = this.route.snapshot.queryParamMap.get('returnUrl');
-    // Reuse the canonical guard sanitizer (core/guards, reviewer N4/W23) —
+    // Reuse the canonical guard sanitizer (core/guards) —
     // it accepts string | null and returns the value only for a safe
     // internal absolute path, so the identity check IS the safety test.
     // An absent (or unsafe) param stays null: the page keeps its default
@@ -151,7 +150,7 @@ export class VerifyPage implements OnDestroy {
     this.countdowns.PHONE.stop();
   }
 
-  /** Per-channel code inputs (public so specs can drive them — M2 page convention). */
+  /** Per-channel code inputs (public so specs can drive them — page convention). */
   readonly codes: Record<VerifyChannel, FormControl<string>> = {
     EMAIL: new FormControl('', {
       nonNullable: true,

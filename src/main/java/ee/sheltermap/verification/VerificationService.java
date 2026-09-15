@@ -27,7 +27,7 @@ import java.util.Objects;
  * <p>Anti-spam (Twilio plan): every request is throttled per (user, level)
  * via the durable {@link VerificationSendLog} — a resend cooldown plus a
  * per-user daily cap — and per contact (e-mail / E.164 phone) via the
- * rolling {@link RollingContactOtpLimiter} (abuse-limits M3 slice 2), which
+ * rolling {@link RollingContactOtpLimiter} (abuse-limits), which
  * bounds the volume of REAL sends per address across the whole window.
  * Violations raise {@link VerificationThrottledException}
  * (→ 429); the check deliberately says nothing about the contact's existence.
@@ -46,11 +46,11 @@ public class VerificationService {
      * @param providers          provider per level; a level without a provider is rejected
      * @param pendingRepository  persistence seam for pending codes
      * @param sendLog            durable send log behind the cooldown + daily cap
-     * @param contactLimiter     rolling per-contact cap (M3 slice 2);
+     * @param contactLimiter     rolling per-contact cap;
      *                           {@code maxPerWindow <= 0} disables it
      * @param properties         throttle config ({@code cooldownSeconds}, {@code maxPerDay})
      * @param clock              time source (injectable for deterministic tests)
-     * @param alerts             the admin alert ring (M3 slice 4) — the
+     * @param alerts             the admin alert ring — the
      *                           per-contact cap events land here
      */
     public VerificationService(Map<VerificationLevel, VerificationProvider> providers,
@@ -83,7 +83,7 @@ public class VerificationService {
      */
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         if (user.levels().contains(level)) {
-            // P1 fix: requesting a level that is already verified is a conflict
+            // Requesting a level that is already verified is a conflict
             // (409). No code is sent and no throttle budget is consumed.
             throw new AlreadyVerifiedException(level);
         }
@@ -91,9 +91,9 @@ public class VerificationService {
         long userId = Objects.requireNonNull(user, "user").getId();
         Instant now = clock.instant();
 
-        // M16 (2026-09-10 review): ONE atomic check-and-record on the send
-        // log — the old read-read-record across separately-synchronized
-        // methods let a burst pass both reads before either recorded. A
+        // ONE atomic check-and-record on the send log: a read-read-record
+        // across separately-synchronized methods would let a burst pass both
+        // reads before either recorded. A
         // throttled decision records nothing; an OK decision has ALREADY
         // recorded the send (so there is no trailing record() call).
         VerificationSendLog.SendDecision decision = sendLog.tryRecord(
@@ -107,7 +107,7 @@ public class VerificationService {
                     retryAfterSeconds(decision, userId, level, now));
         }
 
-        // M3 slice 2: per-contact rolling cap — the volume valve on REAL
+        // Per-contact rolling cap — the volume valve on REAL
         // sends (Twilio/SMTP cost). "verify:" namespace keeps it independent
         // of the "register:" attempt cap (registering an account must not
         // eat its verification-send budget). It runs AFTER the per-(user,
@@ -117,8 +117,8 @@ public class VerificationService {
         // contact's budget was spent by this same user's real sends).
         RollingContactOtpLimiter.Result contact = contactLimiter.tryAcquire("verify:" + contactFor(user, level));
         if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
-            // M3 slice 4: the throttled contact lands in the admin alert
-            // ring (in-memory, W16) before the 429 goes out.
+            // The throttled contact lands in the admin alert ring
+            // (in-memory) before the 429 goes out.
             alerts.otpContactCap(contactFor(user, level), contact.retryAfterSeconds());
             throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
                     contact.retryAfterSeconds());
@@ -181,7 +181,7 @@ public class VerificationService {
      */
     public boolean confirmVerification(RegisteredUser user, VerificationLevel level, String code) {
         if (user.levels().contains(level)) {
-            // P1 fix: re-confirming an already-verified level is an idempotent
+            // Re-confirming an already-verified level is an idempotent
             // no-op. Without this guard, the second confirm re-inserts an
             // active claim row and violates the V3 partial unique index.
             return true;
@@ -196,7 +196,7 @@ public class VerificationService {
         if (!provider.confirm(user, pending, code)) {
             // Persist the attempt count: the JPA repo re-maps a fresh object on
             // every request, so without this save the attempts limit would never
-            // hold across HTTP calls (Step-2 key decision: attempts-limited).
+            // hold across HTTP calls (the attempts limit is deliberate).
             pendingRepository.save(pending);
             return false;
         }

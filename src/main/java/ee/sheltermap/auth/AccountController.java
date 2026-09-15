@@ -40,15 +40,15 @@ import java.util.stream.Collectors;
  *       (the frontend's single source of truth for name/email/phone and
  *       verification labels)</li>
  *   <li>{@code PUT /account/profile} — password-confirmed edit of the name
- *       (no national ID code is collected anywhere — remove-national-id M1)</li>
+ *       (no national ID code is collected anywhere — remove-national-id)</li>
  *   <li>{@code POST /account/email-change/request} — SMS code to the current
  *       phone (an email thief alone cannot change the email)</li>
  *   <li>{@code POST /account/phone-change/request} — email code to the current
  *       email (a lost/stolen phone alone cannot change the phone)</li>
  *   <li>confirm endpoints complete the change once the code is verified</li>
  *   <li>{@code GET /account/export} — the caller's own data (profile +
- *       shelters) as one JSON document (legal-recovery M4)</li>
- *   <li>{@code DELETE /account} — the account erasure (legal-recovery M4):
+ *       shelters) as one JSON document (legal-recovery)</li>
+ *   <li>{@code DELETE /account} — the account erasure (legal-recovery):
  *       purge the declared private homes, orphan the public community rows,
  *       cascade the rest via the DB FK policy (V14)</li>
  * </ul>
@@ -154,7 +154,7 @@ public class AccountController {
     @ApiResponse(responseCode = "200", description = "E-mail changed")
     public void confirmEmailChange(@Valid @RequestBody ConfirmChangeRequest body) {
         ContactChangeResult result = contactChangeService.confirmEmailChange(currentUser(), body.code());
-        // H2: the service RETURNS a code failure (its transaction has already
+        // The service RETURNS a code failure (its transaction has already
         // committed the failed-attempt increment); the 400 is thrown HERE,
         // after that commit.
         if (!result.ok()) {
@@ -191,7 +191,7 @@ public class AccountController {
     }
 
     /**
-     * GET /account/export (legal-recovery M4, slice 1) — the caller's own
+     * GET /account/export (legal-recovery) — the caller's own
      * data (profile + every author-scoped shelter row) as
      * one JSON document. Same auth rule as {@code /me} (valid JWT, user
      * from the token) and, like {@code /me}, no rate bucket (cheap read).
@@ -212,7 +212,7 @@ public class AccountController {
     }
 
     /**
-     * DELETE /account (legal-recovery M4, slice 2) — the account erasure:
+     * DELETE /account (legal-recovery) — the account erasure:
      * the declared private homes are purged, the public community rows are
      * orphaned (map data outlives accounts — V7), and the DB cascades
      * credentials, claims, pending changes, tokens and reports.

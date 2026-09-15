@@ -21,13 +21,13 @@ function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'
     capacity: null,
     submitterVerified: false,
     nonexistentReports: 0,
-    reportCount: 0, // M8 total (all report types)
+    reportCount: 0, // total (all report types)
     openStatus: null,
     occupancy: null,
     reviewStatus: 'CONFIRMED', // registry backfill; USER fixtures override
     locationKind: 'PUBLIC',
-    lastVerifiedAt: null, // M8 — null = never verified
-    inaccurate: false, // M10 slice 4 — no moderator mark on this row
+    lastVerifiedAt: null, // null = never verified
+    inaccurate: false, // no moderator mark on this row
     ...overrides,
   };
 }
@@ -269,7 +269,7 @@ describe('LeafletService', () => {
 
   it('flyTo keeps the current zoom without a zoom arg, flies at the given zoom with one', () => {
     // Spy on the leaflet prototype: the service must pass the zoom through
-    // ONLY when the caller gave one (M4 country-level flies keep their zoom).
+    // ONLY when the caller gave one (a country-level fly keeps its zoom).
     const flyToSpy = vi
       .spyOn(L.Map.prototype, 'flyTo')
       .mockImplementation(() => undefined as unknown as L.Map);

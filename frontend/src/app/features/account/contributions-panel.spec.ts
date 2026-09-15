@@ -19,15 +19,15 @@ const SHELTER_ROW: MineShelterDto = {
   capacity: 12,
   submitterVerified: true, // own shelters: the author is a verified user
   nonexistentReports: 0,
-  reportCount: 0, // M8 total (all report types)
+  reportCount: 0, // total (all report types)
   openStatus: null,
   occupancy: null,
   reviewStatus: 'CONFIRMED',
   reviewNote: null,
   locationKind: 'PUBLIC',
-  lastVerifiedAt: null, // M8 — null = never verified
-  inaccurate: false, // M10 slice 4 — no moderator mark on this row
-  infoRequest: null, // M10 slice 3 — no moderator question on this row
+  lastVerifiedAt: null, // null = never verified
+  inaccurate: false, // no moderator mark on this row
+  infoRequest: null, // no moderator question on this row
 };
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
@@ -234,7 +234,7 @@ describe('ContributionsPanel', () => {
     expect(element.querySelector('#contrib-name')).not.toBeNull();
   });
 
-  // ---- info request (M10 slice 3) ---------------------------------------------
+  // ---- info request -----------------------------------------------------------
 
   const OPEN_REQUEST = {
     message: 'Kas varjund on avatud?',
@@ -348,7 +348,7 @@ describe('ContributionsPanel', () => {
 
     // step 1: the confirm strip is armed, nothing deleted yet
     expect(element.textContent).toContain('Delete this shelter permanently?');
-    // F-04: the prompt is a live region, so arming is announced.
+    // The prompt is a live region, so arming is announced.
     expect(element.querySelector('.confirm-strip [role="status"]')).not.toBeNull();
     expect(shelters.remove).not.toHaveBeenCalled();
     expect(element.textContent).toContain('Community Cellar');

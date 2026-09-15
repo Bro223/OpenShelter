@@ -78,9 +78,9 @@ const CREATED: ShelterDto = {
   // submission comes back NEW (public immediately, no blocking queue).
   reviewStatus: 'NEW',
   locationKind: 'PUBLIC',
-  reportCount: 0, // M8 total (all report types)
-  lastVerifiedAt: null, // M8 — a fresh submission is never verified
-  inaccurate: false, // M10 slice 4 — a fresh submission is never marked
+  reportCount: 0, // total (all report types)
+  lastVerifiedAt: null, // a fresh submission is never verified
+  inaccurate: false, // a fresh submission is never marked
 };
 
 /** A Nominatim result for "lossi 2, tartu" (as the live service shaped it). */
@@ -128,7 +128,8 @@ function stubGeolocation(behavior: {
 
 /**
  * A geolocation fake the test settles BY HAND — the deferred settle is the
- * M3 race (an in-flight request answering after a newer capture).
+ * cross-mode capture race (an in-flight request answering after a newer
+ * capture).
  */
 function deferredGeolocation(): {
   fake: ReturnType<typeof vi.fn>;
@@ -485,7 +486,7 @@ describe('SubmitShelterPage (/submit)', () => {
   });
 
   // ---------------------------------------------------------------------
-  // Cross-mode capture race (M3): a stale async settle must no-op
+  // Cross-mode capture race: a stale async settle must no-op
   // ---------------------------------------------------------------------
 
   it('a late geolocation success (stale generation) never overwrites a typed pin (M3)', async () => {

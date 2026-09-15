@@ -39,8 +39,8 @@ class Argon2PasswordHasherTest {
 
     @Test
     void dummyHashIsARegularHashOfDummy() {
-        // The login timing equalizer (AuthService.DUMMY_PASSWORD_HASH, 2026-09-08
-        // review W4) verifies against the literal password "dummy" — pin the
+        // The login timing equalizer (AuthService.DUMMY_PASSWORD_HASH) verifies
+        // against the literal password "dummy" — pin the
         // constant so a regenerated/typo'd dummy hash can't silently degrade
         // the equalizer's cost profile.
         assertThat(hasher.verify("dummy", AuthService.DUMMY_PASSWORD_HASH)).isTrue();

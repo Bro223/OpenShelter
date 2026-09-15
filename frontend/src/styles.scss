@@ -1,6 +1,6 @@
 /* Global styles — design tokens + global element styles.
  *
- * M6: the :root block below is the SINGLE SOURCE OF TRUTH for visual values.
+ * The :root block below is the SINGLE SOURCE OF TRUTH for visual values.
  * Component .scss files must reference these custom properties instead of
  * introducing new literals (policed by src/app/design-tokens.spec.ts).
  * Need a new value? Add a token here first, then use it — no per-component
@@ -9,15 +9,15 @@
  * dimensions (map heights, sidebar width).
  */
 
-/* Leaflet map styles — imported globally (M4): the map container and the
+/* Leaflet map styles — imported globally: the map container and the
    divIcon markers are created by leaflet itself, so component-scoped styles
    could not reach them (design decision 6). */
 @use 'leaflet/dist/leaflet.css';
 
 :root {
   /* ============ Colors ================================================
-   * Exact values shipped since M2 — M6 moved them here without changing a
-   * single one (no visual redesign).
+   * Exact shipped values — collected here without changing a single
+   * one (no visual redesign).
    */
 
   /* Text & surfaces */
@@ -64,7 +64,7 @@
 
   /* Status palette (BannerComponent + verification level chips)
    *
-   * NOTE (N20, two reds on purpose — documented, not a defect):
+   * NOTE (two reds on purpose — documented, not a defect):
    *   --color-danger  #8c1d18  — the DARK red for page-level error surfaces:
    *       banners, field errors, the two-step delete confirm, danger
    *       buttons. Highest-contrast red in the app.
@@ -107,8 +107,7 @@
   --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
   --color-map-placeholder: #e9eef2; /* map container before the first tiles */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
-  /* Focus rings use --color-primary everywhere.
-     (N19: the separate --color-focus blue was collapsed onto it). */
+  /* Focus rings use --color-primary everywhere. */
 
   /* ============ Typography ============================================ */
   --font-sans:
@@ -116,7 +115,7 @@
     'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
 
   /* Type scale: every step is an exact shipped value, except 0.88rem and
-     0.92rem, which M6 rounded onto the adjacent step (≤ 0.5px) so the
+     0.92rem, which were rounded onto the adjacent step (≤ 0.5px) so the
      scale stays continuous. */
   --text-2xs: 0.75rem; /* badges, map legend, tiny meta */
   --text-xs: 0.8rem; /* tiny meta, character counters */
@@ -136,14 +135,13 @@
   --tracking-brand: -0.01em; /* shell brand */
 
   /* ============ Spacing ===============================================
-   * 2px grid. The shipped values are the pre-M6 literals rounded onto the
-   * nearest 2px step — the delta is always <= 1.6px (a sub-2px rounding,
-   * disclosed here because it is the one visual change M6 made; colors are
-   * exact, not rounded). The same source literal could round up or down
-   * depending on context (e.g. a 0.3rem chip gap landed on space-6 while a
-   * 0.3rem heading margin landed on space-4), so there is no single rem->px
-   * table — each migrated rule is the value the nearest-step rule produced
-   * (git diff of the M6 commit shows every literal -> token pair).
+   * 2px grid. The values are the authored literals rounded onto the
+   * nearest 2px step — the delta is always <= 1.6px (a sub-2px rounding;
+   * colors are exact, not rounded). The same source literal could round up
+   * or down depending on context (e.g. a 0.3rem chip gap landed on space-6
+   * while a 0.3rem heading margin landed on space-4), so there is no single
+   * rem->px table — each rule carries the value the nearest-step rule
+   * produced.
    */
   --space-2: 2px;
   --space-4: 4px;
@@ -169,8 +167,8 @@
   /* Narrow-viewport breakpoint. Media queries cannot consume var()
      (browser limitation), so @media rules use the literal 900px with a
      reference comment — keep this token and those rules in sync.
-     900px (was 720px, 2026-09-12): tablet widths re-stack too, so the
-     map page's filter row and list never clip at mid widths. */
+     900px: tablet widths re-stack too, so the map page's filter row and
+     list never clip at mid widths. */
   --bp-narrow: 900px;
   --content-max-width: 1080px; /* shell-body page width cap */
 }
@@ -200,12 +198,12 @@
      badge green #7ac98a   on badge-user #11301d       7.2
      same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
      pick #ff8a80          on bg / surface / subtle     8.7 /  8.1 /  7.2
-     (HC contrast audit, 2026-09-11: the user-reported dark-on-dark was NOT a
+     (the user-reported dark-on-dark was NOT a
      token pair — every text token pair above passes. The dark texts were
      elements whose colour comes from the UA stylesheet instead of a token
      (bare .btn buttons on /submit, the map filter chips, the auth pages'
      .auth-links links: UA black/blue on the dark surfaces at 1.06/1.14/2.11)
-     — fixed by the global element colour rules below, not by this block.)
+     — the global element colour rules below cover them, not this block.)
      border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
      Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
      the surface (2.67:1) → raised to #666666 (3.21:1 vs surface, 3.45:1 vs bg);
@@ -227,8 +225,8 @@
      surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
      --color-bg-surface border (#141414 here) plus the hue carry the marker —
      the documented trade-off of one token serving map + UI. --color-shelter-
-     pick is brightened the same way as a safe superset (HC contrast audit,
-     2026-09-11): it is the only "unchanged (map context)" colour token and is
+     pick is brightened the same way as a safe superset: it is the only
+     "unchanged (map context)" colour token and is
      used today only as the /submit pin fill, but #ff8a80 keeps ≥4.5:1 on
      every HC surface if it ever serves as text (the 2px border + the red hue
      keep the pin identifiable on the light tiles). --color-map-placeholder
@@ -314,7 +312,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Visible keyboard focus everywhere (M6 a11y audit): component-scoped
+/* Visible keyboard focus everywhere: component-scoped
    :focus-visible rules win where they exist (e.g. .field input). */
 a:focus-visible,
 button:focus-visible,
@@ -324,7 +322,7 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-/* Skip link (accessibility F-01, WCAG 2.4.1): the shell renders it as its
+/* Skip link (WCAG 2.4.1): the shell renders it as its
    first element and keeps it off-screen until it takes keyboard focus, then
    it reveals over the header — the first Tab jumps straight into the routed
    page (main#main in page-shell.html). Shell chrome, so it lives here with
@@ -349,7 +347,7 @@ textarea:focus-visible {
   }
 }
 
-/* Global element colours (HC contrast audit, 2026-09-11): form controls and
+/* Global element colours: form controls and
    links take their text colour from the token palette instead of the UA
    stylesheet. The UA defaults (black control text, blue unvisited links) do
    not follow [data-theme] — with the OS in light mode they land dark on the
@@ -500,7 +498,7 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-/* M4 shelter marker pins — global for the same reason as the leaflet import
+/* Shelter marker pins — global for the same reason as the leaflet import
    above: leaflet creates the marker DOM outside Angular templates, so
    component-scoped styles cannot reach it. The map legend swatches reuse
    these exact classes, keeping the visual single-sourced. */
@@ -543,7 +541,7 @@ textarea {
   border-color: var(--color-bg-surface);
 }
 
-/* Browse anchor pin on /map (location-navigation M12, leaflet-service
+/* Browse anchor pin on /map (location-navigation, leaflet-service
  * setAnchor): the searched address the per-row distances are measured
  * from. The user-picked-spot family — it is where the user asked, not a
  * shelter, so it shares the pick tone (one token, two pin classes). */

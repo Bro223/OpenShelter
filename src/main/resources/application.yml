@@ -30,12 +30,21 @@ spring:
     client:
       connect-timeout: 10s
       read-timeout: 10s
+  servlet:
+    multipart:
+      # Deliberately ABOVE app.media.max-bytes (5 MiB, crisis-guidance
+      # D7): Spring's own multipart default is 1 MB — without this, a 4 MB
+      # photo would be rejected by the servlet container BEFORE our
+      # validation ran, and the admin would get an opaque container error
+      # instead of the documented 413.
+      max-file-size: 6MB
+      max-request-size: 6MB
 
 server:
   port: ${SERVER_PORT:8080}
 
 springdoc:
-  # Dev-only API documentation (SW wave): the API document is a complete map
+  # Dev-only API documentation: the API document is a complete map
   # of the surface — admin endpoints included — so it is opt-in, exactly like
   # the /dev/* diagnostics. Off by default; ApiDocsGuard refuses to boot on a
   # non-dev/test profile when either flag is true (fail-closed, same shape as
@@ -76,7 +85,7 @@ app:
     email: ${ADMIN_EMAIL:}
     password: ${ADMIN_PASSWORD:}
   pii:
-    # PII-at-rest (M2): 32-byte base64 keys, env ONLY, never committed.
+    # PII-at-rest: 32-byte base64 keys, env ONLY, never committed.
     # Missing/invalid => the app fails closed at boot (PiiKeys — same
     # fail-closed pattern as ProdJwtGuard). Generate: openssl rand -base64 32
     # (once per key). Key management + rotation: README, 'PII at rest'.
@@ -151,7 +160,7 @@ app:
   ratelimit:
     login-capacity: 5
     login-refill-per-second: 0.084
-    # Aggregate per-IP bucket on /auth/login (2026-09-08 review W5) — a
+    # Aggregate per-IP bucket on /auth/login — a
     # SECOND bucket in addition to the per-(IP, contact) one above: one IP
     # hammering MANY different accounts (credential stuffing) stays under
     # each per-contact limit but shares this 20-request bucket. Refill ~20/min.
@@ -159,8 +168,8 @@ app:
     login-ip-refill-per-second: 0.334
     reset-capacity: 3
     reset-refill-per-second: 0.05
-    # /auth/password-reset/confirm is rate-limited per (IP, email)
-    # (2026-09-08 review W1): a 6-digit code is guessable, so the confirm
+    # /auth/password-reset/confirm is rate-limited per (IP, email):
+    # a 6-digit code is guessable, so the confirm
     # path gets its own anti-guess bucket — 5 attempts, refill ~1/min
     # (a legitimate user retries a mistyped code a few times inside the
     # 15-minute code window).
@@ -190,31 +199,31 @@ app:
     trusted-proxies: ${RATELIMIT_TRUSTED_PROXIES:}
     trust-loopback: ${RATELIMIT_TRUST_LOOPBACK:true}
   limits:
-    # Per-user shelter-submission rate cap (abuse-limits M3): max USER
+    # Per-user shelter-submission rate cap (abuse-limits): max USER
     # submissions per rolling 24 h — the next is a 429 with Retry-After.
     # Distinct from the per-user ACTIVE-shelter cap (10, a 409 conflict).
     daily-submissions-per-user: 5
-    # Near-duplicate submission tolerance (abuse-limits M3 slice 3): max
+    # Near-duplicate submission tolerance (abuse-limits): max
     # haversine metres at which an ACTIVE USER row with the same normalized
     # name counts as the same place re-submitted (the next is a 409 with
     # the existing row id; ADMIN kind exempt).
     duplicate-coord-meters: 100
-    # Per-contact OTP cap (abuse-limits M3 slice 2): max events (a real code
+    # Per-contact OTP cap (abuse-limits): max events (a real code
     # send, or a registration attempt) per normalized e-mail / E.164 phone
     # within a rolling window, ACROSS users — the volume valve on Twilio/SMTP
     # cost on top of the per-(user, level) daily cap. 0 disables.
     otp-per-contact-max: 5
     otp-per-contact-window-hours: 24
-    # Admin alert ring size (abuse-limits M3 slice 4): how many throttle/
+    # Admin alert ring size (abuse-limits): how many throttle/
     # abuse events the in-memory ring behind GET /admin/alerts keeps (the
-    # oldest evict first). W16: process memory — cleared on restart.
+    # oldest evict first). Process memory — cleared on restart.
     # <= 0 disables recording.
     alerts-retained: 200
   registry:
     # Päästeamet shelter data. The old Maa-amet WFS layer (1pdl2oh) no
     # longer publishes a service — every WFS request 404s (Maa-amet lists
     # the layer as "Ei ole saadaval"), so the official source is the
-    # Rescue Board open-data CSV (roadmap M5, official-dataset-csv):
+    # Rescue Board open-data CSV (official-dataset-csv):
     # semicolon CSV, header id;nimi;aadress;lest_x;lest_y, EPSG:3301.
     # Override with REGISTRY_BASE_URL if the file moves (default when unset:
     # https://opendata.smit.ee/gis/varjumiskohad.csv — also the fallback in
@@ -233,7 +242,7 @@ app:
     # Default when unset: the rescue.ee open-data page (see
     # RegistryProperties for the URL).
     official-url: ${REGISTRY_OFFICIAL_URL:}
-    # Set to true to run one import on startup (manual trigger, Step 5)
+    # Set to true to run one import on startup (manual trigger)
     run-on-startup: false
     # Weekly automatic sync (product decision). Chosen solution: Spring's
     # built-in @Scheduled cron — single instance, no extra infrastructure.
@@ -241,3 +250,24 @@ app:
     schedule-enabled: true
     cron: 0 0 3 * * MON
     zone: Europe/Tallinn
+  media:
+    # Crisis-guidance media library (D7/D13): uploads land in this
+    # directory under a server-generated 32-hex filename — the client's
+    # filename is display metadata only, never part of a path. The
+    # directory is created at startup when missing; one that cannot be
+    # created or written FAILS THE BOOT (MediaStorage.init) — the
+    # fail-closed habit of PiiKeys/ProdJwtGuard, so a misconfigured
+    # deployment is discovered at deploy time, not on the first upload.
+    # Path must never be committed (gitignored: data/ + explicit
+    # data/media/ entry).
+    upload-dir: ${MEDIA_UPLOAD_DIR:data/media}
+    # Hard cap on the RECEIVED byte count (never Content-Length) — 413
+    # above it, answered by our own validation. The multipart caps in
+    # spring.servlet.multipart sit ABOVE this value on purpose (see
+    # there for why).
+    max-bytes: ${MEDIA_MAX_BYTES:5242880}
+  guidance:
+    # Default locale for new guidance posts (D11): mirrors the frontend's
+    # DEFAULT_LOCALE (core/i18n, 'en'). Flipping the app's default
+    # language means changing BOTH places — the README says so.
+    default-locale: ${GUIDANCE_DEFAULT_LOCALE:en}

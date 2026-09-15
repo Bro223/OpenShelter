@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Rolling-window cap per normalized contact (e-mail or E.164 phone) — the
- * abuse-limits M3 slice-2 volume valve on OTP sends and registration
+ * abuse-limits volume valve on OTP sends and registration
  * attempts, on top of the per-(user, level) throttle.
  *
  * <p>Each {@link #tryAcquire(String)} counts one event for the contact's
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * so registration attempts and verification sends keep independent budgets
  * — registering an account must not eat its verification-send budget.
  *
- * <p><strong>Single-instance constraint (W16):</strong> the windows live in
+ * <p><strong>Single-instance constraint:</strong> the windows live in
  * process memory, so a restart clears them and N replicas multiply the
  * effective cap by N — the same constraint as {@code TokenBucketRateLimiter}.
  * The file-backed per-(user, level) daily cap remains the durable backstop.

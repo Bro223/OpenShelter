@@ -29,7 +29,7 @@ public class UserCredentials {
     }
 
     /**
-     * Full-state constructor used by the persistence layer (Step 3) to
+     * Full-state constructor used by the persistence layer to
      * restore stored timestamps.
      */
     public UserCredentials(Long userId, String passwordHash, Instant createdAt, Instant changedAt) {

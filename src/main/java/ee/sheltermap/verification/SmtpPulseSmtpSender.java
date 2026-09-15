@@ -59,7 +59,7 @@ public class SmtpPulseSmtpSender implements SmtpSender {
     }
 
     /**
-     * Log-safe e-mail mask (B5 — PII): first character + {@code ***} + the
+     * Log-safe e-mail mask (PII): first character + {@code ***} + the
      * full domain, e.g. {@code janes.doe@example.com} → {@code j***@example.com}.
      * Logs must not carry the full address (it is a login contact +
      * account-recovery channel).

@@ -3,7 +3,7 @@ package ee.sheltermap.auth;
 import java.util.Objects;
 
 /**
- * Outcome of a contact-change confirm (2026-09-10 review H2).
+ * Outcome of a contact-change confirm.
  *
  * <p>{@link #failureMessage} is {@code null} on success; otherwise it is the
  * user-facing 400 message the controller surfaces as

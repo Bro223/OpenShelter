@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 
 /**
- * The admin user-suspension list row (M10 slice 1) — the account
+ * The admin user-suspension list row — the account
  * identity the Users tab needs plus its suspension state. {@code kind}
  * is the machine value (GUEST | REGISTERED | ADMIN); guests never
  * appear in the list (they have no credentials to suspend), and an

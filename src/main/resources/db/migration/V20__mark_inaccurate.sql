@@ -1,4 +1,4 @@
--- Shelter Map — V20 (moderation-dashboard-completion M10, slice 4).
+-- Shelter Map — V20 (moderation-dashboard-completion).
 -- "Mark inaccurate": a moderator flag on a USER shelter row. The row stays
 -- VISIBLE — status and provenance are untouched; the mark only drives the
 -- public `inaccurate` flag and the single-sourced warning on the

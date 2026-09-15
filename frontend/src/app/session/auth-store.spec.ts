@@ -152,7 +152,7 @@ describe('AuthStore', () => {
       await store.init();
 
       expect(store.authenticated()).toBe(false);
-      // N2: a non-401 boot failure must NOT latch initialized — a later
+      // A non-401 boot failure must NOT latch initialized — a later
       // guard call retries performInit (the stored token may still be valid).
       expect(store.initialized()).toBe(false);
       expect(localStorage.getItem('os.refresh')).toBe('refresh-1');

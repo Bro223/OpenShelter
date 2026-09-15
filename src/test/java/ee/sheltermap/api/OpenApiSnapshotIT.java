@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The OpenAPI snapshot gate (SW-H2 / SW-G2): {@code docs/api/openapi.json}
+ * The OpenAPI snapshot gate: {@code docs/api/openapi.json}
  * is the committed, reviewable companion of the runtime document. This IT
  * fetches {@code /v3/api-docs}, normalizes it deterministically and compares
  * it with the committed snapshot.

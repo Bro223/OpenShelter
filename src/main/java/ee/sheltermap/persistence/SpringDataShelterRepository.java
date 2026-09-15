@@ -24,11 +24,11 @@ public interface SpringDataShelterRepository extends JpaRepository<ShelterEntity
     /** Per-user active-shelter cap count (V9, D3). */
     long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source, ShelterStatus status);
 
-    /** Per-user daily submission cap count (abuse-limits M3). */
+    /** Per-user daily submission cap count (abuse-limits). */
     long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
                                                     java.time.Instant createdAtAfter);
 
-    /** Derived reporter trust input (community-self-moderation M9, D1). */
+    /** Derived reporter trust input (community-self-moderation, D1). */
     long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
                                                   ReviewStatus reviewStatus);
 

@@ -12,7 +12,7 @@ import java.time.Instant;
  * exposed outside {@code /admin/*}. {@code dismissed} is the queue's
  * resolved marker ({@code dismissed_at != null}); dismissed rows stay in
  * the list, recorded as resolved. {@code damped} flags the self-interested
- * negative votes (community-self-moderation M9, D3) — recorded and shown,
+ * negative votes (community-self-moderation, D3) — recorded and shown,
  * contributing 0 to the weighted auto-hide tally.
  */
 @Schema(description = "One row of the admin shelter-report queue. The "

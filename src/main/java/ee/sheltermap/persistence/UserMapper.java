@@ -16,7 +16,7 @@ import java.util.List;
  * {@link VerificationClaimEntity} (approach B: domain stays pure Java, all
  * persistence concerns live in this package).
  *
- * <p>PII-at-rest (M2): this mapper is the crypto boundary for users and
+ * <p>PII-at-rest: this mapper is the crypto boundary for users and
  * verification claims — {@code toEntity} encrypts e-mail/phone/claim ref
  * and fills the blind indexes, {@code toDomain} decrypts back to plain
  * values. The domain hierarchy above never sees ciphertext.
@@ -44,7 +44,7 @@ final class UserMapper {
                         pii.blindIndex(PiiCrypto.DOMAIN_USER_PHONE, PhoneNumbers.normalizeE164(data.phone())));
             }
         }
-        // Suspension state (M10 slice 1) round-trips on every kind — it is
+        // Suspension state round-trips on every kind — it is
         // account state, not a registered-user attribute.
         entity.setSuspendedAt(user.getSuspendedAt());
         return entity;
@@ -87,7 +87,7 @@ final class UserMapper {
         entity.setLevel(claim.getLevel());
         entity.setProvider(claim.getProvider());
         // The claim ref carries the contact that proved the level — encrypt
-        // it like any other stored contact (M2). A null/blank ref (a legacy
+        // it like any other stored contact. A null/blank ref (a legacy
         // row with no recorded reference) is stored as '' — the column is
         // NOT NULL, '' is the storage convention for "absent".
         entity.setExternalRef(isBlank(claim.getExternalRef())

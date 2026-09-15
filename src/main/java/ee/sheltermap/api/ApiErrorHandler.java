@@ -29,6 +29,12 @@ import ee.sheltermap.auth.SuspendedAccountException;
 import ee.sheltermap.auth.VerificationFailedException;
 import ee.sheltermap.verification.AlreadyVerifiedException;
 import ee.sheltermap.verification.VerificationThrottledException;
+import ee.sheltermap.guidance.GuidanceNotFoundException;
+import ee.sheltermap.guidance.GuidanceValidationException;
+import ee.sheltermap.guidance.MediaAssetInUseException;
+import ee.sheltermap.guidance.MediaTooLargeException;
+import ee.sheltermap.guidance.SlugAlreadyUsedException;
+import ee.sheltermap.guidance.UnsupportedImageException;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -58,8 +64,6 @@ import java.util.Objects;
  * uniform {@link ErrorResponse} (01-TASK.md §8): 400 validation/malformed,
  * 401 unauthenticated/invalid token, 403 not verified / not author,
  * 404 not found, 429 rate limited, 500 fallback.
- *
- * <p>Replaces the Step-4-local {@code AuthErrorHandler} (deleted).
  */
 @RestControllerAdvice
 public class ApiErrorHandler {
@@ -125,6 +129,27 @@ public class ApiErrorHandler {
     }
 
     /**
+     * A rejected guidance/media write (crisis-guidance D4/D5/D8) — the
+     * cross-field 400 vocabulary: missing/oversized title or body, a
+     * malformed admin-supplied slug, alt without a hero (or a hero
+     * without alt) and the delete-without-confirm refusal.
+     */
+    @ExceptionHandler(GuidanceValidationException.class)
+    ResponseEntity<ErrorResponse> guidanceValidation(GuidanceValidationException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    /**
+     * A refused media upload (crisis-guidance D7) — magic bytes that are
+     * not a readable JPEG/PNG/WebP (SVG included), unreadable dimensions,
+     * or a declared part type that contradicts the sniffed bytes.
+     */
+    @ExceptionHandler(UnsupportedImageException.class)
+    ResponseEntity<ErrorResponse> unsupportedImage(UnsupportedImageException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    /**
      * Short-link resolver not-found (shelter-location-input): ONE generic
      * 400 for invalid input / non-whitelisted host / no extractable pair /
      * outside Estonia — the service never enumerates the reason.
@@ -159,7 +184,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * Near-duplicate shelter submission (abuse-limits M3 slice 3): an
+     * Near-duplicate shelter submission (abuse-limits): an
      * ACTIVE USER row with the same normalized name within the configured
      * coordinate tolerance already exists. 409 — the message carries the
      * existing row id so the client can point at it (the uniform
@@ -176,6 +201,38 @@ public class ApiErrorHandler {
     }
 
     /**
+     * An admin-supplied slug another guidance post already holds
+     * (crisis-guidance D5) — 409 naming the slug; it is never silently
+     * rewritten (an auto-generated collision takes the -2/-3 suffix
+     * instead). Uniqueness spans drafts and published posts.
+     */
+    @ExceptionHandler(SlugAlreadyUsedException.class)
+    ResponseEntity<ErrorResponse> slugAlreadyUsed(SlugAlreadyUsedException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * A media asset still referenced as a hero image, deleted without
+     * confirm=true (crisis-guidance D8) — 409; the body carries the
+     * affected posts (title + slug) so the admin UI can turn the answer
+     * into the confirm dialog.
+     */
+    @ExceptionHandler(MediaAssetInUseException.class)
+    ResponseEntity<ErrorResponse> mediaAssetInUse(MediaAssetInUseException ex, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /**
+     * An upload over the configured size cap (crisis-guidance D7) — 413,
+     * the message names the cap, and no partial file is left behind (the
+     * cap is checked before the file touches disk).
+     */
+    @ExceptionHandler(MediaTooLargeException.class)
+    ResponseEntity<ErrorResponse> mediaTooLarge(MediaTooLargeException ex, HttpServletRequest request) {
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), request);
+    }
+
+    /**
      * A registry row under an admin moderation write (admin-moderation
      * D4): the registry import owns those rows and rebuilds them as ACTIVE
      * on every run, so the edit would silently revert — plain-spoken 409.
@@ -187,7 +244,7 @@ public class ApiErrorHandler {
 
     /**
      * A suspend/unsuspend of an account kind that cannot be suspended
-     * (M10 slice 1: ADMIN lockout vector, GUEST has no credentials) —
+     * (ADMIN lockout vector, GUEST has no credentials) —
      * 409, plain-spoken.
      */
     @ExceptionHandler(NonSuspendableUserException.class)
@@ -197,7 +254,7 @@ public class ApiErrorHandler {
 
     /**
      * A second information request for a shelter that already has one
-     * (M10 slice 3 — one exchange per shelter; the replied row is kept,
+     * (one exchange per shelter; the replied row is kept,
      * so a re-request collides). 409, plain-spoken.
      */
     @ExceptionHandler(DuplicateInfoRequestException.class)
@@ -205,7 +262,7 @@ public class ApiErrorHandler {
         return error(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
-    /** A second reply to an already-answered information request (M10 slice 3). 409. */
+    /** A second reply to an already-answered information request. 409. */
     @ExceptionHandler(InfoRequestAlreadyAnsweredException.class)
     ResponseEntity<ErrorResponse> infoRequestAlreadyAnswered(InfoRequestAlreadyAnsweredException ex,
                                                               HttpServletRequest request) {
@@ -294,6 +351,7 @@ public class ApiErrorHandler {
             UserNotFoundException.class,
             ReportNotFoundException.class,
             InfoRequestNotFoundException.class,
+            GuidanceNotFoundException.class,
             NoResourceFoundException.class})
     ResponseEntity<ErrorResponse> notFound(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, ex.getMessage(), request);
@@ -348,7 +406,7 @@ public class ApiErrorHandler {
     }
 
     /**
-     * The per-user DAILY shelter-submission cap (abuse-limits M3): 429,
+     * The per-user DAILY shelter-submission cap (abuse-limits): 429,
      * with the exact {@code Retry-After} countdown when the thrower knows
      * when the oldest in-window submission leaves the 24 h window.
      */

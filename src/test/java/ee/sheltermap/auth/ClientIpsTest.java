@@ -9,9 +9,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for the XFF-aware client-IP resolution (S2 — 2026-09-08
- * review W2): untrusted peers ignore XFF entirely; trusted peers peel
- * trusted hops RIGHT-TO-LEFT; loopback trust is config-driven.
+ * Unit tests for the XFF-aware client-IP resolution: untrusted peers
+ * ignore XFF entirely; trusted peers peel trusted hops RIGHT-TO-LEFT;
+ * loopback trust is config-driven.
  */
 class ClientIpsTest {
 

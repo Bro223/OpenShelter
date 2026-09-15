@@ -35,7 +35,7 @@ import java.util.List;
  * {@link LEst97Transformer} before it leaves this class, so downstream code
  * only ever sees latitude/longitude.
  *
- * <p>Legacy opt-in (B9, 2026-09-15): the registry client defaults to
+ * <p>Legacy opt-in: the registry client defaults to
  * {@code csv} ({@link RegistryProperties} + {@code application.yml}), so this
  * WFS client activates only when {@code app.registry.client=paasteamet} is
  * selected explicitly — the property is always supplied, so nothing depends
@@ -101,7 +101,7 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                 if (dto != null) {
                     all.add(dto);
                 } else {
-                    dropped++; // client-level drop — counted, never silent (B7d)
+                    dropped++; // client-level drop — counted, never silent
                 }
             }
             if (features.size() < pageSize) {
@@ -144,7 +144,7 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                         .retrieve()
                         .body(WfsFeatureCollection.class);
             } catch (RestClientException e) {
-                // B7d: retry ONLY transient failures — network problems and
+                // Retry ONLY transient failures — network problems and
                 // 5xx responses. A deterministic 4xx (bad request, auth,
                 // gone…) will never succeed on retry, so fail fast instead
                 // of burning the whole retry budget and reporting

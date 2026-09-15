@@ -46,6 +46,23 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
     }
 
     @Override
+    public void recordLabeled(long moderatorId, Action action, String subjectLabel, String reason) {
+        // Crisis-guidance D12: a guidance/media row — no shelter, no
+        // subject account; the subjectLabel snapshot is the subject (it
+        // outlives the deleted target). Same-transaction write, like every
+        // other row in this log.
+        ModerationActionEntity entity = new ModerationActionEntity();
+        entity.setShelterId(null);
+        entity.setSubjectUserId(null);
+        entity.setModeratorId(moderatorId);
+        entity.setAction(action);
+        entity.setReason(reason);
+        entity.setSubjectLabel(subjectLabel);
+        entity.setCreatedAt(clock.instant());
+        actions.save(entity);
+    }
+
+    @Override
     public long countByModeratorAndAction(long moderatorId, Action action) {
         return actions.countByModeratorIdAndAction(moderatorId, action);
     }
@@ -60,7 +77,7 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
                 .map(entity -> new Row(entity.getId(), entity.getShelterId(), entity.getSubjectUserId(),
                         entity.getModeratorId(),
                         entity.getAction(), entity.getReason(), entity.getPreviousStatus(),
-                        entity.getNewStatus(), entity.getCreatedAt()))
+                        entity.getNewStatus(), entity.getCreatedAt(), entity.getSubjectLabel()))
                 .toList();
     }
 

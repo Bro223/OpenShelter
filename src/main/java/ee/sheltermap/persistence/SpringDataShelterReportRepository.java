@@ -13,7 +13,7 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
     boolean existsByShelterIdAndUserIdAndType(Long shelterId, Long userId,
                                               ee.sheltermap.domain.ShelterReportType type);
 
-    /** One row per (shelter, user): [userId, damped] of the given type (M9, D3);
+    /** One row per (shelter, user): [userId, damped] of the given type;
      *  admin-dismissed rows are excluded (the dismissal is the admin's
      *  invalid verdict — the report stops influencing the tally). */
     @Query("select r.userId, r.damped from ShelterReportEntity r " +
@@ -28,7 +28,7 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
             "where r.shelterId in :ids and r.dismissedAt is null group by r.shelterId, r.type")
     List<Object[]> countByTypeForShelterIds(@Param("ids") Collection<Long> ids);
 
-    /** One row per (shelter, user): [shelterId, userId, newest createdAt] of the given type (M8).
+    /** One row per (shelter, user): [shelterId, userId, newest createdAt] of the given type.
      *  Admin-dismissed rows are excluded, like every other read of this table:
      *  the dismissal is the admin's invalid verdict, so the report stops
      *  influencing anything - the shelter's "Last verified" stamp included. */

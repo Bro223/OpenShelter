@@ -1,4 +1,4 @@
-<!-- Skip link (accessibility F-01, WCAG 2.4.1): the shell's FIRST element —
+<!-- Skip link (WCAG 2.4.1): the shell's FIRST element —
      off-screen until it takes keyboard focus, then it reveals over the header
      so the first Tab jumps past the whole nav into the routed page
      (<main id="main" tabindex="-1"> below). -->
@@ -48,7 +48,7 @@
       }
     </nav>
     <div class="shell-actions">
-      <!-- Language switcher (i18n-et-en M14 slice 1): the active locale's
+      <!-- Language switcher (i18n-et-en): the active locale's
            button carries aria-pressed; the choice persists
            (openshelter-locale) and applies pre-paint via the inline
            index.html script. The buttons render from LOCALES; the labels
@@ -94,7 +94,7 @@
 <!-- The routed content. tabindex="-1" is the skip link's landing target:
      focusing it moves the next Tab into the page instead of back to the nav.
      page-shell.ts focuses it on every route change after the initial load
-     too (accessibility F-04), so a client-side swap lands the keyboard the
+     too, so a client-side swap lands the keyboard the
      way a document load does. -->
 <main class="shell-body" id="main" tabindex="-1">
   <router-outlet />
@@ -104,15 +104,15 @@
      official emergency channel (the "verified user ≠ verified shelter"
      trust gap). 112 first, then the official sources. Lives in the shell
      so every page carries it, and out of the feature pages' layout.
-     i18n-et-en M14: segmented around the two official links — the link
+     i18n-et-en: segmented around the two official links — the link
      URLs stay constant, only the labels translate. -->
 <footer class="shell-footer">
-  <!-- legal-recovery (roadmap M4) + official-dataset-csv (roadmap M5):
+  <!-- legal-recovery + official-dataset-csv:
        the meta row sits ABOVE the notice (owner's layout decision) — the
        two groups (legal links, data provenance) centred as a pair on
        desktop, stacked on narrow (<900px).
        Provenance is non-critical: hidden while loading or on API error.
-       i18n-et-en M14: labels + the date stamp follow the active locale. -->
+       i18n-et-en: labels + the date stamp follow the active locale. -->
   <div class="shell-footer__meta">
     <nav class="shell-footer__legal" aria-label="Legal">
       <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>

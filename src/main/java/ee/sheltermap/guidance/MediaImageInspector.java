@@ -162,8 +162,8 @@ public final class MediaImageInspector {
         if (b[23] != 0x00 || b[24] != 0x10) {
             return Optional.empty();
         }
-        int width = ((b[25] & 0x3C) >> 2) | ((b[26] & 0xFF) << 6);
-        int height = ((b[27] & 0x3C) >> 2) | ((b[28] & 0xFF) << 6);
+        int width = ((b[25] & 0xFC) >> 2) | ((b[26] & 0xFF) << 6);
+        int height = ((b[27] & 0xFC) >> 2) | ((b[28] & 0xFF) << 6);
         return dimensions("image/webp", width, height);
     }
 

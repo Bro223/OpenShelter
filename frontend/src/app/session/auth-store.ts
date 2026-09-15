@@ -10,7 +10,7 @@ import { TokenStore } from '../core/token-store';
  * silent refresh at boot, login/logout, and the single-flight refresh used by
  * the interceptor on 401. Pages/guards read `authenticated`.
  *
- * Why it lives in `session/` and not `core/`: it is the only "core" service
+ * Placed in `session/`, not `core/`: it is the only "core" service
  * that depends on `gateways` (AuthGateway/AccountGateway), and a core →
  * gateways edge would invert the documented `features → gateways → core`
  * dependency rule. `session/` sits between them: it may import core and
@@ -34,9 +34,9 @@ import { TokenStore } from '../core/token-store';
  * In-flight async work captures the epoch it started under and must not
  * write session state once the epoch moved:
  *  - a stale in-flight `GET /account/me` (user A's) is NOT adopted onto the
- *    fresh session of user B (F1);
+ *    fresh session of user B;
  *  - an in-flight 401 refresh that LANDS after logout does NOT resurrect the
- *    cleared session (N1) — the just-rotated pair is discarded.
+ *    cleared session — the just-rotated pair is discarded.
  */
 @Injectable({ providedIn: 'root' })
 export class AuthStore {
@@ -46,7 +46,7 @@ export class AuthStore {
   /**
    * True once init() has DECISIVELY decided the boot state — the shell can
    * render a neutral header until then instead of flashing "logged out".
-   * A non-401 boot failure (backend down) leaves this false ON PURPOSE (N2):
+   * A non-401 boot failure (backend down) leaves this false ON PURPOSE:
    * the stored refresh token may still be valid, so a later guard call
    * retries performInit instead of latching the session dead forever.
    */
@@ -102,10 +102,10 @@ export class AuthStore {
   /**
    * Boot-time silent refresh. No persisted refresh token -> anonymous.
    * Valid token -> rotates the pair via the SAME single-flight refresh()
-   * path a mid-session 401 uses (W13) and fetches the real profile; 401 ->
+   * path a mid-session 401 uses and fetches the real profile; 401 ->
    * expired, cleared, definitively initialized. A non-401 failure (backend
    * down) keeps the refresh token AND leaves initialized false, so a later
-   * guard call retries the boot (N2).
+   * guard call retries the boot.
    *
    * Idempotent and single-flight: concurrent callers (App boot + a guard on
    * the first navigation) share one run so the refresh token is never
@@ -135,7 +135,7 @@ export class AuthStore {
       return;
     }
     // (b/c/d) Route the boot rotation through the same single-flight
-    // refresh() as a mid-session 401 (W13): a 401-driven refresh racing the
+    // refresh() as a mid-session 401: a 401-driven refresh racing the
     // boot rotation now shares one in-flight POST /auth/refresh, and the
     // loser can no longer clear a session that is still valid.
     const refreshed = await this.refresh();
@@ -153,7 +153,7 @@ export class AuthStore {
     if (this.tokens.refresh() !== null) {
       // (d) network/5xx — doRefresh keeps the stored token (it clears only
       // on 401): leave initialized FALSE so a later guard call retries
-      // performInit while the session is still recoverable (N2).
+      // performInit while the session is still recoverable.
       return;
     }
     // (c) Definitive 401 — doRefresh already cleared the dead session.
@@ -178,7 +178,7 @@ export class AuthStore {
    *
    * A login is a NEW identity generation: it bumps the epoch (so any stale
    * in-flight profile fetch from a previous identity can never be adopted
-   * onto this session — F1) and discards the single-flight profile slot so
+   * onto this session) and discards the single-flight profile slot so
    * the stale fetch is not awaited under the new identity.
    */
   async login(emailOrPhone: string, password: string): Promise<void> {
@@ -211,7 +211,7 @@ export class AuthStore {
 
   /**
    * Single-flight session refresh (03-CONTEXT decision 2). Concurrent callers
-   * (e.g. N parallel 401s, or the boot rotation — W13) share ONE in-flight
+   * (e.g. N parallel 401s, or the boot rotation) share ONE in-flight
    * POST /auth/refresh — the old rotated refresh token is never used twice.
    * Returns true when a fresh pair was stored, false when the session is
    * dead (storage cleared) or the refresh could not run (no token).
@@ -237,7 +237,7 @@ export class AuthStore {
         // The session moved on while this refresh was in flight (logout, or
         // a login as another identity) — the pair we just stored belongs to
         // a dead generation. Discard it so a late 401-refresh cannot
-        // resurrect the session (N1).
+        // resurrect the session.
         this.tokens.clear();
         this.authenticated.set(false);
         return false;
@@ -249,9 +249,9 @@ export class AuthStore {
         // Refresh token revoked/expired — definitive: clear the session.
         this.clearSession();
       }
-      // Network/5xx: keep the stored token (F3) — the session may still be
+      // Network/5xx: keep the stored token — the session may still be
       // valid; the request that triggered this refresh fails and the user
-      // can retry (and a later guard call retries the boot — N2).
+      // can retry (and a later guard call retries the boot).
       this.authenticated.set(false);
       return false;
     } finally {
@@ -262,7 +262,7 @@ export class AuthStore {
   }
 
   /**
-   * Rotate the given refresh token. Cross-tab race (F4): all tabs share the
+   * Rotate the given refresh token. Cross-tab race: all tabs share the
    * ONE persisted refresh token while single-flight is per-instance — if
    * another tab rotated it in flight, our presented token 401s. On that 401
    * re-read storage: if the token changed, retry ONCE with the fresh token
@@ -314,7 +314,7 @@ export class AuthStore {
       if (startEpoch !== this.epoch) {
         // The session changed while this fetch was in flight (logout +
         // re-login, or a cleared session) — adopting this profile would
-        // paint user A's data onto user B's fresh session (F1). Drop it.
+        // paint user A's data onto user B's fresh session. Drop it.
         return;
       }
       this.adoptProfile(profile);

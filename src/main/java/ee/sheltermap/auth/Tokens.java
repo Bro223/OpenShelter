@@ -10,7 +10,7 @@ final class Tokens {
     }
 
     static String random(int length) {
-        // W15: one shared generator for all auth code/token draws.
+        // One shared generator for all auth code/token draws.
         return Codes.randomToken(length, new String(ALPHABET));
     }
 }

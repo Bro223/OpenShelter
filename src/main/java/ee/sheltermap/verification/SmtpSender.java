@@ -2,7 +2,7 @@ package ee.sheltermap.verification;
 
 /**
  * Outbound e-mail channel (TIJ Ch 9). Used by the email verification provider
- * and later by password-reset (Step 4). Implementations are swappable.
+ * and later by password-reset. Implementations are swappable.
  */
 public interface SmtpSender {
 

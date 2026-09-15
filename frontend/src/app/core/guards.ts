@@ -1,18 +1,18 @@
 /**
- * Guards + routing helpers for session-protected navigation (M2, M5).
+ * Guards + routing helpers for session-protected navigation.
  *
  * 03-CONTEXT-CORE-AUTH.md:
  *  - AuthGuard   -> authenticated? allow : redirect /login?returnUrl=...
  *  - GuestGuard  -> already authenticated? redirect home (/map) : allow
  *    (used by /login, /register, /reset)
- *  - VerifiedGuard (M5) -> has a verification claim? allow : redirect
+ *  - VerifiedGuard -> has a verification claim? allow : redirect
  *    /verify?returnUrl=... (used by /submit; mirrors the backend 403)
  *  - AdminGuard (admin-moderation D2) -> authenticated AND admin-kind? allow
  *    : redirect home. Anonymous AND non-admin alike go home — unlike
  *    authGuard it deliberately does NOT offer /login (the admin tool has no
  *    guest value, and the backend answers 401/403 the same way).
  *
- * Functional guards (Angular 22 style, same as the apiInterceptor in M1).
+ * Functional guards (Angular 22 style, same as the apiInterceptor).
  * All await AuthStore.init() so a reload while logged in silently restores
  * the session BEFORE the guard decides — no "logged out" flash on the
  * login/register pages.
@@ -21,7 +21,7 @@ import { inject } from '@angular/core';
 import { Router, type CanActivateFn, type UrlTree } from '@angular/router';
 import { AuthStore } from '../session/auth-store';
 
-/** Where an authenticated guest is sent (the map; real page lands in M4). */
+/** Where an authenticated guest is sent (the map). */
 export const HOME_PATH = '/map';
 export const LOGIN_PATH = '/login';
 export const VERIFY_PATH = '/verify';
@@ -71,7 +71,7 @@ export const guestGuard: CanActivateFn = async (): Promise<boolean | UrlTree> =>
 };
 
 /**
- * Verified accounts only (M5, used by /submit): mirrors the backend's
+ * Verified accounts only (used by /submit): mirrors the backend's
  * "verified account required" 403. authGuard runs first on the route, so
  * this only ever sees authenticated users; one without any verification
  * claim goes to /verify?returnUrl=<current> (the form becomes reachable

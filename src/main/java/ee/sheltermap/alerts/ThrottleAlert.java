@@ -4,7 +4,7 @@ import java.time.Instant;
 
 /**
  * One throttle/abuse alert row served by {@code GET /admin/alerts}
- * (abuse-limits M3 slice 4), newest first.
+ * (abuse-limits), newest first.
  *
  * <p>{@code id} is a monotonic sequence (ring-local, resets on restart) —
  * the frontend row key. {@code kind} is a closed vocabulary (the constants

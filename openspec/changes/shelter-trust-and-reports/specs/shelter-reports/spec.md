@@ -62,26 +62,45 @@ SHALL remain fetchable by id for the owner and admins.
   `NON_EXISTENT` again
 - **THEN** the shelter stays visible; only an admin can hide it again
 
-### Requirement: Closed and open confirmation flag
+### Requirement: Live open/closed status taps
 
-`CLOSED` and `OPEN_CONFIRMED` reports SHALL net out to a display-only
-flag on the shelter: more `CLOSED` than `OPEN_CONFIRMED` (confirmed may
-be 0) → `REPORTED_CLOSED`; `OPEN_CONFIRMED` ≥ `CLOSED` with both ≥ 1 (a
-tie counts as confirmed open) → `CONFIRMED_OPEN`; otherwise no flag.
-The flag SHALL never change shelter visibility or
-status.
+The system SHALL provide `PUT /api/shelters/{id}/open-status` accepting
+`{ "state": <OPEN | CLOSED> }` — the caller's live open/closed state,
+the same level as the occupancy band. Each user SHALL have at most one
+live state per shelter (an upsert: a re-send updates it, latest state
+wins, `created_at` refreshed). Tapping SHALL require a verified
+registered user (guests and unverified users → 403 with the same
+REPORTING_MESSAGE vocabulary as occupancy); an unknown shelter id SHALL
+return 404, and a value outside `OPEN`/`CLOSED` SHALL return 400 (Spring
+enum binding, same as the occupancy `band`). A tap is a state, not a
+report action: it is NOT throttled and consumes no action-log budget.
+The derived state is display-only — it SHALL never affect visibility,
+status, markers or any filter — and SHALL degrade to silence once no
+tap is fresh (fresh = within 2 hours).
 
-#### Scenario: community reports a shelter closed
+#### Scenario: verified user taps a state
 
-- **WHEN** 2 users report `CLOSED` and none report `OPEN_CONFIRMED`
-- **THEN** the shelter is listed and mappable with the "Reported closed"
-  flag, never hidden
+- **WHEN** a verified user PUTs `CLOSED` for shelter 7
+- **THEN** the tap is stored as their one live state for that shelter
+  and the derived open/closed state reflects it on the next list fetch
 
-#### Scenario: someone confirms it is open again
+#### Scenario: re-tapping updates, never stacks
 
-- **WHEN** after 2 `CLOSED` reports, 3 users report `OPEN_CONFIRMED`
-- **THEN** the flag flips to `CONFIRMED_OPEN` and the shelter remains
-  visible throughout
+- **WHEN** the same user PUTs `OPEN` for the same shelter again
+- **THEN** their stored state flips to `OPEN` (latest state wins,
+  timestamp refreshed) and they still have exactly one live state
+
+#### Scenario: stale taps degrade to silence
+
+- **WHEN** the newest tap for a shelter is older than 2 hours
+- **THEN** the shelter shows no open/closed state (the derived block is
+  null)
+
+#### Scenario: open/closed never hides
+
+- **WHEN** every fresh tap for a shelter is `CLOSED`
+- **THEN** the shelter remains fully visible, mappable and filterable,
+  with its status and markers untouched
 
 ### Requirement: Occupancy reports
 
@@ -141,13 +160,17 @@ when the submitting user already has 10 shelters with `source=USER` and
 ### Requirement: Reported-state derivation is server-side
 
 The public shelter DTO SHALL carry the derived state consumed by the UI:
-`nonexistentReports` (int, 0 when none), `statusFlag`
-(`REPORTED_CLOSED` | `CONFIRMED_OPEN` | null), and an occupancy block
+`nonexistentReports` (int, 0 when none), an open/closed block
+`openStatus` (`state` = `OPEN` | `CLOSED` — the latest fresh (≤ 2 h)
+tap's state, `reportCount` = the number of fresh taps agreeing with that
+state, `reportedAt` = the newest fresh tap's time — null when nothing is
+fresh), and an occupancy block
 (`band` = the latest fresh band, `reportCount` = fresh reports agreeing
 with that band, `lastReportedAt` — null when nothing fresh; the UI shows
 hedged copy when `reportCount` is 1, firm copy at 2+). The detail
 projection additionally SHALL carry `yourOccupancyBand` (the caller's own
-band, null for guests and anonymous users).
+band, null for guests and anonymous users) and `yourOpenStatus` (the
+caller's own live open/closed state, same null rules).
 Derivations SHALL be computed in the list/detail projection (batched, no
 N+1 — the established `submitterVerified` batching pattern) and
 SHALL NOT be client-computed from raw report lists.
@@ -155,5 +178,5 @@ SHALL NOT be client-computed from raw report lists.
 #### Scenario: list responses carry derived state
 
 - **WHEN** any client fetches the shelter list
-- **THEN** each shelter DTO already contains its reported/occupancy
-  state and the client renders it without extra calls
+- **THEN** each shelter DTO already contains its reported, open/closed
+  and occupancy state and the client renders it without extra calls

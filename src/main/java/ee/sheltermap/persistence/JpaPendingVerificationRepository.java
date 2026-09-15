@@ -14,7 +14,7 @@ import java.util.Optional;
 /**
  * JPA implementation of {@link PendingVerificationRepository} (approach B).
  * "Active" = not expired; consumed codes are deleted on confirmation.
- * PII-at-rest (M2): the channel {@code contact} is stored encrypted — the
+ * PII-at-rest: the channel {@code contact} is stored encrypted — the
  * domain object keeps the plain value.
  */
 @Repository

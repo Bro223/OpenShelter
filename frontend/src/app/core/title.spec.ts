@@ -9,8 +9,8 @@ import type { MessageKey } from './i18n/messages';
 import { APP_NAME, titleGuard } from './title';
 
 /**
- * M6 route titles (spec: "Route titles and favicon"), i18n-et-en M14:
- * titles now resolve through the active locale.
+ * Route titles (spec: "Route titles and favicon"), i18n-et-en:
+ * titles resolve through the active locale.
  *  - Mechanism: titleGuard sets document.title from the route's
  *    data.title MESSAGE KEY on navigation ("<Page> — OpenShelter").
  *  - Completeness: every routable entry in the real route table carries a
@@ -65,7 +65,7 @@ describe('route titles', () => {
   });
 
   it('every routable route title is a message key present in BOTH catalogs', () => {
-    // component (eager) OR loadComponent (lazy, M6 bundle budget) — either
+    // component (eager) OR loadComponent (lazy, bundle budget) — either
     // way the route renders a page and needs a tab title.
     const titled = routes
       .filter((route: Route) => route.component !== undefined || route.loadComponent !== undefined)

@@ -187,7 +187,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
     @Test
     void aDemotionTakesEffectImmediatelyOnTheNextRequest() throws Exception {
-        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest (M2): hash lookup
+        long adminId = userIdByEmail("admin@example.ee"); // PII-at-rest: hash lookup
         String token = adminToken();
 
         // the pre-demotion request works (the guard re-reads the kind)
@@ -556,7 +556,7 @@ class AdminModerationIT extends AbstractPersistenceIT {
 
     @Test
     void factualReportDetailsReachTheAdminQueueAndBinaryTypesDropThem() throws Exception {
-        // M11: the factual types carry their detail into the admin queue;
+        // The factual types carry their detail into the admin queue;
         // the binary types store the claim without the text.
         long a = seedShelter("Suletud koht", ShelterSource.USER);
         long b = seedShelter("Viga asukoht", ShelterSource.USER);

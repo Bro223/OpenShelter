@@ -9,7 +9,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 /**
- * The hardening response headers (abuse-limits M3 slice 5), set on EVERY
+ * The hardening response headers (abuse-limits), set on EVERY
  * response — success, 4xx, 5xx and the security 401/403 error bodies —
  * before any other filter writes:
  *

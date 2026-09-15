@@ -11,7 +11,7 @@ import java.time.Instant;
 
 /**
  * JPA entity for {@code shelter_info_requests} (V19,
- * moderation-dashboard-completion M10 slice 3) — the moderator→submitter
+ * moderation-dashboard-completion) — the moderator→submitter
  * information request: ONE row per shelter (the UNIQUE bound), kept after
  * the reply (audit posture).
  */

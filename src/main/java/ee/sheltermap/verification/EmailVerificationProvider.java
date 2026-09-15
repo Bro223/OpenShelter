@@ -81,7 +81,7 @@ public class EmailVerificationProvider implements VerificationProvider {
     }
 
     /**
-     * Constant-time hash compare (W9) — no early exit on the first
+     * Constant-time hash compare — no early exit on the first
      * differing byte. Private here on purpose: {@code auth.Hashes} is not
      * importable from this package (01-TASK.md §4 dependency rule — auth
      * already imports verification), so the 3-line helper stays local.

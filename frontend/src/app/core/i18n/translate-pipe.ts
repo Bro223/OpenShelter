@@ -3,13 +3,13 @@ import type { MessageKey } from './messages';
 import { I18nService } from './i18n.service';
 
 /**
- * Template translation (i18n-et-en M14): `{{ 'nav.map' | t }}`.
+ * Template translation (i18n-et-en): `{{ 'nav.map' | t }}`.
  *
  * `pure: false` on purpose — a locale switch must re-render the chrome,
  * and the pipe re-evaluates on every change-detection pass of its
  * component (PageShell reads the `locale` signal in its template, so a
  * switch triggers exactly that pass). The chrome is the only pipe
- * consumer in slice 1, so the per-CD evaluation cost is negligible.
+ * consumer, so the per-CD evaluation cost is negligible.
  */
 @Pipe({ name: 't', pure: false })
 export class TranslatePipe implements PipeTransform {

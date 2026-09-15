@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * The rolling per-contact cap (abuse-limits M3 slice 2): window expiry,
+ * The rolling per-contact cap (abuse-limits): window expiry,
  * per-contact isolation, key normalization, the honest Retry-After, the
  * disabled ({@code max <= 0}) mode, and that a rejected acquire records
  * nothing.

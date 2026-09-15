@@ -19,9 +19,9 @@ const SHELTER_ROW: AdminShelterDto = {
   reviewNote: null,
   locationKind: 'PUBLIC',
   // INACTIVE + NEW + only 3 reports: the derivation falls through to the
-  // trust-state value (M6 — below the auto-hide threshold).
-  infoRequest: null, // M10 slice 3 — no moderator question on this row
-  inaccurate: false, // M10 slice 4 — no mark on this row
+  // trust-state value (below the auto-hide threshold).
+  infoRequest: null, // no moderator question on this row
+  inaccurate: false, // no mark on this row
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
@@ -243,7 +243,7 @@ describe('AdminGateway', () => {
     expect(rows).toEqual([row]);
   });
 
-  // ---- GET /admin/alerts (abuse-limits slice 4) ----
+  // ---- GET /admin/alerts (abuse-limits) ----
 
   it('listAlerts GETs the default newest-50 alert ring', async () => {
     const row = {
@@ -271,7 +271,7 @@ describe('AdminGateway', () => {
     expect(api.get).toHaveBeenCalledWith('/admin/alerts?limit=10');
   });
 
-  // ---- user suspension (M10 slice 1) ----------------------------------------
+  // ---- user suspension ------------------------------------------------------
 
   it('listUsers GETs the bare /admin/users', async () => {
     const row = {
@@ -308,7 +308,7 @@ describe('AdminGateway', () => {
     expect(api.post).toHaveBeenCalledWith('/admin/users/301/unsuspend');
   });
 
-  // ---- GET /admin/shelters/{id}/history (M10 slice 2) ----
+  // ---- GET /admin/shelters/{id}/history ----
 
   it('listShelterHistory GETs /admin/shelters/{id}/history (ascending, server-parsed)', async () => {
     const events = [
@@ -338,7 +338,7 @@ describe('AdminGateway', () => {
     expect(rows).toEqual(events);
   });
 
-  // ---- POST /admin/shelters/{id}/request-info (M10 slice 3) ----
+  // ---- POST /admin/shelters/{id}/request-info ----
 
   it('requestInfo POSTs the message to /admin/shelters/{id}/request-info and resolves with no body (204)', async () => {
     api.post.mockReturnValue(of(undefined));
@@ -351,7 +351,7 @@ describe('AdminGateway', () => {
     });
   });
 
-  // ---- POST /admin/shelters/{id}/mark-inaccurate + clear-inaccurate (M10 slice 4) ----
+  // ---- POST /admin/shelters/{id}/mark-inaccurate + clear-inaccurate ----
 
   it('markInaccurate POSTs the reason to /admin/shelters/{id}/mark-inaccurate and resolves with no body (204)', async () => {
     api.post.mockReturnValue(of(undefined));

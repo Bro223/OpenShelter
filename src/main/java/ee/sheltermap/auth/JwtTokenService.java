@@ -72,7 +72,7 @@ public class JwtTokenService implements TokenService {
         if (record == null || record.revokedAt() != null || record.expiresAt().isBefore(now)) {
             throw new InvalidRefreshTokenException();
         }
-        // Atomic claim (S4): the conditional UPDATE (revoked_at IS NULL)
+        // Atomic claim: the conditional UPDATE (revoked_at IS NULL)
         // takes the row lock, so concurrent double-refreshes serialize —
         // exactly one racer claims the token (1 row), the losers see 0
         // rows and get the same generic 401. One transaction keeps the
@@ -84,7 +84,7 @@ public class JwtTokenService implements TokenService {
         if (!(user instanceof RegisteredUser registered)) {
             throw new InvalidRefreshTokenException();
         }
-        // Suspension (M10 slice 1): a suspended account cannot rotate — the
+        // Suspension: a suspended account cannot rotate — the
         // check is on the freshly loaded user (immediate, no token claim).
         // The refresh row was already claimed (revoke above), so the
         // suspended user's old refresh token is spent either way.

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
  * {@code message} is optional — it defaults to a fixed test payload so a
  * minimal {@code {"to":"..."}} body is enough.
  *
- * <p>B5 (2026-09-15 hardening): {@code to}/{@code message} are handed straight
+ * <p>{@code to}/{@code message} are handed straight
  * to an outbound SMS sender, so they carry the same boundary caps as every
  * other request record (dev-only endpoint, but bounded like the rest).
  */
