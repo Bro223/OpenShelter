@@ -317,8 +317,10 @@
         "type" : "object"
       },
       "CodeSentDto" : {
+        "description" : "The ack body of a 'code sent' endpoint (verification request, password-reset request, contact-change request).",
         "properties" : {
           "resendAvailableAfterSeconds" : {
+            "description" : "Seconds the client should wait before asking for the same code again — the server-enforced resend cooldown (0 = no cooldown configured).",
             "format" : "int32",
             "type" : "integer"
           }
@@ -326,8 +328,10 @@
         "type" : "object"
       },
       "ConfirmChangeRequest" : {
+        "description" : "Body for POST /account/email-change/confirm and POST /account/phone-change/confirm.",
         "properties" : {
           "code" : {
+            "description" : "The 6-digit code sent to the account's other contact channel.",
             "maxLength" : 16,
             "minLength" : 0,
             "type" : "string"
@@ -579,13 +583,16 @@
         "type" : "object"
       },
       "LoginRequest" : {
+        "description" : "Login payload — the user logs in with whichever contact they registered (e-mail address or phone number).",
         "properties" : {
           "emailOrPhone" : {
+            "description" : "The registered e-mail address or the normalized E.164 phone number.",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
           },
           "password" : {
+            "description" : "The account password.",
             "maxLength" : 200,
             "minLength" : 0,
             "type" : "string"
@@ -678,18 +685,22 @@
         "type" : "object"
       },
       "PasswordResetConfirmRequest" : {
+        "description" : "Password-reset confirmation payload (03-auth.puml). The e-mail scopes the confirmation to the account the code was sent to.",
         "properties" : {
           "code" : {
+            "description" : "The 6-digit code from the reset e-mail — the secret of this call.",
             "maxLength" : 16,
             "minLength" : 0,
             "type" : "string"
           },
           "email" : {
+            "description" : "The address the reset code was sent to.",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
           },
           "newPassword" : {
+            "description" : "At least 8 characters.",
             "maxLength" : 200,
             "minLength" : 8,
             "type" : "string"
@@ -708,13 +719,16 @@
         "type" : "object"
       },
       "ProfileUpdateRequest" : {
+        "description" : "Profile-edit payload (PUT /account/profile): name only, confirmed by the account's current password. E-mail and phone stay governed by the cross-channel change flows.",
         "properties" : {
           "currentPassword" : {
+            "description" : "The account's current password — the confirmation for the edit.",
             "maxLength" : 200,
             "minLength" : 0,
             "type" : "string"
           },
           "name" : {
+            "description" : "The new display name; stored as given.",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
@@ -724,8 +738,10 @@
         "type" : "object"
       },
       "RefreshRequest" : {
+        "description" : "Refresh / logout payload (03-auth.puml).",
         "properties" : {
           "refreshToken" : {
+            "description" : "The refresh token issued by the login or refresh response.",
             "maxLength" : 512,
             "minLength" : 0,
             "type" : "string"
@@ -735,23 +751,28 @@
         "type" : "object"
       },
       "RegisterRequest" : {
+        "description" : "Registration payload (03-auth.puml). No national ID code is collected (remove-national-id M1).",
         "properties" : {
           "email" : {
+            "description" : "The account e-mail — a login contact and the e-mail verification channel.",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
           },
           "name" : {
+            "description" : "Display name; stored as given (registration has no canonicalization).",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
           },
           "password" : {
+            "description" : "At least 8 characters.",
             "maxLength" : 200,
             "minLength" : 8,
             "type" : "string"
           },
           "phone" : {
+            "description" : "The account phone in E.164 form (e.g. +37250000001) — a login contact and the SMS verification channel.",
             "maxLength" : 64,
             "minLength" : 0,
             "type" : "string"
@@ -950,13 +971,16 @@
         "type" : "object"
       },
       "VerifyConfirmRequest" : {
+        "description" : "POST /verify/confirm body — the channel and the code the user received (e-mail token or SMS OTP).",
         "properties" : {
           "code" : {
+            "description" : "The code from the e-mail token or the SMS OTP.",
             "maxLength" : 16,
             "minLength" : 0,
             "type" : "string"
           },
           "level" : {
+            "description" : "The channel being confirmed.",
             "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
             "type" : "string"
           }

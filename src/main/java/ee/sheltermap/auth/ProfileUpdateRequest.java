@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -14,7 +15,13 @@ import jakarta.validation.constraints.Size;
  * they stay governed by the cross-channel change flows. No national ID
  * code is collected anywhere (remove-national-id M1).
  */
+@Schema(description = "Profile-edit payload (PUT /account/profile): name "
+        + "only, confirmed by the account's current password. E-mail and "
+        + "phone stay governed by the cross-channel change flows.")
 public record ProfileUpdateRequest(
+        @Schema(description = "The new display name; stored as given.")
         @NotBlank @Size(max = 255) String name,
+        @Schema(description = "The account's current password — the "
+                + "confirmation for the edit.")
         @NotBlank @Size(max = 200) String currentPassword) {
 }

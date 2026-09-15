@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * (SW-C1) — every request to them must hit the default-deny
  * {@code anyRequest().authenticated()} rule.
  *
- * <p>The explicit flag pins below are load-bearing: spring-dotenv loads the
+ * <p>The explicit pins below are load-bearing: spring-dotenv loads the
  * developer's local {@code .env} into the test environment (lowest
  * precedence, but it feeds every {@code ${…:}} placeholder in the test yml)
  * — and a real dev {@code .env} carries {@code SPRINGDOC_ENABLED=true},
@@ -33,6 +33,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * {@link DevEndpointsGuard}/{@link ApiDocsGuard} before the test could
  * assert anything — and with them, the test proves the closure for ANY
  * local {@code .env}.
+ *
+ * <p>The sender pins (ORCH-4) close the same gap one door further in:
+ * {@link DevSenderGuard} refuses a non-dev profile whose mail/sms provider
+ * is blank/{@code dev}, so without them the boot would depend on the
+ * untracked {@code .env} supplying {@code MAIL_PROVIDER=smtp-pulse} /
+ * {@code SMS_PROVIDER=twilio}. The dummy Twilio values exist only to satisfy
+ * {@code TwilioSmsSender}'s fail-fast constructor — nothing in this IT
+ * sends a message.
  *
  * <p>Assertion: {@code /v3/api-docs} and {@code /swagger-ui/index.html}
  * are NEVER 200 — 401 (the security chain answers first) or 404 (the
@@ -44,6 +52,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         // 32 bytes, not the published dev default — ProdJwtGuard requires
         // exactly this to let a non-dev profile boot at all.
         "app.jwt.secret=0123456789abcdef0123456789abcdef0123",
+        // the real sender providers (DevSenderGuard refuses blank/dev on a
+        // non-dev profile) + the non-live credentials its fail-fast
+        // constructors require — pinned so no untracked .env is needed
+        "app.mail.provider=smtp-pulse",
+        "app.sms.provider=twilio",
+        "TWILIO_ACCOUNT_SID=AC00000000000000000000000000000000",
+        "TWILIO_AUTH_TOKEN=00000000000000000000000000000000",
+        "TWILIO_MESSAGING_SERVICE_SID=MG00000000000000000000000000000000",
         // the dev .env activates both relays — a production context must
         // not inherit them (DevEndpointsGuard would refuse the boot)
         "app.dev-email-test.enabled=false",
