@@ -41,8 +41,11 @@ class MediaServiceTest {
     private static final long MAX_BYTES = 1024;
     private static final long ADMIN_ID = 1L;
 
+    /** Per-test temp directory: several tests assert absolute file counts
+     *  (0 after a rejection, 1 after a store), so a shared directory would
+     *  carry earlier tests' files into those counts. */
     @TempDir
-    static Path mediaDir;
+    Path mediaDir;
 
     private InMemoryGuidancePostRepository posts;
     private InMemoryMediaAssetRepository media;
@@ -71,10 +74,14 @@ class MediaServiceTest {
         b[4] = 0x0D; b[5] = 0x0A; b[6] = 0x1A; b[7] = 0x0A;
         b[8] = 0; b[9] = 0; b[10] = 0; b[11] = 13; // IHDR chunk length
         b[12] = 'I'; b[13] = 'H'; b[14] = 'D'; b[15] = 'R';
-        b[16] = (byte) (width >> 8); b[17] = (byte) width;
-        b[18] = (byte) (height >> 8); b[19] = (byte) height;
-        b[20] = 8; // bit depth
-        b[21] = 2; // color type: truecolor
+        // IHDR payload: width and height are 32-bit big-endian values (the
+        // reader takes four bytes for each), then bit depth and colour type.
+        b[16] = (byte) (width >>> 24); b[17] = (byte) (width >>> 16);
+        b[18] = (byte) (width >>> 8); b[19] = (byte) width;
+        b[20] = (byte) (height >>> 24); b[21] = (byte) (height >>> 16);
+        b[22] = (byte) (height >>> 8); b[23] = (byte) height;
+        b[24] = 8; // bit depth
+        b[25] = 2; // colour type: truecolour
         return b;
     }
 
@@ -89,7 +96,7 @@ class MediaServiceTest {
         return posts.save(post);
     }
 
-    private static long countFiles() throws java.io.IOException {
+    private long countFiles() throws java.io.IOException {
         return Files.list(mediaDir).count();
     }
 
@@ -196,7 +203,9 @@ class MediaServiceTest {
         service.delete(ADMIN_ID, asset.getId(), false);
 
         assertThat(media.findById(asset.getId())).isEmpty();
-        assertThat(storage.resolve(asset.getStoredFilename())).isEmpty();
+        // resolve() answers the candidate path for any well-formed name, so
+        // existence has to be asked of the filesystem itself.
+        assertThat(Files.exists(storage.resolve(asset.getStoredFilename()).orElseThrow())).isFalse();
         assertThat(countFiles()).isZero();
         assertThat(audit.rows()).hasSize(1);
         ModerationAuditLog.Row row = audit.rows().get(0);
@@ -222,9 +231,10 @@ class MediaServiceTest {
         assertThat(media.findById(asset.getId())).isPresent();
         assertThat(posts.findById(p1.getId()).orElseThrow().getHeroImageId()).isEqualTo(asset.getId());
         assertThat(posts.findById(p2.getId()).orElseThrow().getHeroImageId()).isEqualTo(asset.getId());
-        // A refused deletion writes nothing — no audit row, the file stays.
+        // A refused deletion writes nothing — no audit row, the file stays on
+        // disk (checked against the filesystem: resolve() only answers paths).
         assertThat(audit.rows()).isEmpty();
-        assertThat(storage.resolve(asset.getStoredFilename())).isPresent();
+        assertThat(Files.exists(storage.resolve(asset.getStoredFilename()).orElseThrow())).isTrue();
     }
 
     @Test
@@ -236,7 +246,7 @@ class MediaServiceTest {
         service.delete(ADMIN_ID, asset.getId(), true);
 
         assertThat(media.findById(asset.getId())).isEmpty();
-        assertThat(storage.resolve(asset.getStoredFilename())).isEmpty();
+        assertThat(Files.exists(storage.resolve(asset.getStoredFilename()).orElseThrow())).isFalse();
         assertThat(countFiles()).isZero();
         for (GuidancePost original : List.of(p1, p2)) {
             GuidancePost cleared = posts.findById(original.getId()).orElseThrow();

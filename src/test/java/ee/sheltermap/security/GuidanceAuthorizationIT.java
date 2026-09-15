@@ -203,8 +203,8 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
         MvcResult created = mvc.perform(post("/admin/guidance")
                         .header("Authorization", "Bearer " + admin)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"title\":\"Varjumine droonirünnaku ajal\","
-                                + "\"body\":\"<p>Hide in a shelter.</p>\"}"
+                        .content(("{\"title\":\"Varjumine droonirünnaku ajal\","
+                                + "\"body\":\"<p>Hide in a shelter.</p>\"}")
                                 .getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -325,8 +325,12 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
                 .andExpect(status().isNotFound());
         mvc.perform(get("/api/media/not-a-generated-name"))
                 .andExpect(status().isNotFound());
+        // A raw path traversal never reaches the route: Spring Security's
+        // StrictHttpFirewall (the framework default) refuses a non-normalised
+        // request path outright, and that refusal is a 400 — the controller's
+        // name-shape 404 only applies to names that get as far as the route.
         mvc.perform(get("/api/media/../../etc/passwd"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest());
     }
 
     /** Creates a post; returns its id (published when requested). */
