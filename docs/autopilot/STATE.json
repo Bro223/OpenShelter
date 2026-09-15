@@ -1,11 +1,11 @@
 {
   "started_at": "2026-09-14T23:19:44.555691Z",
-  "updated_at": "2026-09-15T03:40:00Z",
+  "updated_at": "2026-09-15T01:12:08Z",
   "budget_hours_soft": 3,
   "budget_hours_hard": 4,
   "phase": "fixing",
-  "last_wave": "Orphan v4-wave record (WS-6, WS-5, WS-4) added retroactively - that wave was stopped by the orchestrator before its state lane ran, and two later waves were recorded above it. Fixers: WS-6/WS-5 docs edits reported done; WS-4 reported 6/7 rows fixed (F-06, F-07, F-10, F-11, F-14, MODELS-JSDOC). Reviewer (run 13e1413f) verdict needs-fix, no runtime regression: the 6 WS-4 rows verified and now tagged [closed W2] (F-16 kept open - not attempted); WS-5 left two partials (new ORCH-16: context-and-tasks/05-shelter-api.puml ShelterController box lists 8 of 10 live ops; new ORCH-17: context-and-tasks/agent/02-CONTEXT-DOMAIN.md:27 lists the removed ShelterStatusFlag enum); new merge-blocking ORCH-12 (the surviving shelter-trust-and-reports map-browse/shelter-reports deltas still specify the removed review/rating model). open_items 17->11 (the 68 work rows minus 57 closed; 6 WS-4 rows newly closed, F-16 open) - open ORCH follow-ups tracked separately in the ledger.",
-  "open_items": 11,
+  "last_wave": "Wave 4 (manual dispatch: WS-2 + frontend leftovers + ORCH-12): the api parity guard repaired - it had compared two empty maps since it was written - plus two new backend test classes, i18n nav.skip in EN+ET, and the review/rating text stripped from the trust change's surviving deltas. Reviewer: safe-to-keep. Gates: mvn clean test 719/0, npm test 953/45, openspec validate --all 28/28.",
+  "open_items": 1,
   "model_policy": {
     "intended": {
       "token_heavy": "hpc-vllm/Qwen3.8-27B",
@@ -15,7 +15,7 @@
       "token_heavy": "hpc-vllm/Qwen3.8-27B",
       "orchestrator": "deepseek/deepseek-flash"
     },
-    "reason": "Qwen3.8-27B endpoint measured 2026-09-14T23:24Z: GET /models ok (0.1s) but a chat completion took 86.2s for 8 completion tokens (~0.09 tok/s) and returned empty content. Four inventory lanes on that model produced 0 bytes in 3 minutes and were stopped. Heavy lanes are therefore on deepseek-flash until the free endpoint recovers.",
+    "reason": "Qwen3.8-27B was DEGRADED at 2026-09-14T23:24Z (GET /models answered in 0.1s, but a chat completion took 86.2s for 8 completion tokens (~0.09 tok/s) and returned empty content, so four inventory lanes on that model produced 0 bytes in 3 minutes and were stopped). A re-probe at 23:27Z returned 23 tokens in 0.4s (~57 tok/s), so active.token_heavy was switched straight BACK to hpc-vllm/Qwen3.8-27B, and every wave's fixer lanes ran on the free TalTech model; only orchestrators and reviewers use deepseek-flash. Re-probe before each wave (see switch_back_rule).",
     "switch_back_rule": "Before each autopilot wave, probe hpc-vllm with an 8-24 token completion: under ~15s with non-empty content -> active.token_heavy=hpc-vllm/Qwen3.8-27B; otherwise deepseek/deepseek-flash. The wave planner echoes active.token_heavy into its plan so the schedule follows this file.",
     "probe_log": [
       {
@@ -30,5 +30,5 @@
       }
     ]
   },
-  "notes": "Ledger written: docs/autopilot/findings/LEDGER.md (deduplicated from the four inventories) - 68 actionable rows across 7 file-disjoint workstreams (WS-1 backend validation/clock/guard, WS-2 backend test gaps, WS-3 frontend a11y + style truth, WS-4 frontend comments/coverage, WS-5 context-and-tasks diagrams + contracts, WS-6 frontend diagrams + prose + openspec, WS-7 swagger). Severity: 9 P0 / 7 P1 / 33 P2 / 19 P3, plus 2 HUMAN rows (tracked TODOs; orphaned qa/ + .agent-orchestration/ sets) and 2 rows deferred to wave 2 for file-ownership reasons (F-13 spec-harness refactor, SW-F1b @Schema on the 7 auth request records owned by WS-1's B1). WAVE 1 recommendation: WS-1, WS-2, WS-3, WS-7 in parallel; WS-4, WS-5, WS-6 in wave 2 (WS-1 must land with WS-7 because SW-C1, the profile-aware docs permit, lives in SecurityConfig.java which WS-1 owns, and WS-6's SW-I1/SW-I4 depend on WS-7's snapshot and guard). Resume rule: if a wave dies mid-flight, the next schedule fire re-runs the unfinished workstreams from this ledger+RUNLOG. Hard stop: write the report at budget_hours_hard even if items remain. Caveat on updated_at: the ledger lane has no shell (`date` unavailable), so this timestamp is derived from the parent's 23:27:29Z STATE write plus the lane's observed work time - treat seconds as approximate."
+  "notes": "Ledger written: docs/autopilot/findings/LEDGER.md (deduplicated from the four inventories) - 68 actionable rows across 7 file-disjoint workstreams (WS-1 backend validation/clock/guard, WS-2 backend test gaps, WS-3 frontend a11y + style truth, WS-4 frontend comments/coverage, WS-5 context-and-tasks diagrams + contracts, WS-6 frontend diagrams + prose + openspec, WS-7 swagger). Severity: 9 P0 / 7 P1 / 33 P2 / 19 P3, plus 2 HUMAN rows (tracked TODOs; orphaned qa/ + .agent-orchestration/ sets) and 2 rows deferred to wave 2 for file-ownership reasons (F-13 spec-harness refactor, SW-F1b @Schema on the 7 auth request records owned by WS-1's B1). WAVE 1 recommendation: WS-1, WS-2, WS-3, WS-7 in parallel; WS-4, WS-5, WS-6 in wave 2 (WS-1 must land with WS-7 because SW-C1, the profile-aware docs permit, lives in SecurityConfig.java which WS-1 owns, and WS-6's SW-I1/SW-I4 depend on WS-7's snapshot and guard). Resume rule: if a wave dies mid-flight, the next schedule fire re-runs the unfinished workstreams from this ledger+RUNLOG. Hard stop: write the report at budget_hours_hard even if items remain. Caveat on updated_at: the ledger lane has no shell (`date` unavailable), so this timestamp is derived from the parent's 23:27:29Z STATE write plus the lane's observed work time - treat seconds as approximate. FINAL: 1 open work row (F-16, a ledger-cell correction rather than code) plus 12 ORCH follow-up rows and 2 HUMAN decisions, all tracked in docs/autopilot/findings/LEDGER.md. Waves 1-4 are committed; the closing report is docs/autopilot/AUTOPILOT-REPORT-2026-09-15.md."
 }
