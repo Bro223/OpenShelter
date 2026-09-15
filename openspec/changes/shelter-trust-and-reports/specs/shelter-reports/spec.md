@@ -36,7 +36,7 @@ SHALL carry shelter id, user id, type, optional detail, and creation time.
 
 When the report count of type `NON_EXISTENT` for a shelter reaches exactly
 5, the system SHALL set the shelter's status to `INACTIVE` (soft
-auto-hide; the row and its reports/reviews are retained). The transition
+auto-hide; the row and its reports are retained). The transition
 SHALL trigger only on the insert that brings the count to 5; after any
 manual status change (admin restore or author action), further
 `NON_EXISTENT` reports SHALL increment the count but SHALL NOT re-hide the
@@ -82,36 +82,6 @@ status.
 - **WHEN** after 2 `CLOSED` reports, 3 users report `OPEN_CONFIRMED`
 - **THEN** the flag flips to `CONFIRMED_OPEN` and the shelter remains
   visible throughout
-
-### Requirement: Review reports and hidden reviews
-
-The system SHALL provide `POST /api/shelters/{id}/reviews/{reviewId}/
-reports` accepting `{ "reason": <FALSY_DATA | NOT_RELEVANT | SPAM | OTHER>,
-"detail": <optional text, max 500 chars> }`. Rules: verified users only;
-one report per user per review (repeat → 409); a user SHALL NOT report
-their own review (403). When a review accumulates 5 reports the system
-SHALL hide it (`hidden_at` set once). A hidden review SHALL be excluded
-from the review list (except for its author, who sees it marked hidden),
-from the shelter's average rating and review count, and from the
-`reviewed` filter. The review DTO SHALL carry `hidden` (boolean) so the author's view
-can mark it; hidden reviews are never returned to non-authors. Hiding
-SHALL never delete the review row.
-
-#### Scenario: five reports hide a review
-
-- **WHEN** the 5th distinct user's report on a review is stored
-- **THEN** the review disappears from the public list and from the
-  shelter's average rating and count
-
-#### Scenario: author still sees their hidden review
-
-- **WHEN** the review's author opens the shelter detail page
-- **THEN** their own hidden review is visible to them, marked as hidden
-
-#### Scenario: own review cannot be reported
-
-- **WHEN** a user attempts to report their own review
-- **THEN** the request fails with 403 and nothing is stored
 
 ### Requirement: Occupancy reports
 
@@ -179,7 +149,7 @@ hedged copy when `reportCount` is 1, firm copy at 2+). The detail
 projection additionally SHALL carry `yourOccupancyBand` (the caller's own
 band, null for guests and anonymous users).
 Derivations SHALL be computed in the list/detail projection (batched, no
-N+1 — the established `submitterVerified`/`averageRating` pattern) and
+N+1 — the established `submitterVerified` batching pattern) and
 SHALL NOT be client-computed from raw report lists.
 
 #### Scenario: list responses carry derived state
