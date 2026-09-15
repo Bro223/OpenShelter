@@ -5,11 +5,47 @@ title Shelter Map - Registry Ingestion (classes)
 
 package "ingestion" {
   interface ShelterRegistryClient {
+    + source() : ShelterSource
     + fetchAll() : List<RegistryShelterDto>
+    + fetch() : RegistryFetch
+    ' source() declares which ShelterSource the fetched rows belong to;
+    ' delisting is scoped to it (see the import note below).
+    ' fetch() (official-dataset-csv M5) = fetchAll() plus the upstream data
+    ' version (HTTP Last-Modified / ETag) and the 304 "not modified" marker.
+    ' The default wraps fetchAll() unchanged, so version-less sources
+    ' (legacy WFS, dev fixture) need no override.
+  }
+
+  class CsvRegistryClient {
+    + source() : ShelterSource   ' PAASETEAMET
+    + fetchAll() : List<RegistryShelterDto>
+    + fetch() : RegistryFetch
+    ' DEFAULT client (app.registry.client=csv): one bulk download of the
+    ' official open-data CSV (opendata.smit.ee/gis/varjumiskohad.csv,
+    ' UTF-8, semicolon-separated, header id;nimi;aadress;lest_x;lest_y).
+    ' Versioning: the upstream Last-Modified (fallback ETag) stamps every
+    ' row's dataAsOf and the run's sourceVersion; the previous run's stamp
+    ' (the newest data_imports row via DataImportLog) is sent back as
+    ' If-Modified-Since - a 304 means "the local copy is current"
+    ' (RegistryFetch([], version, notModified=true)). Retries transient
+    ' failures only (network / 5xx) with exponential backoff; a
+    ' deterministic 4xx fails fast (no retry). Coordinates arrive in
+    ' EPSG:3301 - LEst97Transformer applies unchanged; county/municipality
+    ' are split from the aadress field (the CSV publishes no capacity/
+    ' accessibility - null/false).
+    - csvUrl : String
+    - maxRetries : int
+    - restClient : RestClient
+    - transformer : LEst97Transformer
+    - importLog : DataImportLog
   }
 
   class PaasteametRegistryClient {
+    + source() : ShelterSource   ' PAASETEAMET
     + fetchAll() : List<RegistryShelterDto>
+    ' LEGACY opt-in (app.registry.client=paasteamet) - NOT the default: the
+    ' Maa-amet WFS layer no longer publishes a service ("Ei ole saadaval" -
+    ' every WFS request 404s), so the official source is the CSV (M5).
     ' WFS GetFeature client: typeName=VARJEKOHT, outputFormat=geojson,
     ' startIndex pagination. Retries with backoff, politeness (SDI Ch 9).
     ' Maa-amet ignores srsName - coordinates always arrive in EPSG:3301.
@@ -20,7 +56,30 @@ package "ingestion" {
     - transformer : LEst97Transformer
   }
 
+  class RegistryCsvParser {
+    + {static} parse(csv : String) : Parsed
+    ' Parsed(rows : List<Row>, dropped : int); Row = (externalId, name,
+    ' address, lestX, lestY) - raw L-EST97 values, transformed by the
+    ' client. Quote-aware split on ';' (every field double-quoted, doubled
+    ' quotes as the escape). The header must be id;nimi;aadress;lest_x;
+    ' lest_y (after BOM/trim) - a different header is a deterministic,
+    ' no-retry registry failure (IllegalArgumentException, translated to
+    ' RegistryUnavailableException by the client); malformed rows are
+    ' dropped and counted (the import's "skipped" semantics), never fatal.
+  }
+
+  class RegistryFetch <<record>> {
+    + rows : List<RegistryShelterDto>
+    + dataVersion : String
+    + notModified : boolean
+    ' One fetch outcome: the raw rows, the upstream version stamp
+    ' (Last-Modified / ETag; null for version-less sources) and the 304
+    ' marker. A notModified fetch applies NOTHING in the import (in
+    ' particular no delist over an empty set) and is NOT a failure.
+  }
+
   class DevRegistryClient {
+    + source() : ShelterSource   ' PAASETEAMET (the fixture mirrors the registry dataset)
     + fetchAll() : List<RegistryShelterDto>
     ' Reads a local JSON fixture - dev/CI runs without network.
   }
@@ -65,8 +124,9 @@ package "ingestion" {
     + municipality : String
     + dataAsOf : String
     + sourceAttribution : String
-    ' The registry JSON shape - dies at this boundary.
-    ' Full WFS record is stored locally; the API serves only the lean projection.
+    ' The registry row shape (CSV rows today; WFS records for the legacy
+    ' opt-in) - dies at this boundary.
+    ' Full registry record is stored locally; the API serves only the lean projection.
   }
 
   interface ShelterParser {
@@ -80,7 +140,8 @@ package "ingestion" {
 
   class ShelterImportService {
     + importFromRegistry() : ImportResult
-    ' Orchestrates: fetch, parse, dedupe, upsert, remove delisted.
+    ' Orchestrates: fetch (outside any transaction), 304 check, parse,
+    ' dedupe, upsert, remove delisted, audit - one data_imports row per run.
   }
 
   class ImportResult <<record>> {
@@ -90,6 +151,8 @@ package "ingestion" {
     + skipped : int
     + failed : int
     + at : Instant
+    + overlapSkipped : boolean
+    + sourceVersion : String
   }
 
   class RegistryUnavailableException {
@@ -97,11 +160,26 @@ package "ingestion" {
   }
 }
 
+package "app - contracts only" {
+  interface DataImportLog {
+    + record(row : Row) : void
+    + findLatestBySource(sourceName : String) : Optional<Row>
+    + findLatest() : Optional<Row>
+    + findLatestVerifiedBySource(sourceName : String) : Optional<Row>
+    ' Row = (sourceName, sourceVersion, importedAt, recordsAdded,
+    ' recordsUpdated, recordsRemoved, status, errorMessage) with status
+    ' OK | FAILED | NOT_MODIFIED | SKIPPED. One row per run - the audit
+    ' trail behind the If-Modified-Since stamp (findLatestBySource) and
+    ' the public "last import" / "last verified" provenance reads.
+  }
+}
+
 package "config" {
   class RegistryScheduler {
-    + runImport() : void
+    + runScheduledImport() : void
     ' @Scheduled cron (default Mon 03:00 Europe/Tallinn; app.registry.cron/zone),
-    ' AtomicBoolean overlap guard, failure-tolerant logging, schedule-enabled toggle.
+    ' AtomicBoolean overlap guard (lives in ShelterImportService), failure-
+    ' tolerant logging, schedule-enabled toggle.
   }
 }
 
@@ -121,7 +199,7 @@ package "domain" {
     + description : String
     + capacity : Integer
     ' externalId + source set by the import side. User submissions: externalId null, source USER.
-    ' Full WFS record (address/county/municipality/dataAsOf/sourceAttribution) is
+    ' Full registry record (address/county/municipality/dataAsOf/sourceAttribution) is
     ' stored locally; the API DTO serves only what the map needs.
     ' description/capacity: USER-submission details (stored since V3; null for registry rows).
   }
@@ -135,14 +213,17 @@ package "domain" {
   interface ShelterRepository {
     + save(shelter : Shelter) : void
     + findByExternalId(externalId : String) : Optional<Shelter>
-    + saveAll(shelters : List<Shelter>) : void
     + deleteBySourceAndExternalIdNotIn(source : ShelterSource, externalIds : List<String>) : int
   }
 }
 
+CsvRegistryClient ..|> ShelterRegistryClient
 PaasteametRegistryClient ..|> ShelterRegistryClient
 DevRegistryClient ..|> ShelterRegistryClient
 ShelterRegistryClient ..> RegistryShelterDto
+CsvRegistryClient --> RegistryCsvParser : parses the downloaded body
+CsvRegistryClient --> LEst97Transformer : transforms EPSG:3301 -> WGS84
+CsvRegistryClient --> DataImportLog : findLatestBySource (the If-Modified-Since stamp)
 PaasteametRegistryClient --> LEst97Transformer : transforms EPSG:3301 -> WGS84
 PaasteametRegistryClient *-- WfsFeatureCollection : nested
 WfsFeatureCollection *-- WfsFeature
@@ -154,14 +235,29 @@ RegistryShelterParser ..> Shelter : maps to domain
 ShelterImportService --> ShelterRegistryClient
 ShelterImportService --> ShelterParser
 ShelterImportService --> ShelterRepository
+ShelterImportService --> DataImportLog : record (one data_imports row per run)
 RegistryScheduler --> ShelterImportService : weekly cron
 ShelterImportService ..> RegistryUnavailableException : catches
 ShelterRepository ..> Shelter
 
 note right of ShelterImportService
-  Re-import: existing externalId = UPDATE, new = CREATE,
-  registry rows missing from the latest fetch = DELETE.
+  Re-import: existing externalId = UPDATE, new = CREATE.
+  304 (If-Modified-Since = the last run's sourceVersion from
+  data_imports): apply NOTHING - no upsert, no delist over the empty set
+  - and NOT a failure (status NOT_MODIFIED).
+  Delisting is PER SOURCE (2026-09-08 B7e): only the source this run
+  actually fetched is delisted -
+  deleteBySourceAndExternalIdNotIn(client.source(), fetchedIds).
+  client.source() is one of PAASETEAMET / MUNICIPALITY; today only
+  Päästeamet has a fetcher (the CSV client), so MUNICIPALITY rows are
+  retained until a municipality client ships (its own run delists its own
+  source).
+  A zero-row fetch skips delisting entirely (rows retained, log.warn).
+  Keep-list = EVERY externalId the registry served this run, including
+  rows that failed the length pre-check or parsing.
   User-added shelters (source USER) are never touched.
+  Every run (OK / FAILED / NOT_MODIFIED / SKIPPED) writes ONE data_imports
+  audit row - best-effort (an audit failure never breaks the import).
   API filter GET /api/shelters?source=REGISTRY|USER|ALL arrives with the read side.
 end note
 @enduml
@@ -173,23 +269,57 @@ participant "ShelterImportService" as SIS
 participant "ShelterRegistryClient" as RC
 participant "RegistryShelterParser" as P
 participant "ShelterRepository" as REPO
+participant "DataImportLog" as LOG
 database "PostgreSQL" as DB
 
 RegistryScheduler -> SIS : importFromRegistry()
-SIS -> RC : fetchAll()
-RC --> SIS : List<RegistryShelterDto>
-SIS -> P : parse(dtos)
-P --> SIS : List<Shelter>
-loop each shelter
-  SIS -> REPO : findByExternalId(externalId)
-  alt existing
-    REPO --> SIS : Optional.of(shelter)
-    SIS -> REPO : saveAll(updated)
-  else new
-    SIS -> REPO : saveAll(created)
-  end
+alt another run already in flight (overlap guard)
+  SIS -> LOG : record(SKIPPED)
+  SIS --> RegistryScheduler : ImportResult(0,0,0,0,0,at,true,null)
 end
-SIS -> REPO : deleteBySourceAndExternalIdNotIn(REGISTRY, fetchedIds)
-REPO -> DB : DELETE registry rows missing from the latest fetch
-SIS --> RegistryScheduler : ImportResult
+SIS -> RC : fetch()   ' If-Modified-Since = the last run's sourceVersion (data_imports)
+alt 304 (the upstream is unchanged)
+  RC --> SIS : RegistryFetch(rows=[], version, notModified=true)
+  note right of SIS
+    apply NOTHING - a delist over an empty fetched set would
+    wipe the source - and NOT a failure
+  end note
+  SIS -> LOG : record(NOT_MODIFIED)
+  SIS --> RegistryScheduler : ImportResult(0,0,0,0,0,at,false,version)
+else registry unreachable
+  RC --> SIS : RegistryUnavailableException (transient retries exhausted / deterministic 4xx)
+  SIS -> LOG : record(FAILED, message)
+  SIS --> RegistryScheduler : ImportResult.failure(at)
+else
+  RC --> SIS : RegistryFetch(rows, version, notModified=false)
+  note right of RC
+    CsvRegistryClient (the default): one bulk download of the official
+    open-data CSV; body parsed by RegistryCsvParser (header
+    id;nimi;aadress;lest_x;lest_y enforced - a wrong header is a
+    deterministic no-retry failure; malformed rows dropped + counted;
+    L-EST97 -> WGS84 via LEst97Transformer); Last-Modified (fallback
+    ETag) stamps dataAsOf + sourceVersion.
+  end note
+  SIS -> P : parse(fitting dtos)   ' rows over the column limits counted as skipped first
+  P --> SIS : List<Shelter>
+  loop each shelter (the apply phase runs in ONE transaction)
+    SIS -> REPO : findByExternalId(externalId)
+    alt existing
+      REPO --> SIS : Optional.of(shelter)
+      SIS -> REPO : save(merged)
+    else new
+      SIS -> REPO : save(shelter)
+    end
+  end
+  SIS -> RC : source()
+  RC --> SIS : fetchedSource (PAASETEAMET today)
+  alt fetchedIds empty (zero-row fetch)
+    note right of SIS: delisting SKIPPED - existing rows retained (log.warn)
+  else
+    SIS -> REPO : deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds)
+    REPO -> DB : DELETE fetchedSource rows missing from the latest fetch (USER + other sources untouched)
+  end
+  SIS -> LOG : record(OK)
+  SIS --> RegistryScheduler : ImportResult(created,updated,removed,skipped,0,at,false,version)
+end
 @enduml

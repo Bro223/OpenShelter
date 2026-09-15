@@ -15,6 +15,13 @@ import java.time.Instant;
 public interface VerificationSendLog {
 
     /**
+     * Result of {@link #tryRecord} — why the send was (not) allowed. Both
+     * rejections map to the same 429 in the service; the split exists so a
+     * caller (or test) can tell which throttle fired.
+     */
+    enum SendDecision { OK, COOLDOWN, DAILY_CAP }
+
+    /**
      * How many codes were sent to {@code level} for {@code userId} since the
      * start of today (UTC day boundary).
      */
@@ -28,4 +35,20 @@ public interface VerificationSendLog {
 
     /** Records one send. Must not throw. */
     void record(long userId, VerificationLevel level, String contact, Instant sentAt);
+
+    /**
+     * Atomic check-and-record: decides whether
+     * {@code (userId, level)} may send right now — cooldown first, then the
+     * per-UTC-day cap — and, when allowed, records the send in the SAME
+     * lock-held step — a read-read-record across separately
+     * synchronized methods would let a burst pass both reads before either
+     * recorded.
+     *
+     * <p>{@code cooldownSeconds} &le; 0 disables the cooldown check and
+     * {@code maxPerDay} &le; 0 disables the cap (the same silent-skip rules
+     * as before). A {@link SendDecision#COOLDOWN}/{@link SendDecision#DAILY_CAP}
+     * decision records nothing.
+     */
+    SendDecision tryRecord(long userId, VerificationLevel level, String contact,
+                           Instant now, long cooldownSeconds, int maxPerDay);
 }

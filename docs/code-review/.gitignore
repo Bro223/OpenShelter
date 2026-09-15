@@ -1,0 +1,8 @@
+# Detailed review output: documents, with actionable detail, vulnerabilities
+# that were unfixed in-tree at the time of writing, and the remote's
+# visibility could not be verified from the authoring environment.
+# Analysis + decision: review-process.md, "Git-push safety analysis".
+2026-09-08-review-output.md
+
+# Fix campaign's per-issue log: same sensitivity class as the review output.
+2026-09-08-fix-log.md

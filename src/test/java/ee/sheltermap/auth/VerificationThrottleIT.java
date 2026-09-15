@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,7 +47,7 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Throttle Kasutaja\",\"email\":\"throttle@example.ee\",\"phone\":\"+37250007777\","
-                    + "\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -80,7 +81,7 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON).content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"throttle@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"throttle@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         String token = JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
@@ -94,14 +95,20 @@ class VerificationThrottleIT extends AbstractPersistenceIT {
                     .andExpect(status().isAccepted());
         }
 
-        // the third is throttled — 429 with the uniform ErrorResponse shape
-        mvc.perform(post("/verify/request")
+        // the third is throttled by the per-IP TOKEN BUCKET (capacity 2, no
+        // refill) — 429 with the uniform ErrorResponse shape. The bucket
+        // cannot compute a wait time, so no Retry-After header (unlike the
+        // service-level throttles, which the daily-cap IT covers).
+        MvcResult throttled = mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
-                .andExpect(jsonPath("$.path").value("/verify/request"));
+                .andExpect(jsonPath("$.message").value("Too many requests"))
+                .andExpect(jsonPath("$.path").value("/verify/request"))
+                .andReturn();
+        assertThat(throttled.getResponse().getHeader("Retry-After")).isNull();
     }
 }

@@ -1,0 +1,56 @@
+<section class="auth-card">
+  <h1 class="page-title">{{ 'authPage.login.title' | t }}</h1>
+  <p class="page-subtitle">{{ 'authPage.login.subtitle' | t }}</p>
+
+  <app-banner
+    severity="info"
+    [message]="sessionExpired() ? ('authPage.login.sessionExpired' | t) : null"
+  />
+  <app-banner severity="info" [message]="resetOk() ? ('authPage.login.resetOk' | t) : null" />
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="field">
+      <label for="login-contact">{{ 'authPage.login.contactLabel' | t }}</label>
+      <input
+        id="login-contact"
+        type="text"
+        formControlName="emailOrPhone"
+        autocomplete="username"
+        [placeholder]="'authPage.login.contactPlaceholder' | t"
+      />
+      @if (form.controls.emailOrPhone.touched && form.controls.emailOrPhone.invalid) {
+        <p class="field-error">{{ 'authPage.login.contactRequired' | t }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="login-password">{{ 'authPage.login.passwordLabel' | t }}</label>
+      <input
+        id="login-password"
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+      />
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <p class="field-error">{{ 'authPage.login.passwordRequired' | t }}</p>
+      }
+    </div>
+
+    <app-banner severity="error" [message]="error()" />
+
+    <button type="submit" class="btn btn--primary btn--block" [disabled]="pending()">
+      {{ pending() ? ('authPage.login.submitting' | t) : ('authPage.login.submit' | t) }}
+    </button>
+  </form>
+
+  <p class="auth-links">
+    <a routerLink="/reset">{{ 'authPage.login.forgot' | t }}</a>
+    &middot; {{ 'authPage.login.noAccount' | t }}
+    <a routerLink="/register">{{ 'authPage.login.createOne' | t }}</a>
+  </p>
+
+  <p class="auth-links">
+    <a routerLink="/privacy">{{ 'authPage.privacyPolicy' | t }}</a>
+    &middot; <a routerLink="/terms">{{ 'authPage.termsOfUse' | t }}</a>
+  </p>
+</section>

@@ -1,7 +1,7 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.config.ContactChangeProperties;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.PhoneNumbers;
@@ -10,14 +10,11 @@ import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -41,8 +38,6 @@ import java.util.Objects;
  */
 @Service
 public class ContactChangeService {
-
-    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final PendingContactChangeRepository changes;
@@ -75,47 +70,59 @@ public class ContactChangeService {
      * @throws InvalidContactChangeException  the new email equals the current one (400)
      * @throws VerificationThrottledException resend too soon (429)
      */
+    @Transactional
     public void requestEmailChange(RegisteredUser user, String newEmail) {
         String target = newEmail.trim().toLowerCase(Locale.ROOT);
         if (target.equalsIgnoreCase(user.getData().email())) {
-            throw new InvalidContactChangeException("new email equals the current email");
+            throw new InvalidContactChangeException("New email equals the current email");
         }
         if (userRepository.findByEmail(target) != null) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         enforceCooldown(user.getId(), ContactChangeType.EMAIL_CHANGE);
 
-        String code = sixDigitCode();
+        String code = Codes.sixDigitCode();
         Instant now = clock.instant();
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
-                target, hash(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smsSender.send(user.getData().phone(),
-                "Shelter Map change-email code: " + code + " (valid 15 min)");
+                AppInfo.APP_DISPLAY_NAME + " change-email code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
      * Completes an email change once the SMS code is verified.
      *
-     * @throws InvalidContactChangeException no pending request, or wrong/
-     *                                       expired/exhausted code (400)
+     * <p>Mirrors {@code AuthService.resetPassword}:
+     * the code failure is returned, not thrown — this transaction then
+     * COMMITS the failed-attempt increment instead of rolling it back, so
+     * the 5-attempt lockout actually holds across HTTP calls. The
+     * controller turns a failed result into the 400.
+     *
+     * @throws InvalidContactChangeException no pending request (400)
+     * @throws DuplicateAccountException     the new email is already in use (409)
      */
-    public void confirmEmailChange(RegisteredUser user, String code) {
+    @Transactional
+    public ContactChangeResult confirmEmailChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.EMAIL_CHANGE);
-        verifyCode(change, code);
+        String failure = verifyCode(change, code);
+        if (failure != null) {
+            return ContactChangeResult.failure(failure);
+        }
         String target = change.getTarget();
         // The target may have been claimed by another account between request
         // and confirm (it was checked at request time only) — re-check, and
-        // convert a DB-level race into the same 409 (P2 fix).
+        // convert a DB-level race into the same 409.
         if (userRepository.findByEmail(target) != null) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         user.changeEmail(target);
         try {
             userRepository.save(user);
         } catch (DataIntegrityViolationException race) {
-            throw new DuplicateAccountException("an account with this email already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
         }
         changes.delete(change);
+        return ContactChangeResult.success();
     }
 
     // ---- Phone change (verified by email to the current email) ----
@@ -125,43 +132,50 @@ public class ContactChangeService {
      * cooldown, then sends an email code to the current email and persists the
      * pending change.
      */
+    @Transactional
     public void requestPhoneChange(RegisteredUser user, String newPhone) {
         String target = PhoneNumbers.normalizeE164(newPhone);
         if (target.equals(user.getData().phone())) {
-            throw new InvalidContactChangeException("new phone equals the current phone");
+            throw new InvalidContactChangeException("New phone equals the current phone");
         }
         if (userRepository.findByPhone(target) != null) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         enforceCooldown(user.getId(), ContactChangeType.PHONE_CHANGE);
 
-        String code = sixDigitCode();
+        String code = Codes.sixDigitCode();
         Instant now = clock.instant();
         replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
-                target, hash(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
         smtpSender.send(user.getData().email(),
-                "Shelter Map change-phone code: " + code + " (valid 15 min)");
+                AppInfo.APP_DISPLAY_NAME + " change-phone code: " + code + " (valid " + codeTtlMinutes() + " min)");
     }
 
     /**
-     * Completes a phone change once the email code is verified.
+     * Completes a phone change once the email code is verified (same
+     * return-the-failure shape as {@link #confirmEmailChange}).
      */
-    public void confirmPhoneChange(RegisteredUser user, String code) {
+    @Transactional
+    public ContactChangeResult confirmPhoneChange(RegisteredUser user, String code) {
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.PHONE_CHANGE);
-        verifyCode(change, code);
+        String failure = verifyCode(change, code);
+        if (failure != null) {
+            return ContactChangeResult.failure(failure);
+        }
         String target = change.getTarget();
-        // P2 fix: re-check the target (claimed between request and confirm?)
+        // Re-check the target (claimed between request and confirm?)
         // and convert a DB-level race into the same 409.
         if (userRepository.findByPhone(target) != null) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         user.changePhone(target);
         try {
             userRepository.save(user);
         } catch (DataIntegrityViolationException race) {
-            throw new DuplicateAccountException("an account with this phone already exists");
+            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
         changes.delete(change);
+        return ContactChangeResult.success();
     }
 
     // ---- Internals ----
@@ -174,9 +188,14 @@ public class ContactChangeService {
      */
     private void enforceCooldown(Long userId, ContactChangeType type) {
         changes.findByUserIdAndType(userId, type).ifPresent(existing -> {
+            Instant now = clock.instant();
             Instant earliest = existing.getCreatedAt().plusSeconds(properties.cooldownSeconds());
-            if (clock.instant().isBefore(earliest)) {
-                throw new VerificationThrottledException();
+            if (now.isBefore(earliest)) {
+                // Same generic message as before; the countdown is anchored on
+                // the pending row's creation (the cooldown anchor).
+                long remaining = Duration.between(now, earliest).getSeconds();
+                throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                        (int) Math.max(0, remaining));
             }
         });
     }
@@ -189,35 +208,51 @@ public class ContactChangeService {
 
     private PendingContactChange requirePending(Long userId, ContactChangeType type) {
         return changes.findByUserIdAndType(userId, type)
-                .orElseThrow(() -> new InvalidContactChangeException("no pending " + type + " request"));
+                .orElseThrow(() -> new InvalidContactChangeException("No pending contact-change request"));
     }
 
-    private void verifyCode(PendingContactChange change, String code) {
+    /**
+     * Checks the code against the pending change. A WRONG code increments
+     * the attempts ATOMICALLY at the store (a conditional UPDATE: a
+     * read-modify-write would lose updates under a
+     * concurrent wrong-code burst, every request reading attempts=k and
+     * writing k+1) and returns the user-facing message — the failure is
+     * then committed by the enclosing transaction (the method returns, it
+     * never throws for it), which is what makes the lockout persist across
+     * HTTP calls: throwing inside the transaction would
+     * roll the increment back on every wrong code.
+     *
+     * @return {@code null} when the code verifies; otherwise the 400 message
+     *         ("Invalid code" / "Code expired, request a new one" /
+     *         "Too many attempts, request a new code")
+     */
+    private String verifyCode(PendingContactChange change, String code) {
         Instant now = clock.instant();
         if (change.isExpired(now)) {
-            throw new InvalidContactChangeException("code expired, request a new one");
+            return "Code expired, request a new one";
         }
+        // Fast path — the already-persisted counter decides before any write.
         if (change.isAttemptExhausted(properties.maxAttempts())) {
-            throw new InvalidContactChangeException("too many attempts, request a new code");
+            return "Too many attempts, request a new code";
         }
-        if (!MessageDigest.isEqual(change.getCodeHash().getBytes(StandardCharsets.UTF_8),
-                hash(code).getBytes(StandardCharsets.UTF_8))) {
-            change.registerFailedAttempt();
-            changes.save(change);
-            throw new InvalidContactChangeException("invalid code");
+        if (!Hashes.constantTimeEquals(change.getCodeHash(), Hashes.sha256Hex(code))) {
+            // The row-level UPDATE is the lock: 0 rows updated means another
+            // confirm already reached the cap (or the row is gone) — straight
+            // to the lockout message, never past the counter.
+            int updated = changes.incrementAttempts(change.getId(), properties.maxAttempts());
+            if (updated == 0) {
+                return "Too many attempts, request a new code";
+            }
+            return "Invalid code";
         }
+        return null;
     }
 
-    private static String sixDigitCode() {
-        return String.format("%06d", RANDOM.nextInt(1_000_000));
-    }
-
-    private static String hash(String code) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(md.digest(code.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+    /**
+     * The user-facing validity window, derived from the configured code TTL
+     * (the copy must not hardcode a TTL that is configurable).
+     */
+    private long codeTtlMinutes() {
+        return properties.codeTtlSeconds() / 60;
     }
 }

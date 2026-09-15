@@ -1,0 +1,22 @@
+:host {
+  display: block;
+}
+
+.auth-card {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  max-width: 26rem;
+  margin: var(--space-32) auto 0;
+}
+
+.auth-links {
+  margin-top: var(--space-18);
+  font-size: var(--text-md);
+  text-align: center;
+}
+
+/* mirrors the reset page's muted helper line (same tokens) */
+.field-note {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-6) 0 0;
+}

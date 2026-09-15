@@ -27,7 +27,7 @@ class EmailVerificationProviderTest {
         sender = new CapturingSmtpSender();
         clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
         provider = new EmailVerificationProvider(sender, clock);
-        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
+        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
 
@@ -42,7 +42,7 @@ class EmailVerificationProviderTest {
         assertThat(pending.getExpiresAt()).isAfter(clock.instant());
 
         assertThat(sender.getLastEmail()).isEqualTo("aleks@example.com");
-        assertThat(sender.getLastMessage()).contains("token");
+        assertThat(sender.getLastMessage()).contains("code");
         String token = extractToken(sender.getLastMessage());
         assertThat(token).matches("[A-Za-z0-9]{8}");
 

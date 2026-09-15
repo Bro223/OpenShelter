@@ -1,6 +1,5 @@
 package ee.sheltermap.ingestion;
 
-import ee.sheltermap.config.RegistryProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -13,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -27,7 +27,8 @@ class PaasteametRegistryClientTest {
     private static final String BASE = "http://registry.test";
 
     private static final RegistryProperties PROPS = new RegistryProperties(
-            BASE, 2, 1, Duration.ZERO, "paasteamet", true, "0 0 3 * * MON", "Europe/Tallinn");
+            BASE, 2, 1, Duration.ZERO, "paasteamet",
+            "https://official.test/avaandmed", true, "0 0 3 * * MON", "Europe/Tallinn");
 
     private final RestClient.Builder builder = RestClient.builder();
     private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -110,13 +111,31 @@ class PaasteametRegistryClientTest {
 
     @Test
     void malformedJsonIsReportedAsRegistryUnavailable() {
-        server.expect(requestTo(wfsUrl(0)))
-                .andRespond(withSuccess("not json at all", MediaType.APPLICATION_JSON));
+        // A 200 with an unparseable body is a DETERMINISTIC failure:
+        // retrying cannot fix it, so the client must fail fast with exactly
+        // ONE request — no retry, no retry budget burned.
         server.expect(requestTo(wfsUrl(0)))
                 .andRespond(withSuccess("not json at all", MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(client::fetchAll)
-                .isInstanceOf(RegistryUnavailableException.class);
+                .isInstanceOf(RegistryUnavailableException.class)
+                .hasMessageContaining("failed deterministically, no retry");
+        server.verify(); // exactly one request — the fail-fast branch
+    }
+
+    @Test
+    void clientErrorIsNotRetried() {
+        // A 4xx (bad request, auth, gone…) is equally deterministic: one
+        // request, no retry, reported as registry-unavailable with the
+        // no-retry message — pinning the non-retry branch of the
+        // "retry ONLY ResourceAccessException + 5xx" rule.
+        server.expect(requestTo(wfsUrl(0)))
+                .andRespond(withBadRequest());
+
+        assertThatThrownBy(client::fetchAll)
+                .isInstanceOf(RegistryUnavailableException.class)
+                .hasMessageContaining("failed deterministically, no retry");
+        server.verify(); // exactly one request — no retry on 4xx
     }
 
     @Test
@@ -135,6 +154,22 @@ class PaasteametRegistryClientTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).externalId()).isEqualTo("PK-1");
         server.verify();
+    }
+
+    @Test
+    void pageCapBoundaryAllowsExactlyMaxPages() {
+        // The guard is checked BEFORE the fetch, so the walk may serve
+        // exactly MAX_PAGES pages (0 .. MAX_PAGES-1) — the MAX_PAGES-th
+        // offset must be rejected, the one before it must not.
+        int pageSize = 2;
+        int maxPages = 10_000;
+        assertThat(PaasteametRegistryClient.hasReachedPageCap(0, pageSize)).isFalse();
+        assertThat(PaasteametRegistryClient.hasReachedPageCap((maxPages - 1) * pageSize, pageSize))
+                .isFalse();
+        assertThat(PaasteametRegistryClient.hasReachedPageCap(maxPages * pageSize, pageSize))
+                .isTrue();
+        assertThat(PaasteametRegistryClient.hasReachedPageCap(maxPages * pageSize + pageSize, pageSize))
+                .isTrue();
     }
 
     @Test

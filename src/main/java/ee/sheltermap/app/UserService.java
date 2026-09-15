@@ -1,14 +1,12 @@
 package ee.sheltermap.app;
 
 import ee.sheltermap.domain.RegisteredUser;
-import ee.sheltermap.domain.User;
-import ee.sheltermap.domain.UserData;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 
 /**
- * Profile lifecycle: registration, snapshots, account deletion.
+ * Profile lifecycle: registration and lookups.
  *
  * <p>The password captured at registration is <em>not</em> handled here —
  * profile and credentials are separate aggregates (see auth context,
@@ -25,17 +23,11 @@ public class UserService {
     }
 
     /** Creates a {@link RegisteredUser} with no verification claims and persists it. */
-    public RegisteredUser register(String name, String email, String phone, String nationalIdCode) {
-        RegisteredUser user = new RegisteredUser(name, email, phone, nationalIdCode);
+    public RegisteredUser register(String name, String email, String phone) {
+        RegisteredUser user = new RegisteredUser(name, email, phone);
         userRepository.save(user);
         return user;
     }
-
-    /** Immutable snapshot — callers never get live entity internals. */
-    public UserData getData(User user) {
-        return user.getData();
-    }
-
 
     /**
      * Login lookup (03-auth.puml contract): resolves by email when the contact
@@ -55,7 +47,7 @@ public class UserService {
         return userRepository.findByEmail(email);
     }
 
-    /** Duplicate-registration pre-check (hardening): {@code null} if the phone is free. */
+    /** Duplicate-registration pre-check: {@code null} if the phone is free. */
     public RegisteredUser findByPhone(String phone) {
         return userRepository.findByPhone(phone);
     }

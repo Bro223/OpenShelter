@@ -1,12 +1,15 @@
 package ee.sheltermap.verification;
 
-import ee.sheltermap.config.VerificationProperties;
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +26,10 @@ import java.util.Objects;
  *
  * <p>Anti-spam (Twilio plan): every request is throttled per (user, level)
  * via the durable {@link VerificationSendLog} — a resend cooldown plus a
- * per-user daily cap. Violations raise {@link VerificationThrottledException}
+ * per-user daily cap — and per contact (e-mail / E.164 phone) via the
+ * rolling {@link RollingContactOtpLimiter} (abuse-limits), which
+ * bounds the volume of REAL sends per address across the whole window.
+ * Violations raise {@link VerificationThrottledException}
  * (→ 429); the check deliberately says nothing about the contact's existence.
  */
 public class VerificationService {
@@ -31,29 +37,39 @@ public class VerificationService {
     private final Map<VerificationLevel, VerificationProvider> providers;
     private final PendingVerificationRepository pendingRepository;
     private final VerificationSendLog sendLog;
+    private final RollingContactOtpLimiter contactLimiter;
     private final VerificationProperties properties;
     private final Clock clock;
+    private final ThrottleAlertRecorder alerts;
 
     /**
      * @param providers          provider per level; a level without a provider is rejected
      * @param pendingRepository  persistence seam for pending codes
      * @param sendLog            durable send log behind the cooldown + daily cap
+     * @param contactLimiter     rolling per-contact cap;
+     *                           {@code maxPerWindow <= 0} disables it
      * @param properties         throttle config ({@code cooldownSeconds}, {@code maxPerDay})
      * @param clock              time source (injectable for deterministic tests)
+     * @param alerts             the admin alert ring — the
+     *                           per-contact cap events land here
      */
     public VerificationService(Map<VerificationLevel, VerificationProvider> providers,
                                PendingVerificationRepository pendingRepository,
                                VerificationSendLog sendLog,
+                               RollingContactOtpLimiter contactLimiter,
                                VerificationProperties properties,
-                               Clock clock) {
+                               Clock clock,
+                               ThrottleAlertRecorder alerts) {
         this.providers = new EnumMap<>(VerificationLevel.class);
         if (providers != null) {
             this.providers.putAll(providers);
         }
         this.pendingRepository = Objects.requireNonNull(pendingRepository, "pendingRepository");
         this.sendLog = Objects.requireNonNull(sendLog, "sendLog");
+        this.contactLimiter = Objects.requireNonNull(contactLimiter, "contactLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.alerts = Objects.requireNonNull(alerts, "alerts");
     }
 
     /**
@@ -62,11 +78,12 @@ public class VerificationService {
      * active code for the same user+level is invalidated (one code at a time).
      *
      * @throws VerificationThrottledException when the cooldown has not elapsed
-     *                                        or the daily cap is reached (→ 429)
+     *                                        or the daily cap is reached (→ 429,
+     *                                        with {@code Retry-After} when computable)
      */
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         if (user.levels().contains(level)) {
-            // P1 fix: requesting a level that is already verified is a conflict
+            // Requesting a level that is already verified is a conflict
             // (409). No code is sent and no throttle budget is consumed.
             throw new AlreadyVerifiedException(level);
         }
@@ -74,23 +91,86 @@ public class VerificationService {
         long userId = Objects.requireNonNull(user, "user").getId();
         Instant now = clock.instant();
 
-        long cooldownSeconds = properties.cooldownSeconds();
-        if (cooldownSeconds > 0) {
-            Instant lastSentAt = sendLog.lastSentAt(userId, level);
-            if (lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
-                throw new VerificationThrottledException();
-            }
+        // ONE atomic check-and-record on the send log: a read-read-record
+        // across separately-synchronized methods would let a burst pass both
+        // reads before either recorded. A
+        // throttled decision records nothing; an OK decision has ALREADY
+        // recorded the send (so there is no trailing record() call).
+        VerificationSendLog.SendDecision decision = sendLog.tryRecord(
+                userId, level, contactFor(user, level), now,
+                properties.cooldownSeconds(), properties.maxPerDay());
+        if (decision != VerificationSendLog.SendDecision.OK) {
+            // Same generic message as before (which throttle fired is never
+            // revealed); the numeric retry-after is the new part — the client
+            // counts down instead of spam-clicking into repeated 429s.
+            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                    retryAfterSeconds(decision, userId, level, now));
         }
-        int maxPerDay = properties.maxPerDay();
-        if (maxPerDay > 0 && sendLog.countToday(userId, level) >= maxPerDay) {
-            throw new VerificationThrottledException();
+
+        // Per-contact rolling cap — the volume valve on REAL
+        // sends (Twilio/SMTP cost). "verify:" namespace keeps it independent
+        // of the "register:" attempt cap (registering an account must not
+        // eat its verification-send budget). It runs AFTER the per-(user,
+        // level) gate so a cooldown/daily-cap reject records nothing here;
+        // if THIS cap fires, the user-level send-log entry stays (bounded
+        // over-count — e-mail and phone are unique per user, so the
+        // contact's budget was spent by this same user's real sends).
+        RollingContactOtpLimiter.Result contact = contactLimiter.tryAcquire("verify:" + contactFor(user, level));
+        if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+            // The throttled contact lands in the admin alert ring
+            // (in-memory) before the 429 goes out.
+            alerts.otpContactCap(contactFor(user, level), contact.retryAfterSeconds());
+            throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
+                    contact.retryAfterSeconds());
         }
 
         PendingVerification pending = provider.request(user);
-        pendingRepository.findActiveByUserAndLevel(userId, level)
+        pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);
-        sendLog.record(userId, level, pending.getContact(), now);
+    }
+
+    /**
+     * The honest "seconds until a resend is allowed" for a throttled
+     * decision, computed from the SAME clock the decision used: the cooldown
+     * path counts down from the last recorded send, the daily-cap path
+     * counts down to the next UTC midnight where the cap resets (rounded up
+     * — waiting that long guarantees the reset; the frontend formats long
+     * durations).
+     */
+    private int retryAfterSeconds(VerificationSendLog.SendDecision decision, long userId,
+                                  VerificationLevel level, Instant now) {
+        return switch (decision) {
+            case COOLDOWN -> {
+                Instant lastSentAt = sendLog.lastSentAt(userId, level);
+                long secondsSince = lastSentAt == null
+                        ? 0 : Duration.between(lastSentAt, now).getSeconds();
+                yield (int) Math.max(0, properties.cooldownSeconds() - secondsSince);
+            }
+            case DAILY_CAP -> (int) Math.max(0, secondsUntilNextUtcMidnight(now));
+            case OK -> throw new IllegalStateException("no retry-after for an allowed send");
+        };
+    }
+
+    /** Seconds from {@code now} to the next UTC midnight, rounded up. */
+    private static long secondsUntilNextUtcMidnight(Instant now) {
+        Instant nextMidnight = LocalDate.now(ZoneOffset.UTC).plusDays(1)
+                .atStartOfDay(ZoneOffset.UTC).toInstant();
+        long millis = nextMidnight.toEpochMilli() - now.toEpochMilli();
+        return (millis + 999) / 1000;
+    }
+
+    /**
+     * The channel contact the send log records for a level — the same value
+     * the provider sends the code to (E.164 phone for PHONE, the e-mail for
+     * EMAIL). SMART_ID has no stored-code channel in v1 (stub); the e-mail
+     * stands in, and the controller rejects SMART_ID before any send.
+     */
+    private static String contactFor(RegisteredUser user, VerificationLevel level) {
+        if (level == VerificationLevel.PHONE) {
+            return PhoneNumbers.normalizeE164(user.getData().phone());
+        }
+        return user.getData().email();
     }
 
     /**
@@ -101,14 +181,14 @@ public class VerificationService {
      */
     public boolean confirmVerification(RegisteredUser user, VerificationLevel level, String code) {
         if (user.levels().contains(level)) {
-            // P1 fix: re-confirming an already-verified level is an idempotent
+            // Re-confirming an already-verified level is an idempotent
             // no-op. Without this guard, the second confirm re-inserts an
             // active claim row and violates the V3 partial unique index.
             return true;
         }
         VerificationProvider provider = providerFor(level);
         PendingVerification pending = pendingRepository
-                .findActiveByUserAndLevel(user.getId(), level)
+                .findActiveByUserAndLevel(user.getId(), level, clock.instant())
                 .orElse(null);
         if (pending == null) {
             return false;
@@ -116,7 +196,7 @@ public class VerificationService {
         if (!provider.confirm(user, pending, code)) {
             // Persist the attempt count: the JPA repo re-maps a fresh object on
             // every request, so without this save the attempts limit would never
-            // hold across HTTP calls (Step-2 key decision: attempts-limited).
+            // hold across HTTP calls (the attempts limit is deliberate).
             pendingRepository.save(pending);
             return false;
         }

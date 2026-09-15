@@ -2,11 +2,15 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
+import ee.sheltermap.domain.ShelterStatus;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -26,9 +30,49 @@ public class JpaShelterRepository implements ShelterRepository {
     @Override
     @Transactional
     public void save(Shelter shelter) {
-        ShelterEntity entity = toEntity(shelter);
+        ShelterEntity entity;
+        if (shelter.getId() != null) {
+            // UPDATE path: mutate the MANAGED row in place. The domain has no
+            // version field (B7b), so merging a fresh entity would carry a
+            // null @Version and the optimistic-lock UPDATE would match zero
+            // rows. In-place mutation keeps the row's current version, which
+            // is exactly what makes concurrent writes fail with an
+            // OptimisticLockException instead of clobbering each other.
+            entity = shelters.findById(shelter.getId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "cannot save shelter with unknown id " + shelter.getId()));
+        } else {
+            // INSERT path: fresh entity (Hibernate initialises @Version to 0).
+            entity = new ShelterEntity();
+        }
+        applyFields(entity, shelter);
         ShelterEntity saved = shelters.save(entity);
         shelter.setId(saved.getId());
+    }
+
+    /** Copies every writable domain field onto the entity (insert or update). */
+    private static void applyFields(ShelterEntity entity, Shelter shelter) {
+        entity.setName(shelter.getName());
+        entity.setLatitude(shelter.getLocation().lat());
+        entity.setLongitude(shelter.getLocation().lng());
+        entity.setStatus(shelter.getStatus());
+        entity.setSource(shelter.getSource());
+        entity.setExternalId(shelter.getExternalId());
+        entity.setAddress(shelter.getAddress());
+        entity.setCounty(shelter.getCounty());
+        entity.setMunicipality(shelter.getMunicipality());
+        entity.setDataAsOf(shelter.getDataAsOf());
+        entity.setSourceAttribution(shelter.getSourceAttribution());
+        entity.setDescription(shelter.getDescription());
+        entity.setCapacity(shelter.getCapacity());
+        entity.setCreatedAt(shelter.getCreatedAt());
+        entity.setCreatedBy(shelter.getCreatedBy());
+        entity.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
+        entity.setReviewStatus(shelter.getReviewStatus());
+        entity.setReviewNote(shelter.getReviewNote());
+        entity.setLocationKind(shelter.getLocationKind());
+        entity.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
+        entity.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
     }
 
     @Override
@@ -41,14 +85,6 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional(readOnly = true)
     public Optional<Shelter> findById(Long id) {
         return shelters.findById(id).map(JpaShelterRepository::toDomain);
-    }
-
-    @Override
-    @Transactional
-    public void saveAll(List<Shelter> list) {
-        for (Shelter shelter : list) {
-            save(shelter);
-        }
     }
 
     @Override
@@ -69,28 +105,67 @@ public class JpaShelterRepository implements ShelterRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Shelter> findAllBySourceIn(List<ShelterSource> sources) {
-        return shelters.findAllBySourceIn(sources).stream().map(JpaShelterRepository::toDomain).toList();
+    public List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources) {
+        return shelters.findAllBySourceInAndStatusOrderByIdAsc(sources, ShelterStatus.ACTIVE).stream()
+                .map(JpaShelterRepository::toDomain)
+                .toList();
     }
 
-    private static ShelterEntity toEntity(Shelter shelter) {
-        ShelterEntity entity = new ShelterEntity();
-        entity.setId(shelter.getId());
-        entity.setName(shelter.getName());
-        entity.setLatitude(shelter.getLocation().lat());
-        entity.setLongitude(shelter.getLocation().lng());
-        entity.setStatus(shelter.getStatus());
-        entity.setSource(shelter.getSource());
-        entity.setExternalId(shelter.getExternalId());
-        entity.setAddress(shelter.getAddress());
-        entity.setCounty(shelter.getCounty());
-        entity.setMunicipality(shelter.getMunicipality());
-        entity.setDataAsOf(shelter.getDataAsOf());
-        entity.setSourceAttribution(shelter.getSourceAttribution());
-        entity.setDescription(shelter.getDescription());
-        entity.setCapacity(shelter.getCapacity());
-        entity.setCreatedAt(shelter.getCreatedAt());
-        return entity;
+    @Override
+    @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndStatus(Long createdBy, ShelterSource source,
+                                                   ShelterStatus status) {
+        return shelters.countByCreatedByAndSourceAndStatus(createdBy, source, status);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndCreatedAtAfter(Long createdBy, ShelterSource source,
+                                                            Instant createdAtAfter) {
+        return shelters.countByCreatedByAndSourceAndCreatedAtAfter(createdBy, source, createdAtAfter);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByCreatedByAndSourceAndReviewStatus(Long createdBy, ShelterSource source,
+                                                         ReviewStatus reviewStatus) {
+        return shelters.countByCreatedByAndSourceAndReviewStatus(createdBy, source, reviewStatus);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<Shelter> findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+            Long createdBy, ShelterSource source, Instant createdAtAfter) {
+        return shelters.findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(
+                        createdBy, source, createdAtAfter)
+                .map(JpaShelterRepository::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Shelter> findByCreatedBy(Long userId) {
+        return shelters.findByCreatedByOrderByIdAsc(userId).stream().map(JpaShelterRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Shelter> findByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return shelters.findByIdIn(ids).stream().map(JpaShelterRepository::toDomain).toList();
+    }
+
+    @Override
+    @Transactional
+    public void deleteById(Long id) {
+        shelters.deleteById(id);
+        // Force the SQL DELETE (and its ON DELETE CASCADE onto the report
+        // tables) to run NOW, not at an arbitrary later auto-flush:
+        // a follow-up read of the child tables in the same transaction must
+        // already see the cascade (the shelters delete alone would not
+        // trigger the auto-flush — the query does not read the shelters table).
+        shelters.flush();
     }
 
     private static Shelter toDomain(ShelterEntity entity) {
@@ -109,6 +184,13 @@ public class JpaShelterRepository implements ShelterRepository {
                 entity.getCapacity());
         shelter.setId(entity.getId());
         shelter.setCreatedAt(entity.getCreatedAt());
+        shelter.setCreatedBy(entity.getCreatedBy());
+        shelter.setAutoHideDisarmed(entity.isAutoHideDisarmed());
+        shelter.setReviewStatus(entity.getReviewStatus());
+        shelter.setReviewNote(entity.getReviewNote());
+        shelter.setLocationKind(entity.getLocationKind());
+        shelter.setInaccurateMarkedAt(entity.getInaccurateMarkedAt());
+        shelter.setInaccurateMarkedBy(entity.getInaccurateMarkedBy());
         return shelter;
     }
 }

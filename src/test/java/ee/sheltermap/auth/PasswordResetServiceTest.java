@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import org.junit.jupiter.api.Test;
@@ -11,21 +12,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PasswordResetServiceTest {
 
+    private static final String EMAIL = "mari@example.ee";
+
     private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
     private final InMemoryUserRepository users = new InMemoryUserRepository();
-    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
-    private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository();
+    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository(clock);
+    private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService service = new PasswordResetService(
-            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock,
-            "http://localhost:5173");
+            users, credentials, tokens, refreshTokens, new StubPasswordHasher(), smtp, clock);
 
     private RegisteredUser savedUser() {
-        RegisteredUser user = new RegisteredUser("Mari", "mari@example.ee", "+37250000001", "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(user);
-        credentials.save(new UserCredentials(user.getId(), "h(oldpass)"));
+        credentials.save(new UserCredentials(user.getId(), "h(oldpass)", clock.instant()));
         return user;
+    }
+
+    /** Requests a reset and returns the 6-digit code the fake sender captured. */
+    private String requestCode() {
+        service.requestReset(EMAIL);
+        return TestTokens.fromResetEmail(smtp.last().message());
+    }
+
+    private static String aDifferentCode(String code) {
+        return code.equals("000000") ? "000001" : "000000";
+    }
+
+    private void assertPasswordUnchanged(RegisteredUser user) {
+        assertThat(credentials.findByUserId(user.getId()).getPasswordHash()).isEqualTo("h(oldpass)");
     }
 
     @Test
@@ -36,59 +52,190 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void requestStoresHashedTokenAndEmailsResetLink() {
+    void requestStoresHashedCodeAndEmailsTheCodeNotALink() {
         savedUser();
-        service.requestReset("mari@example.ee");
+        service.requestReset(EMAIL);
 
         assertThat(tokens.all()).hasSize(1);
         PasswordResetToken stored = tokens.all().get(0);
         assertThat(stored.isExpired(clock.instant())).isFalse();
 
         String message = smtp.last().message();
-        assertThat(message).startsWith("http://localhost:5173/reset?token=");
-        String token = TestTokens.fromResetUrl(message);
-        assertThat(stored.getTokenHash()).isNotEqualTo(token); // hashed at rest
-        assertThat(stored.getTokenHash()).isEqualTo(Hashes.sha256Hex(token));
+        String code = TestTokens.fromResetEmail(message);
+        assertThat(message)
+                .isEqualTo(AppInfo.APP_DISPLAY_NAME + " password reset code: " + code + " (valid 15 min)")
+                .doesNotContain("http"); // no URL link — the code is the whole message
+        assertThat(stored.getTokenHash()).isNotEqualTo(code); // hashed at rest
+        assertThat(stored.getTokenHash()).isEqualTo(Hashes.sha256Hex(code));
     }
 
     @Test
-    void resetWithValidTokenUpdatesPasswordMarksUsedAndRevokesAllSessions() {
+    void reissueWithinCooldownKeepsTheOriginalCodeValid() {
+        savedUser();
+        String first = requestCode();
+
+        clock.advance(Duration.ofSeconds(30)); // inside the 60 s cooldown (S1b)
+        service.requestReset(EMAIL);
+
+        // silent no-op: no new row, no new e-mail — the original code is
+        // still the single active one (rotation brute-force stays closed)
+        assertThat(tokens.all()).hasSize(1);
+        assertThat(smtp.sent()).hasSize(1);
+        assertThat(service.reset(EMAIL, first, "newpass")).isTrue();
+    }
+
+    @Test
+    void reissueAfterCooldownInvalidatesThePreviousCode() {
+        savedUser();
+        String first = requestCode();
+
+        clock.advance(Duration.ofSeconds(61)); // past the 60 s cooldown
+        String second = requestCode();
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(tokens.all()).hasSize(1); // the first code was invalidated
+        assertThat(service.reset(EMAIL, first, "newpass")).isFalse();
+        assertThat(service.reset(EMAIL, second, "newpass")).isTrue();
+    }
+
+    @Test
+    void sixthReissueOnTheSameUtcDayIsSkippedButStillSucceeds() {
+        savedUser();
+        // Five request+confirm cycles: each confirmed code leaves a USED row
+        // behind (the cap counts rows created today, incl. used ones).
+        for (int i = 0; i < 5; i++) {
+            if (i > 0) {
+                clock.advance(Duration.ofSeconds(61));
+            }
+            service.requestReset(EMAIL);
+            String code = TestTokens.fromResetEmail(smtp.last().message());
+            assertThat(service.reset(EMAIL, code, "newpass" + i)).isTrue();
+        }
+        assertThat(smtp.sent()).hasSize(5);
+        assertThat(tokens.all()).hasSize(5);
+
+        clock.advance(Duration.ofSeconds(61));
+        service.requestReset(EMAIL); // 6th reissue today -> silent skip (S1b)
+
+        // still the identical silent success — no 6th e-mail, no 6th row
+        assertThat(smtp.sent()).hasSize(5);
+        assertThat(tokens.all()).hasSize(5);
+    }
+
+    @Test
+    void resetWithValidCodeUpdatesPasswordMarksUsedAndRevokesAllSessions() {
         RegisteredUser user = savedUser();
         refreshTokens.save(Hashes.sha256Hex("session-refresh"), user.getId(), clock.instant().plus(Duration.ofDays(30)));
 
-        service.requestReset("mari@example.ee");
-        String token = TestTokens.fromResetUrl(smtp.last().message());
+        String code = requestCode();
 
-        assertThat(service.reset(token, "newpass")).isTrue();
+        assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
         assertThat(credentials.findByUserId(user.getId()).getPasswordHash()).isEqualTo("h(newpass)");
         assertThat(tokens.all().get(0).isUsed()).isTrue();
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex("session-refresh")).revokedAt()).isNotNull();
     }
 
     @Test
-    void resetWithWrongTokenFails() {
-        savedUser();
-        assertThat(service.reset("wrong-token", "newpass")).isFalse();
-        assertThat(credentials.findByUserId(users.findAll().get(0).getId()).getPasswordHash()).isEqualTo("h(oldpass)");
+    void resetWithWrongCodeFailsAndRecordsOneAttempt() {
+        RegisteredUser user = savedUser();
+        String code = requestCode();
+
+        assertThat(service.reset(EMAIL, aDifferentCode(code), "newpass")).isFalse();
+        assertPasswordUnchanged(user);
+        assertThat(tokens.all().get(0).getAttempts()).isEqualTo(1); // persisted brute-force guard
     }
 
     @Test
-    void resetWithExpiredTokenFails() {
+    void resetFailsAfterMaxAttemptsEvenWithTheCorrectCode() {
+        RegisteredUser user = savedUser();
+        String code = requestCode();
+        String wrong = aDifferentCode(code);
+
+        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS; i++) {
+            assertThat(service.reset(EMAIL, wrong, "newpass")).isFalse();
+        }
+        assertPasswordUnchanged(user);
+
+        // the code is locked out — even the correct one no longer works
+        assertThat(service.reset(EMAIL, code, "newpass")).isFalse();
+        assertPasswordUnchanged(user);
+    }
+
+    @Test
+    void exhaustedCodeIsReplacedByANewRequest() {
         savedUser();
-        service.requestReset("mari@example.ee");
-        String token = TestTokens.fromResetUrl(smtp.last().message());
+        String code = requestCode();
+        String wrong = aDifferentCode(code);
+        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS; i++) {
+            service.reset(EMAIL, wrong, "newpass");
+        }
+
+        clock.advance(Duration.ofSeconds(61)); // past the reissue cooldown
+        String fresh = requestCode(); // a new request resets the attempts
+        assertThat(service.reset(EMAIL, fresh, "newpass")).isTrue();
+    }
+
+    @Test
+    void resetForUnknownEmailFails() {
+        savedUser();
+        requestCode();
+        assertThat(service.reset("ghost@example.ee", "000000", "newpass")).isFalse();
+    }
+
+    @Test
+    void resetWithExpiredCodeFails() {
+        savedUser();
+        String code = requestCode();
         clock.advance(Duration.ofMinutes(16));
 
-        assertThat(service.reset(token, "newpass")).isFalse();
+        assertThat(service.reset(EMAIL, code, "newpass")).isFalse();
     }
 
     @Test
-    void resetTokenIsSingleUse() {
+    void resetWithExpiredCodeDoesNotCountAsAnAttempt() {
         savedUser();
-        service.requestReset("mari@example.ee");
-        String token = TestTokens.fromResetUrl(smtp.last().message());
+        String code = requestCode();
+        clock.advance(Duration.ofMinutes(16));
 
-        assertThat(service.reset(token, "newpass")).isTrue();
-        assertThat(service.reset(token, "another")).isFalse();
+        assertThat(service.reset(EMAIL, code, "newpass")).isFalse();
+        // an expired code is filtered out, not a failed guess — the attempts
+        // counter must stay untouched
+        assertThat(tokens.all().get(0).getAttempts()).isZero();
+    }
+
+    @Test
+    void resetCodeIsSingleUse() {
+        savedUser();
+        String code = requestCode();
+
+        assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
+        assertThat(service.reset(EMAIL, code, "another")).isFalse();
+    }
+
+    @Test
+    void resetWithUsedCodeDoesNotCountAsAnAttempt() {
+        savedUser();
+        String code = requestCode();
+
+        assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
+        assertThat(service.reset(EMAIL, code, "another")).isFalse();
+        assertThat(tokens.all().get(0).getAttempts()).isZero();
+    }
+
+    @Test
+    void resetSucceedsOnTheLastAllowedAttempt() {
+        RegisteredUser user = savedUser();
+        String code = requestCode();
+        String wrong = aDifferentCode(code);
+
+        // MAX_ATTEMPTS - 1 wrong guesses: the 5th slot must still accept the
+        // correct code (attempts < MAX, not attempts <= MAX)
+        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS - 1; i++) {
+            assertThat(service.reset(EMAIL, wrong, "newpass")).isFalse();
+        }
+        assertThat(tokens.all().get(0).getAttempts()).isEqualTo(PasswordResetService.MAX_ATTEMPTS - 1);
+
+        assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
+        assertThat(credentials.findByUserId(user.getId()).getPasswordHash()).isEqualTo("h(newpass)");
     }
 }

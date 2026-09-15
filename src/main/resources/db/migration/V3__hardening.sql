@@ -1,8 +1,8 @@
--- Shelter Map — V3 (hardening pass, code-review fixes).
+-- Shelter Map — V3.
 -- 1) users.email / users.phone become UNIQUE — duplicate registration must be
 --    impossible at the DB level (the API also pre-checks and answers 409).
--- 2) shelters gain description + capacity — user submissions used to validate
---    them at the boundary and then silently drop them; now they are stored.
+-- 2) shelters gain description + capacity — validated at the boundary and
+--    then stored.
 -- 3) at most ONE ACTIVE verification claim per (user, level) — the invariant
 --    that keeps concurrent confirms from producing duplicate active claims.
 -- ddl-auto=validate must stay green against these definitions.

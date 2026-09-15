@@ -22,12 +22,14 @@ public class VerificationClaim {
     public VerificationClaim(VerificationLevel level, String provider, String externalRef, Instant verifiedAt) {
         this.level = Objects.requireNonNull(level, "level");
         this.provider = Objects.requireNonNull(provider, "provider");
-        this.externalRef = Objects.requireNonNull(externalRef, "externalRef");
+        // May be null: a legacy row whose stored ref is blank carries no
+        // external reference.
+        this.externalRef = externalRef;
         this.verifiedAt = Objects.requireNonNull(verifiedAt, "verifiedAt");
     }
 
     /**
-     * Full-state constructor used by the persistence layer (Step 3) to
+     * Full-state constructor used by the persistence layer to
      * restore a previously revoked claim from storage.
      */
     public VerificationClaim(VerificationLevel level, String provider, String externalRef,
@@ -69,7 +71,13 @@ public class VerificationClaim {
         return revokedAt != null;
     }
 
-    public void revoke() {
-        this.revokedAt = Instant.now();
+    /**
+     * Revokes the claim at {@code revokedAt}. The stamp is supplied by the
+     * caller (the Clock-injected service) — like
+     * {@link ShelterReport#markDismissed(Instant)}, the domain never reads
+     * the wall clock itself, so tests can pin the instant.
+     */
+    public void revoke(Instant revokedAt) {
+        this.revokedAt = Objects.requireNonNull(revokedAt, "revokedAt");
     }
 }

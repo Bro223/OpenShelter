@@ -14,18 +14,22 @@ public interface SpringDataVerificationClaimRepository extends JpaRepository<Ver
     List<VerificationClaimEntity> findByUserId(Long userId);
 
     /**
-     * Removes all claims of a user (used by the replace-all save strategy).
+     * Removes exactly the claim rows with the given ids (diff-based
+     * save: only REMOVED claims go away — kept rows keep their ids).
      *
-     * <p>Must be a BULK delete ({@code @Modifying}): a derived delete queues
-     * {@code EntityManager.remove} in the persistence context, and Hibernate
-     * flushes INSERTs BEFORE DELETEs — so re-inserting the claims would hit
-     * the still-present active row and violate
+     * <p>Must be a BULK delete ({@code @Modifying}): a derived delete would
+     * queue {@code EntityManager.remove} in the persistence context, and
+     * Hibernate flushes INSERTs BEFORE DELETEs — so the re-inserted claims
+     * would hit the still-present active row and violate
      * {@code uq_verification_claims_user_level_active} (V3). A bulk delete
-     * runs immediately in SQL, before the queued inserts.
+     * runs immediately in SQL, before the re-inserts. {@code
+     * clearAutomatically} keeps the same stale-plus-fresh guarantee for
+     * in-tx reads; the ids of KEPT rows are copied onto the domain claims
+     * before this call, so the clear cannot lose them.
      */
-    @Modifying(flushAutomatically = true)
-    @Query("delete from VerificationClaimEntity v where v.userId = :userId")
-    void deleteByUserId(@Param("userId") Long userId);
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("delete from VerificationClaimEntity v where v.id in :ids")
+    void deleteByIds(@Param("ids") Collection<Long> ids);
 
     /** Batched claims lookup (used by {@code JpaUserRepository.findByIds}). */
     List<VerificationClaimEntity> findByUserIdIn(Collection<Long> userIds);

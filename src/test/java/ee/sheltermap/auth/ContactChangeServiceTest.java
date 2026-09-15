@@ -1,7 +1,6 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
-import ee.sheltermap.config.ContactChangeProperties;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.junit.jupiter.api.BeforeEach;
@@ -74,7 +73,7 @@ class ContactChangeServiceTest {
     }
 
     private RegisteredUser user(String email, String phone) {
-        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone);
         users.save(user);
         return user;
     }
@@ -126,21 +125,49 @@ class ContactChangeServiceTest {
     void confirmEmailChangeWithWrongCodeIncrementsAttemptsThenLocks() {
         RegisteredUser user = user("mari@example.ee", "+37250000001");
         service.requestEmailChange(user, "mari@new.ee");
+        String code = codeFrom(sms.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
 
         for (int i = 0; i < 5; i++) {
             int attempt = i + 1;
-            assertThatThrownBy(() -> service.confirmEmailChange(user, "000000"))
-                    .isInstanceOf(InvalidContactChangeException.class);
+            // A code failure is RETURNED, not thrown (the 400 is raised
+            // at the controller boundary) — the attempts increment persists
+            // either way, which is what the InMemory repo already showed.
+            ContactChangeResult result = service.confirmEmailChange(user, wrong);
+            assertThat(result.ok()).isFalse();
+            assertThat(result.failureMessage()).isEqualTo("Invalid code");
             PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
                     ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE).orElseThrow();
             assertThat(pending.getAttempts()).isEqualTo(attempt);
         }
 
-        assertThatThrownBy(() -> service.confirmEmailChange(user, codeFrom(sms.last().message())))
-                .isInstanceOf(InvalidContactChangeException.class)
-                .hasMessageContaining("too many attempts");
+        ContactChangeResult locked = service.confirmEmailChange(user, code);
+        assertThat(locked.ok()).isFalse();
+        assertThat(locked.failureMessage()).contains("Too many attempts");
         // email unchanged
         assertThat(user.getData().email()).isEqualTo("mari@example.ee");
+    }
+
+    @Test
+    void incrementAttemptsIsStoreAtomicAndStopsAtTheCap() {
+        // The lockout counter is incremented IN THE
+        // STORE, not by a read-modify-write. At the cap the increment must
+        // affect 0 rows instead of writing past the counter.
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        service.requestEmailChange(user, "mari@new.ee");
+        PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE).orElseThrow();
+
+        int max = 5;
+        for (int i = 1; i <= max; i++) {
+            assertThat(changes.incrementAttempts(pending.getId(), max)).isEqualTo(1);
+            assertThat(pending.getAttempts()).isEqualTo(i);
+        }
+        // at the cap: 0 rows updated, counter untouched
+        assertThat(changes.incrementAttempts(pending.getId(), max)).isZero();
+        assertThat(pending.getAttempts()).isEqualTo(max);
+        // unknown id: 0 rows
+        assertThat(changes.incrementAttempts(999L, max)).isZero();
     }
 
     @Test
@@ -201,6 +228,31 @@ class ContactChangeServiceTest {
         assertThat(user.getData().phone()).isEqualTo("+37255509999");
         assertThat(changes.findByUserIdAndType(user.getId(),
                 ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE)).isEmpty();
+    }
+
+    @Test
+    void confirmPhoneChangeWithWrongCodeIncrementsAttemptsThenLocks() {
+        // mirror of the e-mail lockout for the phone-change path
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        service.requestPhoneChange(user, "+37250009998");
+        String code = codeFrom(smtp.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        for (int i = 0; i < 5; i++) {
+            int attempt = i + 1;
+            ContactChangeResult result = service.confirmPhoneChange(user, wrong);
+            assertThat(result.ok()).isFalse();
+            assertThat(result.failureMessage()).isEqualTo("Invalid code");
+            PendingContactChange pending = changes.findByUserIdAndType(user.getId(),
+                    ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE).orElseThrow();
+            assertThat(pending.getAttempts()).isEqualTo(attempt);
+        }
+
+        ContactChangeResult locked = service.confirmPhoneChange(user, code);
+        assertThat(locked.ok()).isFalse();
+        assertThat(locked.failureMessage()).contains("Too many attempts");
+        // phone unchanged
+        assertThat(user.getData().phone()).isEqualTo("+37250000001");
     }
 
     @Test

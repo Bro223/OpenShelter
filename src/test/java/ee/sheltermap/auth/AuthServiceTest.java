@@ -14,20 +14,19 @@ class AuthServiceTest {
 
     private final InMemoryUserRepository users = new InMemoryUserRepository();
     private final UserService userService = new UserService(users);
-    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
+    private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
+    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository(clock);
     private final StubPasswordHasher hasher = new StubPasswordHasher();
     private final StubTokenService tokens = new StubTokenService();
-    private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
-    private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository();
+    private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService passwordReset = new PasswordResetService(
-            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock,
-            "http://localhost:5173");
-    private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset);
+            users, credentials, resetTokens, refreshTokens, hasher, smtp, clock);
+    private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset, clock);
 
     private void registerMari() {
-        auth.register(new RegisterRequest("Mari", "mari@example.ee", "+37250000001", "49001010001", "s3cret"));
+        auth.register(new RegisterRequest("Mari", "mari@example.ee", "+37250000001", "s3cret"));
     }
 
     private Long mariId() {
@@ -48,7 +47,7 @@ class AuthServiceTest {
     void loginUnknownUserThrowsGenericError() {
         assertThatThrownBy(() -> auth.login(new LoginRequest("ghost@example.ee", "x")))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("invalid credentials");
+                .hasMessage("Invalid credentials");
     }
 
     @Test
@@ -56,7 +55,64 @@ class AuthServiceTest {
         registerMari();
         assertThatThrownBy(() -> auth.login(new LoginRequest("mari@example.ee", "wrong")))
                 .isInstanceOf(InvalidCredentialsException.class)
-                .hasMessage("invalid credentials");
+                .hasMessage("Invalid credentials");
+    }
+
+    @Test
+    void loginUnknownContactWithDummyPasswordThrowsSameGenericError() {
+        // The dummy verify is a timing equalizer, not a credential check —
+        // the literal password "dummy" verifies against
+        // AuthService.DUMMY_PASSWORD_HASH (the stub mirrors the real hasher
+        // here), so an unknown contact with "dummy" must still get the
+        // generic 401 — tokens.issue(null) would otherwise NPE into a 500
+        // and reveal the account does not exist.
+        assertThatThrownBy(() -> auth.login(new LoginRequest("ghost@example.ee", "dummy")))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid credentials");
+    }
+
+    @Test
+    void loginKnownContactWithDummyPasswordThrowsSameGenericError() {
+        // The "dummy" password is only special against the DUMMY hash —
+        // a real stored hash still rejects it with the generic 401.
+        registerMari();
+        assertThatThrownBy(() -> auth.login(new LoginRequest("mari@example.ee", "dummy")))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid credentials");
+    }
+
+    @Test
+    void loginRunsExactlyOneHashVerificationForUnknownAndKnownContacts() {
+        // The timing equalizer: every login — unknown
+        // contact, known contact with a wrong password, known contact with
+        // the right one — must run verify() EXACTLY ONCE, so response time
+        // never reveals whether the account exists.
+        CountingHasher counting = new CountingHasher();
+        AuthService countingAuth =
+                new AuthService(userService, counting, credentials, tokens, passwordReset, clock);
+
+        assertThatThrownBy(() -> countingAuth.login(new LoginRequest("ghost@example.ee", "x")))
+                .isInstanceOf(InvalidCredentialsException.class);
+        assertThat(counting.verifyCalls).isEqualTo(1);
+
+        registerMari();
+        assertThatThrownBy(() -> countingAuth.login(new LoginRequest("mari@example.ee", "wrong")))
+                .isInstanceOf(InvalidCredentialsException.class);
+        assertThat(counting.verifyCalls).isEqualTo(2);
+
+        countingAuth.login(new LoginRequest("mari@example.ee", "s3cret"));
+        assertThat(counting.verifyCalls).isEqualTo(3);
+    }
+
+    /** {@link StubPasswordHasher} that counts verify() calls. */
+    private static final class CountingHasher extends StubPasswordHasher {
+        int verifyCalls;
+
+        @Override
+        public boolean verify(String plain, String hash) {
+            verifyCalls++;
+            return super.verify(plain, hash);
+        }
     }
 
     @Test
@@ -83,9 +139,10 @@ class AuthServiceTest {
     }
 
     @Test
-    void resetPasswordWithInvalidTokenThrows() {
-        assertThatThrownBy(() -> auth.resetPassword("bogus", "newpass"))
-                .isInstanceOf(InvalidResetTokenException.class);
+    void resetPasswordWithInvalidCodeThrows() {
+        assertThatThrownBy(() -> auth.resetPassword("mari@example.ee", "bogus", "newpass"))
+                .isInstanceOf(InvalidResetTokenException.class)
+                .hasMessage("Invalid or expired reset code");
     }
 
     @Test
@@ -94,8 +151,8 @@ class AuthServiceTest {
         refreshTokens.save(Hashes.sha256Hex("old-refresh"), mariId(), clock.instant().plus(Duration.ofDays(30)));
 
         auth.requestPasswordReset("mari@example.ee");
-        String token = TestTokens.fromResetUrl(smtp.last().message());
-        auth.resetPassword(token, "newpass");
+        String code = TestTokens.fromResetEmail(smtp.last().message());
+        auth.resetPassword("mari@example.ee", code, "newpass");
 
         assertThat(credentials.findByUserId(mariId()).getPasswordHash()).isEqualTo("h(newpass)");
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex("old-refresh")).revokedAt()).isNotNull();

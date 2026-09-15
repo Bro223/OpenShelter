@@ -1,0 +1,229 @@
+@startuml
+' As-built detail + trust-report + submission flow.
+' The review model is gone (V21__drop_reviews.sql drops shelter_reviews and
+' review_reports): there is no review list, no review write/delete and no
+' star rating anywhere in the app. The file name is historical (the build
+' pack lists this diagram by name); the surviving flows are below.
+title Shelter Detail, Trust Reports & Submission Flow (M5-M6, M8, M11)
+
+actor Person
+
+participant "ShelterDetailPage" as DP
+participant "SubmitShelterPage" as SP
+participant "ContributionsPanel" as CP
+participant "ShelterGateway" as SHG
+participant "GeoGateway" as GG
+participant "GeocodeGateway" as GCG
+participant "OSM Nominatim (external, client-side)" as NOM
+participant "ApiClient" as AC
+database "Spring Boot API" as API
+
+== Shelter detail (public) ==
+Person -> DP : open /shelters/123
+DP -> SHG : get(123)
+SHG -> AC : get<ShelterDetailDto>('/api/shelters/123')
+AC -> API : GET /api/shelters/123
+API --> AC : ShelterDetailDto (the list fields + yourOccupancyBand + yourOpenStatus)
+note over DP
+  The detail read is public for ALL statuses (incl. auto-hidden / rejected).
+  Header badges come from the shared copy, only when the DTO carries the
+  state (never client-derived): the provenance chip (provenance), the
+  "Reported (n)" badge (nonexistentReports > 0), the open/closed text
+  (openStatus) and the occupancy text (occupancy - firm or hedged band).
+end note
+note over DP
+  Location section: a static Leaflet map (page-scoped LeafletService,
+  the same service as /map) flown to the shelter (SHELTER_ZOOM 16) with
+  one non-interactive marker. The header also carries the navigate deep
+  links (Google Maps walking / Apple Maps, target=_blank rel=noopener)
+  and the "Distance from you" action (client-side Haversine - no backend
+  call, no IP geolocation).
+end note
+DP --> Person : shelter info + location map + navigate/distance actions
+
+== Report this shelter (verified viewers) ==
+note over DP
+  Verified only: anonymous / unverified get the login/verify prompts.
+  The picker offers NON_EXISTENT, WRONG_LOCATION and OTHER (the factual
+  types carry a detail field, <= 500 chars); CLOSED / OPEN_CONFIRMED stay
+  in the ShelterReportType union for stored rows but are no longer picker
+  options - open/closed has its own live picker below. One report per
+  (shelter, user, type); the duplicate check (409) runs BEFORE the shared
+  per-user throttle budget (10 report-type actions / rolling hour -> 429).
+end note
+Person -> DP : "Report" -> pick a type + detail (factual types only)
+DP -> SHG : report(123, {type, detail?})
+SHG -> AC : post<ShelterReportResult>('/api/shelters/123/reports', body)
+AC -> API : POST /api/shelters/123/reports
+alt 200 {damped: true|false}
+  DP -> SHG : get(123)   ' the trust badges may have changed
+  DP --> Person : picker closed + success notice (damped copy when true) + refetched shelter
+else 409 duplicate (shelter, user, type)
+  API --> AC : ErrorResponse 409
+  DP --> Person : the server's message inline near the picker
+else 403 (unverified) / 429 (throttle)
+  API --> AC : ErrorResponse
+  DP --> Person : banner (verify prompt / "slow down" copy)
+end
+
+== Report how full (verified viewers) ==
+note over DP
+  Three large band buttons (Space available / Getting full / Full) -
+  one tap, latest-wins upsert (NO 409: a re-tap is the update).
+  Pre-selected from the detail DTO's yourOccupancyBand. Display-only
+  server-side: 2 h freshness, latest fresh band wins, 1 agreeing report
+  = hedged copy ("Reported full"), 2+ = firm ("Full").
+end note
+Person -> DP : tap a band button
+DP -> SHG : reportOccupancy(123, band)
+SHG -> AC : put<void>('/api/shelters/123/occupancy', {band})
+AC -> API : PUT /api/shelters/123/occupancy
+alt 204 No Content
+  DP -> SHG : get(123)
+  DP --> Person : the aggregate + recency line updated (occupancyText)
+else 403 (unverified) / 429 (throttle)
+  API --> AC : ErrorResponse
+  DP --> Person : banner
+end
+
+== Report open / closed (verified viewers) ==
+note over DP
+  Two state buttons (Open / Closed) - one live state per user per
+  shelter, latest edit wins (NO 409: a re-tap is the update). Pre-selected
+  from the detail DTO's yourOpenStatus. NOT throttled - a tap is a state,
+  not a report action (it consumes no action-log budget). Display-only
+  server-side: 2 h freshness, the latest fresh state wins, 1 agreeing
+  report = hedged copy ("Reported closed"), 2+ = firm ("Closed").
+end note
+Person -> DP : tap Open or Closed
+DP -> SHG : putOpenStatus(123, state)
+SHG -> AC : put<void>('/api/shelters/123/open-status', {state})
+AC -> API : PUT /api/shelters/123/open-status
+alt 204 No Content
+  DP -> SHG : get(123)
+  DP --> Person : the status row + badges updated (openStatus)
+else 400 (bad enum) / 403 (unverified) / 404
+  API --> AC : ErrorResponse
+  DP --> Person : banner
+end
+
+== Submit a shelter (verified users) ==
+note over SP
+  Route /submit guarded by AuthGuard + VerifiedGuard. The location
+  section keeps ONE shared location signal written by FIVE capture
+  modes: (1) smart text input - coordinate strings (incl. DMS, auto
+  lng/lat swap), long-form map URLs parsed client-side by the pure
+  parseLocationInput (shared/location-input.ts); (2) "Use my location"
+  geolocation; (3) mini-map click/drag; (4) maps.app.goo.gl short links
+  resolved by the backend (POST /api/geo/resolve); (5) Estonia address
+  search - client-side Nominatim geocoding via GeocodeGateway (one
+  deliberate request per press, hard 1 req/s spacing, always-rendered
+  "(c) OpenStreetMap contributors" attribution). The read-only
+  coordinate readout (+ source/swapped/accuracy hints) is a DISPLAY of
+  the shared signal, not a capture mode. A FAILED capture clears the pin
+  (never a silent stale pin) - a failed address SEARCH never touches the
+  pin (inline state only, never blocks submit). The page pre-checks the
+  Estonia bbox client-side (inline error, nothing is sent) and the
+  backend re-checks (400 otherwise). capacity 1..100_000,
+  description <= 2000 chars.
+end note
+Person -> SP : fill name, description, capacity
+group capture the location (any order, repeats allowed)
+  alt typed coordinates / DMS / long-form map URL
+    Person -> SP : type text + Enter (or "Set location")
+    SP --> Person : shared location set - marker + read-only readout
+    note right of SP
+      parseLocationInput: bbox gate, (lng,lat) auto-swap,
+      inline error on no-pair / out-of-bounds / invalid
+    end note
+  else "Use my location"
+    Person -> SP : click geolocation
+    SP --> Person : marker at device position + accuracy hint
+  else mini-map pick
+    Person -> SP : click / drag the pin
+    SP --> Person : shared location set (marker follows)
+  else maps.app.goo.gl short link
+    Person -> SP : paste short link + "Set location"
+    SP -> GG : resolve(url)   ' "Resolving..." pending state
+    GG -> AC : post<LocationResolved>('/api/geo/resolve', {url})
+    AC -> API : POST /api/geo/resolve
+    alt 200
+      API --> AC : LocationResolved {latitude, longitude}
+      SP --> Person : shared location set (same as a pick)
+    else 400 / 429 / 502
+      API --> AC : ErrorResponse
+      SP --> Person : inline error (pin cleared; 429 = "try again in a minute")
+    end
+  else Estonia address search (client-side Nominatim)
+    Person -> SP : type address + "Search" (or Enter)   ' no autosuggest
+    SP -> GCG : search(query)   ' "Searching..." pending; hard 1 req/s spacing
+    GCG -> NOM : GET /search?format=jsonv2&limit=5&countrycodes=ee
+    NOM --> GCG : <= 5 results (display name + string lat/lon)
+    GCG --> SP : results (429 -> "please wait a moment"; network -> generic copy)
+    Person -> SP : pick a result
+    SP --> Person : shared location set + address field prefilled ONLY IF empty
+    note right of SP
+      A failed SEARCH (no results / 429 / network) never touches the pin -
+      inline state only, never blocks submit.
+    end note
+  end
+end
+SP -> SHG : create(request)
+SHG -> AC : post<ShelterDto>('/api/shelters', body)
+AC -> API : POST /api/shelters
+alt 201 Created + Location header
+  API --> AC : ShelterDto (source=USER, status=ACTIVE)
+  SP --> Person : navigate('/shelters/{id}')
+else 400 out-of-Estonia/fields / 401 anonymous / 403 not verified / 409 cap or near-duplicate / 429 daily cap
+  API --> AC : ErrorResponse
+  SP --> Person : banner with message (input preserved; 403 adds a /verify link; 409 = "The limit of 10 active shelters has been reached")
+end
+
+note over DP
+  USER-submitted rows are sacred on the backend: the registry
+  importer never touches source=USER shelters.
+end note
+
+== Manage my contributions (M8, account page) ==
+note over CP
+  The /account page's "My contributions" panel (ContributionsPanel,
+  embedded in AccountPage). It lists the caller's own shelters (the
+  review half is gone with the review model); each row carries its
+  reviewStatus (NEW / CONFIRMED / REJECTED), the admin's reviewNote and
+  the moderator's infoRequest when present. Edits are inline-expanding
+  forms (no modals); deletes are two-step confirms (no window.confirm).
+end note
+Person -> CP : open /account
+== shelters list ==
+CP -> SHG : mine()
+SHG -> AC : get<MineShelterDto[]>('/api/shelters/mine')
+AC -> API : GET /api/shelters/mine (Bearer JWT)
+API --> CP : MineShelterDto[] (the caller's USER rows, ALL statuses)
+note over CP
+  Auto-hidden (INACTIVE) and REJECTED rows stay in the owner's list, each
+  marked "Hidden - reported by the community (N reports)" (or the admin's
+  REJECT reason) - no restore action (restore is admin-only).
+end note
+Person -> CP : edit a shelter row (inline form)
+CP -> SHG : update(id, name/lat/lng/description/capacity)
+SHG -> AC : put<ShelterDto>('/api/shelters/{id}', body)
+alt 200 updated
+  API --> CP : ShelterDto -> row updated in place (no page reload)
+else 400 (bbox/fields) / 403 (not the author) / 404 (absent)
+  API --> CP : ErrorResponse -> banner via bannerMessage, row unchanged
+end
+Person -> CP : delete a shelter (two-step confirm)
+CP -> SHG : remove(id)
+SHG -> AC : delete('/api/shelters/{id}')
+AC -> API : DELETE /api/shelters/{id}
+API --> CP : 204 No Content -> row removed (reports and occupancy cascade)
+Person -> CP : answer the moderator's information request (one-time)
+CP -> SHG : replyInfoRequest(id, message)
+SHG -> AC : post<void>('/api/shelters/{id}/info-request/reply', {message})
+AC -> API : POST /api/shelters/{id}/info-request/reply
+alt 204 No Content
+  API --> CP : row patched in place (the reply is read-only afterwards)
+else 404 (no request) / 409 (already answered)
+  API --> CP : ErrorResponse -> row error via bannerMessage
+end
+@enduml

@@ -1,0 +1,269 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.shell-header {
+  /* position: relative anchors the <900px .shell-menu dropdown (top: 100%). */
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* brand/nav/actions reflow instead of overflowing at narrow widths */
+  gap: var(--space-12) var(--space-24);
+  padding: var(--space-12) var(--space-20);
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  .brand {
+    font-weight: var(--font-weight-bold);
+    font-size: var(--text-xl);
+    color: inherit;
+    text-decoration: none;
+    letter-spacing: var(--tracking-brand);
+  }
+}
+
+/* Burger button — hidden at >=900 (the inline .shell-menu row shows
+   instead); the display + icon styles live in the narrow @media block. */
+.shell-burger {
+  display: none;
+}
+
+/* >=900: a normal flex row (brand | [nav ... actions]). flex: 1 fills the
+   remaining header width so .shell-actions' margin-left: auto still pushes
+   the actions to the header's right edge — visually the old inline layout.
+   Below 900 the same node becomes the absolutely-positioned dropdown
+   panel (see the narrow @media block). */
+.shell-menu {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-24);
+}
+
+.shell-nav {
+  display: flex;
+  gap: var(--space-16);
+
+  a {
+    color: inherit;
+    text-decoration: none;
+    padding: var(--space-4) var(--space-6);
+
+    &.active {
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+  }
+}
+
+.shell-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+/* Language switcher (i18n-et-en): a compact two-button group
+   of the global .btn ghosts (48px target included); at <900 it stretches
+   to the panel row width like the other action buttons. */
+.shell-lang {
+  display: flex;
+  gap: var(--space-8);
+}
+
+.shell-body {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--space-24) var(--space-20) var(--space-48);
+  /* Flex column so a page can flex-fill the remaining viewport height
+     (the map page's map+sidebar block stretches to fill instead of
+     leaving dead space above the footer). Single-root pages are
+     visually unchanged. */
+  display: flex;
+  flex-direction: column;
+
+  /* The <router-outlet> element stays in the DOM as the routed component's
+     wrapper — it must be a flex pass-through too, or the page root is a
+     block child of a plain inline element and its own flex: 1 has no
+     flex container to work against (the block that never grew). */
+  router-outlet {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+}
+
+/* App-wide safety-notice footer (see page-shell.html): secondary text,
+   never crisis orange; the footer hugs the bottom of the page flow
+   (min-height keeps it below the body). Layout (owner's decision): the meta
+   row (legal + provenance, centred as a pair) on TOP, the notice on the
+   BOTTOM — centred, on its own full-width line (no max-width cap: the
+   combined sentence must not wrap on desktop; 20px side padding only). */
+.shell-footer {
+  width: 100%;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+
+  .shell-footer__notice {
+    max-width: none;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-20) var(--space-16);
+    text-align: center;
+    font-size: var(--text-sm);
+    line-height: 1.4;
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-primary);
+    }
+  }
+
+  /* The meta row (footer restructure, owner decision): legal links and
+     data provenance are TWO GROUPS, not more uniform text lines — centred
+     as a pair on desktop, stacked on narrow. The container owns the
+     horizontal padding; the children are plain inline flows. */
+  .shell-footer__meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-16) var(--space-20) 0;
+  }
+
+  .shell-footer__legal {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-primary);
+    }
+
+    span {
+      margin: 0 var(--space-6);
+    }
+  }
+
+  .shell-footer__data {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-primary);
+    }
+
+    span {
+      margin: 0 var(--space-6);
+    }
+  }
+
+  /* The documented 900px literal (--bp-narrow; @media cannot consume
+     var(), see styles.scss): desktop — the two meta groups share one row,
+     legal left + provenance right, text baselines aligned. */
+  @media (min-width: 900px) {
+    .shell-footer__meta {
+      flex-direction: row;
+      justify-content: center;
+      gap: var(--space-32);
+      align-items: baseline;
+    }
+  }
+}
+
+/* Narrow-viewport breakpoint — the documented 900px literal (the
+   --bp-narrow value; @media cannot consume var() in browsers, see
+   styles.scss). The header collapses to brand + burger; .shell-menu
+   becomes the full-width dropdown panel, hidden until opened. */
+@media (max-width: 900px) {
+  .shell-burger {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-6);
+    margin-left: auto; /* right-aligned in the header row */
+    /* 48px touch target — the same rule as the global .btn min-height. */
+    min-height: var(--space-48);
+    min-width: var(--space-48);
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+
+    .shell-burger__bar {
+      display: block;
+      width: var(--space-24);
+      height: var(--space-2);
+      border-radius: var(--radius-sm);
+      background: currentColor; /* follows the themed text colour */
+    }
+  }
+
+  .shell-menu {
+    /* Dropdown panel: directly under the header, full width, hidden until
+       opened (.shell-menu--open). */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    /* Above the page content — on /map that means above the only other
+       z-indices in the app: the leaflet panes (200-700) and the map
+       legend (1000). */
+    z-index: 1100;
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: var(--space-8) var(--space-20) var(--space-16);
+    background: var(--color-bg-surface);
+    border-bottom: 1px solid var(--color-border-subtle);
+
+    &.shell-menu--open {
+      display: flex;
+    }
+
+    .shell-nav {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+
+      a {
+        display: flex;
+        align-items: center;
+        /* 48px touch target per panel row. */
+        min-height: var(--space-48);
+      }
+    }
+
+    .shell-actions {
+      margin-left: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+
+      .btn {
+        width: 100%;
+        /* Left-aligned panel rows — the documented .btn exception (same
+             opt-out the shelter-row__details buttons use). */
+        justify-content: flex-start;
+      }
+
+      /* The switcher stays a side-by-side row inside its full-width
+           panel row (the group stretches, the buttons split it). */
+      .shell-lang {
+        width: 100%;
+
+        .btn {
+          flex: 1;
+          justify-content: center;
+        }
+      }
+    }
+  }
+}

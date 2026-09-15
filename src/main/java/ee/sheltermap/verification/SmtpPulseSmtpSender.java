@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,8 +18,9 @@ import java.util.Objects;
  * {@code app.mail.provider=smtp-pulse} (default: dev console sender).
  *
  * <p>Logs metadata only, never the message body — the payload carries the
- * verification token / reset link (SmtpSender contract). Credentials come
- * exclusively from env vars (spring.mail.username/password), never from code.
+ * one-time codes (verification, contact change, password reset).
+ * Credentials come exclusively from env vars (spring.mail.username/password),
+ * never from code.
  *
  * <p>Delivery failures are logged, never thrown: password-reset and
  * verification requests must "always succeed" (no account enumeration,
@@ -45,14 +47,31 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setFrom(from);
             mail.setTo(email);
-            mail.setSubject("Shelter Map");
+            mail.setSubject(AppInfo.APP_DISPLAY_NAME);
             mail.setText(message);
             mailSender.send(mail);
-            log.info("SMTP e-mail sent to {} (subject 'Shelter Map')", email);
+            log.info("SMTP e-mail sent to {} (subject '{}')", maskEmail(email), AppInfo.APP_DISPLAY_NAME);
         } catch (MailException ex) {
             // Never surface delivery problems to callers: the API contract is
             // "reset/verify always succeeds" (anti-enumeration, no 500s).
-            log.error("SMTP delivery to {} failed: {}", email, ex.getMessage());
+            log.error("SMTP delivery to {} failed: {}", maskEmail(email), ex.getMessage());
         }
+    }
+
+    /**
+     * Log-safe e-mail mask (PII): first character + {@code ***} + the
+     * full domain, e.g. {@code janes.doe@example.com} → {@code j***@example.com}.
+     * Logs must not carry the full address (it is a login contact +
+     * account-recovery channel).
+     */
+    private static String maskEmail(String email) {
+        if (email == null) {
+            return "?";
+        }
+        int at = email.indexOf('@');
+        if (at <= 0) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 }

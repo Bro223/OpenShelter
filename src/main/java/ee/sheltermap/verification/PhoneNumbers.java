@@ -23,7 +23,7 @@ public final class PhoneNumbers {
      *       (e.g. {@code 37212345}), which are ambiguous: prefixing them
      *       again ({@code +37237212345}) would misroute to Estonia. Those are
      *       left as-is so the SMS channel surfaces the invalid number instead
-     *       of silently sending it to the wrong country (P2 fix)</li>
+     *       of silently sending it to the wrong country</li>
      *   <li>{@code 372XXXXXXX} (country code typed without {@code +}) →
      *       {@code +372XXXXXXX}</li>
      *   <li>already {@code +}… is passed through unchanged</li>

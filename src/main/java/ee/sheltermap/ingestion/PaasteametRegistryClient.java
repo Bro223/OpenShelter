@@ -1,10 +1,14 @@
 package ee.sheltermap.ingestion;
 
-import ee.sheltermap.config.RegistryProperties;
+import ee.sheltermap.domain.ShelterSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,10 +34,22 @@ import java.util.List;
  * and ignores {@code srsName} — every point is transformed to WGS84 by
  * {@link LEst97Transformer} before it leaves this class, so downstream code
  * only ever sees latitude/longitude.
+ *
+ * <p>Legacy opt-in: the registry client defaults to
+ * {@code csv} ({@link RegistryProperties} + {@code application.yml}), so this
+ * WFS client activates only when {@code app.registry.client=paasteamet} is
+ * selected explicitly — the property is always supplied, so nothing depends
+ * on a {@code matchIfMissing} fallback. The upstream WFS layer is dead; the
+ * CSV client is the shipped source.
  */
 @Service
-@ConditionalOnProperty(name = "app.registry.client", havingValue = "paasteamet", matchIfMissing = true)
+// No matchIfMissing: the registry client defaults to 'csv' (RegistryProperties +
+// application.yml), so the legacy WFS client activates only when explicitly
+// selected — the property is always supplied, so nothing depends on the fallback.
+@ConditionalOnProperty(name = "app.registry.client", havingValue = "paasteamet")
 public class PaasteametRegistryClient implements ShelterRegistryClient {
+
+    private static final Logger log = LoggerFactory.getLogger(PaasteametRegistryClient.class);
 
     /** Backoff base: 100 ms, doubling per attempt (100, 200, 400 …). */
     private static final long BACKOFF_BASE_MILLIS = 100;
@@ -64,28 +80,51 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
     }
 
     @Override
+    public ShelterSource source() {
+        return ShelterSource.PAASETEAMET;
+    }
+
+    @Override
     public List<RegistryShelterDto> fetchAll() {
         int startIndex = 0;
         List<RegistryShelterDto> all = new ArrayList<>();
+        int dropped = 0;
         while (true) {
+            if (hasReachedPageCap(startIndex, pageSize)) {
+                break; // runaway guard — checked BEFORE the fetch, so the
+                       // walk is capped at exactly MAX_PAGES pages
+            }
             WfsFeatureCollection page = fetchPage(startIndex);
             List<WfsFeature> features = page.features() == null ? List.of() : page.features();
             for (WfsFeature feature : features) {
                 RegistryShelterDto dto = toDto(feature);
                 if (dto != null) {
                     all.add(dto);
+                } else {
+                    dropped++; // client-level drop — counted, never silent
                 }
             }
             if (features.size() < pageSize) {
                 break; // short page ends the walk
             }
-            if (startIndex / pageSize >= MAX_PAGES) {
-                break; // runaway guard — never loop forever on a misbehaving registry
-            }
             sleep(politenessDelay); // politeness between pages
             startIndex += pageSize;
         }
+        if (dropped > 0) {
+            // Not visible in the import's skipped count (the parser never saw
+            // these rows) — the log is the only record of the loss.
+            log.warn("Paasteamet registry returned {} unusable feature(s) this run (missing "
+                    + "geometry/properties or non-finite coordinates) — dropped", dropped);
+        }
         return all;
+    }
+
+    /**
+     * Runaway guard: true once the walk would serve its MAX_PAGES-th page
+     * (i.e. exactly MAX_PAGES pages may be fetched, never MAX_PAGES + 1).
+     */
+    static boolean hasReachedPageCap(int startIndex, int pageSize) {
+        return startIndex / pageSize >= MAX_PAGES;
     }
 
     private WfsFeatureCollection fetchPage(int startIndex) {
@@ -105,15 +144,39 @@ public class PaasteametRegistryClient implements ShelterRegistryClient {
                         .retrieve()
                         .body(WfsFeatureCollection.class);
             } catch (RestClientException e) {
-                if (attempt >= maxRetries) {
+                // Retry ONLY transient failures — network problems and
+                // 5xx responses. A deterministic 4xx (bad request, auth,
+                // gone…) will never succeed on retry, so fail fast instead
+                // of burning the whole retry budget and reporting
+                // "registry unreachable".
+                if (!isTransient(e) || attempt >= maxRetries) {
                     throw new RegistryUnavailableException(
-                            "Päästeamet registry unreachable after " + (maxRetries + 1)
-                                    + " attempts (startIndex " + startIndex + ")", e);
+                            isTransient(e)
+                                    ? "Päästeamet registry unreachable after " + (maxRetries + 1)
+                                            + " attempts (startIndex " + startIndex + ")"
+                                    : "Päästeamet registry failed deterministically, no retry "
+                                            + "(startIndex " + startIndex + "): " + e.getMessage(),
+                            e);
                 }
                 sleep(Duration.ofMillis(BACKOFF_BASE_MILLIS << attempt)); // exponential backoff
                 attempt++;
             }
         }
+    }
+
+    /**
+     * Transient = worth a retry: network-level failures
+     * ({@link ResourceAccessException}) and server-side errors (5xx).
+     * Everything else (4xx, unparseable 200 bodies…) is deterministic.
+     */
+    private static boolean isTransient(RestClientException e) {
+        if (e instanceof ResourceAccessException) {
+            return true;
+        }
+        if (e instanceof RestClientResponseException response) {
+            return response.getStatusCode().is5xxServerError();
+        }
+        return false;
     }
 
     /** Maps one WFS feature to the neutral DTO; {@code null} when unusable. */

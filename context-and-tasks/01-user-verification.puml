@@ -8,9 +8,11 @@ title Shelter Map - User & Verification (Core with providers)
 '    about themselves; services perform work.
 ' 2. Inheritance only for genuine is-a, fixed at creation (Ch 1):
 '    User (abstract = Bird) <- GuestUser (Pigeon), RegisteredUser
-'    (Penguin). Subclasses OVERRIDE base methods; they never add
-'    methods a base reference cannot see. (AdminUser was removed in
-'    the review-fix pass - v1 has no admin/staff role.)
+'    (Penguin), AdminUser (admin-moderation D1 - the env-provisioned admin;
+'    it was removed as dead code in the review-fix pass and came back WITH a
+'    real provisioning path, the auth AdminSeeder - never the registration
+'    flow). Subclasses OVERRIDE base methods; they never add
+'    methods a base reference cannot see.
 ' 3. Prefer composition first (Ch 1): runtime-changing state is
 '    DATA. Verification = Set<VerificationClaim> - an object never
 '    changes class, but its claims can be added/revoked.
@@ -39,20 +41,34 @@ package "domain" {
     - name : String
     - email : String
     - phone : String
-    - nationalIdCode : String
     - verifications : Set<VerificationClaim>
     --
-    + RegisteredUser(name, email, phone, nationalIdCode)
+    + RegisteredUser(name, email, phone)
     + levels() : Set<VerificationLevel>
     + canWrite() : boolean
     + deleteAccount() : void
+  }
+
+  class AdminUser {
+    ' The third fixed kind (admin-moderation D1): the env-provisioned
+    ' admin - a fully verified registered account whose row kind, not its
+    ' class, is the authorization truth (fresh kind lookup per /admin/*
+    ' request, no JWT claim - D2).
+    --
+    + AdminUser(name, email, phone)
+    ' persistence ctor: the stored claims are restored by UserMapper
+    ' (NOT pre-set - a reload reflects the stored claim state); phone
+    ' is null for provisioned admins (no phone route)
+    + {static} provisioned(name, email) : AdminUser
+    ' AdminSeeder factory ONLY: phone = null (no ID code stored - M1), EVERY
+    ' verification claim pre-set (EMAIL/PHONE/SMART_ID) - the mailbox does
+    ' not exist by design, so canWrite() is true from the first request
   }
 
   class UserData <<record>> {
     + name : String
     + email : String
     + phone : String
-    + nationalIdCode : String
     + levels : Set<VerificationLevel>
   }
 
@@ -123,16 +139,6 @@ package "domain" {
   class GeoPoint <<record>> {
     + lat : double
     + lng : double
-  }
-
-  class ShelterReview {
-    - id : Long
-    - shelterId : Long
-    - userId : Long
-    - rating : int
-    - comment : String
-    - createdAt : Instant
-    - updatedAt : Instant
   }
 
 }
@@ -256,13 +262,23 @@ package "verification" {
 
 package "app" {
   class UserService {
-    + register(name : String, email : String, phone : String, nationalIdCode : String) : RegisteredUser
-    + getData(user : User) : UserData
-    + deleteAccount(user : User) : void
+    + register(name : String, email : String, phone : String) : RegisteredUser
+    + findByEmailOrPhone(contact : String) : RegisteredUser
+    + findByEmail(email : String) : RegisteredUser
+    + findByPhone(phone : String) : RegisteredUser
   }
-interface UserRepository {
+  interface UserRepository {
     + save(user : User) : void
     + findById(id : Long) : User
+    + findByEmail(email : String) : RegisteredUser
+    ' REGISTERED and ADMIN rows (kind restored by the mapper) - the admin
+    ' logs in through the normal /auth/login and the registration pre-check
+    ' sees the admin's email as in use (409); case-insensitive
+    + findByPhone(phone : String) : RegisteredUser
+    + isAdmin(id : Long) : boolean
+    ' admin-moderation D2: the fresh kind lookup behind every /admin/*
+    ' request (also the 10-shelter cap exemption) - one indexed PK lookup
+    + findByIds(ids : Collection<Long>) : Map<Long, User>
   }
 
   class ShelterService {
@@ -271,24 +287,26 @@ interface UserRepository {
 interface ShelterRepository {
     + save(shelter : Shelter) : void
     + findByExternalId(externalId : String) : Optional<Shelter>
-    + saveAll(shelters : List<Shelter>) : void
+    + findById(id : Long) : Optional<Shelter>
     + deleteBySourceAndExternalIdNotIn(source : ShelterSource, externalIds : List<String>) : int
     + findAll() : List<Shelter>
-    + findAllBySourceIn(sources : List<ShelterSource>) : List<Shelter>
-  }
-
-  interface ShelterReviewRepository {
-    + save(review : ShelterReview) : void
-    + findById(id : Long) : Optional<ShelterReview>
-    + findByShelterId(shelterId : Long) : List<ShelterReview>
-    + findByShelterIdAndUserId(shelterId : Long, userId : Long) : Optional<ShelterReview>
-    + delete(review : ShelterReview) : void
+    + findAllActiveBySourceIn(sources : List<ShelterSource>) : List<Shelter>
+    + countByCreatedByAndSourceAndStatus(createdBy : Long, source : ShelterSource, status : ShelterStatus) : long
+    + countByCreatedByAndSourceAndCreatedAtAfter(createdBy : Long, source : ShelterSource, createdAtAfter : Instant) : long
+    + countByCreatedByAndSourceAndReviewStatus(createdBy : Long, source : ShelterSource, reviewStatus : ReviewStatus) : long
+    + findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(createdBy : Long, source : ShelterSource, createdAtAfter : Instant) : Optional<Shelter>
+    + findByCreatedBy(userId : Long) : List<Shelter>
+    + findByIds(ids : Collection<Long>) : List<Shelter>
+    + deleteById(id : Long) : void
   }
 }
 
 ' ==================== THE BIRD RULE ====================
 GuestUser --|> User
 RegisteredUser --|> User
+AdminUser --|> RegisteredUser
+' kind is fixed at creation and must survive every save (UserMapper checks
+' AdminUser BEFORE RegisteredUser - it IS-A RegisteredUser)
 
 ' ==================== COMPOSITION / DATA ====================
 RegisteredUser "1" *-- "many" VerificationClaim : holds
@@ -298,11 +316,6 @@ RegisteredUser ..> Shelter : addPlace() creates
 VerificationPolicy --> VerificationRules : reads rules
 VerificationRules --> Capability
 VerificationRules --> VerificationLevel
-
-' ==================== REVIEWS (community rating) ====================
-ShelterReview --> Shelter : rated
-RegisteredUser "1" *-- "many" ShelterReview : writes
-ShelterReviewRepository ..> ShelterReview : persists
 
 ' ==================== PROVIDERS (Ch 9) ====================
 EmailVerificationProvider ..|> VerificationProvider
@@ -336,18 +349,11 @@ ShelterService ..> Shelter : creates ACTIVE shelter (no moderation)
 ShelterService ..> ShelterRepository
 ShelterRepository ..> Shelter : persists
 
-note bottom of ShelterReview
-  Community rating IS the moderation - one review per user per shelter
-  (unique constraint on shelterId + userId). Re-rating = update, not insert.
-  Comments with text = the comment section (no separate entity in v1).
-  rating: 1..5, comment <= 500 chars.
-end note
-
 note bottom of Shelter
   User submissions are created ACTIVE immediately - nothing to approve,
-  there is no moderator. Quality is governed by community ratings
-  (ShelterReview) instead. (ShelterStatus.PENDING/REJECTED were removed
-  in the review-fix pass.)
+  there is no moderator. Quality is governed by community reports +
+  confirmation (ReviewStatus on the shelter) instead. (ShelterStatus.
+  PENDING/REJECTED were removed in the review-fix pass.)
 end note
 
 note bottom of User

@@ -1,10 +1,10 @@
--- Shelter Map — initial schema (Step 3).
+-- Shelter Map — initial schema.
 -- snake_case, singular table names; all FK deletes cascade from users.
 -- ddl-auto=validate must stay green against these definitions.
 
 CREATE TABLE users (
     id                BIGSERIAL PRIMARY KEY,
-    kind              VARCHAR(16)  NOT NULL,          -- GUEST | REGISTERED | ADMIN
+    kind              VARCHAR(16)  NOT NULL,          -- GUEST | REGISTERED
     name              VARCHAR(255),
     email             VARCHAR(255),
     phone             VARCHAR(64),

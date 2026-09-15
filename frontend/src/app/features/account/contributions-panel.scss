@@ -1,0 +1,228 @@
+.contributions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.contributions-subtitle {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-4);
+}
+
+.contributions-state {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-md);
+
+  &--error {
+    color: var(--color-danger);
+  }
+}
+
+/* Empty state as a self-contained symmetric block: equal whitespace above
+   the "You haven't…" line and below the button (28px each — the panel's 12px
+   flex gap plus this padding on both sides; the top padding is 4px smaller
+   to balance the section subtitle's margin-bottom). The inner gap keeps the
+   paragraph→button spacing exactly what the old sibling layout produced
+   (the p's 8px bottom margin + the 12px gap + the actions' 8px top margin). */
+.contributions-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding-block: var(--space-12) var(--space-16);
+}
+
+.contrib-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.contrib-row {
+  padding: var(--space-12) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.contrib-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.contrib-row__title {
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+
+  &--link {
+    color: var(--color-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* Trust-state badge (community-review-queue): the /mine pill — NEW amber,
+   REJECTED danger, CONFIRMED green. Same vocabulary as the map/detail
+   badges; the contrast pairs are pinned in design-tokens.spec.ts. */
+.contrib-badge {
+  display: inline-block;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--color-badge-user);
+  color: var(--color-shelter-user);
+
+  &.badge--new {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+
+  &.badge--rejected {
+    background: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
+    color: var(--color-danger);
+  }
+
+  /* Info request: an OPEN moderator question — the amber
+     action chip (needs the submitter's one-time reply); answered requests
+     carry no chip. */
+  &.contrib-badge--info {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+}
+
+/* The admin's review note (community-review-queue): muted inline copy
+   under the row title — context, not an alarm. */
+.contrib-row__note {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.contrib-row__meta {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+/* Auto-hidden row mark (user-contributions, shelter-trust-and-reports):
+   muted neutral copy — the shelter is still the author's (View/Edit/Delete
+   stay available); only an admin can restore it, so there is no restore
+   action here. */
+.contrib-row__hidden {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.contrib-row__actions {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.contrib-actions {
+  display: flex;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.row-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin: var(--space-8) 0 0;
+}
+
+.confirm-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+  margin-top: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-danger-bg);
+  border: 1px solid var(--color-danger-border);
+  border-radius: var(--radius-md);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+
+  .contrib-actions {
+    margin-top: 0;
+  }
+}
+
+.contrib-edit {
+  margin-top: var(--space-12);
+  padding: var(--space-12);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* Info-request panel: the moderator's question + the reply
+   form / stored reply — the same subtle card as the edit form. */
+.contrib-info {
+  margin-top: var(--space-12);
+  padding: var(--space-12);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+
+  .contrib-info__label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-muted);
+    margin-right: var(--space-6);
+  }
+
+  .contrib-info__q,
+  .contrib-info__a {
+    margin: 0 0 var(--space-6);
+    font-size: var(--text-md);
+    overflow-wrap: anywhere;
+  }
+
+  .field {
+    margin-top: var(--space-8);
+  }
+}
+
+.contrib-edit__coords {
+  display: flex;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+
+  .field {
+    flex: 1 1 10rem;
+    min-width: 10rem;
+  }
+}
+
+.field-label {
+  display: block;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-4);
+}
+
+.field-note {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-6) 0 0;
+}

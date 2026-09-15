@@ -37,7 +37,6 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         assertThat(data.name()).isEqualTo("Mari Maasikas");
         assertThat(data.email()).isEqualTo("mari@example.ee");
         assertThat(data.phone()).isEqualTo("+37250000001");
-        assertThat(data.nationalIdCode()).isEqualTo("49001010001");
         assertThat(data.levels()).containsExactlyInAnyOrder(VerificationLevel.EMAIL, VerificationLevel.PHONE);
     }
 
@@ -49,14 +48,31 @@ class UserRepositoryIT extends AbstractPersistenceIT {
         user.addVerification(claim);
         users.save(user);
 
-        claim.revoke();
+        claim.revoke(Instant.parse("2026-09-11T12:00:00Z"));
         users.save(user);
 
         RegisteredUser loaded = (RegisteredUser) users.findById(user.getId());
         assertThat(loaded.claims()).hasSize(1);
         assertThat(loaded.claims().iterator().next().isRevoked()).isTrue();
+        assertThat(loaded.claims().iterator().next().getRevokedAt())
+                .isEqualTo(Instant.parse("2026-09-11T12:00:00Z"));
         assertThat(loaded.levels()).isEmpty();
         assertThat(loaded.canWrite()).isFalse();
+    }
+
+    @Test
+    void unchangedClaimsKeepTheirIdsAcrossASave() {
+        RegisteredUser user = saveUser(users);
+        VerificationClaim emailClaim = new VerificationClaim(
+                VerificationLevel.EMAIL, "dev", "mari@example.ee", Instant.now());
+        user.addVerification(emailClaim);
+        users.save(user);
+        long firstId = emailClaim.getId();
+
+        users.save(user); // nothing changed
+
+        assertThat(user.getId()).isNotNull();
+        assertThat(emailClaim.getId()).isEqualTo(firstId); // no id churn
     }
 
     @Test

@@ -1,0 +1,695 @@
+/**
+ * Field-for-field TypeScript mirror of the backend DTOs/request records.
+ *
+ * Contract source: docs/agent/02-CONTEXT-API.md, verified against the real
+ * Spring controllers/records in src/main/java/ee/sheltermap. JSON is
+ * camelCase and maps 1:1 — nothing is renamed or reshaped here.
+ *
+ * NOTE (deliberate deviation): 02-CONTEXT-API.md
+ * types `ShelterDto.address` as `string`, but the backend stores `null` for
+ * USER-submitted rows (ShelterController passes null for all registry fields
+ * and the Shelter entity keeps that null) — so the honest type here is
+ * `string | null`. UI must render it null-safe.
+ */
+
+/** The verification channels a user can earn (backend domain enum). */
+export type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
+
+/** Lifecycle of a shelter row. */
+export type ShelterStatus = 'ACTIVE' | 'INACTIVE';
+
+/**
+ * Community trust state (community-review-queue D1/D2): where a USER row
+ * stands in the trust lifecycle. NEW rows are public IMMEDIATELY (amber
+ * "just added" treatment, unverified warning); CONFIRMED rows are the
+ * checked community rows (green); REJECTED rows are hidden (status
+ * INACTIVE) with the admin's reason in `reviewNote`. Registry rows carry
+ * CONFIRMED (the column is NOT NULL; the value is informational — the FE
+ * only reads review_status on USER rows). There is NO blocking queue:
+ * promotion is automatic (a positive community report, audited
+ * AUTO_CONFIRM) or the rare admin CONFIRM.
+ */
+export type ReviewStatus = 'NEW' | 'CONFIRMED' | 'REJECTED';
+
+/**
+ * Submitter-declared location kind (community-review-queue D7): PRIVATE =
+ * the submitter declared the location is a private home or private shelter offered
+ * as a refuge. PRIVATE rows are NOT demoted or hidden — every surface
+ * (list row, detail, admin list) shows a "Private location" badge and the
+ * detail page carries the resident-offered note. Default PUBLIC.
+ */
+export type LocationKind = 'PUBLIC' | 'PRIVATE';
+
+/** Where a shelter record came from. */
+export type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
+
+/**
+ * The map's source filter — the server-side `?source=` param. REGISTRY =
+ * PAASETEAMET + MUNICIPALITY rows; USER = community submissions.
+ */
+export type ShelterSourceFilter = 'ALL' | 'REGISTRY' | 'USER';
+
+// ---------------------------------------------------------------------------
+// Request bodies (records on the backend, `interface`s here)
+// ---------------------------------------------------------------------------
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  /** Phone may be local (`5xxxxxxx`) or +372 form; email is lowercase. */
+  emailOrPhone: string;
+  password: string;
+}
+
+export interface RefreshRequest {
+  refreshToken: string;
+}
+
+export interface PasswordResetRequest {
+  email: string;
+}
+
+export interface PasswordResetConfirmRequest {
+  /** The e-mail from the request step — scopes the code to its account. */
+  email: string;
+  /** The 6-digit code from the e-mail (single-use, 15-min TTL, 5 attempts). */
+  code: string;
+  newPassword: string;
+}
+
+export interface VerifyRequest {
+  level: VerificationLevel;
+}
+
+export interface VerifyConfirmRequest {
+  level: VerificationLevel;
+  code: string;
+}
+
+export interface ChangeEmailRequest {
+  newEmail: string;
+}
+
+export interface ChangePhoneRequest {
+  newPhone: string;
+}
+
+export interface ConfirmChangeRequest {
+  code: string;
+}
+
+/** Profile edit (PUT /account/profile): name only, password-confirmed.
+ *  Email/phone are deliberately absent — they stay on the cross-channel flows.
+ *  No national ID code is collected anywhere (remove-national-id). */
+export interface ProfileUpdateRequest {
+  name: string;
+  currentPassword: string;
+}
+
+/**
+ * POST /api/geo/resolve (shelter-location-input): the backend-resolved pair
+ * of a maps.app.goo.gl short link. Field names match the backend
+ * LocationResolvedDto exactly (the parallel backend child owns the record).
+ */
+export interface LocationResolved {
+  latitude: number;
+  longitude: number;
+}
+
+/**
+ * One row of an OSM Nominatim address search (shelter-address-search).
+ * NOT a backend DTO: Nominatim is a client-side external service called
+ * directly by `GeocodeGateway` (Estonia-restricted). Nominatim jsonv2
+ * returns lat/lon as STRINGS — the gateway parses them, so this type is
+ * what crosses the gateway boundary (numbers only).
+ */
+export interface GeocodeResult {
+  /** e.g. "Lossi 2, 81001 Tartu, Tartumaa, Estonia" — what the UI shows. */
+  displayName: string;
+  latitude: number;
+  longitude: number;
+  /** Nominatim's place type, e.g. "house" / "residential" (shown next to the name). */
+  type: string;
+}
+
+export interface CreateShelterRequest {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  capacity?: number;
+  /**
+   * The private-home declaration (community-review-queue D7): 'PRIVATE'
+   * when the submitter ticks the declaration checkbox, 'PUBLIC' otherwise
+   * (the default). Always sent explicitly.
+   */
+  locationKind?: LocationKind;
+}
+
+/**
+ * PUT /api/shelters/{id} (user-contributions): the author's edit of their
+ * OWN USER-source shelter. Constraints are field-for-field identical to
+ * CreateShelterRequest — the backend keeps them in one shared validation
+ * path so create/update cannot drift. Only these five fields are writable;
+ * status/source/registry fields/createdAt/createdBy are never.
+ */
+export interface UpdateShelterRequest {
+  name: string;
+  latitude: number;
+  longitude: number;
+  description?: string;
+  capacity?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Trust layer: typed reports + occupancy (shelter-trust-and-reports D1/D2/D4)
+// ---------------------------------------------------------------------------
+
+/** Typed shelter report (POST /api/shelters/{id}/reports — verified only). */
+export type ShelterReportType =
+  'NON_EXISTENT' | 'CLOSED' | 'OPEN_CONFIRMED' | 'WRONG_LOCATION' | 'OTHER';
+
+export interface ReportShelterRequest {
+  type: ShelterReportType;
+  /** Free text for OTHER (<= 500 chars); ignored by the backend for other types. */
+  detail?: string;
+}
+
+/**
+ * The write outcome of a shelter report (POST /api/shelters/{id}/reports)
+ * (community-self-moderation D4): `damped` is true when the stored
+ * report is a self-interested rival vote (the reporter holds their own
+ * other USER listing of the same place) — recorded and flagged in the
+ * admin queue, counting zero toward the weighted auto-hide tally.
+ */
+export interface ShelterReportResult {
+  damped: boolean;
+}
+
+/** Live occupancy bands (PUT /api/shelters/{id}/occupancy — one per user). */
+export type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
+
+export interface ReportOccupancyRequest {
+  band: OccupancyBand;
+}
+
+/**
+ * Server-derived occupancy block (D4 — computed at read time over the last
+ * 2 h of updated_at). `reportCount` is the number of fresh reports agreeing
+ * with `band`: 1 = the UI hedges ("Reported full"), >= 2 = firm ("Full").
+ * `null` on the DTO = nothing fresh — the UI shows nothing.
+ */
+export interface ShelterOccupancy {
+  /** The latest fresh band. */
+  band: OccupancyBand;
+  /** Fresh reports agreeing with that band (1 = lone, >= 2 = firm). */
+  reportCount: number;
+  /** ISO-8601 instant of the latest report in the window. */
+  lastReportedAt: string;
+}
+
+/** The shelter's current open/closed state (fresh-report derived). */
+export type OpenState = 'OPEN' | 'CLOSED';
+
+/**
+ * PUT /api/shelters/{id}/open-status body: the caller's live open/closed
+ * report (one per user, latest edit wins — the same upsert contract as the
+ * occupancy band). Verified accounts only (403), 404 unknown shelter.
+ */
+export interface PutOpenStatusRequest {
+  state: OpenState;
+}
+
+/**
+ * Server-derived open/closed block — computed at read
+ * time over the last 2 h of open-status reports, the same window and
+ * reportCount semantics as the occupancy block: 1 = the UI hedges
+ * ("Reported closed"), >= 2 = firm ("Closed")). `null` on the DTO =
+ * nothing fresh — the UI falls back to the lifecycle status. On ALL list
+ * rows and the detail projection.
+ */
+export interface OpenStatusDto {
+  /** The latest fresh state. */
+  state: OpenState;
+  /** ISO-8601 instant of the latest report in the window. */
+  reportedAt: string;
+  /** Fresh reports agreeing with `state` (1 = lone, >= 2 = firm). */
+  reportCount: number;
+}
+
+/**
+ * Optional trust filters for GET /api/shelters (D5) — composable with the
+ * source filter. Absent fields are omitted from the query string entirely.
+ * (The `reviewed` filter is gone with the review model; "Open" is a
+ * client-side chip — the BE has no param for it.)
+ */
+export interface ShelterTrustFilter {
+  /** hasCapacity=true — capacity data present. */
+  hasCapacity?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Response bodies (DTOs)
+// ---------------------------------------------------------------------------
+
+export interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  /** Access-token lifetime in seconds. */
+  expiresIn: number;
+}
+
+/**
+ * The authenticated user's real profile (GET /account/me) plus the REAL
+ * verified claim set (EMAIL/PHONE actually verified, never optimistic).
+ * Also the response of PUT /account/profile (the fresh state to adopt).
+ */
+export interface MeResponse {
+  name: string;
+  email: string;
+  phone: string;
+  levels: VerificationLevel[];
+  /**
+   * True for the ADMIN-kind account (admin-moderation D1/D2). The kind is
+   * the truth (fresh lookup server-side, never a JWT claim); ALWAYS present
+   * — false for every regular user.
+   */
+  isAdmin: boolean;
+}
+
+export interface ShelterDto {
+  id: number;
+  /** null for USER-submitted rows — registry rows always carry one. */
+  address: string | null;
+  name: string;
+  latitude: number;
+  longitude: number;
+  status: ShelterStatus;
+  source: ShelterSource;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** USER submissions only. */
+  description: string | null;
+  /** USER submissions only. */
+  capacity: number | null;
+  /**
+   * True when the shelter's creator exists and has a completed verification;
+   * false for registry shelters (no author) and for creators whose account
+   * no longer exists (accessibility-and-provenance D3, backend-computed —
+   * the UI never re-derives it).
+   */
+  submitterVerified: boolean;
+  /**
+   * Non-existence reports (D1): 0 when none, > 0 = the orange reported
+   * state (marker + "Reported" badge). Five reach auto-hide server-side —
+   * the public list simply no longer contains the row.
+   */
+  nonexistentReports: number;
+  /** Fresh open/closed; null = nothing fresh in the last 2 h. */
+  openStatus: OpenStatusDto | null;
+  /** Fresh occupancy (D4); null = nothing fresh in the last 2 h (show nothing). */
+  occupancy: ShelterOccupancy | null;
+  /**
+   * Community trust state (community-review-queue): NEW/CONFIRMED for USER
+   * rows (amber/green marker + "Newly added" / "Community-checked" badge);
+   * CONFIRMED for registry rows (informational — the label logic only reads
+   * it on USER rows). REJECTED rows are never in the public list (INACTIVE).
+   */
+  reviewStatus: ReviewStatus;
+  /** Submitter-declared: PRIVATE rows carry the "Private location" badge. */
+  locationKind: LocationKind;
+  /**
+   * TOTAL community shelter-report count, all types (last-verified-meta
+   * backend-computed) — the `nonexistentReports` subset is what drives
+   * the orange "Reported" badge; this is the whole community-signal count.
+   */
+  reportCount: number;
+  /**
+   * Per-entry "last verified" stamp (last-verified-meta, backend-
+   * computed, ISO-8601): registry rows carry the newest non-failed import
+   * of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED
+   * do not); community rows the newest non-submitter OPEN_CONFIRMED check
+   * or confirming moderation action. `null` = never verified (the
+   * "not yet verified" signal for NEW community rows).
+   */
+  lastVerifiedAt: string | null;
+  /**
+   * "Mark inaccurate" moderator flag (moderation-dashboard-completion
+   * backend-computed from the V20 stamp): a marked row stays
+   * visible with status and trust state untouched — the UI renders the
+   * single-sourced warning on the unverified-treatment surfaces.
+   */
+  inaccurate: boolean;
+}
+
+/**
+ * Detail projection (GET /api/shelters/{id}): every list field plus the
+ * CALLER's own live reports — the "Report how full" picker's pre-select
+ * (`yourOccupancyBand`) and the "Report open/closed" picker's pre-select
+ * (`yourOpenStatus`). Both null for guests and anonymous users (and for a
+ * user without a live report for this shelter).
+ */
+export interface ShelterDetailDto extends ShelterDto {
+  yourOccupancyBand: OccupancyBand | null;
+  yourOpenStatus: OpenState | null;
+}
+
+/**
+ * The owner's view of one of their own shelters (GET /api/shelters/mine):
+ * the public list projection (incl. reviewStatus + locationKind) plus the
+ * admin's `reviewNote` — the REJECT reason, stored server-side and shown
+ * under the row's status badge (community-review-queue D2) — and the row's
+ * moderator→submitter information request (`infoRequest`;
+ * null when none). The exchange is private: the public list/detail DTOs
+ * carry it as null and this surface is the only place it renders for the
+ * submitter.
+ */
+export interface MineShelterDto extends ShelterDto {
+  /** The admin's REJECT reason; null when none. */
+  reviewNote: string | null;
+  /** The pending (or answered) moderator question; null when none. */
+  infoRequest: InfoRequestDto | null;
+}
+
+/**
+ * POST /admin/shelters/{id}/review body (community-review-queue D2):
+ * the rare MANUAL override — the primary trust flow is the automatic
+ * community one (AUTO_CONFIRM). CONFIRM sets review_status=CONFIRMED
+ * (status untouched); REJECT sets review_status=REJECTED +
+ * status=INACTIVE and stores the reason as review_note. `reason` is
+ * optional at the wire level — the admin UI requires it for REJECT. 200
+ * `{ok:true}`; 404 unknown id; 409 for a non-USER (registry) row.
+ */
+export interface ReviewShelterRequest {
+  action: 'CONFIRM' | 'REJECT';
+  reason?: string;
+}
+
+/** POST /admin/shelters/{id}/review response body. */
+export interface ReviewShelterResponse {
+  ok: boolean;
+}
+
+/**
+ * The moderator→submitter information request of a row:
+ * the admin asks a question on a USER shelter, the submitter answers ONCE
+ * on their own row, and the row is kept after the reply (audit posture —
+ * never deleted). `replyMessage`/`repliedAt` are null while the request is
+ * still open.
+ */
+export interface InfoRequestDto {
+  /** The moderator's question (≤ 2000 chars). */
+  message: string;
+  /** ISO-8601 instant the admin asked. */
+  requestedAt: string;
+  /** The submitter's one-time answer; null = still open. */
+  replyMessage: string | null;
+  /** ISO-8601 instant of the answer; null = still open. */
+  repliedAt: string | null;
+}
+
+/**
+ * The admin's view of the information request (GET /admin/shelters):
+ * the exchange plus the asking admin's profile name ("Unknown" after the
+ * account's erasure — no FK server-side).
+ */
+export interface AdminInfoRequestDto extends InfoRequestDto {
+  requestedByName: string;
+}
+
+// ---------------------------------------------------------------------------
+// Admin moderation (admin-moderation D3): the /admin/* DTOs. Every field is
+// admin-only data (hidden rows, reporter identity) — never rendered outside
+// the /admin feature.
+// ---------------------------------------------------------------------------
+
+/**
+ * Fresh-occupancy block of the admin shelter list — the contract's
+ * `{band, reportedAt, reportCount}` shape (`reportedAt` is what the public
+ * ShelterOccupancy calls `lastReportedAt`; same 2 h window, same semantics:
+ * reportCount 1 = hedged copy, >= 2 = firm).
+ */
+export interface AdminOccupancy {
+  band: OccupancyBand;
+  /** ISO-8601 instant of the latest report in the window. */
+  reportedAt: string;
+  reportCount: number;
+}
+
+/**
+ * The admin's view of one account (GET /admin/users):
+ * REGISTERED + ADMIN rows only (guests have no credentials to suspend,
+ * so the backend skips them). `suspendedAt` null = active. E-mail is
+ * admin-only data — never rendered outside the /admin feature.
+ */
+export interface AdminUserDto {
+  id: number;
+  name: string | null;
+  email: string | null;
+  kind: 'GUEST' | 'REGISTERED' | 'ADMIN';
+  suspendedAt: string | null;
+}
+
+/**
+ * The admin's view of one shelter row (GET /admin/shelters): the public
+ * projection's trust fields plus what the public list hides — INACTIVE rows
+ * included, the submitter's name, and the raw capacity. The backend is
+ * id-ordered (auto-increment id = creation order) and carries NO creation
+ * timestamp on this projection (verified against the live API) — the
+ * Unconfirmed queue orders by id, newest first.
+ */
+export interface AdminShelterDto {
+  id: number;
+  name: string;
+  /** null for USER-submitted rows — registry rows always carry one. */
+  address: string | null;
+  source: ShelterSource;
+  /** Includes INACTIVE — the public list never contains them. */
+  status: ShelterStatus;
+  nonexistentReports: number;
+  occupancy: AdminOccupancy | null;
+  capacity: number | null;
+  /** The submitting user's profile name (USER rows only). */
+  submitter: string | null;
+  /**
+   * Community trust state (community-review-queue): the Unconfirmed tab is
+   * the client-side `source === 'USER' && reviewStatus === 'NEW'` filter
+   * over this list. Registry rows carry CONFIRMED (backfill) — never
+   * unconfirmed.
+   */
+  reviewStatus: ReviewStatus;
+  /** The admin's REJECT reason; null when none. */
+  reviewNote: string | null;
+  /** PRIVATE rows carry the "Private location" badge on this surface too. */
+  locationKind: LocationKind;
+  /**
+   * "Mark inaccurate" moderator flag — the same value as on
+   * the public DTO; the admin list is where the mark is managed.
+   */
+  inaccurate: boolean;
+  /** The row's moderator→submitter information request;
+   *  null when none. Carries the submitter's reply once given (the row is
+   *  kept after the reply — audit posture). */
+  infoRequest: AdminInfoRequestDto | null;
+}
+
+/** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
+export interface AdminShelterFilters {
+  status?: ShelterStatus;
+  source?: ShelterSource;
+  /** Name/address substring. */
+  q?: string;
+}
+
+/**
+ * One row of GET /admin/reports (shelter-report queue, newest first).
+ * Reporter identity is the user's profile name + email (admin-only data).
+ */
+export interface AdminShelterReportDto {
+  id: number;
+  shelterId: number;
+  shelterName: string;
+  /** The shelter's LIVE status — drives the "restore shelter" shortcut. */
+  shelterStatus: ShelterStatus;
+  type: ShelterReportType;
+  /** Free text for OTHER. */
+  detail: string | null;
+  reporterName: string | null;
+  reporterEmail: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** Dampened self-interested negative vote: stored + flagged, counts 0. */
+  damped: boolean;
+  /** Dismissed rows stay in the queue, dimmed (the admin's audit trail). */
+  dismissed: boolean;
+}
+
+/**
+ * The recorded moderation actions (GET /admin/audit, community-review-
+ * queue D4). The trust transitions are CONFIRM (admin manual) and
+ * AUTO_CONFIRM (the automatic promotion by a positive community report —
+ * the row's actor is the reporting user); the rest are the pre-existing
+ * admin actions that all write an audit row in the same transaction.
+ */
+export type AdminAuditAction =
+  | 'STATUS_CHANGE'
+  | 'DELETE'
+  | 'REPORT_DISMISS'
+  | 'REVIEW_HIDE'
+  | 'REVIEW_RESTORE'
+  | 'CONFIRM'
+  | 'AUTO_CONFIRM'
+  | 'REJECT'
+  | 'USER_SUSPEND'
+  | 'USER_UNSUSPEND'
+  | 'MARK_INACCURATE'
+  | 'CLEAR_INACCURATE';
+
+/**
+ * One row of GET /admin/audit (newest first; the backend returns the
+ * newest 100 by default, optional limit 1..200). `shelterName` is
+ * resolved at READ time by the backend — a deleted shelter's rows carry
+ * the resolved "Deleted shelter" text, so the field is a plain string.
+ * `previousStatus`/`newStatus` are the review_status transition (DELETE:
+ * previous = review_status, new = null) — null when the action has no
+ * status pair to show (e.g. report dismiss).
+ *
+ * The trail is append-only — a row persists after the subject is resolved,
+ * so the UI renders "(after reply)" when the shelter is already back on the
+ * map. `action` reflects the transition at the time the row was written (or
+ * a bulk import). The review-model values (REVIEW_HIDE / REVIEW_RESTORE)
+ * can never reach the tab: V21 deleted exactly those moderation rows when
+ * it dropped the review model — the union keeps the values only for the
+ * label map's vocabulary.
+ */
+export interface AdminAuditRow {
+  id: number;
+  /** null on user-scoped rows (USER_SUSPEND / USER_UNSUSPEND). */
+  shelterId: number | null;
+  /** Resolved at read time: a shelter row's name ("Deleted shelter" when
+   *  the row is gone) OR the suspended account ("Account: name (email)" /
+   *  "Deleted account") — the tab's "Subject" column. */
+  shelterName: string;
+  action: AdminAuditAction;
+  /** The reason given with the action (REJECT, status change). */
+  reason: string | null;
+  previousStatus: string | null;
+  newStatus: string | null;
+  /** The actor's profile name (the admin, or the reporting user for
+   * AUTO_CONFIRM). */
+  moderatorName: string;
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
+
+/** One server-parsed field change of an EDITED history row.
+ *  `from`/`to` are display strings — null = the field was absent
+ *  (e.g. a first-set description). */
+export interface AdminShelterHistoryFieldChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+/**
+ * One row of GET /admin/shelters/{id}/history (ascending over
+ * the shelter's lifecycle): CREATED on submission, EDITED on an owner PUT
+ * that moved fields (the changes are parsed server-side — the UI renders,
+ * never parses JSON), DELETED on a user or admin hard delete. The history
+ * of a deleted shelter still serves (the rows' shelter_id dangles
+ * legally); `shelterName` is the SNAPSHOT at event time (a rename does not
+ * rewrite the earlier rows). `actorName` is "Unknown" after the actor's
+ * account was erased (no FK).
+ */
+export interface AdminShelterHistoryEvent {
+  id: number;
+  /** The shelter's name as it was when the event happened. */
+  shelterName: string;
+  actorName: string;
+  action: 'CREATED' | 'EDITED' | 'DELETED';
+  /** Empty for CREATED/DELETED; exactly the moved fields for EDITED. */
+  changes: AdminShelterHistoryFieldChange[];
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
+
+/**
+ * The throttle/abuse alert kinds (GET /admin/alerts, abuse-limits) — the
+ * closed backend vocabulary.
+ */
+export type AdminAlertKind = 'submission-daily-cap' | 'otp-contact-cap' | 'near-duplicate';
+
+/**
+ * One row of GET /admin/alerts (the admin alerts, newest first).
+ * The ring is IN-MEMORY on the backend (cleared on a restart), so
+ * this is a triage view, not a durable log. `subject` is the flagged
+ * account or contact ('user:<id>' / 'contact:<value>');
+ * `retryAfterSeconds` is present only for the 429 alerts.
+ */
+export interface AdminAlertRow {
+  /** Ring-local monotonic id (row key; resets on backend restart). */
+  id: number;
+  kind: AdminAlertKind;
+  subject: string;
+  /** The plain-spoken event (the 409 row names the existing shelter id). */
+  detail: string;
+  /** The Retry-After the client received (429 alerts only). */
+  retryAfterSeconds: number | null;
+  /** ISO-8601 instant. */
+  at: string;
+}
+
+/** One shelter the caller owns, as returned by GET /account/export. */
+export interface DataExportShelter {
+  id: number;
+  name: string;
+  /** null for USER submissions — a registry-only field. */
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source: string;
+  status: string;
+  reviewStatus: string;
+  locationKind: string;
+  description: string | null;
+  capacity: number | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+}
+
+/** GET /account/export — the caller's own data in one document. */
+export interface DataExportResponse {
+  profile: {
+    name: string;
+    email: string;
+    /** null for the provisioned admin (no phone route). */
+    phone: string | null;
+    levels: VerificationLevel[];
+  };
+  shelters: DataExportShelter[];
+}
+
+/** One data_imports audit row — the newest (GET /api/data-source). */
+export interface DataSourceLastImport {
+  /** ISO-8601 instant. */
+  at: string;
+  /** OK | FAILED | NOT_MODIFIED | SKIPPED */
+  status: string;
+  /** Upstream version stamp (HTTP Last-Modified / ETag), when published. */
+  sourceVersion: string | null;
+  recordsAdded: number;
+  recordsUpdated: number;
+  recordsRemoved: number;
+}
+
+/** GET /api/data-source — where the map's official data comes from. */
+export interface DataSourceDto {
+  sourceName: string;
+  officialUrl: string;
+  lastImport: DataSourceLastImport | null;
+}

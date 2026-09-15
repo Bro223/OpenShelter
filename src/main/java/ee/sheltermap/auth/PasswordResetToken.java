@@ -4,10 +4,12 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * Single-use, expiring password-reset token (03-auth.puml).
+ * Single-use, expiring password-reset CODE (03-auth.puml).
  *
- * <p>Stored <strong>hashed</strong> (SHA-256); the plaintext token travels
- * only in the reset email URL. {@code usedAt} is {@code null} while unused.
+ * <p>Code discipline mirrors verification: the 6-digit code is stored
+ * <strong>hashed</strong> (SHA-256) — the plaintext code travels only in the
+ * reset e-mail; failed confirmations are attempts-limited (brute-force
+ * guard); {@code usedAt} is {@code null} while unused.
  */
 public class PasswordResetToken {
 
@@ -16,6 +18,8 @@ public class PasswordResetToken {
     private final String tokenHash;
     private final Instant expiresAt;
     private Instant usedAt;
+    private int attempts;
+    private Instant createdAt;
 
     public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt) {
         this.userId = Objects.requireNonNull(userId, "userId");
@@ -24,12 +28,16 @@ public class PasswordResetToken {
     }
 
     /**
-     * Full-state constructor used by the persistence layer (Step 3) to
-     * restore a used token from storage.
+     * Full-state constructor used by the persistence layer to restore a
+     * token (incl. used state, the failed-attempt count and the V8
+     * creation time) from storage.
      */
-    public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt, Instant usedAt) {
+    public PasswordResetToken(Long userId, String tokenHash, Instant expiresAt,
+                              Instant usedAt, int attempts, Instant createdAt) {
         this(userId, tokenHash, expiresAt);
         this.usedAt = usedAt;
+        this.attempts = attempts;
+        this.createdAt = createdAt;
     }
 
     public Long getId() {
@@ -53,6 +61,18 @@ public class PasswordResetToken {
         return expiresAt;
     }
 
+    /**
+     * V8: when the row was created (rotation cooldown + daily cap anchor);
+     * {@code null} until persisted.
+     */
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
     public Instant getUsedAt() {
         return usedAt;
     }
@@ -65,7 +85,22 @@ public class PasswordResetToken {
         return now.isAfter(expiresAt);
     }
 
-    public void markUsed() {
-        this.usedAt = Instant.now();
+    /** Failed confirm attempts so far (brute-force guard). */
+    public int getAttempts() {
+        return attempts;
+    }
+
+    /** Registers a failed attempt; returns the new count. */
+    public int recordAttempt() {
+        return ++attempts;
+    }
+
+    /**
+     * Marks the token used with the given stamp:
+     * the caller — the Clock-injected {@code PasswordResetService} — owns
+     * the time source, so the domain never reaches for the wall clock.
+     */
+    public void markUsed(Instant usedAt) {
+        this.usedAt = Objects.requireNonNull(usedAt, "usedAt");
     }
 }

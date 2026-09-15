@@ -1,0 +1,107 @@
+/**
+ * Guards + routing helpers for session-protected navigation.
+ *
+ * 03-CONTEXT-CORE-AUTH.md:
+ *  - AuthGuard   -> authenticated? allow : redirect /login?returnUrl=...
+ *  - GuestGuard  -> already authenticated? redirect home (/map) : allow
+ *    (used by /login, /register, /reset)
+ *  - VerifiedGuard -> has a verification claim? allow : redirect
+ *    /verify?returnUrl=... (used by /submit; mirrors the backend 403)
+ *  - AdminGuard (admin-moderation D2) -> authenticated AND admin-kind? allow
+ *    : redirect home. Anonymous AND non-admin alike go home — unlike
+ *    authGuard it deliberately does NOT offer /login (the admin tool has no
+ *    guest value, and the backend answers 401/403 the same way).
+ *
+ * Functional guards (Angular 22 style, same as the apiInterceptor).
+ * All await AuthStore.init() so a reload while logged in silently restores
+ * the session BEFORE the guard decides — no "logged out" flash on the
+ * login/register pages.
+ */
+import { inject } from '@angular/core';
+import { Router, type CanActivateFn, type UrlTree } from '@angular/router';
+import { AuthStore } from '../session/auth-store';
+
+/** Where an authenticated guest is sent (the map). */
+export const HOME_PATH = '/map';
+export const LOGIN_PATH = '/login';
+export const VERIFY_PATH = '/verify';
+
+/**
+ * Only internal absolute paths are acceptable as a returnUrl — anything else
+ * (absolute URLs, protocol-relative "//host", backslashes) falls back to home.
+ */
+export function safeReturnUrl(value: string | null | undefined): string {
+  if (
+    typeof value === 'string' &&
+    value.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.includes('\\')
+  ) {
+    return value;
+  }
+  return HOME_PATH;
+}
+
+async function decideAfterInit(store: AuthStore): Promise<void> {
+  if (!store.initialized()) {
+    await store.init();
+  }
+}
+
+/** Allow authenticated users only; anonymous -> /login?returnUrl=<current>. */
+export const authGuard: CanActivateFn = async (_route, state): Promise<boolean | UrlTree> => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  await decideAfterInit(store);
+  if (store.authenticated()) {
+    return true;
+  }
+  return router.createUrlTree([LOGIN_PATH], { queryParams: { returnUrl: state.url } });
+};
+
+/** Allow guests only; authenticated users -> home (/map). */
+export const guestGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  await decideAfterInit(store);
+  if (!store.authenticated()) {
+    return true;
+  }
+  return router.parseUrl(HOME_PATH);
+};
+
+/**
+ * Verified accounts only (used by /submit): mirrors the backend's
+ * "verified account required" 403. authGuard runs first on the route, so
+ * this only ever sees authenticated users; one without any verification
+ * claim goes to /verify?returnUrl=<current> (the form becomes reachable
+ * once a claim lands this session).
+ */
+export const verifiedGuard: CanActivateFn = async (_route, state): Promise<boolean | UrlTree> => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  await decideAfterInit(store);
+  if (store.isVerified()) {
+    return true;
+  }
+  return router.createUrlTree([VERIFY_PATH], { queryParams: { returnUrl: state.url } });
+};
+
+/**
+ * Admin-kind accounts only (admin-moderation D2): mirrors the backend's
+ * /admin/* authorization (fresh kind lookup per request — no JWT claim).
+ * ANYONE else — anonymous OR an authenticated non-admin — is sent home:
+ * the admin tool is not something a regular user is logged in FOR. Reads
+ * `isAdmin` from the fetched profile; a failed profile fetch leaves it
+ * false, so the guard fails CLOSED. (HOME_PATH is the app's home — `''`
+ * redirects to `/map` — same destination the task's `/` resolves to.)
+ */
+export const adminGuard: CanActivateFn = async (): Promise<boolean | UrlTree> => {
+  const store = inject(AuthStore);
+  const router = inject(Router);
+  await decideAfterInit(store);
+  if (store.authenticated() && store.isAdmin()) {
+    return true;
+  }
+  return router.parseUrl(HOME_PATH);
+};

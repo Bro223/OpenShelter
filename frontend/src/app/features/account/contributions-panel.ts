@@ -1,0 +1,356 @@
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  inject,
+  OnInit,
+  signal,
+} from '@angular/core';
+import { DatePipe, NgClass } from '@angular/common';
+import {
+  type AbstractControl,
+  type ValidationErrors,
+  FormControl,
+  ReactiveFormsModule,
+  Validators,
+} from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import type { MineShelterDto, UpdateShelterRequest } from '../../core/models';
+import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { ConfirmAction } from '../../shared/confirm-action';
+import { bannerMessage } from '../../shared/error-copy';
+import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
+import { LoadingIndicator } from '../../shared/loading-indicator';
+import {
+  sourceTrustLabel as sourceTrustLabelShared,
+  communityBadgeClass as communityBadgeClassShared,
+  INACCURATE_WARNING,
+} from '../../shared/shelter-copy';
+
+/** Coordinate controls are required and within the geographic bounds (backend
+ *  re-checks the same @DecimalMin/@DecimalMax). Estonia-ness is NOT checked
+ *  client-side — the backend bbox is the gate; a 400 surfaces as the row error. */
+function coordinateValidator(min: number, max: number) {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const value = readCoordinate(control.value);
+    if (value === null) {
+      return { required: true };
+    }
+    if (value < min || value > max) {
+      return { range: true };
+    }
+    return null;
+  };
+}
+
+/**
+ * "My contributions" panel on the /account page (user-contributions): the
+ * caller's own shelters (list/edit/delete, inline). The reviews list is
+ * gone with the review model (owner decision).
+ *
+ * Edit = inline expanding form in the row (one open at a time, signals —
+ * no modal). Delete = two-step confirm (the button arm + "Confirm delete?";
+ * no window.confirm, consistent with the app's inline style).
+ *
+ * After a successful mutation the in-memory row is updated from the response
+ * (no full refetch). Rejected mutations (400/403/404) surface a row-level
+ * error via the standard banner copy mapping — the row stays in its
+ * previous state.
+ */
+@Component({
+  selector: 'app-contributions-panel',
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, LoadingIndicator],
+  templateUrl: './contributions-panel.html',
+  styleUrl: './contributions-panel.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ContributionsPanel implements OnInit {
+  private readonly shelters = inject(ShelterGateway);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  // ---- shelters list -------------------------------------------------------
+  /** null = loading; [] = loaded and empty. The /mine projection carries the
+   *  review state (community-review-queue) — badges + the admin note. */
+  protected readonly shelterRows = signal<MineShelterDto[] | null>(null);
+  /** Load failure (non-null -> error state with Retry). */
+  protected readonly shelterLoadError = signal<string | null>(null);
+
+  // ---- inline edit state (one open at a time) ------------------------------
+  protected readonly editingShelterId = signal<number | null>(null);
+
+  // ---- two-step delete state -----------------------------------------------
+  /** The two-step delete confirm: the armed shelter id (no window.confirm).
+   *  The shared ConfirmAction owns the state machine, the focus move onto
+   *  Confirm and the focus restore to Delete on cancel. */
+  protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
+
+  // ---- info request -----------------------------------------------------------
+  /** The row whose inline info-request panel is open (null = closed) —
+   *  one inline panel at a time, like the edit forms. */
+  protected readonly infoFor = signal<number | null>(null);
+  /** The reply editor: required (non-blank — the shared blank validator),
+   *  at most 2000 characters (the V19 bound). */
+  readonly replyMessage = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, nameBlankValidator, Validators.maxLength(2000)],
+  });
+
+  // ---- row-level mutation errors (backend rejected an edit/delete) ---------
+  protected readonly shelterRowError = signal<{ id: number; message: string } | null>(null);
+
+  protected readonly busy = signal(false);
+
+  /** The single-sourced "reported inaccurate" warning:
+   *  the note line on a moderator-marked own row — the row stays visible,
+   *  the flag is the treatment. */
+  protected readonly inaccurateWarning = INACCURATE_WARNING;
+  /** Source/trust badge copy (community-review-queue D5): the trust-state
+   *  label — the hidden rows (REJECTED) say what happened to them on the
+   *  owner's list. */
+  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  /** The trust badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
+  protected readonly communityBadgeClass = communityBadgeClassShared;
+
+  /**
+   * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
+   * the owner's list includes INACTIVE (auto-hidden) rows, marked with the
+   * community non-existence report count. Restore is admin-only — the user
+   * UI offers no restore action, so the mark is the row's only new element.
+   * Suppressed for REJECTED rows (community-review-queue): a rejection
+   * also flips the status to INACTIVE, but the "Rejected" badge + the
+   * admin's reason explain the state — the auto-hide mark would be noise.
+   */
+  protected hiddenText(row: MineShelterDto): string | null {
+    if (row.status !== 'INACTIVE' || row.reviewStatus === 'REJECTED') {
+      return null;
+    }
+    const n = row.nonexistentReports;
+    return `Hidden — reported by the community (${n} report${n === 1 ? '' : 's'})`;
+  }
+
+  // ---- shelter edit form (pre-filled on Edit; public so specs can drive it)
+  readonly editName = new FormControl('', {
+    nonNullable: true,
+    validators: [
+      Validators.required,
+      Validators.maxLength(200),
+      // Whitespace-only names pass Validators.required — mirror the backend
+      // @NotBlank so we never PUT "   " (shared with /submit).
+      nameBlankValidator,
+    ],
+  });
+  readonly editDescription = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.maxLength(2000)],
+  });
+  readonly editCapacity = new FormControl<number | null>(null, { validators: [capacityValidator] });
+  readonly editLatitude = new FormControl<number | null>(null, {
+    validators: [coordinateValidator(-90, 90)],
+  });
+  readonly editLongitude = new FormControl<number | null>(null, {
+    validators: [coordinateValidator(-180, 180)],
+  });
+
+  ngOnInit(): void {
+    this.loadShelters();
+  }
+
+  // -------------------------------------------------------------------------
+  // Loading (per list, independent)
+  // -------------------------------------------------------------------------
+  loadShelters(): void {
+    this.shelterRows.set(null);
+    this.shelterLoadError.set(null);
+    this.shelters
+      .mine()
+      .then((rows) => this.shelterRows.set(rows))
+      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  // -------------------------------------------------------------------------
+  // Shelter rows: view (routerLink in the template), inline edit, delete
+  // -------------------------------------------------------------------------
+  startEditShelter(row: MineShelterDto): void {
+    this.infoFor.set(null);
+    this.editName.setValue(row.name);
+    this.editDescription.setValue(row.description ?? '');
+    this.editCapacity.setValue(row.capacity);
+    this.editLatitude.setValue(row.latitude);
+    this.editLongitude.setValue(row.longitude);
+    this.editName.markAsUntouched();
+    this.editDescription.markAsUntouched();
+    this.editCapacity.markAsUntouched();
+    this.editLatitude.markAsUntouched();
+    this.editLongitude.markAsUntouched();
+    this.editingShelterId.set(row.id);
+  }
+
+  cancelEditShelter(): void {
+    this.editingShelterId.set(null);
+  }
+
+  shelterFormValid(): boolean {
+    return (
+      this.editName.valid &&
+      this.editDescription.valid &&
+      this.editCapacity.valid &&
+      this.editLatitude.valid &&
+      this.editLongitude.valid
+    );
+  }
+
+  /**
+   * PUT /api/shelters/{id} with the five writable fields. Success updates the
+   * row in place from the response (no full refetch); 400/403/404 shows a
+   * row-level error and the row stays as it was.
+   */
+  async saveShelterEdit(): Promise<void> {
+    const id = this.editingShelterId();
+    if (this.busy() || id === null) {
+      return;
+    }
+    if (!this.shelterFormValid()) {
+      this.editName.markAsTouched();
+      this.editDescription.markAsTouched();
+      this.editCapacity.markAsTouched();
+      this.editLatitude.markAsTouched();
+      this.editLongitude.markAsTouched();
+      return;
+    }
+    const request: UpdateShelterRequest = {
+      name: this.editName.value.trim(),
+      latitude: readCoordinate(this.editLatitude.value) as number,
+      longitude: readCoordinate(this.editLongitude.value) as number,
+    };
+    const description = this.editDescription.value.trim();
+    if (description !== '') {
+      request.description = description;
+    }
+    const capacity = this.editCapacity.value;
+    if (typeof capacity === 'number' && Number.isInteger(capacity)) {
+      request.capacity = capacity;
+    }
+    this.busy.set(true);
+    try {
+      const updated = await this.shelters.update(id, request);
+      // The PUT response is the public projection (no reviewNote / no
+      // infoRequest) — keep the row's review state + exchange from the
+      // /mine load.
+      this.shelterRows.update((rows) =>
+        (rows ?? []).map((r) =>
+          r.id === id ? { ...updated, reviewNote: r.reviewNote, infoRequest: r.infoRequest } : r,
+        ),
+      );
+      this.editingShelterId.set(null);
+      this.shelterRowError.update((e) => (e && e.id === id ? null : e));
+    } catch (error: unknown) {
+      this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Step 1 of the two-step delete: arm the confirm strip. */
+  requestDeleteShelter(id: number): void {
+    this.shelterDeleteConfirm.arm(id);
+  }
+
+  cancelDeleteShelter(): void {
+    this.shelterDeleteConfirm.cancel();
+  }
+
+  /** Step 2: DELETE /api/shelters/{id}; the row is removed from the list in
+   *  place. */
+  async confirmDeleteShelter(id: number): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.shelters.remove(id);
+      this.shelterRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
+      this.shelterRowError.update((e) => (e && e.id === id ? null : e));
+    } catch (error: unknown) {
+      this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
+    } finally {
+      if (this.infoFor() === id) {
+        this.closeInfo();
+      }
+      this.shelterDeleteConfirm.disarm();
+      this.busy.set(false);
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Info request: the moderator's question + the one-time reply
+  // -------------------------------------------------------------------------
+  /**
+   * Toggle the inline info-request panel for a row that carries a request.
+   * An OPEN request shows the question + the reply form (the answer is
+   * one-time); an ANSWERED request shows the question + your reply
+   * read-only (the row is kept after the reply — audit posture, and a
+   * second reply is a server-side 409).
+   */
+  toggleInfo(row: MineShelterDto): void {
+    if (this.infoFor() === row.id) {
+      this.closeInfo();
+      return;
+    }
+    this.replyMessage.reset('');
+    this.replyMessage.markAsUntouched();
+    // one inline panel at a time, across the shelter list
+    this.editingShelterId.set(null);
+    this.infoFor.set(row.id);
+  }
+
+  /** Close the open info panel (toggle, edit form, delete, tab leave). */
+  closeInfo(): void {
+    this.infoFor.set(null);
+  }
+
+  /**
+   * POST /api/shelters/{id}/info-request/reply (204, the one-time answer).
+   * Success patches the row in place — the 204 body is empty, so the reply
+   * text is the form value and the timestamp local "now" (the review edit's
+   * local updatedAt bump precedent); a 409 (answered meanwhile) or 400/403
+   * shows the row error and the row stays as it was.
+   */
+  async sendInfoReply(row: MineShelterDto): Promise<void> {
+    const request = row.infoRequest;
+    if (request === null || request.replyMessage !== null) {
+      return; // nothing open to answer (the form only renders while open)
+    }
+    const message = this.replyMessage.value.trim();
+    if (message === '' || message.length > 2000) {
+      this.replyMessage.markAsTouched();
+      return;
+    }
+    if (this.busy()) {
+      return;
+    }
+    this.busy.set(true);
+    try {
+      await this.shelters.replyInfoRequest(row.id, message);
+      this.shelterRows.update((rows) =>
+        (rows ?? []).map((r) =>
+          r.id === row.id && r.infoRequest !== null
+            ? {
+                ...r,
+                infoRequest: {
+                  ...r.infoRequest,
+                  replyMessage: message,
+                  repliedAt: new Date().toISOString(),
+                },
+              }
+            : r,
+        ),
+      );
+      this.shelterRowError.update((e) => (e && e.id === row.id ? null : e));
+      this.closeInfo();
+    } catch (error: unknown) {
+      this.shelterRowError.set({ id: row.id, message: bannerMessage(error, 'shelter') });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+}

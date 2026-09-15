@@ -1,0 +1,359 @@
+@if (notFound()) {
+  <section class="shelter-detail shelter-detail--not-found">
+    <h1 class="page-title">{{ 'detail.notFoundTitle' | t }}</h1>
+    <p class="page-subtitle">{{ 'detail.notFoundBody' | t }}</p>
+    <a routerLink="/map" class="btn btn--primary">{{ 'detail.backToMap' | t }}</a>
+  </section>
+} @else {
+  <section class="shelter-detail">
+    <a routerLink="/map" class="back-link">&larr; {{ 'detail.backToMap' | t }}</a>
+
+    <header class="shelter-detail__header">
+      <div class="shelter-detail__title-row">
+        <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
+        @if (shelter(); as s) {
+          <!-- Source/trust badge (community-review-queue D5): registry rows
+               say which registry; USER rows say their trust state (NEW =
+               "Newly added" amber, CONFIRMED = "Community-checked" green). -->
+          <span class="badge" [ngClass]="communityBadgeClass(s)">
+            {{ sourceTrustLabel(s) }}
+          </span>
+          @if (isPrivateLocation(s)) {
+            <span class="badge badge--private">{{ privateLocationBadge }}</span>
+          }
+          <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
+               as the map list row — reported /
+               fresh-CLOSED (amber; fresh OPEN renders no badge) /
+               occupancy. -->
+          @if (hasTrustBadges(s)) {
+            @if (hasReports(s)) {
+              <!-- The count — the nonexistentReports subset that
+                   drives the badge (single-sourced with the map row). -->
+              <span class="badge badge--reported">{{
+                reportedBadgeText(s.nonexistentReports)
+              }}</span>
+            }
+            @if (openStatusBadgeText(s.openStatus); as openText) {
+              <span class="badge badge--closed">{{ openText }}</span>
+            }
+            @if (s.occupancy; as occ) {
+              <span class="badge badge--occupancy">{{ occupancyText(occ) }}</span>
+            }
+          }
+        }
+      </div>
+      @if (shelter(); as s) {
+        @if (s.source === 'USER' && s.reviewStatus === 'NEW') {
+          <!-- The unverified warning (community-review-queue): community
+               rows in the NEW state only — CONFIRMED rows keep the
+               "Community-checked" badge and NO warning. Subtle muted
+               styling next to the trust-state badge — a caveat, NOT the
+               crisis orange. -->
+          <p class="community-warning">{{ communityUnverifiedWarning }}</p>
+        }
+        @if (s.inaccurate) {
+          <!-- Marked inaccurate: the single-sourced warning —
+               the flag is the treatment, the row stays visible (status and
+               trust state untouched). Independent of the review state. -->
+          <p class="community-warning">{{ inaccurateWarning }}</p>
+        }
+        @if (isPrivateLocation(s)) {
+          <!-- The private-home declaration (D7): resident-offered, not an
+               official facility. Every PRIVATE row, on every visit. -->
+          <p class="private-note">{{ privateLocationNote }}</p>
+        }
+      }
+      @if (shelter(); as s) {
+        @if (hasCoordinates(s)) {
+          <!-- Navigate actions (map-crisis-actions D3): small secondary
+               links near the name — they leave the app to the phone's own
+               navigation app, they do not navigate within it, and they do
+               not compete with the back link. -->
+          <div class="shelter-detail__navigate">
+            <a [href]="navigateUrl(s)" target="_blank" rel="noopener">{{
+              'detail.navigate' | t
+            }}</a>
+            <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">{{
+              'detail.appleMaps' | t
+            }}</a>
+            <!-- Distance from you (location-navigation): the page's
+                 ONLY geolocation trigger — browser asks first, the point
+                 never leaves the device, the result is the straight-line
+                 honesty line under the coordinates (never a route claim). -->
+            <button
+              type="button"
+              class="shelter-detail__distance"
+              (click)="distanceFromMe()"
+              [disabled]="distancePending()"
+              [attr.aria-busy]="distancePending()"
+            >
+              {{ distancePending() ? 'Measuring…' : 'Distance from you' }}
+            </button>
+          </div>
+        }
+      }
+      @if (shelter()?.address; as address) {
+        <p class="shelter-detail__address">{{ address }}</p>
+      }
+      @if (shelter(); as s) {
+        @if (hasCoordinates(s)) {
+          <!-- The coordinate line (D6): .num-tabular keeps the figures from
+               shifting (the submit page's readout uses the same class). -->
+          <p class="shelter-detail__coords num-tabular">{{ coordinateLine(s) }}</p>
+        }
+      }
+      @if (distanceKm() !== null) {
+        <!-- Distance honesty (location-navigation D6): the
+             straight line from the user's browser position — never a
+             walking-route or official claim. -->
+        <p class="shelter-detail__distance-line num-tabular" role="status">
+          {{ straightLineText(distanceKm()!) }} from you
+        </p>
+      } @else if (distanceError(); as msg) {
+        <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
+      }
+      @if (shelter(); as s) {
+        <!-- Last verified: the per-entry server-derived stamp. For
+             NEW community rows the line IS the not-yet-verified signal
+             ("Newly added X d ago — not yet verified"); the community
+             report count rides on the same line when present.
+             .num-tabular keeps the figures from shifting. -->
+        <p class="shelter-detail__verified num-tabular">
+          {{ lastVerifiedText(s) }}
+          @if (hasCommunityReports(s)) {
+            <span>&middot; {{ communityReportsText(s.reportCount) }}</span>
+          }
+        </p>
+      }
+    </header>
+
+    <app-banner severity="error" [message]="error()" />
+    @if (notice(); as n) {
+      <app-banner severity="success" [message]="n.text" />
+    }
+
+    <!-- Location map: ALWAYS mounted in the non-not-found state (not inside
+         the shelter branch) so the container exists at view-init time while
+         the shelter — and its coordinates — are still in flight. Loading /
+         error show the placeholder background; on load success the page
+         flies here to street level and pins the shelter. The map is a
+         picture of WHERE the shelter is: static marker, no picking, no
+         marker navigation. -->
+    <section class="detail-section" aria-labelledby="location-heading">
+      <h2 class="section-title" id="location-heading">{{ 'detail.locationHeading' | t }}</h2>
+      <div #mapEl class="shelter-detail__map"></div>
+    </section>
+
+    @if (loading()) {
+      <app-loading-indicator class="detail-state" message="Loading shelter…" />
+    } @else if (shelter(); as s) {
+      @if (hasUserDetails()) {
+        <section class="detail-section">
+          <h2 class="section-title">{{ 'detail.detailsHeading' | t }}</h2>
+          @if (s.description) {
+            <p class="detail-description">{{ s.description }}</p>
+          }
+          @if (s.capacity !== null) {
+            <p class="detail-meta">Capacity: {{ s.capacity }}</p>
+          }
+        </section>
+      }
+
+      <!-- Report how full (shelter-trust-and-reports D4/D6): three large
+           band buttons, one tap, latest-wins. The user's current band is
+           pre-selected from yourOccupancyBand; the current aggregate +
+           recency render ONLY while fresh (the null block shows nothing).
+           Verified viewers report; unverified/anonymous get the existing
+           redirect vocabulary. -->
+      <section class="detail-section" aria-labelledby="occupancy-heading">
+        <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
+        @if (auth.initialized() && auth.authenticated()) {
+          @if (auth.isVerified()) {
+            <div class="band-picker" role="group" [attr.aria-label]="'detail.occupancy.aria' | t">
+              @for (band of BANDS; track band.value) {
+                <button
+                  type="button"
+                  class="btn band-btn"
+                  [class.band-btn--active]="s.yourOccupancyBand === band.value"
+                  [attr.aria-pressed]="s.yourOccupancyBand === band.value"
+                  [disabled]="reporting()"
+                  (click)="reportBand(band.value)"
+                >
+                  {{ band.labelKey | t }}
+                </button>
+              }
+            </div>
+            @if (s.occupancy; as occ) {
+              <p class="occupancy-line">{{ occupancyText(occ) }}</p>
+            }
+          } @else {
+            <div class="report-gate-prompt">
+              <p>{{ 'detail.verify.occupancy' | t }}</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >{{ 'detail.verifyAccount' | t }}</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="report-gate-prompt">
+            <p>{{ 'detail.login.occupancy' | t }}</p>
+          </div>
+        }
+      </section>
+
+      <!-- Report open/closed: two large state buttons,
+           one tap, latest-wins — the "Report how full" section's structure
+           mirrored 1:1 (same gates, same redirect vocabulary, same error
+           handling). The user's current state is pre-selected from
+           yourOpenStatus (radio-style pressed state); a tap fires
+           putOpenStatus with the optimistic pressed state and refetches.
+           Open is the default: a fresh OPEN renders no row badge, the
+           picker is where the signal lives. -->
+      <section class="detail-section" aria-labelledby="open-status-heading">
+        <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
+        @if (auth.initialized() && auth.authenticated()) {
+          @if (auth.isVerified()) {
+            <div
+              class="open-status-picker"
+              role="group"
+              [attr.aria-label]="'detail.openStatus.aria' | t"
+            >
+              @for (option of OPEN_STATES; track option.value) {
+                <button
+                  type="button"
+                  class="btn open-status-btn"
+                  [class.open-status-btn--active]="openStatusPressed(option.value)"
+                  [attr.aria-pressed]="openStatusPressed(option.value)"
+                  [disabled]="reporting()"
+                  (click)="reportOpenStatus(option.value)"
+                >
+                  {{ option.labelKey | t }}
+                </button>
+              }
+            </div>
+          } @else {
+            <div class="report-gate-prompt">
+              <p>{{ 'detail.verify.open' | t }}</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >{{ 'detail.verifyAccount' | t }}</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="report-gate-prompt">
+            <p>{{ 'detail.login.open' | t }}</p>
+          </div>
+        }
+      </section>
+
+      <!-- Report this shelter (shelter-trust-and-reports D1/D6): the typed
+           report (verified only, one per type). The factual types
+           (CLOSED / WRONG_LOCATION / OTHER) carry the detail field. -->
+      <section class="detail-section" aria-labelledby="report-shelter-heading">
+        <h2 class="section-title" id="report-shelter-heading">{{ 'detail.reportThis' | t }}</h2>
+        @if (auth.initialized() && auth.authenticated()) {
+          @if (auth.isVerified()) {
+            @if (!reportOpen()) {
+              <button
+                type="button"
+                class="btn btn--ghost"
+                [disabled]="reporting()"
+                (click)="openReport()"
+              >
+                {{ 'detail.report' | t }}
+              </button>
+            } @else {
+              <form class="report-form" (submit)="$event.preventDefault(); submitReport()">
+                <fieldset class="report-options" [attr.aria-label]="'detail.reportType.aria' | t">
+                  @for (option of REPORT_TYPES; track option.value) {
+                    <label class="report-option">
+                      <input
+                        type="radio"
+                        name="shelter-report-type"
+                        [value]="option.value"
+                        [checked]="reportType() === option.value"
+                        (change)="onReportTypeChange($event)"
+                      />
+                      {{ option.labelKey | t }}
+                    </label>
+                  }
+                </fieldset>
+                @if (reportDetailPlaceholder(); as placeholder) {
+                  <div class="field">
+                    <label for="report-detail">{{ 'detail.reportDetailLabel' | t }}</label>
+                    <textarea
+                      id="report-detail"
+                      rows="2"
+                      maxlength="500"
+                      [formControl]="reportDetail"
+                      [placeholder]="placeholder"
+                    ></textarea>
+                    @if (reportDetail.touched && reportDetail.invalid) {
+                      <p class="field-error">{{ 'detail.reportDetailError' | t }}</p>
+                    }
+                  </div>
+                }
+                @if (reportDuplicate(); as dup) {
+                  <p class="report-status" role="status">{{ dup }}</p>
+                }
+                <div class="report-actions">
+                  <button
+                    type="submit"
+                    class="btn btn--primary"
+                    [disabled]="reporting() || reportType() === null || reportDetail.invalid"
+                  >
+                    {{ reporting() ? ('detail.submitting' | t) : ('detail.submitReport' | t) }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="closeReport()"
+                    [disabled]="reporting()"
+                  >
+                    {{ 'detail.cancel' | t }}
+                  </button>
+                </div>
+              </form>
+            }
+          } @else {
+            <div class="report-gate-prompt">
+              <p>{{ 'detail.verify.report' | t }}</p>
+              <a
+                routerLink="/verify"
+                [queryParams]="{ returnUrl: '/shelters/' + id() }"
+                class="btn btn--primary"
+                >{{ 'detail.verifyAccount' | t }}</a
+              >
+            </div>
+          }
+        } @else {
+          <div class="report-gate-prompt">
+            <p>{{ 'detail.login.report' | t }}</p>
+          </div>
+        }
+      </section>
+
+      <!-- Practical info (review-model removal): the
+           derived display status — the FRESH open/closed reports first
+           ("Reported closed" at one, "Closed" at two+, "Open"), then the
+           lifecycle status ("Closed" for INACTIVE, "Open (no recent
+           reports)" otherwise). Same rule the map's "Open" chip filters
+           on (single source, shelter-copy). -->
+      <section class="detail-section" aria-labelledby="info-heading">
+        <h2 class="section-title" id="info-heading">{{ 'detail.infoHeading' | t }}</h2>
+        <dl class="fact-list">
+          <div class="fact-list__row">
+            <dt class="fact-list__label">Status</dt>
+            <dd class="fact-list__value">{{ shelterStatusText(s) }}</dd>
+          </div>
+        </dl>
+      </section>
+    }
+  </section>
+}

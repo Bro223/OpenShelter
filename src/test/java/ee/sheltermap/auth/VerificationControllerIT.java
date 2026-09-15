@@ -49,7 +49,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Veri Kasutaja\",\"email\":\"veri@example.ee\",\"phone\":\"+37250008888\","
-                    + "\"nationalIdCode\":\"49001018888\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
@@ -94,25 +94,35 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isUnauthorized());
 
-        // request email verification -> 202, code delivered via the channel
+        // request email verification -> 202, code delivered via the channel,
+        // ack says when a resend is allowed (default cooldown: 60s)
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
         String message = smtp.last().message();
-        assertThat(message).contains("verification token: ");
+        assertThat(message).contains("verification code: ");
         String code = message.substring(message.lastIndexOf(' ') + 1);
 
         // resend within the cooldown window (default 60s) -> 429, uniform shape
-        mvc.perform(post("/verify/request")
+        // (all five fields) + an exact Retry-After countdown in 1..cooldown
+        MvcResult throttled = mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.error").value("Too Many Requests"));
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message").value("Too many verification requests"))
+                .andExpect(jsonPath("$.path").value("/verify/request"))
+                .andReturn();
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotBlank();
+        assertThat(Integer.parseInt(retryAfter)).isBetween(1, 60);
 
         // wrong code -> 400 with the uniform ErrorResponse shape
         mvc.perform(post("/verify/confirm")
@@ -135,12 +145,14 @@ class VerificationControllerIT extends AbstractPersistenceIT {
         assertThat(user.levels()).contains(VerificationLevel.EMAIL);
         assertThat(user.canWrite()).isTrue();
 
-        // SMART_ID is rejected up front (stub in v1)
+        // SMART_ID is rejected up front with plain user language (the stub
+        // fact stays in the controller comment, not in the 400 message)
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"level\":\"SMART_ID\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("eID verification is not available yet."));
 
         // the write path now works over HTTP
         mvc.perform(post("/api/shelters")
@@ -170,7 +182,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\",\"code\":\"" + firstCode + "\"}"))
                 .andExpect(status().isOk());
 
-        // P1 fix: requesting the already-verified level again -> 409, no code sent
+        // Requesting the already-verified level again -> 409, no code sent
         int sentBefore = smtp.sent().size();
         mvc.perform(post("/verify/request")
                         .header("Authorization", "Bearer " + token)
@@ -180,7 +192,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.status").value(409));
         assertThat(smtp.sent()).hasSize(sentBefore);
 
-        // P1 fix: re-confirming an already-verified level is an idempotent no-op
+        // Re-confirming an already-verified level is an idempotent no-op
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -195,7 +207,7 @@ class VerificationControllerIT extends AbstractPersistenceIT {
 
     private String loginAndGetAccessToken() throws Exception {
         MvcResult result = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"veri@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"veri@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");

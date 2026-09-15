@@ -2,6 +2,7 @@ package ee.sheltermap.verification;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -42,6 +43,7 @@ public class TwilioSmsSender implements SmsSender {
     private final String messagingServiceSid;
     private final String fromNumber;
 
+    @Autowired
     public TwilioSmsSender(@Value("${TWILIO_ACCOUNT_SID:}") String accountSid,
                            @Value("${TWILIO_AUTH_TOKEN:}") String authToken,
                            @Value("${TWILIO_MESSAGING_SERVICE_SID:}") String messagingServiceSid,
@@ -83,12 +85,34 @@ public class TwilioSmsSender implements SmsSender {
         String toE164 = PhoneNumbers.normalizeE164(phone);
         try {
             api.send(toE164, messagingServiceSid, fromNumber, message);
-            log.info("Twilio SMS sent to {} ({} chars)", toE164, message.length());
+            log.info("Twilio SMS sent to {} ({} chars)", maskPhone(toE164), message.length());
         } catch (RuntimeException ex) {
             // Logged, never thrown: callers must not be able to distinguish
             // "delivery failed" from "request accepted" (anti-enumeration).
-            log.error("Twilio SMS delivery failed to {}: {}", toE164, ex.getMessage());
+            log.error("Twilio SMS delivery failed to {}: {}", maskPhone(toE164), ex.getMessage());
         }
+    }
+
+    /**
+     * Log-safe phone mask (PII): keeps the leading {@code +} and the
+     * first three digits (country code) and the LAST TWO digits, e.g.
+     * {@code +37250000045} → {@code +372****45}. Logs must not carry the
+     * full number (it is a login contact + account-recovery channel).
+     */
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.isEmpty()) {
+            return "?";
+        }
+        String head = phone.charAt(0) == '+' ? "+" : "";
+        int digitsFrom = head.length();
+        if (phone.length() - digitsFrom < 2) {
+            return "****";
+        }
+        String tail = phone.substring(phone.length() - 2);
+        if (phone.length() - digitsFrom >= 6) {
+            return head + phone.substring(digitsFrom, digitsFrom + 3) + "****" + tail;
+        }
+        return head + "****" + tail;
     }
 
     /** SDK-backed {@link TwilioApi}. Static init is idempotent; safe for a single app. */

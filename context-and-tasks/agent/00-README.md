@@ -5,26 +5,34 @@
 Step-by-step build instructions + context files for an AI coding agent that will implement the
 **Shelter Map** backend (Spring Boot), one reviewable step at a time.
 
-The **UML diagrams** (`docs/uml/`) are the source of truth for structure (classes, method
+The **UML diagrams** (the `context-and-tasks/` folder — `../` relative to this file) are the source of truth for structure (classes, method
 signatures, relationships, packages). The files in this folder add the **decisions, rationale,
 conventions, and build order** that the diagrams don't carry.
+
+## Status
+
+The build is complete through the **admin-moderation wave** (post-step-7 additions):
+steps 0–6 (core, verification, auth, ingestion, shelter API, reviews) plus the trust &
+reports layer (V9) and the env-provisioned admin + moderation API (V10, `/admin/*`).
+`mvn test` is green — **464 tests** (counted 2026-09-12). This pack is now also a
+reference: every context file and diagram below reflects the implemented reality.
 
 ## Folder map
 
 | File | Purpose |
 |---|---|
 | `01-TASK.md` | **The task contract.** Read this first — project goal, stack, rules, conventions. |
-| `02-CONTEXT-DOMAIN.md` | Domain core: users, verification claims, policy, shelter, reviews (from `01` puml). |
+| `02-CONTEXT-DOMAIN.md` | Domain core: users (incl. `AdminUser`), verification claims, policy, shelter, reviews, trust entities — reports (incl. `dismissedAt`), occupancy, status flag (from `01` puml). |
 | `03-CONTEXT-VERIFICATION.md` | Verification providers & service (from `01` puml). |
-| `04-CONTEXT-AUTH.md` | Password login, JWT sessions, password reset (from `03` puml). |
+| `04-CONTEXT-AUTH.md` | Password login, JWT sessions, password reset, the env-provisioned `AdminSeeder` (admin-moderation D1) (from `03` puml). |
 | `05-CONTEXT-INGESTION.md` | Registry ingestion (from `04` puml). |
-| `06-CONTEXT-API.md` | Shelter API: read/write + community reviews (from `05` puml). |
-| `07-STEPS.md` | The ordered build plan — steps 0–6 with acceptance criteria and stop points. |
+| `06-CONTEXT-API.md` | Shelter API: read/write + community reviews + the trust layer (reports, occupancy, filters, V9) + the admin moderation surface (`/admin/*`, D3/D4) (from `05` puml). |
+| `07-STEPS.md` | The ordered build plan — steps 0–6 with acceptance criteria and stop points, plus the post-step-7 trust & reports + admin-moderation additions. |
 
 ## Source-of-truth UML
 
-`docs/uml/01-user-verification.puml` … `05-shelter-api.puml`
-(render with `./render.sh`; PNGs land in `docs/uml/out/`).
+`../01-user-verification.puml` … `../05-shelter-api.puml` (i.e. `context-and-tasks/`)
+(render with `../render.sh`; PNGs land in `../out/`).
 
 ## How to run the agent (one step at a time)
 

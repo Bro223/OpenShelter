@@ -23,11 +23,12 @@ public class InMemoryPendingVerificationRepository implements PendingVerificatio
     }
 
     @Override
-    public Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level) {
+    public Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level,
+                                                                  Instant now) {
         return store.values().stream()
                 .filter(p -> p.getUserId().equals(userId))
                 .filter(p -> p.getLevel() == level)
-                .filter(p -> !p.isExpired(Instant.now()))
+                .filter(p -> !p.isExpired(now))
                 .reduce((first, second) -> second); // most recently saved
     }
 

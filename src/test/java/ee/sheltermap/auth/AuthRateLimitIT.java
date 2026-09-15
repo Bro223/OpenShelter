@@ -41,29 +41,29 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
                     .andExpect(status().isUnauthorized()); // passes the limiter, generic 401
         }
         mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isTooManyRequests())
+                    .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
     }
 
     @Test
     void registerBurstOverCapacityReturns429() throws Exception {
-        // Registration is rate-limited per client IP (account-spam vector —
-        // hardening pass). Different emails share the IP bucket.
+        // Registration is rate-limited per client IP (the account-spam
+        // vector). Different emails share the IP bucket.
         for (int i = 0; i < 3; i++) {
             mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Spam\",\"email\":\"spam" + i + "@example.ee\","
-                                    + "\"phone\":\"+37250009" + i + "\",\"nationalIdCode\":\"49001019" + i + "\","
-                                    + "\"password\":\"s3cret\"}"))
+                                    + "\"phone\":\"+37250009" + i + "\","
+                                    + "\"password\":\"s3cret123\"}"))
                     .andExpect(status().isCreated());
         }
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Spam\",\"email\":\"spam9@example.ee\","
-                                + "\"phone\":\"+3725000999\",\"nationalIdCode\":\"4900101999\","
-                                + "\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"+3725000999\","
+                                + "\"password\":\"s3cret123\"}"))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
     }
 
     @Test
@@ -76,6 +76,33 @@ class AuthRateLimitIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.status").value(429))
-                .andExpect(jsonPath("$.message").value("too many requests"));
+                .andExpect(jsonPath("$.message").value("Too many requests"));
+    }
+
+    @Test
+    void spoofedXffFromTrustedLoopbackYieldsSeparateBuckets() throws Exception {
+        // The IT's direct peer is 127.0.0.1 — trusted loopback by default
+        // (app.ratelimit.trust-loopback), so X-Forwarded-For is honored and
+        // each spoofed client IP gets its own (IP, contact) bucket: exhaust
+        // one, the other must be unaffected (an untrusted peer would
+        // ignore XFF entirely and everything would share the peer bucket).
+        String body = "{\"emailOrPhone\":\"xff@example.ee\",\"password\":\"x\"}";
+
+        for (int i = 0; i < 3; i++) {
+            mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.1")
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isUnauthorized()); // passes limiter, generic 401
+        }
+
+        // 10.66.0.1's (IP, contact) bucket (capacity 3, refill 0) is exhausted
+        mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.1")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429));
+
+        // a DIFFERENT spoofed client is unaffected
+        mvc.perform(post("/auth/login").header("X-Forwarded-For", "10.66.0.2")
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isUnauthorized());
     }
 }

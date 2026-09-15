@@ -9,13 +9,30 @@ import java.util.Objects;
  * (source = REGISTRY) additionally carry the full published record
  * (address, county, municipality, data as-of, attribution) so the app owns
  * the complete dataset — the public API exposes only a lean projection.
+ *
+ * <p>{@code createdBy} links USER submissions to their author (V7) —
+ * registry rows and pre-V7 legacy USER rows have a {@code null} author and
+ * are unmanageable by anyone.
+ *
+ * <p>{@code status} is the lifecycle field (ACTIVE/INACTIVE): the trust
+ * layer's auto-hide, the community-report auto-hide and the admin
+ * hide/restore move it.
+ * {@code reviewStatus} is the community trust state
+ * (community-review-queue v2 D1/D2) — a separate dimension: there is no
+ * blocking queue, community rows publish immediately as NEW and move to
+ * CONFIRMED automatically (a positive community report from a
+ * non-submitter) or via the rare admin CONFIRM; REJECT hides via
+ * {@code status = INACTIVE}. Defaults {@code CONFIRMED}, matching the
+ * V11 backfill for registry rows; the submission service sets NEW on new
+ * USER rows. {@code locationKind} is the submitter's private-home
+ * declaration (D7).
  */
 public class Shelter {
 
     private Long id;
     private final String name;
     private final GeoPoint location;
-    private final ShelterStatus status;
+    private ShelterStatus status;
     private final String externalId;
     private final ShelterSource source;
     private final String address;
@@ -26,6 +43,35 @@ public class Shelter {
     private final String description;
     private final Integer capacity;
     private Instant createdAt;
+    /** Author (submitting user's id) for USER submissions; {@code null} for registry/legacy rows. */
+    private Long createdBy;
+    /**
+     * Auto-hide disarm flag (V9): while {@code false} the 5th
+     * {@code NON_EXISTENT} report may auto-hide the shelter; a manual
+     * admin restore sets it {@code true} (the admin-moderation change owns
+     * the write path — the auto-hide condition honours it from day one).
+     */
+    private boolean autoHideDisarmed;
+    /**
+     * Community trust state (community-review-queue v2 D1/D2). Defaults
+     * {@code CONFIRMED} — matching the V11 backfill for registry rows
+     * (official data), so registry imports keep their exact state;
+     * only the submission service creates a NEW row.
+     */
+    private ReviewStatus reviewStatus = ReviewStatus.CONFIRMED;
+    /** The admin's note (the REJECT reason); {@code null} while nothing is said. */
+    private String reviewNote;
+    /** The submitter's private-home declaration (community-review-queue v2 D7). */
+    private LocationKind locationKind = LocationKind.PUBLIC;
+    /**
+     * "Mark inaccurate" stamp (moderation-dashboard-completion):
+     * set by the admin mark, cleared by the admin clear; {@code null} = not
+     * marked. The row stays visible — this is a public warning flag, not a
+     * lifecycle state (status and reviewStatus are untouched).
+     */
+    private Instant inaccurateMarkedAt;
+    /** The moderating admin's user id; {@code null} while unmarked (NO-FK semantics, V20). */
+    private Long inaccurateMarkedBy;
 
     public Shelter(String name, GeoPoint location, ShelterStatus status, String externalId, ShelterSource source) {
         this(name, location, status, externalId, source, null, null, null, null, null, null, null);
@@ -74,6 +120,56 @@ public class Shelter {
         this.createdAt = createdAt;
     }
 
+    /**
+     * Status transition — the only caller is the trust layer's auto-hide.
+     * Kept deliberately plain: the admin restore
+     * (admin-moderation) reuses it.
+     */
+    public void setStatus(ShelterStatus status) {
+        this.status = Objects.requireNonNull(status, "status");
+    }
+
+    public boolean isAutoHideDisarmed() {
+        return autoHideDisarmed;
+    }
+
+    public void setAutoHideDisarmed(boolean autoHideDisarmed) {
+        this.autoHideDisarmed = autoHideDisarmed;
+    }
+
+    public ReviewStatus getReviewStatus() {
+        return reviewStatus;
+    }
+
+    public void setReviewStatus(ReviewStatus reviewStatus) {
+        this.reviewStatus = Objects.requireNonNull(reviewStatus, "reviewStatus");
+    }
+
+    public String getReviewNote() {
+        return reviewNote;
+    }
+
+    public void setReviewNote(String reviewNote) {
+        this.reviewNote = reviewNote;
+    }
+
+    public LocationKind getLocationKind() {
+        return locationKind;
+    }
+
+    public void setLocationKind(LocationKind locationKind) {
+        this.locationKind = Objects.requireNonNull(locationKind, "locationKind");
+    }
+
+    /** Author user id ({@code null} for registry rows and pre-V7 legacy USER rows). */
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
+    }
+
     public String getName() {
         return name;
     }
@@ -120,5 +216,23 @@ public class Shelter {
 
     public Integer getCapacity() {
         return capacity;
+    }
+
+    /** "Mark inaccurate" stamp; {@code null} while unmarked. */
+    public Instant getInaccurateMarkedAt() {
+        return inaccurateMarkedAt;
+    }
+
+    public void setInaccurateMarkedAt(Instant inaccurateMarkedAt) {
+        this.inaccurateMarkedAt = inaccurateMarkedAt;
+    }
+
+    /** The moderating admin id of the mark; {@code null} while unmarked. */
+    public Long getInaccurateMarkedBy() {
+        return inaccurateMarkedBy;
+    }
+
+    public void setInaccurateMarkedBy(Long inaccurateMarkedBy) {
+        this.inaccurateMarkedBy = inaccurateMarkedBy;
     }
 }

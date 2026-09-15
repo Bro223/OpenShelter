@@ -23,11 +23,15 @@ import java.util.Objects;
  * restarts (product decision), with no database involved.
  *
  * <p>Format: one line per send, tab-separated:
- * {@code <userId>\t<level>\t<contact>\t<epochMillis>}. Lines are appended on
- * every send and loaded into memory at startup; entries older than the
- * retention window are pruned so the file cannot grow forever. Corrupted
- * lines are skipped, never fatal. IO failures are logged, never thrown —
- * the verification flow must not break because the log is unwritable.
+ * {@code <userId>\t<level>\t<epochMillis>}. The cooldown/cap math needs
+ * only (userId, level, timestamp), so the raw contact is NOT persisted
+ * (PII in an unencrypted log file). Legacy 4-field lines (with a
+ * contact column) are still parsed — the contact field is ignored.
+ * Lines are appended on every send and loaded into memory at startup;
+ * entries older than the retention window are pruned so the file cannot
+ * grow forever. Corrupted lines are skipped, never fatal. IO failures
+ * are logged, never thrown — the verification flow must not break
+ * because the log is unwritable.
  */
 public class FileVerificationSendLog implements VerificationSendLog {
 
@@ -74,20 +78,38 @@ public class FileVerificationSendLog implements VerificationSendLog {
 
     @Override
     public synchronized void record(long userId, VerificationLevel level, String contact, Instant sentAt) {
-        records.add(new SendRecord(userId, level, contact, sentAt.toEpochMilli()));
-        appendToFile(userId, level, contact, sentAt.toEpochMilli());
+        // contact is intentionally NOT persisted — PII belongs to no log file
+        records.add(new SendRecord(userId, level, sentAt.toEpochMilli()));
+        appendToFile(userId, level, sentAt.toEpochMilli());
         if (records.size() >= PRUNE_AFTER_LINES) {
             prune();
         }
     }
 
-    private void appendToFile(long userId, VerificationLevel level, String contact, long epochMillis) {
+    @Override
+    public synchronized SendDecision tryRecord(long userId, VerificationLevel level, String contact,
+                                               Instant now, long cooldownSeconds, int maxPerDay) {
+        // Check + record under ONE lock hold. The helper calls re-enter
+        // the (reentrant) monitor, so a burst cannot pass both reads before
+        // either records.
+        Instant lastSentAt = lastSentAt(userId, level);
+        if (cooldownSeconds > 0 && lastSentAt != null && now.isBefore(lastSentAt.plusSeconds(cooldownSeconds))) {
+            return SendDecision.COOLDOWN;
+        }
+        if (maxPerDay > 0 && countToday(userId, level) >= maxPerDay) {
+            return SendDecision.DAILY_CAP;
+        }
+        record(userId, level, contact, now);
+        return SendDecision.OK;
+    }
+
+    private void appendToFile(long userId, VerificationLevel level, long epochMillis) {
         try {
             Path parent = path.getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            String line = userId + "\t" + level.name() + "\t" + contact + "\t" + epochMillis
+            String line = userId + "\t" + level.name() + "\t" + epochMillis
                     + System.lineSeparator();
             Files.write(path, line.getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
@@ -128,7 +150,7 @@ public class FileVerificationSendLog implements VerificationSendLog {
             List<String> lines = new ArrayList<>(records.size());
             for (SendRecord record : records) {
                 lines.add(record.userId() + "\t" + record.level().name() + "\t"
-                        + record.contact() + "\t" + record.epochMillis());
+                        + record.epochMillis());
             }
             Files.write(path, lines, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -139,20 +161,21 @@ public class FileVerificationSendLog implements VerificationSendLog {
 
     private static SendRecord parse(String line) {
         String[] parts = line.split("\t", -1);
-        if (parts.length != 4) {
+        // 3 fields = current format; 4 fields = legacy format with a
+        // contact column (the contact is ignored — PII was removed).
+        if (parts.length != 3 && parts.length != 4) {
             return null;
         }
         try {
             return new SendRecord(
                     Long.parseLong(parts[0].trim()),
                     VerificationLevel.valueOf(parts[1].trim()),
-                    parts[2],
-                    Long.parseLong(parts[3].trim()));
+                    Long.parseLong(parts[parts.length - 1].trim()));
         } catch (RuntimeException e) {
             return null; // tolerate a corrupted line
         }
     }
 
-    private record SendRecord(long userId, VerificationLevel level, String contact, long epochMillis) {
+    private record SendRecord(long userId, VerificationLevel level, long epochMillis) {
     }
 }

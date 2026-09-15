@@ -1,0 +1,149 @@
+<!-- Skip link (WCAG 2.4.1): the shell's FIRST element —
+     off-screen until it takes keyboard focus, then it reveals over the header
+     so the first Tab jumps past the whole nav into the routed page
+     (<main id="main" tabindex="-1"> below). -->
+<a class="skip-link" href="#main">{{ 'nav.skip' | t }}</a>
+
+<app-consent-banner />
+
+<header class="shell-header">
+  <a class="brand" routerLink="/map">OpenShelter</a>
+  <!-- Mobile burger (hidden at >=900px): opens the .shell-menu panel below.
+       The three bars are CSS-drawn — no icon library, no unicode glyph. -->
+  <button
+    type="button"
+    class="shell-burger"
+    [attr.aria-label]="'menu.aria' | t"
+    [attr.aria-expanded]="menuOpen()"
+    aria-controls="shell-mobile-menu"
+    (click)="toggleMenu()"
+  >
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+    <span class="shell-burger__bar" aria-hidden="true"></span>
+  </button>
+  <!-- Single source for nav + actions: at >=900 a normal flex row (the
+       flex: 1 keeps .shell-actions' margin-left: auto pushing the actions
+       to the header's right edge — the old inline layout, visually
+       unchanged); below 900 the same node is the dropdown panel (hidden
+       until opened). The (click) close covers every menu item in one
+       place: nav anchors, the language switcher, the high-contrast
+       toggle, the auth controls. -->
+  <div
+    class="shell-menu"
+    id="shell-mobile-menu"
+    [class.shell-menu--open]="menuOpen()"
+    (click)="closeMenu()"
+  >
+    <nav class="shell-nav" aria-label="Primary">
+      <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
+      @if (auth.initialized() && auth.authenticated()) {
+        <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
+        <!-- Admin-kind only (admin-moderation D5): regular users see the
+             nav unchanged; a failed profile fetch leaves isAdmin false, so
+             the item hides itself fail-closed. -->
+        @if (auth.isAdmin()) {
+          <a routerLink="/admin" routerLinkActive="active">{{ 'nav.admin' | t }}</a>
+        }
+      }
+    </nav>
+    <div class="shell-actions">
+      <!-- Language switcher (i18n-et-en): the active locale's
+           button carries aria-pressed; the choice persists
+           (openshelter-locale) and applies pre-paint via the inline
+           index.html script. The buttons render from LOCALES; the labels
+           are the language codes themselves — never translated. -->
+      <div class="shell-lang" role="group" [attr.aria-label]="'lang.label' | t">
+        @for (code of locales; track code) {
+          <button
+            type="button"
+            class="btn btn--ghost"
+            [attr.aria-pressed]="i18n.locale() === code"
+            (click)="setLocale(code)"
+          >
+            {{ code | uppercase }}
+          </button>
+        }
+      </div>
+      <!-- High-contrast toggle (accessibility-and-provenance D2): always
+           visible (independent of auth), aria-pressed mirrors the theme
+           signal; the preference persists in localStorage and is applied
+           before first paint by the inline index.html script. -->
+      <button
+        type="button"
+        class="btn btn--ghost"
+        [attr.aria-pressed]="theme.highContrast()"
+        (click)="theme.toggle()"
+      >
+        {{ 'theme.toggle' | t }}
+      </button>
+      @if (auth.initialized()) {
+        @if (auth.authenticated()) {
+          <button type="button" class="btn btn--ghost" (click)="logout()">
+            {{ 'auth.logout' | t }}
+          </button>
+        } @else {
+          <a routerLink="/login" class="btn btn--ghost">{{ 'auth.login' | t }}</a>
+          <a routerLink="/register" class="btn btn--primary">{{ 'auth.register' | t }}</a>
+        }
+      }
+    </div>
+  </div>
+</header>
+
+<!-- The routed content. tabindex="-1" is the skip link's landing target:
+     focusing it moves the next Tab into the page instead of back to the nav.
+     page-shell.ts focuses it on every route change after the initial load
+     too, so a client-side swap lands the keyboard the
+     way a document load does. -->
+<main class="shell-body" id="main" tabindex="-1">
+  <router-outlet />
+</main>
+
+<!-- App-wide safety notice: the list is community-maintained and NOT an
+     official emergency channel (the "verified user ≠ verified shelter"
+     trust gap). 112 first, then the official sources. Lives in the shell
+     so every page carries it, and out of the feature pages' layout.
+     i18n-et-en: segmented around the two official links — the link
+     URLs stay constant, only the labels translate. -->
+<footer class="shell-footer">
+  <!-- legal-recovery + official-dataset-csv:
+       the meta row sits ABOVE the notice (owner's layout decision) — the
+       two groups (legal links, data provenance) centred as a pair on
+       desktop, stacked on narrow (<900px).
+       Provenance is non-critical: hidden while loading or on API error.
+       i18n-et-en: labels + the date stamp follow the active locale. -->
+  <div class="shell-footer__meta">
+    <nav class="shell-footer__legal" aria-label="Legal">
+      <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>
+      <span aria-hidden="true">&middot;</span>
+      <a routerLink="/terms">{{ 'footer.terms' | t }}</a>
+    </nav>
+    @if (dataSource(); as ds) {
+      <p class="shell-footer__data">
+        {{ 'footer.dataSource' | t }}: {{ ds.sourceName }}
+        @if (ds.lastImport; as last) {
+          <span aria-hidden="true">&middot;</span>
+          {{ 'footer.lastImport' | t }}
+          {{ last.at | date: 'short' : undefined : i18n.locale() }}
+        }
+        <span aria-hidden="true">&middot;</span>
+        <a [href]="ds.officialUrl" target="_blank" rel="noopener">{{
+          'footer.officialOpenData' | t
+        }}</a>
+      </p>
+    }
+  </div>
+  <!-- The safety notice: the BOTTOM tier, centred on its own full-width
+       line (the owner's no-wrap requirement — the combined sentence needs
+       ~1100px, so it must have the row to itself). -->
+  <p class="shell-footer__notice">
+    {{ 'footer.notice1' | t }} {{ 'footer.notice2' | t }} {{ 'footer.notice3' | t }}
+    <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">{{
+      'footer.rescueBoard' | t
+    }}</a>
+    {{ 'footer.and' | t }}
+    <a href="https://www.maaamet.ee" target="_blank" rel="noopener">{{ 'footer.maaAmet' | t }}</a
+    >.
+  </p>
+</footer>

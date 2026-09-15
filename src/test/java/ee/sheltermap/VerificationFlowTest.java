@@ -1,10 +1,12 @@
 package ee.sheltermap;
 
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
+import ee.sheltermap.app.InMemoryShelterHistoryLog;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserService;
-import ee.sheltermap.config.VerificationProperties;
+import ee.sheltermap.verification.VerificationProperties;
 import ee.sheltermap.domain.Capability;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.VerificationPolicy;
@@ -20,12 +22,14 @@ import ee.sheltermap.verification.EmailVerificationProvider;
 import ee.sheltermap.verification.InMemoryPendingVerificationRepository;
 import ee.sheltermap.verification.InMemoryVerificationSendLog;
 import ee.sheltermap.verification.PhoneVerificationProvider;
+import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProvider;
 import ee.sheltermap.verification.VerificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.EnumMap;
@@ -59,14 +63,17 @@ class VerificationFlowTest {
         shelters = new InMemoryShelterRepository();
 
         userService = new UserService(users);
-        // anchored at real now (the in-memory pending repo checks Instant.now() for expiry)
-        Clock clock = Clock.systemUTC();
+        Clock clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
+        ThrottleAlertRecorder alerts = new ThrottleAlertRecorder(128);
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         verificationService = new VerificationService(providers, pendings,
-                new InMemoryVerificationSendLog(), new VerificationProperties(0, 0, "unused"), clock);
-        shelterService = new ShelterService(shelters);
+                new InMemoryVerificationSendLog(),
+                new RollingContactOtpLimiter(0, Duration.ofHours(24), clock),
+                new VerificationProperties(0, 0, "unused"), clock, alerts);
+        shelterService = new ShelterService(shelters, users, 1_000, 100.0, alerts,
+                new InMemoryShelterHistoryLog(clock), clock);
     }
 
     @Test
@@ -79,7 +86,7 @@ class VerificationFlowTest {
 
         // == 1. Register ==
         RegisteredUser user = userService.register(
-                "Aleks", "aleks@example.com", "+37250000000", "39001010001");
+                "Aleks", "aleks@example.com", "+37250000000");
         assertThat(user.getId()).isNotNull();
         assertThat(user.levels()).isEmpty();
 
@@ -91,10 +98,10 @@ class VerificationFlowTest {
         assertThat(verificationService.confirmVerification(user, VerificationLevel.PHONE, otp)).isTrue();
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
 
-        // == 4-5. Email verification: request token -> confirm ==
+        // == 4-5. Email verification: request code -> confirm ==
         verificationService.requestVerification(user, VerificationLevel.EMAIL);
         assertThat(smtp.getLastEmail()).isEqualTo("aleks@example.com");
-        assertThat(smtp.getLastMessage()).contains("token");
+        assertThat(smtp.getLastMessage()).contains("code");
         String token = smtp.getLastMessage().substring(smtp.getLastMessage().lastIndexOf(' ') + 1);
         assertThat(verificationService.confirmVerification(user, VerificationLevel.EMAIL, token)).isTrue();
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE, VerificationLevel.EMAIL);

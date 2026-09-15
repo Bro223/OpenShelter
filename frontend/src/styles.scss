@@ -1,0 +1,551 @@
+/* Global styles — design tokens + global element styles.
+ *
+ * The :root block below is the SINGLE SOURCE OF TRUTH for visual values.
+ * Component .scss files must reference these custom properties instead of
+ * introducing new literals (policed by src/app/design-tokens.spec.ts).
+ * Need a new value? Add a token here first, then use it — no per-component
+ * literals. Documented exceptions (kept as literals, commented in place):
+ * line weights (1/2/3px borders and outlines) and page-specific layout
+ * dimensions (map heights, sidebar width).
+ */
+
+/* Leaflet map styles — imported globally: the map container and the
+   divIcon markers are created by leaflet itself, so component-scoped styles
+   could not reach them (design decision 6). */
+@use 'leaflet/dist/leaflet.css';
+
+:root {
+  /* ============ Colors ================================================
+   * Exact shipped values — collected here without changing a single
+   * one (no visual redesign).
+   */
+
+  /* Text & surfaces */
+  --color-text: #1c1c1e; /* primary text */
+  --color-muted: #5f5f66; /* secondary text (the whole app) */
+  --color-bg: #fafafa; /* page background */
+  --color-bg-surface: #fff; /* cards, rows, list items, text on primary */
+  --color-bg-subtle: #f6f7f8; /* inset note background (proof-note) */
+  --color-surface-hover: #f0f0f2; /* ghost button hover fill */
+  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay */
+  --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
+
+  /* Brand */
+  --color-primary: #0b5cad;
+  --color-primary-hover: #094e99;
+
+  /* Crisis CTA (map-crisis-actions D1) — the "Nearest shelter" button on
+     /map is the ONLY consumer of this token; the orange is the crisis
+     affordance and must not become a general accent. White text on
+     #bf360c = 5.6:1 (WCAG AA ≥ 4.5; #e8590c and #d9480f fail at 3.6/4.3). */
+  --color-cta: #bf360c;
+
+  /* Reported state (shelter-trust-and-reports D6) — the SINGLE "reported"
+     affordance: the orange map marker fill AND the "Reported" badge
+     (text = --color-bg-surface). Reuses the --color-cta hue family (safety
+     orange, ~10–22°) as its own token: the crisis CTA keeps its colour, the
+     reported state is the badge/marker language — and both stay distinct
+     from the trust blue/green marker colours. White text on #c2410c
+     = 5.18:1 (WCAG AA ≥ 4.5). */
+  --color-reported: #c2410c;
+
+  /* New community state (community-review-queue D5) — the amber marker
+     tone for USER rows in review_status NEW. Vivid gold-amber on purpose,
+     distinct from the safety-orange reported token (#c2410c, hue ~19°;
+     this is ~40°): on the map a just-added community dot must read as
+     "new", not as "reported". Also the fill behind the "Newly added"
+     badge (its text uses the same token, 3.6:1 on white — a graphical
+     badge, not body text; the legend swatch reuses the marker class). */
+  --color-new: #f59f00;
+
+  /* Borders */
+  --color-border: #d8d8dd; /* inputs, cards, list rows */
+  --color-border-subtle: #e3e3e3; /* shell header divider */
+
+  /* Status palette (BannerComponent + verification level chips)
+   *
+   * NOTE (two reds on purpose — documented, not a defect):
+   *   --color-danger  #8c1d18  — the DARK red for page-level error surfaces:
+   *       banners, field errors, the two-step delete confirm, danger
+   *       buttons. Highest-contrast red in the app.
+   *   --color-error   #c0392b  — the BRIGHTER red used ONLY by the admin
+   *       moderation inline editors (admin-page.scss .admin-reason__error:
+   *       the reject-reason, info-request and mark-inaccurate error lines).
+   *       In-context field feedback is intentionally more vivid than the
+   *       page-level banner red so it reads as "fix this field".
+   *       Collapsing it onto --color-danger would change the visible
+   *       contrast of those error lines (5.4:1 vs 9.1:1) — kept as two
+   *       tokens.
+   */
+  --color-danger: #8c1d18; /* page-level error text (banners, field errors) */
+  --color-danger-bg: #fdecea;
+  --color-danger-border: #f5c6c3;
+  --color-error: #c0392b; /* admin moderation inline error text (slightly brighter red) */
+  --color-warning: #7a4d00;
+  --color-warning-bg: #fff7e6;
+  --color-warning-border: #ffd591;
+  --color-info: #15476e;
+  --color-info-bg: #e8f1fb;
+  --color-info-border: #b9d6f5;
+  --color-success: #1a5b2d;
+  --color-success-bg: #e8f8ee;
+  --color-success-border: #b7e3c4;
+  --color-success-bg-soft: #f4fcf6; /* fully-verified panel fill */
+
+  /* Source badges (shelter detail page) */
+  --color-badge-registry: #e8eef7;
+  --color-badge-user: #e8f3ea;
+  /* New community state (community-review-queue D5): pale amber fill, text =
+     --color-warning (#7a4d00 on #f9e6b8 = 5.91:1) — the trust-state badge
+     for NEW rows. */
+  --color-badge-new: #f9e6b8;
+
+  /* Map + markers (global for the reason above: leaflet builds the marker
+     DOM outside Angular, so component-scoped styles cannot reach it). */
+  --color-shelter-registry: #0b5cad; /* registry (Päästeamet / municipality) */
+  --color-shelter-user: #2e7d32; /* user-submitted */
+  --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
+  --color-map-placeholder: #e9eef2; /* map container before the first tiles */
+  --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
+  /* Focus rings use --color-primary everywhere. */
+
+  /* ============ Typography ============================================ */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+
+  /* Type scale: every step is an exact shipped value, except 0.88rem and
+     0.92rem, which were rounded onto the adjacent step (≤ 0.5px) so the
+     scale stays continuous. */
+  --text-2xs: 0.75rem; /* badges, map legend, tiny meta */
+  --text-xs: 0.8rem; /* tiny meta, character counters */
+  --text-sm: 0.85rem; /* secondary lines: addresses, notes, level chips */
+  --text-md: 0.9rem; /* labels, links, small meta (was 0.88/0.9/0.92) */
+  --text-base: 0.95rem; /* buttons, banners, panel copy */
+  --text-lg: 1rem; /* inputs, panel titles */
+  --text-xl: 1.1rem; /* brand, panel titles */
+  --text-3xl: 1.6rem; /* page titles */
+
+  --font-weight-medium: 550; /* labels, buttons */
+  --font-weight-semibold: 600; /* row names, badges */
+  --font-weight-title: 650; /* page titles, section titles */
+  --font-weight-bold: 700; /* brand */
+
+  --tracking-tight: -0.02em; /* page titles */
+  --tracking-brand: -0.01em; /* shell brand */
+
+  /* ============ Spacing ===============================================
+   * 2px grid. The values are the authored literals rounded onto the
+   * nearest 2px step — the delta is always <= 1.6px (a sub-2px rounding;
+   * colors are exact, not rounded). The same source literal could round up
+   * or down depending on context (e.g. a 0.3rem chip gap landed on space-6
+   * while a 0.3rem heading margin landed on space-4), so there is no single
+   * rem->px table — each rule carries the value the nearest-step rule
+   * produced.
+   */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* ============ Radius ================================================ */
+  --radius-sm: 4px; /* nav pill buttons */
+  --radius-md: 6px; /* inputs, buttons, banners */
+  --radius-lg: 8px; /* cards, panels, map frames */
+  --radius-full: 999px; /* chips, badges, pills */
+
+  /* ============ Layout ================================================ */
+  /* Narrow-viewport breakpoint. Media queries cannot consume var()
+     (browser limitation), so @media rules use the literal 900px with a
+     reference comment — keep this token and those rules in sync.
+     900px: tablet widths re-stack too, so the map page's filter row and
+     list never clip at mid widths. */
+  --bp-narrow: 900px;
+  --content-max-width: 1080px; /* shell-body page width cap */
+}
+
+/* High-contrast theme (accessibility-and-provenance D1/D2): a token
+   OVERRIDE, not a parallel stylesheet — same token names as :root, values
+   re-tuned for low-vision + direct-sunlight use. Component .scss files are
+   untouched (D1). Default: NO attribute on <html> = the light theme above.
+   The pre-paint script in index.html + ThemeStore (core/) own the attribute
+   + the 'openshelter-theme' localStorage key (absent key = light). */
+[data-theme='high-contrast'] {
+  /* Contrast (WCAG 2.1, verified for this palette — text ≥ 4.5:1, large text
+     + UI component boundaries ≥ 3:1):
+     text #ffffff          on bg/surface/subtle/hover  19.8 / 18.4 / 16.5 / 15.1
+     muted #cfcfcf         on bg/surface/subtle/hover  12.7 / 11.8 / 10.6 /  9.7
+     primary #7db8f0       on bg/surface/subtle        9.4 /  8.8 /  7.8 (focus ring too)
+     primary-hover #a8d0f5 on bg/surface               12.3 / 11.4
+     surface #141414 text  on primary/primary-hover    8.8 / 11.4 (btn--primary)
+     surface #141414 text  on cta #ff9f1c              9.0 (.map-cta)
+     surface #141414 text  on reported #ffa94d         9.7 (reported badge/marker)
+     danger #ff8a7a        on bg / surface / danger-bg 8.6 /  8.0 /  7.5
+     error #ff9d8f         on surface                  9.2
+     warning #f0b429       on warning-bg / surface     8.6 /  9.9
+     info #8ac6f5          on info-bg / surface         8.9 / 10.1
+     success #7fd49a       on success-bg / soft / srf  8.6 /  9.1 / 10.3
+     badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
+     badge green #7ac98a   on badge-user #11301d       7.2
+     same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
+     pick #ff8a80          on bg / surface / subtle     8.7 /  8.1 /  7.2
+     (the user-reported dark-on-dark was NOT a
+     token pair — every text token pair above passes. The dark texts were
+     elements whose colour comes from the UA stylesheet instead of a token
+     (bare .btn buttons on /submit, the map filter chips, the auth pages'
+     .auth-links links: UA black/blue on the dark surfaces at 1.06/1.14/2.11)
+     — the global element colour rules below cover them, not this block.)
+     border #666666        vs surface / bg (inputs, cards)  3.2 / 3.5 (UI, ≥3)
+     Adjusted from the D1 starting values: --color-border #5a5a5a FAILED 3:1 vs
+     the surface (2.67:1) → raised to #666666 (3.21:1 vs surface, 3.45:1 vs bg);
+     every other D1 starting value passes as-is.
+     Deliberately below 3:1 (documented): --color-border-subtle #4a4a4a (2.23:1
+     vs bg) — the shell header divider is decorative, not a UI-component
+     boundary (the header is identified by its content); the banner
+     -border tokens are the light theme's soft-border language (fill + border
+     + text carry the banner, mirroring the light values' ratios).
+     Status colors stay distinguishable on #0a0a0a by hue AND value: danger
+     8.6:1, warning 10.6:1, info 10.8:1, success 11.1:1, error 9.9:1.
+
+     Map context (D1): the MAP is not themed — OSM tiles stay light, so the
+     marker tokens keep their SOURCE coding (blue=registry, green=user,
+     red=pick). --color-shelter-registry/user are brightened from #0b5cad/
+     #2e7d32 because the SAME tokens double as source/trust-badge TEXT in the
+     component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
+     untouched per D1) and dark blue/green text fails 4.5:1 on the dark
+     surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
+     --color-bg-surface border (#141414 here) plus the hue carry the marker —
+     the documented trade-off of one token serving map + UI. --color-shelter-
+     pick is brightened the same way as a safe superset: it is the only
+     "unchanged (map context)" colour token and is
+     used today only as the /submit pin fill, but #ff8a80 keeps ≥4.5:1 on
+     every HC surface if it ever serves as text (the 2px border + the red hue
+     keep the pin identifiable on the light tiles). --color-map-placeholder
+     stays light: it IS the map surface (tiles about to paint).
+     Leaflet's own core literals (attribution rgba(255,255,255,0.8), zoom
+     buttons #fff, container #ddd) sit ON the light tiles — or are overridden
+     by the component container backgrounds — so they stay readable in both
+     themes and need no .leaflet-... override here. */
+  /* Text & surfaces */
+  --color-text: #ffffff;
+  --color-muted: #cfcfcf;
+  --color-bg: #0a0a0a;
+  --color-bg-surface: #141414; /* also the 'text on primary/cta' colour */
+  --color-bg-subtle: #1f1f1f;
+  --color-surface-hover: #262626;
+  --color-surface-overlay: rgba(20, 20, 20, 0.92); /* dark twin of the white legend card */
+  --color-backdrop: rgba(0, 0, 0, 0.7); /* darker modal overlay on the dark theme */
+
+  /* Brand */
+  --color-primary: #7db8f0; /* link/focus colour AND btn--primary fill (text flips to #141414) */
+  --color-primary-hover: #a8d0f5;
+
+  /* Crisis CTA — the CTA button's text is --color-bg-surface (dark on orange). */
+  --color-cta: #ff9f1c;
+
+  /* Reported state — brightened the same way as the CTA: the badge/marker
+     text is --color-bg-surface (dark on the bright fill, 9.7:1). */
+  --color-reported: #ffa94d;
+
+  /* New community state — bright gold on the dark map surfaces, kept
+     clearly yellow-ward of the brightened reported/CTA oranges. */
+  --color-new: #ffd43b;
+
+  /* Borders */
+  --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
+  --color-border-subtle: #4a4a4a;
+
+  /* Status palette (banners + verification level chips) */
+  --color-danger: #ff8a7a;
+  --color-danger-bg: #2b1512;
+  --color-danger-border: #6e3a34;
+  --color-error: #ff9d8f;
+  --color-warning: #f0b429;
+  --color-warning-bg: #292008;
+  --color-warning-border: #6e5a1e;
+  --color-info: #8ac6f5;
+  --color-info-bg: #10222f;
+  --color-info-border: #2f5a7a;
+  --color-success: #7fd49a;
+  --color-success-bg: #0f2a18;
+  --color-success-border: #2f6e45;
+  --color-success-bg-soft: #122417;
+
+  /* Source badges (dark tints; text = the brightened marker tokens below) */
+  --color-badge-registry: #14263a;
+  --color-badge-user: #11301d;
+  /* New community state (community-review-queue D5): dark olive fill, text =
+     the brightened --color-warning (#f0b429 on #332b12 = 7.53:1). */
+  --color-badge-new: #332b12;
+
+  /* Map + markers — map context, see the note above. */
+  --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
+  --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
+  --color-shelter-pick: #ff8a80; /* brightened from #d32f2f — safe superset, see note above */
+  --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere: component-scoped
+   :focus-visible rules win where they exist (e.g. .field input). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Skip link (WCAG 2.4.1): the shell renders it as its
+   first element and keeps it off-screen until it takes keyboard focus, then
+   it reveals over the header — the first Tab jumps straight into the routed
+   page (main#main in page-shell.html). Shell chrome, so it lives here with
+   the other global element styles. The z-index clears the <900px dropdown
+   menu panel (1100) so the revealed link is never covered. */
+.skip-link {
+  position: absolute;
+  top: var(--space-8);
+  left: -9999px;
+  z-index: 1200;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-primary);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+
+  &:focus-visible {
+    left: var(--space-16);
+  }
+}
+
+/* Global element colours: form controls and
+   links take their text colour from the token palette instead of the UA
+   stylesheet. The UA defaults (black control text, blue unvisited links) do
+   not follow [data-theme] — with the OS in light mode they land dark on the
+   high-contrast theme's dark surfaces: the bare .btn buttons on /submit
+   (1.06:1), the map filter chips (1.14:1), the auth pages' .auth-links links
+   (2.11:1) — the "dark text on dark background" report. Light-theme deltas
+   are a no-op (pure black -> --color-text control text, UA blue ->
+   --color-primary links, the value the app already uses for links). Scoped
+   rules (.btn variants, .chip, .shell-nav a, ...) keep winning by
+   specificity. */
+a {
+  color: var(--color-primary);
+}
+
+button,
+input,
+textarea {
+  color: inherit;
+}
+
+input,
+textarea {
+  background-color: var(--color-bg-surface);
+}
+
+/* Page titles */
+.page-title {
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-title);
+  letter-spacing: var(--tracking-tight);
+  margin: 0 0 var(--space-4);
+}
+
+.page-subtitle {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-20);
+}
+
+/* Form fields */
+.field {
+  margin-bottom: var(--space-16);
+
+  label {
+    display: block;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
+  }
+
+  input {
+    width: 100%;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--text-lg);
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.field-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  margin: var(--space-4) 0 0;
+}
+
+/* Buttons */
+.btn {
+  /* Both-axis label centering (flex): with the 48px min-height a single
+     line of text (~23px + 16px vertical padding = ~39px) leaves ~9px of
+     dead space at the BOTTOM if only text-align centres it — inline-flex
+     centers the label on BOTH axes for every .btn (incl. btn--block),
+     while auto-width buttons keep their shrink-to-fit width. The
+     intentionally left-aligned exceptions opt out (shelter-row__details). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* D5 (map-crisis-actions) touch target: content + 8px vertical padding
+     lands at ~41px, short of 48 — the explicit min-height makes every .btn
+     (and the row buttons that reuse the class) at least a 48px target. */
+  min-height: var(--space-48);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: var(--space-8) var(--space-16);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+}
+
+.btn--primary {
+  background: var(--color-primary);
+  color: var(--color-bg-surface);
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+  }
+}
+
+.btn--ghost {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-text);
+
+  &:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+  }
+}
+
+.btn--block {
+  width: 100%;
+  /* Both-axis centering for the block variant — and it MATTERS for the
+     <a> buttons (Add shelter, Submit a shelter, …): <button> elements are
+     self-centred by the UA button face, but an <a> with display: block is
+     a plain box, so its label lands LEFT- and TOP-aligned (the reported
+     "Add shelter looks off" bug). Flex centers both axes for both element
+     types. (align/justify also come from the .btn base rule; restated here
+     so the rule is self-contained and survives base-rule refactors.) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Shared danger button: the destructive-action variant, used by the admin
+   moderation tables (Delete/Reject) and the contributions panel's Delete. */
+.btn--danger {
+  border-color: var(--color-danger-border);
+  color: var(--color-danger);
+
+  &:hover:not(:disabled) {
+    background: var(--color-danger-bg);
+  }
+}
+
+/* D6 (map-crisis-actions): coordinate/count readouts use tabular figures so
+   digits do not shift while they update (submit-page coordinate readout,
+   detail-page coordinate line). */
+.num-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shelter marker pins — global for the same reason as the leaflet import
+   above: leaflet creates the marker DOM outside Angular templates, so
+   component-scoped styles cannot reach it. The map legend swatches reuse
+   these exact classes, keeping the visual single-sourced. */
+.shelter-marker {
+  border-radius: 50%;
+  border: 2px solid var(--color-bg-surface);
+  box-shadow: var(--shadow-marker);
+}
+
+.shelter-marker--registry {
+  background: var(--color-shelter-registry);
+}
+
+.shelter-marker--user {
+  background: var(--color-shelter-user);
+}
+
+/* New community state (community-review-queue D5): USER rows in
+ * review_status NEW render amber (CONFIRMED rows keep the green user
+ * tone). The reported override still wins over the trust colour —
+ * markerTone() picks the class, the map legend's amber swatch reuses
+ * it, keeping the visual single-sourced. */
+.shelter-marker--new {
+  background: var(--color-new);
+}
+
+/* Reported state (shelter-trust-and-reports D1): the single "reported"
+ * marker affordance — any shelter with nonexistentReports > 0 renders this
+ * orange regardless of source; trust colours apply only to unreported
+ * shelters. The map legend's third swatch reuses this class. */
+.shelter-marker--reported {
+  background: var(--color-reported);
+}
+
+/* Selected-location pin on the /submit mini-map (leaflet-service setPick).
+ * Registry/user markers already fill their circle; without a background the
+ * pick pin rendered as a hollow ring and was invisible on OSM tiles. */
+.shelter-marker--pick {
+  background: var(--color-shelter-pick);
+  border-color: var(--color-bg-surface);
+}
+
+/* Browse anchor pin on /map (location-navigation, leaflet-service
+ * setAnchor): the searched address the per-row distances are measured
+ * from. The user-picked-spot family — it is where the user asked, not a
+ * shelter, so it shares the pick tone (one token, two pin classes). */
+.shelter-marker--anchor {
+  background: var(--color-shelter-pick);
+  border-color: var(--color-bg-surface);
+}

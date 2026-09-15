@@ -27,10 +27,10 @@ note over Person, GU
 end note
 
 == 1. Register ==
-Person -> US : register(name, email, phone, idCode, password)
+Person -> US : register(name, email, phone)
 US -> RU : new RegisteredUser(...)
 note over Person, US
-  The password is captured here but stored by the AUTH
+  The profile carries no password: it is stored by the AUTH
   context (03-auth.puml): AuthService.register ->
   PasswordHasher.hash -> UserCredentialsRepository.save.
   Profile vs credentials are separate aggregates.
@@ -58,7 +58,7 @@ VC -> VS : requestVerification(user, PHONE)
 VS -> SL : lastSentAt / countToday(userId, PHONE)  (cooldown + daily cap)
 alt within limits
 VS -> PP : request(user)
-PP -> TW : sendSms(phone, "OTP: 123456")
+PP -> TW : sendSms(phone, "OpenShelter OTP: 123456")   ' AppInfo.APP_DISPLAY_NAME + " OTP: " + otp
 TW --> PP : sent
 PP --> VS : PendingVerification(PHONE, codeHash, expiry)
 VS -> DB : save pending
@@ -82,7 +82,7 @@ VC --> Person : 200 | 400
 Person -> VC : POST /verify/request {level=EMAIL}
 VC -> VS : requestVerification(user, EMAIL)
 VS -> EP : request(user)
-EP -> SM : send(email, "token: abc123")
+EP -> SM : send(email, "OpenShelter verification code: abcdef12")   ' AppInfo.APP_DISPLAY_NAME + " verification code: " + 8-char token
 SM --> EP : sent
 EP --> VS : PendingVerification(EMAIL, tokenHash, expiry)
 VS -> DB : save pending
@@ -118,9 +118,10 @@ Person -> SS : addPlace(user, shelter)
 SS -> RU : canWrite()
 RU --> SS : true
 SS -> DB : save shelter (status = ACTIVE)
-SS --> Person : submitted (published immediately - community rating governs quality)
+SS --> Person : submitted (published immediately - community reports + confirmation govern quality)
 
 ' Email = same two-phase shape (request -> confirm).
 ' Smart-ID = future session + polling (stub in v1).
-' No moderator: quality governed by ShelterReview ratings (see 05-shelter-api.puml).
+' No moderator: quality governed by community reports + confirmation
+' (ReviewStatus on the shelter - see 05-shelter-api.puml).
 @enduml

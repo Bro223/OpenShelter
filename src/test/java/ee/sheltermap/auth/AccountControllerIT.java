@@ -23,7 +23,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,17 +54,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AccountControllerIT extends AbstractPersistenceIT {
 
     private static final Pattern CODE = Pattern.compile("code: (\\d{6})");
-    private static final Pattern TOKEN = Pattern.compile("token: (\\S+)");
+    private static final Pattern TOKEN = Pattern.compile("verification code: (\\S+)");
 
     private static final String REGISTER_BODY =
             "{\"name\":\"Kontakt Muutus\",\"email\":\"kontakt@example.ee\",\"phone\":\"+37250004444\","
-                    + "\"nationalIdCode\":\"49001014444\",\"password\":\"s3cret\"}";
+                    + "\"password\":\"s3cret123\"}";
 
     @Autowired
     MockMvc mvc;
 
     @Autowired
     UserRepository users;
+
+    @Autowired
+    PendingContactChangeRepository changes;
 
     @Autowired
     RecordingSmsSender sms;
@@ -96,7 +101,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content(REGISTER_BODY))
                 .andExpect(status().isCreated());
         MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"emailOrPhone\":\"kontakt@example.ee\",\"password\":\"s3cret\"}"))
+                        .content("{\"emailOrPhone\":\"kontakt@example.ee\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
@@ -129,10 +134,11 @@ class AccountControllerIT extends AbstractPersistenceIT {
         String code = codeFrom(sms.last().message());
 
         // wrong code -> 400, uniform error shape
+        String wrong = code.equals("000000") ? "000001" : "000000";
         mvc.perform(post("/account/email-change/confirm")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"code\":\"000000\"}"))
+                        .content("{\"code\":\"" + wrong + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Bad Request"));
 
@@ -154,13 +160,56 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
         // a DIFFERENT account's email -> 409 (already in use)
         RegisteredUser other = new RegisteredUser("Teine Kasutaja", "teine@example.ee",
-                "+37250005555", "49001015555");
+                "+37250005555");
         users.save(other);
         mvc.perform(post("/account/email-change/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"teine@example.ee\"}"))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void wrongCodesLockOutTheConfirmEndpointAndPersistAttempts() throws Exception {
+        // The confirm endpoint is NOT rate-bucketed,
+        // so the 5-attempt lockout on the pending row is the only
+        // brute-force guard. Every failed attempt must PERSIST across calls
+        // — a throw inside @Transactional rolls the increment back on
+        // each wrong code, so the lockout is unreachable over HTTP.
+        String token = registerAndLogin();
+        mvc.perform(post("/account/email-change/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"uus@example.ee\"}"))
+                .andExpect(status().isAccepted());
+        String code = codeFrom(sms.last().message());
+        String wrong = code.equals("000000") ? "000001" : "000000";
+
+        for (int i = 1; i <= 5; i++) {
+            mvc.perform(post("/account/email-change/confirm")
+                            .header("Authorization", "Bearer " + token)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"code\":\"" + wrong + "\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value("Invalid code"));
+        }
+
+        // the 6th: locked out — the right code is rejected by the same guard
+        mvc.perform(post("/account/email-change/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"" + code + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Too many attempts, request a new code"));
+
+        // the five increments survived all the failed calls (visible via
+        // the repository) and the email is unchanged
+        RegisteredUser user = users.findByEmail("kontakt@example.ee");
+        PendingContactChange pending = changes
+                .findByUserIdAndType(user.getId(), ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE)
+                .orElseThrow();
+        assertThat(pending.getAttempts()).isEqualTo(5);
+        assertThat(users.findByEmail("uus@example.ee")).isNull();
     }
 
     @Test
@@ -175,10 +224,10 @@ class AccountControllerIT extends AbstractPersistenceIT {
                 .andExpect(status().isAccepted());
         String changeCode = codeFrom(sms.last().message());
 
-        // P2 race: another account claims that address before A confirms
+        // The race: another account claims that address before A confirms
         mvc.perform(post("/auth/register").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Konkurent\",\"email\":\"vaidlustatud@example.ee\","
-                                + "\"phone\":\"+37250007777\",\"nationalIdCode\":\"49001017777\",\"password\":\"s3cret\"}"))
+                                + "\"phone\":\"+37250007777\",\"password\":\"s3cret123\"}"))
                 .andExpect(status().isCreated());
 
         // A's confirm must surface as 409 (uniform ErrorResponse), never 500
@@ -198,7 +247,8 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newPhone\":\"55507777\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
         // cross-channel: the EMAIL goes to the current email
         assertThat(smtp.last()).isNotNull();
@@ -242,15 +292,25 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"uus@example.ee\"}"))
-                .andExpect(status().isAccepted());
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.resendAvailableAfterSeconds").value(60));
 
-        // immediate second request -> 429 (cooldown anchored on the pending row)
-        mvc.perform(post("/account/email-change/request")
+        // immediate second request -> 429 (cooldown anchored on the pending row),
+        // uniform body (all five fields) + exact Retry-After countdown in 1..cooldown
+        MvcResult throttled = mvc.perform(post("/account/email-change/request")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"newEmail\":\"teine@example.ee\"}"))
                 .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.error").value("Too Many Requests"));
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Requests"))
+                .andExpect(jsonPath("$.message").value("Too many verification requests"))
+                .andExpect(jsonPath("$.path").value("/account/email-change/request"))
+                .andReturn();
+        String retryAfter = throttled.getResponse().getHeader("Retry-After");
+        assertThat(retryAfter).isNotBlank();
+        assertThat(Integer.parseInt(retryAfter)).isBetween(1, 60);
     }
 
     @Test
@@ -275,7 +335,7 @@ class AccountControllerIT extends AbstractPersistenceIT {
                         .content("{\"level\":\"EMAIL\"}"))
                 .andExpect(status().isAccepted());
         Matcher tm = TOKEN.matcher(smtp.last().message());
-        assertThat(tm.find()).as("verification email carries a token: %s", smtp.last().message()).isTrue();
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
         String verifyCode = tm.group(1);
         mvc.perform(post("/verify/confirm")
                         .header("Authorization", "Bearer " + token)
@@ -299,5 +359,136 @@ class AccountControllerIT extends AbstractPersistenceIT {
         assertThat(user).isNotNull();
         assertThat(user.levels()).contains(ee.sheltermap.domain.VerificationLevel.EMAIL);
         assertThat(user.canWrite()).isTrue();
+    }
+
+    // ---- GET /account/me -------------------------------------------------
+
+    @Test
+    void meReturnsTheStoredProfileWithRealClaims() throws Exception {
+        String token = registerAndLogin();
+
+        // unauthenticated -> 401, no profile data leaks
+        mvc.perform(get("/account/me")).andExpect(status().isUnauthorized());
+
+        // before any verification: all three fields, empty claim set
+        mvc.perform(get("/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Kontakt Muutus"))
+                .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
+                .andExpect(jsonPath("$.phone").value("+37250004444"))
+                .andExpect(jsonPath("$.levels").isEmpty());
+
+        // verify EMAIL via the dev sender: the real claim set comes back
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isAccepted());
+        Matcher tm = TOKEN.matcher(smtp.last().message());
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"" + tm.group(1) + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/account/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.levels.length()").value(1))
+                .andExpect(jsonPath("$.levels[0]").value("EMAIL"));
+    }
+
+    // ---- PUT /account/profile ---------------------------------------------
+
+    @Test
+    void profileUpdatePersistsNameAndReturnsTheFreshProfile() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Korrektitud Nimi\","
+                                + "\"currentPassword\":\"s3cret123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Korrektitud Nimi"))
+                // untouched fields come back unchanged
+                .andExpect(jsonPath("$.email").value("kontakt@example.ee"))
+                .andExpect(jsonPath("$.phone").value("+37250004444"));
+
+        // persisted (the stored profile reflects the edit)
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored).isNotNull();
+        assertThat(stored.getData().name()).isEqualTo("Korrektitud Nimi");
+    }
+
+    @Test
+    void profileUpdateWithWrongCurrentPasswordIs401AndChangesNothing() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Väline Isik\","
+                                + "\"currentPassword\":\"not-the-password\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.message").value("Current password is incorrect"));
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
+    }
+
+    @Test
+    void profileUpdateRejectsBlankNameWith400() throws Exception {
+        String token = registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"   \","
+                                + "\"currentPassword\":\"s3cret123\"}"))
+                .andExpect(status().isBadRequest());
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.getData().name()).isEqualTo("Kontakt Muutus");
+    }
+
+    @Test
+    void profileUpdateWithoutTokenIs401() throws Exception {
+        registerAndLogin();
+
+        mvc.perform(put("/account/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Väline Isik\","
+                                + "\"currentPassword\":\"s3cret123\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void profileNameChangeDoesNotClearVerificationClaims() throws Exception {
+        // A name edit must leave existing verification claims intact.
+        String token = registerAndLogin();
+        mvc.perform(post("/verify/request")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\"}"))
+                .andExpect(status().isAccepted());
+        Matcher tm = TOKEN.matcher(smtp.last().message());
+        assertThat(tm.find()).as("verification email carries a code: %s", smtp.last().message()).isTrue();
+        mvc.perform(post("/verify/confirm")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"level\":\"EMAIL\",\"code\":\"" + tm.group(1) + "\"}"))
+                .andExpect(status().isOk());
+
+        mvc.perform(put("/account/profile")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Kontakt Muutus\","
+                                + "\"currentPassword\":\"s3cret123\"}"))
+                .andExpect(status().isOk());
+
+        RegisteredUser stored = users.findByEmail("kontakt@example.ee");
+        assertThat(stored.levels()).contains(ee.sheltermap.domain.VerificationLevel.EMAIL);
+        assertThat(stored.canWrite()).isTrue();
     }
 }

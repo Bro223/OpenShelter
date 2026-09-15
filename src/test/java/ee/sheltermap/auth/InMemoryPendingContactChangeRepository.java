@@ -31,6 +31,23 @@ public class InMemoryPendingContactChangeRepository implements PendingContactCha
     }
 
     @Override
+    public synchronized int incrementAttempts(Long id, int maxAttempts) {
+        // Same semantics as the JPA conditional UPDATE: increment only below
+        // the cap, 0 when at/over the cap or the row is gone. The monitor is
+        // the stand-in for the row lock.
+        for (PendingContactChange change : store.values()) {
+            if (change.getId().equals(id)) {
+                if (change.getAttempts() >= maxAttempts) {
+                    return 0;
+                }
+                change.registerFailedAttempt();
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    @Override
     public void delete(PendingContactChange change) {
         store.remove(key(change.getUserId(), change.getType()));
     }

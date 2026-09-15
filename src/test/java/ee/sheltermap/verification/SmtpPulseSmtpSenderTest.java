@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.testutil.FakeJavaMailSender;
 import org.junit.jupiter.api.Test;
 import org.springframework.mail.SimpleMailMessage;
@@ -18,12 +19,12 @@ class SmtpPulseSmtpSenderTest {
         FakeJavaMailSender mail = new FakeJavaMailSender();
         SmtpPulseSmtpSender sender = new SmtpPulseSmtpSender(mail, "shelter-map@example.com");
 
-        sender.send("mari@example.ee", "Shelter Map verification token: abc12345");
+        sender.send("mari@example.ee", "OpenShelter verification code: abc12345");
 
         assertThat(mail.last).isNotNull();
         assertThat(mail.last.getFrom()).isEqualTo("shelter-map@example.com");
         assertThat(mail.last.getTo()).containsExactly("mari@example.ee");
-        assertThat(mail.last.getSubject()).isEqualTo("Shelter Map");
+        assertThat(mail.last.getSubject()).isEqualTo(AppInfo.APP_DISPLAY_NAME);
         assertThat(mail.last.getText()).contains("abc12345");
     }
 
@@ -40,6 +41,6 @@ class SmtpPulseSmtpSenderTest {
         SmtpPulseSmtpSender sender = new SmtpPulseSmtpSender(mail, "shelter-map@example.com");
 
         // Must not throw despite the failing relay.
-        sender.send("mari@example.ee", "Shelter Map verification token: abc12345");
+        sender.send("mari@example.ee", "OpenShelter verification code: abc12345");
     }
 }

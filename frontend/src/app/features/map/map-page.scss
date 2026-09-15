@@ -1,0 +1,609 @@
+/* The page fills the shell body (flex chain: shell-body > map-page >
+   map-page__layout), so the map+sidebar block stretches to the viewport
+   instead of a fixed 560px block floating above the footer. */
+.map-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.map-page__header {
+  flex-shrink: 0;
+}
+
+.map-page__layout {
+  display: flex;
+  gap: var(--space-20);
+  align-items: stretch;
+  /* Flex-fill the remaining height; the 725px min keeps the map at a
+     usable size on the typical desktop (below it the page scrolls). */
+  flex: 1;
+  min-height: 725px;
+}
+
+.map-page__map {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+
+  .map-page__leaflet {
+    /* page-specific layout dimension (documented exception, not spacing):
+       fills the flex-height row (the 560px fixed value left dead space
+       between the block and the footer on tall desktops). */
+    height: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-map-placeholder); /* visible before the first tiles paint */
+  }
+}
+
+/* Legend swatches reuse the exact marker classes from styles.scss (the
+   single source of truth for marker colours); only the size differs here. */
+.map-legend {
+  position: absolute;
+  left: var(--space-12);
+  bottom: var(--space-32); /* clear of the OSM attribution control (bottom-right) */
+  z-index: 1000; /* above leaflet panes (400) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-10);
+  background: var(--color-surface-overlay);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--color-text);
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+  }
+
+  .legend-swatch {
+    width: 12px; /* marker-size swatch, not spacing */
+    height: 12px;
+    flex-shrink: 0;
+  }
+}
+
+.map-page__sidebar {
+  /* page-specific layout dimension (documented exception, not spacing).
+     344px (was 320px): the trust-chip row needs the extra room so the
+     chips wrap cleanly instead of clipping. */
+  width: 344px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+
+  /* The banner is only in the DOM while an error is set (map-page.html wraps
+     it in @if (error(); as err)), so chips + list are the sole flex children
+     and stay exactly one gap apart — no phantom empty-host gap here. */
+  .shelter-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    /* Flex-fill the row (its height is driven by the 560px map) instead of a
+       fixed 560px max-height: chips + gap overhead made a 560px list 54px
+       taller than the map, so the scroll area's bottom edge hung below the
+       map frame and cropped the last rows.
+       `flex: 1 1 0` — the unitless zero basis matters: the sidebar column
+       has an auto height, where a percentage basis (the `flex: 1` shorthand's
+       0%) resolves against content and the 300-row list would drive the
+       whole layout row to its full ~37kpx content height. min-height: 0
+       lets the column shrink the scroll area below its content size. */
+    flex: 1 1 0;
+    min-height: 0;
+
+    /* No scroll-snap: fast mouse-wheel spins dead-stopped under both snap
+       modes, and free scrolling is the only regime that guarantees
+       proportional scrolling for every input:
+       • y proximity: controlled headless tests show discrete fast spins
+         still scroll (594/600px, with ±1px proximity settling creep —
+         visible micro-jitter), but real wheel momentum flings fight
+         proximity snap containment in Chrome: fast spin → no scroll at
+         all.
+       • y mandatory with the stop-always variant: true one-row carousel
+         steps, which feel worse than free scrolling.
+       Snap-free verification (headless Chromium, 300 rows): normal spin
+       6×100px → 600, fast spin 6×100px @16ms → 600 (held, no reset),
+       decaying momentum flick → 885/885. The list is therefore a plain
+       fast-scrolling overflow area. */
+  }
+}
+
+/* Crisis actions (map-crisis-actions D1): the safety-orange "Nearest
+   shelter" CTA is the ONLY consumer of --color-cta — the orange is the
+   crisis affordance and must not become a general accent. The ghost
+   "Add shelter" (authenticated only, D4) stays on the functional palette.
+   Both reuse the global .btn (incl. its 48px min-height, D5). */
+.map-page__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.map-cta {
+  background: var(--color-cta);
+  color: var(--color-bg-surface);
+
+  &:hover:not(:disabled) {
+    filter: brightness(0.92);
+  }
+}
+
+/* Geolocation consent line under the CTA (legal-recovery):
+   muted, secondary — it explains the consent, not an action. */
+.map-page__geo-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* Address-search anchor (location-navigation): the fallback for the
+   geolocation CTA — the SAME Nominatim contract as /submit (one request
+   per deliberate press, attribution always rendered), styled on the
+   functional palette (the crisis orange stays reserved for the CTA). */
+.map-page__anchor-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+
+  .anchor-search__label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .anchor-search__row {
+    display: flex;
+    gap: var(--space-6);
+  }
+
+  .anchor-search__input {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--space-48);
+    padding: var(--space-6) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--text-md);
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 1px;
+    }
+  }
+
+  .anchor-search__button {
+    flex-shrink: 0;
+  }
+
+  .anchor-search__attribution {
+    margin: 0;
+    font-size: var(--text-2xs);
+    color: var(--color-muted);
+
+    a {
+      color: var(--color-muted);
+      text-decoration: underline;
+    }
+  }
+
+  .anchor-search__error {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--color-danger);
+  }
+
+  .anchor-search__results {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+
+    .anchor-search__result {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      width: 100%;
+      padding: var(--space-8) var(--space-10);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      background: var(--color-bg-surface);
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: var(--text-sm);
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        border-color: var(--color-primary);
+      }
+    }
+
+    .anchor-search__result-name {
+      font-weight: var(--font-weight-semibold);
+    }
+
+    .anchor-search__result-type {
+      color: var(--color-muted);
+      font-size: var(--text-2xs);
+    }
+  }
+}
+
+/* The active anchor line (location-navigation): the searched point
+   the per-row distances are measured from + its single Clear action.
+   Muted — a reference line, not an alarm (the .nearest-line family). */
+.anchor-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  .anchor-line__label {
+    color: var(--color-muted);
+  }
+
+  .anchor-line__clear {
+    padding: 0 var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--text-2xs);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+  }
+}
+
+/* The one-line state under the CTA: the found shelter ("Nearest: …"), the
+   empty-list offer, or the per-error copy (the submit page's vocabulary). */
+.nearest-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+
+  a {
+    color: var(--color-primary);
+  }
+
+  .nearest-line__address {
+    color: var(--color-muted);
+  }
+
+  /* The straight-line distance (D6 honesty) — muted, secondary to the name.
+     The '≈ … straight line' copy is pinned (community-review-queue). */
+  .nearest-line__distance {
+    color: var(--color-muted);
+  }
+
+  &--error {
+    color: var(--color-danger);
+  }
+
+  /* The community unverified warning under a community nearest row:
+     muted text on purpose — a caveat, NOT the crisis orange (the --color-cta
+     hue stays reserved for the CTA). */
+  &--warning {
+    color: var(--color-muted);
+    margin-top: var(--space-4);
+  }
+}
+
+.filter-chips {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+
+  .chip {
+    flex: 1;
+    padding: var(--space-6) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    font-size: var(--text-md);
+    font-family: inherit;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.chip--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* Trust filters (shelter-trust-and-reports D6, review model gone): the
+   second row beside the source chips — the "Open" (client-side) and
+   "Has capacity" (server-side) toggle chips in the same visual language
+   (the combined selector keeps ONE style source for both chip kinds).
+   Every control is a new interactive target, so each carries the 48px
+   minimum (the pre-existing source chips keep their sizing). */
+.filter-trust {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+  align-items: center;
+  /* The chips FILL the row: each chip grows to share the space equally
+     (the row spans exactly the shelter list's width, so the chips' edges
+     line up with it — no dead space between text-width buttons). */
+
+  .trust-chip {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: var(--space-6) var(--space-10);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    font-size: var(--text-md);
+    font-family: inherit;
+    cursor: pointer;
+    min-height: var(--space-48);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.chip--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+.sidebar-state {
+  color: var(--color-muted);
+  text-align: center;
+  padding: var(--space-24) var(--space-8);
+  margin: 0;
+}
+
+.shelter-row {
+  /* A <button> since the zoom-in-and-stay change: the row is an action
+     (select + zoom), not a link. The resets below (width/font/text-align/
+     cursor) undo the UA button defaults the anchor had none of. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-10) var(--space-12);
+  margin-bottom: var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-primary);
+  }
+
+  &.shelter-row--selected {
+    border-color: var(--color-primary);
+  }
+
+  .shelter-row__name {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .shelter-row__address {
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  .shelter-row__meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-4);
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+
+  /* Address-anchor distance (location-navigation): the straight-line
+     distance from the searched point — the D6 honesty format, muted
+     (secondary to the badges), tabular figures like every distance line. */
+  .shelter-row__anchor-distance {
+    color: var(--color-muted);
+  }
+}
+
+/* The selected row's explicit navigation step (design decision 5) — the
+   only sidebar element that leaves /map. Sits directly under its row: the
+   negative top margin cancels the row's margin-bottom so the pair reads as
+   one unit, and the horizontal padding aligns the link with the row's
+   content instead of its border. */
+.shelter-row__details {
+  display: block;
+  margin-top: calc(var(--space-8) * -1);
+  margin-bottom: var(--space-8);
+  padding-left: var(--space-12);
+  padding-right: var(--space-12);
+  text-align: left;
+  /* No .btn flex centering here: this step reads as part
+     of the row above it, so its label stays left-aligned to the row's
+     content (design decision 5). */
+  justify-content: flex-start;
+}
+
+.badge {
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-full);
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  background: color-mix(in srgb, var(--color-shelter-registry) 12%, var(--color-bg-surface));
+  color: var(--color-shelter-registry);
+
+  &.badge--user {
+    background: color-mix(in srgb, var(--color-shelter-user) 12%, var(--color-bg-surface));
+    color: var(--color-shelter-user);
+  }
+
+  /* Trust badges (shelter-trust-and-reports D6).
+     "Reported" is the single reported affordance (the token, white text
+     5.18:1 — HC flips to dark on the brightened fill). The fresh-CLOSED
+     badge reuses the existing warning tint (a fresh OPEN row renders no
+     badge at all — open is the default). Occupancy is NEUTRAL on purpose:
+     "space available" is not a celebration and "full" is not a crisis —
+     muted text, muted fill. */
+  &.badge--reported {
+    background: var(--color-reported);
+    color: var(--color-bg-surface);
+  }
+
+  &.badge--closed {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+  }
+
+  &.badge--occupancy {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* New community state (community-review-queue D5): the amber tint — the
+     --color-badge-new fill with the dark-amber --color-warning text (the
+     contrast pair is pinned in design-tokens.spec.ts). */
+  &.badge--new {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+
+  /* Private-home declaration (D7): the neutral chip — a description of
+     what the location is, not a state. */
+  &.badge--private {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+}
+
+/* The trust-badge strip under the row meta (D6). */
+.shelter-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* "How OpenShelter works" (Workstream A): plain-language mechanics block
+   under the map layout. Editorial layout, deliberately NOT a card: no
+   border box, no background surface, no rounded corners — the page
+   background continues through the block and a single thin top hairline
+   (the documented 1px line-weight exception) divides it from the map.
+   The copy column is width-capped for a comfortable line length (65ch —
+   a page-specific layout dimension, like the sidebar width) and stays
+   left-aligned with the rest of the map chrome; at narrow widths 65ch
+   exceeds the content width, so the block simply runs full width. Rhythm
+   instead of uniformity: the lede paragraph sits one type step up (it
+   carries the "not an emergency service, call 112" positioning) and the
+   closing guarantee gets a quiet medium weight. No @media needed: the
+   column and the action-free content reflow on their own at any width. */
+.map-page__how {
+  flex-shrink: 0;
+  max-width: 65ch; /* comfortable line length (documented exception, not spacing) */
+  margin-top: var(--space-32);
+  padding-top: var(--space-24);
+  padding-bottom: var(--space-48);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--text-base);
+
+  p {
+    margin: 0 0 var(--space-12);
+    line-height: 1.6;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+
+  .map-page__how-title {
+    margin: 0 0 var(--space-20);
+    font-size: var(--text-xl);
+    font-weight: var(--font-weight-title);
+    line-height: 1.3;
+  }
+
+  /* Lede: what OpenShelter is — and is not (the positioning statement
+     with the "call 112" line). One type step above the body copy and a
+     touch more air below it. */
+  .map-page__how-lede {
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-16);
+  }
+
+  /* The standing guarantee: the closing line of the block. Quiet
+     emphasis (medium weight, no colour change) and a little more air
+     above it, so it reads as the end of the explanation rather than the
+     next item in a uniform stack. */
+  .map-page__how-guarantee {
+    margin-top: var(--space-16);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+/* Responsive (breakpoint: --bp-narrow; @media cannot consume var()):
+   map on top, sidebar full-width below; no horizontal scroll at mobile
+   widths. Wide-width rendering (and every class name) is untouched.
+   900px: tablet widths stack too — at <900px the side-by-side
+   344px sidebar + map leaves the filter row cramped, and stacked gives the
+   chips/select the full width so content never clips. */
+@media (max-width: 900px) {
+  .map-page__layout {
+    flex-direction: column;
+    /* Stacked: back to content height — the fixed 420px map + bounded
+       list define the block, so no dead space below it either. */
+    flex: none;
+    min-height: 0;
+  }
+
+  /* Stacked layout: the row is full viewport width — space-between (the
+     base rule, no override here) spreads the three controls evenly
+     across it. */
+
+  /* Stacked map; selectors mirror the nested base rules' specificity — the
+     previous bare single-class overrides lost the cascade to `.map-page__map
+     .map-page__leaflet` / `.map-page__sidebar .shelter-list`, so the 420px
+     values never applied. */
+  .map-page__map .map-page__leaflet {
+    height: 420px; /* page-specific layout dimension (documented exception) */
+  }
+
+  .map-page__sidebar {
+    width: auto;
+  }
+
+  .map-page__sidebar .shelter-list {
+    /* Stacked layout: the sidebar has no bounded height to flex-fill, so the
+       list is back to a bounded block scroll area matching the narrow map.
+       (flex: none = basis auto; flex: 1 would collapse it to 0px here.) */
+    flex: none;
+    max-height: 420px; /* matches the narrow map height above */
+    /* Same plain block scroll area as the base block: overflow-y: auto
+       inherited, 420px cap, and — like the base — NO scroll-snap (see
+       the rationale there). */
+  }
+}

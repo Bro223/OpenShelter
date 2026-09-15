@@ -1,9 +1,12 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -49,7 +52,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
         // as-registered. Lenient normalization never throws.
         String phone = PhoneNumbers.normalizeE164(user.getData().phone());
         String otp = String.format("%0" + OTP_DIGITS + "d", random.nextInt(1_000_000));
-        sender.send(phone, "Shelter Map OTP: " + otp);
+        sender.send(phone, AppInfo.APP_DISPLAY_NAME + " OTP: " + otp);
         return new PendingVerification(
                 user.getId(),
                 VerificationLevel.PHONE,
@@ -70,10 +73,23 @@ public class PhoneVerificationProvider implements VerificationProvider {
         if (pending.getAttempts() >= MAX_ATTEMPTS) {
             return false;
         }
-        if (code == null || !PendingVerification.sha256(code).equals(pending.getCodeHash())) {
+        if (!constantTimeEquals(code == null ? null : PendingVerification.sha256(code), pending.getCodeHash())) {
             pending.recordAttempt();
             return false;
         }
         return true;
+    }
+
+    /**
+     * Constant-time hash compare — no early exit on the first
+     * differing byte. Private here on purpose: {@code auth.Hashes} is not
+     * importable from this package (01-TASK.md §4 dependency rule — auth
+     * already imports verification), so the 3-line helper stays local.
+     */
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 }

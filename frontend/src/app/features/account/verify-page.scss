@@ -1,0 +1,76 @@
+:host {
+  display: block;
+}
+
+.account-card {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  max-width: 34rem;
+  margin: var(--space-16) auto 0;
+}
+
+/* Per-channel verification status (derived from AuthStore.levels()). */
+.level-chips {
+  list-style: none;
+  display: flex;
+  gap: var(--space-10);
+  padding: 0;
+  margin: 0 0 var(--space-20);
+  flex-wrap: wrap;
+}
+
+.level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-6) var(--space-12);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+
+  &--done {
+    border-color: var(--color-success-border);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+}
+
+.level-chip__mark {
+  font-weight: var(--font-weight-bold);
+}
+
+.verify-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-18) var(--space-20);
+  margin-bottom: var(--space-16);
+  background: var(--color-bg-surface);
+}
+
+.panel-title {
+  font-size: var(--text-xl);
+  margin: 0 0 var(--space-6);
+}
+
+.panel-copy {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-16);
+  font-size: var(--text-base);
+}
+
+.panel-actions {
+  display: flex;
+  gap: var(--space-10);
+  flex-wrap: wrap;
+}
+
+.field-note {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-6) 0 0;
+}
+
+.verify-panel--done {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg-soft);
+}

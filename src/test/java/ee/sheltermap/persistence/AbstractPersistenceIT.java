@@ -2,10 +2,19 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.security.PiiCrypto;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
 
 /**
  * Base class for persistence integration tests (Step 3).
@@ -21,6 +30,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
  */
 @SpringBootTest
 public abstract class AbstractPersistenceIT {
+
+    /**
+     * Fixed PII keys for the IT suite — TEST-ONLY values; production
+     * keys come from the environment and are never committed. All zeros:
+     * the tests exercise the encryption path, not key strength.
+     */
+    static final String TEST_PII_AES_KEY =
+            Base64.getEncoder().encodeToString(new byte[32]);
+    static final String TEST_PII_HMAC_KEY =
+            Base64.getEncoder().encodeToString(new byte[32]);
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16")
             .withDatabaseName("sheltermap_it");
@@ -42,6 +61,45 @@ public abstract class AbstractPersistenceIT {
             registry.add("spring.datasource.username", () -> System.getProperty("it.db.username", "sheltermap"));
             registry.add("spring.datasource.password", () -> System.getProperty("it.db.password", "sheltermap"));
         }
+        // One Spring context per IT (property/config variants) keeps its own Hikari
+        // pool alive against the SAME single Testcontainers Postgres. With the
+        // default pool size (10) the IT suite crosses Postgres' 100-connection
+        // ceiling ("too many clients already") — tests are single-threaded and
+        // @Transactional, so a small pool is plenty and keeps the suite green.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "4");
+        registry.add("spring.datasource.hikari.minimum-idle", () -> "1");
+        // PII-at-rest: the app is fail-closed without the keys — every
+        // IT context gets the fixed test keys here.
+        registry.add("app.pii.aes-key", () -> TEST_PII_AES_KEY);
+        registry.add("app.pii.hmac-key", () -> TEST_PII_HMAC_KEY);
+    }
+
+    /**
+     * Isolates the durable verification send log per JVM run.
+     *
+     * <p>The prod config points {@code app.verification.send-log-path} at
+     * {@code data/verification-send.log}, which is meant to survive restarts
+     * (anti-spam daily cap is a product decision). Every test run spins up a
+     * <em>fresh</em> Postgres, so fixture users keep landing on the same low
+     * ids — but the file keeps accumulating their sends across runs, until
+     * {@code countToday() >= max-per-day} trips a spurious 429 (observed in
+     * {@code AccountControllerIT.verificationClaimsSurviveAnEmailChange} after
+     * a few same-day runs). Pointing tests at a throwaway temp file makes each
+     * run start from an empty log, so the daily cap only ever counts sends
+     * from the current run. {@code VerificationThrottleIT} swaps in an
+     * in-memory log and clears it per test, so it is unaffected.
+     */
+    @DynamicPropertySource
+    static void verificationSendLog(DynamicPropertyRegistry registry) {
+        registry.add("app.verification.send-log-path", () -> sendLogPath().toString());
+    }
+
+    private static Path sendLogPath() {
+        try {
+            return Files.createTempFile("sheltermap-it-verification-send", ".log");
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not create temp verification send log", e);
+        }
     }
 
     /** Persists a fresh registered user and returns it (with id assigned). */
@@ -55,8 +113,38 @@ public abstract class AbstractPersistenceIT {
      * so a second call must use different contacts).
      */
     protected final RegisteredUser saveUser(UserRepository users, String email, String phone) {
-        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone, "49001010001");
+        RegisteredUser user = new RegisteredUser("Mari Maasikas", email, phone);
         users.save(user);
         return user;
+    }
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PiiCrypto piiCrypto;
+
+    /**
+     * PII-at-rest: raw-JDBC user lookup by the e-mail's blind index —
+     * the {@code users.email} column holds ciphertext, never plaintext.
+     */
+    protected final long userIdByEmail(String email) {
+        return jdbcTemplate.queryForObject(
+                "SELECT id FROM users WHERE email_hash = ?",
+                Long.class,
+                piiCrypto.blindIndex(PiiCrypto.DOMAIN_USER_EMAIL, PiiCrypto.canonicalEmail(email)));
+    }
+
+    /**
+     * Wipes every table — for the ITs that are DELIBERATELY not
+     * {@code @Transactional} (race tests: the workers run in their own
+     * committed transactions, so their rows would otherwise leak into other
+     * ITs' row counts on the shared container). Call from @AfterEach.
+     */
+    protected final void wipeAllTables() {
+        jdbcTemplate.execute(
+                "TRUNCATE password_reset_tokens, refresh_tokens, "
+                        + "pending_contact_changes, pending_verifications, user_credentials, "
+                        + "verification_claims, moderation_actions, shelters, users RESTART IDENTITY CASCADE");
     }
 }

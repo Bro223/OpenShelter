@@ -9,6 +9,11 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,14 +78,33 @@ class FileVerificationSendLogTest {
     @Test
     void ignoresCorruptedLines() throws Exception {
         long recent = Instant.parse("2026-09-01T09:00:00Z").toEpochMilli();
-        Files.writeString(logPath(), "1\tEMAIL\ta@example.ee\tnot-a-timestamp\n"
+        Files.writeString(logPath(), "1\tEMAIL\tnot-a-timestamp\n"
                 + "garbage line\n"
-                + "2\tPHONE\t+37250000000\t" + recent + "\n");
+                + "2\tPHONE\t" + recent + "\n"
+                // legacy 4-field line (contact column): still loads, contact ignored
+                + "3\tEMAIL\tlegacy@example.ee\t" + recent + "\n");
 
         FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
 
         assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isZero();
         assertThat(log.countToday(2L, VerificationLevel.PHONE)).isEqualTo(1);
+        assertThat(log.countToday(3L, VerificationLevel.EMAIL)).isEqualTo(1);
+    }
+
+    @Test
+    void theContactIsNotPersistedInTheLogFile() throws Exception {
+        // The log file is unencrypted — a raw e-mail/phone in it is a
+        // PII leak. Only (userId, level, timestamp) may be stored; the
+        // cooldown/cap math needs nothing else.
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+        log.record(1L, VerificationLevel.EMAIL, "secret-contact@example.ee", CLOCK.instant());
+
+        String file = Files.readString(logPath());
+        assertThat(file).doesNotContain("secret-contact@example.ee");
+        assertThat(file).contains("1\tEMAIL\t");
+        // ...and the count math still works across a restart
+        FileVerificationSendLog reloaded = new FileVerificationSendLog(logPath(), CLOCK);
+        assertThat(reloaded.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(1);
     }
 
     @Test
@@ -103,5 +127,41 @@ class FileVerificationSendLogTest {
         assertThat(Files.exists(logPath())).isFalse();
         log.record(1L, VerificationLevel.EMAIL, "a@example.ee", CLOCK.instant());
         assertThat(Files.exists(logPath())).isTrue();
+    }
+
+    @Test
+    void concurrentTryRecordHonorsTheDailyCapExactly() throws Exception {
+        // The atomic tryRecord under a real
+        // burst — 50 threads released by one latch, maxPerDay=2, cooldown 0.
+        // A check-then-act race would let more than 2 threads past both
+        // reads; the cap must hold at EXACTLY 2 OKs, the rest DAILY_CAP.
+        FileVerificationSendLog log = new FileVerificationSendLog(logPath(), CLOCK);
+        int threads = 50;
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(threads);
+        List<VerificationSendLog.SendDecision> decisions = Collections.synchronizedList(new ArrayList<>());
+        for (int i = 0; i < threads; i++) {
+            new Thread(() -> {
+                try {
+                    release.await();
+                    decisions.add(log.tryRecord(1L, VerificationLevel.EMAIL, "a@example.ee",
+                            CLOCK.instant(), 0, 2));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
+                }
+            }, "try-record-burst-" + i).start();
+        }
+        release.countDown();
+        assertThat(done.await(10, TimeUnit.SECONDS)).isTrue();
+
+        assertThat(decisions).hasSize(threads);
+        assertThat(decisions).filteredOn(d -> d == VerificationSendLog.SendDecision.OK).hasSize(2);
+        assertThat(decisions)
+                .filteredOn(d -> d == VerificationSendLog.SendDecision.DAILY_CAP)
+                .hasSize(threads - 2);
+        // and the store agrees: exactly the two allowed sends were recorded
+        assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(2);
     }
 }

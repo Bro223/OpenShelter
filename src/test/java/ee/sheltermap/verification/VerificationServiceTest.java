@@ -1,6 +1,6 @@
 package ee.sheltermap.verification;
 
-import ee.sheltermap.config.VerificationProperties;
+import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +24,7 @@ class VerificationServiceTest {
     private InMemoryPendingVerificationRepository pendingRepo;
     private InMemoryVerificationSendLog sendLog;
     private MutableClock clock;
+    private ThrottleAlertRecorder alerts;
     private VerificationService service;
     private RegisteredUser user;
 
@@ -33,9 +34,8 @@ class VerificationServiceTest {
         smtp = new CapturingSmtpSender();
         pendingRepo = new InMemoryPendingVerificationRepository();
         sendLog = new InMemoryVerificationSendLog();
-        // anchored at real now: the in-memory pending repo filters "active" by
-        // Instant.now(), so a fixed past date would make fresh pendings look expired
-        clock = new MutableClock(Instant.now());
+        clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
+        alerts = new ThrottleAlertRecorder(128);
 
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
@@ -44,17 +44,27 @@ class VerificationServiceTest {
 
         service = newService(new VerificationProperties(0, 0, "unused"));
 
-        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
+        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
 
     /** Builds a service sharing this test's fakes, with the given throttle config. */
     private VerificationService newService(VerificationProperties properties) {
+        return newService(properties, disabledContactLimiter());
+    }
+
+    /** Builds a service sharing this test's fakes, with the given throttle config + contact cap. */
+    private VerificationService newService(VerificationProperties properties, RollingContactOtpLimiter contactLimiter) {
         Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
         providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(sms, clock));
         providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(smtp, clock));
         providers.put(VerificationLevel.SMART_ID, new SmartIdVerificationProvider());
-        return new VerificationService(providers, pendingRepo, sendLog, properties, clock);
+        return new VerificationService(providers, pendingRepo, sendLog, contactLimiter, properties, clock, alerts);
+    }
+
+    /** Contact cap off — keeps the per-(user, level) throttle under test isolated. */
+    private RollingContactOtpLimiter disabledContactLimiter() {
+        return new RollingContactOtpLimiter(0, Duration.ofHours(24), clock);
     }
 
     @Test
@@ -93,8 +103,10 @@ class VerificationServiceTest {
     @Test
     void confirmVerificationWithWrongCodeReturnsFalseAndKeepsLevelsEmpty() {
         service.requestVerification(user, VerificationLevel.PHONE);
+        String otp = extractOtp(sms.getLastMessage());
+        String wrong = otp.equals("000000") ? "000001" : "000000";
 
-        assertThat(service.confirmVerification(user, VerificationLevel.PHONE, "000000")).isFalse();
+        assertThat(service.confirmVerification(user, VerificationLevel.PHONE, wrong)).isFalse();
         assertThat(user.levels()).isEmpty();
         assertThat(pendingRepo.findAll()).hasSize(1);
     }
@@ -123,7 +135,7 @@ class VerificationServiceTest {
         assertThat(user.levels()).containsExactly(VerificationLevel.PHONE);
         assertThat(user.canWrite()).isTrue();
 
-        user.revoke(VerificationLevel.PHONE);
+        user.revoke(VerificationLevel.PHONE, clock.instant());
 
         assertThat(user.levels()).isEmpty();
         assertThat(user.canWrite()).isFalse();
@@ -132,7 +144,7 @@ class VerificationServiceTest {
     @Test
     void requestVerificationForUnknownLevelThrows() {
         VerificationService bare = new VerificationService(
-                Map.of(), pendingRepo, sendLog, new VerificationProperties(0, 0, "unused"), clock);
+                Map.of(), pendingRepo, sendLog, disabledContactLimiter(), new VerificationProperties(0, 0, "unused"), clock, alerts);
 
         assertThatThrownBy(() -> bare.requestVerification(user, VerificationLevel.PHONE))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -186,12 +198,70 @@ class VerificationServiceTest {
         VerificationService throttled = newService(new VerificationProperties(60, 5, "unused"));
 
         throttled.requestVerification(user, VerificationLevel.PHONE);
+        // A second send within the cooldown is throttled (429) and leaves no
+        // second entry in the durable send log — the throw alone would not
+        // prove the row was withheld.
+        assertThatThrownBy(() -> throttled.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class);
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(1);
+
         // A different level for the same user is not throttled by the PHONE cooldown.
         throttled.requestVerification(user, VerificationLevel.EMAIL);
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.EMAIL)).isEqualTo(1);
 
-        RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111", "49001011111");
+        RegisteredUser other = new RegisteredUser("Mari", "mari@example.com", "+37251111111");
         other.setId(2L);
         throttled.requestVerification(other, VerificationLevel.PHONE); // different user, not throttled
+        assertThat(sendLog.countToday(other.getId(), VerificationLevel.PHONE)).isEqualTo(1);
+    }
+
+    @Test
+    void perContactCapRejectsWithRetryAfterAndSendsNothing() {
+        // user-level throttle OFF (0, 0), rolling contact cap 1
+        // per 24 h — the second send to the same contact is rejected by the
+        // CONTACT cap (not the send log): same 429 exception, honest
+        // Retry-After (full window — the clock has not moved), no second SMS.
+        VerificationService capped = newService(new VerificationProperties(0, 0, "unused"),
+                new RollingContactOtpLimiter(1, Duration.ofHours(24), clock));
+
+        capped.requestVerification(user, VerificationLevel.PHONE);
+
+        assertThatThrownBy(() -> capped.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class)
+                .hasMessage(VerificationThrottledException.DEFAULT_MESSAGE)
+                .extracting(ex -> ((VerificationThrottledException) ex).retryAfterSeconds())
+                .isEqualTo(24 * 60 * 60);
+        assertThat(sms.getMessages()).hasSize(1);
+    }
+
+    @Test
+    void tryRecordIsOneAtomicDecisionWithTheSameSilentSkipRules() {
+        // The decision the service maps to a 429
+        // comes from ONE atomic send-log operation. cooldown=0 skips the
+        // cooldown, cap=0 skips the daily cap (silent-skip paths unchanged);
+        // a rejected decision records nothing.
+        InMemoryVerificationSendLog log = new InMemoryVerificationSendLog();
+        Instant t0 = clock.instant();
+
+        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 60, 5))
+                .isEqualTo(VerificationSendLog.SendDecision.OK);
+        // within the 60s cooldown -> COOLDOWN, and nothing was recorded
+        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 60, 5))
+                .isEqualTo(VerificationSendLog.SendDecision.COOLDOWN);
+        assertThat(log.countToday(1L, VerificationLevel.PHONE)).isEqualTo(1);
+
+        // cooldown disabled (0) + cap 2: two OKs, the third DAILY_CAP
+        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
+                .isEqualTo(VerificationSendLog.SendDecision.OK);
+        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
+                .isEqualTo(VerificationSendLog.SendDecision.OK);
+        assertThat(log.tryRecord(1L, VerificationLevel.EMAIL, "x@example.com", t0, 0, 2))
+                .isEqualTo(VerificationSendLog.SendDecision.DAILY_CAP);
+        assertThat(log.countToday(1L, VerificationLevel.EMAIL)).isEqualTo(2);
+
+        // both disabled (0,0): always OK (silent skip)
+        assertThat(log.tryRecord(1L, VerificationLevel.PHONE, "+37250000000", t0, 0, 0))
+                .isEqualTo(VerificationSendLog.SendDecision.OK);
     }
 
     private static String extractOtp(String message) {

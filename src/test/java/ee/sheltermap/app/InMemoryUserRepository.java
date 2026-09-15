@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
@@ -20,6 +21,11 @@ public class InMemoryUserRepository implements UserRepository {
             user.setId(nextId++);
         }
         store.put(user.getId(), user);
+    }
+
+    @Override
+    public void delete(Long userId) {
+        store.remove(userId);
     }
 
     @Override
@@ -60,6 +66,23 @@ public class InMemoryUserRepository implements UserRepository {
         return result;
     }
 
+    @Override
+    public boolean isAdmin(long userId) {
+        // The in-memory domain hierarchy now HAS an admin kind (AdminUser,
+        // admin-moderation D1) — answer from the domain class, the mirror
+        // of the JPA impl's users.kind-column check.
+        return store.get(userId) instanceof AdminUser;
+    }
+
+    @Override
+    public boolean isSuspended(long userId) {
+        // Unknown ids are false (the JPA convention): a deleted account's
+        // token keeps authenticating until expiry (legal-recovery).
+        User user = store.get(userId);
+        return user != null && user.isSuspended();
+    }
+
+    @Override
     public List<User> findAll() {
         return List.copyOf(store.values());
     }

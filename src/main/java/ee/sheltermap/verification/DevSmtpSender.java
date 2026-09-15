@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * Development e-mail channel: prints the token to the console (free dev + CI).
- * Deliberately logs the code — that is the point of a dev sender; production
+ * Logging the code is the whole point of a dev sender — the production
  * senders must not. A real JavaMail implementation can replace this later.
  *
  * <p>Default {@code SmtpSender} bean — selected via

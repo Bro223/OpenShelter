@@ -4,7 +4,7 @@ package ee.sheltermap.auth;
 public class InvalidAccessTokenException extends RuntimeException {
 
     public InvalidAccessTokenException(Throwable cause) {
-        super("invalid access token", cause);
+        super("Invalid access token", cause);
     }
 
     /** Human-readable detail; message text is safe to expose (no secrets). */

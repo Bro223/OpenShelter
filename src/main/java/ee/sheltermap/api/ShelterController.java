@@ -1,23 +1,47 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.NotVerifiedException;
+import ee.sheltermap.app.ShelterNotFoundException;
+import ee.sheltermap.app.ShelterRepository;
+import ee.sheltermap.app.ShelterReportService;
+import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.GeoPoint;
+import ee.sheltermap.domain.GuestUser;
+import ee.sheltermap.domain.LocationKind;
+import ee.sheltermap.domain.OccupancyBand;
+import ee.sheltermap.domain.Provenance;
+import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
+import ee.sheltermap.domain.ShelterReportType;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -30,47 +54,157 @@ import java.util.List;
  * without an account). POST requires a Bearer JWT and a {@code canWrite()}
  * user; the shelter is saved ACTIVE/USER and answered with 201 + Location.
  *
+ * <p>Author-scoped mutations (user-contributions, V7 author link): the
+ * submitting user can list ({@code GET /mine}), update ({@code PUT /{id}})
+ * and delete ({@code DELETE /{id}}) their own USER-source shelters. 404 if
+ * the shelter is absent; 403 if it exists but is not the caller's (registry
+ * and legacy rows are unmanageable by anyone) — ids are public (public
+ * GET), so 403-vs-404 leaks nothing.
+ *
  * <p>Deferred (06-CONTEXT-API.md decision 2, deliberately NOT built):
  * nearest/bbox queries need GeoService + PostGIS GIST index; paging
  * (limit/offset) — Estonia-scale data is small. TODO: add when it grows.
+ *
+ * <p>Trust layer (shelter-trust-and-reports): the public list is
+ * ACTIVE-only (D5) and accepts the optional trust filters; the detail
+ * read carries the caller's own occupancy band; the report/occupancy
+ * POSTs require a verified registered user (same gate and error
+ * vocabulary as submissions).
  */
+@Tag(name = "Public shelters",
+        description = "The community shelter map. The list and detail reads are "
+                + "PUBLIC (guests can watch — an emergency map must be viewable without "
+                + "an account); every mutation requires a Bearer JWT and a verified "
+                + "registered account. Note the deliberate split: GET /mine is "
+                + "authenticated even though the rest of /api/shelters/** is public.")
 @RestController
 @RequestMapping("/api/shelters")
 public class ShelterController {
 
+    /**
+     * 403 message for author-scoped shelter mutations (update/delete) —
+     * duplicated here because both branches of
+     * {@link #requireVerifiedRegisteredUser()} reject with it.
+     */
+    private static final String MODIFY_SHELTERS_MESSAGE =
+            "A verified account is required to modify shelters";
+
     private final ShelterQueryService queryService;
     private final ShelterService shelterService;
+    private final ShelterReportService reportService;
     private final UserRepository userRepository;
+    private final ShelterRepository shelterRepository;
+    private final ShelterInfoRequestLog infoRequests;
 
     public ShelterController(ShelterQueryService queryService,
                              ShelterService shelterService,
-                             UserRepository userRepository) {
+                             ShelterReportService reportService,
+                             UserRepository userRepository,
+                             ShelterRepository shelterRepository,
+                             ShelterInfoRequestLog infoRequests) {
         this.queryService = queryService;
         this.shelterService = shelterService;
+        this.reportService = reportService;
         this.userRepository = userRepository;
+        this.shelterRepository = shelterRepository;
+        this.infoRequests = infoRequests;
     }
 
+    /**
+     * The public list. {@code source} as before (D5: ACTIVE rows only —
+     * auto-hidden shelters are absent); the optional trust filters combine
+     * with it in the projection:
+     * {@code hasCapacity}
+     * (capacity data present). (The {@code minRating} rating filter was
+     * removed in V21 with the rating model — an unknown {@code minRating}
+     * param is ignored for API compatibility, not an error.)
+     *
+     * <p>{@code provenance} (shelter-provenance-taxonomy): optional
+     * taxonomy filter — keeps rows whose server-derived provenance matches
+     * (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW are
+     * the only values reachable in the ACTIVE-only list; REPORTED_INACTIVE
+     * and REJECTED filter to an empty list by construction). Absent = no
+     * provenance filter; combines with every other filter. A value outside
+     * the enum is a 400 (Spring enum binding, same as {@code source}).
+     */
     @GetMapping
-    public List<ShelterDto> list(@RequestParam(defaultValue = "ALL") ShelterSourceFilter source) {
-        return queryService.findAll(source);
+    @Operation(summary = "The public shelter list",
+            description = "ACTIVE rows only (auto-hidden shelters are absent). The "
+                    + "optional trust filters combine: hasCapacity (capacity data "
+                    + "present). The minRating rating filter was removed in V21 — an "
+                    + "unknown minRating param is ignored for API compatibility, not "
+                    + "an error. provenance: keeps rows whose server-derived "
+                    + "provenance matches; absent = no provenance filter; a value "
+                    + "outside the enum is a 400 (same as source).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The ACTIVE rows", content =
+                    @Content(array = @ArraySchema(schema = @Schema(implementation = ShelterDto.class))))
+    })
+    @SecurityRequirements({})
+    public List<ShelterDto> list(@Parameter(description = "Source filter: ALL | REGISTRY "
+                    + "(PAASETEAMET + MUNICIPALITY rows) | USER (community submissions). "
+                    + "Default ALL.", schema = @Schema(implementation = ShelterSourceFilter.class))
+                                 @RequestParam(defaultValue = "ALL") ShelterSourceFilter source,
+                                 @Parameter(description = "Only rows with capacity data "
+                                         + "(optional trust filter).")
+                                 @RequestParam(required = false) Boolean hasCapacity,
+                                 @Parameter(description = "Only rows with this "
+                                         + "server-derived provenance (optional; 400 "
+                                         + "outside the enum).")
+                                 @RequestParam(required = false) Provenance provenance) {
+        return queryService.findAll(source, hasCapacity, provenance);
     }
 
+    /**
+     * The detail read — additionally carries {@code yourOccupancyBand}
+     * (the caller's own live band for this shelter; null for guests,
+     * anonymous callers and callers without a report). Rejected
+     * (INACTIVE) rows stay readable by id exactly as any other INACTIVE
+     * row — no trust rule blocks a detail read.
+     * (community-review-queue v2 D2).
+     */
     @GetMapping("/{id}")
+    @Operation(summary = "The shelter detail read",
+            description = "Additionally carries yourOccupancyBand (the caller's own "
+                    + "live band for this shelter; null for guests, anonymous callers "
+                    + "and callers without a report). Rejected (INACTIVE) rows stay "
+                    + "readable by id exactly as any other INACTIVE row — no trust "
+                    + "rule blocks a detail read.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The shelter detail "
+                    + "projection", content = @Content(schema = @Schema(implementation =
+                    ShelterDto.class))),
+            @ApiResponse(responseCode = "404", description = "Unknown shelter id")
+    })
+    @SecurityRequirements({})
     public ShelterDto get(@PathVariable long id) {
-        return queryService.findById(id).orElseThrow(() -> new ShelterNotFoundException(id));
+        return queryService.findById(id, callerOrGuest()).orElseThrow(() -> new ShelterNotFoundException(id));
     }
 
     @PostMapping
+    @Operation(summary = "Submit a new shelter",
+            description = "Requires a Bearer JWT and a canWrite() user; the shelter "
+                    + "is saved ACTIVE/USER and answered with 201 + Location. The "
+                    + "backend re-checks the Estonia bounding box and the field bounds. "
+                    + "The locationKind private-home declaration is optional (absent = "
+                    + "PUBLIC).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Created — the created "
+                    + "ShelterDto, Location header set", content = @Content(schema =
+                    @Schema(implementation = ShelterDto.class))),
+            @ApiResponse(responseCode = "400", description = "Outside the Estonia bbox "
+                    + "or field-bound violations"),
+            @ApiResponse(responseCode = "403", description = "Not a verified "
+                    + "registered account")
+    })
     public ResponseEntity<ShelterDto> create(@Valid @RequestBody CreateShelterRequest request) {
         User user = currentUser();
         if (!user.canWrite()) {
-            throw new NotVerifiedException("a verified account is required to submit shelters");
+            throw new NotVerifiedException(ShelterService.SUBMIT_SHELTERS_MESSAGE);
         }
-        // P2 fix: user-submitted shelters get the same Estonia bounding-box
+        // User-submitted shelters get the same Estonia bounding-box
         // sanity check the registry parser applies — no ocean shelters.
-        if (!GeoPoint.inEstonia(request.latitude(), request.longitude())) {
-            throw new InvalidShelterException("shelter location must be inside Estonia");
-        }
+        requireInsideEstonia(request.latitude(), request.longitude());
         Shelter shelter = new Shelter(
                 request.name(),
                 new GeoPoint(request.latitude(), request.longitude()),
@@ -80,20 +214,258 @@ public class ShelterController {
                 null, null, null, null, null, // no registry fields on USER rows
                 request.description(),
                 request.capacity());
+        // The private-home declaration (community-review-queue v2 D7):
+        // absent = PUBLIC.
+        shelter.setLocationKind(request.locationKind() == null
+                ? LocationKind.PUBLIC : request.locationKind());
         shelterService.addPlace(user, shelter);
         ShelterDto dto = queryService.findById(shelter.getId())
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
         return ResponseEntity.created(URI.create("/api/shelters/" + shelter.getId())).body(dto);
     }
 
+    /** GET /api/shelters/mine — the caller's own shelters (Bearer JWT), all statuses (D5). */
+    @GetMapping("/mine")
+    @Operation(summary = "The caller's own shelters",
+            description = "Author-scoped read (Bearer JWT), ALL statuses (D5) — "
+                    + "authenticated even though the rest of /api/shelters/** is "
+                    + "public.")
+    @ApiResponse(responseCode = "200", description = "The caller's shelters", content =
+            @Content(array = @ArraySchema(schema = @Schema(implementation = ShelterDto.class))))
+    public List<ShelterDto> mine() {
+        return queryService.findByCreatedBy(currentUser().getId());
+    }
+
+    /**
+     * POST /api/shelters/{id}/info-request/reply — the submitter's ONE-TIME
+     * answer to the admin's information request: 204. Author
+     * only — the same 404/403 vocabulary as the other author-scoped
+     * mutations (PUT/DELETE); 404 when the row has no request; 409 on a
+     * second answer (the row is kept after the reply — audit posture).
+     */
+    @PostMapping("/{id}/info-request/reply")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Reply to the admin's information request",
+            description = "The submitter's ONE-TIME answer to the admin's information "
+                    + "request: 204. Author only — the same 404/403 vocabulary as the "
+                    + "other author-scoped mutations (PUT/DELETE); 404 when the row "
+                    + "has no request; 409 on a second answer (the row is kept after "
+                    + "the reply — audit posture).")
+    public void replyInfoRequest(@PathVariable long id, @Valid @RequestBody InfoRequestReplyRequest request) {
+        RegisteredUser user = requireVerifiedRegisteredUser();
+        requireOwnedShelter(id, user);
+        infoRequests.reply(id, request.message().trim(), user.getId());
+    }
+
+    /**
+     * POST /api/shelters/{id}/reports — one typed report per user per
+     * shelter per type (shelter-trust-and-reports D1). Verified users
+     * only (same 403 vocabulary as submissions); 404 unknown shelter;
+     * 409 duplicate (shelter, user, type); 429 report throttle. The
+     * body answers the dampening outcome (community-self-moderation,
+     * D4): {@code {"damped": true|false}}.
+     */
+    @PostMapping("/{id}/reports")
+    @Operation(summary = "Report a shelter",
+            description = "One typed report per user per shelter per type. Verified "
+                    + "users only (same 403 vocabulary as submissions); 404 unknown "
+                    + "shelter; 409 duplicate (shelter, user, type); 429 report "
+                    + "throttle. The body answers the dampening outcome: "
+                    + "{\"damped\": true|false}.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The dampening outcome "
+                    + "({\"damped\": true|false})", content = @Content(schema =
+                    @Schema(implementation = ShelterReportResult.class))),
+            @ApiResponse(responseCode = "403", description = "Not a verified "
+                    + "registered account"),
+            @ApiResponse(responseCode = "404", description = "Unknown shelter"),
+            @ApiResponse(responseCode = "409", description = "The caller already "
+                    + "reported that type for this shelter"),
+            @ApiResponse(responseCode = "429", description = "Report throttle "
+                    + "exceeded — Retry-After in seconds")
+    })
+    public ShelterReportResult report(@PathVariable long id, @Valid @RequestBody ShelterReportRequest request) {
+        boolean damped = reportService.reportShelter(currentUser(), id, request.type(), request.detail());
+        return new ShelterReportResult(damped);
+    }
+
+    /**
+     * PUT /api/shelters/{id}/occupancy — the caller's live occupancy band
+     * (D4): one report per user per shelter, re-sending updates it
+     * (latest band wins, {@code updated_at} refreshed). Verified users
+     * only; 404 unknown shelter; 429 report throttle.
+     */
+    @PutMapping("/{id}/occupancy")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Report the caller's live occupancy band",
+            description = "One report per user per shelter, re-sending updates it "
+                    + "(latest band wins, updated_at refreshed). Verified users only; "
+                    + "404 unknown shelter; 429 report throttle.")
+    public void reportOccupancy(@PathVariable long id, @Valid @RequestBody OccupancyReportRequest request) {
+        reportService.reportOccupancy(currentUser(), id, request.band());
+    }
+
+    /**
+     * PUT /api/shelters/{id}/open-status — the caller's live open/closed
+     * state (same level as capacity): one state per user per shelter,
+     * re-sending updates it (latest state wins, {@code created_at}
+     * refreshed). Verified users only (403, the same REPORTING_MESSAGE
+     * vocabulary as occupancy); 404 unknown shelter; a value outside the
+     * OPEN/CLOSED enum is a 400 (Spring enum binding, same as
+     * {@code band}). NOT throttled — a tap is a state, not a report
+     * action (it consumes no action-log budget).
+     */
+    @PutMapping("/{id}/open-status")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Report the caller's live open/closed state",
+            description = "Same level as capacity: one state per user per shelter, "
+                    + "re-sending updates it (latest state wins, created_at "
+                    + "refreshed). Verified users only (403, the same vocabulary as "
+                    + "occupancy); 404 unknown shelter; a value outside the OPEN/CLOSED "
+                    + "enum is a 400 (same as band). NOT throttled — a tap is a state, "
+                    + "not a report action.")
+    public void reportOpenStatus(@PathVariable long id, @Valid @RequestBody OpenStatusReportRequest request) {
+        reportService.putOpenStatus(requireRegistered(currentUser()), id, request.state());
+    }
+
+    /**
+     * PUT /api/shelters/{id} — update the caller's OWN USER-source shelter.
+     * 404 if absent; 403 if not the author (registry/legacy rows are
+     * unmanageable by anyone); 400 on bbox/field violations. Only the five
+     * writable fields change; the response is the updated {@link ShelterDto}.
+     */
+    @PutMapping("/{id}")
+    @Operation(summary = "Update the caller's own shelter",
+            description = "Update the caller's OWN USER-source shelter. 404 if absent; "
+                    + "403 if not the author (registry/legacy rows are unmanageable by "
+                    + "anyone); 400 on bbox/field violations. Only the writable fields "
+                    + "change; the response is the updated ShelterDto.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The updated shelter", content =
+                    @Content(schema = @Schema(implementation = ShelterDto.class))),
+            @ApiResponse(responseCode = "403", description = "Not the author"),
+            @ApiResponse(responseCode = "404", description = "Unknown shelter")
+    })
+    public ShelterDto update(@PathVariable long id, @Valid @RequestBody UpdateShelterRequest request) {
+        RegisteredUser user = requireVerifiedRegisteredUser();
+        Shelter shelter = requireOwnedShelter(id, user);
+        requireInsideEstonia(request.latitude(), request.longitude());
+        Shelter updated = new Shelter(
+                request.name(),
+                new GeoPoint(request.latitude(), request.longitude()),
+                shelter.getStatus(),
+                shelter.getExternalId(),
+                shelter.getSource(),
+                shelter.getAddress(),
+                shelter.getCounty(),
+                shelter.getMunicipality(),
+                shelter.getDataAsOf(),
+                shelter.getSourceAttribution(),
+                request.description(),
+                request.capacity());
+        updated.setId(shelter.getId());
+        updated.setCreatedAt(shelter.getCreatedAt());
+        updated.setCreatedBy(shelter.getCreatedBy());
+        // Admin-owned state is preserved through the owner's edit (the
+        // save copies every domain field): the trust-layer disarm flag,
+        // the community trust state and the admin "inaccurate" mark (a
+        // PUT must never let the owner reset review_status/review_note —
+        // including "self-confirming" a NEW row by editing it).
+        updated.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
+        updated.setReviewStatus(shelter.getReviewStatus());
+        updated.setReviewNote(shelter.getReviewNote());
+        updated.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
+        updated.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());
+        // The private-home declaration is updatable; absent = keep current.
+        updated.setLocationKind(request.locationKind() == null
+                ? shelter.getLocationKind() : request.locationKind());
+        shelterService.updatePlace(updated);
+        return queryService.findById(id)
+                .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
+    }
+
+    /** DELETE /api/shelters/{id} — remove the caller's own shelter; 204. Its reports and occupancy cascade.
+     *  The DELETED history row is actor-attributed to the submitter. */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete the caller's own shelter",
+            description = "204. Its reports and occupancy cascade. Author only (403 if "
+                    + "not the author, 404 if absent); the DELETED history row is "
+                    + "actor-attributed to the submitter.")
+    public void delete(@PathVariable long id) {
+        RegisteredUser user = requireVerifiedRegisteredUser();
+        requireOwnedShelter(id, user);
+        shelterService.deletePlace(id, user.getId());
+    }
+
+    /** Resolve + author check, shared by PUT/DELETE: 404 if absent, 403 if not the author. */
+    private Shelter requireOwnedShelter(long id, User user) {
+        Shelter shelter = shelterRepository.findById(id)
+                .orElseThrow(() -> new ShelterNotFoundException(id));
+        if (shelter.getSource() != ShelterSource.USER
+                || shelter.getCreatedBy() == null
+                || !shelter.getCreatedBy().equals(user.getId())) {
+            throw new NotAuthorException("Only the author may modify this shelter");
+        }
+        return shelter;
+    }
+
+    /** The Estonia bbox gate, shared by POST and PUT so create/update cannot drift. */
+    private static void requireInsideEstonia(double latitude, double longitude) {
+        if (!GeoPoint.inEstonia(latitude, longitude)) {
+            throw new InvalidShelterException("Shelter location must be inside Estonia");
+        }
+    }
+
+    /** Bearer JWT + verified registered account (author mutations, mirroring the shelter author-mutation convention). */
+    private RegisteredUser requireVerifiedRegisteredUser() {
+        User user = currentUser();
+        if (!(user instanceof RegisteredUser registered)) {
+            throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
+        }
+        if (!registered.canWrite()) {
+            throw new NotVerifiedException(MODIFY_SHELTERS_MESSAGE);
+        }
+        return registered;
+    }
+
+    /**
+     * Bearer JWT + registered account for the open-status tap: a guest
+     * is rejected here with the occupancy 403 vocabulary (REPORTING
+     * MESSAGE); the {@code canWrite()} gate stays in the service, so an
+     * unverified registered user gets the same 403 from the other side.
+     */
+    private static RegisteredUser requireRegistered(User user) {
+        if (!(user instanceof RegisteredUser registered)) {
+            throw new NotVerifiedException(ShelterReportService.REPORTING_MESSAGE);
+        }
+        return registered;
+    }
+
+    /**
+     * The authenticated caller, or a fresh guest for anonymous reads —
+     * the detail projection's {@code yourOccupancyBand} is null for a
+     * guest (id {@code null}), so this never throws on public GETs.
+     */
+    private User callerOrGuest() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof Long userId) {
+            User user = userRepository.findById(userId);
+            if (user != null) {
+                return user;
+            }
+        }
+        return new GuestUser();
+    }
+
     private User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("authentication required");
+            throw new InvalidAccessTokenException("Authentication required");
         }
         User user = userRepository.findById(userId);
         if (user == null) {
-            throw new InvalidAccessTokenException("unknown user");
+            throw new InvalidAccessTokenException("Unknown user");
         }
         return user;
     }

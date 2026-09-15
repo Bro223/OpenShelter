@@ -28,7 +28,7 @@ public class PendingVerificationEntity {
     @Column(nullable = false, length = 16)
     private VerificationLevel level;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, length = 1024)
     private String contact;
 
     @Column(name = "code_hash", nullable = false, length = 64)

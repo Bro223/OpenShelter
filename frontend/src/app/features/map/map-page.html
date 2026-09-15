@@ -1,0 +1,341 @@
+<section class="map-page">
+  <header class="map-page__header">
+    <h1 class="page-title">{{ 'map.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'map.subtitle' | t }}</p>
+  </header>
+
+  <div class="map-page__layout">
+    <div class="map-page__map">
+      <div #mapEl class="map-page__leaflet"></div>
+      <div class="map-legend" role="group" aria-label="Marker legend">
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--registry legend-swatch"
+            aria-hidden="true"
+          ></span>
+          {{ 'map.legend.registry' | t }}
+        </span>
+        <!-- Trust palette (community-review-queue D5): NEW community rows
+             are amber, CONFIRMED stay green. -->
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
+          {{ 'map.legend.new' | t }}
+        </span>
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
+          {{ 'map.legend.confirmed' | t }}
+        </span>
+        <!-- Reported state (shelter-trust-and-reports D6): the single
+             orange "reported" affordance — beats the trust colour. -->
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--reported legend-swatch"
+            aria-hidden="true"
+          ></span>
+          {{ 'map.legend.reported' | t }}
+        </span>
+      </div>
+    </div>
+
+    <aside class="map-page__sidebar">
+      <!-- Crisis actions (map-crisis-actions D1/D4): the single safety-
+           orange CTA (the ONLY consumer of --color-cta) and the
+           authenticated-only "Add shelter" entry — the /submit route guards
+           handle the verified redirect. Above the chips: this is "the"
+           action of the page. -->
+      <div class="map-page__actions">
+        <button
+          type="button"
+          class="btn btn--block map-cta"
+          (click)="findNearest()"
+          [disabled]="locating() || loading() || error() !== null"
+          [attr.aria-busy]="locating()"
+        >
+          {{ locating() ? 'Finding your location…' : 'Show shelters around you' }}
+        </button>
+        <!-- legal-recovery: the explicit consent line —
+             the CTA is the only geolocation trigger and the browser prompt
+             is the consent; the nearest ranking is client-side (no backend
+             call), so the promise "never sent" is the actual behavior. -->
+        <p class="map-page__geo-note">{{ 'map.geoNote' | t }}</p>
+        <!-- Address-search anchor (location-navigation): the fallback
+             for the geolocation CTA when location is denied, times out or
+             is unavailable — the SAME gateway + usage-policy contract as
+             the /submit address search (shelter-address-search), in the
+             browse context. Public: no auth needed. A failed search changes
+             nothing else (no anchor, no pin, list untouched). -->
+        <div class="map-page__anchor-search">
+          <label class="anchor-search__label" for="anchor-search-input">{{
+            'map.anchorLabel' | t
+          }}</label>
+          <div class="anchor-search__row">
+            <input
+              id="anchor-search-input"
+              class="anchor-search__input"
+              type="text"
+              [placeholder]="'map.anchorPlaceholder' | t"
+              [value]="anchorQuery()"
+              (input)="onAnchorQueryChange($event)"
+              (keydown)="onAnchorSearchKey($event)"
+              [disabled]="anchorSearching()"
+            />
+            <button
+              type="button"
+              class="btn anchor-search__button"
+              (click)="startAnchorSearch()"
+              [disabled]="anchorSearching() || anchorQuery().trim() === ''"
+              [attr.aria-busy]="anchorSearching()"
+            >
+              {{ anchorSearching() ? ('map.searching' | t) : ('map.search' | t) }}
+            </button>
+          </div>
+          <!-- Nominatim usage policy: the attribution is REQUIRED and always
+               rendered next to the search box (the /submit convention),
+               success or failure. -->
+          <p class="anchor-search__attribution">
+            {{ 'map.attributionLead' | t }}
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">{{
+              'map.osmAttribution' | t
+            }}</a>
+          </p>
+          @if (anchorErrorText(); as msg) {
+            @if (anchorError() === 'no-results') {
+              <p class="anchor-search__error">{{ msg | t }}</p>
+            } @else {
+              <!-- The two real failures get the alert role (the /submit
+                   convention): no-results is information, not an alarm. -->
+              <p class="anchor-search__error" role="alert">{{ msg | t }}</p>
+            }
+          }
+          @if (anchorResults().length) {
+            <ul class="anchor-search__results" aria-label="Address results">
+              @for (result of anchorResults(); track $index) {
+                <li>
+                  <button
+                    type="button"
+                    class="anchor-search__result"
+                    (click)="selectAnchorResult(result)"
+                  >
+                    <span class="anchor-search__result-name">{{ result.displayName }}</span>
+                    @if (result.type) {
+                      <span class="anchor-search__result-type">{{ result.type }}</span>
+                    }
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+        @if (auth.initialized() && auth.authenticated()) {
+          <a routerLink="/submit" class="btn btn--ghost btn--block">{{ 'map.addShelter' | t }}</a>
+        }
+      </div>
+
+      @if (nearest(); as n) {
+        <p class="nearest-line" role="status">
+          Show shelters around you: {{ n.name }}
+          @if (n.address) {
+            <span class="nearest-line__address"> · {{ n.address }}</span>
+          }
+          <!-- Distance honesty (community-review-queue D6): the straight-line
+               distance the ranking actually computed — never a route claim. -->
+          @if (nearestKm() !== null) {
+            <span class="nearest-line__distance"> · {{ straightLineText(nearestKm()!) }}</span>
+          }
+        </p>
+        @if (n.source === 'USER') {
+          <!-- The unverified warning line: when the highlighted row is a
+               community row (any review status — map-browse delta). -->
+          <p class="nearest-line nearest-line--warning">{{ communityUnverifiedWarning }}</p>
+        }
+        @if (n.inaccurate) {
+          <!-- Marked inaccurate: the single-sourced warning —
+               the flag is the treatment, the row stays visible. -->
+          <p class="nearest-line nearest-line--warning">{{ inaccurateWarning }}</p>
+        }
+      } @else if (nearestEmpty()) {
+        <p class="nearest-line">
+          {{ 'map.nearestEmpty' | t }}
+          @if (auth.initialized() && auth.authenticated()) {
+            <a routerLink="/submit">{{ 'map.nearestEmpty.addFirst' | t }}</a>
+          }
+        </p>
+      } @else if (nearestError(); as nearestMsg) {
+        <p class="nearest-line nearest-line--error" role="alert">{{ nearestMsg | t }}</p>
+      }
+
+      @if (anchor(); as a) {
+        <!-- The active browse anchor (location-navigation): the
+             searched point the per-row distances are measured from, with
+             its single Clear action. -->
+        <p class="anchor-line" role="status">
+          {{ 'map.searched' | t }} <span class="anchor-line__label">{{ a.label }}</span>
+          <button type="button" class="anchor-line__clear" (click)="clearAnchor()">
+            {{ 'map.clear' | t }}
+          </button>
+        </p>
+      }
+
+      <div class="filter-chips" role="group" aria-label="Filter shelters by source">
+        @for (chip of sourceFilters; track chip.value) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip--active]="filter() === chip.value"
+            (click)="setFilter(chip.value)"
+          >
+            {{ chip.labelKey | t }}
+          </button>
+        }
+      </div>
+
+      <!-- Practical filter chips: "Open" (client-side — the BE has no
+           open/closed param, it filters the loaded list and re-renders the
+           markers) and "Has capacity" (server-side `?hasCapacity=`). Both
+           are composable with the source chips above. -->
+      <div class="filter-trust" role="group" aria-label="Shelter filters">
+        <button
+          type="button"
+          class="trust-chip"
+          [class.chip--active]="openOnly()"
+          [attr.aria-pressed]="openOnly()"
+          (click)="toggleOpen()"
+        >
+          {{ 'map.chipOpen' | t }}
+        </button>
+        <button
+          type="button"
+          class="trust-chip"
+          [class.chip--active]="hasCapacity()"
+          [attr.aria-pressed]="hasCapacity()"
+          (click)="toggleHasCapacity()"
+        >
+          {{ 'map.chipHasCapacity' | t }}
+        </button>
+      </div>
+
+      @if (error(); as err) {
+        <app-banner severity="error" [message]="err" />
+      }
+
+      @if (loading()) {
+        <app-loading-indicator class="sidebar-state" [message]="'map.loading' | t" />
+      } @else if (showEmpty()) {
+        <p class="sidebar-state">{{ 'map.emptyFilter' | t }}</p>
+      } @else if (sorted().length) {
+        <ul #listEl class="shelter-list" aria-label="Shelters">
+          @for (shelter of sorted(); track shelter.id) {
+            <!-- The li is the per-shelter row element: the scroll-snap
+                 target (map-page.scss) and the row scrollRowIntoView looks
+                 up by data-shelter-id (marker click / nearest). -->
+            <li [attr.data-shelter-id]="shelter.id">
+              <!-- Row = button (a real action: select + zoom, keyboard
+                   operable). It does NOT navigate — the click flies the
+                   map to street level and the user stays on /map (design
+                   decision 5). The accessible name is the row's own
+                   text (name + address + meta). -->
+              <button
+                type="button"
+                class="shelter-row"
+                [class.shelter-row--selected]="selectedId() === shelter.id"
+                (click)="selectShelter(shelter)"
+              >
+                <span class="shelter-row__name">{{ shelter.name }}</span>
+                @if (shelter.address) {
+                  <span class="shelter-row__address">{{ shelter.address }}</span>
+                }
+                <span class="shelter-row__meta">
+                  <!-- Source/trust badge (community-review-queue): registry
+                       rows say which registry; USER rows say their trust
+                       state (NEW = "Newly added" amber, CONFIRMED =
+                       "Community-checked" green). -->
+                  <span class="badge" [ngClass]="communityBadgeClass(shelter)">
+                    {{ sourceTrustLabel(shelter) }}
+                  </span>
+                  @if (isPrivateLocation(shelter)) {
+                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                  }
+                  <!-- Address-anchor distance (location-navigation):
+                       the straight-line distance from the searched point —
+                       the same honesty format as the nearest line, never a
+                       route claim. Only while an anchor is active (the
+                       anchor() check, not the distance's truthiness — a
+                       0 km result would be falsy and must still render). -->
+                  @if (anchor() !== null) {
+                    <span class="shelter-row__anchor-distance num-tabular">{{
+                      straightLineText(anchorDistance(shelter)!)
+                    }}</span>
+                  }
+                </span>
+                <!-- Trust badges (shelter-trust-and-reports D6): orange
+                     "Reported" (nonexistentReports > 0), the
+                     fresh-CLOSED amber badge ("Reported closed" at one
+                     fresh report, "Closed" at two+; a fresh OPEN row
+                     renders NO badge — open is the default), and the
+                     NEUTRAL occupancy badge with recency (hedged at one
+                     fresh report, firm at two+). -->
+                @if (hasTrustBadges(shelter)) {
+                  <span class="shelter-row__badges">
+                    @if (hasReports(shelter)) {
+                      <!-- The count — the nonexistentReports subset
+                           that drives the badge (single-sourced). -->
+                      <span class="badge badge--reported">{{
+                        reportedBadgeText(shelter.nonexistentReports)
+                      }}</span>
+                    }
+                    @if (openStatusBadgeText(shelter.openStatus); as openText) {
+                      <span class="badge badge--closed">{{ openText }}</span>
+                    }
+                    @if (shelter.occupancy; as occ) {
+                      <span class="badge badge--occupancy">{{ occupancyText(occ) }}</span>
+                    }
+                  </span>
+                }
+              </button>
+              <!-- The explicit details step: appears ONLY on the selected
+                   row and is the only sidebar element that opens
+                   /shelters/:id. The aria-label names the shelter so the
+                   navigation target is unambiguous to screen readers. -->
+              @if (selectedId() === shelter.id) {
+                <a
+                  class="shelter-row__details btn btn--ghost"
+                  [routerLink]="['/shelters', shelter.id]"
+                  [attr.aria-label]="('map.viewDetailsFor' | t) + shelter.name"
+                >
+                  {{ 'map.viewDetails' | t }} →
+                </a>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      <!-- Safety notice lives in the page shell footer (page-shell.html):
+           it is app-wide, not map-only, and the shelter list below owns
+           the sidebar space. -->
+    </aside>
+  </div>
+
+  <!-- "How OpenShelter works" (Workstream A): plain-language mechanics
+       block under the map layout. Editorial layout, not a card: the page
+       background continues, a single top hairline divides the block from
+       the map, and the copy sits in a width-capped column for a
+       comfortable line length (map-page.scss). Rhythm: the first
+       paragraph is the lede (larger type — it carries the "not an
+       emergency service, call 112" positioning) and the last is the
+       standing guarantee (quiet medium weight). The prose block is
+       deliberate: a five-step example list would restate what the
+       sources/report paragraphs already say (the how.example* keys stay
+       in the catalogs, unused). It is the only i18n'd copy on this page
+       today (the rest of the map chrome is still hardcoded English);
+       the badge terms are quoted verbatim so the text matches what the
+       map shows. -->
+  <section class="map-page__how" aria-labelledby="how-title">
+    <h2 class="map-page__how-title" id="how-title">{{ 'how.title' | t }}</h2>
+    <p class="map-page__how-lede">{{ 'how.what' | t }}</p>
+    <p>{{ 'how.sources' | t }}</p>
+    <p>{{ 'how.report' | t }}</p>
+    <p>{{ 'how.nearest' | t }}</p>
+    <p class="map-page__how-guarantee">{{ 'how.guarantee' | t }}</p>
+  </section>
+</section>

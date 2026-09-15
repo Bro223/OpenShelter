@@ -1,8 +1,8 @@
 # Context — Verification
 
-**Source diagram:** `docs/uml/01-user-verification.puml` (packages `verification` + `app`)
-**Used by steps:** 2 (create). Referenced by: auth (login relies on claims), api (review requires
-verified user).
+**Source diagram:** `../01-user-verification.puml` (packages `verification` + `app`)
+**Used by steps:** 2 (create). Referenced by: auth (login relies on claims), api (reports and
+submissions require a verified user).
 
 ## Purpose
 
@@ -38,11 +38,10 @@ tokens) lives in the auth context (`03-auth.puml`).
 
 | Type | Kind | Key members / notes |
 |---|---|---|
-| `UserService` | class | `register(name, email, phone, nationalIdCode): RegisteredUser`, `getData(user): UserData`, `deleteAccount(user): void`. |
-| `UserRepository` | interface | `save(user): void`, `findById(id): User`. |
+| `UserService` | class | `register(name, email, phone): RegisteredUser`, `findByEmailOrPhone(contact): RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`. (The service-level `getData(user)` read is gone — profile data comes from the domain `User.getData()`; `guest()` was removed in the review-fix pass. Account deletion IS part of the product contract: `DELETE /account` (legal-recovery M4) delegates to `auth.AccountService.deleteAccount(registered)`, which purges the declared private homes, redacts the audit reasons, orphans the public rows and ends in the domain `User.deleteAccount()` cascade.) |
+| `UserRepository` | interface | `save(user): void`, `findById(id): User`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`, `findByIds(ids: Collection<Long>): Map<Long, User>` (batched lookup — no N+1 on listings). |
 | `ShelterService` | class | `addPlace(user: User, place: Shelter): void` — **checks `user.canWrite()` first**, then saves (status `ACTIVE`, source `USER`). |
-| `ShelterRepository` | interface | `save(shelter): void`, `findByExternalId(String): Optional<Shelter>`, `saveAll(List<Shelter>): void`, `deleteBySourceAndExternalIdNotIn(ShelterSource, List<String>): int`, `findAll(): List<Shelter>`, `findAllBySourceIn(List<ShelterSource>): List<Shelter>`. |
-| `ShelterReviewRepository` | interface | (listed in `02-CONTEXT-DOMAIN.md`). |
+| `ShelterRepository` | interface | `save(shelter): void`, `findByExternalId(String): Optional<Shelter>`, `findById(Long): Optional<Shelter>`, `deleteBySourceAndExternalIdNotIn(ShelterSource, List<String>): int`, `findAll(): List<Shelter>`, `findAllActiveBySourceIn(List<ShelterSource>): List<Shelter>` (the ACTIVE-only public projection), `countByCreatedByAndSourceAndStatus`, `countByCreatedByAndSourceAndCreatedAtAfter`, `countByCreatedByAndSourceAndReviewStatus`, `findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc`, `findByCreatedBy(Long): List<Shelter>`, `findByIds(Collection<Long>): List<Shelter>`, `deleteById(Long): void`. (`saveAll` / `findAllBySourceIn` no longer exist.) |
 
 ## Design decisions
 
@@ -76,7 +75,7 @@ tokens) lives in the auth context (`03-auth.puml`).
 - `auth.AuthService.register` needs the password captured at registration — profile creation goes
   through `UserService` here, password storage through the auth context (`UserCredentials`). They
   are **separate aggregates** (see `03-auth.puml` note).
-- `api.ShelterReviewService` checks `user.levels()` non-empty before allowing a review.
+- `api.ShelterQueryService` builds every read projection (list / detail / admin) and the controllers delegate to it — no service checks `user.levels()` for writes; the gate is `user.canWrite()` (`ShelterService.addPlace`) plus the verified-registered checks in `ShelterController`/`ShelterReportService`. (The removed review surface `api.ShelterReviewService` has no counterpart — V21 dropped the review model.)
 - Sequence flow in `02-verification-flow.puml` is the executable spec for register → verify →
   canWrite → addPlace. Follow it.
 

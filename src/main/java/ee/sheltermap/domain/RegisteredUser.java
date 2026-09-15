@@ -1,5 +1,6 @@
 package ee.sheltermap.domain;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
@@ -14,17 +15,32 @@ public class RegisteredUser extends User {
 
     private static final VerificationPolicy DEFAULT_POLICY = new VerificationPolicy(VerificationRules.ofDefaults());
 
-    private final String name;
+    private String name;
     private String email;
     private String phone;
-    private final String nationalIdCode;
     private final Set<VerificationClaim> verifications = new LinkedHashSet<>();
 
-    public RegisteredUser(String name, String email, String phone, String nationalIdCode) {
+    public RegisteredUser(String name, String email, String phone) {
         this.name = Objects.requireNonNull(name, "name");
         this.email = Objects.requireNonNull(email, "email");
         this.phone = Objects.requireNonNull(phone, "phone");
-        this.nationalIdCode = Objects.requireNonNull(nationalIdCode, "nationalIdCode");
+    }
+
+    /**
+     * Admin-only (admin-moderation D1): {@code phone} may be null — the
+     * provisioned admin has NO phone route. Null is outside the unique
+     * {@code uq_users_phone} index (partial, WHERE phone IS NOT NULL), so
+     * it can never collide with any other user, and it can never be a
+     * login contact. Every other path keeps the public constructor's
+     * non-null guarantee.
+     */
+    protected RegisteredUser(String name, String email, String phone, boolean admin) {
+        this.name = Objects.requireNonNull(name, "name");
+        this.email = Objects.requireNonNull(email, "email");
+        if (!admin) {
+            Objects.requireNonNull(phone, "phone");
+        }
+        this.phone = phone;
     }
 
     /** Adds a verified claim (called by the verification service on success). */
@@ -34,7 +50,7 @@ public class RegisteredUser extends User {
 
     /**
      * Read access to the full claim set, revoked ones included — needed by
-     * the persistence layer (Step 3) to store the aggregate. Business code
+     * the persistence layer to store the aggregate. Business code
      * should prefer {@link #levels()}.
      */
     public Set<VerificationClaim> claims() {
@@ -59,12 +75,25 @@ public class RegisteredUser extends User {
         this.phone = Objects.requireNonNull(newPhone, "newPhone");
     }
 
-    /** Revokes the active claim for {@code level}, if any. No-op otherwise. */
-    public void revoke(VerificationLevel level) {
+    /**
+     * Replaces the display name (stored as given, exactly like registration).
+     * Caller must have proven possession of the account password — see
+     * {@code ee.sheltermap.auth.AccountService}.
+     */
+    public void changeName(String newName) {
+        this.name = Objects.requireNonNull(newName, "newName");
+    }
+
+    /**
+     * Revokes the active claim for {@code level} at {@code revokedAt}, if
+     * any. No-op otherwise. The stamp comes from the caller (the
+     * Clock-injected service), so tests can pin it.
+     */
+    public void revoke(VerificationLevel level, Instant revokedAt) {
         verifications.stream()
                 .filter(c -> c.getLevel() == level && !c.isRevoked())
                 .findFirst()
-                .ifPresent(VerificationClaim::revoke);
+                .ifPresent(c -> c.revoke(revokedAt));
     }
 
     /** Derived, never stored: levels of all non-revoked claims. */
@@ -83,13 +112,13 @@ public class RegisteredUser extends User {
 
     @Override
     public UserData getData() {
-        return new UserData(name, email, phone, nationalIdCode, levels());
+        return new UserData(name, email, phone, levels());
     }
 
     @Override
     public void deleteAccount() {
         // Domain-level cascade: drop all verification claims.
-        // Service-level cascade (reviews, credentials, tokens) is later steps.
+        // Service-level cascade (credentials, tokens) is later steps.
         verifications.clear();
     }
 }

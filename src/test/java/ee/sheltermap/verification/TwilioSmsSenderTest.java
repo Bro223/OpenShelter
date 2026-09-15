@@ -33,7 +33,7 @@ class TwilioSmsSenderTest {
         FakeTwilioApi api = new FakeTwilioApi();
         TwilioSmsSender sender = new TwilioSmsSender(api, "MG123", null);
 
-        sender.send("+372 5123 4567", "Shelter Map OTP: 123456");
+        sender.send("+372 5123 4567", "OpenShelter OTP: 123456");
 
         assertThat(api.calls).hasSize(1);
         String[] call = api.calls.get(0);
@@ -72,7 +72,7 @@ class TwilioSmsSenderTest {
 
     @Test
     void failFastWhenTwilioCredentialsAreMissing() {
-        // P2 fix: with app.sms.provider=twilio, missing credentials would make
+        // With app.sms.provider=twilio, missing credentials would make
         // every send fail silently (delivery errors are swallowed) — refuse to
         // start instead.
         assertThatCode(() -> new TwilioSmsSender("", "", "MG123", null))

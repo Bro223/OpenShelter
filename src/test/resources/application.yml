@@ -1,0 +1,277 @@
+# Shelter Map backend — TEST configuration (test classpath).
+#
+# WHY THIS FILE EXISTS (2026-09-08 review, S3): a same-named application.yml
+# on the TEST classpath fully SHADOWS src/main/resources/application.yml for
+# every @SpringBootTest context — it is a mirror, not an overlay. It must
+# stay in sync with the main file (same defaults, same env placeholders);
+# the ONLY additions are:
+#   1. spring.profiles.active: test — ProdJwtGuard fails closed on the
+#      published dev-default JWT secret for any profile that is not
+#      exactly "dev" or "test"; the suite runs with the dev default
+#      secret, so the test profile is what lets it boot.
+#   2. nothing else — do not add test-only overrides here; ITs use
+#      @TestPropertySource / @DynamicPropertySource for that.
+#
+# Keep in sync with src/main/resources/application.yml.
+spring:
+  profiles:
+    active: test
+  application:
+    name: shelter-map
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sheltermap}
+    username: ${DB_USERNAME:sheltermap}
+    password: ${DB_PASSWORD:sheltermap}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  mail:
+    # Real SMTP (smtp-pulse.com) — credentials ONLY via
+    # env vars, never committed.
+    host: ${SMTP_HOST:smtp-pulse.com}
+    port: ${SMTP_PORT:587}            # alt: 465 (SSL) or 2525
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+  http:
+    client:
+      connect-timeout: 10s
+      read-timeout: 10s
+  servlet:
+    multipart:
+      # MIRROR of the main application.yml block (crisis-guidance D7):
+      # deliberately ABOVE app.media.max-bytes (5 MiB) — Spring's own
+      # multipart default is 1 MB, so without this a 4 MB photo would be
+      # rejected by the servlet container BEFORE our validation ran, and
+      # the admin would get an opaque container error instead of the
+      # documented 413.
+      max-file-size: 6MB
+      max-request-size: 6MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+springdoc:
+  # MIRROR of the main application.yml block (this file must stay in sync —
+  # same defaults, same env placeholders). The doc ITs enable the document
+  # per class via @TestPropertySource; the default-off state here is the
+  # deterministic baseline everything else boots against.
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  # The document must not absorb the actuator surface (health,info only there).
+  show-actuator: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # Details (DB type, validation query, ...) only for authorized callers —
+      # an anonymous health probe must not leak infrastructure info (hardening).
+      show-details: when-authorized
+  health:
+    # SMTP reachability must not flip the app DOWN — e-mail is not the
+    # critical path; delivery errors are logged by the senders themselves.
+    mail:
+      enabled: false
+
+app:
+  admin:
+    # Env-provisioned admin (admin-moderation D1): an ApplicationRunner
+    # creates the ADMIN-kind account at startup only when BOTH are set;
+    # empty = no admin exists and the app behaves exactly as without this
+    # capability. DELIBERATELY no ${ADMIN_PASSWORD:} placeholder here:
+    # tests must not inherit the developer's local .env (spring-dotenv) —
+    # admin provisioning in ITs is explicit per class (@TestPropertySource),
+    # and a plain test context must never seed.
+    email:
+    password:
+  pii:
+    # PII-at-rest (M2): 32-byte base64 keys, env ONLY, never committed.
+    # Missing/invalid => the app fails closed at boot (PiiKeys — same
+    # fail-closed pattern as ProdJwtGuard). Generate: openssl rand -base64 32
+    # (once per key). Key management + rotation: README, 'PII at rest'.
+    aes-key: ${PII_AES_KEY:}
+    hmac-key: ${PII_HMAC_KEY:}
+  cors:
+    # Origins the browser frontend may call (preflight
+    # handled by Spring Security).
+    allowed-origins: >-
+      ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  mail:
+    # Which SmtpSender impl: 'dev' (console logging, default)
+    # or 'smtp-pulse' (real SMTP).
+    provider: ${MAIL_PROVIDER:dev}
+    # From-address for real mail. MUST be a sender verified in the smtp-pulse
+    # dashboard (proton.me can't be verified there — that's why smtp-pulse
+    # replies "554 5.9.2 Sender domain is not valid" with the login as From).
+    # Defaults to the SMTP login if SMTP_FROM is not set.
+    from: ${SMTP_FROM:${SMTP_USERNAME:}}
+  sms:
+    # Which SmsSender impl: 'dev' (console logging, default) or 'twilio'
+    # (real SMS via Twilio Programmable Messaging — send-only; OTP logic
+    # stays on our side, see PhoneVerificationProvider + VerificationService).
+    provider: ${SMS_PROVIDER:dev}
+  contact-change:
+    # Cross-channel contact change (email <-> phone): changing the email needs
+    # an SMS code to the current phone; changing the phone needs an email code
+    # to the current email. cooldown = min seconds between two change requests
+    # for the same (user, type); code TTL and max wrong attempts mirror the
+    # verification discipline. All 0 = disabled.
+    cooldown-seconds: ${CONTACT_CHANGE_COOLDOWN_SECONDS:60}
+    code-ttl-seconds: ${CONTACT_CHANGE_CODE_TTL_SECONDS:900}
+    max-attempts: ${CONTACT_CHANGE_MAX_ATTEMPTS:5}
+  verification:
+    # Anti-spam throttle for verification-code sends (Twilio plan):
+    # cooldown = min seconds between two sends for the same (user, level);
+    # max-per-day = cap per (user, level) per UTC day. Both 0 = disabled.
+    cooldown-seconds: ${VERIFICATION_COOLDOWN_SECONDS:60}
+    max-per-day: ${VERIFICATION_MAX_PER_DAY:5}
+    # Durable send log behind the daily cap — file-backed so it survives
+    # app restarts (product decision). Path must never be committed.
+    send-log-path: ${VERIFICATION_SEND_LOG_PATH:data/verification-send.log}
+  reports:
+    # Trust-layer report throttle (shelter-trust-and-reports D3): max
+    # report-type actions per user per ROLLING HOUR (shelter reports +
+    # review reports + occupancy re-PUTs, any target, any type), backed by
+    # the durable report_actions log — 429 above it. 0 = disabled.
+    max-actions-per-hour: ${REPORTS_MAX_ACTIONS_PER_HOUR:10}
+  dev-email-test:
+    # Enables POST /dev/email-test (JWT required) — the SMTP diagnostic
+    # endpoint. Off by default: it must never be an open e-mail relay on a
+    # public deploy. Enable locally with DEV_EMAIL_TEST_ENABLED=true.
+    enabled: ${DEV_EMAIL_TEST_ENABLED:false}
+    # Only these recipients may receive test mail (unless allow-any=true).
+    # Hardening: an authenticated user must not turn this into a spam relay.
+    allowed-recipients: ${DEV_EMAIL_TEST_ALLOWED_RECIPIENTS:}
+    allow-any: ${DEV_EMAIL_TEST_ALLOW_ANY:false}
+  dev-sms-test:
+    # Dev-only diagnostic endpoint (POST /dev/sms-test). Disabled by default —
+    # never an open SMS relay on a public deploy.
+    enabled: ${DEV_SMS_TEST_ENABLED:false}
+    # Only these recipients may receive test SMS (unless allow-any=true).
+    # Comma-separated; numbers are matched in E.164 form (+372...).
+    allowed-recipients: ${DEV_SMS_TEST_ALLOWED_RECIPIENTS:}
+    allow-any: ${DEV_SMS_TEST_ALLOW_ANY:false}
+  jwt:
+    # Dev-only default secret (>= 32 bytes for HS256). Override with JWT_SECRET
+    # in any real environment — never ship or deploy this value.
+    secret: ${JWT_SECRET:dev-only-secret-change-me-sheltermap-0123456789abcdef}
+    access-ttl: 15m
+    refresh-ttl: 30d
+  ratelimit:
+    login-capacity: 5
+    login-refill-per-second: 0.084
+    # Aggregate per-IP bucket on /auth/login (2026-09-08 review W5) — a
+    # SECOND bucket in addition to the per-(IP, contact) one above: one IP
+    # hammering MANY different accounts (credential stuffing) stays under
+    # each per-contact limit but shares this 20-request bucket. Refill ~20/min.
+    login-ip-capacity: 20
+    login-ip-refill-per-second: 0.334
+    reset-capacity: 3
+    reset-refill-per-second: 0.05
+    # /auth/password-reset/confirm is rate-limited per (IP, email)
+    # (2026-09-08 review W1): a 6-digit code is guessable, so the confirm
+    # path gets its own anti-guess bucket — 5 attempts, refill ~1/min
+    # (a legitimate user retries a mistyped code a few times inside the
+    # 15-minute code window).
+    reset-confirm-capacity: 5
+    reset-confirm-refill-per-second: 0.084
+    # Registration is rate-limited per client IP (account-spam vector).
+    register-capacity: 10
+    register-refill-per-second: 0.01
+    # /verify/request is rate-limited per client IP (anti-spam, Twilio plan):
+    # blocks one IP spraying many accounts with verification requests.
+    verify-capacity: 10
+    verify-refill-per-second: 0.01
+    # /account/*-change/request is rate-limited per client IP (anti-spam):
+    # blocks one IP spraying change requests across accounts.
+    change-capacity: 5
+    change-refill-per-second: 0.084
+    # POST /api/geo/resolve is rate-limited per client IP (short-link
+    # resolver, shelter-location-input): every call is a server-side
+    # HTTP fetch, so the bucket is the abuse valve — 5 requests,
+    # refill ~1/min.
+    geo-resolve-capacity: 5
+    geo-resolve-refill-per-second: 0.084
+    # Reverse proxies whose X-Forwarded-For header is trusted for rate-limit
+    # keys (hardening: without this, everyone behind nginx shares one bucket).
+    # Loopback is trusted by default (local nginx setups) — see ClientIps;
+    # disable behind a real load balancer if loopback is not your proxy.
+    trusted-proxies: ${RATELIMIT_TRUSTED_PROXIES:}
+    trust-loopback: ${RATELIMIT_TRUST_LOOPBACK:true}
+  limits:
+    # Per-user shelter-submission rate cap (abuse-limits M3): max USER
+    # submissions per rolling 24 h — the next is a 429 with Retry-After.
+    # Distinct from the per-user ACTIVE-shelter cap (10, a 409 conflict).
+    daily-submissions-per-user: 5
+    # Near-duplicate submission tolerance (abuse-limits M3 slice 3): max
+    # haversine metres at which an ACTIVE USER row with the same normalized
+    # name counts as the same place re-submitted (the next is a 409 with
+    # the existing row id; ADMIN kind exempt).
+    duplicate-coord-meters: 100
+    # Per-contact OTP cap (abuse-limits M3 slice 2): max events (a real code
+    # send, or a registration attempt) per normalized e-mail / E.164 phone
+    # within a rolling window, ACROSS users — the volume valve on Twilio/SMTP
+    # cost on top of the per-(user, level) daily cap. 0 disables.
+    # High in the TEST profile: the IT harnesses reuse fixed e-mails across
+    # many tests in one shared context (e.g. AccountControllerIT registers
+    # kontakt@example.ee 15x). Cap-under-test ITs pin the value themselves
+    # (OtpContactCapIT), same pattern as the per-class ratelimit overrides.
+    otp-per-contact-max: 100
+    otp-per-contact-window-hours: 24
+    # Admin alert ring size (abuse-limits M3 slice 4): how many throttle/
+    # abuse events the in-memory ring behind GET /admin/alerts keeps (the
+    # oldest evict first). W16: process memory — cleared on restart.
+    # <= 0 disables recording.
+    alerts-retained: 200
+  registry:
+    # official-dataset-csv (M5): the official source is the Rescue Board
+    # open-data CSV (the old Maa-amet WFS layer 404s — see main yml).
+    base-url: ${REGISTRY_BASE_URL:}
+    page-size: 100
+    max-retries: 3
+    politeness-delay: 250ms
+    # 'csv' (default) | 'paasteamet' (legacy WFS) | 'dev' (local fixture)
+    client: ${REGISTRY_CLIENT:csv}
+    official-url: ${REGISTRY_OFFICIAL_URL:}
+    # Set to true to run one import on startup (manual trigger, Step 5)
+    run-on-startup: false
+    # Weekly automatic sync (product decision). Chosen solution: Spring's
+    # built-in @Scheduled cron — single instance, no extra infrastructure.
+    # Disable entirely with --app.registry.schedule-enabled=false.
+    schedule-enabled: true
+    cron: 0 0 3 * * MON
+    zone: Europe/Tallinn
+  media:
+    # MIRROR of the main application.yml block (crisis-guidance D7/D13):
+    # uploads land in this directory under a server-generated 32-hex
+    # filename. The directory is created at startup when missing; one
+    # that cannot be created or written FAILS THE BOOT
+    # (MediaStorage.init). Path must never be committed (gitignored).
+    upload-dir: ${MEDIA_UPLOAD_DIR:data/media}
+    # Hard cap on the RECEIVED byte count (never Content-Length) — 413
+    # above it, answered by our own validation. The multipart caps in
+    # spring.servlet.multipart sit ABOVE this value on purpose (see
+    # there for why).
+    max-bytes: ${MEDIA_MAX_BYTES:5242880}
+  guidance:
+    # MIRROR of the main application.yml block (D11): default locale
+    # for new guidance posts — mirrors the frontend's DEFAULT_LOCALE
+    # (core/i18n, 'en').
+    default-locale: ${GUIDANCE_DEFAULT_LOCALE:en}

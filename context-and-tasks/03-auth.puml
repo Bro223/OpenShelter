@@ -20,7 +20,7 @@ package "auth" {
     - createdAt : Instant
     - changedAt : Instant
     --
-    + UserCredentials(userId : Long, passwordHash : String)
+    + UserCredentials(userId : Long, passwordHash : String, now : Instant)
   }
 
   class PasswordResetToken {
@@ -29,6 +29,7 @@ package "auth" {
     - tokenHash : String
     - expiresAt : Instant
     - usedAt : Instant
+    - attempts : int
   }
 
   interface PasswordHasher {
@@ -56,7 +57,9 @@ package "auth" {
   interface RefreshTokenRepository {
     + save(tokenHash : String, userId : Long, expiresAt : Instant) : void
     + findByTokenHash(tokenHash : String) : RefreshTokenRecord
-    + revoke(tokenHash : String) : void
+    + revoke(tokenHash : String) : int
+    ' conditional UPDATE ... WHERE revoked_at IS NULL: 1 row claimed,
+    ' 0 when the token is unknown or already revoked (rotation TOCTOU fix)
     + revokeAllForUser(userId : Long) : void
   }
 
@@ -73,24 +76,24 @@ package "auth" {
     + refresh(request : RefreshRequest) : TokenResponse
     + logout(refreshToken : String) : void
     + requestPasswordReset(email : String) : void
-    + resetPassword(token : String, newPassword : String) : void
+    + resetPassword(email : String, code : String, newPassword : String) : void
   }
 
   class PasswordResetService {
     + requestReset(email : String) : void
-    + reset(token : String, newPassword : String) : boolean
+    + reset(email : String, code : String, newPassword : String) : boolean
   }
 
   interface UserCredentialsRepository {
     + save(credentials : UserCredentials) : void
     + findByUserId(userId : Long) : UserCredentials
-    + updateHash(userId : Long, newHash : String) : void
+    + updateHash(newHash : String, now : Instant) : void
   }
 
   interface PasswordResetTokenRepository {
     + save(token : PasswordResetToken) : void
-    + findByTokenHash(tokenHash : String) : PasswordResetToken
-    + markUsed(id : Long) : void
+    + findActiveByUserId(userId : Long, now : Instant) : PasswordResetToken
+    + deleteActiveByUserId(userId : Long, now : Instant) : void
   }
 
   interface RateLimiter {
@@ -99,6 +102,33 @@ package "auth" {
 
   class TokenBucketRateLimiter {
     + tryAcquire(key : String) : boolean
+    ' Single instance per bucket set (in-memory map) - the app is a
+    ' single instance; no cross-instance sharing.
+  }
+
+  class ClientIps {
+    + {static} resolve(request, trustedProxies, trustLoopback) : String
+    ' Real client IP for rate-limit keys: XFF is honored ONLY when the
+    ' direct peer is a configured trusted proxy (or trusted loopback), and
+    ' then walked RIGHT-TO-LEFT - peel trusted hops until the first
+    ' non-trusted entry (a spoofed XFF from an untrusted peer is ignored
+    ' entirely).
+  }
+
+  class Codes {
+    + {static} sixDigitCode() : String
+    + {static} randomToken(length : int, alphabet : String) : String
+    ' Shared generator for the auth code flows (2026-09-08 W15): reset +
+    ' contact change + Tokens draw from ONE SecureRandom; leading zeros
+    ' preserved. Verification keeps its own channel-specific generators
+    ' (dependency rule: verification must not import auth).
+  }
+
+  class Hashes {
+    + {static} sha256Hex(raw : String) : String
+    + {static} constantTimeEquals(a : String, b : String) : boolean
+    ' Tokens at rest are SHA-256 hashed; EVERY stored-vs-presented compare
+    ' is constant-time (MessageDigest.isEqual - no early exit, W9).
   }
 
   class AuthController {
@@ -114,7 +144,6 @@ package "auth" {
     + name : String
     + email : String
     + phone : String
-    + nationalIdCode : String
     + password : String
   }
 
@@ -138,17 +167,31 @@ package "auth" {
   }
 
   class PasswordResetConfirmRequest <<record>> {
-    + token : String
+    + email : String
+    + code : String
     + newPassword : String
   }
 
   class AccountController {
+    + me() : MeResponse
+    + updateProfile(request : ProfileUpdateRequest) : MeResponse
     + requestEmailChange(request : ChangeEmailRequest) : void
     + confirmEmailChange(request : ConfirmChangeRequest) : void
     + requestPhoneChange(request : ChangePhoneRequest) : void
     + confirmPhoneChange(request : ConfirmChangeRequest) : void
-    ' All 4 endpoints require JWT; request endpoints additionally
-    ' per-IP rate-limited (changeRequestRateLimiter).
+    + dataExport() : DataExportResponse
+    + deleteAccount() : void
+    ' All 8 endpoints require JWT (user resolved from the token, never the
+    ' body); the two change-request endpoints are additionally per-IP
+    ' rate-limited (changeRequestRateLimiter).
+  }
+
+  class AccountService {
+    + profile(user : RegisteredUser) : MeResponse
+    + updateProfile(user : RegisteredUser, request : ProfileUpdateRequest) : MeResponse
+    ' profile = real profile + REAL verified claims (frontend single source
+    ' of truth); updateProfile verifies currentPassword against the Argon2
+    ' hash BEFORE any write (wrong -> 401, nothing updated).
   }
 
   class ContactChangeService {
@@ -179,6 +222,31 @@ package "auth" {
     + delete(change : PendingContactChange) : void
   }
 
+  class AdminSeeder {
+    ' The env-provisioned admin (admin-moderation D1): an ApplicationRunner
+    ' - runs ONCE at startup, transactional. Create-if-absent is the whole
+    ' contract (see the note below).
+    - email : String        ' app.admin.email  = ${ADMIN_EMAIL:}  (empty default)
+    - password : String     ' app.admin.password = ${ADMIN_PASSWORD:} (empty default)
+    + run(args : ApplicationArguments) : void
+  }
+
+  class ProfileUpdateRequest <<record>> {
+    + name : String
+    + currentPassword : String
+  }
+
+  class MeResponse <<record>> {
+    + name : String
+    + email : String
+    + phone : String
+    + levels : List<VerificationLevel>
+    + isAdmin : boolean  ' admin-moderation D2: always present; true iff the
+                         ' freshly loaded user's KIND is ADMIN (kind is the
+                         ' truth - never a token claim). Gates the frontend
+                         ' nav item + the /admin route.
+  }
+
   class ChangeEmailRequest <<record>> {
     + newEmail : String
   }
@@ -205,12 +273,26 @@ package "referenced from 01 (contracts only)" {
     + findByEmail(email : String) : RegisteredUser
   }
 
+  interface "UserRepository" as UR {
+    + save(user : User) : void
+    + findByEmail(email : String) : RegisteredUser
+    ' The seeder's create-if-absent check (REGISTERED and ADMIN rows both
+    ' count - case-insensitive). Also the fresh isAdmin(userId) kind lookup
+    ' behind every /admin/* request (defined in 01; admin-moderation D2).
+  }
+
   interface SmtpSender {
     + send(email : String, message : String) : void
   }
 
   interface SmsSender {
     + send(phone : String, message : String) : void
+  }
+
+  enum "VerificationLevel" as VL {
+    EMAIL
+    PHONE
+    SMART_ID
   }
 
   enum "ContactChangeType" as CCT {
@@ -226,7 +308,9 @@ TokenBucketRateLimiter ..|> RateLimiter
 
 ' ==================== SERVICE WIRING ====================
 AuthController --> AuthService : all auth endpoints
-AuthController ..> RateLimiter : guards login + reset-request
+AuthController ..> RateLimiter : 5 buckets - register per IP; login per (IP, normalized contact) + per-IP aggregate; reset-request + reset-confirm per (IP, email)
+AuthController ..> ClientIps : resolves the rate-limit key IP
+AuthController ..> Codes : normalizes the login contact for the key (email lowercased; phone E.164 then lowercased)
 
 AuthService --> UserService : profile lookup (register/login/reset)
 AuthService --> PasswordHasher : hash / verify
@@ -235,8 +319,14 @@ AuthService --> TokenService : issue / refresh / revoke sessions
 AuthService --> PasswordResetService : delegates reset flow
 AuthService --> RefreshTokenRepository : revokeAll on password reset
 
+AdminSeeder --> UR : create-if-absent check + save (interface, 01)
+AdminSeeder --> UserCredentialsRepository : stores the Argon2 hash
+AdminSeeder ..> PasswordHasher : the SAME encoder registration uses
+
+AccountController --> AccountService : me / profile
 AccountController --> ContactChangeService : all contact-change endpoints
 AccountController ..> RateLimiter : guards change-request endpoints (per IP)
+AccountService --> UserCredentialsRepository : current-password check + write
 ContactChangeService --> PendingContactChangeRepository : pending change (cooldown anchor)
 ContactChangeService --> SmsSender : email-change code -> current phone
 ContactChangeService --> SmtpSender : phone-change code -> current email
@@ -244,10 +334,12 @@ ContactChangeService --> RegisteredUser : changeEmail() / changePhone()
 PendingContactChange --> ContactChangeType
 
 PasswordResetService --> UserService : findByEmail
-PasswordResetService --> PasswordResetTokenRepository : single-use token
-PasswordResetService --> SmtpSender : reset link email
+PasswordResetService --> PasswordResetTokenRepository : one active code per user
+PasswordResetService --> SmtpSender : reset code email (6-digit, no link)
 PasswordResetService --> UserCredentialsRepository : update hash
 PasswordResetService --> PasswordHasher : hash new password
+PasswordResetService ..> Codes : sixDigitCode()
+MeResponse --> VerificationLevel : real verified claims (enum order)
 
 TokenService --> RefreshTokenRepository : persists refresh tokens
 JwtTokenService ..> RefreshTokenRepository
@@ -273,22 +365,50 @@ note bottom of TokenService
 end note
 
 note bottom of PasswordResetService
-  Reset flow:
-    1. requestReset(email) -> 32-char random token (in URL, not OTP)
-    2. store {tokenHash, expiresAt=15min, usedAt} - hashed, single-use
-    3. send https://app/reset?token=... via SmtpSender
-    4. ALWAYS respond success ("if the account exists, we sent an
+  Reset flow (emailed 6-digit code - no URL link):
+    1. requestReset(email) -> 6-digit code (shared Codes.sixDigitCode(),
+       same generator as contact-change); per-user re-issue throttle
+       (2026-09-08 W1/S1b): 60 s rotation cooldown + max 5 per UTC day -
+       either hit is a SILENT no-op (still 200, anti-enumeration kept);
+       otherwise delete the user's prior active code (one active code per
+       user)
+    2. store {tokenHash = SHA-256(code), expiresAt=15min, usedAt,
+       attempts=0} - hashed, single-use, 5-attempt limit (V6)
+    3. ALWAYS respond success ("if the account exists, we sent an
        email") - never reveal whether an email is registered
-    5. reset(token, newPwd) -> verify hash + expiry + unused, hash
-       new password, update UserCredentials, mark token used
-    6. AuthService then revokes ALL refresh tokens for that user
-       (stolen-session protection - old sessions die on reset)
+    4. send "OpenShelter password reset code: NNNNNN (valid 15 min)"
+       via SmtpSender (no URL, no app.frontend.base-url)
+       (AppInfo.APP_DISPLAY_NAME + " password reset code: ...")
+    5. reset(email, code, newPwd) -> find the account's active code,
+       verify attempts < 5 + hash (Hashes.constantTimeEquals) + expiry +
+       unused, hash new password, update UserCredentials, mark code used
+    6. revoke ALL refresh tokens for that user (stolen-session
+       protection - old sessions die on reset)
+    7. ONE transaction for 5+6; ANY failure (unknown email / no code /
+       over-limit / wrong / expired / used) -> ONE generic 400
 end note
 
 note bottom of AuthController
-  Thin HTTP shell - zero logic, just wiring (Ch 1). Rate limiting
-  on /auth/login and /auth/password-reset/request guards brute
-  force and email bombing (SDI Ch 4 token bucket).
+  Thin HTTP shell - zero logic, just wiring (Ch 1). permitAll = exactly
+  these 6 POST /auth/* endpoints (register, login, refresh, logout,
+  password-reset request + confirm); GET /api/shelters/** (except /mine)
+  + GET /api/data-source (M5 provenance read) + actuator health/info are
+  the only other open routes - everything else is JWT (see 04-CONTEXT-AUTH
+  wiring). Rate limiting (2026-09-08
+  hardened, SDI Ch 4 token bucket, keys via ClientIps):
+    - /auth/register          per client IP (account spam)
+    - /auth/login             per (IP, normalized contact) AND a per-IP
+                              aggregate bucket (credential stuffing);
+                              contact key = email lowercased or phone
+                              E.164-lowered
+    - /auth/password-reset/   per (IP, email)
+        request
+    - /auth/password-reset/   per (IP, email) anti-guess bucket - a 6-digit
+        confirm                       code must not be brute-forceable
+    - /api/geo/resolve        per client IP (5/min) - short-link resolver;
+                              LocationController is defined in the shelter
+                              context (05), listed here because it shares
+                              this RateLimiter bucket set
 end note
 
 note bottom of ContactChangeService
@@ -299,6 +419,46 @@ note bottom of ContactChangeService
   One pending change per (user, type): resend cooldown (60 s),
   code TTL (15 min), 5-attempt limit, duplicate target -> 409,
   per-IP rate limit on the request endpoints.
+end note
+
+note bottom of MeResponse
+  profile = real profile + REAL verified claims + isAdmin (admin-moderation
+  D2): the frontend's single source of truth - the nav item and the /admin
+  route guard read isAdmin; it is the freshly loaded user's KIND (true only
+  for the ADMIN-kind row), never derived from any token claim.
+end note
+
+note bottom of AdminSeeder
+  ENV-PROVISIONED ADMIN (admin-moderation D1) - the admin comes from the
+  environment, never the registration flow (the mailbox does not exist and
+  can never pass email verification):
+    1. Either ADMIN_EMAIL / ADMIN_PASSWORD empty -> NO-OP. No admin exists,
+       /admin/* answers 403 for everyone (kind is the truth - a normal
+       account holding the email string stays a normal account), and the
+       app behaves exactly as without the capability (dev boxes without the
+       vars keep working; prod is opt-in).
+    2. A user with that email ALREADY exists (any kind; the lookup is
+       case-insensitive) -> NO-OP. The seeder NEVER re-hashes, flips kind or
+       touches claims - an in-app password change survives restarts and
+       deployments.
+    3. Otherwise -> create: AdminUser.provisioned("Admin", email, clock.instant()) -
+       kind ADMIN, name "Admin", NO phone (null - outside the partial unique
+       index, never a login route), no national ID code stored (M1 - the
+       pre-set SMART_ID claim carries the e-mail as its external ref),
+       EVERY verification claim pre-set (EMAIL/PHONE/SMART_ID - canWrite()
+       true from the first request) + UserCredentials with the Argon2 hash
+       of ADMIN_PASSWORD (the same encoder registration uses).
+  Login is the NORMAL POST /auth/login (emailOrPhone + password) - no
+  dedicated endpoint, no backdoor, same JWT shape as every other user
+  (principal = userId, NO role claim - D2: /admin/* authorizes by a fresh
+  UserKind.ADMIN lookup per request, so a demotion takes effect on the very
+  next request).
+  OPS - de-provisioning: remove BOTH env vars AND delete the row (manual
+  SQL - no API deletes admin accounts). While both vars stay set, the
+  seeder RECREATES the admin on the next boot if the row was deleted
+  (create-if-absent sees no user with that email); with the vars removed it
+  is a no-op forever, but a still-existing row remains a working admin
+  (login with its own stored password) - row deletion is the real off switch.
 end note
 
 note bottom of US

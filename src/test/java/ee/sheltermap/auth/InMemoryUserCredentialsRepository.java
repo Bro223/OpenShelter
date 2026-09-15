@@ -1,12 +1,19 @@
 package ee.sheltermap.auth;
 
+import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /** In-memory fake of {@link UserCredentialsRepository} for tests. */
 public class InMemoryUserCredentialsRepository implements UserCredentialsRepository {
 
     private final Map<Long, UserCredentials> store = new LinkedHashMap<>();
+    private final Clock clock;
+
+    public InMemoryUserCredentialsRepository(Clock clock) {
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
 
     @Override
     public void save(UserCredentials credentials) {
@@ -24,7 +31,7 @@ public class InMemoryUserCredentialsRepository implements UserCredentialsReposit
         if (credentials == null) {
             throw new IllegalArgumentException("no credentials for user " + userId);
         }
-        credentials.updateHash(newHash);
+        credentials.updateHash(newHash, clock.instant());
     }
 
     public Map<Long, UserCredentials> all() {

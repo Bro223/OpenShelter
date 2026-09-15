@@ -1,0 +1,396 @@
+.shelter-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  /* page-specific layout dimension (documented exception, not spacing) */
+  max-width: 44rem;
+
+  &--not-found {
+    align-items: flex-start;
+  }
+}
+
+.back-link {
+  align-self: flex-start;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--text-md);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.shelter-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.shelter-detail__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-10);
+}
+
+.badge {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-8);
+  border-radius: var(--radius-full);
+  background: var(--color-badge-registry);
+  color: var(--color-shelter-registry);
+
+  &.badge--user {
+    background: var(--color-badge-user);
+    color: var(--color-shelter-user);
+  }
+
+  /* Trust badges (shelter-trust-and-reports D6) — the
+     same language as the map row badges: reported = the single reported
+     token; closed = the existing warning tint (fresh OPEN rows render no
+     badge at all — open is the default); occupancy = NEUTRAL ("space
+     available" is not a celebration, "full" is not a crisis). */
+  &.badge--reported {
+    background: var(--color-reported);
+    color: var(--color-bg-surface);
+  }
+
+  &.badge--closed {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+  }
+
+  &.badge--occupancy {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* Private-home declaration (D7): the neutral chip — a description of
+     what the location is, not a state. Same language as occupancy/hidden. */
+  &.badge--private {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* New community state (community-review-queue D5): the amber tint — the
+     --color-badge-new fill with the dark-amber --color-warning text (the
+     contrast pair is pinned in design-tokens.spec.ts). */
+  &.badge--new {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+}
+
+.shelter-detail__address {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+/* The permanent unverified warning for NEW community rows (community-
+   review-queue): an inset note in the muted/subtle vocabulary —
+   deliberately NOT the crisis orange (--color-cta) and not the reported
+   token. A caveat that lives next to the trust-state badge. */
+.community-warning {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* The private-home declaration note (D7): the same subtle inset language
+   as the warning — a description of what the location is, not a caveat. */
+.private-note {
+  margin: 0;
+  padding: var(--space-8) var(--space-12);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* Navigate actions (map-crisis-actions D3): small secondary text links
+   deliberately quieter than the back link — they open the phone's own
+   navigation app (Google Maps walking / Apple Maps), never in-app routes. */
+.shelter-detail__navigate {
+  display: flex;
+  gap: var(--space-16);
+
+  a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--text-sm);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  /* Distance-from-you action (location-navigation): styled EXACTLY
+     like the two deep links beside it (same size/colour/underline-on-
+     hover) — a third secondary link, not a new affordance class. The
+     resets undo the UA button defaults so it reads as a link. */
+  .shelter-detail__distance {
+    padding: 0;
+    border: none;
+    background: none;
+    font-family: inherit;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--text-sm);
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+}
+
+/* The distance-from-you result line (location-navigation) — the same
+   muted meta language as the coordinate line: a measured fact (the D6
+   straight-line honesty format + " from you"), not a caveat. */
+.shelter-detail__distance-line {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* The distance-from-you per-error line (location-navigation) — the
+   same danger language as the page's other inline errors; deliberately
+   NOT the crisis orange (--color-cta stays reserved). */
+.shelter-detail__distance-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+/* The coordinate line (D6) — .num-tabular (styles.scss) keeps the figures
+   tabular so digits do not shift. */
+.shelter-detail__coords {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* The last-verified line — the same muted meta language as the
+   coordinate line: a fact about the row's freshness, not a caveat (the
+   unverified caveat already lives in .community-warning above). */
+.shelter-detail__verified {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.detail-state {
+  color: var(--color-muted);
+  margin: 0;
+
+  &--error {
+    color: var(--color-danger);
+  }
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-title);
+  margin: 0;
+}
+
+.detail-description {
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* The static Location map (page-scoped LeafletService instance). The
+   placeholder background keeps the area unbroken while loading / on error,
+   before the first tiles paint. */
+.shelter-detail__map {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  height: 260px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-map-placeholder);
+}
+
+.detail-meta {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-md);
+}
+
+/* The practical info block (review-model removal): plain label/value rows —
+   the derived display status for now. The row is a definition list: dt is
+   the muted label, dd the value. */
+.fact-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+
+  &__row {
+    display: flex;
+    gap: var(--space-10);
+  }
+
+  &__label {
+    flex: 0 0 12rem; /* label column width (page-specific, not spacing) */
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+  }
+
+  &__value {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+}
+
+/* Login/verify gate of a report section (occupancy, open status, report a
+   shelter): the prompt plus the /verify link shown when the caller cannot
+   report yet. */
+.report-gate-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-10);
+
+  p {
+    margin: 0;
+  }
+}
+
+/* Report how full (shelter-trust-and-reports D4/D6): three large band
+   buttons. The .btn base carries the 48px minimum target (D5); the active
+   band is the user's CURRENT report (yourOccupancyBand pre-select) and
+   flips to the primary fill. Occupancy is display-only — the active state
+   is the primary colour, never success/crisis. */
+.band-picker {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+
+  .band-btn {
+    flex: 1;
+    min-width: 0;
+    border-color: var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.band-btn--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* The current aggregate + recency line (D4) — neutral muted copy; it
+   renders ONLY while occupancy is fresh (null = nothing shown). */
+.occupancy-line {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* Report open/closed: two large state buttons — the
+   .band-picker language mirrored 1:1 (the .btn base carries the 48px
+   minimum target; the active state is the user's CURRENT report, the
+   optimistic tap in flight included). The pressed state is the primary
+   colour, never success/crisis. */
+.open-status-picker {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+
+  .open-status-btn {
+    flex: 1;
+    min-width: 0;
+    border-color: var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text);
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.open-status-btn--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* The trust-layer pickers (D1/D2): inline expansion (the app's convention
+   — no modals), one picker open at a time. Radio rows are the interactive
+   targets, so each carries the 48px minimum. */
+.report-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+}
+
+.report-options {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8) var(--space-12);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.report-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--space-48);
+  font-size: var(--text-base);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    width: 18px; /* radio glyph size, not spacing */
+    height: 18px;
+    accent-color: var(--color-primary);
+  }
+}
+
+/* The 409 duplicate answer — a plain sentence-case status line, not an
+   error banner (the user already did this; the sentence says so). */
+.report-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.report-actions {
+  display: flex;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}

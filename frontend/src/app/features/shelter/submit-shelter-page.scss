@@ -1,0 +1,237 @@
+.submit-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  /* page-specific layout dimension (documented exception, not spacing) */
+  max-width: 44rem;
+}
+
+.back-link {
+  align-self: flex-start;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--text-md);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.verify-hint {
+  margin: 0;
+  font-size: var(--text-md);
+  color: var(--color-muted);
+
+  a {
+    color: var(--color-primary);
+  }
+}
+
+.submit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+
+  .btn {
+    align-self: flex-start;
+  }
+}
+
+/* The private-home declaration (community-review-queue D7): a plain label +
+   checkbox row — the label wraps for narrow widths.
+
+   The checkbox escapes the global `.field input { width: 100% }` form rule:
+   as a flex child, width: 100% stretched it into a ~112px item at 360px
+   and displaced the label text (mobile-responsive-polish — the same
+   explicit native-size escape the detail page's report radios use in
+   `.report-option input`). */
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--text-base);
+  cursor: pointer;
+
+  input {
+    margin: 0;
+    width: 18px; /* checkbox glyph size, not spacing */
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--color-primary);
+  }
+}
+
+/* Success panel (community-review-queue): the success tint — the row is
+   public NOW (NEW state), so the copy is a confirmation, not a caveat. */
+.submit-success {
+  padding: var(--space-12) var(--space-16);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-base);
+
+  p {
+    margin: 0;
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4) var(--space-16);
+    margin-top: var(--space-8);
+  }
+}
+
+.location-field {
+  margin: 0;
+  padding: var(--space-12) var(--space-14) var(--space-14);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  legend {
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    padding: 0 var(--space-6);
+  }
+}
+
+.field-note {
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.submit-map {
+  /* page-specific layout dimension (documented exception, not spacing) */
+  height: 260px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-10);
+}
+
+.location-smart {
+  margin-bottom: var(--space-10);
+
+  .location-label {
+    display: block;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-6);
+  }
+
+  .location-smart-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-10);
+
+    input {
+      /* page-specific layout dimension (documented exception, not spacing) */
+      flex: 1 1 200px;
+      padding: var(--space-8) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-md);
+    }
+  }
+}
+
+.location-note {
+  margin: var(--space-6) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.location-search {
+  margin-bottom: var(--space-10);
+
+  .location-label {
+    display: block;
+    font-size: var(--text-md);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-6);
+  }
+
+  .location-search-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-10);
+
+    input {
+      /* page-specific layout dimension (documented exception, not spacing) */
+      flex: 1 1 200px;
+      padding: var(--space-8) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      font-size: var(--text-md);
+    }
+  }
+}
+
+.location-attribution {
+  margin: var(--space-6) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+
+  a {
+    color: var(--color-primary);
+  }
+}
+
+.address-results {
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  list-style: none;
+
+  li + li {
+    margin-top: var(--space-6);
+  }
+
+  .address-result {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-4) var(--space-8);
+    width: 100%;
+    padding: var(--space-8) var(--space-12);
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: var(--text-md);
+    line-height: 1.5;
+    color: var(--color-text);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-surface-hover);
+    }
+  }
+
+  .address-result__type {
+    font-size: var(--text-sm);
+    color: var(--color-muted);
+  }
+}
+
+.location-actions {
+  margin-bottom: var(--space-10);
+}
+
+.location-readout {
+  margin: 0;
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+
+  &--empty {
+    color: var(--color-muted);
+  }
+}
+
+.location-hint {
+  margin: var(--space-6) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}

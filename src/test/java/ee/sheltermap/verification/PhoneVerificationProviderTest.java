@@ -27,7 +27,7 @@ class PhoneVerificationProviderTest {
         sender = new CapturingSmsSender();
         clock = Clock.fixed(Instant.parse("2026-09-01T10:00:00Z"), ZoneOffset.UTC);
         provider = new PhoneVerificationProvider(sender, clock);
-        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000", "39001010001");
+        user = new RegisteredUser("Aleks", "aleks@example.com", "+37250000000");
         user.setId(1L);
     }
 
@@ -64,8 +64,10 @@ class PhoneVerificationProviderTest {
     @Test
     void confirmWithWrongCodeReturnsFalseAndIncrementsAttempts() {
         PendingVerification pending = provider.request(user);
+        String otp = extractOtp(sender.getLastMessage());
+        String wrong = otp.equals("000000") ? "000001" : "000000";
 
-        assertThat(provider.confirm(user, pending, "000000")).isFalse();
+        assertThat(provider.confirm(user, pending, wrong)).isFalse();
         assertThat(pending.getAttempts()).isEqualTo(1);
     }
 
@@ -80,9 +82,10 @@ class PhoneVerificationProviderTest {
     void confirmAfterAttemptsExhaustedFailsEvenWithCorrectCode() {
         PendingVerification pending = provider.request(user);
         String otp = extractOtp(sender.getLastMessage());
+        String wrong = otp.equals("000000") ? "000001" : "000000";
 
         for (int i = 0; i < PhoneVerificationProvider.MAX_ATTEMPTS; i++) {
-            provider.confirm(user, pending, "000000");
+            provider.confirm(user, pending, wrong);
         }
 
         assertThat(pending.getAttempts()).isEqualTo(PhoneVerificationProvider.MAX_ATTEMPTS);

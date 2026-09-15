@@ -1,0 +1,201 @@
+<section class="submit-page">
+  <a routerLink="/map" class="back-link">&larr; {{ 'submit.backToMap' | t }}</a>
+
+  <header>
+    <h1 class="page-title">{{ 'submit.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'submit.subtitle' | t }}</p>
+  </header>
+
+  <app-banner severity="error" [message]="error()" />
+
+  <!-- Success panel (community-review-queue): the row is public NOW (NEW
+       state) — no "awaiting review"; the panel links to the live detail
+       page. The form stays for a second submission. -->
+  @if (submitted(); as created) {
+    <div class="submit-success" role="status">
+      <p>{{ 'submit.successBody' | t }}</p>
+      <p class="submit-success__links">
+        <a [routerLink]="['/shelters', created.id]">{{ 'submit.success.viewLocation' | t }}</a>
+        <a routerLink="/account">{{ 'submit.success.viewContributions' | t }}</a>
+      </p>
+    </div>
+  }
+  @if (verifyLink()) {
+    <p class="verify-hint">
+      {{ 'submit.verifyHint' | t }}
+      <a routerLink="/verify">{{ 'submit.verifyHint.link' | t }}</a>
+    </p>
+  }
+
+  <form class="submit-form" [formGroup]="form" (ngSubmit)="submit()">
+    <div class="field">
+      <label for="shelter-name">{{ 'submit.nameLabel' | t }}</label>
+      <input
+        id="shelter-name"
+        type="text"
+        formControlName="name"
+        maxlength="200"
+        [placeholder]="'submit.namePlaceholder' | t"
+        autocomplete="off"
+      />
+      @if (name().touched && name().invalid) {
+        <!-- 'maxlength' (lowercase) is Angular's MaxLengthValidator error key. -->
+        <p class="field-error">
+          {{
+            name().errors?.['maxlength']
+              ? ('submit.name.tooLong' | t)
+              : ('submit.name.required' | t)
+          }}
+        </p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="shelter-description">{{ 'submit.descriptionLabel' | t }}</label>
+      <textarea
+        id="shelter-description"
+        rows="4"
+        formControlName="description"
+        maxlength="2000"
+        [placeholder]="'submit.descriptionPlaceholder' | t"
+      ></textarea>
+      @if (description().invalid && description().touched) {
+        <p class="field-error">{{ 'submit.description.tooLong' | t }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="shelter-capacity">{{ 'submit.capacityLabel' | t }}</label>
+      <input
+        id="shelter-capacity"
+        type="number"
+        min="1"
+        max="100000"
+        step="1"
+        formControlName="capacity"
+        [placeholder]="'submit.capacityPlaceholder' | t"
+      />
+      @if (capacity().invalid && capacity().touched) {
+        <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
+      }
+    </div>
+
+    <!-- The private-home declaration (community-review-queue D7): default
+         unchecked = PUBLIC. The row stays a public result; the declaration
+         adds the "Private location" badge + the resident-offered note. -->
+    <div class="field">
+      <label class="checkbox-field" for="shelter-private">
+        <input id="shelter-private" type="checkbox" formControlName="privateLocation" />
+        {{ 'submit.privateLabel' | t }}
+      </label>
+    </div>
+
+    <fieldset class="field location-field">
+      <legend>{{ 'submit.locationLegend' | t }}</legend>
+      <p class="field-note">{{ 'submit.locationNote' | t }}</p>
+      <div #mapEl class="submit-map"></div>
+
+      <div class="location-smart">
+        <label class="location-label" for="shelter-location-input">{{
+          'submit.locationLabel' | t
+        }}</label>
+        <div class="location-smart-row">
+          <input
+            id="shelter-location-input"
+            type="text"
+            [value]="locationText()"
+            (input)="onLocationTextChange($event)"
+            (keydown.enter)="onLocationSubmitKey($event)"
+            [placeholder]="'submit.locationPlaceholder' | t"
+            autocomplete="off"
+            [disabled]="resolvingLink() || locating()"
+          />
+          <button
+            type="button"
+            class="btn"
+            (click)="applyLocationInput()"
+            [disabled]="resolvingLink() || locating()"
+          >
+            {{ resolvingLink() ? ('submit.location.resolving' | t) : ('submit.location.set' | t) }}
+          </button>
+        </div>
+        <p class="location-note">
+          {{ 'submit.location.prefillNote' | t }}
+        </p>
+      </div>
+
+      <div class="location-search">
+        <label class="location-label" for="shelter-address-search">{{
+          'submit.addressLabel' | t
+        }}</label>
+        <div class="location-search-row">
+          <input
+            id="shelter-address-search"
+            type="text"
+            [value]="addressQuery()"
+            (input)="onAddressQueryChange($event)"
+            (keydown.enter)="onAddressSearchKey($event)"
+            [placeholder]="'submit.addressPlaceholder' | t"
+            autocomplete="off"
+            [disabled]="searching()"
+          />
+          <button type="button" class="btn" (click)="startAddressSearch()" [disabled]="searching()">
+            {{ searching() ? ('submit.searching' | t) : ('submit.search' | t) }}
+          </button>
+        </div>
+        <p class="location-attribution">
+          {{ 'submit.attributionLead' | t }}
+          <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">{{
+            'submit.osmAttribution' | t
+          }}</a>
+        </p>
+        @if (addressResults().length !== 0) {
+          <ul class="address-results">
+            @for (result of addressResults(); track result.displayName) {
+              <li>
+                <button type="button" class="address-result" (click)="selectAddressResult(result)">
+                  <span class="address-result__name">{{ result.displayName }}</span>
+                  <span class="address-result__type">{{ result.type }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+        @if (addressErrorText(); as addressErrorMsg) {
+          @if (addressError() === 'no-results') {
+            <p class="location-note">{{ addressErrorMsg }}</p>
+          } @else {
+            <p class="field-error" role="alert">{{ addressErrorMsg }}</p>
+          }
+        }
+      </div>
+
+      <div class="location-actions">
+        <button
+          type="button"
+          class="btn"
+          (click)="useMyLocation()"
+          [disabled]="locating() || resolvingLink()"
+        >
+          {{ locating() ? ('submit.locating' | t) : ('submit.useMyLocation' | t) }}
+        </button>
+      </div>
+
+      <!-- D6 (map-crisis-actions): the shared .num-tabular class keeps the
+           coordinate figures from shifting while they update. -->
+      <p class="location-readout num-tabular" [class.location-readout--empty]="location() === null">
+        {{ locationReadout() }}
+      </p>
+      @if (locationHint(); as locationHintText) {
+        <p class="location-hint">{{ locationHintText }}</p>
+      }
+      @if (locationErrorText(); as locationErrorMsg) {
+        <p class="field-error" role="alert">{{ locationErrorMsg }}</p>
+      }
+    </fieldset>
+
+    <button type="submit" class="btn btn--primary" [disabled]="pending()">
+      {{ pending() ? ('submit.submitting' | t) : ('submit.submit' | t) }}
+    </button>
+  </form>
+</section>

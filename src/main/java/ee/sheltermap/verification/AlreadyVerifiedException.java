@@ -13,7 +13,7 @@ public class AlreadyVerifiedException extends RuntimeException {
     private final VerificationLevel level;
 
     public AlreadyVerifiedException(VerificationLevel level) {
-        super("already verified: " + level);
+        super("Already verified: " + level);
         this.level = level;
     }
 
