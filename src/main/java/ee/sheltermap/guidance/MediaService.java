@@ -115,7 +115,10 @@ public class MediaService {
      * (400) → sniffed type equals the declared part type (400). The file
      * is stored under a generated name BEFORE the row is written, but
      * only after every validation step passed, so a refused upload leaves
-     * no partial file and no asset row.
+     * no partial file and no asset row. If a failure happens AFTER the
+     * file is already on disk (the row insert), the just-written file is
+     * removed before the failure propagates — a failed upload never
+     * leaves an orphan file.
      *
      * @throws MediaTooLargeException      413 — the received bytes exceed the cap
      * @throws UnsupportedImageException   400 — not a readable JPEG/PNG/WebP (SVG
@@ -152,17 +155,28 @@ public class MediaService {
             throw new UnsupportedImageException(
                     "Unsupported image type: " + info.contentType());
         }
+        // Every validation step passed — only now does the upload touch
+        // disk and the library (the file first, the row second).
         MediaStorage.StoredFile stored = storage.store(bytes, extension);
-        MediaAsset asset = MediaAsset.create(
-                stored.storedFilename(),
-                originalFilename == null || originalFilename.isBlank() ? null : originalFilename.trim(),
-                info.contentType(),
-                info.width(),
-                info.height(),
-                bytes.length,
-                adminId,
-                clock.instant());
-        return mediaAssets.save(asset);
+        try {
+            MediaAsset asset = MediaAsset.create(
+                    stored.storedFilename(),
+                    originalFilename == null || originalFilename.isBlank() ? null : originalFilename.trim(),
+                    info.contentType(),
+                    info.width(),
+                    info.height(),
+                    bytes.length,
+                    adminId,
+                    clock.instant());
+            return mediaAssets.save(asset);
+        } catch (RuntimeException ex) {
+            // The file is already on disk but the row could not be
+            // stored: remove the just-written file so the failed upload
+            // leaves no orphan (the row would roll back with the
+            // transaction anyway).
+            storage.delete(stored.storedFilename());
+            throw ex;
+        }
     }
 
     /**
