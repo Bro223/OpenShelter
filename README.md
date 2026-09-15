@@ -37,7 +37,7 @@ auth, verification, shelter submission, community reports); run/build docs in
   are import-owned → 409), `isAdmin` on `GET /account/me`, `V10__admin_moderation.sql`
   (`shelter_reports.dismissed_at`) — the frontend `/admin` page (guard + admin-only nav item,
   tabs, account-page badge, `AdminGateway`) ships with it. Current repo-wide counts:
-  **679 backend tests / 870 frontend tests** (counted 2026-09-15 on this tree;
+  **719 backend tests / 953 frontend tests** (counted 2026-09-15 on this tree;
   the per-wave numbers further down are historical).
 - ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
   reports (the 5th "does not exist" auto-hides the shelter from the public list/map), live
@@ -356,7 +356,7 @@ docker compose up -d
 # 2. Build
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; 679 backend tests green —
+# 3. Run tests (Testcontainers spins its own postgres:16; 719 backend tests green —
 #    counted 2026-09-13, docs/whitepaper.md §8)
 mvn test
 

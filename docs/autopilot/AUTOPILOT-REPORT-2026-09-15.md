@@ -209,14 +209,14 @@ The docs workstream's ownership is now the **glob** (`context-and-tasks/agent/**
 
 ## 5. Not finished (read this before continuing)
 
-1. **Wave 4 is verified but not committed.** Its gates ran green on the wave-4 tree —
+1. **[RESOLVED 2026-09-15T12:25:54Z]** **Wave 4 is now COMMITTED** as 68f431a (backend), 23192fc (frontend) and 96a54b9 (openspec), with the artifacts + this report in 0b4d367. The text below records the state as it stood at the soft-stop boundary. (original) **Wave 4 is verified but not committed.** Its gates ran green on the wave-4 tree —
    `mvn clean test` **719/0/0**, `npm test` **953 passed / 45 files**, `openspec validate --all`
    **28/28**, plus the focused `ORCH-5` + parity + two new test-class runs — and wave 4's reviewer
    returned `safe-to-keep` with no runtime regression. The tree holds 17 changed/new files
    (`frontend/src` i18n + shell spec; `src/main` + `src/test`; `openspec/changes`; the state files).
    The commit is outstanding **because `bash`/`git` became unavailable to the orchestrator at this
    point in the run** — not because anything failed.
-2. **Wave 4's state-writer had not written when this report was produced** (`STATE.json` still reads
+2. **[RESOLVED 2026-09-15T12:25:54Z]** **The wave-4 state record landed**: the wave-3 and wave-4 writers both completed; `STATE.json` now reads wave 4 with `open_items: 1`, and LEDGER/RUNLOG carry the wave-3 and wave-4 blocks. (original) **Wave 4's state-writer had not written when this report was produced** (`STATE.json` still reads
    wave 3, `open_items: 7`; the RUNLOG has no wave-4 block). Its brief is correct and it may still
    land; if it does not, the record it owes is: tag `B4a/B5/B9/TG1/TG2/ORCH-5/ORCH-6` `[closed W4]`,
    keep `F-16` open with the disproof note, keep `ORCH-12` partial (→ `ORCH-22`), append a
