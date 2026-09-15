@@ -20,7 +20,7 @@ package "auth" {
     - createdAt : Instant
     - changedAt : Instant
     --
-    + UserCredentials(userId : Long, passwordHash : String)
+    + UserCredentials(userId : Long, passwordHash : String, now : Instant)
   }
 
   class PasswordResetToken {
@@ -87,7 +87,7 @@ package "auth" {
   interface UserCredentialsRepository {
     + save(credentials : UserCredentials) : void
     + findByUserId(userId : Long) : UserCredentials
-    + updateHash(userId : Long, newHash : String) : void
+    + updateHash(newHash : String, now : Instant) : void
   }
 
   interface PasswordResetTokenRepository {
@@ -441,7 +441,7 @@ note bottom of AdminSeeder
        case-insensitive) -> NO-OP. The seeder NEVER re-hashes, flips kind or
        touches claims - an in-app password change survives restarts and
        deployments.
-    3. Otherwise -> create: AdminUser.provisioned("Admin", email) -
+    3. Otherwise -> create: AdminUser.provisioned("Admin", email, clock.instant()) -
        kind ADMIN, name "Admin", NO phone (null - outside the partial unique
        index, never a login route), no national ID code stored (M1 - the
        pre-set SMART_ID claim carries the e-mail as its external ref),

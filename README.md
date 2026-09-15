@@ -203,7 +203,7 @@ auth, verification, shelter submission, community reports); run/build docs in
 | `ingestion`    | `ShelterRegistryClient` (csv/paasteamet/dev clients), `LEst97Transformer`, `ShelterParser`, `ShelterImportService`, `ImportResult`, `RegistryProperties`                                                                                                                     |
 | `api`          | `ShelterController`, `LocationController`, `DataSourceController`, `AdminController` + `AdminModerationService` (admin-moderation), the dev `EmailTestController`/`SmsTestController` diagnostics, query services, DTOs, `ErrorResponse`, global advice                                                                                                                                                     |
 | `persistence`  | JPA entities + Spring Data implementations of the repository interfaces                                                                                                                                                                                                      |
-| `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
+| `config`       | Composition root only: `SecurityConfig`, `JwtAuthenticationFilter`, `ProdJwtGuard`, `DevEndpointsGuard`, `ApiDocsGuard`, `OpenApiConfig`, `RateLimitProperties`, `RegistryScheduler` (weekly sync), `RegistryRunConfig`                                                                                       |
 
 Dependency rule: `api`/`auth`/`ingestion` → `app`/`verification` → `domain`. `domain` depends
 on nothing. Cross-package access goes through interfaces only.
@@ -237,6 +237,12 @@ the external source. The DB is refreshed **weekly** by `RegistryScheduler` (`@Sc
 | OSM Nominatim | **frontend only** — `/submit` address search (`frontend/src/app/gateways/geocode-gateway.ts`) | Estonia-restricted geocoding (`countrycodes=ee`, limit 5, jsonv2), no API key. Client-side **≥1000 ms request spacing** (1 req/s usage policy; the browser sends the expected `Referer`/`Accept-Language`). The UI always renders the required attribution "© OpenStreetMap contributors" (openstreetmap.org/copyright) next to the search box, and a search failure never blocks submission. |
 
 ## API
+
+The generated OpenAPI document is the machine-readable contract (kept in sync by
+`OpenApiContractIT` + `OpenApiSnapshotIT`): committed at [`docs/api/openapi.json`](docs/api/openapi.json),
+browsable at `/swagger-ui` + `/v3/api-docs` in **dev/test only** (opt-in via `SPRINGDOC_ENABLED=true`;
+`ApiDocsGuard` refuses to boot with the docs enabled outside dev/test). The table below is a
+readable summary.
 
 | Method | Path                                       | Auth                    | Description                                                                                                                                                                                                 |
 | ------ | ------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -364,16 +370,18 @@ curl http://localhost:8080/actuator/health
 ```
 
 > **Use `./dev-start.sh` to run the app locally.** Since the 2026-09-08 review the app is
-> **fail-closed at boot** via two guards: `ProdJwtGuard` (refuses the published dev-default /
-> < 32-byte `JWT_SECRET`) and `DevEndpointsGuard` (refuses the `/dev/email-test` +
-> `/dev/sms-test` diagnostic endpoints — which the local `.env` turns on). Both refuse to boot
+> **fail-closed at boot** via three guards: `ProdJwtGuard` (refuses the published dev-default /
+> < 32-byte `JWT_SECRET`), `DevEndpointsGuard` (refuses the `/dev/email-test` +
+> `/dev/sms-test` diagnostic endpoints — which the local `.env` turns on) and `ApiDocsGuard`
+> (refuses the springdoc `/v3/api-docs` + `/swagger-ui` surface — which the local `.env` turns on
+> via `SPRINGDOC_ENABLED=true`). All three refuse to boot
 > **unless the active profile is exactly `dev` or `test`** (dev parity). A plain
 > `mvn spring-boot:run` with no profile set therefore exits at startup with
 > `PRODUCTION REFUSED TO START`. `./dev-start.sh` pins `SPRING_PROFILES_ACTIVE=dev` for you;
 > the equivalent one-liner is `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run`. (A strong
-> non-default `JWT_SECRET` clears the JWT guard but NOT the dev-endpoint guard while
-> `DEV_EMAIL_TEST_ENABLED` / `DEV_SMS_TEST_ENABLED` are on — the dev profile is the intended
-> local path.) The test suite runs under profile `test` (its own classpath `application.yml`)
+> non-default `JWT_SECRET` clears the JWT guard but NOT the dev-endpoint/doc guards while
+> `DEV_EMAIL_TEST_ENABLED` / `DEV_SMS_TEST_ENABLED` / `SPRINGDOC_ENABLED` are on — the dev profile
+> is the intended local path.) The test suite runs under profile `test` (its own classpath `application.yml`)
 > and is unaffected by the script.
 
 ### One-off import of the real registry data

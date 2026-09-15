@@ -67,7 +67,7 @@ unmistakable.
   signals) and `levels()` (fetched claims) with
   `refreshProfile()` for re-fetch — used by `VerifyPage` and `AccountPage`.
   (M3's optimistic `addLevel()` was removed in M7.)
-- M5's submit-shelter gate (`VerifiedGuard` on `/submit`) and review flows depend on the verified
+- M5's submit-shelter gate (`VerifiedGuard` on `/submit`) and the report flows depend on the verified
   state this milestone makes reachable.
 - Backend semantics (do not re-implement): cooldown/cap → 429; already-verified → 409; codes
   expire after 15 min / 5 attempts.

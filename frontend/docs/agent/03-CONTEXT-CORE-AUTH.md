@@ -60,7 +60,7 @@ itself fail-closed); `<router-outlet/>`), `BannerComponent`
 3. **401 handled once, globally.** Pages never catch 401 themselves — the interceptor refreshes;
    if refresh fails it logs out and redirects. Pages only handle business errors (400/403/409/429).
 4. **Register ≠ login.** Backend returns 201 with an empty body — the UI guides the user to log in
-   and verify EMAIL first (M3), because submitting shelters/reviews requires a verified account.
+   and verify EMAIL first (M3), because submitting shelters and filing reports requires a verified account.
 5. **No `any`, no untyped payloads.** Every gateway call has a typed request and a typed response;
    unknown payloads are a compile error, not a runtime surprise.
 
@@ -70,5 +70,5 @@ itself fail-closed); `<router-outlet/>`), `BannerComponent`
   verify/account gateways (03 puml); M7 reworks `/account` into `AccountPage` (profile + identity
   edit + per-contact verification labels) and removes the Verify top-nav item.
 - M4/M5 pages use `AuthStore` only to branch UI (log in prompt, verify prompt); data flows through
-  `ShelterGateway`/`ReviewGateway`.
+  `ShelterGateway`.
 - Environment: `environment*.ts` carries only public config (apiUrl). **Never** tokens/keys.

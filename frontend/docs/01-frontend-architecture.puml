@@ -9,8 +9,8 @@ title OpenShelter Frontend - App Architecture (Angular 22, standalone, zoneless)
 ' 2. Components are thin shells (backend rule §7): parse events,
 '    delegate to services, bind signals. Zero business logic.
 ' 3. One gateway per backend resource group, mirroring the
-'    backend controllers 1:1 (auth, shelter, review, verify,
-'    account, geo) + ONE documented exception: GeocodeGateway
+'    backend controllers 1:1 (auth, shelter, verify, account,
+'    geo, admin) + ONE documented exception: GeocodeGateway
 '    talks to an EXTERNAL service (OSM Nominatim) client-side
 '    via raw fetch (no JWT, no backend hop, never ApiClient).
 '    Field-for-field typed models (02-CONTEXT-API.md).
@@ -179,13 +179,6 @@ package "gateways" {
     + remove(id) : void                            ' M8: DELETE (gateway method is remove)
   }
 
-  class ReviewGateway {
-    + list(shelterId: number) : ShelterReviewDto[]
-    + add(shelterId, rating, comment) : ShelterReviewDto
-    + updateMine(shelterId, rating, comment) : ShelterReviewDto
-    + deleteMine(shelterId) : void
-  }
-
   class AccountGateway {
     + me() : MeResponse             ' GET /account/me - real profile + claims + isAdmin
     + updateProfile(request: ProfileUpdateRequest) : MeResponse
@@ -194,7 +187,8 @@ package "gateways" {
     + confirmEmailChange(code) : void
     + requestPhoneChange(newPhone) : void
     + confirmPhoneChange(code) : void
-    + myReviews() : MyReviewDto[]    ' M8: GET /account/reviews/mine
+    + exportData() : DataExportResponse   ' GET /account/export (legal/recovery)
+    + deleteAccount() : void              ' DELETE /account (legal/recovery)
   }
 
   class AdminGateway {
@@ -208,21 +202,32 @@ package "gateways" {
     + setShelterStatus(id: number, status: ShelterStatus) : void
     ' POST /admin/shelters/{id}/status {status} -> 204 - manual hide/restore
     ' (USER rows only; a restore disarms auto-hide server-side)
+    + reviewShelter(id: number, request: ReviewShelterRequest) : ReviewShelterResponse
+    ' POST /admin/shelters/{id}/review {action, reason?} -> 200 {ok:true} -
+    ' the rare MANUAL CONFIRM/REJECT override (USER rows only)
     + deleteShelter(id: number) : void
-    ' DELETE /admin/shelters/{id} -> 204 - hard delete; reviews, reports
-    ' and occupancy cascade (backend); USER rows only (409), 404 unknown
+    ' DELETE /admin/shelters/{id} -> 204 - hard delete; reports and
+    ' occupancy cascade (backend); USER rows only (409), 404 unknown
+    + listShelterHistory(id: number) : AdminShelterHistoryEvent[]
+    ' GET /admin/shelters/{id}/history - ascending CREATED/EDITED/DELETED
+    + requestInfo(id: number, message: string) : void
+    ' POST /admin/shelters/{id}/request-info -> 204 (one exchange per row)
+    + markInaccurate(id: number, reason?) : void
+    + clearInaccurate(id: number) : void
+    ' POST /admin/shelters/{id}/mark-inaccurate|clear-inaccurate -> 204 (idempotent)
     + listShelterReports(shelterId?: number) : AdminShelterReportDto[]
     ' GET /admin/reports?shelterId= - the queue, newest first, with the
     ' shelter's LIVE status + the reporter's name/email
     + dismissShelterReport(id: number) : void
     ' POST /admin/reports/{id}/dismiss -> 204 - idempotent (no-op if done)
-    + listReviewReports() : AdminReviewReportDto[]
-    ' GET /admin/review-reports - newest first, hidden reviews included
-    + hideReview(reviewId: number) : void
-    ' POST /admin/reviews/{id}/hide -> 204, idempotent - {id} = the REVIEW id
-    + restoreReview(reviewId: number) : void
-    ' POST /admin/reviews/{id}/restore -> 204, idempotent - clears the hidden
-    ' marker; the review rejoins the public list, average and count
+    + listAudit() : AdminAuditRow[]
+    ' GET /admin/audit - the moderation trail, newest first
+    + listAlerts(limit?) : AdminAlertRow[]
+    ' GET /admin/alerts?limit= - the in-memory throttle-abuse ring
+    + listUsers() : AdminUserDto[]
+    + suspendUser(id: number) : void
+    + unsuspendUser(id: number) : void
+    ' GET /admin/users + POST /admin/users/{id}/suspend|unsuspend -> 204
   }
 
   class GeoGateway {
@@ -272,18 +277,18 @@ package "features" {
   package "shelter" {
     class ShelterDetailPage
     class SubmitShelterPage
-    class ReviewForm
-    ' RatingStars moved to shared/ (2026-09-08 arch pass)
   }
 
   package "admin" {
     ' admin-moderation - own folder (the no-cross-feature-imports rule holds)
     class AdminPage
-    ' /admin (lazy, AdminGuard) - three tabs, each a table with 48px action
-    ' targets on the existing tokens: Shelters (search + inline Hide/Activate,
-    ' two-tap Delete; registry rows read-only), Shelter reports (queue +
-    ' dismiss, dismissed rows dimmed, "Restore shelter" shortcut on hidden-
-    ' shelter rows), Review reports (queue + Hide/Restore + hidden badge).
+    ' /admin (lazy, AdminGuard) - SIX tabs, each a table with 48px action
+    ' targets on the existing tokens: Unconfirmed (USER + NEW queue with the
+    ' manual Confirm/Reject), Shelters (search + inline Hide/Activate, two-
+    ' tap Delete; registry rows read-only), Reports (the shelter-report queue
+    ' + dismiss, dismissed rows dimmed, "Restore shelter" shortcut), Alerts
+    ' (the in-memory throttle-abuse ring), Users (suspend/unsuspend) and
+    ' Audit (the moderation trail).
     ' Mutations patch the in-memory row (204, no body); a rejected mutation
     ' surfaces the server message via the page-level banner.
   }
@@ -297,23 +302,22 @@ package "shared" {
   ' header/nav + router-outlet
   class PageShell
   ' 2026-09-08 arch pass: shared/ now also hosts cross-feature UI + helpers
-  ' RatingStars moved here from features/shelter/ (3 importers)
-  class RatingStars
   ' LeafletService moved here from features/map/ (no feature deps)
   class LeafletService
   ' + non-component helpers: form-helpers.ts (readCoordinate,
   '   capacityValidator, nameBlankValidator, CAPACITY_MIN/MAX,
-  '   CODE_SIX_DIGITS), shelter-copy.ts (canonical "User-submitted" / "★ x.x · N" copy),
+  '   CODE_SIX_DIGITS), shelter-copy.ts (the single-sourced row copy +
+  '   the provenance/trust badge labels),
   '   location-input.ts (pure parseLocationInput + isGooShortLink /
   '   normalizeShortLinkUrl - fixture-table-tested, no Angular imports)
 }
 
 note bottom of shared
   Non-component helpers: form-helpers.ts (readCoordinate, capacity /
-  name validators, CODE_SIX_DIGITS), shelter-copy.ts (canonical
-  "User-submitted" / rating copy + provenanceLabel - the single-sourced
-  four-valued provenance badge: "Paasteamet registry" / "Municipal
-  registry" / "Verified user" / "User-submitted") and location-input.ts
+  name validators, CODE_SIX_DIGITS), shelter-copy.ts (the canonical
+  single-sourced row copy + the four-valued provenance badge:
+  "Paasteamet registry" / "Municipal registry" / "Verified user" /
+  "User-submitted", plus the trust-badge texts) and location-input.ts
   (pure parseLocationInput + isGooShortLink / normalizeShortLinkUrl -
   fixture-table-tested, zero Angular imports).
 end note
@@ -323,7 +327,6 @@ PageShell --> RouterOutlet
 AuthGateway ..> ApiClient
 VerifyGateway ..> ApiClient
 ShelterGateway ..> ApiClient
-ReviewGateway ..> ApiClient
 AccountGateway ..> ApiClient
 GeoGateway ..> ApiClient
 ' GeocodeGateway has NO ApiClient edge - it is the documented raw-fetch
@@ -362,8 +365,6 @@ VerifyPage --> BannerComponent
 AccountPage --> BannerComponent
 AccountPage --> ContributionsPanel
 ContributionsPanel --> ShelterGateway
-ContributionsPanel --> AccountGateway
-ContributionsPanel --> ReviewGateway
 ContributionsPanel --> BannerComponent
 MapPage --> ShelterGateway
 MapPage --> LeafletService
@@ -371,18 +372,14 @@ AdminPage --> AdminGateway
 AdminPage --> AuthStore
 AdminPage --> BannerComponent
 ShelterDetailPage --> ShelterGateway
-ShelterDetailPage --> ReviewGateway
 ShelterDetailPage --> AuthStore
 ShelterDetailPage --> LeafletService
-ShelterDetailPage --> ReviewForm
-ShelterDetailPage --> RatingStars
 ShelterDetailPage --> BannerComponent
 SubmitShelterPage --> ShelterGateway
 SubmitShelterPage --> GeoGateway
 SubmitShelterPage --> GeocodeGateway
 SubmitShelterPage --> LeafletService
 SubmitShelterPage --> BannerComponent
-ReviewForm --> RatingStars
 PageShell --> AuthStore
 ' high-contrast toggle lives in the shell header (bound to ThemeStore)
 PageShell --> ThemeStore
@@ -426,6 +423,8 @@ note as Routes
   /account           AuthGuard    -> AccountPage       (M3 page; M7 full profile)
   /shelters/:id      public       -> ShelterDetailPage(M5, lazy M6)
   /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5, lazy M6)
+  /privacy           public       -> PrivacyPolicyPage (legal-recovery, lazy)
+  /terms             public       -> TermsPage (legal-recovery, lazy)
   /admin             AdminGuard     -> AdminPage          (admin-moderation, lazy)
   ' M6: all routes data.title + TitleGuard; /shelters/:id and /submit
   '     loadComponent-lazy for the documented bundle budget (so is /admin)

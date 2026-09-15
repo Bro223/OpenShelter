@@ -111,8 +111,8 @@ checks `canWrite()` first, saves ACTIVE/USER.
 
 **Acceptance**
 
-- `mvn test` integration tests pass: save/find/delete for each repository; review uniqueness
-  enforced; `deleteBySourceAndExternalIdNotIn` deletes only REGISTRY rows.
+- `mvn test` integration tests pass: save/find/delete for each repository;
+  `deleteBySourceAndExternalIdNotIn` deletes only REGISTRY rows.
 - Flyway migrates a fresh database cleanly (`ddl-auto=validate` passes).
 
 **Manual review:** schema, entity mappings, repository implementations.
@@ -278,7 +278,7 @@ Follow-up code review findings, all fixed (dead-code removal was part of this pa
   is an idempotent no-op for verified levels (no duplicate claim re-insert).
 - **Contact-change confirm race → 409** — target re-checked at confirm time + the save is wrapped
   (`DataIntegrityViolationException` → `DuplicateAccountException`).
-- **N+1 author lookup in reviews** — `UserRepository.findByIds(Collection)` batches the lookup.
+- **N+1 author lookup** — `UserRepository.findByIds(Collection)` batches the lookup.
 - **`ShelterDto.createdAt` populated** — V5 migration adds `shelters.created_at`
   (`DEFAULT now()`, NOT NULL); `@CreationTimestamp` on the entity keeps the value in the
   persistence context after save.
@@ -306,23 +306,20 @@ Follow-up code review findings, all fixed (dead-code removal was part of this pa
 
 Built as OpenSpec change `user-contributions` (M3 of 3 in its own plan — the third and final
 milestone of that change): submitting users can manage their own contributions — list/edit/
-delete their own USER-source shelters and list/edit/delete their own reviews, surfaced as a
+delete their own USER-source shelters, surfaced as a
 "My contributions" panel on the account page (`ContributionsPanel`, `features/contributions/`;
 not a new route). Backend: `V7__shelter_created_by.sql` (`shelters.created_by BIGINT NULL
 REFERENCES users(id) ON DELETE SET NULL` + `idx_shelters_created_by`; `addPlace` records the
 author), author-scoped `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (404 absent,
 403 not-the-author — registry and legacy `created_by`-NULL rows unmanageable by anyone; PUT
 shares POST's Estonia bbox gate via a small helper; only the five fields
-name/description/capacity/lat/lng are writable) and `GET /account/reviews/mine` (`MyReviewDto[]`,
-shelter names batched — no N+1); deleting a shelter cascades to its reviews (DB `ON DELETE
-CASCADE` — `JpaShelterRepository.deleteById` flushes so the cascade is visible to in-transaction
-reads). Frontend: `ShelterGateway.mine()/update()/remove()` +
+name/description/capacity/lat/lng are writable). Frontend: `ShelterGateway.mine()/update()/remove()` +
 models `UpdateShelterRequest`; inline-expanding edit forms (no modals),
 two-step delete confirms (no `window.confirm`), per-list loading/empty/error states. Docs/puml
 synced (`05-shelter-api.puml` + render, `06-CONTEXT-API.md`, `02-CONTEXT-DOMAIN.md`,
 frontend `06-CONTEXT-SHELTER.md`, both READMEs).
-**Acceptance:** `mvn test` + `ng test` green, live journey verified (submit → review → both
-appear in the panel → edit persists on the detail page → delete removes shelter + review;
+**Acceptance:** `mvn test` + `ng test` green, live journey verified (submit → the shelter appears
+in the panel → edit persists on the detail page → delete removes the shelter;
 non-author and registry attempts → 403).
 
 ---
@@ -333,8 +330,9 @@ Built as OpenSpec change `shelter-trust-and-reports` (V9 migration + report/occu
 endpoints + trust filters + the frontend trust UI). No moderator anywhere — the community
 reports and the derived state are the moderation.
 
-**Schema (V9__shelter_trust_and_reports.sql)** — four new tables + two columns. Every report
-FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with it):
+**Schema (V9__shelter_trust_and_reports.sql)** — three tables + one column (V21 dropped the
+V9 review-report table with the removed star-rating model). Every report FK is
+`ON DELETE CASCADE` (a deleted shelter or user drops its reports with it):
 
 - `shelter_reports` — `id BIGSERIAL PK, shelter_id BIGINT NOT NULL → shelters(id) CASCADE,
   user_id BIGINT NOT NULL → users(id) CASCADE, type VARCHAR(16) NOT NULL CHECK IN
@@ -349,9 +347,9 @@ FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with 
   cleanup job.
 - `report_actions` — the durable log behind the report throttle (same table family and window
   style as the password-reset rotation guard): `id BIGSERIAL PK, user_id BIGINT NOT NULL →
-  users(id) CASCADE, action VARCHAR(32) NOT NULL (SHELTER_REPORT | REVIEW_REPORT | OCCUPANCY),
+  users(id) CASCADE, action VARCHAR(32) NOT NULL (SHELTER_REPORT | OCCUPANCY),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()`; index (user_id, created_at). A separate log
-  (not a count over the three report tables) because an occupancy re-PUT updates one row and
+  (not a count over the report tables) because an occupancy re-PUT updates one row and
   would be uncountable.
 - `shelters.auto_hide_disarmed BOOLEAN NOT NULL DEFAULT FALSE` — the auto-hide disarm flag
   (FALSE while the shelter may still be auto-hidden by the 5th NON_EXISTENT report; a manual
@@ -359,11 +357,10 @@ FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with 
   is honoured from day one).
 
 **Endpoints** — `POST /api/shelters/{id}/reports` (204; 401/403/404/400/409/429, see
-`06-CONTEXT-API.md` for the full matrix), `PUT /api/shelters/{id}/occupancy` (204 upsert;
-401/403/404/400/429 — no 409, a re-send is the update),
-`POST /api/shelters/{id}/reviews/{reviewId}/reports` (204; 401/403 own-or-unverified/404/400/
-409/429). All three require a Bearer JWT + a verified registered user (the same `canWrite()`
-gate and error vocabulary as submissions). `GET /api/shelters` gains the optional trust filter
+`06-CONTEXT-API.md` for the full matrix) and `PUT /api/shelters/{id}/occupancy` (204 upsert;
+401/403/404/400/429 — no 409, a re-send is the update). Both require a Bearer JWT + a verified
+registered user (the same `canWrite()` gate and error vocabulary as submissions).
+`GET /api/shelters` gains the optional trust filter
 `hasCapacity` (composable with `source`) and is now
 **ACTIVE-only** (auto-hidden shelters disappear from the public list and map); `GET
 /api/shelters/mine` and `GET /api/shelters/{id}` keep all statuses. `POST /api/shelters`
@@ -377,12 +374,10 @@ occupancy display is 2 h-fresh at read time, latest band wins, hedged at one agr
 firm at two+, silent when stale; the per-user report throttle is 10 report-type actions per
 rolling hour (any target/type, `REPORTS_MAX_ACTIONS_PER_HOUR`, 0 disables) with the
 check-and-record atomic per user via a transaction-scoped advisory lock (a throttled decision
-records nothing; a 409 duplicate consumes no budget); hidden reviews drop out of the list,
-the average rating, the review count and the `reviewed` filter (the author still sees their
-own, marked hidden).
+records nothing; a 409 duplicate consumes no budget).
 
 **Acceptance:** `mvn test` green — **433 tests** (counted 2026-09-11). Frontend wave (trust
-filter chips + rating select, orange reported marker + legend, badge set, detail-page report
+filter chips, orange reported marker + legend, badge set, detail-page report
 pickers, "Report how full" band picker, contributions-panel hidden state, `--color-reported`
 token): `npx ng test` green — **657 tests across 35 spec files** (counted 2026-09-11).
 
@@ -429,7 +424,7 @@ present; the frontend's gate for the nav item and the `/admin` route).
 admin's dismissal stamp, set once by `POST /admin/reports/{id}/dismiss` (idempotent; NULL
 while unresolved). Dismissing never deletes the row.
 
-**API (D3/D4) — `api.AdminController` + `api.AdminModerationService`, 8 endpoints** (full
+**API (D3/D4) — `api.AdminController` + `api.AdminModerationService`, 5 endpoints** (full
 status matrices in `06-CONTEXT-API.md`):
 
 - `GET /admin/shelters?status=&source=&q=` — every shelter incl. hidden, id-ordered, with the
@@ -438,18 +433,13 @@ status matrices in `06-CONTEXT-API.md`):
 - `POST /admin/shelters/{id}/status` `{"status": "ACTIVE"|"INACTIVE"}` — manual hide/restore,
   USER rows only (registry → **409** import-owned); a **restore sets `autoHideDisarmed`
   (permanently disarms auto-hide)**; 204; 404 unknown.
-- `DELETE /admin/shelters/{id}` — hard delete (cascade: reviews, shelter reports, review
-  reports, occupancy), USER rows only (registry → 409); 204; 404 unknown.
+- `DELETE /admin/shelters/{id}` — hard delete (cascade: shelter reports, occupancy),
+  USER rows only (registry → 409); 204; 404 unknown.
 - `GET /admin/reports?shelterId=` — shelter-report queue, newest first, with the shelter's
   live status + the reporter's profile name/email (admin-only data, never exposed outside
   `/admin/*`); unknown `shelterId` → 404.
 - `POST /admin/reports/{id}/dismiss` — mark resolved (idempotent; the row is kept); 204;
   404 unknown.
-- `GET /admin/review-reports` — review-report queue, newest first, hidden reviews included
-  with their marker + the review excerpt.
-- `POST /admin/reviews/{id}/hide` / `POST /admin/reviews/{id}/restore` — immediate hide /
-  clear `hidden_at` (both idempotent; `{id}` = the REVIEW's id; a restore re-joins the review
-  to the rating, count and `reviewed` filter); 204; 404 unknown.
 
 **Ops note (de-provisioning):** remove the env vars AND delete the row (manual SQL — no API
 deletes admin accounts). While BOTH vars stay set, the seeder **recreates** the admin on the
@@ -461,10 +451,10 @@ vars removed, the seeder is a no-op forever — but a still-existing row remains
 redirect home; the backend re-checks kind per request, so the guard is UX, not enforcement),
 the admin-only "Admin" nav item, `AuthStore.isAdmin` from `/account/me` (fail-closed false on
 a failed profile fetch), the account-page "Admin" provenance-style badge, `AdminGateway` (all
-eight endpoints), and `features/admin/` — three tabs: Shelters (search + inline
-Hide/Activate, two-tap Delete; registry rows read-only), Shelter reports (queue + dismiss,
-dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter rows), Review reports
-(queue + Hide/Restore + hidden badge). Details in the frontend agent pack.
+five endpoints), and `features/admin/` — two tabs: Shelters (search + inline
+Hide/Activate, two-tap Delete; registry rows read-only) and Shelter reports (queue + dismiss,
+dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter rows). Details in the
+frontend agent pack.
 
 **Persistence notes:** `UserMapper` round-trips the `ADMIN` kind (before the `RegisteredUser`
 check — `AdminUser` IS-A `RegisteredUser`, and the kind must survive every save of a loaded
@@ -505,7 +495,7 @@ report never promotes; registry / already-confirmed rows untouched). Admin:
 `GET /admin/audit` (newest first, limit 1..200 default 100, read-time name resolution).
 Restoring a `REJECTED` row via the status endpoint reverts it to `NEW` (it starts over).
 `ModerationAuditLog` app interface + JPA impl + in-memory double — every action (status
-change, hard delete, report dismiss, review hide/restore, CONFIRM, AUTO_CONFIRM, REJECT)
+change, hard delete, report dismiss, CONFIRM, AUTO_CONFIRM, REJECT)
 writes its row in the SAME transaction (D4). DTOs carry `reviewStatus` (+ `reviewNote` on
 `/mine` and admin rows) + `locationKind`; `CreateShelterRequest` accepts `locationKind`
 (default `PUBLIC`).

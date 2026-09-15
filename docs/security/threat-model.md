@@ -76,7 +76,7 @@ decision). **Pins:** `ShelterDailyLimitIT`, `ShelterDuplicateIT`,
 `CommunityReviewIT`, `ShelterReportIT`, `MarkInaccurateIT`,
 `LastVerifiedApiIT`, `ShelterHistoryIT`, `AdminModerationIT`.
 
-### A2. Brigading / fake reviews (and fake reports)
+### A2. Brigading / fake reports
 
 A group of accounts coordinates to hide a real shelter (flood of
 `NON_EXISTENT` reports) or to bury a rival's entry.
@@ -87,10 +87,12 @@ report per user per shelter per type (409 — `ShelterReportIT`); auto-hide is
 trust-*weighted*, not head-count — five brand-new baseline accounts hide
 barely faster than five trusted ones (M9); a reporter holding their own
 other listing of the same place is stored **damped** (recorded + flagged in
-the admin queue, counts 0 — V16, M9); ratings are demoted to read-only
-context (M11 — the `minRating` filter is gone, star display stays) so
-review-flooding no longer changes list ordering; every damped/repeated
-event lands in `GET /admin/alerts` and the admin report queue.
+the admin queue, counts 0 — V16, M9); rating/review flooding is no
+longer possible — the whole review model (reviews, star ratings, review
+reports) was removed in `V21__drop_reviews.sql`, so the remaining
+qualitative levers are the report, occupancy and open-status signals;
+every damped/repeated event lands in `GET /admin/alerts` and the admin
+report queue.
 
 **Status: MITIGATED-RESIDUAL.** A large enough coordinated ring of freshly
 verified accounts can still sway a borderline row before admin attention
@@ -191,7 +193,7 @@ position; CORS is restricted to the configured frontend origins.
 
 ### A7. Malicious content (XSS / abuse via user text)
 
-A submitter/reviewer embeds script or abusive content that executes or
+A submitter or reporter embeds script or abusive content that executes or
 harms in another user's browser.
 
 **Mitigations:** all user content is plain text in size-capped fields
@@ -324,12 +326,26 @@ fixed pin the user placed, not a trust input.
 (public projection), `ShelterDuplicateIT`, `CommunityReviewIT`,
 `ShelterReportIT`.
 
+### Session model — CSRF protection is disabled by design
+
+Authentication is a stateless `Authorization: Bearer` token (JWT), not a
+cookie session: the access token lives in an Angular signal (memory only)
+and the refresh token is sent explicitly in the request body — browsers
+never attach either credential to a cross-site request automatically.
+There is therefore no CSRF vector to defend against, which is why
+`SecurityConfig` disables Spring Security's CSRF filter
+(`.csrf(csrf -> csrf.disable())`, `SessionCreationPolicy.STATELESS`).
+The residual XSS surface of the `localStorage` refresh token is documented
+in `frontend/README.md` (token-storage tradeoff); moving to an httpOnly
+refresh cookie would re-introduce CSRF and require `withCredentials` +
+explicit CSRF tokens on both sides (deferred cross-stack change).
+
 ## Test-evidence matrix
 
 | # | Attack | Existing pins | Added this pass |
 |---|--------|---------------|-----------------|
 | A1 | False submissions | `ShelterDailyLimitIT`, `ShelterDuplicateIT`, `CommunityReviewIT`, `ShelterReportIT`, `MarkInaccurateIT`, `LastVerifiedApiIT`, `ShelterHistoryIT`, `AdminModerationIT` | — |
-| A2 | Brigading / fake reviews | `ReportThrottleIT`, `ShelterReportIT`, `CommunityReviewIT`, `AdminAlertsIT` | — |
+| A2 | Brigading / fake reports | `ReportThrottleIT`, `ShelterReportIT`, `CommunityReviewIT`, `AdminAlertsIT` | — |
 | A3 | DoS (app layer) | `AuthRateLimitIT`, `VerificationDailyCapIT`, `VerificationThrottleIT`, `OtpContactCapIT`, `LocationResolveIT` | — |
 | A4 | Account takeover | `AuthApiIT`, `AuthRateLimitIT`, `UserSuspensionIT`, `RefreshRotationRaceIT`, `AccountDeletionIT` | `PasswordRecoveryFlowIT` (reset revokes refresh tokens) |
 | A5 | Enumeration | `AuthApiIT`, `PiiAtRestIT`, `PasswordResetServiceTest` | `PasswordRecoveryFlowIT` (uniform ack, lockout, single-use, expiry) |

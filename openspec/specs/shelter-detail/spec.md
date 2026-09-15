@@ -1,4 +1,4 @@
-# shelter-detail-reviews Specification
+# shelter-detail Specification
 
 ## Purpose
 
@@ -9,9 +9,7 @@ The community review and star-rating half of this capability was removed with th
 (migration `V21__drop_reviews.sql` drops `shelter_reviews` + `review_reports`): the review list,
 review upsert, review delete and rating-presentation requirements are gone, recorded in
 `openspec/changes/archive/2026-09-14-remove-shelter-reviews/specs/shelter-detail-reviews/spec.md`.
-The surviving requirement is the detail page itself. The capability directory name still says
-"reviews" — rename follow-up pending:
-`git mv openspec/specs/shelter-detail-reviews openspec/specs/shelter-detail`.
+The surviving requirement is the detail page itself. The capability directory was renamed to `openspec/specs/shelter-detail` on 2026-09-15, now that the review half is gone.
 
 ## Requirements
 

@@ -15,12 +15,13 @@ Angular 22 + Leaflet frontend.
 - **Password reset** — emailed 6-digit code (works even if you're locked out);
   single-use, 5 attempts, revokes all sessions on success.
 - **Identity verification** — email OTP (8-char code) and phone OTP (6-digit SMS),
-  plus a Smart-ID stub. Verified users unlock writing (submit shelters, review).
+  plus a Smart-ID stub. Verified users unlock writing (submit shelters, file reports).
 - **Cross-channel contact change** — changing your email is confirmed by an SMS code
   sent to your current phone; changing your phone by an email code sent to your current
   email. Stealing one channel is never enough to hijack the account.
 - **Account page** — real profile + real verification status (`/account/me`),
-  password-confirmed edit of name, list of all your reviews.
+  password-confirmed edit of name, the "My contributions" list of your own
+  shelters, data export + account deletion.
 - **Abuse prevention** — every send/attempt path is rate-limited (per-IP + per-user
   buckets), 60s resend cooldowns, 5-sends/day cap per channel (file-backed, survives
   restarts), anti-enumeration everywhere (login and reset always answer the same).
@@ -34,17 +35,16 @@ Angular 22 + Leaflet frontend.
 
 - Leaflet **map** of all shelters + synchronized list; **provenance markers + legend**
   (Official / Partner / Community-reported / Proposed / Reported) with a matching
-  filter; trust filters (reviewed, has capacity).
+  filter; trust filters (Open — client-side / Has capacity).
 - Shelter **detail page** — name, address, county/municipality, coordinates,
-  capacity, description, provenance badge, average rating (read-only) and review
-  count, **last-verified line** + community-report count, current occupancy
+  capacity, description, provenance badge,
+  **last-verified line** + community-report count, current occupancy
   ("Reported full" while fresh), **"Navigate" / "Open in Apple Maps"** deep links
   and straight-line distance-from-you.
-- **Reviews** — public review list per shelter.
 - **Community reports** — report a shelter ("does not exist" / "closed" /
   "confirmed open" / "wrong location" / other — the **5th trust-weighted "does not
   exist" report takes the shelter off the public map**, admin-restore only, never
-  re-hidden), report a review (the 5th hides it), or report how full it is right
+  re-hidden), report the live open/closed state, or report how full it is right
   now (shown to everyone while fresh).
 
 **Contributing (verified users)**
@@ -56,11 +56,12 @@ Angular 22 + Leaflet frontend.
   detection (same name + ≤100 m → 409).
 - **Manage your own submissions** — list, edit, or delete your own shelters from the
   account page ("My contributions"); author-only, registry rows unmanageable.
-- **Rate & review** — one review per user per shelter (re-rating updates), author-only
-  update/delete. Ratings are a **read-only signal** (the filter was demoted, not
-  removed) — the quality mechanism is community reports, worked after the fact by a
-  single env-provisioned admin (report queues, mark inaccurate, request info,
-  suspend; every action audited; registry rows are read-only).
+- **Report & confirm** — verified users file typed reports (shelter / occupancy /
+  open status), one per user per target. The quality mechanism is community reports,
+  worked after the fact by a single env-provisioned admin (report queues, mark
+  inaccurate, request info, suspend; every action audited; registry rows are
+  read-only). There is no star rating — the review model was removed
+  (`V21__drop_reviews.sql`).
 
 **Data (the living registry)**
 
@@ -90,6 +91,6 @@ twelve-attack threat model + operations runbook + 11 API security pins;
 architecture docs (PlantUML + build packs) re-synced to code after every milestone.
 
 **Status (13 Sept 2026).** Fully functional end-to-end (register → verify → browse →
-submit → review → report → manage), bilingual app chrome (ET/EN). Remaining: real
+submit → report → manage), bilingual app chrome (ET/EN). Remaining: real
 Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
 PWA offline cache, production deployment.

@@ -9,8 +9,8 @@
 ## 1. Abstract
 
 OpenShelter is a full-stack web application that aggregates Estonia's official bomb-shelter
-registry, enriches it with user-submitted shelters, and layers community verification,
-reviews, and ratings on top of the combined data. It is designed around three ideas:
+registry, enriches it with user-submitted shelters, and layers community verification
+and trust reports on top of the combined data. It is designed around three ideas:
 **no pre-publication moderation** (community reports — not a moderator, not a rating —
 are the quality mechanism), **provenance as trust** (every shelter shows whether it comes
 from the official registry or a verified community member, and how it got there), and
@@ -18,7 +18,8 @@ from the official registry or a verified community member, and how it got there)
 stress).
 
 The system consists of a Spring Boot / PostgreSQL backend (auth, multi-channel
-verification, weekly registry ingestion, shelter API, community reviews) and an
+verification, weekly registry ingestion, shelter API, community reports and trust
+state) and an
 Angular single-page frontend (map, shelter detail, account and verification flows).
 Both sides are test-heavy: 706 backend and 887 frontend automated tests at the time of
 writing (2026-09-13), with three completed security/code-review efforts that hardened
@@ -51,7 +52,7 @@ Two gaps remain open:
    freshness at a glance.
 
 OpenShelter addresses both: it turns the registry into a first-class map product, and it
-builds a community feedback layer (verified accounts, ratings, reviews, provenance
+builds a community feedback layer (verified accounts, reported trust state, provenance
 badges) that increases the trustworthiness of the combined dataset over time.
 
 The threat model includes crisis use: users under stress, weak or congested networks,
@@ -66,11 +67,10 @@ authentication and batch queries rather than N+1).
    User-submitted shelters appear immediately, marked *Proposed*; community
    confirmations move them to *Community-reported*. Quality is governed by community
    reports — the fifth trust-weighted "does not exist" report takes a shelter off the
-   public map, the fifth review-report hides a review — and by a single env-provisioned
-   admin who works the report queues after the fact (hide/restore, mark inaccurate,
-   request info, suspend), every action audited. Ratings are a **read-only signal**
-   (demoted, not removed — the filter is gone, the stars stay). There is no approval
-   path and no standing moderation role.
+   public map — and by a single env-provisioned admin who works the report queues
+   after the fact (hide/restore, mark inaccurate, request info, suspend), every action
+   audited. There is no approval path, no standing moderation role, and no star
+   rating: the review model was removed in `V21__drop_reviews.sql`.
 2. **Provenance is a first-class property.** Every shelter carries a `source`
    (REGISTRY vs USER). The importer may create/update/delete only REGISTRY rows; USER
    rows are sacred. The UI presents provenance as badges (Registry / Verified /
@@ -104,7 +104,7 @@ authentication and batch queries rather than N+1).
 │  Leaflet, design tokens,     │                                │  ├─ auth (JWT, reset)       │
 │  high-contrast theme, ET/EN  │                                │  ├─ verification (OTP)      │
 └──────────────────────────────┘                                │  ├─ ingestion (CSV/WFS)     │
-                                                               │  └─ api (shelters, reviews) │
+                                                               │  └─ api (shelters, reports) │
         ┌──────────────┬──────────────────┐                    └──────┬──────────────┬───────┘
         │              │                  │                           │              │
         ▼              ▼                  ▼                    ┌──────▼──────┐  ┌────▼──────────┐
@@ -126,8 +126,8 @@ footer shows source, official open-data link and last-import date via
 `GET /api/data-source`). The legacy WFS client remains as a working alternate.
 
 **Data flow (community):** registered user → verifies at least one channel → submits
-shelter (immediately ACTIVE/USER) and/or reviews existing shelters → ratings
-aggregates served with every shelter listing.
+a shelter (immediately ACTIVE/USER) and/or files trust reports (shelter / occupancy /
+open status) → the server-derived trust state is served with every shelter listing.
 
 ## 5. Functional specification
 
@@ -185,27 +185,28 @@ aggregates served with every shelter listing.
 
 ### 5.5 Shelter API, map, and community layer
 
-- Public read API: list with provenance, source and trust filters
-  (`?provenance=`, `?source=`, `?reviewed=`, `?hasCapacity=`), detail endpoint,
-  batched rating aggregates (no N+1). The public list is ACTIVE-only and carries the
-  server-computed trust state: report counts, status flag, fresh occupancy,
+- Public read API: list with source, provenance and trust filters
+  (`?source=`, `?provenance=`, `?hasCapacity=`), detail endpoint, every derivation
+  batched (no N+1). The public list is ACTIVE-only and carries the server-computed
+  trust state: report counts, the fresh open/closed block, fresh occupancy, the
   last-verified moment and the inaccurate mark.
 - **Provenance taxonomy**: every shelter carries a server-derived `provenance`
   (Official / Partner / Community-reported / Proposed / Reported-inactive / Rejected —
-  computed at read time from source + review state + live report counts, never
-  stored), with coloured markers, a legend and the `?provenance=` filter.
+  computed at read time from source + community trust state + live report counts,
+  never stored), with coloured markers, a legend and the `?provenance=` filter.
 - **Community trust layer** (no pre-publication moderation): verified users report
   shelters ("does not exist" / "closed" / "confirmed open" / "wrong location" / other —
   the **fifth trust-weighted "does not exist" report auto-hides the shelter** from the
-  public map), report reviews (the fifth hides the review), and report current
-  occupancy (three bands, 2 h freshness, hedged at one agreeing report, firm at two or
-  more — display-only, it never hides or filters). Per-user throttles bound the abuse:
+  public map), report current occupancy (three bands, 2 h freshness, hedged at one
+  agreeing report, firm at two or more — display-only, it never hides or filters), and
+  report the live open/closed state (one state per user, the same 2 h freshness rule,
+  deliberately unthrottled). Per-user throttles bound the abuse:
   10 report-type actions per rolling hour, 10 active shelters, 5 submissions per
   rolling day, near-duplicate detection (same name + ≤ 100 m → 409).
 - **Admin moderation** (post-hoc, audited): a single env-provisioned admin (no
   API-created admins; the kind is re-checked per request) works the report queues —
   hide/restore user shelters (a restore disarms auto-hide), hard delete, triage shelter
-  and review reports, suspend/unsuspend users, view the append-only edit history, ask
+  reports, suspend/unsuspend users, view the append-only edit history, ask
   the submitter for details (one exchange per shelter), mark a listing inaccurate (the
   row stays visible with a warning). Registry rows are import-owned: every
   shelter-scoped admin write on them answers 409.
@@ -213,15 +214,15 @@ aggregates served with every shelter listing.
   description and bounded capacity; geo coordinates validated against an Estonia
   bounding box; user-submitted addresses/descriptions and geocoded locations ride an
   SSRF-hardened URL/location resolution path.
-- Community reviews: verified users only; one review per user per shelter
-  (upsert semantics); author-only update/delete. Ratings are served read-only —
-  the rating filter was demoted (not removed) when reports became the quality lever.
+- Community reviews are gone (V21): there is no review list, review write or star
+  rating anywhere. The quality lever is the community report + confirmation mechanism
+  above.
 - **Location & navigation**: "Navigate" / "Open in Apple Maps" deep links,
   straight-line distance-from-you, and an address-search anchor on the map
   (OSM Nominatim, Estonia-restricted, frontend-only — the app never does IP
   geolocation).
 - Frontend: Leaflet map with provenance markers and trust filters, shelter detail
-  with rating (read-only), reviews, occupancy and report controls, auth/verification/
+  with the trust-state badges, occupancy and report controls, auth/verification/
   account pages, the admin moderation panel, privacy/terms legal pages, design-token
   theming including a high-contrast (black/yellow) mode after the national
   crisis-portal pattern, responsive down to 360 px, and a bilingual ET/EN language
@@ -240,7 +241,7 @@ aggregates served with every shelter listing.
 | Secrets | Gitignored `.env` (spring-dotenv); full git history scanned clean (no credential ever committed); fail-closed boot guards (non-dev profiles refuse a dev-default / <32-byte JWT secret; dev diagnostic endpoints refuse to boot outside dev/test; missing PII keys ⇒ refused; Twilio refuses blank credentials) |
 | SSRF | URL/location resolution hardened against internal-address exfiltration |
 | Diagnostics | `/dev/email-test` and `/dev/sms-test` are opt-in, JWT-gated, recipient-allowlisted — never an open relay |
-| Data integrity | Flyway-migrated schema with unique constraints (email, phone, one active claim per user per level, one review per user per shelter); `ddl-auto=validate` |
+| Data integrity | Flyway-migrated schema with unique constraints (email, phone, one active claim per user per level, one live report per user per shelter/type); `ddl-auto=validate` |
 
 Three review efforts have hardened the stack, each with findings fixed and
 test-pinned:
@@ -324,7 +325,7 @@ email verification with a live relay; phone verification (full logic, live SMS
 pending vendor credentials); cross-channel contact change; PII at rest; weekly
 registry ingestion of ~300 shelters with a public data-source footer; the
 provenance taxonomy (coloured markers, legend, filter); public shelter API with
-read-only rating aggregates; community submissions, reviews, reports and live
+the server-derived trust state; community submissions, reports and live
 occupancy (auto-hide on the fifth trust-weighted "does not exist" report); the
 env-provisioned admin moderation panel (report queues, suspension, edit history,
 info requests, inaccurate marks, audit trail); data export + account deletion;
@@ -356,11 +357,10 @@ forms and legal bodies; the app chrome is already ET/EN).
 | Auth | `POST /auth/register` (201/409), `POST /auth/login` (200/401), `POST /auth/refresh` (rotate), `POST /auth/logout`, `POST /auth/password-reset/request|confirm` |
 | Verification | `POST /verify/request` (202/409/429), `POST /verify/confirm` (200/400) |
 | Account | `GET /account/me`, `PUT /account/profile`, `POST /account/email-change/request|confirm`,`POST /account/phone-change/request|confirm`,`GET /account/export`,`DELETE /account` |
-| Shelters | `GET /api/shelters` (+ `?provenance=`, `?source=`, `?reviewed=`, `?hasCapacity=`), `GET /api/shelters/{id}`, `POST /api/shelters` (verified), `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (author-only) |
-| Trust & reports | `POST /api/shelters/{id}/reports` (verified), `PUT /api/shelters/{id}/occupancy` (verified), `POST /api/shelters/{id}/reviews/{reviewId}/reports` (verified) |
-| Reviews | `GET /api/shelters/{id}/reviews`, `POST /api/shelters/{id}/reviews` (verified, upsert), `PUT`/`DELETE` (author-only) |
+| Shelters | `GET /api/shelters` (+ `?provenance=`, `?source=`, `?hasCapacity=`), `GET /api/shelters/{id}`, `POST /api/shelters` (verified), `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (author-only), `POST /api/shelters/{id}/info-request/reply` (author-only) |
+| Trust & reports | `POST /api/shelters/{id}/reports` (verified), `PUT /api/shelters/{id}/occupancy` (verified), `PUT /api/shelters/{id}/open-status` (verified) |
 | Data source | `GET /api/data-source` (public — source, official URL, last-import status) |
-| Admin (env-provisioned) | `GET /admin/shelters` (+ history, request-info, mark/clear inaccurate), `POST /admin/shelters/{id}/status`, `DELETE /admin/shelters/{id}`, `GET /admin/reports`, `POST /admin/reports/{id}/dismiss`, `GET /admin/review-reports`, `POST /admin/reviews/{id}/hide|restore`,`GET /admin/users`,`POST /admin/users/{id}/suspend|unsuspend`,`GET /admin/alerts` |
+| Admin (env-provisioned) | `GET /admin/shelters` (+ history, request-info, mark/clear inaccurate), `POST /admin/shelters/{id}/status`, `DELETE /admin/shelters/{id}`, `GET /admin/reports`, `POST /admin/reports/{id}/dismiss`,`GET /admin/users`,`POST /admin/users/{id}/suspend|unsuspend`,`GET /admin/alerts` |
 | Diagnostics (opt-in) | `POST /dev/email-test`, `POST /dev/sms-test` — JWT + allowlist, never enabled by default |
 
 ---
@@ -372,7 +372,7 @@ roadmap items reflect the state at the time of writing.*
 - **1.1 (2026-09-13)** — full refresh against the shipped code: official
   Päästeamet open-data CSV pipeline (audit + public data-source API), national-ID
   removal, PII at rest, provenance taxonomy, community trust layer (reports,
-  occupancy, auto-hide, throttles), rating demotion, admin moderation + dashboard
+  occupancy, auto-hide, throttles), admin moderation + dashboard
   completion, data export + account deletion, legal pages, location & navigation,
   mobile polish, i18n foundation (ET/EN chrome), threat model + operations
   runbook, 706/887 automated tests, three review efforts.

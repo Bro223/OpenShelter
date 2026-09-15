@@ -2,6 +2,9 @@
 
 **Source of truth:** the real Spring controllers/DTOs in `src/main/java/ee/sheltermap/`
 (verified against the codebase — do not invent endpoints). JSON is camelCase.
+**Machine-readable companion:** the OpenAPI document — served at `/swagger-ui` in dev/test and
+committed as `docs/api/openapi.json` (the complete, current endpoint inventory; this table is the
+FE-facing summary).
 **Used by:** every milestone. Read this before writing any gateway or model.
 
 ## Base URL & CORS
@@ -16,16 +19,16 @@
 `ErrorResponse`: `timestamp` (ISO-8601), `status` (int), `error` (reason phrase), `message`,
 `path`. The frontend `ApiError` mirrors it exactly.
 
-| Status | Meaning                                                                                                                                                                                                                    | Frontend UX                                                                             |
-| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| 400    | validation / invalid code / invalid token / bad request                                                                                                                                                                    | show `message`                                                                          |
-| 401    | unauthenticated or bad/expired access token                                                                                                                                                                                | interceptor: single-flight refresh, retry once, else logout                             |
-| 403    | verified account required / not the author / cannot report your own review / not an admin (any `/admin/*` call by a non-admin)                                                                                             | banner + link to `/verify` or "author only"; the admin page surfaces the server message |
-| 404    | shelter/review/report not found                                                                                                                                                                                            | show "not found" state                                                                  |
-| 409    | duplicate email/phone, already-verified level, duplicate target contact, duplicate report (shelter/user/type or review/user), 10-active-shelter cap, import-owned registry row (admin status/delete on a registry shelter) | informational banner (the server message)                                               |
-| 429    | rate limited (login/register/verify/contact-change, geo resolve, report throttle)                                                                                                                                          | "slow down" message + retry hint                                                        |
-| 500    | internal (never expected)                                                                                                                                                                                                  | generic error                                                                           |
-| 502    | geo resolve: upstream short-link chain timed out / failed (generic — no upstream detail)                                                                                                                                   | generic "try again later" error                                                         |
+| Status | Meaning                                                                                                                                                                                                                                        | Frontend UX                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| 400    | validation / invalid code / invalid token / bad request                                                                                                                                                                                        | show `message`                                                                          |
+| 401    | unauthenticated or bad/expired access token                                                                                                                                                                                                    | interceptor: single-flight refresh, retry once, else logout                             |
+| 403    | verified account required / not the author / not an admin (any `/admin/*` call by a non-admin)                                                                                                                                                 | banner + link to `/verify` or "author only"; the admin page surfaces the server message |
+| 404    | shelter/report not found                                                                                                                                                                                                                       | show "not found" state                                                                  |
+| 409    | duplicate email/phone, already-verified level, duplicate target contact, duplicate shelter report (shelter/user/type), 10-active-shelter cap, near-duplicate submission, import-owned registry row (admin status/delete on a registry shelter) | informational banner (the server message)                                               |
+| 429    | rate limited (login/register/verify/contact-change, geo resolve, report throttle)                                                                                                                                                              | "slow down" message + retry hint                                                        |
+| 500    | internal (never expected)                                                                                                                                                                                                                      | generic error                                                                           |
+| 502    | geo resolve: upstream short-link chain timed out / failed (generic — no upstream detail)                                                                                                                                                       | generic "try again later" error                                                         |
 
 > Anti-enumeration: login always says generic "invalid credentials"; password-reset request
 > always returns success even for unknown emails; verify/confirm never reveals whether a code was
@@ -35,11 +38,10 @@
 
 ### Public read (no auth)
 
-| Method + path                           | Query/body                                                                                                                                                                                              | Response                                                                                   |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `GET /api/shelters`                     | `source` = `ALL` (default) \| `REGISTRY` \| `USER`; optional trust filters `reviewed` = `true`, `minRating` = `1..5` (else 400), `hasCapacity` = `true` — composable with `source`, applied server-side | `ShelterDto[]` (**ACTIVE rows only** — auto-hidden shelters are absent)                    |
-| `GET /api/shelters/{id}`                | —                                                                                                                                                                                                       | `ShelterDetailDto` or 404 — **all statuses** (the public detail read includes auto-hidden) |
-| `GET /api/shelters/{shelterId}/reviews` | —                                                                                                                                                                                                       | `ShelterReviewDto[]` (hidden reviews excluded, except the caller's own — marked `hidden`)  |
+| Method + path            | Query/body                                                                                                                                                                                                                                                       | Response                                                                                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/shelters`      | `source` = `ALL` (default) \| `REGISTRY` \| `USER`; optional filters `hasCapacity` = `true` and `provenance` = enum value (else 400) — composable with `source`, applied server-side. A stray `minRating` param is ignored (the rating model was removed in V21) | `ShelterDto[]` (**ACTIVE rows only** — auto-hidden shelters are absent)                                                                                         |
+| `GET /api/shelters/{id}` | —                                                                                                                                                                                                                                                                | `ShelterDetailDto` or 404 — **all statuses** (the public detail read includes auto-hidden rows and carries the caller's `yourOccupancyBand` + `yourOpenStatus`) |
 
 ### Location resolution (`/api/geo`) — JWT required, per-IP rate-limited (5/min)
 
@@ -83,38 +85,29 @@ gateway, so the usage-policy contract is enforced once.
 | `POST /api/shelters`        | `CreateShelterRequest`                                                                     | 201 + `Location` + `ShelterDto` (stored `ACTIVE`/`USER`, `created_by` = caller)                                                                                  | 400 (bbox/fields), 403 (not verified), 409 (caller already has 10 ACTIVE USER shelters — the server message; ADMIN exempt) |
 | `GET /api/shelters/mine`    | —                                                                                          | 200 `ShelterDto[]` (the caller's USER rows only — NOT part of the public GETs; **ALL statuses**, auto-hidden rows included — the contributions panel marks them) | 401                                                                                                                        |
 | `PUT /api/shelters/{id}`    | `UpdateShelterRequest` (five writable fields, same constraints as create; bbox re-checked) | 200 updated `ShelterDto`                                                                                                                                         | 400 (bbox/fields), 401, 403 (not the author — registry/legacy rows unmanageable by anyone), 404                            |
-| `DELETE /api/shelters/{id}` | —                                                                                          | 204 (the shelter's reviews cascade)                                                                                                                              | 401, 403, 404                                                                                                              |
+| `DELETE /api/shelters/{id}` | —                                                                                          | 204 (the shelter's reports and occupancy cascade)                                                                                                                | 401, 403, 404                                                                                                              |
 
-### Review writes — JWT + verified account
+### Trust reports (shelter / occupancy / open status) — JWT + verified account
 
-| Method + path                                   | Body            | Success                                                                       | Errors                                |
-| ----------------------------------------------- | --------------- | ----------------------------------------------------------------------------- | ------------------------------------- |
-| `POST /api/shelters/{shelterId}/reviews`        | `ReviewRequest` | 201 (created) or 200 (upsert adopted an existing review) + `ShelterReviewDto` | 400 (bounds), 403 (not verified), 404 |
-| `PUT /api/shelters/{shelterId}/reviews/mine`    | `ReviewRequest` | 200 `ShelterReviewDto`                                                        | 400, 403 (not the author), 404        |
-| `DELETE /api/shelters/{shelterId}/reviews/mine` | —               | 204                                                                           | 403, 404                              |
+The report and occupancy endpoints require a verified registered user (the same gate and 403
+vocabulary as submissions) and share ONE per-user throttle: **10 report-type actions per rolling
+hour** across every action type (429 — "slow down" copy; a duplicate that 409s consumes no
+budget — the duplicate check runs first). The open-status tap requires a verified registered user
+too but is deliberately NOT throttled (a tap is a state, not a report action).
+`ShelterGateway.report` / `ShelterGateway.reportOccupancy` / `ShelterGateway.putOpenStatus`
+are the only door.
 
-### Trust reports (shelter / review / occupancy) — JWT + verified account
-
-All three require a verified registered user (the same gate and 403 vocabulary as
-submissions), all three return **204 No Content** on success, and all three share ONE
-per-user throttle: **10 report-type actions per rolling hour** across every action type
-(429 — "slow down" copy; a duplicate that 409s consumes no budget — the duplicate check
-runs first). `ShelterGateway.report` / `ShelterGateway.reportOccupancy` and
-`ReviewGateway.reportReview` are the only door.
-
-| Method + path                                        | Body                     | Success | Errors                                                                                                                                                      |
-| ---------------------------------------------------- | ------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/shelters/{id}/reports`                    | `ReportShelterRequest`   | 204     | 403 (not verified), 404 (unknown shelter), 409 (already reported this shelter with this type — "This report has already been submitted"), 429               |
-| `PUT /api/shelters/{id}/occupancy`                   | `ReportOccupancyRequest` | 204     | 403 (not verified), 404 (unknown shelter), 429 — **no 409**: a re-PUT is the update (one live band per user per shelter, latest wins)                       |
-| `POST /api/shelters/{id}/reviews/{reviewId}/reports` | `ReportReviewRequest`    | 204     | 403 (not verified, or the caller's OWN review — "You cannot report your own review"), 404 (unknown shelter/review), 409 (already reported this review), 429 |
+| Method + path                        | Body                     | Success                | Errors                                                                                                                                                          |
+| ------------------------------------ | ------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/shelters/{id}/reports`    | `ReportShelterRequest`   | 200 `{"damped": bool}` | 400 (validation), 403 (not verified), 404 (unknown shelter), 409 (already reported this shelter with this type — "This report has already been submitted"), 429 |
+| `PUT /api/shelters/{id}/occupancy`   | `ReportOccupancyRequest` | 204                    | 403 (not verified), 404 (unknown shelter), 429 — **no 409**: a re-PUT is the update (one live band per user per shelter, latest wins)                           |
+| `PUT /api/shelters/{id}/open-status` | `PutOpenStatusRequest`   | 204                    | 400 (bad enum), 403 (not verified), 404 (unknown shelter) — **not throttled**                                                                                   |
 
 > Server-side effects the frontend never computes (the UI renders what the DTO carries —
-> never re-derives trust state): the 5th `NON_EXISTENT` shelter report auto-hides an ACTIVE
-> shelter (it simply disappears from `GET /api/shelters` and the map); `CLOSED` /
-> `OPEN_CONFIRMED` net to the display-only `statusFlag`; the 5th review report sets
-> `hidden_at` (the review drops out of the list, the average and the count — the author
-> still sees it, marked hidden); occupancy is display-only (2 h freshness, latest band
-> wins) and never hides, recolors or filters.
+> never re-derives trust state): the 5th trust-weighted `NON_EXISTENT` shelter report auto-hides
+> an ACTIVE shelter (it simply disappears from `GET /api/shelters` and the map); the live
+> open/closed signal is the `openStatus` block derived from the open-status taps; occupancy and
+> open status are display-only (2 h freshness, latest wins) and never hide, recolor or filter.
 
 ### Auth (`/auth`) — all six public (permitAll); five token buckets
 
@@ -168,18 +161,15 @@ All list endpoints answer **200** with a JSON array; all writes answer **204** w
 admin-only data — never rendered outside the `/admin` feature. `AdminGateway` is the only
 door.
 
-| Method + path                      | Body / query                                                                                                  | Success                                                                                                                                                 | Errors                                                                                   |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `GET /admin/shelters`              | optional `status`, `source` (exact match) + `q` (name/address substring) — absent fields omitted from the URL | 200 `AdminShelterDto[]` — **every shelter incl. hidden** (id-ordered, with `nonexistentReports`, `statusFlag`, fresh `occupancy`, the submitter's name) | 401, 403                                                                                 |
-| `POST /admin/shelters/{id}/status` | `{status: 'ACTIVE' \| 'INACTIVE'}`                                                                            | 204 — manual hide/restore (USER rows only; a **restore disarms auto-hide permanently**)                                                                 | 400 (missing/unknown status), 404, 409 (registry row)                                    |
-| `DELETE /admin/shelters/{id}`      | —                                                                                                             | 204 — hard delete (reviews, reports and occupancy cascade)                                                                                              | 404, 409 (registry row)                                                                  |
-| `GET /admin/reports`               | optional `shelterId`                                                                                          | 200 `AdminShelterReportDto[]` — the shelter-report queue, **newest first**, with the shelter's LIVE status + the reporter's name/email                  | 401, 403, 404 (unknown `shelterId`)                                                      |
-| `POST /admin/reports/{id}/dismiss` | —                                                                                                             | 204 — mark resolved (**idempotent**; the row is KEPT, stamped once)                                                                                     | 404                                                                                      |
-| `GET /admin/review-reports`        | —                                                                                                             | 200 `AdminReviewReportDto[]` — the review-report queue, newest first, **hidden reviews included** with their marker + the review excerpt                | 401, 403                                                                                 |
-| `POST /admin/reviews/{id}/hide`    | — (`{id}` = the REVIEW's id — `row.reviewId`, NOT the report row's)                                           | 204 — immediate hide (**idempotent**; can fire before the 5th-report threshold)                                                                         | 404                                                                                      |
-| `POST /admin/reviews/{id}/restore` | — (`{id}` = the REVIEW's id)                                                                                  | 204 — clear the hidden state (**idempotent**; the review re-joins the rating, count and `reviewed` filter)                                              | 404                                                                                      |
-| `PUT /account/profile`             | `ProfileUpdateRequest`                                                                                        | 200 fresh `MeResponse` (current password verified against the stored hash BEFORE any write)                                                             | 400 (blank name/ID), 401 (wrong current password — nothing updated), 401 unauthenticated |
-| `GET /account/reviews/mine`        | —                                                                                                             | 200 `MyReviewDto[]` — the caller's reviews across ALL shelters (shelterId + shelterName for navigation; empty list when none)                           | 401                                                                                      |
+| Method + path                      | Body / query                                                                                                  | Success                                                                                                                                                                                                                                                      | Errors                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `GET /admin/shelters`              | optional `status`, `source` (exact match) + `q` (name/address substring) — absent fields omitted from the URL | 200 `AdminShelterDto[]` — **every shelter incl. hidden** (id-ordered, with `nonexistentReports`, `openStatus`, fresh `occupancy`, `reviewStatus`/`reviewNote`, `provenance`, `locationKind`, `inaccurate`, the information request and the submitter's name) | 401, 403                                                                                 |
+| `POST /admin/shelters/{id}/status` | `{status: 'ACTIVE' \| 'INACTIVE'}`                                                                            | 204 — manual hide/restore (USER rows only; a **restore disarms auto-hide permanently**)                                                                                                                                                                      | 400 (missing/unknown status), 404, 409 (registry row)                                    |
+| `POST /admin/shelters/{id}/review` | `{action: 'CONFIRM' \| 'REJECT', reason?}`                                                                    | 200 `{"ok": true}` — the rare MANUAL trust override: CONFIRM promotes the row to CONFIRMED (status untouched), REJECT hides it (REJECTED + INACTIVE, reason stored as the note)                                                                              | 404, 409 (registry row)                                                                  |
+| `DELETE /admin/shelters/{id}`      | —                                                                                                             | 204 — hard delete (reports and occupancy cascade)                                                                                                                                                                                                            | 404, 409 (registry row)                                                                  |
+| `GET /admin/reports`               | optional `shelterId`                                                                                          | 200 `AdminShelterReportDto[]` — the shelter-report queue, **newest first**, with the shelter's LIVE status + the reporter's name/email                                                                                                                       | 401, 403, 404 (unknown `shelterId`)                                                      |
+| `POST /admin/reports/{id}/dismiss` | —                                                                                                             | 204 — mark resolved (**idempotent**; the row is KEPT, stamped once)                                                                                                                                                                                          | 404                                                                                      |
+| `PUT /account/profile`             | `ProfileUpdateRequest`                                                                                        | 200 fresh `MeResponse` (current password verified against the stored hash BEFORE any write)                                                                                                                                                                  | 400 (blank name/ID), 401 (wrong current password — nothing updated), 401 unauthenticated |
 
 ## Request models (TS mirrors)
 
@@ -245,26 +235,20 @@ interface UpdateShelterRequest {
   description?: string;
   capacity?: number;
 }
-interface ReviewRequest {
-  rating: number;
-  comment?: string;
-} // 1..5, ≤500 chars
-type ShelterReportType = 'NON_EXISTENT' | 'CLOSED' | 'OPEN_CONFIRMED' | 'WRONG_LOCATION' | 'OTHER';
-type ShelterSource = 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
-type ShelterStatus = 'ACTIVE' | 'INACTIVE';
-type VerificationLevel = 'EMAIL' | 'PHONE' | 'SMART_ID';
+interface ReviewShelterRequest {
+  action: 'CONFIRM' | 'REJECT';
+  reason?: string; // required by the admin UI for REJECT
+}
 interface ReportShelterRequest {
   type: ShelterReportType;
-  detail?: string; // free text for OTHER, ≤500 chars
-}
-type ReviewReportReason = 'FALSY_DATA' | 'NOT_RELEVANT' | 'SPAM' | 'OTHER';
-interface ReportReviewRequest {
-  reason: ReviewReportReason;
-  detail?: string; // optional detail for any reason, ≤500 chars
+  detail?: string; // free text for WRONG_LOCATION / OTHER, ≤500 chars
 }
 type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
 interface ReportOccupancyRequest {
   band: OccupancyBand; // one live band per user per shelter — a re-PUT updates it
+}
+interface PutOpenStatusRequest {
+  state: 'OPEN' | 'CLOSED'; // one live state per user per shelter — a re-PUT updates it
 }
 ```
 
@@ -290,22 +274,39 @@ interface MeResponse {
 interface ShelterDto {
   id: number;
   name: string;
-  address: string;
+  address: string | null; // null for USER rows — registry rows always carry one
   latitude: number;
   longitude: number;
   status: 'ACTIVE' | 'INACTIVE'; // the public list is ACTIVE-only; /mine + the detail read carry both
   source: 'PAASETEAMET' | 'MUNICIPALITY' | 'USER';
-  averageRating: number | null; // null = no reviews yet (NOT 0)
-  reviewCount: number;
   createdAt: string; // ISO-8601 (V5)
   description: string | null; // USER submissions only
   capacity: number | null; // USER submissions only
   submitterVerified: boolean; // backend-computed (creator has a completed verification;
   // registry rows false) — the four-valued provenance badge reads THIS, never re-derived
-  nonexistentReports: number; // community "does not exist" reports (> 0 = the orange
-  // reported state: marker + "Reported" badge); five reach auto-hide server-side
-  statusFlag: 'REPORTED_CLOSED' | 'CONFIRMED_OPEN' | null; // closed/confirmed net — display only
+  nonexistentReports: number; // the NON_EXISTENT subset of the community reports (> 0 = the
+  // orange reported state: marker + "Reported" badge); five reach auto-hide server-side
+  openStatus: OpenStatusDto | null; // fresh (≤ 2 h) open/closed block; null = nothing fresh
   occupancy: ShelterOccupancy | null; // fresh (≤ 2 h) occupancy block; null = show nothing
+  reviewStatus: 'NEW' | 'CONFIRMED' | 'REJECTED'; // community trust state (registry rows carry
+  // CONFIRMED; REJECTED rows are absent from the ACTIVE-only public list)
+  locationKind: 'PUBLIC' | 'PRIVATE'; // submitter's private-home declaration (display-only badge)
+  provenance:
+    | 'OFFICIAL'
+    | 'PARTNER_VERIFIED'
+    | 'COMMUNITY_REPORTED'
+    | 'UNDER_REVIEW'
+    | 'REPORTED_INACTIVE'
+    | 'REJECTED'; // server-derived; the public list reaches the first four only
+  reportCount: number; // the TOTAL community shelter-report count (all types)
+  lastVerifiedAt: string | null; // per-entry verification stamp; null = never verified
+  inaccurate: boolean; // moderator "mark inaccurate" flag (the row stays visible)
+}
+
+interface OpenStatusDto {
+  state: 'OPEN' | 'CLOSED'; // the latest fresh state
+  reportedAt: string; // ISO-8601
+  reportCount: number; // fresh reports agreeing with it: 1 = hedged copy, 2+ = firm
 }
 
 interface ShelterOccupancy {
@@ -315,30 +316,10 @@ interface ShelterOccupancy {
 }
 
 interface ShelterDetailDto extends ShelterDto {
-  // GET /api/shelters/{id} (the detail read): the CALLER's own live band — the
-  // "Report how full" picker's pre-select; null for guests, anonymous callers and
-  // no-report users
+  // GET /api/shelters/{id} (the detail read): the CALLER's own live reports — the
+  // pickers' pre-select; null for guests, anonymous callers and no-report users
   yourOccupancyBand: OccupancyBand | null;
-}
-
-interface ShelterReviewDto {
-  id: number;
-  authorName: string;
-  rating: number; // 1..5
-  comment: string | null;
-  createdAt: string;
-  hidden: boolean; // community-hidden (5th report); hidden rows are returned to the
-  // AUTHOR ONLY (marked) — excluded from list, average and count for everyone else
-}
-
-interface MyReviewDto {
-  // one row of GET /account/reviews/mine
-  shelterId: number;
-  shelterName: string;
-  rating: number; // 1..5
-  comment: string | null;
-  createdAt: string;
-  updatedAt: string; // ISO-8601
+  yourOpenStatus: 'OPEN' | 'CLOSED' | null;
 }
 
 interface ApiError {
@@ -348,8 +329,6 @@ interface ApiError {
   message: string;
   path: string;
 }
-
-type ShelterStatusFlag = 'REPORTED_CLOSED' | 'CONFIRMED_OPEN';
 
 interface AdminOccupancy {
   // the fresh (<= 2 h) occupancy block of the ADMIN shelter list — the same
@@ -369,13 +348,22 @@ interface AdminShelterDto {
   address: string | null; // null for USER rows — registry rows always carry one
   source: ShelterSource;
   status: 'ACTIVE' | 'INACTIVE';
-  rating: number | null; // null = no visible reviews yet (NOT 0)
-  reviewCount: number;
   nonexistentReports: number;
-  statusFlag: ShelterStatusFlag | null;
   occupancy: AdminOccupancy | null;
   capacity: number | null;
   submitter: string | null; // the creator's profile name (USER rows only)
+  reviewStatus: 'NEW' | 'CONFIRMED' | 'REJECTED';
+  reviewNote: string | null; // the admin's REJECT reason
+  locationKind: 'PUBLIC' | 'PRIVATE';
+  provenance:
+    | 'OFFICIAL'
+    | 'PARTNER_VERIFIED'
+    | 'COMMUNITY_REPORTED'
+    | 'UNDER_REVIEW'
+    | 'REPORTED_INACTIVE'
+    | 'REJECTED';
+  inaccurate: boolean;
+  infoRequest: AdminInfoRequestDto | null; // the moderator→submitter exchange
 }
 
 interface AdminShelterFilters {
@@ -396,23 +384,6 @@ interface AdminShelterReportDto {
   reporterEmail: string | null;
   createdAt: string; // ISO-8601
   dismissed: boolean; // dismissed rows stay in the queue, dimmed (the audit trail)
-}
-
-interface AdminReviewReportDto {
-  // one row of GET /admin/review-reports (newest first, hidden reviews included);
-  // the hide/restore actions target reviewId — NOT id
-  id: number;
-  shelterId: number;
-  shelterName: string;
-  reviewId: number;
-  reviewRating: number; // 1..5
-  reviewComment: string | null;
-  reviewHidden: boolean; // the review's hidden marker
-  reason: ReviewReportReason;
-  detail: string | null;
-  reporterName: string | null;
-  reporterEmail: string | null;
-  createdAt: string; // ISO-8601
 }
 ```
 

@@ -51,14 +51,12 @@ consequences, a community-confirmation filter, and a live "how full" signal
 - `shelter-submission`: per-user active-shelter cap (10).
 - `map-browse`: extended list query (`reviewed`, `minRating`,
   `hasCapacity`), reported/occupancy presentation in list + markers.
-- `shelter-detail-reviews`: hidden reviews excluded from list, average and
-  count; report action on review rows.
 - `user-contributions`: own-shelters view shows hidden (auto-hidden) state.
 
 ## Impact
 
 - Affected specs: `shelter-reports` (new), `shelter-submission`,
-  `map-browse`, `shelter-detail-reviews`, `user-contributions`.
+  `map-browse`, `user-contributions`.
 - Affected code: backend — Flyway V9 (`shelter_reports`,
   `shelter_occupancy_reports`, `review_reports`, `shelter_reviews.hidden_at`),
   `ShelterController`/services (report + occupancy endpoints, list filter

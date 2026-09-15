@@ -119,3 +119,14 @@ anonymous users null) so the occupancy picker can pre-select.
 - 48px targets + existing tokens only; the orange reported-state reuses
   `--color-cta`'s hue family via a new `--color-reported` token added in
   `design-tokens.spec.ts`-policed form (contrast-pinned like its siblings).
+
+## Delta dropped: shelter-detail-reviews (2026-09-15)
+
+This change used to MODIFY the "Community review list" requirement of the
+`shelter-detail-reviews` capability. The review model was removed by the archived
+change `2026-09-14-remove-shelter-reviews` (`V21__drop_reviews.sql`), so that
+requirement no longer exists in the base spec and the archive would refuse the
+delta ("Archive would refuse this delta" INFO). The delta file under
+`specs/shelter-detail-reviews/` was therefore deleted; this change's surviving
+deltas are `shelter-reports`, `map-browse`, `shelter-submission` and
+`user-contributions`.

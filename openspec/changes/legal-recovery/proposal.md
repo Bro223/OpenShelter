@@ -26,23 +26,22 @@ complete, gate-green piece.
     mirrors what the account actually submitted (name, address,
     coordinates, source, status, review status, location kind,
     description, capacity, createdAt)
-  - `reviews` — every review the user wrote, with the shelter id + name
-    batch-resolved in one read (same idiom as `/account/reviews/mine`);
-    hidden reviews are included (the author always sees their own)
+- **`reviews`/`myReviews` were dropped** with the review model
+  (`V21__drop_reviews.sql`): the export now carries profile + shelters only.
 - **FE** — a "Your data" panel on the account page: "Download my data
   (JSON)" fetches the document and hands the browser a client-side Blob
   download named `openshelter-data-export-<YYYY-MM-DD>.json` (the server
   never streams a file).
 - **IT** — `AccountDataExportIT`: anonymous 401; authenticated 200 with
-  decrypted profile + the user's own shelters/reviews (another user's row
-  stays out); user without contributions gets empty lists.
+  decrypted profile + the user's own shelters (another user's row stays
+  out); user without contributions gets empty lists.
 
 ### Slice 2 — account deletion (split erasure rule — owner decision 2026-09-13)
 
 - `DELETE /account` (verified-user gate, 403 without a claim; a repeat
   call is an idempotent 204 no-op). One transaction:
   1. **PURGE** every shelter row where `created_by = user` AND
-     `location_kind = 'PRIVATE'` (hard delete, reviews cascade). A
+     `location_kind = 'PRIVATE'` (hard delete, reports cascade). A
      declared private home is the submitter's personal data and must not
      outlive the erasure request.
   2. **ORPHAN** the rest: `created_by = NULL` on the user's PUBLIC rows
@@ -57,7 +56,7 @@ complete, gate-green piece.
      convention (dangling ids, "Unknown" moderator).
   4. Erase the user row: the DB cascades credentials, verification
      claims, pending verifications + contact changes, refresh +
-     password-reset tokens, reviews, reports, report actions
+     password-reset tokens, reports, report actions
      (every `user_id` FK is `ON DELETE CASCADE`); V14 relaxes
      `moderation_actions.moderator_id` to nullable + `ON DELETE SET NULL`
      (AUTO_CONFIRM rows name the REPORTING user, who may be the erased
@@ -70,7 +69,7 @@ complete, gate-green piece.
   map.
 - **IT** — `AccountDeletionIT`: anonymous 401; unverified 403; private
   row hard-deleted, public row kept with NULL `created_by` AND unchanged
-  review status; reviews/claims/tokens/reports gone (re-login 401,
+  review status; claims/tokens/reports gone (re-login 401,
   refresh 401); audit rows retained (surviving moderator kept, erased
   moderator dangling); second DELETE idempotent; export → delete →
   export yields no user data; no blind-index entry remains matchable for

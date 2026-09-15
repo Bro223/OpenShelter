@@ -27,10 +27,10 @@ note over Person, GU
 end note
 
 == 1. Register ==
-Person -> US : register(name, email, phone, password)
+Person -> US : register(name, email, phone)
 US -> RU : new RegisteredUser(...)
 note over Person, US
-  The password is captured here but stored by the AUTH
+  The profile carries no password: it is stored by the AUTH
   context (03-auth.puml): AuthService.register ->
   PasswordHasher.hash -> UserCredentialsRepository.save.
   Profile vs credentials are separate aggregates.

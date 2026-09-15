@@ -50,20 +50,22 @@ MP --> Visitor : filtered markers
 
 == Trust filters (composable with source) ==
 note over MP
-  The trust-filter row under the source chips: a "Reviewed" toggle
-  (reviewed=true), a "Has capacity" toggle (hasCapacity=true) and a
-  Rating select ("Any rating" = no param / "1+".."5+" = minRating 1..5).
-  Every combination composes with the source chip - each change is the
-  same SERVER refetch + list rebuild, never client-side filtering.
+  The trust-filter row under the source chips: an "Open" toggle chip
+  (CLIENT-SIDE - keeps the rows whose derived display is open; the BE has
+  no such param) and a "Has capacity" toggle chip (hasCapacity=true,
+  server-side). Both compose with the source chip: the "Has capacity"
+  change is the same SERVER refetch + list rebuild, the "Open" chip
+  re-renders the already-loaded rows - trust state is never client-derived
+  from field values.
   Rows render the shared trust badges: the "Reported" badge, the
-  status-flag text ("Reported closed" / "Confirmed open") and the
+  open/closed text from openStatus ("Reported closed" / "Closed") and the
   occupancy text (firm or hedged band + recency) - only when the DTO
   carries the state, never client-derived.
 end note
-Visitor -> MP : toggle "Reviewed" / "Has capacity" or pick "4+"
-MP -> SG : list(ALL, {reviewed: true, minRating: 4})   ' server-side trust filter
-SG -> AC : get<ShelterDto[]>('/api/shelters?reviewed=true&minRating=4')
-AC -> API : GET /api/shelters?reviewed=true&minRating=4
+Visitor -> MP : toggle "Open" / "Has capacity"
+MP -> SG : list(ALL, {hasCapacity: true})   ' server-side trust filter ("Open" is client-side)
+SG -> AC : get<ShelterDto[]>('/api/shelters?source=ALL&hasCapacity=true')
+AC -> API : GET /api/shelters?source=ALL&hasCapacity=true
 API --> AC : ShelterDto[]
 SG --> MP : models
 MP -> LS : replaceMarkers(shelters)
@@ -93,7 +95,7 @@ MP -> R : navigate('/shelters', id)
 R --> : ShelterDetailPage (M5)
 
 note over MP
-  M4 keeps the list/map read-only. Submission ("+ Add shelter"),
-  detail and reviews arrive in M5 (verified accounts only).
+  M4 keeps the list/map read-only. Submission ("+ Add shelter") and the
+  detail page arrive in M5 (verified accounts only).
 end note
 @enduml
