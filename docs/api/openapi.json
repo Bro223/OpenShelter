@@ -1,0 +1,5300 @@
+{
+  "components" : {
+    "schemas" : {
+      "AdminAlertDto" : {
+        "description" : "One row of the admin alerts (newest first). The ring is in-memory — it clears on a backend restart, so this is a triage view, not a durable log.",
+        "properties" : {
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "kind" : {
+            "description" : "The closed vocabulary of ThrottleAlert: submission daily cap / OTP contact cap / near-duplicate.",
+            "type" : "string"
+          },
+          "retryAfterSeconds" : {
+            "description" : "Present only for the 429 alerts (the seconds the caller must wait).",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "subject" : {
+            "description" : "The flagged account or contact (user:<id> / contact:<normalized>).",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminAuditDto" : {
+        "description" : "One row of the moderation audit trail — newest first. Every moderation-relevant action (admin AND automatic AUTO_CONFIRM).",
+        "properties" : {
+          "action" : {
+            "enum" : [ "STATUS_CHANGE", "DELETE", "REPORT_DISMISS", "CONFIRM", "AUTO_CONFIRM", "REJECT", "USER_SUSPEND", "USER_UNSUSPEND", "MARK_INACCURATE", "CLEAR_INACCURATE" ],
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "moderatorName" : {
+            "description" : "The acting admin's profile name; 'Unknown' if the account no longer exists.",
+            "type" : "string"
+          },
+          "newStatus" : {
+            "description" : "The review_status value after the action; null for DELETE.",
+            "enum" : [ "NEW", "CONFIRMED", "REJECTED" ],
+            "type" : "string"
+          },
+          "previousStatus" : {
+            "description" : "The review_status value before the action; equal to newStatus when the action does not move the review state.",
+            "enum" : [ "NEW", "CONFIRMED", "REJECTED" ],
+            "type" : "string"
+          },
+          "reason" : {
+            "description" : "The REJECT/NEEDS_INFO note when given; null otherwise.",
+            "type" : "string"
+          },
+          "shelterId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shelterName" : {
+            "description" : "Resolved at read time; renders 'Deleted shelter' once the row is gone (the audit row outlives the shelter).",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminInfoRequestRequest" : {
+        "properties" : {
+          "message" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "message" ],
+        "type" : "object"
+      },
+      "AdminMarkInaccurateRequest" : {
+        "properties" : {
+          "reason" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminShelterDto" : {
+        "description" : "One row of the admin shelter list — every shelter, ALL statuses (auto-hidden rows included), id-ordered, with the same batched trust derivations as the public list plus the submitter's profile name. This is the one surface where all six provenance values are reachable (the list keeps hidden rows).",
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "capacity" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "inaccurate" : {
+            "description" : "The same server-derived moderator flag as on ShelterDto — the admin list is where the mark is managed.",
+            "type" : "boolean"
+          },
+          "infoRequest" : {
+            "$ref" : "#/components/schemas/InfoRequest"
+          },
+          "locationKind" : {
+            "description" : "The private-home declaration (the 'Private location' badge renders on this surface too).",
+            "enum" : [ "PUBLIC", "PRIVATE" ],
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "nonexistentReports" : {
+            "description" : "The NON_EXISTENT subset of the community reports; 0 when none.",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "occupancy" : {
+            "$ref" : "#/components/schemas/Occupancy"
+          },
+          "provenance" : {
+            "description" : "The same server-derived value as on ShelterDto — all six values are reachable here (the list keeps hidden rows).",
+            "enum" : [ "OFFICIAL", "PARTNER_VERIFIED", "COMMUNITY_REPORTED", "UNDER_REVIEW", "REPORTED_INACTIVE", "REJECTED" ],
+            "type" : "string"
+          },
+          "reviewNote" : {
+            "description" : "The admin's REJECT reason; null while nothing is said.",
+            "type" : "string"
+          },
+          "reviewStatus" : {
+            "description" : "The row's trust state — the 'Unconfirmed' tab filters USER + NEW.",
+            "enum" : [ "NEW", "CONFIRMED", "REJECTED" ],
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [ "PAASETEAMET", "MUNICIPALITY", "USER" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "ACTIVE", "INACTIVE" ],
+            "type" : "string"
+          },
+          "submitter" : {
+            "description" : "The creator's profile name; null for registry rows (no author) and for creators whose account no longer exists.",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminShelterHistoryDto" : {
+        "description" : "One row of a shelter's edit history — ascending over the row's lifecycle events (CREATED / EDITED / DELETED).",
+        "properties" : {
+          "action" : {
+            "enum" : [ "CREATED", "EDITED", "DELETED" ],
+            "type" : "string"
+          },
+          "actorName" : {
+            "description" : "The acting account's profile name; 'Unknown' after erasure (no FK on actor_user_id).",
+            "type" : "string"
+          },
+          "changes" : {
+            "description" : "The server-parsed {field, from, to} list of an EDITED row (the frontend renders, never parses the stored JSON); empty for CREATED/DELETED.",
+            "items" : {
+              "$ref" : "#/components/schemas/FieldChange"
+            },
+            "type" : "array"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shelterName" : {
+            "description" : "The SNAPSHOT at event time — renames do not rewrite history (an EDITED row after a rename shows the name as it was when the event happened).",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminShelterReportDto" : {
+        "description" : "One row of the admin shelter-report queue. The reporter's identity (profile name + e-mail) is admin-only data, never exposed outside /admin/*. dismissed is the queue's resolved marker (dismissed_at != null); dismissed rows stay in the list, recorded as resolved. damped flags the self-interested negative votes (recorded and shown, contributing 0 to the weighted auto-hide tally).",
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "damped" : {
+            "description" : "The self-interested negative-vote flag (community self-moderation): recorded and shown, contributing 0 to the weighted auto-hide tally.",
+            "type" : "boolean"
+          },
+          "detail" : {
+            "type" : "string"
+          },
+          "dismissed" : {
+            "description" : "The queue's resolved marker (dismissed_at != null); dismissed rows stay in the list, recorded as resolved.",
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "reporterEmail" : {
+            "description" : "admin-only: the reporter's e-mail — reporter identity, never exposed outside /admin/*.",
+            "type" : "string"
+          },
+          "reporterName" : {
+            "description" : "admin-only: the reporter's profile name — reporter identity, never exposed outside /admin/*.",
+            "type" : "string"
+          },
+          "shelterId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "shelterName" : {
+            "type" : "string"
+          },
+          "shelterStatus" : {
+            "enum" : [ "ACTIVE", "INACTIVE" ],
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "NON_EXISTENT", "CLOSED", "OPEN_CONFIRMED", "WRONG_LOCATION", "OTHER" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AdminShelterReviewRequest" : {
+        "properties" : {
+          "action" : {
+            "enum" : [ "CONFIRM", "REJECT" ],
+            "type" : "string"
+          },
+          "reason" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "action" ],
+        "type" : "object"
+      },
+      "AdminShelterStatusRequest" : {
+        "properties" : {
+          "status" : {
+            "enum" : [ "ACTIVE", "INACTIVE" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "status" ],
+        "type" : "object"
+      },
+      "AdminUserDto" : {
+        "description" : "The admin user-suspension list row — the account identity the Users tab needs plus its suspension state. kind is the machine value (GUEST | REGISTERED | ADMIN); guests never appear in the list (they have no credentials to suspend), and an ADMIN row is listed so the provisioned account is visible but not suspendable (409).",
+        "properties" : {
+          "email" : {
+            "description" : "admin-only: the account's e-mail, served from /admin/* only (the reporter-identity convention).",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "kind" : {
+            "description" : "The account kind (machine value): REGISTERED | ADMIN. Guests never appear in the list; an ADMIN row is not suspendable (409).",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "suspendedAt" : {
+            "description" : "The suspension stamp; null while the account is active.",
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ChangeEmailRequest" : {
+        "properties" : {
+          "newEmail" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "newEmail" ],
+        "type" : "object"
+      },
+      "ChangePhoneRequest" : {
+        "properties" : {
+          "newPhone" : {
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "newPhone" ],
+        "type" : "object"
+      },
+      "CodeSentDto" : {
+        "properties" : {
+          "resendAvailableAfterSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ConfirmChangeRequest" : {
+        "properties" : {
+          "code" : {
+            "maxLength" : 16,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "code" ],
+        "type" : "object"
+      },
+      "CreateShelterRequest" : {
+        "properties" : {
+          "capacity" : {
+            "format" : "int32",
+            "maximum" : 100000,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "description" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "latitude" : {
+            "exclusiveMaximum" : false,
+            "exclusiveMinimum" : false,
+            "format" : "double",
+            "maximum" : 90,
+            "minimum" : -90,
+            "type" : "number"
+          },
+          "locationKind" : {
+            "enum" : [ "PUBLIC", "PRIVATE" ],
+            "type" : "string"
+          },
+          "longitude" : {
+            "exclusiveMaximum" : false,
+            "exclusiveMinimum" : false,
+            "format" : "double",
+            "maximum" : 180,
+            "minimum" : -180,
+            "type" : "number"
+          },
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "DataExportResponse" : {
+        "properties" : {
+          "profile" : {
+            "$ref" : "#/components/schemas/ExportedProfile"
+          },
+          "shelters" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExportedShelter"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "DataSourceDto" : {
+        "description" : "Where the map's official shelter data comes from: the publisher, the link to the official open-data page, and when the last import ran.",
+        "properties" : {
+          "lastImport" : {
+            "$ref" : "#/components/schemas/LastImport"
+          },
+          "officialUrl" : {
+            "description" : "The publisher's open-data page.",
+            "type" : "string"
+          },
+          "sourceName" : {
+            "description" : "The publisher (e.g. 'Päästeamet').",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExportedProfile" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "levels" : {
+            "items" : {
+              "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExportedShelter" : {
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "capacity" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "locationKind" : {
+            "type" : "string"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "reviewStatus" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FieldChange" : {
+        "description" : "The server-parsed {field, from, to} list of an EDITED row (the frontend renders, never parses the stored JSON); empty for CREATED/DELETED.",
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "from" : {
+            "type" : "string"
+          },
+          "to" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InfoRequest" : {
+        "description" : "The moderator→submitter information exchange for this row; null when none exists. The admin sees the request together with the submitter's reply here (the row is kept after the reply — audit posture), with the requesting admin's profile name ('Unknown' after erasure — no FK on requested_by).",
+        "properties" : {
+          "message" : {
+            "type" : "string"
+          },
+          "repliedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "replyMessage" : {
+            "type" : "string"
+          },
+          "requestedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "requestedByName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InfoRequestReplyRequest" : {
+        "properties" : {
+          "message" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "message" ],
+        "type" : "object"
+      },
+      "LastImport" : {
+        "description" : "One data_imports audit row: when the import ran, its outcome, the source version it saw, and the record delta.",
+        "properties" : {
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "recordsAdded" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recordsRemoved" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recordsUpdated" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "sourceVersion" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "LocationResolveRequest" : {
+        "properties" : {
+          "url" : {
+            "maxLength" : 2048,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "url" ],
+        "type" : "object"
+      },
+      "LocationResolvedDto" : {
+        "description" : "The resolved coordinates — the frontend's LocationResolved model (the field names are the contract, do not rename).",
+        "properties" : {
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "LoginRequest" : {
+        "properties" : {
+          "emailOrPhone" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "emailOrPhone", "password" ],
+        "type" : "object"
+      },
+      "MeResponse" : {
+        "description" : "The authenticated user's real profile + REAL verification claims — the response of GET /account/me and PUT /account/profile.",
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "isAdmin" : {
+            "description" : "Always present: the frontend gates the admin route and nav item on it. Reflects the freshly loaded user's KIND (kind is the truth) — true only for the ADMIN-kind account, never derived from any token claim.",
+            "type" : "boolean"
+          },
+          "levels" : {
+            "description" : "Exactly the levels that are actually verified for this account (non-revoked claims), in enum order for a stable body — the frontend's single source of truth for its verification labels.",
+            "items" : {
+              "description" : "Exactly the levels that are actually verified for this account (non-revoked claims), in enum order for a stable body — the frontend's single source of truth for its verification labels.",
+              "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "phone" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "Occupancy" : {
+        "description" : "The fresh (≤ 2 h) occupancy block: the latest fresh report's band, the number of fresh reports agreeing with it (1 = hedged copy, 2+ = firm), and the newest fresh report's time. null when nothing is fresh.",
+        "properties" : {
+          "band" : {
+            "enum" : [ "SPACE", "GETTING_FULL", "FULL" ],
+            "type" : "string"
+          },
+          "lastReportedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reportCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "OccupancyReportRequest" : {
+        "properties" : {
+          "band" : {
+            "enum" : [ "SPACE", "GETTING_FULL", "FULL" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "band" ],
+        "type" : "object"
+      },
+      "OpenStatus" : {
+        "description" : "The live open/closed block: the latest fresh tap's state, the number of fresh taps agreeing with it, and the newest fresh tap's time. null when nothing is fresh (≤ 2 h).",
+        "properties" : {
+          "reportCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reportedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "state" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OpenStatusReportRequest" : {
+        "properties" : {
+          "state" : {
+            "enum" : [ "OPEN", "CLOSED" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "state" ],
+        "type" : "object"
+      },
+      "PasswordResetConfirmRequest" : {
+        "properties" : {
+          "code" : {
+            "maxLength" : 16,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "email" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "newPassword" : {
+            "maxLength" : 200,
+            "minLength" : 8,
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "email", "newPassword" ],
+        "type" : "object"
+      },
+      "PasswordResetRequest" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "email" ],
+        "type" : "object"
+      },
+      "ProfileUpdateRequest" : {
+        "properties" : {
+          "currentPassword" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "currentPassword", "name" ],
+        "type" : "object"
+      },
+      "RefreshRequest" : {
+        "properties" : {
+          "refreshToken" : {
+            "maxLength" : 512,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "refreshToken" ],
+        "type" : "object"
+      },
+      "RegisterRequest" : {
+        "properties" : {
+          "email" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 200,
+            "minLength" : 8,
+            "type" : "string"
+          },
+          "phone" : {
+            "maxLength" : 64,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "name", "password", "phone" ],
+        "type" : "object"
+      },
+      "ShelterDto" : {
+        "description" : "The versioned read contract with the frontend (05-shelter-api.puml; machine-readable: docs/api/openapi.json). Lean projection — the UI gets only what the map needs; every derivation is computed server-side, never client-computed.",
+        "properties" : {
+          "address" : {
+            "type" : "string"
+          },
+          "capacity" : {
+            "description" : "USER-submission detail (capacity); null on registry rows without capacity data.",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "description" : {
+            "description" : "USER-submission detail (stored since the V3 hardening pass); null on registry rows.",
+            "type" : "string"
+          },
+          "id" : {
+            "description" : "The shelter id — public (public GET), so 403-vs-404 on author mutations leaks nothing.",
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "inaccurate" : {
+            "description" : "The server-derived moderator 'inaccurate' flag (idempotent mark/clear behind the admin endpoints). A marked row stays visible with status and provenance untouched.",
+            "type" : "boolean"
+          },
+          "infoRequest" : {
+            "$ref" : "#/components/schemas/InfoRequest"
+          },
+          "lastVerifiedAt" : {
+            "description" : "The per-entry verification stamp: registry rows — the newest non-failed import of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED do not); community rows — the newest non-submitter OPEN_CONFIRMED report or CONFIRM/AUTO_CONFIRM moderation action. null = never verified (the UNDER_REVIEW 'not yet verified' signal).",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "latitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "locationKind" : {
+            "description" : "The submitter's private-home declaration; PRIVATE rows are public results with the 'Private location' badge.",
+            "enum" : [ "PUBLIC", "PRIVATE" ],
+            "type" : "string"
+          },
+          "longitude" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "nonexistentReports" : {
+            "description" : "The NON_EXISTENT subset of the community reports (0 when none) — the UI's orange 'Reported' affordance fires at > 0. Distinct from reportCount (the TOTAL).",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "occupancy" : {
+            "$ref" : "#/components/schemas/Occupancy"
+          },
+          "openStatus" : {
+            "$ref" : "#/components/schemas/OpenStatus"
+          },
+          "provenance" : {
+            "description" : "Server-derived single answer to 'where does this row come from' (OFFICIAL / PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW / REPORTED_INACTIVE / REJECTED — see the Provenance derivation precedence). Only the first four are reachable in the ACTIVE-only public list. The UI never re-derives it.",
+            "enum" : [ "OFFICIAL", "PARTNER_VERIFIED", "COMMUNITY_REPORTED", "UNDER_REVIEW", "REPORTED_INACTIVE", "REJECTED" ],
+            "type" : "string"
+          },
+          "reportCount" : {
+            "description" : "The TOTAL community shelter-report count (all types). Distinct from nonexistentReports (the NON_EXISTENT subset that drives the 'Reported' badge).",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "reviewNote" : {
+            "description" : "The admin's REJECT reason; null while nothing is said. Owner-scoped on the public surfaces.",
+            "type" : "string"
+          },
+          "reviewStatus" : {
+            "description" : "The row's trust state: NEW (unverified community row — the amber 'newly added' treatment), CONFIRMED (community-checked, or registry rows, which backfill CONFIRMED), REJECTED (hidden — visible in /mine and the admin list only).",
+            "enum" : [ "NEW", "CONFIRMED", "REJECTED" ],
+            "type" : "string"
+          },
+          "source" : {
+            "enum" : [ "PAASETEAMET", "MUNICIPALITY", "USER" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "ACTIVE", "INACTIVE" ],
+            "type" : "string"
+          },
+          "submitterVerified" : {
+            "description" : "true when the shelter's creator exists and has a completed verification; false for registry shelters (no author) and for creators whose account no longer exists.",
+            "type" : "boolean"
+          },
+          "yourOccupancyBand" : {
+            "description" : "CALLER-scoped: the caller's own live occupancy band for this shelter. Detail endpoint only; null for guests, anonymous callers and users without a report.",
+            "enum" : [ "SPACE", "GETTING_FULL", "FULL" ],
+            "type" : "string"
+          },
+          "yourOpenStatus" : {
+            "description" : "CALLER-scoped: the caller's own live open/closed state (detail endpoint only; same null rules as yourOccupancyBand).",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ShelterReportRequest" : {
+        "properties" : {
+          "detail" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "NON_EXISTENT", "CLOSED", "OPEN_CONFIRMED", "WRONG_LOCATION", "OTHER" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "type" ],
+        "type" : "object"
+      },
+      "ShelterReportResult" : {
+        "properties" : {
+          "damped" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "TokenResponse" : {
+        "properties" : {
+          "accessToken" : {
+            "description" : "Issued access JWT (credential — never log, never store in the document).",
+            "type" : "string"
+          },
+          "expiresIn" : {
+            "description" : "The access token's time-to-live in seconds.",
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "refreshToken" : {
+            "description" : "Issued refresh token (credential — hashed at rest, rotated on every refresh; never log).",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateShelterRequest" : {
+        "properties" : {
+          "capacity" : {
+            "format" : "int32",
+            "maximum" : 100000,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "description" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "latitude" : {
+            "exclusiveMaximum" : false,
+            "exclusiveMinimum" : false,
+            "format" : "double",
+            "maximum" : 90,
+            "minimum" : -90,
+            "type" : "number"
+          },
+          "locationKind" : {
+            "enum" : [ "PUBLIC", "PRIVATE" ],
+            "type" : "string"
+          },
+          "longitude" : {
+            "exclusiveMaximum" : false,
+            "exclusiveMinimum" : false,
+            "format" : "double",
+            "maximum" : 180,
+            "minimum" : -180,
+            "type" : "number"
+          },
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "VerifyConfirmRequest" : {
+        "properties" : {
+          "code" : {
+            "maxLength" : 16,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "level" : {
+            "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "level" ],
+        "type" : "object"
+      },
+      "VerifyRequest" : {
+        "properties" : {
+          "level" : {
+            "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "level" ],
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "description" : "The `Authorization: Bearer <accessToken>` header read by the JWT filter. A valid token of a SUSPENDED account authenticates nothing (fresh per-request DB lookup — the DB is the truth, never a token claim).",
+        "name" : "bearerAuth",
+        "scheme" : "bearer",
+        "type" : "http"
+      }
+    }
+  },
+  "info" : {
+    "contact" : {
+      "email" : "aleks.bratsun@reaktiiv.com",
+      "name" : "Aleks Bratsun (project owner)"
+    },
+    "description" : "The machine-readable contract of the OpenShelter backend. Companion to the human contracts: context-and-tasks/05-shelter-api.puml (the read contract), the README 'API' section and docs/whitepaper.md. Served at /v3/api-docs in dev/test only (SPRINGDOC_ENABLED); the committed snapshot is docs/api/openapi.json. Every non-2xx response carries the uniform ErrorResponse body.",
+    "license" : {
+      "name" : "MIT"
+    },
+    "title" : "OpenShelter API",
+    "version" : "0.0.1-SNAPSHOT"
+  },
+  "openapi" : "3.0.1",
+  "paths" : {
+    "/account" : {
+      "delete" : {
+        "description" : "The account erasure: the declared private homes are purged, the public community rows are orphaned (map data outlives accounts), and the DB cascades credentials, claims, pending changes, tokens and reports. The verified-user gate matches the submission gates (403 without a claim); a repeat call is an idempotent no-op — the JWT is valid until its expiry, but the account is already gone.",
+        "operationId" : "deleteAccount",
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Erase the account",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/email-change/confirm" : {
+      "post" : {
+        "description" : "Completes the change once the code is verified; a code failure is a 400.",
+        "operationId" : "confirmEmailChange",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ConfirmChangeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "E-mail changed"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Confirm the e-mail change",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/email-change/request" : {
+      "post" : {
+        "description" : "SMS code to the current phone (an email thief alone cannot change the email). 202 + the resend-cooldown ack.",
+        "operationId" : "requestEmailChange",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangeEmailRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "Code sent — the ack carries the resend cooldown in seconds"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Request an e-mail change",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/export" : {
+      "get" : {
+        "description" : "The caller's own data (profile + every author-scoped shelter row) as one JSON document. Same auth rule as /me (valid JWT, user from the token) and, like /me, no rate bucket (cheap read). The frontend turns the body into a downloadable file.",
+        "operationId" : "dataExport",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DataExportResponse"
+                }
+              }
+            },
+            "description" : "The data export document"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The caller's own data export",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/me" : {
+      "get" : {
+        "description" : "The user's real profile + REAL verification claims — the frontend's single source of truth for name/email/phone and verification labels. No rate bucket (cheap read).",
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "The profile"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The caller's profile + verified claims",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/phone-change/confirm" : {
+      "post" : {
+        "description" : "Completes the change once the code is verified; a code failure is a 400.",
+        "operationId" : "confirmPhoneChange",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ConfirmChangeRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Phone changed"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Confirm the phone change",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/phone-change/request" : {
+      "post" : {
+        "description" : "Email code to the current email (a lost/stolen phone alone cannot change the phone). 202 + the resend-cooldown ack.",
+        "operationId" : "requestPhoneChange",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangePhoneRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "Code sent — the ack carries the resend cooldown in seconds"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Request a phone change",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/account/profile" : {
+      "put" : {
+        "description" : "Wrong current password → 401 (nothing updated); blank name → 400 (registration validations). No national ID code is collected anywhere.",
+        "operationId" : "updateProfile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ProfileUpdateRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "The fresh profile"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MeResponse"
+                }
+              }
+            },
+            "description" : "Wrong current password (nothing updated)"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Edit the name (password-confirmed)",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/admin/alerts" : {
+      "get" : {
+        "description" : "Newest first: the daily submission cap (429), the per-contact OTP cap (429) and the near-duplicate rejection (409). The ring is IN-MEMORY — it clears on a backend restart, so this is a triage view, not a durable log. limit is 1..200, default 50 (anything else 400 — same idiom as /admin/audit).",
+        "operationId" : "listAlerts",
+        "parameters" : [ {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Rows to return, 1..200 (default 50; anything else 400).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminAlertDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The alert rows (newest first)"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminAlertDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "limit outside 1..200"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The M3 throttle-abuse alerts",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/audit" : {
+      "get" : {
+        "description" : "Newest first: every moderation-relevant action (admin AND automatic AUTO_CONFIRM) with the shelter name resolved at read time (\"Deleted shelter\" once the row is gone). limit is 1..200, default 100 (anything else 400).",
+        "operationId" : "listAudit",
+        "parameters" : [ {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Rows to return, 1..200 (default 100; anything else 400).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminAuditDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The audit rows (newest first)"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminAuditDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "limit outside 1..200"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The moderation audit trail",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/reports" : {
+      "get" : {
+        "description" : "Newest first; optional shelterId narrows to one shelter. Carries the reporter's profile name + email — admin-only data, served from /admin/* only.",
+        "operationId" : "listShelterReports",
+        "parameters" : [ {
+          "name" : "shelterId",
+          "in" : "query",
+          "description" : "Narrow to one shelter (optional).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterReportDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The report rows (newest first)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The shelter report queue",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/reports/{id}/dismiss" : {
+      "post" : {
+        "description" : "Idempotent. 204; 404 unknown report.",
+        "operationId" : "dismissReport",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Mark a shelter report resolved",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters" : {
+      "get" : {
+        "description" : "Every shelter including hidden, with report counts, status flag, occupancy and the submitter's name. status/source exact-match filters, q the case-insensitive name/address substring.",
+        "operationId" : "listShelters",
+        "parameters" : [ {
+          "name" : "status",
+          "in" : "query",
+          "description" : "Exact status match (optional).",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ACTIVE", "INACTIVE" ]
+          }
+        }, {
+          "name" : "source",
+          "in" : "query",
+          "description" : "Exact source match (optional).",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "PAASETEAMET", "MUNICIPALITY", "USER" ]
+          }
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "Case-insensitive name/address substring (optional).",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "All shelter rows (including hidden)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The admin shelter list",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}" : {
+      "delete" : {
+        "description" : "204; 404 unknown; 409 registry rows (import-owned). USER rows only — reports and occupancy cascade.",
+        "operationId" : "deleteShelter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Hard delete of a USER shelter",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/clear-inaccurate" : {
+      "post" : {
+        "description" : "Idempotent, audited. 204; 404 unknown shelter; 409 registry rows.",
+        "operationId" : "clearInaccurate",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Clear the inaccurate mark",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/history" : {
+      "get" : {
+        "description" : "Ascending over the row's lifecycle: CREATED / EDITED (server-parsed field changes) / DELETED, with snapshot names and batched actor names. 404 only when the shelter is absent AND has no history rows (a deleted shelter's history still serves — the dangling shelter_id); registry import rows answer an empty list (they keep their own data_imports audit).",
+        "operationId" : "shelterHistory",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterHistoryDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The history rows (ascending)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The shelter's edit history",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/mark-inaccurate" : {
+      "post" : {
+        "description" : "The row stays visible, the public DTOs carry inaccurate: true and the UI renders the warning. Optional reason rides on the audit row. 204 (idempotent); 404 unknown shelter; 409 registry rows (import-owned).",
+        "operationId" : "markInaccurate",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminMarkInaccurateRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Mark a USER shelter inaccurate",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/request-info" : {
+      "post" : {
+        "description" : "Stores the question on the shelter; the submitter sees it on their own row and answers once — the admin sees the request with the reply on the shelter list. 204; 404 unknown shelter; 409 registry rows (import-owned) and a second request for the same row (one exchange per shelter — the replied row is kept).",
+        "operationId" : "requestInfo",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminInfoRequestRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The moderator→submitter information request",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/review" : {
+      "post" : {
+        "description" : "The rare manual override: CONFIRM promotes the row to CONFIRMED (status untouched, note cleared); REJECT hides it (REJECTED + INACTIVE, reason stored as the note). 200 {\"ok\":true}; 404 unknown shelter; 409 registry rows (import-owned, same guard as the other admin writes).",
+        "operationId" : "reviewShelter",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminShelterReviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "additionalProperties" : {
+                    "type" : "boolean"
+                  },
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "{\"ok\": true}"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The community review decision (manual override)",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/shelters/{id}/status" : {
+      "post" : {
+        "description" : "204; 404 unknown; 409 registry rows (import-owned). A restore disarms auto-hide.",
+        "operationId" : "setShelterStatus",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AdminShelterStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Manual hide/restore of a shelter",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/users" : {
+      "get" : {
+        "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only.",
+        "operationId" : "listUsers",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminUserDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The account rows (id-ordered)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The account list (Users tab)",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/users/{id}/suspend" : {
+      "post" : {
+        "description" : "Login, refresh rotation and every in-flight token stop working immediately. 204 (idempotent); 404 unknown id; 409 admin/guest targets (lockout vector / no credentials). Audited as USER_SUSPEND with the account as subject.",
+        "operationId" : "suspendUser",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Suspend a registered account",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/users/{id}/unsuspend" : {
+      "post" : {
+        "description" : "Idempotent, audited. Same 204/404/409 vocabulary as suspend.",
+        "operationId" : "unsuspendUser",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Lift a suspension",
+        "tags" : [ "Admin moderation" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/api/data-source" : {
+      "get" : {
+        "description" : "The publisher, the link to the official open-data page, and when the last import ran (lastImport null until the first import). The app-wide footer shows this to everyone.",
+        "operationId" : "dataSource",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DataSourceDto"
+                }
+              }
+            },
+            "description" : "The provenance payload"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Where the official shelter data comes from",
+        "tags" : [ "Data source" ]
+      }
+    },
+    "/api/geo/resolve" : {
+      "post" : {
+        "description" : "Resolves a maps.app.goo.gl short link: 200 {latitude, longitude} (the frontend contract); 400 ONE generic message — invalid input / no pair / outside Estonia (no enumeration); 429 — per-IP bucket empty; 502 ONE generic retry-later message — upstream timeout/network/server failure (no upstream detail).",
+        "operationId" : "resolve",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LocationResolveRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationResolvedDto"
+                }
+              }
+            },
+            "description" : "The resolved coordinates"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationResolvedDto"
+                }
+              }
+            },
+            "description" : "One generic not-found message (no pair / outside Estonia / non-whitelisted host — the backend never enumerates)"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationResolvedDto"
+                }
+              }
+            },
+            "description" : "Per-IP rate limit exceeded — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationResolvedDto"
+                }
+              }
+            },
+            "description" : "One generic retry-later message — upstream failure (no upstream detail)"
+          }
+        },
+        "summary" : "Resolve a maps short link to coordinates",
+        "tags" : [ "Geo" ]
+      }
+    },
+    "/api/shelters" : {
+      "get" : {
+        "description" : "ACTIVE rows only (auto-hidden shelters are absent). The optional trust filters combine: hasCapacity (capacity data present). The minRating rating filter was removed in V21 — an unknown minRating param is ignored for API compatibility, not an error. provenance: keeps rows whose server-derived provenance matches; absent = no provenance filter; a value outside the enum is a 400 (same as source).",
+        "operationId" : "list",
+        "parameters" : [ {
+          "name" : "source",
+          "in" : "query",
+          "description" : "Source filter: ALL | REGISTRY (PAASETEAMET + MUNICIPALITY rows) | USER (community submissions). Default ALL.",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "REGISTRY", "USER", "ALL" ]
+          }
+        }, {
+          "name" : "hasCapacity",
+          "in" : "query",
+          "description" : "Only rows with capacity data (optional trust filter).",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "name" : "provenance",
+          "in" : "query",
+          "description" : "Only rows with this server-derived provenance (optional; 400 outside the enum).",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "OFFICIAL", "PARTNER_VERIFIED", "COMMUNITY_REPORTED", "UNDER_REVIEW", "REPORTED_INACTIVE", "REJECTED" ]
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ShelterDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The ACTIVE rows"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "The public shelter list",
+        "tags" : [ "Public shelters" ]
+      },
+      "post" : {
+        "description" : "Requires a Bearer JWT and a canWrite() user; the shelter is saved ACTIVE/USER and answered with 201 + Location. The backend re-checks the Estonia bounding box and the field bounds. The locationKind private-home declaration is optional (absent = PUBLIC).",
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateShelterRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Created — the created ShelterDto, Location header set"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Outside the Estonia bbox or field-bound violations"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Not a verified registered account"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Submit a new shelter",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/mine" : {
+      "get" : {
+        "description" : "Author-scoped read (Bearer JWT), ALL statuses (D5) — authenticated even though the rest of /api/shelters/** is public.",
+        "operationId" : "mine",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ShelterDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The caller's shelters"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The caller's own shelters",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/{id}" : {
+      "delete" : {
+        "description" : "204. Its reports and occupancy cascade. Author only (403 if not the author, 404 if absent); the DELETED history row is actor-attributed to the submitter.",
+        "operationId" : "delete",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Delete the caller's own shelter",
+        "tags" : [ "Public shelters" ]
+      },
+      "get" : {
+        "description" : "Additionally carries yourOccupancyBand (the caller's own live band for this shelter; null for guests, anonymous callers and callers without a report). Rejected (INACTIVE) rows stay readable by id exactly as any other INACTIVE row — no trust rule blocks a detail read.",
+        "operationId" : "get",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "The shelter detail projection"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Unknown shelter id"
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "The shelter detail read",
+        "tags" : [ "Public shelters" ]
+      },
+      "put" : {
+        "description" : "Update the caller's OWN USER-source shelter. 404 if absent; 403 if not the author (registry/legacy rows are unmanageable by anyone); 400 on bbox/field violations. Only the writable fields change; the response is the updated ShelterDto.",
+        "operationId" : "update",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateShelterRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "The updated shelter"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Not the author"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterDto"
+                }
+              }
+            },
+            "description" : "Unknown shelter"
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Update the caller's own shelter",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/{id}/info-request/reply" : {
+      "post" : {
+        "description" : "The submitter's ONE-TIME answer to the admin's information request: 204. Author only — the same 404/403 vocabulary as the other author-scoped mutations (PUT/DELETE); 404 when the row has no request; 409 on a second answer (the row is kept after the reply — audit posture).",
+        "operationId" : "replyInfoRequest",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InfoRequestReplyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Reply to the admin's information request",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/{id}/occupancy" : {
+      "put" : {
+        "description" : "One report per user per shelter, re-sending updates it (latest band wins, updated_at refreshed). Verified users only; 404 unknown shelter; 429 report throttle.",
+        "operationId" : "reportOccupancy",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OccupancyReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Report the caller's live occupancy band",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/{id}/open-status" : {
+      "put" : {
+        "description" : "Same level as capacity: one state per user per shelter, re-sending updates it (latest state wins, created_at refreshed). Verified users only (403, the same vocabulary as occupancy); 404 unknown shelter; a value outside the OPEN/CLOSED enum is a 400 (same as band). NOT throttled — a tap is a state, not a report action.",
+        "operationId" : "reportOpenStatus",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/OpenStatusReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Report the caller's live open/closed state",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/api/shelters/{id}/reports" : {
+      "post" : {
+        "description" : "One typed report per user per shelter per type. Verified users only (same 403 vocabulary as submissions); 404 unknown shelter; 409 duplicate (shelter, user, type); 429 report throttle. The body answers the dampening outcome: {\"damped\": true|false}.",
+        "operationId" : "report",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ShelterReportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterReportResult"
+                }
+              }
+            },
+            "description" : "The dampening outcome ({\"damped\": true|false})"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterReportResult"
+                }
+              }
+            },
+            "description" : "Not a verified registered account"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterReportResult"
+                }
+              }
+            },
+            "description" : "Unknown shelter"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterReportResult"
+                }
+              }
+            },
+            "description" : "The caller already reported that type for this shelter"
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ShelterReportResult"
+                }
+              }
+            },
+            "description" : "Report throttle exceeded — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Report a shelter",
+        "tags" : [ "Public shelters" ]
+      }
+    },
+    "/auth/login" : {
+      "post" : {
+        "description" : "E-mail or phone + password. BOTH rate buckets must pass — the per-IP aggregate (one IP hammering many accounts) and the per-(IP, contact) bucket. Phone may be local or +372 form.",
+        "operationId" : "login",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description" : "The issued token pair (bearer credentials — never log, never store in the document)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description" : "Invalid e-mail/phone or password"
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description" : "Rate limit exceeded — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Log in",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/auth/logout" : {
+      "post" : {
+        "description" : "204. Revokes the given refresh token server-side.",
+        "operationId" : "logout",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Log out",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/auth/password-reset/confirm" : {
+      "post" : {
+        "description" : "The e-mail scopes the 6-digit code to the account it was sent to; ANY failure (unknown email / wrong / expired / used / over-limit) answers 400 with one generic message, so the caller must not treat the 400 as account-existence information. Per-(IP, email) anti-guess bucket: 429 above it.",
+        "operationId" : "resetPassword",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PasswordResetConfirmRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Password reset"
+          },
+          "400" : {
+            "description" : "One generic message — never account-existence information"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "description" : "Anti-guess bucket exceeded — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Confirm the password reset",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/auth/password-reset/request" : {
+      "post" : {
+        "description" : "The ack body tells the client how long to wait before re-requesting (the service's reissue cooldown). The ack is identical for a known email, an unknown email and a cooldown skip — it must never reveal whether the email exists or a send happened.",
+        "operationId" : "requestPasswordReset",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "The resend-cooldown ack (identical for known/unknown email — anti-enumeration)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Request a password-reset code",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/auth/refresh" : {
+      "post" : {
+        "description" : "Rotates the refresh token and issues a new pair.",
+        "operationId" : "refresh",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TokenResponse"
+                }
+              }
+            },
+            "description" : "The new rotated pair (bearer credentials)"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Refresh the token pair",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/auth/register" : {
+      "post" : {
+        "description" : "201 with an empty body (no session is created). Rate-limited per client IP, and the per-e-mail rolling registration cap lands 429 + Retry-After once the window is full (a duplicate-409 retry is still an attempt).",
+        "operationId" : "register",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "description" : "Registered"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "description" : "E-mail/phone already registered"
+          },
+          "429" : {
+            "description" : "Per-IP or per-e-mail registration cap exceeded — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "Register a new account",
+        "tags" : [ "Auth" ]
+      }
+    },
+    "/verify/confirm" : {
+      "post" : {
+        "description" : "200 and the level is claimed on success; a wrong or expired code is a 400.",
+        "operationId" : "confirm",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VerifyConfirmRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "description" : "Level claimed"
+          },
+          "400" : {
+            "description" : "Invalid or expired verification code"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Confirm the verification code",
+        "tags" : [ "Account & verification" ]
+      }
+    },
+    "/verify/request" : {
+      "post" : {
+        "description" : "202 + the resend-cooldown ack — the frontend renders a countdown instead of letting the user spam-click. SMART_ID is 400 (the provider is a stub in v1); a cooldown/cap 429 carries Retry-After in seconds.",
+        "operationId" : "request",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VerifyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "Code sent — the ack carries the resend cooldown in seconds"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "SMART_ID is not available yet (stub provider)"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "The level is already verified"
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CodeSentDto"
+                }
+              }
+            },
+            "description" : "Cooldown / daily cap or per-IP throttle — Retry-After in seconds"
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Request a verification code",
+        "tags" : [ "Account & verification" ]
+      }
+    }
+  },
+  "security" : [ {
+    "bearerAuth" : [ ]
+  } ],
+  "tags" : [ {
+    "name" : "Account & verification",
+    "description" : "Verification codes for the account's contacts. Both calls require a Bearer JWT (the user is resolved from the token, never from the body; the target contact comes from the user profile). The request endpoint is additionally throttled per client IP on top of the service-level cooldown + daily cap per (user, level) — a throttled 429 carries the exact remaining seconds in Retry-After. SMART_ID is rejected up front with 400 (the provider is a stub in v1)."
+  }, {
+    "name" : "Public shelters",
+    "description" : "The community shelter map. The list and detail reads are PUBLIC (guests can watch — an emergency map must be viewable without an account); every mutation requires a Bearer JWT and a verified registered account. Note the deliberate split: GET /mine is authenticated even though the rest of /api/shelters/** is public."
+  }, {
+    "name" : "Admin moderation",
+    "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably). Reporter identity is served from this API ONLY."
+  }, {
+    "name" : "Geo",
+    "description" : "The short-link resolver (shelter-location-input). JWT-protected (inside the authenticated set — NOT permitAll) and rate-limited per client IP (5 requests/minute) — 429 above it."
+  }, {
+    "name" : "Account & verification",
+    "description" : "The authenticated account surface — every operation requires a Bearer JWT and the user is resolved from the token, never from the body. The change-request endpoints are additionally throttled per client IP (429 above); the confirms are code-verified and attempt-limited instead. The request endpoints ack with CodeSentDto — the cooldown a client should count down before resending."
+  }, {
+    "name" : "Data source",
+    "description" : "The public provenance read (official-dataset-csv M5): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
+  }, {
+    "name" : "Auth",
+    "description" : "The public auth surface: registration, login, refresh rotation, logout and password reset. The login/refresh responses carry bearer credentials (TokenResponse) — never log them. Login, reset-request and registration are rate-limited per real client IP (X-Forwarded-For aware) and, for login/reset, per contact — 429 above the buckets."
+  } ]
+}

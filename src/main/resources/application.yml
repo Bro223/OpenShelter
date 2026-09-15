@@ -34,6 +34,23 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+springdoc:
+  # Dev-only API documentation (SW wave): the API document is a complete map
+  # of the surface — admin endpoints included — so it is opt-in, exactly like
+  # the /dev/* diagnostics. Off by default; ApiDocsGuard refuses to boot on a
+  # non-dev/test profile when either flag is true (fail-closed, same shape as
+  # ProdJwtGuard / DevEndpointsGuard). Enable locally with
+  # SPRINGDOC_ENABLED=true (the dev .env) — never in this file.
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  # The document must not absorb the actuator surface (health,info only there).
+  show-actuator: false
+
 management:
   endpoints:
     web:

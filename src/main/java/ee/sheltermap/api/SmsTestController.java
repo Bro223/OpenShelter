@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,9 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/dev/sms-test")
 @ConditionalOnProperty(name = "app.dev-sms-test.enabled", havingValue = "true")
+// Dev-only relay (DevEndpointsGuard): hidden from the OpenAPI document so the
+// API map never advertises a surface that is meant to be invisible.
+@Hidden
 public class SmsTestController {
 
     private static final Logger log = LoggerFactory.getLogger(SmsTestController.class);
@@ -56,6 +60,7 @@ public class SmsTestController {
     }
 
     @PostMapping
+    @Hidden
     public SmsTestResult send(@Valid @RequestBody SmsTestRequest request) {
         String provider = activeSmsSender.getClass().getSimpleName();
         String toE164 = PhoneNumbers.normalizeE164(request.to());

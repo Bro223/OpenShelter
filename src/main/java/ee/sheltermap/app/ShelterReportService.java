@@ -144,7 +144,8 @@ public class ShelterReportService {
             reachesAutoHide = tallyBefore < ShelterReport.AUTO_HIDE_THRESHOLD
                     && tallyBefore + myPoints >= ShelterReport.AUTO_HIDE_THRESHOLD;
         }
-        ShelterReport report = new ShelterReport(shelterId, user.getId(), type, detailFor(type, detail));
+        ShelterReport report = new ShelterReport(shelterId, user.getId(), type, detailFor(type, detail),
+                clock.instant());
         if (damped) {
             report.markDamped();
         }

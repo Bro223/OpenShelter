@@ -5,7 +5,7 @@ import ee.sheltermap.auth.UserCredentialsRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Objects;
 
 /**
@@ -16,9 +16,11 @@ import java.util.Objects;
 public class JpaUserCredentialsRepository implements UserCredentialsRepository {
 
     private final SpringDataUserCredentialsRepository credentials;
+    private final Clock clock;
 
-    public JpaUserCredentialsRepository(SpringDataUserCredentialsRepository credentials) {
+    public JpaUserCredentialsRepository(SpringDataUserCredentialsRepository credentials, Clock clock) {
         this.credentials = Objects.requireNonNull(credentials, "credentials");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -47,7 +49,7 @@ public class JpaUserCredentialsRepository implements UserCredentialsRepository {
         UserCredentialsEntity entity = credentials.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("no credentials for user " + userId));
         entity.setPasswordHash(newHash);
-        entity.setChangedAt(Instant.now());
+        entity.setChangedAt(clock.instant());
         credentials.save(entity);
     }
 

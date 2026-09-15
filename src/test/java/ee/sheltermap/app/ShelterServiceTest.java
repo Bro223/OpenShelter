@@ -39,7 +39,7 @@ class ShelterServiceTest {
         repo = new InMemoryShelterRepository();
         users = new InMemoryUserRepository();
         history = new InMemoryShelterHistoryLog(CLOCK);
-        service = new ShelterService(repo, users, 1_000, 100.0, alerts, history);
+        service = new ShelterService(repo, users, 1_000, 100.0, alerts, history, CLOCK);
     }
 
     private static Shelter userPlace() {
@@ -169,7 +169,7 @@ class ShelterServiceTest {
         // caller's read and the save — the repository's unknown-id guard must
         // surface as the same 404 as a plain not-found, never a 500.
         GuardedShelterRepository guardedRepo = new GuardedShelterRepository();
-        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000, 100.0, alerts, history);
+        ShelterService guarded = new ShelterService(guardedRepo, users, 1_000, 100.0, alerts, history, CLOCK);
         Shelter place = userPlace("Original");
         guarded.addPlace(verifiedUser(), place);
         Long id = place.getId();
@@ -201,7 +201,7 @@ class ShelterServiceTest {
                 super.save(shelter);
             }
         };
-        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000, 100.0, alerts, history);
+        ShelterService failing = new ShelterService(alwaysFailing, users, 1_000, 100.0, alerts, history, CLOCK);
         Shelter place = userPlace("Original");
         failing.addPlace(verifiedUser(), place);
 
@@ -377,7 +377,7 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history, CLOCK);
 
         // 11 in a row — the admin is never capped
         for (int i = 1; i <= 11; i++) {
@@ -459,7 +459,7 @@ class ShelterServiceTest {
                 return true;
             }
         };
-        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history);
+        ShelterService adminService = new ShelterService(repo, adminUsers, 1_000, 100.0, alerts, history, CLOCK);
 
         adminService.addPlace(verifiedUser(), userPlace("Admini kopeer"));
         adminService.addPlace(verifiedUser(2L), userPlace("Admini kopeer"));
@@ -468,12 +468,13 @@ class ShelterServiceTest {
 
     @Test
     void theDailyCapPrecedesTheDuplicateCheck() {
-        ShelterService capped = new ShelterService(repo, users, 1, 100.0, alerts, history);
+        ShelterService capped = new ShelterService(repo, users, 1, 100.0, alerts, history, CLOCK);
         Shelter first = userPlace("Kapi varjend");
         capped.addPlace(verifiedUser(), first);
         // created_at is DB-owned (DEFAULT now()) — the in-memory fake does
-        // not mimic that, so seed it for the window count
-        first.setCreatedAt(Instant.now());
+        // not mimic that, so seed it for the window count (the window is
+        // anchored on the service's injected fixed clock, not the wall)
+        first.setCreatedAt(CLOCK.instant());
 
         // the 2nd submission is BOTH a duplicate of the user's own row and
         // past the (daily cap = 1) rate limit — the 429 cap is checked first

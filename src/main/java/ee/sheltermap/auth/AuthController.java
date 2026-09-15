@@ -4,6 +4,13 @@ import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationThrottledException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -30,6 +37,13 @@ import java.util.stream.Collectors;
  * per-e-mail cap (abuse-limits M3 slice 2), and its 429s land in the
  * admin alert ring (M3 slice 4).
  */
+@Tag(name = "Auth",
+        description = "The public auth surface: registration, login, refresh "
+                + "rotation, logout and password reset. The login/refresh "
+                + "responses carry bearer credentials (TokenResponse) — never log "
+                + "them. Login, reset-request and registration are rate-limited "
+                + "per real client IP (X-Forwarded-For aware) and, for "
+                + "login/reset, per contact — 429 above the buckets.")
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
@@ -72,6 +86,20 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(summary = "Register a new account",
+            description = "201 with an empty body (no session is created). "
+                    + "Rate-limited per client IP, and the per-e-mail rolling "
+                    + "registration cap lands 429 + Retry-After once the window "
+                    + "is full (a duplicate-409 retry is still an attempt).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "201", description = "Registered"),
+            @ApiResponse(responseCode = "409", description = "E-mail/phone "
+                    + "already registered"),
+            @ApiResponse(responseCode = "429", description = "Per-IP or "
+                    + "per-e-mail registration cap exceeded — Retry-After in "
+                    + "seconds")
+    })
+    @SecurityRequirements({})
     public void register(@Valid @RequestBody RegisterRequest request, HttpServletRequest http) {
         requireRate(registerRateLimiter, clientIp(http));
         // M3 slice 2: per-e-mail rolling cap on registration ATTEMPTS
@@ -91,6 +119,22 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "Log in",
+            description = "E-mail or phone + password. BOTH rate buckets must "
+                    + "pass — the per-IP aggregate (one IP hammering many "
+                    + "accounts) and the per-(IP, contact) bucket. Phone may be "
+                    + "local or +372 form.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The issued token "
+                    + "pair (bearer credentials — never log, never store in the "
+                    + "document)", content = @Content(schema = @Schema(implementation =
+                    TokenResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Invalid "
+                    + "e-mail/phone or password"),
+            @ApiResponse(responseCode = "429", description = "Rate limit "
+                    + "exceeded — Retry-After in seconds")
+    })
+    @SecurityRequirements({})
     public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
         String ip = clientIp(http);
         // W5: BOTH buckets must pass — the per-IP aggregate (one IP hammering
@@ -101,12 +145,21 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @Operation(summary = "Refresh the token pair",
+            description = "Rotates the refresh token and issues a new pair.")
+    @ApiResponse(responseCode = "200", description = "The new rotated pair (bearer "
+            + "credentials)", content = @Content(schema = @Schema(implementation =
+            TokenResponse.class)))
+    @SecurityRequirements({})
     public TokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
         return authService.refresh(request);
     }
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Log out",
+            description = "204. Revokes the given refresh token server-side.")
+    @SecurityRequirements({})
     public void logout(@Valid @RequestBody RefreshRequest request) {
         authService.logout(request.refreshToken());
     }
@@ -118,6 +171,16 @@ public class AuthController {
      * it must never reveal whether the email exists or a send happened.
      */
     @PostMapping("/password-reset/request")
+    @Operation(summary = "Request a password-reset code",
+            description = "The ack body tells the client how long to wait before "
+                    + "re-requesting (the service's reissue cooldown). The ack is "
+                    + "identical for a known email, an unknown email and a "
+                    + "cooldown skip — it must never reveal whether the email "
+                    + "exists or a send happened.")
+    @ApiResponse(responseCode = "200", description = "The resend-cooldown ack "
+            + "(identical for known/unknown email — anti-enumeration)", content =
+            @Content(schema = @Schema(implementation = CodeSentDto.class)))
+    @SecurityRequirements({})
     public CodeSentDto requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
         requireRate(resetRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
         authService.requestPasswordReset(request.email());
@@ -125,6 +188,21 @@ public class AuthController {
     }
 
     @PostMapping("/password-reset/confirm")
+    @Operation(summary = "Confirm the password reset",
+            description = "The e-mail scopes the 6-digit code to the account it was "
+                    + "sent to; ANY failure (unknown email / wrong / expired / "
+                    + "used / over-limit) answers 400 with one generic message, so "
+                    + "the caller must not treat the 400 as account-existence "
+                    + "information. Per-(IP, email) anti-guess bucket: 429 above "
+                    + "it.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Password reset"),
+            @ApiResponse(responseCode = "400", description = "One generic message — "
+                    + "never account-existence information"),
+            @ApiResponse(responseCode = "429", description = "Anti-guess bucket "
+                    + "exceeded — Retry-After in seconds")
+    })
+    @SecurityRequirements({})
     public void resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request, HttpServletRequest http) {
         // W1: per-(IP, email) anti-guess bucket — a 6-digit code must not be
         // brute-forceable through the confirm endpoint.

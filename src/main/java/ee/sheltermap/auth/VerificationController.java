@@ -6,6 +6,12 @@ import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.verification.VerificationProperties;
 import ee.sheltermap.verification.VerificationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -43,6 +49,15 @@ import java.util.stream.Collectors;
  *
  * <p>SMART_ID is rejected up front with 400 — the provider is a stub in v1.
  */
+@Tag(name = "Account & verification",
+        description = "Verification codes for the account's contacts. Both calls "
+                + "require a Bearer JWT (the user is resolved from the token, "
+                + "never from the body; the target contact comes from the user "
+                + "profile). The request endpoint is additionally throttled per "
+                + "client IP on top of the service-level cooldown + daily cap "
+                + "per (user, level) — a throttled 429 carries the exact "
+                + "remaining seconds in Retry-After. SMART_ID is rejected up "
+                + "front with 400 (the provider is a stub in v1).")
 @RestController
 @RequestMapping("/verify")
 public class VerificationController {
@@ -78,6 +93,22 @@ public class VerificationController {
      */
     @PostMapping("/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "Request a verification code",
+            description = "202 + the resend-cooldown ack — the frontend renders a "
+                    + "countdown instead of letting the user spam-click. "
+                    + "SMART_ID is 400 (the provider is a stub in v1); a "
+                    + "cooldown/cap 429 carries Retry-After in seconds.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "202", description = "Code sent — the ack "
+                    + "carries the resend cooldown in seconds", content = @Content(
+                    schema = @Schema(implementation = CodeSentDto.class))),
+            @ApiResponse(responseCode = "400", description = "SMART_ID is not "
+                    + "available yet (stub provider)"),
+            @ApiResponse(responseCode = "409", description = "The level is already "
+                    + "verified"),
+            @ApiResponse(responseCode = "429", description = "Cooldown / daily cap "
+                    + "or per-IP throttle — Retry-After in seconds")
+    })
     public CodeSentDto request(@Valid @RequestBody VerifyRequest body, HttpServletRequest http) {
         if (!verifyRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {
             throw new RateLimitExceededException();
@@ -95,6 +126,14 @@ public class VerificationController {
 
     @PostMapping("/confirm")
     @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = "Confirm the verification code",
+            description = "200 and the level is claimed on success; a wrong or "
+                    + "expired code is a 400.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Level claimed"),
+            @ApiResponse(responseCode = "400", description = "Invalid or expired "
+                    + "verification code")
+    })
     public void confirm(@Valid @RequestBody VerifyConfirmRequest body) {
         RegisteredUser user = currentUser();
         boolean ok = verificationService.confirmVerification(user, body.level(), body.code());

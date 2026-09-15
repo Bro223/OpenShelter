@@ -5,6 +5,7 @@ import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
 
@@ -44,21 +45,48 @@ import java.time.Instant;
  * {@link ShelterDto} — the admin list is where the mark is managed, so the
  * row carries the state its Mark/Inaccurate actions toggle.
  */
+@Schema(description = "One row of the admin shelter list — every shelter, ALL "
+        + "statuses (auto-hidden rows included), id-ordered, with the same "
+        + "batched trust derivations as the public list plus the submitter's "
+        + "profile name. This is the one surface where all six provenance "
+        + "values are reachable (the list keeps hidden rows).")
 public record AdminShelterDto(
         Long id,
         String name,
         String address,
         ShelterSource source,
         ShelterStatus status,
+        @Schema(description = "The NON_EXISTENT subset of the community "
+                + "reports; 0 when none.")
         int nonexistentReports,
         ShelterDto.Occupancy occupancy,
         Integer capacity,
+        @Schema(description = "The creator's profile name; null for registry "
+                + "rows (no author) and for creators whose account no longer "
+                + "exists.")
         String submitter,
+        @Schema(description = "The row's trust state — the 'Unconfirmed' tab "
+                + "filters USER + NEW.")
         ReviewStatus reviewStatus,
+        @Schema(description = "The admin's REJECT reason; null while nothing "
+                + "is said.")
         String reviewNote,
+        @Schema(description = "The private-home declaration (the 'Private "
+                + "location' badge renders on this surface too).")
         LocationKind locationKind,
+        @Schema(description = "The same server-derived value as on ShelterDto "
+                + "— all six values are reachable here (the list keeps "
+                + "hidden rows).")
         Provenance provenance,
+        @Schema(description = "The same server-derived moderator flag as on "
+                + "ShelterDto — the admin list is where the mark is managed.")
         boolean inaccurate,
+        @Schema(description = "The moderator→submitter information exchange "
+                + "for this row; null when none exists. The admin sees the "
+                + "request together with the submitter's reply here (the row "
+                + "is kept after the reply — audit posture), with the "
+                + "requesting admin's profile name ('Unknown' after "
+                + "erasure — no FK on requested_by).")
         InfoRequest infoRequest) {
 
     /**

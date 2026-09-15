@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Size;
  * from the request); the 6-digit code is the secret.
  */
 public record PasswordResetConfirmRequest(
-        @NotBlank @Email String email,
-        @NotBlank String code,
-        @NotBlank @Size(min = 8, message = "Password must be at least 8 characters long") String newPassword) {
+        @NotBlank @Email @Size(max = 255) String email,
+        @NotBlank @Size(max = 16) String code,
+        @NotBlank @Size(min = 8, max = 200, message = "Password must be at least 8 characters long") String newPassword) {
 }

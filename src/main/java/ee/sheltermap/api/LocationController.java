@@ -6,6 +6,12 @@ import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.auth.ClientIps;
 import ee.sheltermap.auth.RateLimitExceededException;
 import ee.sheltermap.auth.RateLimiter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -40,6 +46,11 @@ import java.util.stream.Collectors;
  *       timeout/network/server failure (no upstream detail).</li>
  * </ul>
  */
+@Tag(name = "Geo",
+        description = "The short-link resolver (shelter-location-input). "
+                + "JWT-protected (inside the authenticated set — NOT permitAll) "
+                + "and rate-limited per client IP (5 requests/minute) — 429 "
+                + "above it.")
 @RestController
 @RequestMapping("/api/geo")
 public class LocationController {
@@ -64,6 +75,26 @@ public class LocationController {
 
     /** Resolves a {@code maps.app.goo.gl} short link to coordinates (see class docs). */
     @PostMapping("/resolve")
+    @Operation(summary = "Resolve a maps short link to coordinates",
+            description = "Resolves a maps.app.goo.gl short link: 200 "
+                    + "{latitude, longitude} (the frontend contract); 400 ONE "
+                    + "generic message — invalid input / no pair / outside "
+                    + "Estonia (no enumeration); 429 — per-IP bucket empty; 502 "
+                    + "ONE generic retry-later message — upstream "
+                    + "timeout/network/server failure (no upstream detail).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The resolved "
+                    + "coordinates", content = @Content(schema = @Schema(implementation =
+                    LocationResolvedDto.class))),
+            @ApiResponse(responseCode = "400", description = "One generic "
+                    + "not-found message (no pair / outside Estonia / "
+                    + "non-whitelisted host — the backend never enumerates)"),
+            @ApiResponse(responseCode = "429", description = "Per-IP rate limit "
+                    + "exceeded — Retry-After in seconds"),
+            @ApiResponse(responseCode = "502", description = "One generic "
+                    + "retry-later message — upstream failure (no upstream "
+                    + "detail)")
+    })
     public LocationResolvedDto resolve(@Valid @RequestBody LocationResolveRequest request,
                                        HttpServletRequest http) {
         if (!geoResolveRateLimiter.tryAcquire(ClientIps.resolve(http, trustedProxies, trustLoopback))) {

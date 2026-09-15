@@ -10,6 +10,7 @@ import ee.sheltermap.domain.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -64,19 +65,23 @@ public class ShelterService {
     private final double duplicateCoordMeters;
     private final ThrottleAlertRecorder alerts;
     private final ShelterHistoryLog history;
+    /** Time source for the daily-cap window and the exact Retry-After (injected — the caller owns the clock). */
+    private final Clock clock;
 
     public ShelterService(ShelterRepository shelterRepository,
                           UserRepository userRepository,
                           @Value("${app.limits.daily-submissions-per-user:5}") int dailySubmissionsPerUser,
                           @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters,
                           ThrottleAlertRecorder alerts,
-                          ShelterHistoryLog history) {
+                          ShelterHistoryLog history,
+                          Clock clock) {
         this.shelterRepository = Objects.requireNonNull(shelterRepository, "shelterRepository");
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.dailySubmissionsPerUser = dailySubmissionsPerUser;
         this.duplicateCoordMeters = duplicateCoordMeters;
         this.alerts = Objects.requireNonNull(alerts, "alerts");
         this.history = Objects.requireNonNull(history, "history");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -128,7 +133,7 @@ public class ShelterService {
         // frees its slot (the row is gone) — the churn vector stays bounded
         // by the active cap + the admin surface.
         if (!userRepository.isAdmin(user.getId())) {
-            Instant windowStart = Instant.now().minus(DAILY_SUBMISSION_WINDOW);
+            Instant windowStart = clock.instant().minus(DAILY_SUBMISSION_WINDOW);
             long submitted = shelterRepository.countByCreatedByAndSourceAndCreatedAtAfter(
                     user.getId(), ShelterSource.USER, windowStart);
             if (submitted >= dailySubmissionsPerUser) {
@@ -220,7 +225,7 @@ public class ShelterService {
                         userId, ShelterSource.USER, windowStart)
                 .map(Shelter::getCreatedAt)
                 .filter(Objects::nonNull)
-                .map(oldest -> Duration.between(Instant.now(),
+                .map(oldest -> Duration.between(clock.instant(),
                         oldest.plus(DAILY_SUBMISSION_WINDOW)).getSeconds())
                 .filter(seconds -> seconds > 0)
                 .map(seconds -> (int) Math.min(seconds, Integer.MAX_VALUE))

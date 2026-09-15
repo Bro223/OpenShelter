@@ -50,7 +50,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-import java.time.Instant;
+import java.time.Clock;
+import java.util.Objects;
 
 /**
  * The one global {@code @RestControllerAdvice} — every error response is a
@@ -64,6 +65,13 @@ import java.time.Instant;
 public class ApiErrorHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ApiErrorHandler.class);
+
+    private final Clock clock;
+
+    /** The error-body timestamps come from the injected Clock (the only time seam, tests pin it). */
+    public ApiErrorHandler(Clock clock) {
+        this.clock = Objects.requireNonNull(clock, "clock");
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException ex, HttpServletRequest request) {
@@ -332,7 +340,7 @@ public class ApiErrorHandler {
             builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
         }
         return builder.body(new ErrorResponse(
-                Instant.now(),
+                clock.instant(),
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
                 ex.getMessage(),
@@ -352,7 +360,7 @@ public class ApiErrorHandler {
             builder.header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.retryAfterSeconds()));
         }
         return builder.body(new ErrorResponse(
-                Instant.now(),
+                clock.instant(),
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
                 ex.getMessage(),
@@ -365,9 +373,9 @@ public class ApiErrorHandler {
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error", request);
     }
 
-    private static ResponseEntity<ErrorResponse> error(HttpStatus status, String message, HttpServletRequest request) {
+    private ResponseEntity<ErrorResponse> error(HttpStatus status, String message, HttpServletRequest request) {
         return ResponseEntity.status(status).body(new ErrorResponse(
-                Instant.now(),
+                clock.instant(),
                 status.value(),
                 status.getReasonPhrase(),
                 message,

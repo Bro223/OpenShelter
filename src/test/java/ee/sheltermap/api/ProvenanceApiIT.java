@@ -143,7 +143,7 @@ class ProvenanceApiIT extends AbstractPersistenceIT {
             long reporter = seedUser("Arapaneja" + i, "arapaneja" + i + "-" + shelterId
                     + "-" + nextUser + "@example.ee");
             reports.save(new ShelterReport(shelterId, reporter, ShelterReportType.NON_EXISTENT,
-                    null));
+                    null, Instant.now()));
         }
     }
 

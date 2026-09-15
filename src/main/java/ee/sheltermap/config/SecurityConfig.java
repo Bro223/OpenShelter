@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -35,7 +36,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -182,7 +182,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtTokenService tokenService,
                                                    UserRepository userRepository,
                                                    ObjectMapper objectMapper,
-                                                   CorsConfigurationSource corsConfigurationSource) throws Exception {
+                                                   CorsConfigurationSource corsConfigurationSource,
+                                                   Clock clock,
+                                                   Environment env) throws Exception {
         // M3 slice 5: the hardening headers go BEFORE the JWT filter (the
         // same reference position, registered first = runs first), so the
         // headers are present on the 401/403 error bodies too — the entry
@@ -190,37 +192,58 @@ public class SecurityConfig {
         SecurityHeadersFilter headersFilter = new SecurityHeadersFilter();
         JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(tokenService, userRepository);
         http
+            // Stateless Bearer-token auth (Authorization: Bearer, no cookie
+            // sessions): there is no cross-site request forgery vector to
+            // defend against, so CSRF protection is disabled by design —
+            // the full rationale lives in docs/security/threat-model.md.
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(eh -> eh
                 .authenticationEntryPoint((request, response, ex) ->
-                        writeError(objectMapper, response, request, HttpStatus.UNAUTHORIZED, "Authentication required"))
+                        writeError(objectMapper, clock, response, request, HttpStatus.UNAUTHORIZED, "Authentication required"))
                 .accessDeniedHandler((request, response, ex) ->
-                        writeError(objectMapper, response, request, HttpStatus.FORBIDDEN, "Access denied")))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST,
-                        "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
-                        "/auth/password-reset/request", "/auth/password-reset/confirm").permitAll()
-                // Author-scoped (user-contributions): /mine lists the CALLER's shelters,
-                // so it is NOT part of the public shelter GETs below.
-                .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
-                // Public provenance read (official-dataset-csv M5): the app-wide
-                // footer shows source + official link + last import to everyone.
-                .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
-                .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                .anyRequest().authenticated())
+                        writeError(objectMapper, clock, response, request, HttpStatus.FORBIDDEN, "Access denied")))
+            .authorizeHttpRequests(auth -> {
+                auth
+                    .requestMatchers(HttpMethod.POST,
+                            "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
+                            "/auth/password-reset/request", "/auth/password-reset/confirm").permitAll()
+                    // Author-scoped (user-contributions): /mine lists the CALLER's shelters,
+                    // so it is NOT part of the public shelter GETs below.
+                    .requestMatchers(HttpMethod.GET, "/api/shelters/mine").authenticated()
+                    .requestMatchers(HttpMethod.GET, "/api/shelters/**").permitAll()
+                    // Public provenance read (official-dataset-csv M5): the app-wide
+                    // footer shows source + official link + last import to everyone.
+                    .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
+                    .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                    // Chain-level guard for the admin surface (B6): the ADMIN
+                    // authority comes from the JwtAuthenticationFilter's fresh
+                    // per-request kind read (never a token claim). Additive
+                    // defence-in-depth — the in-handler requireAdmin() fresh
+                    // re-checks stay, so a forgotten requireAdmin() in a new
+                    // method still 403s here.
+                    .requestMatchers("/admin/**").hasAuthority("ADMIN");
+                // The API document is a complete map of the attack surface,
+                // so it is unauthenticated-readable ONLY in a dev/test-only
+                // profile (non-empty active set, every entry dev/test —
+                // SW-C1: the statement block exists for this condition).
+                if (Profiles.isDevTestOnly(env)) {
+                    auth.requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml",
+                            "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                }
+                auth.anyRequest().authenticated();
+            })
             .addFilterBefore(headersFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-    private static void writeError(ObjectMapper objectMapper, HttpServletResponse response,
+    private static void writeError(ObjectMapper objectMapper, Clock clock, HttpServletResponse response,
                                    HttpServletRequest request, HttpStatus status, String message) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), new ErrorResponse(
-                Instant.now(), status.value(), status.getReasonPhrase(), message, request.getRequestURI()));
+                clock.instant(), status.value(), status.getReasonPhrase(), message, request.getRequestURI()));
     }
 }

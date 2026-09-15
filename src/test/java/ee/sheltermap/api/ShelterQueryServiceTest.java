@@ -88,7 +88,7 @@ class ShelterQueryServiceTest {
     }
 
     private void report(long shelterId, long userId, ShelterReportType type) {
-        reports.save(new ShelterReport(shelterId, userId, type, null));
+        reports.save(new ShelterReport(shelterId, userId, type, null, NOW));
     }
 
     /** A report at an explicit instant (deterministic "last verified" assertions). */

@@ -19,5 +19,5 @@ public record RegisterRequest(
         @NotBlank @Size(max = 255) String name,
         @NotBlank @Email @Size(max = 255) String email,
         @NotBlank @Size(max = 64) String phone,
-        @NotBlank @Size(min = 8, message = "Password must be at least 8 characters long") String password) {
+        @NotBlank @Size(min = 8, max = 200, message = "Password must be at least 8 characters long") String password) {
 }

@@ -4,6 +4,12 @@ import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -56,6 +62,14 @@ import java.util.stream.Collectors;
  * endpoints ack with {@link CodeSentDto} — the cooldown a client should
  * count down before resending.
  */
+@Tag(name = "Account & verification",
+        description = "The authenticated account surface — every operation "
+                + "requires a Bearer JWT and the user is resolved from the token, "
+                + "never from the body. The change-request endpoints are "
+                + "additionally throttled per client IP (429 above); the confirms "
+                + "are code-verified and attempt-limited instead. The request "
+                + "endpoints ack with CodeSentDto — the cooldown a client should "
+                + "count down before resending.")
 @RestController
 @RequestMapping("/account")
 public class AccountController {
@@ -89,6 +103,12 @@ public class AccountController {
 
     /** The authenticated user's real profile + verified claims (no rate bucket — cheap read). */
     @GetMapping("/me")
+    @Operation(summary = "The caller's profile + verified claims",
+            description = "The user's real profile + REAL verification claims — the "
+                    + "frontend's single source of truth for name/email/phone and "
+                    + "verification labels. No rate bucket (cheap read).")
+    @ApiResponse(responseCode = "200", description = "The profile", content = @Content(
+            schema = @Schema(implementation = MeResponse.class)))
     public MeResponse me() {
         return accountService.profile(currentUser());
     }
@@ -98,12 +118,28 @@ public class AccountController {
      * → 401 (nothing updated); blank name → 400 (registration validations).
      */
     @PutMapping("/profile")
+    @Operation(summary = "Edit the name (password-confirmed)",
+            description = "Wrong current password → 401 (nothing updated); blank "
+                    + "name → 400 (registration validations). No national ID code "
+                    + "is collected anywhere.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The fresh profile", content =
+                    @Content(schema = @Schema(implementation = MeResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Wrong current "
+                    + "password (nothing updated)")
+    })
     public MeResponse updateProfile(@Valid @RequestBody ProfileUpdateRequest body) {
         return accountService.updateProfile(currentUser(), body);
     }
 
     @PostMapping("/email-change/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "Request an e-mail change",
+            description = "SMS code to the current phone (an email thief alone "
+                    + "cannot change the email). 202 + the resend-cooldown ack.")
+    @ApiResponse(responseCode = "202", description = "Code sent — the ack carries "
+            + "the resend cooldown in seconds", content = @Content(schema = @Schema(
+            implementation = CodeSentDto.class)))
     public CodeSentDto requestEmailChange(@Valid @RequestBody ChangeEmailRequest body, HttpServletRequest http) {
         requireRate(http);
         contactChangeService.requestEmailChange(currentUser(), body.newEmail());
@@ -112,6 +148,10 @@ public class AccountController {
 
     @PostMapping("/email-change/confirm")
     @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = "Confirm the e-mail change",
+            description = "Completes the change once the code is verified; a code "
+                    + "failure is a 400.")
+    @ApiResponse(responseCode = "200", description = "E-mail changed")
     public void confirmEmailChange(@Valid @RequestBody ConfirmChangeRequest body) {
         ContactChangeResult result = contactChangeService.confirmEmailChange(currentUser(), body.code());
         // H2: the service RETURNS a code failure (its transaction has already
@@ -124,6 +164,13 @@ public class AccountController {
 
     @PostMapping("/phone-change/request")
     @ResponseStatus(HttpStatus.ACCEPTED)
+    @Operation(summary = "Request a phone change",
+            description = "Email code to the current email (a lost/stolen phone "
+                    + "alone cannot change the phone). 202 + the resend-cooldown "
+                    + "ack.")
+    @ApiResponse(responseCode = "202", description = "Code sent — the ack carries "
+            + "the resend cooldown in seconds", content = @Content(schema = @Schema(
+            implementation = CodeSentDto.class)))
     public CodeSentDto requestPhoneChange(@Valid @RequestBody ChangePhoneRequest body, HttpServletRequest http) {
         requireRate(http);
         contactChangeService.requestPhoneChange(currentUser(), body.newPhone());
@@ -132,6 +179,10 @@ public class AccountController {
 
     @PostMapping("/phone-change/confirm")
     @ResponseStatus(HttpStatus.OK)
+    @Operation(summary = "Confirm the phone change",
+            description = "Completes the change once the code is verified; a code "
+                    + "failure is a 400.")
+    @ApiResponse(responseCode = "200", description = "Phone changed")
     public void confirmPhoneChange(@Valid @RequestBody ConfirmChangeRequest body) {
         ContactChangeResult result = contactChangeService.confirmPhoneChange(currentUser(), body.code());
         if (!result.ok()) {
@@ -147,6 +198,15 @@ public class AccountController {
      * The frontend turns the body into a downloadable file.
      */
     @GetMapping("/export")
+    @Operation(summary = "The caller's own data export",
+            description = "The caller's own data (profile + every author-scoped "
+                    + "shelter row) as one JSON document. Same auth rule as /me "
+                    + "(valid JWT, user from the token) and, like /me, no rate "
+                    + "bucket (cheap read). The frontend turns the body into a "
+                    + "downloadable file.")
+    @ApiResponse(responseCode = "200", description = "The data export document",
+            content = @Content(schema = @Schema(implementation =
+                    DataExportResponse.class)))
     public DataExportResponse dataExport() {
         return accountService.dataExport(currentUser());
     }
@@ -162,6 +222,15 @@ public class AccountController {
      */
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Erase the account",
+            description = "The account erasure: the declared private homes are "
+                    + "purged, the public community rows are orphaned (map data "
+                    + "outlives accounts), and the DB cascades credentials, "
+                    + "claims, pending changes, tokens and reports. The "
+                    + "verified-user gate matches the submission gates (403 "
+                    + "without a claim); a repeat call is an idempotent no-op — "
+                    + "the JWT is valid until its expiry, but the account is "
+                    + "already gone.")
     public void deleteAccount() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {

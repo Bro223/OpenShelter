@@ -10,6 +10,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.Objects;
 
 /**
@@ -54,17 +55,21 @@ public class AdminSeeder implements ApplicationRunner {
     private final PasswordHasher passwordHasher;
     private final String email;
     private final String password;
+    /** Time source stamping the provisioned admin's claims and credentials (injected — the caller owns the clock). */
+    private final Clock clock;
 
     public AdminSeeder(UserRepository users,
                        UserCredentialsRepository credentials,
                        PasswordHasher passwordHasher,
                        @Value("${app.admin.email:}") String email,
-                       @Value("${app.admin.password:}") String password) {
+                       @Value("${app.admin.password:}") String password,
+                       Clock clock) {
         this.users = Objects.requireNonNull(users, "users");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
         this.email = email;
         this.password = password;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -91,9 +96,9 @@ public class AdminSeeder implements ApplicationRunner {
         // uq_users_phone index, so it can never collide with any other user
         // or be a login route); no national ID code is stored (M1) — the
         // pre-set SMART_ID claim carries the e-mail as its external ref.
-        AdminUser admin = AdminUser.provisioned("Admin", email);
+        AdminUser admin = AdminUser.provisioned("Admin", email, clock.instant());
         users.save(admin);
-        credentials.save(new UserCredentials(admin.getId(), passwordHasher.hash(password)));
+        credentials.save(new UserCredentials(admin.getId(), passwordHasher.hash(password), clock.instant()));
         log.info("Seeded admin account {}", email);
     }
 }

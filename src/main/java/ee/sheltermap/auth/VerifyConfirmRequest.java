@@ -3,6 +3,7 @@ package ee.sheltermap.auth;
 import ee.sheltermap.domain.VerificationLevel;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * {@code POST /verify/confirm} body — the channel and the code the user
@@ -10,5 +11,5 @@ import jakarta.validation.constraints.NotNull;
  */
 public record VerifyConfirmRequest(
         @NotNull VerificationLevel level,
-        @NotBlank String code) {
+        @NotBlank @Size(max = 16) String code) {
 }

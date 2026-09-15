@@ -1,6 +1,7 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.verification.SmtpSender;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +44,9 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/dev/email-test")
 @ConditionalOnProperty(name = "app.dev-email-test.enabled", havingValue = "true")
+// Dev-only relay (DevEndpointsGuard): hidden from the OpenAPI document so the
+// API map never advertises a surface that is meant to be invisible.
+@Hidden
 public class EmailTestController {
 
     private static final Logger log = LoggerFactory.getLogger(EmailTestController.class);
@@ -70,6 +74,7 @@ public class EmailTestController {
     }
 
     @PostMapping
+    @Hidden
     public EmailTestResult send(@Valid @RequestBody EmailTestRequest request) {
         String provider = activeSmtpSender.getClass().getSimpleName();
         if (!allowAny && !allowedRecipients.contains(request.to().toLowerCase(Locale.ROOT))) {

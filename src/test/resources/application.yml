@@ -49,6 +49,21 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+springdoc:
+  # MIRROR of the main application.yml block (this file must stay in sync —
+  # same defaults, same env placeholders). The doc ITs enable the document
+  # per class via @TestPropertySource; the default-off state here is the
+  # deterministic baseline everything else boots against.
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  # The document must not absorb the actuator surface (health,info only there).
+  show-actuator: false
+
 management:
   endpoints:
     web:

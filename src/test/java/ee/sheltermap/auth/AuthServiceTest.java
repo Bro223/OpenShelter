@@ -14,16 +14,16 @@ class AuthServiceTest {
 
     private final InMemoryUserRepository users = new InMemoryUserRepository();
     private final UserService userService = new UserService(users);
-    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
+    private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
+    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository(clock);
     private final StubPasswordHasher hasher = new StubPasswordHasher();
     private final StubTokenService tokens = new StubTokenService();
-    private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
     private final InMemoryPasswordResetTokenRepository resetTokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
     private final PasswordResetService passwordReset = new PasswordResetService(
             users, credentials, resetTokens, refreshTokens, hasher, smtp, clock);
-    private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset);
+    private final AuthService auth = new AuthService(userService, hasher, credentials, tokens, passwordReset, clock);
 
     private void registerMari() {
         auth.register(new RegisterRequest("Mari", "mari@example.ee", "+37250000001", "s3cret"));
@@ -89,7 +89,7 @@ class AuthServiceTest {
         // never reveals whether the account exists.
         CountingHasher counting = new CountingHasher();
         AuthService countingAuth =
-                new AuthService(userService, counting, credentials, tokens, passwordReset);
+                new AuthService(userService, counting, credentials, tokens, passwordReset, clock);
 
         assertThatThrownBy(() -> countingAuth.login(new LoginRequest("ghost@example.ee", "x")))
                 .isInstanceOf(InvalidCredentialsException.class);

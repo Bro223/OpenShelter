@@ -21,6 +21,9 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.7</jjwt.version>
         <testcontainers.version>2.0.5</testcontainers.version>
+        <!-- 2.6.x is the springdoc line aligned to Boot 3.3.x / Java 21.
+             2.7+ targets Boot 3.4+ — do not bump without review (SW-A1). -->
+        <springdoc.version>2.6.0</springdoc.version>
     </properties>
 
     <dependencies>
@@ -32,6 +35,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <!-- API documentation (SW wave): runtime OpenAPI document + Swagger UI.
+             Dev-gated by SPRINGDOC_ENABLED (default off in both yml files) and
+             refused at boot on non-dev/test profiles by ApiDocsGuard — the same
+             fail-closed shape as the /dev/* diagnostic guards. NOT the v1
+             artifact, not the webflux starter, and deliberately NO
+             springdoc-openapi-starter-actuator: the document must not absorb
+             the /actuator surface (application.yml exposes health,info only). -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <!-- Persistence: JPA + Flyway + PostgreSQL 16 -->

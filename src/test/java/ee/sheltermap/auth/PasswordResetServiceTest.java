@@ -16,7 +16,7 @@ class PasswordResetServiceTest {
 
     private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
     private final InMemoryUserRepository users = new InMemoryUserRepository();
-    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
+    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository(clock);
     private final InMemoryPasswordResetTokenRepository tokens = new InMemoryPasswordResetTokenRepository(clock);
     private final InMemoryRefreshTokenRepository refreshTokens = new InMemoryRefreshTokenRepository(clock);
     private final RecordingSmtpSender smtp = new RecordingSmtpSender();
@@ -26,7 +26,7 @@ class PasswordResetServiceTest {
     private RegisteredUser savedUser() {
         RegisteredUser user = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(user);
-        credentials.save(new UserCredentials(user.getId(), "h(oldpass)"));
+        credentials.save(new UserCredentials(user.getId(), "h(oldpass)", clock.instant()));
         return user;
     }
 

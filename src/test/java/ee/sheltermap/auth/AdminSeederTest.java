@@ -6,6 +6,10 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -21,11 +25,12 @@ class AdminSeederTest {
     private static final String PASSWORD = "admin-secret";
 
     private final InMemoryUserRepository users = new InMemoryUserRepository();
-    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository();
+    private final Clock clock = Clock.fixed(Instant.parse("2026-08-23T12:00:00Z"), ZoneOffset.UTC);
+    private final InMemoryUserCredentialsRepository credentials = new InMemoryUserCredentialsRepository(clock);
     private final StubPasswordHasher hasher = new StubPasswordHasher();
 
     private AdminSeeder seeder(String email, String password) {
-        return new AdminSeeder(users, credentials, hasher, email, password);
+        return new AdminSeeder(users, credentials, hasher, email, password, clock);
     }
 
     @Test
@@ -115,7 +120,7 @@ class AdminSeederTest {
         // a normal account registered through the app holds the email first
         RegisteredUser normal = new RegisteredUser("Mari", EMAIL, "+37250000001");
         users.save(normal);
-        credentials.save(new UserCredentials(normal.getId(), hasher.hash("mari-password")));
+        credentials.save(new UserCredentials(normal.getId(), hasher.hash("mari-password"), clock.instant()));
 
         seeder(EMAIL, PASSWORD).run(null);
 

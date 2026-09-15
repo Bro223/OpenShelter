@@ -5,6 +5,7 @@ import ee.sheltermap.auth.PasswordResetTokenRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -19,9 +20,11 @@ import java.util.Objects;
 public class JpaPasswordResetTokenRepository implements PasswordResetTokenRepository {
 
     private final SpringDataPasswordResetTokenRepository tokens;
+    private final Clock clock;
 
-    public JpaPasswordResetTokenRepository(SpringDataPasswordResetTokenRepository tokens) {
+    public JpaPasswordResetTokenRepository(SpringDataPasswordResetTokenRepository tokens, Clock clock) {
         this.tokens = Objects.requireNonNull(tokens, "tokens");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
@@ -65,7 +68,7 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
         tokens.deleteByUserIdAndExpiresAtLessThan(userId, now);
     }
 
-    private static PasswordResetTokenEntity toEntity(PasswordResetToken token) {
+    private PasswordResetTokenEntity toEntity(PasswordResetToken token) {
         PasswordResetTokenEntity entity = new PasswordResetTokenEntity();
         entity.setId(token.getId());
         entity.setUserId(token.getUserId());
@@ -76,7 +79,7 @@ public class JpaPasswordResetTokenRepository implements PasswordResetTokenReposi
         // V8 created_at is NOT NULL with a DB default — carry the stored
         // value on re-save, and stamp it explicitly on INSERT (Hibernate
         // sends NULL for unset fields, which the column rejects).
-        entity.setCreatedAt(token.getCreatedAt() != null ? token.getCreatedAt() : Instant.now());
+        entity.setCreatedAt(token.getCreatedAt() != null ? token.getCreatedAt() : clock.instant());
         return entity;
     }
 

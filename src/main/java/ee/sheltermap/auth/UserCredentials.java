@@ -18,11 +18,14 @@ public class UserCredentials {
     private final Instant createdAt;
     private Instant changedAt;
 
-    public UserCredentials(Long userId, String passwordHash) {
-        this.userId = Objects.requireNonNull(userId, "userId");
-        this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
-        this.createdAt = Instant.now();
-        this.changedAt = this.createdAt;
+    /**
+     * Fresh credential row: the caller's instant stamps BOTH timestamps
+     * (a new row's creation IS its first change) — the domain never
+     * reaches for the wall clock (the
+     * {@code PasswordResetToken.markUsed(Instant)} idiom).
+     */
+    public UserCredentials(Long userId, String passwordHash, Instant now) {
+        this(userId, passwordHash, now, now);
     }
 
     /**
@@ -52,9 +55,9 @@ public class UserCredentials {
         return changedAt;
     }
 
-    /** Replaces the hash and stamps the change (password rotation / reset). */
-    public void updateHash(String newHash) {
+    /** Replaces the hash and stamps the change with the caller's instant (password rotation / reset). */
+    public void updateHash(String newHash, Instant now) {
         this.passwordHash = Objects.requireNonNull(newHash, "newHash");
-        this.changedAt = Instant.now();
+        this.changedAt = Objects.requireNonNull(now, "now");
     }
 }

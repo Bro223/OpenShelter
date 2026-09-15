@@ -9,6 +9,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.transaction.TransactionSystemException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -25,7 +29,8 @@ class ApiErrorHandlerTest {
 
     private static final String CONFLICT_MESSAGE = "The resource changed under you; reload and retry";
 
-    private final ApiErrorHandler handler = new ApiErrorHandler();
+    private final ApiErrorHandler handler = new ApiErrorHandler(
+            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
     private final MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/api/shelters/42");
 
     @Test

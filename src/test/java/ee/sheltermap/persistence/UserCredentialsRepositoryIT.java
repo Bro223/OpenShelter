@@ -7,10 +7,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional
 class UserCredentialsRepositoryIT extends AbstractPersistenceIT {
+
+    private static final Instant CREATED = Instant.parse("2026-01-01T00:00:00Z");
 
     @Autowired
     UserCredentialsRepository credentials;
@@ -22,7 +26,7 @@ class UserCredentialsRepositoryIT extends AbstractPersistenceIT {
     void saveAndFindRoundTrip() {
         Long userId = saveUser(users).getId();
 
-        credentials.save(new UserCredentials(userId, "argon2-hash-1"));
+        credentials.save(new UserCredentials(userId, "argon2-hash-1", CREATED));
 
         UserCredentials loaded = credentials.findByUserId(userId);
         assertThat(loaded).isNotNull();
@@ -35,7 +39,7 @@ class UserCredentialsRepositoryIT extends AbstractPersistenceIT {
     @Test
     void updateHashReplacesHashAndStampsChangedAt() {
         Long userId = saveUser(users).getId();
-        credentials.save(new UserCredentials(userId, "old-hash"));
+        credentials.save(new UserCredentials(userId, "old-hash", CREATED));
 
         credentials.updateHash(userId, "new-hash");
 

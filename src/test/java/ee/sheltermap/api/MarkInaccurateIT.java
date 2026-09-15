@@ -114,7 +114,7 @@ class MarkInaccurateIT extends AbstractPersistenceIT {
                 Instant.now()));
         users.save(user);
         credentials.save(new UserCredentials(user.getId(),
-                new Argon2PasswordHasher(passwordEncoder).hash(password)));
+                new Argon2PasswordHasher(passwordEncoder).hash(password), Instant.now()));
         TokenResponse pair = tokens.issue(user);
         return new Account(user, pair.accessToken());
     }

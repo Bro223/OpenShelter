@@ -85,7 +85,7 @@ class AdminModerationServiceTest {
                 users, FIXED,
                 audit,
                 new ShelterService(shelters, users, 1_000, 100.0, new ThrottleAlertRecorder(128),
-                        history),
+                        history, FIXED),
                 history,
                 infoRequests);
 
@@ -254,7 +254,7 @@ class AdminModerationServiceTest {
     void aDismissAuditsAndAnIdempotentReDismissDoesNot() {
         Shelter shelter = userShelter(ReviewStatus.NEW);
         shelterReports.save(new ShelterReport(shelter.getId(), submitterId,
-                ShelterReportType.NON_EXISTENT, null));
+                ShelterReportType.NON_EXISTENT, null, NOW));
         long reportId = shelterReports.findAll().get(0).getId();
 
         service.dismissReport(adminId, reportId);

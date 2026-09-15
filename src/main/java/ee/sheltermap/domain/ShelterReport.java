@@ -46,13 +46,11 @@ public class ShelterReport {
      */
     private boolean damped;
 
-    public ShelterReport(Long shelterId, Long userId, ShelterReportType type, String detail) {
-        this(shelterId, userId, type, detail, Instant.now());
-    }
-
     /**
-     * Full-state constructor used by the persistence layer to restore an
-     * existing report from storage (dismissal stamp included).
+     * The ONLY constructor: the caller — the report service (fresh reports,
+     * stamped from its injected Clock) or the persistence layer (restored
+     * rows) — owns the creation stamp, so the domain never reaches for the
+     * wall clock (the {@code PasswordResetToken.markUsed(Instant)} idiom).
      */
     public ShelterReport(Long shelterId, Long userId, ShelterReportType type, String detail,
                          Instant createdAt) {

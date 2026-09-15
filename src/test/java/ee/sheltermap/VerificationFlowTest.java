@@ -73,7 +73,7 @@ class VerificationFlowTest {
                 new RollingContactOtpLimiter(0, Duration.ofHours(24), clock),
                 new VerificationProperties(0, 0, "unused"), clock, alerts);
         shelterService = new ShelterService(shelters, users, 1_000, 100.0, alerts,
-                new InMemoryShelterHistoryLog(clock));
+                new InMemoryShelterHistoryLog(clock), clock);
     }
 
     @Test

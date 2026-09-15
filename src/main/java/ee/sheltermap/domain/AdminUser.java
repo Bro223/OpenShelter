@@ -42,10 +42,13 @@ public class AdminUser extends RegisteredUser {
      * no ID code is stored anywhere (remove-national-id D4), and the column
      * is NOT NULL — the e-mail is a stable, non-sensitive placeholder until
      * the real PKI flow lands and supplies its own external reference.
+     *
+     * <p>The stamps come from the caller's injected Clock (the seeder
+     * passes {@code clock.instant()}) — the domain never reaches for the
+     * wall clock (the {@code PasswordResetToken.markUsed(Instant)} idiom).
      */
-    public static AdminUser provisioned(String name, String email) {
+    public static AdminUser provisioned(String name, String email, Instant now) {
         AdminUser admin = new AdminUser(name, email, null);
-        Instant now = Instant.now();
         admin.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "system", email, now));
         admin.addVerification(new VerificationClaim(VerificationLevel.PHONE, "system", email, now));
         admin.addVerification(new VerificationClaim(

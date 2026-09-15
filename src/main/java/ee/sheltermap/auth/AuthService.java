@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -40,17 +41,21 @@ public class AuthService {
     private final UserCredentialsRepository credentials;
     private final TokenService tokens;
     private final PasswordResetService passwordReset;
+    /** Time source stamping fresh credential rows (injected — the caller owns the clock). */
+    private final Clock clock;
 
     public AuthService(UserService users,
                        PasswordHasher passwordHasher,
                        UserCredentialsRepository credentials,
                        TokenService tokens,
-                       PasswordResetService passwordReset) {
+                       PasswordResetService passwordReset,
+                       Clock clock) {
         this.users = Objects.requireNonNull(users, "users");
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
         this.credentials = Objects.requireNonNull(credentials, "credentials");
         this.tokens = Objects.requireNonNull(tokens, "tokens");
         this.passwordReset = Objects.requireNonNull(passwordReset, "passwordReset");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     /**
@@ -82,7 +87,8 @@ public class AuthService {
         }
         try {
             RegisteredUser user = users.register(request.name(), email, phone);
-            credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password())));
+            credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password()),
+                    clock.instant()));
         } catch (DataIntegrityViolationException e) {
             // concurrent duplicate slipped past the pre-check — same 409
             throw new DuplicateAccountException("An account with this email or phone already exists");

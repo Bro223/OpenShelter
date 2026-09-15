@@ -6,6 +6,14 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.auth.InvalidAccessTokenException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -46,6 +54,15 @@ import java.util.Map;
  * caps + duplicate detector append to). All writes are single-row; no
  * bulk endpoints. Reporter identity is served from this API ONLY.
  */
+@Tag(name = "Admin moderation",
+        description = "Every operation requires a valid Bearer JWT AND an "
+                + "ADMIN-kind account, checked by a fresh per-request DB lookup — "
+                + "the JWT's userId is loaded and its kind checked, never a role "
+                + "claim in the token (a JWT minted before a demotion/deletion "
+                + "keeps failing). Anonymous → 401; authenticated non-admin → "
+                + "403 (the x-admin-only extension marks these operations "
+                + "machine-readably). Reporter identity is served from this API "
+                + "ONLY.")
 @RestController
 @RequestMapping("/admin")
 public class AdminController {
@@ -72,9 +89,26 @@ public class AdminController {
      * {@code q} the case-insensitive name/address substring.
      */
     @GetMapping("/shelters")
-    public List<AdminShelterDto> listShelters(@RequestParam(required = false) ShelterStatus status,
-                                              @RequestParam(required = false) ShelterSource source,
-                                              @RequestParam(required = false) String q) {
+    @Operation(summary = "The admin shelter list",
+            description = "Every shelter including hidden, with report counts, "
+                    + "status flag, occupancy and the submitter's name. "
+                    + "status/source exact-match filters, q the case-insensitive "
+                    + "name/address substring.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "All shelter rows "
+                    + "(including hidden)", content = @Content(array = @ArraySchema(
+                    schema = @Schema(implementation = AdminShelterDto.class)))),
+            @ApiResponse(responseCode = "403", description = "Authenticated "
+                    + "non-admin")
+    })
+    public List<AdminShelterDto> listShelters(
+            @Parameter(description = "Exact status match (optional).")
+            @RequestParam(required = false) ShelterStatus status,
+            @Parameter(description = "Exact source match (optional).")
+            @RequestParam(required = false) ShelterSource source,
+            @Parameter(description = "Case-insensitive name/address substring "
+                    + "(optional).")
+            @RequestParam(required = false) String q) {
         requireAdmin();
         return moderation.listShelters(status, source, q);
     }
@@ -82,6 +116,9 @@ public class AdminController {
     /** Manual hide/restore; a restore disarms auto-hide (D3). 204; 404 unknown; 409 registry rows. */
     @PostMapping("/shelters/{id}/status")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Manual hide/restore of a shelter",
+            description = "204; 404 unknown; 409 registry rows (import-owned). A "
+                    + "restore disarms auto-hide.")
     public void setShelterStatus(@PathVariable long id,
                                  @Valid @RequestBody AdminShelterStatusRequest request) {
         moderation.setShelterStatus(requireAdmin(), id, request.status());
@@ -90,6 +127,9 @@ public class AdminController {
     /** Hard delete of a USER shelter (cascade). 204; 404 unknown; 409 registry rows. */
     @DeleteMapping("/shelters/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Hard delete of a USER shelter",
+            description = "204; 404 unknown; 409 registry rows (import-owned). "
+                    + "USER rows only — reports and occupancy cascade.")
     public void deleteShelter(@PathVariable long id) {
         moderation.deleteShelter(requireAdmin(), id);
     }
@@ -103,6 +143,17 @@ public class AdminController {
      * (they keep their own data_imports audit).
      */
     @GetMapping("/shelters/{id}/history")
+    @Operation(summary = "The shelter's edit history",
+            description = "Ascending over the row's lifecycle: CREATED / EDITED "
+                    + "(server-parsed field changes) / DELETED, with snapshot "
+                    + "names and batched actor names. 404 only when the shelter "
+                    + "is absent AND has no history rows (a deleted shelter's "
+                    + "history still serves — the dangling shelter_id); registry "
+                    + "import rows answer an empty list (they keep their own "
+                    + "data_imports audit).")
+    @ApiResponse(responseCode = "200", description = "The history rows (ascending)",
+            content = @Content(array = @ArraySchema(schema = @Schema(implementation =
+                    AdminShelterHistoryDto.class))))
     public List<AdminShelterHistoryDto> shelterHistory(@PathVariable long id) {
         requireAdmin();
         return moderation.shelterHistory(id);
@@ -118,6 +169,13 @@ public class AdminController {
      */
     @PostMapping("/shelters/{id}/request-info")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "The moderator→submitter information request",
+            description = "Stores the question on the shelter; the submitter sees "
+                    + "it on their own row and answers once — the admin sees the "
+                    + "request with the reply on the shelter list. 204; 404 "
+                    + "unknown shelter; 409 registry rows (import-owned) and a "
+                    + "second request for the same row (one exchange per shelter — "
+                    + "the replied row is kept).")
     public void requestInfo(@PathVariable long id,
                             @Valid @RequestBody AdminInfoRequestRequest request) {
         moderation.requestInfo(requireAdmin(), id, request.message());
@@ -131,6 +189,11 @@ public class AdminController {
      */
     @PostMapping("/shelters/{id}/mark-inaccurate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Mark a USER shelter inaccurate",
+            description = "The row stays visible, the public DTOs carry "
+                    + "inaccurate: true and the UI renders the warning. Optional "
+                    + "reason rides on the audit row. 204 (idempotent); 404 "
+                    + "unknown shelter; 409 registry rows (import-owned).")
     public void markInaccurate(@PathVariable long id,
                                @Valid @RequestBody(required = false) AdminMarkInaccurateRequest request) {
         moderation.markInaccurate(requireAdmin(), id,
@@ -140,6 +203,9 @@ public class AdminController {
     /** Clear the inaccurate mark (M10 slice 4) — idempotent, audited. 204; 404; 409. */
     @PostMapping("/shelters/{id}/clear-inaccurate")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Clear the inaccurate mark",
+            description = "Idempotent, audited. 204; 404 unknown shelter; 409 "
+                    + "registry rows.")
     public void clearInaccurate(@PathVariable long id) {
         moderation.clearInaccurate(requireAdmin(), id);
     }
@@ -153,6 +219,13 @@ public class AdminController {
      * the other admin writes).
      */
     @PostMapping("/shelters/{id}/review")
+    @Operation(summary = "The community review decision (manual override)",
+            description = "The rare manual override: CONFIRM promotes the row to "
+                    + "CONFIRMED (status untouched, note cleared); REJECT hides it "
+                    + "(REJECTED + INACTIVE, reason stored as the note). 200 "
+                    + "{\"ok\":true}; 404 unknown shelter; 409 registry rows "
+                    + "(import-owned, same guard as the other admin writes).")
+    @ApiResponse(responseCode = "200", description = "{\"ok\": true}")
     public Map<String, Boolean> reviewShelter(@PathVariable long id,
                                               @Valid @RequestBody AdminShelterReviewRequest request) {
         moderation.reviewShelter(requireAdmin(), id, request.action(), request.reason());
@@ -167,7 +240,21 @@ public class AdminController {
      * 1..200, default 100 (anything else 400).
      */
     @GetMapping("/audit")
-    public List<AdminAuditDto> listAudit(@RequestParam(required = false) Integer limit) {
+    @Operation(summary = "The moderation audit trail",
+            description = "Newest first: every moderation-relevant action (admin "
+                    + "AND automatic AUTO_CONFIRM) with the shelter name resolved "
+                    + "at read time (\"Deleted shelter\" once the row is gone). "
+                    + "limit is 1..200, default 100 (anything else 400).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The audit rows "
+                    + "(newest first)", content = @Content(array = @ArraySchema(
+                    schema = @Schema(implementation = AdminAuditDto.class)))),
+            @ApiResponse(responseCode = "400", description = "limit outside 1..200")
+    })
+    public List<AdminAuditDto> listAudit(
+            @Parameter(description = "Rows to return, 1..200 (default 100; "
+                    + "anything else 400).")
+            @RequestParam(required = false) Integer limit) {
         requireAdmin();
         return moderation.listAudit(limit);
     }
@@ -181,7 +268,23 @@ public class AdminController {
      * idiom as {@code /admin/audit}).
      */
     @GetMapping("/alerts")
-    public List<AdminAlertDto> listAlerts(@RequestParam(required = false) Integer limit) {
+    @Operation(summary = "The M3 throttle-abuse alerts",
+            description = "Newest first: the daily submission cap (429), the "
+                    + "per-contact OTP cap (429) and the near-duplicate rejection "
+                    + "(409). The ring is IN-MEMORY — it clears on a backend "
+                    + "restart, so this is a triage view, not a durable log. "
+                    + "limit is 1..200, default 50 (anything else 400 — same "
+                    + "idiom as /admin/audit).")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The alert rows "
+                    + "(newest first)", content = @Content(array = @ArraySchema(
+                    schema = @Schema(implementation = AdminAlertDto.class)))),
+            @ApiResponse(responseCode = "400", description = "limit outside 1..200")
+    })
+    public List<AdminAlertDto> listAlerts(
+            @Parameter(description = "Rows to return, 1..200 (default 50; "
+                    + "anything else 400).")
+            @RequestParam(required = false) Integer limit) {
         requireAdmin();
         int size = limit == null ? ALERTS_DEFAULT_LIMIT : limit;
         if (size < 1 || size > ALERTS_MAX_LIMIT) {
@@ -195,7 +298,15 @@ public class AdminController {
 
     /** The shelter report queue, newest first (optional shelter filter). */
     @GetMapping("/reports")
+    @Operation(summary = "The shelter report queue",
+            description = "Newest first; optional shelterId narrows to one "
+                    + "shelter. Carries the reporter's profile name + email — "
+                    + "admin-only data, served from /admin/* only.")
+    @ApiResponse(responseCode = "200", description = "The report rows (newest "
+            + "first)", content = @Content(array = @ArraySchema(schema =
+            @Schema(implementation = AdminShelterReportDto.class))))
     public List<AdminShelterReportDto> listShelterReports(
+            @Parameter(description = "Narrow to one shelter (optional).")
             @RequestParam(required = false) Long shelterId) {
         requireAdmin();
         return moderation.listShelterReports(shelterId);
@@ -204,6 +315,8 @@ public class AdminController {
     /** Mark a shelter report resolved — idempotent. 204; 404 unknown report. */
     @PostMapping("/reports/{id}/dismiss")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Mark a shelter report resolved",
+            description = "Idempotent. 204; 404 unknown report.")
     public void dismissReport(@PathVariable long id) {
         moderation.dismissReport(requireAdmin(), id);
     }
@@ -213,6 +326,13 @@ public class AdminController {
      * and ADMIN account with its suspension state, id-ordered.
      */
     @GetMapping("/users")
+    @Operation(summary = "The account list (Users tab)",
+            description = "Every REGISTERED and ADMIN account with its "
+                    + "suspension state, id-ordered. E-mail is admin-only data, "
+                    + "served from /admin/* only.")
+    @ApiResponse(responseCode = "200", description = "The account rows "
+            + "(id-ordered)", content = @Content(array = @ArraySchema(schema =
+            @Schema(implementation = AdminUserDto.class))))
     public List<AdminUserDto> listUsers() {
         requireAdmin();
         return moderation.listUsers();
@@ -226,6 +346,11 @@ public class AdminController {
      */
     @PostMapping("/users/{id}/suspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Suspend a registered account",
+            description = "Login, refresh rotation and every in-flight token stop "
+                    + "working immediately. 204 (idempotent); 404 unknown id; 409 "
+                    + "admin/guest targets (lockout vector / no credentials). "
+                    + "Audited as USER_SUSPEND with the account as subject.")
     public void suspendUser(@PathVariable long id) {
         moderation.suspendUser(requireAdmin(), id);
     }
@@ -233,6 +358,9 @@ public class AdminController {
     /** Lift a suspension (M10 slice 1) — idempotent, audited. Same 204/404/409. */
     @PostMapping("/users/{id}/unsuspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Lift a suspension",
+            description = "Idempotent, audited. Same 204/404/409 vocabulary as "
+                    + "suspend.")
     public void unsuspendUser(@PathVariable long id) {
         moderation.unsuspendUser(requireAdmin(), id);
     }

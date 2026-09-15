@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,7 +21,13 @@ import java.util.List;
  *
  * <p>Reads {@code Authorization: Bearer &lt;accessToken&gt;}, validates the
  * JWT and, on success, sets an {@link org.springframework.security.core.Authentication}
- * whose principal is the user id. Invalid/missing/expired tokens leave the
+ * whose principal is the user id and whose authorities carry the single
+ * {@code ADMIN} grant — ONLY from a fresh per-request, column-only
+ * {@code UserRepository.isAdmin} read (never a token claim, never a blanket
+ * grant): the {@code /admin/**} chain matcher (B6, 2026-09-15 hardening)
+ * needs the authority, and a demoted admin loses it on the very next
+ * request, like the suspension read below. Invalid/missing/expired tokens
+ * leave the
  * request unauthenticated — the configured entry point then answers 401 on
  * protected routes. Not a {@code @Component} on purpose: it is registered
  * explicitly in the filter chain to avoid double execution as a servlet
@@ -59,7 +67,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 // slice 1): the fresh column read, not the token, is the
                 // truth (deleted accounts authenticate as before — false).
                 if (userId != null && !users.isSuspended(userId)) {
-                    var authentication = new UsernamePasswordAuthenticationToken(userId, null, List.of());
+                    // B6 (2026-09-15 hardening): the /admin/** chain matcher
+                    // needs the ADMIN authority — granted ONLY from this
+                    // fresh per-request kind read (same column-only idiom
+                    // as the isSuspended check above, never a token claim).
+                    // Non-admins stay authority-free and hit the 403 at the
+                    // chain level; the in-handler requireAdmin() re-checks
+                    // stay the fresh-DB second line (and the audit actor).
+                    List<GrantedAuthority> authorities = users.isAdmin(userId)
+                            ? List.of(new SimpleGrantedAuthority("ADMIN"))
+                            : List.of();
+                    var authentication = new UsernamePasswordAuthenticationToken(userId, null, authorities);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             } catch (InvalidAccessTokenException ignored) {
