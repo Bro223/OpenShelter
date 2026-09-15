@@ -1,0 +1,34 @@
+{
+  "started_at": "2026-09-14T23:19:44.555691Z",
+  "updated_at": "2026-09-15T00:27:16Z",
+  "budget_hours_soft": 3,
+  "budget_hours_hard": 4,
+  "phase": "fixing",
+  "last_wave": "Wave 1 (WS-1, WS-7, WS-5): 26 of 32 attempted items reviewer-verified closed, 6 left open; reviewer verdict needs-fix / merge BLOCK (mvn clean test red: AuthRequestConstraintParityTest 7/7 + OpenApiContractIT x-admin-only 1/8).",
+  "open_items": 42,
+  "model_policy": {
+    "intended": {
+      "token_heavy": "hpc-vllm/Qwen3.8-27B",
+      "orchestrator": "deepseek/deepseek-flash"
+    },
+    "active": {
+      "token_heavy": "hpc-vllm/Qwen3.8-27B",
+      "orchestrator": "deepseek/deepseek-flash"
+    },
+    "reason": "Qwen3.8-27B endpoint measured 2026-09-14T23:24Z: GET /models ok (0.1s) but a chat completion took 86.2s for 8 completion tokens (~0.09 tok/s) and returned empty content. Four inventory lanes on that model produced 0 bytes in 3 minutes and were stopped. Heavy lanes are therefore on deepseek-flash until the free endpoint recovers.",
+    "switch_back_rule": "Before each autopilot wave, probe hpc-vllm with an 8-24 token completion: under ~15s with non-empty content -> active.token_heavy=hpc-vllm/Qwen3.8-27B; otherwise deepseek/deepseek-flash. The wave planner echoes active.token_heavy into its plan so the schedule follows this file.",
+    "probe_log": [
+      {
+        "at": "2026-09-14T23:24Z",
+        "result": "degraded",
+        "detail": "8 tokens in 86.2s, empty content (~0.09 tok/s)"
+      },
+      {
+        "at": "2026-09-14T23:27:29.153726Z",
+        "result": "recovered",
+        "detail": "23 tokens in 0.4s, content 'OK' (~57 tok/s)"
+      }
+    ]
+  },
+  "notes": "Ledger written: docs/autopilot/findings/LEDGER.md (deduplicated from the four inventories) - 68 actionable rows across 7 file-disjoint workstreams (WS-1 backend validation/clock/guard, WS-2 backend test gaps, WS-3 frontend a11y + style truth, WS-4 frontend comments/coverage, WS-5 context-and-tasks diagrams + contracts, WS-6 frontend diagrams + prose + openspec, WS-7 swagger). Severity: 9 P0 / 7 P1 / 33 P2 / 19 P3, plus 2 HUMAN rows (tracked TODOs; orphaned qa/ + .agent-orchestration/ sets) and 2 rows deferred to wave 2 for file-ownership reasons (F-13 spec-harness refactor, SW-F1b @Schema on the 7 auth request records owned by WS-1's B1). WAVE 1 recommendation: WS-1, WS-2, WS-3, WS-7 in parallel; WS-4, WS-5, WS-6 in wave 2 (WS-1 must land with WS-7 because SW-C1, the profile-aware docs permit, lives in SecurityConfig.java which WS-1 owns, and WS-6's SW-I1/SW-I4 depend on WS-7's snapshot and guard). Resume rule: if a wave dies mid-flight, the next schedule fire re-runs the unfinished workstreams from this ledger+RUNLOG. Hard stop: write the report at budget_hours_hard even if items remain. Caveat on updated_at: the ledger lane has no shell (`date` unavailable), so this timestamp is derived from the parent's 23:27:29Z STATE write plus the lane's observed work time - treat seconds as approximate."
+}
