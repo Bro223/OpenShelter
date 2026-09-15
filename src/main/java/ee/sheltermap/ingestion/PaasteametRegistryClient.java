@@ -34,6 +34,13 @@ import java.util.List;
  * and ignores {@code srsName} — every point is transformed to WGS84 by
  * {@link LEst97Transformer} before it leaves this class, so downstream code
  * only ever sees latitude/longitude.
+ *
+ * <p>Legacy opt-in (B9, 2026-09-15): the registry client defaults to
+ * {@code csv} ({@link RegistryProperties} + {@code application.yml}), so this
+ * WFS client activates only when {@code app.registry.client=paasteamet} is
+ * selected explicitly — the property is always supplied, so nothing depends
+ * on a {@code matchIfMissing} fallback. The upstream WFS layer is dead; the
+ * CSV client is the shipped source.
  */
 @Service
 // No matchIfMissing: the registry client defaults to 'csv' (RegistryProperties +

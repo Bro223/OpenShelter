@@ -53,9 +53,10 @@ import java.util.stream.Collectors;
  * <p>D5: the public list projection is ACTIVE-only (auto-hidden shelters
  * disappear from the map and list); the trust filter
  * ({@code hasCapacity}) is applied in-memory over the
- * already-fetched list (Estonia-scale data). (M11 rating demotion:
- * the {@code minRating} rating filter is gone — the rating is context,
- * not a lever.)
+ * already-fetched list (Estonia-scale data). (M11 rating demotion, completed
+ * by V21: the {@code minRating} query parameter no longer exists on the
+ * model — an unknown {@code minRating} parameter is ignored for API
+ * compatibility.)
  *
  * <p>Community trust (community-review-queue v2 D2): the public list and
  * detail reads are UNCHANGED by the trust model — there is no blocking
@@ -113,8 +114,9 @@ public class ShelterQueryService {
      * The public list: ACTIVE rows only (D5) — with the optional trust
      * filter applied in-memory.
      * {@code hasCapacity} keeps shelters with capacity data.
-     * A {@code false} boolean is the negation. (M11: the minRating rating
-     * filter is gone — the rating is context, not a lever.)
+     * A {@code false} boolean is the negation. (M11/V21: no {@code minRating}
+     * parameter exists any more — an unknown {@code minRating} is ignored for
+     * API compatibility.)
      * NEW community rows are listed like any other ACTIVE row
      * (community-review-queue v2 D2 — no visibility gate).
      */
