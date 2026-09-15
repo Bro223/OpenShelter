@@ -12,6 +12,7 @@ export const EN: Messages = {
   'nav.map': 'Shelter map',
   'nav.account': 'Account',
   'nav.admin': 'Admin',
+  'nav.skip': 'Skip to content',
 
   'theme.toggle': 'High contrast',
   'lang.label': 'Language',

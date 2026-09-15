@@ -17,6 +17,8 @@ export interface Messages {
   'nav.map': string;
   'nav.account': string;
   'nav.admin': string;
+  /** Skip-to-content link (accessibility F-01), the shell's first element. */
+  'nav.skip': string;
 
   // --- header: actions
   'theme.toggle': string;

@@ -12,6 +12,7 @@ export const ET: Messages = {
   'nav.map': 'Varjupaikade kaart',
   'nav.account': 'Konto',
   'nav.admin': 'Admin',
+  'nav.skip': 'Liigu põhisisu juurde',
 
   'theme.toggle': 'Kõrge kontrast',
   'lang.label': 'Keel',

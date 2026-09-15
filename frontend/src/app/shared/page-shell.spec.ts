@@ -5,6 +5,7 @@ import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
 import { DataSourceGateway } from '../gateways/data-source-gateway';
 import { ConsentStore } from '../core/consent-store';
+import { I18nService } from '../core/i18n/i18n.service';
 import type { DataSourceDto, TokenResponse } from '../core/models';
 import { AuthStore } from '../session/auth-store';
 import { PageShell } from './page-shell';
@@ -98,6 +99,9 @@ describe('PageShell', () => {
     expect(first.tagName).toBe('A');
     expect(first.classList).toContain('skip-link');
     expect(first.getAttribute('href')).toBe('#main');
+    // The label is catalog-driven (ORCH-6), so it follows the active locale
+    // instead of being hardcoded English: assert the binding, not a literal.
+    expect(first.textContent?.trim()).toBe(TestBed.inject(I18nService).t('nav.skip'));
     // The landing target: the outlet container is programmatically focusable,
     // so the next Tab continues into the page instead of back to the nav.
     const main = element.querySelector('main#main');
