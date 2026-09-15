@@ -45,7 +45,7 @@ Pick the topology to fit the risk of the work — we use all five.
 | 2 | **Hierarchical review** — 4 area leads (backend, frontend, architecture, security), each spawning children | you need breadth with independent verification, and the output is findings, not code | `docs/code-review/review-process.md`, `docs/code-review/2026-09-08-review-output.md` |
 | 3 | **Fix campaign** — waves partitioned by file ownership, one wave at a time, gates between | there is a large findings backlog to burn down | `docs/code-review/fix-process.md` |
 | 4 | **Autopilot wave loop** — planner → N file-disjoint fixers → read-only reviewer → state-writer → gates → commit, on a re-firing schedule | unattended progress over hours, with resumption if a lane dies | `docs/autopilot/AUTOPILOT-REPORT-2026-09-15.md` |
-| 5 | **Gated feature build** — small waves (A: backend, B: public UI, C: admin UI, D: docs), each lane one file with a brief read from disk | building a new feature with several layers | `docs/autopilot/crisis-guidance/briefs/` |
+| 5 | **Gated feature build** — small waves by layer (A: backend, B: public UI, C: admin UI, D: docs), each lane owning a group of files with a brief read from disk. As run for crisis-guidance, only wave A exists (A1 data+audit, A2 sanitizer+media, A3 services+controllers) | building a new feature with several layers | `docs/autopilot/crisis-guidance/briefs/` |
 
 The wave loop (topology 4) in one line of pseudo-code:
 
@@ -68,7 +68,7 @@ API model:
 | Planner, reviewer, state-writer | `deepseek/deepseek-flash` | short, decision-shaped output; needs to be fast and reliable |
 
 **Measure before you route.** The free endpoint is shared: at one point it served 8 tokens in
-86.2 s (~0.09 tok/s), which would have turned a 20 k-token analysis into ~55 hours, while `GET
+86.2 s (~0.09 tok/s), which would have turned a 20 k-token analysis into ~60 hours (20,000 tokens × 86.2 s per 8 tokens ≈ 59.9 h), while `GET
 /models` still answered in 0.1 s. So the standing rule is a **probe before each wave** (an 8–24 token
 completion): healthy → the free model; degraded → the cheap API model; and switch back when it
 recovers (it later measured 0.4 s). The probe log lives in `docs/autopilot/STATE.json`.
@@ -160,8 +160,8 @@ destructive actions require explicit confirmation.
 
 ## 8. What this costs and what it buys
 
-From the 4-wave hardening run (`docs/autopilot/AUTOPILOT-REPORT-2026-09-15.md`): ~1.9 h of wall
-clock, 21 commits, **68 inventoried rows → 1 open work row**, four independent reviewer verdicts plus
+From the 4-wave hardening run (`docs/autopilot/AUTOPILOT-REPORT-2026-09-15.md`): ≥5.1 h of logged wave time (23:19:44Z start to the
+last wave-3 record at 04:25Z), 20 commits, **68 inventoried rows → 1 open work row**, four independent reviewer verdicts plus
 one orphan review, and roughly 719 backend / 953 frontend tests green at the end. The gates caught
 **four defects in lane-authored code** (three compile errors, two test-compile breaks, a contract
 guard that double-rooted paths and scanned comments, and an OpenAPI extension the library never

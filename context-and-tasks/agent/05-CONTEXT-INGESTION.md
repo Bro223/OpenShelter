@@ -24,7 +24,7 @@ into the domain.
 | `ShelterParser` | interface | `parse(dtos: List<RegistryShelterDto>): List<Shelter>`. Seam for per-registry parsing strategies. |
 | `RegistryShelterParser` | class | Maps DTO → domain `Shelter`: name normalization (trim/collapse spaces), coordinate validation (lat ∈ [-90,90], lng ∈ [-180,180] + **Estonia bbox sanity check**), malformed rows **skipped and counted, never fatal**. Sets `source = PAASETEAMET` (or MUNICIPALITY per registry). |
 | `ShelterImportService` | class | Orchestrator: `importFromRegistry(): ImportResult` — fetch → parse → dedupe (by `externalId`) → upsert → remove delisted → return result. Catches `RegistryUnavailableException` → failed result, **app never crashes because the registry is down**. **Hardening:** the network fetch happens OUTSIDE the transaction; the apply phase runs in ONE transaction (a mid-batch failure rolls back everything). The `AtomicBoolean` overlap guard lives HERE — the weekly scheduler and the startup runner share it, so runs never overlap. Intra-fetch duplicate `externalId`s are counted as skipped. |
-| `ImportResult` | record | `created: int, updated: int, removed: int, skipped: int, failed: int, at: Instant`. |
+| `ImportResult` | record | `created: int, updated: int, removed: int, skipped: int, failed: int, at: Instant, overlapSkipped: boolean, sourceVersion: String`. |
 | `RegistryUnavailableException` | class | Runtime exception with a name — the "registry is down" failure mode is explicit. |
 
 ## Import semantics (from the puml note — do not silently change)
@@ -49,9 +49,12 @@ into the domain.
 
 ## Sequence (executable spec)
 
-`scheduler → importFromRegistry() → client.fetchAll() → parser.parse(dtos) → loop
+`scheduler → importFromRegistry() → client.fetch() (the previous run's version stamp sent
+back as If-Modified-Since) → 304 → notModified: record NOT_MODIFIED, apply nothing (no
+delist), stop | rows → parser.parse(dtos) → loop
 {findByExternalId → update | create} → fetchedSource = client.source(); if fetchedIds empty →
 delist skipped, else deleteBySourceAndExternalIdNotIn(fetchedSource, fetchedIds) → ImportResult`
+(fetchAll() is only the fallback for sources without a version — the default fetch() wraps it unchanged)
 
 ## Scheduling
 

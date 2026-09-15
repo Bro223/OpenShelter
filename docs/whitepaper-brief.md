@@ -34,9 +34,10 @@ Angular 22 + Leaflet frontend.
 **Browsing (public, no login)**
 
 - Leaflet **map** of all shelters + synchronized list; **provenance markers + legend**
-  (Official / Partner / Community-reported / Proposed / Reported) with a matching
-  filter; trust filters (Open — client-side / Has capacity).
-- Shelter **detail page** — name, address, county/municipality, coordinates,
+  (Registry / New by community / Confirmed by community / Reported — the four public
+  values the map renders) with a matching filter; trust filters (Open — client-side /
+  Has capacity).
+- Shelter **detail page** — name, address, coordinates,
   capacity, description, provenance badge,
   **last-verified line** + community-report count, current occupancy
   ("Reported full" while fresh), **"Navigate" / "Open in Apple Maps"** deep links
@@ -74,23 +75,27 @@ Angular 22 + Leaflet frontend.
 **UI**
 
 - 11 routes: map (default), shelter detail, submit, login, register, reset, verify,
-  account, privacy, terms, admin (the moderation panel). High-contrast (black/yellow)
-  accessibility theme toggle, design-token system, responsive down to 360 px,
+  account, privacy, terms, admin (the moderation panel). High-contrast accessibility
+  theme toggle (near-black background with blue/orange accents), design-token system,
+  fluid layout that survives narrow viewports,
   **bilingual EN/ET switcher** (app chrome translated, feature pages in progress),
   crisis-first (one primary action per screen, words beside every color-coded
   status).
 
 ## Quality bar
 
-706 backend + 887 frontend automated tests, all green (2026-09-13); PostgreSQL
+788 backend + 953 frontend automated tests (re-counted 2026-09-15; 706/887 was the
+2026-09-13 snapshot); PostgreSQL
 integration tests via Testcontainers; three completed security/review efforts —
 2026-09-08 campaign (reset-code brute-force, XFF-spoofing fix, fail-closed prod JWT
 guard), 2026-09-11 wave (uniqueness races, transactional import, N+1 removal,
 canonical phone/email, Twilio fail-fast, full-history secret scan), 2026-09-13
-twelve-attack threat model + operations runbook + 11 API security pins;
+twelve-attack threat model + operations runbook + 15 API security pins;
 architecture docs (PlantUML + build packs) re-synced to code after every milestone.
 
-**Status (13 Sept 2026).** Fully functional end-to-end (register → verify → browse →
-submit → report → manage), bilingual app chrome (ET/EN). Remaining: real
+**Status (13 Sept 2026; test counts refreshed 2026-09-15).** Fully functional end-to-end
+(register → verify → browse → submit → report → manage), bilingual app chrome (ET/EN);
+the crisis-guidance authoring/publishing backend landed after this date and its public and
+admin UI are the next wave. Remaining: real
 Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
 PWA offline cache, production deployment.

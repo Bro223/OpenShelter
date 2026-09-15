@@ -21,8 +21,9 @@ The system consists of a Spring Boot / PostgreSQL backend (auth, multi-channel
 verification, weekly registry ingestion, shelter API, community reports and trust
 state) and an
 Angular single-page frontend (map, shelter detail, account and verification flows).
-Both sides are test-heavy: 706 backend and 887 frontend automated tests at the time of
-writing (2026-09-13), with three completed security/code-review efforts that hardened
+Both sides are test-heavy: 788 backend and 953 frontend automated tests at the time of
+writing (re-counted 2026-09-15; 706/887 was the 2026-09-13 snapshot), with three completed
+security/code-review efforts that hardened
 the whole stack: the 2026-09-08 review campaign, the 2026-09-11 review wave, and the
 2026-09-13 threat-model + security-posture pass (a twelve-attack model, an operations
 runbook and end-to-end API security pins — see §6).
@@ -64,8 +65,8 @@ authentication and batch queries rather than N+1).
 ## 3. Design thesis
 
 1. **No pre-publication moderation. Community reports are the moderation.**
-   User-submitted shelters appear immediately, marked *Proposed*; community
-   confirmations move them to *Community-reported*. Quality is governed by community
+   User-submitted shelters appear immediately, marked *Newly added*; community
+   confirmations move them to *Community-checked*. Quality is governed by community
    reports — the fifth trust-weighted "does not exist" report takes a shelter off the
    public map — and by a single env-provisioned admin who works the report queues
    after the fact (hide/restore, mark inaccurate, request info, suspend), every action
@@ -73,8 +74,9 @@ authentication and batch queries rather than N+1).
    rating: the review model was removed in `V21__drop_reviews.sql`.
 2. **Provenance is a first-class property.** Every shelter carries a `source`
    (REGISTRY vs USER). The importer may create/update/delete only REGISTRY rows; USER
-   rows are sacred. The UI presents provenance as badges (Registry / Verified /
-   Community) so trust is visible at a glance.
+   rows are sacred. The UI presents provenance as badges (Registry / Newly added /
+   Community-checked, plus Reported and Private-home markers) so trust is visible at a
+   glance.
 3. **Verification is data, not a class change.** A user's verification state is a set of
    claims (EMAIL, PHONE, SMART_ID) added at runtime — never modelled as subclasses.
 4. **Cross-channel contact change.** Changing the account email requires an SMS code to
@@ -110,7 +112,7 @@ authentication and batch queries rather than N+1).
         ▼              ▼                  ▼                    ┌──────▼──────┐  ┌────▼──────────┐
   Päästeamet        SMTP relay         SMS provider           │ PostgreSQL  │  │ File state     │
   open data (CSV)   (smtp-pulse / dev) (Twilio / dev console) │ (Flyway     │  │ (verification  │
-        ▲              ▲                  ▲                    │  V1–V20)   │  │  send log)     │
+        ▲              ▲                  ▲                    │  V1–V23)   │  │  send log)     │
         │              └──────────────────┴────────────────────┴──────┬──────┘  └───────────────┘
         │  weekly import (Mon 03:00 Europe/Tallinn) + manual trigger  │
         └─────────────────────────────────────────────────────────────┘
@@ -123,7 +125,9 @@ capacity — malformed rows counted, never fatal) → import service (upsert new
 changed, delist removed — registry rows only, one transaction, overlap-guarded) →
 `shelters` table + a `data_imports` audit row → public read API → frontend map (the
 footer shows source, official open-data link and last-import date via
-`GET /api/data-source`). The legacy WFS client remains as a working alternate.
+`GET /api/data-source`). The legacy WFS client is retained as a tested alternate, but its
+upstream layer no longer serves data (every request 404s), so the CSV is the only live
+source.
 
 **Data flow (community):** registered user → verifies at least one channel → submits
 a shelter (immediately ACTIVE/USER) and/or files trust reports (shelter / occupancy /
@@ -144,10 +148,11 @@ open status) → the server-derived trust state is served with every shelter lis
 
 ### 5.2 Multi-channel verification
 
-- **EMAIL**: 8-character code delivered by SMTP (real relay in production, console
-  sender in dev).
-- **PHONE**: 6-digit OTP via SMS (Twilio SDK wired; dev console sender; live account
-  pending).
+- **EMAIL**: 8-character code delivered by SMTP — the real smtp-pulse relay is configured
+  in the local `.env`; the console sender stays the default for a fresh clone.
+- **PHONE**: 6-digit OTP via SMS — the Twilio sender is wired and provisioned with live
+  credentials in the local `.env` (live delivery to a handset is confirmed); a
+  production-grade sender account for a deploy is still open.
 - **SMART_ID**: reserved seam, stubbed (Estonian e-ID path for the future).
 - Codes: SecureRandom, SHA-256 at rest, 5–15-minute TTL, 5-attempt limit, one active
   code per user per channel; resend invalidates the previous code.
@@ -224,8 +229,9 @@ open status) → the server-derived trust state is served with every shelter lis
 - Frontend: Leaflet map with provenance markers and trust filters, shelter detail
   with the trust-state badges, occupancy and report controls, auth/verification/
   account pages, the admin moderation panel, privacy/terms legal pages, design-token
-  theming including a high-contrast (black/yellow) mode after the national
-  crisis-portal pattern, responsive down to 360 px, and a bilingual ET/EN language
+  theming including a high-contrast mode (near-black background, white text, blue/orange
+  accents) after the national crisis-portal pattern, a fluid layout that survives narrow
+  viewports, and a bilingual ET/EN language
   switcher (app chrome fully translated; feature-page copy in progress).
 
 ## 6. Security and abuse prevention
@@ -236,7 +242,7 @@ open status) → the server-derived trust state is served with every shelter lis
 | Sessions | Short-lived access tokens; rotating refresh tokens hashed at rest; revocation on reset/logout |
 | Enumeration | Uniform failure messages on login, reset-request, code confirm; reset always "succeeds" |
 | OTP abuse | Per-IP token buckets + 60 s resend cooldown + **file-backed 5-per-day cap (restart-proof)** + bounded attempts + short TTL |
-| SMS/email costs | Same throttle layer covers both channels; vendor senders are the only external egress |
+| SMS/email costs | Same throttle layer covers both channels; the vendor senders, the weekly registry import and the geo resolver are the only outbound HTTP egress |
 | PII at rest | E-mail/phone AES-256-GCM encrypted with versioned key slots + HMAC-SHA256 blind index for lookups; keys env-only, never committed or logged; **missing keys ⇒ the app refuses to boot**; lost key = unrecoverable contact (offline key backup required) |
 | Secrets | Gitignored `.env` (spring-dotenv); full git history scanned clean (no credential ever committed); fail-closed boot guards (non-dev profiles refuse a dev-default / <32-byte JWT secret; dev diagnostic endpoints refuse to boot outside dev/test; missing PII keys ⇒ refused; Twilio refuses blank credentials) |
 | SSRF | URL/location resolution hardened against internal-address exfiltration |
@@ -246,7 +252,7 @@ open status) → the server-derived trust state is served with every shelter lis
 Three review efforts have hardened the stack, each with findings fixed and
 test-pinned:
 
-- **2026-09-08 campaign** (4-lead / 13-child review) — reset-code brute-force,
+- **2026-09-08 campaign** (4-lead / 14-child review) — reset-code brute-force,
   unspoofable `X-Forwarded-For` rate-limit keys, fail-closed prod JWT guard,
   transactional refresh rotation, plus the hardening wave (uniqueness races,
   transactional import, N+1 removal, canonical phone/email, Twilio fail-fast,
@@ -259,7 +265,7 @@ test-pinned:
   residual-risk register), an operations runbook in
   [`docs/security/operations.md`](security/operations.md) (fail-closed boot guards,
   staging-vs-production separation, pg_dump backup/restore, monitoring, incident
-  quick-list), and eleven end-to-end API security tests pinning the recovery flow
+  quick-list), and fifteen end-to-end API security tests pinning the recovery flow
   (uniform ack, cooldown, attempt lockout, single-use, expiry, session revocation)
   and the admin authorization surface (401/403/200 vocabulary, headers, no cookie).
 
@@ -268,7 +274,7 @@ test-pinned:
 | Concern | Choice |
 |---|---|
 | Backend | Java 21, Maven, Spring Boot 3.3.x (web, validation, data-jpa, security, actuator) |
-| Data | PostgreSQL 16, Flyway migrations V1–V20, JPA with `ddl-auto=validate` |
+| Data | PostgreSQL 16, Flyway migrations V1–V23 (`V13` is a Java migration), JPA with `ddl-auto=validate` |
 | Auth | jjwt 0.12.x; spring-security-crypto (Argon2id) |
 | Ingestion | Hand-written Päästeamet CSV client (quote-aware semicolon parse, transient-only retry/backoff, Last-Modified versioning) with the legacy WFS client as alternate; proj4j (EPSG:3301 → WGS84) |
 | Testing | JUnit 5 + AssertJ + Testcontainers (PostgreSQL); **no Mockito** (JDK-agnostic hand-written fakes) |
@@ -276,9 +282,10 @@ test-pinned:
 | Docs-as-code | PlantUML diagrams (architecture + per-flow sequences) rendered via Docker/Kroki; per-milestone "agent build packs" that keep docs in sync with code |
 
 **Backend package layout** (root `ee.sheltermap`): `domain` (pure Java, depends on
-nothing) ← `app` / `verification` (services + repository seams) ← `api` / `auth` /
-`ingestion` (HTTP layer), with `persistence` implementing repository interfaces and
-`config` holding Spring wiring. The dependency rule is strict and one-directional;
+nothing) ← `app` / `verification` / `guidance` (services + repository seams) ← `api` /
+`auth` / `ingestion` (HTTP layer), with `persistence` implementing repository interfaces
+and `config` holding Spring wiring; `security` (PII crypto + keys), `migration` (the Java
+PII migration) and `alerts` (the throttle/report alert ring) sit alongside them. The dependency rule is strict and one-directional;
 all cross-package access goes through interfaces, making every external channel
 (email, SMS, registry, storage) swappable.
 
@@ -288,16 +295,16 @@ path), with consistent HTTP semantics (400 validation, 401 unauthenticated,
 
 ## 8. Quality assurance
 
-- **706 backend tests** (unit + PostgreSQL integration via Testcontainers) and
-  **887 frontend tests** (unit + component, TestBed with hand-written fakes) at the
-  time of writing (2026-09-13); both suites run in CI style per milestone, before
-  anything is committed.
+- **788 backend tests** (unit + PostgreSQL integration via Testcontainers) and
+  **953 frontend tests** (unit + component, TestBed with hand-written fakes) at the
+  time of writing (re-counted 2026-09-15; the 706/887 pair was the 2026-09-13 snapshot);
+  both suites run in CI style per milestone, before anything is committed.
 - **Three review efforts** (detailed in §6): the hardening pass (uniqueness
   constraints, transactional import, batched queries, X-Forwarded-For-aware rate
   limiting, CORS, health hygiene); the 2026-09-08 / 2026-09-11 security campaigns
   (race conditions, reset-code brute force, canonical E.164/lowercase normalization,
   Twilio fail-fast, dead-code removal, prod JWT guard, full-history secret scan);
-  and the M15 threat-model pass (twelve-attack model + operations runbook + eleven
+  and the M15 threat-model pass (twelve-attack model + operations runbook + fifteen
   API security pins).
 - **Process**: the project was built milestone-by-milestone against written
   acceptance criteria, with every milestone stopping for human review; PlantUML
@@ -321,8 +328,9 @@ quick-list are in `docs/security/operations.md`.
 ## 10. Current state and roadmap
 
 **Working end-to-end:** authentication with JWT sessions and password reset;
-email verification with a live relay; phone verification (full logic, live SMS
-pending vendor credentials); cross-channel contact change; PII at rest; weekly
+email verification with a live relay; phone verification (full logic, Twilio credentials
+provisioned and live delivery confirmed; a production-grade sender account is a deploy
+item); cross-channel contact change; PII at rest; weekly
 registry ingestion of ~300 shelters with a public data-source footer; the
 provenance taxonomy (coloured markers, legend, filter); public shelter API with
 the server-derived trust state; community submissions, reports and live
@@ -375,6 +383,6 @@ roadmap items reflect the state at the time of writing.*
   occupancy, auto-hide, throttles), admin moderation + dashboard
   completion, data export + account deletion, legal pages, location & navigation,
   mobile polish, i18n foundation (ET/EN chrome), threat model + operations
-  runbook, 706/887 automated tests, three review efforts.
+  runbook, 788/953 automated tests (re-counted 2026-09-15; 706/887 at the 2026-09-13 snapshot), three review efforts.
 - **1.0 (2026-09-12)** — first public draft; 360/588 automated tests, two review
   campaigns, pre-provenance-trust-layer state.

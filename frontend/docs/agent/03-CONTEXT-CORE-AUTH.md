@@ -67,8 +67,9 @@ itself fail-closed); `<router-outlet/>`), `BannerComponent`
 ## Contracts with other contexts
 
 - M3 builds `VerifyPage` + the account page on `AuthStore.levels()` (real claims) and the
-  verify/account gateways (03 puml); M7 reworks `/account` into `AccountPage` (profile + identity
-  edit + per-contact verification labels) and removes the Verify top-nav item.
+  verify/account gateways (03 puml); the post-M6 account-profile wave reworks `/account` into
+  `AccountPage` (profile + identity edit + per-contact verification labels) and removes the
+  Verify top-nav item.
 - M4/M5 pages use `AuthStore` only to branch UI (log in prompt, verify prompt); data flows through
   `ShelterGateway`.
 - Environment: `environment*.ts` carries only public config (apiUrl). **Never** tokens/keys.

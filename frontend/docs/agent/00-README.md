@@ -96,4 +96,7 @@ what lets you check and build every file manually — exactly how the backend wa
   (queue + dismiss, dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter
   rows), Alerts (M3 abuse alerts), Users (accounts, suspend / unsuspend), Audit log (the
   moderation trail) — all on the existing tokens with 48px action targets.
-  `npx ng test` green — **723 tests across 38 spec files** (counted 2026-09-12).
+  `npx ng test` green — **953 tests across 45 spec files** (counted 2026-09-15). The
+  pack's own context files also describe the later waves: community-review-queue,
+  abuse-limits, provenance-taxonomy, entry-verification-meta, location-navigation,
+  open-status, moderation-dashboard.

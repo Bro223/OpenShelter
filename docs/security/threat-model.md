@@ -112,8 +112,10 @@ cost-bearing endpoint has a per-IP token bucket: login (per-(IP, contact)
 verify-request, password-reset request + confirm (per-(IP, e-mail) anti-
 guess), contact-change requests, and `POST /api/geo/resolve` (5/min —
 every call is a server-side HTTP fetch, so the bucket is the valve);
-public GETs are batched projections (no N+1, M8); no file uploads, no
-user-controlled HTML, no webhooks; health probe is anonymous and
+public GETs are batched projections (no N+1, M8); no public file uploads
+(the admin-gated media library — 5 MiB cap, magic-byte validated — is the
+only upload path) and no user-authored HTML outside the admin-authored,
+jsoup-sanitized guidance bodies; no webhooks; health probe is anonymous and
 detail-suppressed. **Residual, explicit:** the token buckets and the alert
 ring are in-memory per process (W16) — a restart resets them, and the
 single-instance constraint in `operations.md` is a hard requirement;
@@ -198,8 +200,9 @@ harms in another user's browser.
 
 **Mitigations:** all user content is plain text in size-capped fields
 (name ≤ 200, description ≤ 2000, report detail ≤ 500, admin question/reply
-≤ 2000); **there are no file or image uploads anywhere** (no upload-based
-payload vector); the SPA renders user strings through Angular template
+≤ 2000); **there are no public file or image uploads** — the admin-gated media
+library (`POST /admin/media`, 5 MiB cap, magic-byte validated) is the only upload
+path; the SPA renders user strings through Angular template
 interpolation (auto-escaping) — no `innerHTML` of user data; the API
 responses carry `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: no-referrer` and a defense-in-depth CSP
@@ -222,8 +225,8 @@ prompt appears only on the user's explicit “show shelters around you” CTA;
 the resolved position is used client-side for nearest/distance and is
 **never transmitted to or stored by the server**; the JWTs carry no
 e-mail/phone claims; `Referrer-Policy: no-referrer` keeps token-bearing
-URLs from leaking; the file-backed anti-spam send log (contacts +
-timestamps) is local-only, gitignored, and named as a residual in
+URLs from leaking; the file-backed anti-spam send log (user id + level +
+timestamp — the raw contact is deliberately not persisted) is local-only, gitignored, and named as a residual in
 `operations.md` (M15 note carried from the README).
 
 **Status: MITIGATED.** **Pins:** `PiiAtRestIT` (no PII in JWTs asserted in
@@ -274,8 +277,8 @@ outside dev/test); admin credentials env-only; `ddl-auto=validate` +
 versioned Flyway migrations (no runtime schema mutation); all SQL through
 JPA/parameterized queries (no string-built SQL); `/actuator/health` shows
 details only to authorized callers (`show-details: when-authorized`); the
-dev compose binds 5432 to the host interface — `operations.md` says to
-bind `127.0.0.1` (or drop the publish) for anything non-local; error bodies
+dev compose binds 5432 to the host interface — for anything non-local, bind
+`127.0.0.1` or drop the published port (recorded in `operations.md` §3); error bodies
 are a fixed `ErrorResponse` shape with no stack traces or SQL fragments.
 
 **Status: MITIGATED-RESIDUAL.** A dump still leaks: the dataset itself,
@@ -315,7 +318,7 @@ sees.
 **Mitigations:** the nearest computation is **client-side** (Haversine over
 the user-authorized browser position and the public list) — the server
 never ranks by distance, so there is no server input to poison; the server
-list is name-sorted and the ordering a user sees is a function of the
+list is id-ordered (stable between requests) and the ordering a user sees is a function of the
 public row set only; a manipulator can therefore only inject a fake
 coordinate by creating/editing a shelter row — which is exactly A1 (caps,
 duplicate 409, provenance, reports) — and registry rows are import-only
@@ -369,7 +372,7 @@ explicit CSRF tokens on both sides (deferred cross-stack change).
 4. **No active moderation** (A1/A2/A7): locked product decision —
    auto-trust + community reports + admin queue is the backstop.
 5. **The file-backed verification send log** (`data/verification-send.log`):
-   local, gitignored, contains contacts + timestamps; included in the
+   local, gitignored, contains user id + level + timestamp (never the raw contact); included in the
    backup list in `operations.md`; candidate for a DB-backed seam in a
    future milestone (carried from the README M15 note).
 6. **Admin e-mail provisioning** (A11): the admin password lives in the

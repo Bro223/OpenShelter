@@ -59,7 +59,7 @@ package "domain" {
     ' persistence ctor: the stored claims are restored by UserMapper
     ' (NOT pre-set - a reload reflects the stored claim state); phone
     ' is null for provisioned admins (no phone route)
-    + {static} provisioned(name, email) : AdminUser
+    + {static} provisioned(name, email, now : Instant) : AdminUser
     ' AdminSeeder factory ONLY: phone = null (no ID code stored - M1), EVERY
     ' verification claim pre-set (EMAIL/PHONE/SMART_ID) - the mailbox does
     ' not exist by design, so canWrite() is true from the first request

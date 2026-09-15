@@ -15,7 +15,7 @@ package "api" {
     + GET    /api/shelters/mine
     + PUT    /api/shelters/{id}
     + DELETE /api/shelters/{id}
-    + POST   /api/shelters/{id}/reports      ' V9: 204; 404/409/429
+    + POST   /api/shelters/{id}/reports      ' 200 {"damped": bool}; 403/404/409/429
     + PUT    /api/shelters/{id}/occupancy    ' V9: 204 upsert; 404/429
   }
 
@@ -39,7 +39,7 @@ package "api" {
     + DELETE /admin/shelters/{id} : 204                     ' hard delete (cascade); USER rows only
     + GET    /admin/reports?shelterId= : List<AdminShelterReportDto>  ' shelter-report queue, newest first
     + POST   /admin/reports/{id}/dismiss : 204              ' idempotent; the row is KEPT
-    + POST   /admin/shelters/{id}/review (body : AdminShelterReviewRequest) : 204  ' V11: CONFIRM/REJECT (reason required for REJECT); USER rows only
+    + POST   /admin/shelters/{id}/review (body : AdminShelterReviewRequest) : 200 {"ok": true}  ' V11: CONFIRM/REJECT (reason required for REJECT); USER rows only
     + GET    /admin/audit?limit= : List<AdminAuditDto>      ' V11: newest-first moderation trail; limit 1..200 (default 100)
     + GET    /admin/alerts?limit= : List<AdminAlertDto>     ' M3 s4: in-memory throttle/abuse alert ring; limit 1..200 (default 50)
     + GET    /admin/shelters/{id}/history : List<AdminShelterHistoryDto>  ' M10 s2: CREATED/EDITED/DELETED trail (server-parsed diffs); 404 only absent + no history
@@ -118,7 +118,6 @@ package "api" {
     + source : ShelterSource
     + status : ShelterStatus       ' incl. INACTIVE (auto-hidden)
     + nonexistentReports : int     ' 0 when none
-    + statusFlag : ShelterStatusFlag  ' REPORTED_CLOSED / CONFIRMED_OPEN / null
     + occupancy : Occupancy        ' the fresh (<= 2 h) block; null when nothing fresh
     + capacity : Integer
     + submitter : String           ' the creator's profile name; null for registry
@@ -127,6 +126,13 @@ package "api" {
                                    ' REJECTED; the Unconfirmed tab = USER + NEW rows
     + reviewNote : String          ' V11: the REJECT reason; null while nothing is said
     + locationKind : LocationKind  ' V11: the private-home declaration (badge only)
+    + provenance : Provenance      ' V12 (shelter-provenance-taxonomy): the
+                                   ' server-derived source answer (never re-derived)
+    + inaccurate : boolean         ' M10 slice 4 (V20 stamp): the moderator's
+                                   ' "inaccurate" flag; the row stays visible
+    + infoRequest : InfoRequest    ' M10 slice 3: the moderator-to-submitter
+                                   ' exchange (message, requestedAt, replyMessage,
+                                   ' repliedAt)
   }
 
   class AdminShelterReportDto <<record>> {
@@ -155,7 +161,7 @@ package "api" {
   }
 
   class ShelterQueryService {
-    + findAll(source : ShelterSourceFilter, hasCapacity : Boolean) : List<ShelterDto>
+    + findAll(source : ShelterSourceFilter, hasCapacity : Boolean, provenance : Provenance) : List<ShelterDto>
     + findById(id : Long, caller : User) : Optional<ShelterDto>
     + findByCreatedBy(userId : Long) : List<ShelterDto>
     ' M8 author-scoped list - same lean DTO projection (no N+1).
@@ -166,7 +172,7 @@ package "api" {
     ' findById is
     ' the detail read (ALL statuses; the single-shelter read carries
     ' yourOccupancyBand). The trust derivations (nonexistentReports, the
-    ' statusFlag net, the fresh occupancy block) ride the same batched pass.
+    ' fresh open/closed + occupancy blocks) ride the same batched pass.
   }
 
   class ShelterDto <<record>> {
@@ -186,15 +192,16 @@ package "api" {
                                    ' creators (absent from the findByIds batch)
     + nonexistentReports : int     ' V9 (D1): 0 when none; > 0 = the orange
                                    ' "Reported" affordance (derived, not stored)
-    + statusFlag : ShelterStatusFlag  ' V9 (D1): CLOSED vs OPEN_CONFIRMED net
-                                   ' (REPORTED_CLOSED / CONFIRMED_OPEN / null);
-                                   ' display-only, never status or visibility
+    + openStatus : OpenStatus      ' V22 (open-status): the fresh (<= 2 h)
+                                   ' open/closed block; null when nothing fresh
     + occupancy : Occupancy        ' V9 (D4): the fresh (<= 2 h) block; null
                                    ' when nothing fresh (silent - no cleanup job)
     + yourOccupancyBand : OccupancyBand
                                    ' V9 (D5): the CALLER's own live band -
                                    ' DETAIL read only; null for guests,
                                    ' anonymous callers and no-report users
+    + yourOpenStatus : String      ' V22: the CALLER's own live open/closed state
+                                   ' (DETAIL read only; same null rules as the band)
     + reviewStatus : ReviewStatus  ' V11 (community-review-queue v2): the community
                                    ' trust state; NEW rows are PUBLIC (amber "Newly
                                    ' added" treatment + unverified warning on detail)
@@ -202,6 +209,17 @@ package "api" {
                                    ' only; null on the public projection
     + locationKind : LocationKind  ' V11: the private-home declaration (badge only -
                                    ' never hidden or demoted)
+    + provenance : Provenance      ' V12 (shelter-provenance-taxonomy): the
+                                   ' server-derived source answer; the UI never
+                                   ' re-derives it
+    + reportCount : int            ' entry-verification-meta: the TOTAL community
+                                   ' report count (all types)
+    + lastVerifiedAt : Instant     ' entry-verification-meta: the per-entry
+                                   ' verification stamp; null = never verified
+    + inaccurate : boolean         ' M10 slice 4 (V20 stamp): the moderator's
+                                   ' "inaccurate" flag; the row stays visible
+    + infoRequest : InfoRequest    ' M10 slice 3: the moderator-to-submitter
+                                   ' exchange - /mine projection ONLY
     ' Lean projection: the full registry record (county, municipality,
     ' data-as-of, attribution) is stored in the DB but not dumped here -
     ' the UI gets only what the map needs. All V9 derivations are computed
@@ -217,6 +235,25 @@ package "api" {
     + reportCount : int         ' fresh reports agreeing with it:
                                 ' 1 = hedged copy, 2+ = firm
     + lastReportedAt : Instant  ' the newest fresh report's time
+  }
+
+  class OpenStatus <<record>> {
+    ' Nested inside ShelterDto (V22, open-status): the fresh (<= 2 h)
+    ' open/closed block; null on the DTO when nothing is fresh.
+    + state : String            ' the latest fresh tap (OPEN / CLOSED)
+    + reportedAt : Instant      ' the newest fresh tap's time
+    + reportCount : int         ' fresh taps agreeing with it: 1 = hedged,
+                                ' 2+ = firm
+  }
+
+  class InfoRequest <<record>> {
+    ' Nested in ShelterDto + AdminShelterDto (M10 slice 3): the
+    ' moderator-to-submitter exchange; /mine projection only (null on the
+    ' public list and detail reads - the exchange is private).
+    + message : String
+    + requestedAt : Instant
+    + replyMessage : String     ' null until the submitter answers (one-time)
+    + repliedAt : Instant       ' null until answered
   }
 
   class ShelterReportRequest <<record>> {
@@ -276,11 +313,6 @@ package "api" {
     SPACE
     GETTING_FULL
     FULL
-  }
-
-  enum ShelterStatusFlag {
-    REPORTED_CLOSED
-    CONFIRMED_OPEN
   }
 
   ' V11 (community-review-queue v2): the community trust lifecycle.
@@ -464,7 +496,8 @@ note bottom of AdminController
   demotion takes effect on the next request). 401 anonymous (the security
   entry point - /admin/** is in the authenticated set) -> 403 authenticated
   non-admin -> 404 unknown id -> 409 registry row under a write (D4) ->
-  400 malformed body. All writes are 204, single-row, no bulk endpoints.
+  400 malformed body. All writes are 204, single-row, no bulk endpoints
+  (exception: the review decision answers 200 {"ok": true}).
 
   GET  /admin/shelters?status=&source=&q=      every shelter incl. hidden,
        id-ordered, batched trust fields + the submitter's name; status/
@@ -512,7 +545,7 @@ note bottom of ShelterController
        ALL statuses incl. auto-hidden, NOT public)
   PUT    /api/shelters/{id}                    (Bearer JWT, author-only USER rows)
   DELETE /api/shelters/{id}                    (Bearer JWT, author-only; reports + occupancy cascade)
-  POST /api/shelters/{id}/reports              (Bearer JWT + verified -> 204;
+  POST /api/shelters/{id}/reports              (Bearer JWT + verified -> 200 {damped};
        404 unknown shelter; 409 duplicate (shelter, user, type) - checked before
        the throttle budget; 429 report throttle. The 5th NON_EXISTENT auto-hides.
        M11: detail (<= 500) stored for CLOSED / WRONG_LOCATION / OTHER, ignored
@@ -566,12 +599,12 @@ note right of SC
   source (M11: the rating filter is gone - a stray param is ignored,
   not an error).
 end note
-SC -> SQS : findAll(USER, hasCapacity?)
+SC -> SQS : findAll(USER, hasCapacity?, provenance?)
 SQS -> REPO : findAllActiveBySourceIn([USER])
 REPO -> DB : SELECT ... WHERE source IN (...) AND status = 'ACTIVE'
 REPO --> SQS : List<Shelter>
 SQS -> DB : report counts by type + fresh occupancy (one batched pass - no N+1)
-SQS --> SC : List<ShelterDto> (with nonexistentReports, statusFlag, occupancy)
+SQS --> SC : List<ShelterDto> (with nonexistentReports, openStatus, occupancy)
 SC --> Client : 200 [ShelterDto]
 
 == 2. POST /api/shelters (Bearer JWT, verified user) ==
@@ -659,14 +692,14 @@ else
     SRS -> DB : UPDATE shelters SET review_status = 'CONFIRMED' (same transaction)
     SRS -> DB : INSERT moderation_actions (AUTO_CONFIRM, actor = the reporting user)
   end
-  SRS --> Client : 204 No Content
+  SRS --> Client : 200 {"damped": true|false}
 end
 note over SRS
   The auto-hide is the ONLY auto-hide path. After a manual status change
   (admin restore sets auto_hide_disarmed = true) later reports increment
-  the count but never re-hide. CLOSED / OPEN_CONFIRMED net to a display
-  flag only (closed > confirmed -> REPORTED_CLOSED; both >= 1 ->
-  CONFIRMED_OPEN, a tie counts as confirmed open) - they never hide.
+  the count but never re-hide. CLOSED / OPEN_CONFIRMED feed the fresh
+  open/closed display block only (V22: the latest fresh tap wins, 1 fresh
+  tap = hedged, 2+ = firm) - they never hide.
   V11: OPEN_CONFIRMED additionally carries the NEW -> CONFIRMED promotion
   (community-review-queue v2 D2) - in the SAME transaction, audited
   AUTO_CONFIRM; the submitter's own positive report never promotes.
@@ -767,7 +800,7 @@ else action = REJECT
   AMS -> DB : INSERT moderation_actions (REJECT, reason, previous -> REJECTED)
 end
 AMS --> ADC : done (single-row transaction, audit row included)
-ADC --> Client : 204 No Content
+ADC --> Client : 200 {"ok": true}
 note over AMS
   The rare manual fallback (community-review-queue v2 D2) - the PRIMARY promotion
   path is automatic (the AUTO_CONFIRM in flow 10). A CONFIRM of an INACTIVE row

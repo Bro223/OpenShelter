@@ -44,7 +44,7 @@ milestone manual reviews used (backend `:8080` + frontend `:5173`).
 **API base in dev.** The SPA calls the API same-origin (`apiUrl: ''` in
 `environment.development.ts`); `npm start` / `npm run start:host` run the dev
 server with `--proxy-config proxy.conf.json`, which forwards `/api`, `/auth`,
-`/account` and `/verify` to `http://localhost:8080` on the host. This is what
+`/account`, `/verify` and `/admin` to `http://localhost:8080` on the host. This is what
 makes the app work when the page is loaded from _another_ machine — the API
 calls ride the same connection to the dev server instead of pointing at the
 viewer's own localhost.
@@ -82,8 +82,9 @@ src/
 │   │                  #   LoadingIndicator (real component, role=status), LeafletService,
 │   │                  #   error-copy, form-helpers, shelter-copy,
 │   │                  #   location-input.ts (pure location-string parser)
-│   ├── app.routes.ts  # 11 component routes + 2 redirects ('', '**') — every
-│   │                  #   one carries data.title + titleGuard
+│   ├── app.routes.ts  # 11 component routes + 2 redirects ('', '**') — the 11
+│   │                  #   component routes carry data.title + titleGuard; the two
+│   │                  #   redirects ('', '**') carry neither
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
 ├── environments/      # environment.development.ts (dev server) / environment.ts (prod build)
 └── styles.scss        # design tokens (the single source of truth) + global rules;
@@ -98,7 +99,7 @@ also reach `shared/` and `session/` directly; `shared` is UI + cross-feature hel
 ## Design tokens (M6)
 
 All visual constants are CSS custom properties on `:root` in [`src/styles.scss`](src/styles.scss)
-(colors, 9-step type scale, 2px-grid spacing, radii, weights, tracking, the 720px narrow
+(colors, 9-step type scale, 2px-grid spacing, radii, weights, tracking, the 900px narrow
 breakpoint, content max-width). Components may only use token references or layout-neutral
 literals; `design-tokens.spec.ts` scans every `.scss` file and fails on hex/rgb colors or
 off-grid font-sizes, so the audit stays mechanical. A global `:focus-visible` rule makes
@@ -121,9 +122,12 @@ npm run build     # → dist/frontend/browser/ (outputHashing: all, relative ass
   tooling keeps the rationale here, not in the file): the default route `/map` is a
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
   500 kB default warning is unreachable without dropping the map from first paint.
-  `/shelters/:id` and `/submit` are `loadComponent`-lazy (~27 kB out of the initial
-  bundle). Measured initial total: **530.5 kB raw / 136 kB transfer** →
-  `maximumWarning: 560kB` (measured + ~5% headroom), `maximumError: 1MB` unchanged.
+  Five routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
+  terms). Measured initial total on a fresh build (2026-09-15):
+  **645.6 kB raw / 159.3 kB transfer** — this now **exceeds** `maximumWarning: 560kB`
+  by 85.6 kB, so a fresh build prints a bundle-budget warning (three component SCSS
+  budgets warn as well). Trimming the initial bundle, or raising the warning with a
+  recorded rationale, is open work; `maximumError: 1MB` is unchanged.
 - **dist sanity** (M6): hashed assets referenced by `index.html`, Leaflet media
   (marker icons) copied under `media/`, favicon (`.ico` + `.svg`) present, all
   assets 200 when the folder is served statically, `3rdpartylicenses.txt` shipped
@@ -145,14 +149,16 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 ## Deferrals (v1, honest list)
 
 - **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
-  (≈300). Nearest-neighbor/bbox search (`GET /api/shelters/nearest`-style, would need a
-  GeoService + PostGIS GIST index) is documented as deferred on the backend — **no such
-  endpoint exists**; the UI has no nearest feature either.
+  (≈300). Server-side bbox/nearest search (`GET /api/shelters/nearest`-style, which would need a
+  GeoService + PostGIS GIST index) and list paging are documented as deferred on the backend —
+  **no such endpoint exists**. The "Show shelters around you" action ranks the already-loaded
+  list client-side instead (browser geolocation + Haversine, no server round-trip).
 - **i18n (feature pages)** — the app chrome (header nav/actions, footer,
   document titles) is bilingual EN/ET (M14 slice 1: `core/i18n`, the `t`
   pipe, the header language switcher, persisted `openshelter-locale`, default
-  `en`). Feature-page copy (shelter trust copy, forms, error copy, legal
-  page bodies) is still English-only — M14 slice 2+.
+  `en`), and shelter detail + submit are translated too (slice 2). Still
+  English-only: the account page, the contributions panel, the verify page,
+  the admin panel and the legal page bodies.
 - **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
 - **httpOnly refresh cookie** — see [token storage](#token-storage-tradeoff).
 - **SSR / prerender** — client-rendered SPA; v1 is a JS app by design.

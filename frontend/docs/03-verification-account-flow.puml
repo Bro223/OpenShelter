@@ -23,10 +23,10 @@ end note
 == Verify a level (EMAIL first, then PHONE) ==
 Person -> VP : open /verify (AuthGuard) or the account page's CTA
 VP -> VG : request(level)
-VG -> AC : post<void>('/verify/request', {level})
+VG -> AC : post<CodeSentDto>('/verify/request', {level})
 AC -> API : POST /verify/request
 alt 202 Accepted
-  API --> AC : (empty body)
+  API --> AC : 202 + {resendAvailableAfterSeconds}
   VP --> Person : code-entry phase - 8-char code (EMAIL) or 6-digit OTP (PHONE)
   note over VP
     Dev senders log the code to the backend console ([DEV SMTP]/[DEV SMS]);
@@ -69,13 +69,13 @@ end note
 == Contact change: email -> SMS proof to the current phone (cross-channel) ==
 Person -> CP : open /account (AuthGuard) -> Change email section
 CP -> AG : requestEmailChange(newEmail)   ' lowercased client-side
-AG -> AC : post<void>('/account/email-change/request', body)
+AG -> AC : post<CodeSentDto>('/account/email-change/request', body)
 AC -> API : POST /account/email-change/request
 note over API
   backend sends the OTP to the CURRENT PHONE (SMS), NOT to the new
   email - stealing the mailbox alone cannot change the contact.
 end note
-API --> AC : 202 Accepted (empty - the backend never echoes the destination)
+API --> AC : 202 + {resendAvailableAfterSeconds} (the backend never echoes the destination)
 CP --> Person : "we sent an SMS code to the phone number on your account"
 note over CP
   The contact row above the panel shows the REAL current phone/email from
@@ -102,7 +102,7 @@ end note
 == Contact change: phone -> email proof to the current address (cross-channel) ==
 Person -> CP : /account -> Change phone section
 CP -> AG : requestPhoneChange(newPhone)
-AG -> AC : post<void>('/account/phone-change/request', body)
+AG -> AC : post<CodeSentDto>('/account/phone-change/request', body)
 AC -> API : POST /account/phone-change/request
 note over API
   backend sends the OTP to the CURRENT EMAIL - losing the SIM alone
@@ -122,7 +122,7 @@ API --> AS : MeResponse (the new phone + current claims)
 CP --> Person : success - the contact row shows the NEW phone (server state)
 
 note over AS, CP
-  M7 as-built: AuthStore.levels() is the REAL claim set from GET /account/me
+  Post-M6 account-profile wave (as-built): AuthStore.levels() is the REAL claim set from GET /account/me
   (fetched at boot/login + after every claims-changing event). The account
   page shows the server-truthful current email/phone; per-contact rows show
   a "Verified" label or a "Complete verification" CTA to /verify (which the

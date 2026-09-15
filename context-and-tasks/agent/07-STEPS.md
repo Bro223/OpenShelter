@@ -356,7 +356,7 @@ V9 review-report table with the removed star-rating model). Every report FK is
   admin restore sets it TRUE — the admin-moderation change lands the write path, the condition
   is honoured from day one).
 
-**Endpoints** — `POST /api/shelters/{id}/reports` (204; 401/403/404/400/409/429, see
+**Endpoints** — `POST /api/shelters/{id}/reports` (200 `{"damped": bool}`; 401/403/404/400/409/429, see
 `06-CONTEXT-API.md` for the full matrix) and `PUT /api/shelters/{id}/occupancy` (204 upsert;
 401/403/404/400/429 — no 409, a re-send is the update). Both require a Bearer JWT + a verified
 registered user (the same `canWrite()` gate and error vocabulary as submissions).

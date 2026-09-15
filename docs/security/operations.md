@@ -8,13 +8,15 @@ an env var, guard or endpoint changes.
 
 ## 1. Environments and the fail-closed boot guards
 
-The app is **fail-closed at boot** via three guards (do not "fix" a
+The app is **fail-closed at boot** via five guards (do not "fix" a
 refused boot by loosening a guard — make the environment correct instead):
 
 | Guard | Refuses to boot when | Why |
 |-------|----------------------|-----|
 | `ProdJwtGuard` | active profile is not `dev`/`test` **and** `JWT_SECRET` is the published dev default or < 32 bytes | a misconfigured deploy cannot start with a weak JWT secret |
 | `DevEndpointsGuard` | the `/dev/email-test` or `/dev/sms-test` diagnostics are enabled on a non-dev/test profile | a public deploy cannot start as an open e-mail/SMS relay |
+| `DevSenderGuard` | the active profile set is not entirely `dev`/`test` **and** either `app.mail.provider` or `app.sms.provider` is still the `dev` console sender | a deploy cannot start with a console sender that logs every code in plaintext |
+| `ApiDocsGuard` | `SPRINGDOC_ENABLED` is on outside `dev`/`test` | the generated documentation surface cannot be exposed by accident |
 | `PiiKeys` | `PII_AES_KEY` / `PII_HMAC_KEY` are missing or not 32-byte base64 | the app cannot do its PII-at-rest job without real keys |
 
 Profile usage:
@@ -73,6 +75,10 @@ the single most valuable artifact in this system.
   or a staging abuse test must not burn production sender reputation or
   quota. The per-contact caps are in-memory per process, so they do not
   coordinate across environments anyway.
+- **Never publish the database port.** `docker-compose.yml` maps `5432:5432`
+  for local work; for anything reachable beyond localhost, bind `127.0.0.1`
+  (`"127.0.0.1:5432:5432"`) or drop the published port entirely — the
+  compose credentials are the published dev defaults.
 - **Same build, different env.** Deploy the same artifact to staging and
   production; only the environment differs (profile, env vars, proxy
   config). Staging should run the production profile (`prod`), not `dev` —
@@ -99,7 +105,8 @@ the single most valuable artifact in this system.
    import from the open-data CSV) but community data is not — the DB is
    the backup, full stop.
 2. **`data/verification-send.log`** — the file-backed anti-spam send log
-   (contacts + timestamps, survives restarts). Small, local, gitignored.
+   (user id + level + timestamp — the raw contact is deliberately not persisted; survives
+   restarts). Small, local, gitignored.
    Losing it resets the daily verification caps (abuse valve weakened
    until the window slides past) — back it up with the DB, same cadence.
 3. **The two PII keys + the JWT secret** — OFFLINE (encrypted password

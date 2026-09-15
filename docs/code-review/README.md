@@ -8,8 +8,8 @@ itself here (see [Fix campaign](#fix-campaign-to-follow)).
 
 ## Structure
 
-1 main orchestrator agent + 4 lead (parent) review agents + 13 child review
-agents = 18 agents. All 17 non-orchestrator agents ran on the free local
+1 main orchestrator agent + 4 lead (parent) review agents + 14 child review
+agents = 19 agents. All 18 non-orchestrator agents ran on the free local
 model `hpc-vllm/Qwen3.8-27B` (vLLM); the orchestrator ran on DeepSeek.
 
 | Lead | Sub-scopes (one child each) |

@@ -215,8 +215,8 @@ MapLibre, httpOnly cookies); `environment.ts` prod values documented; final `ng 
 **Status: DONE.** The frontend half of the community trust layer — no new routes, only the
 existing pages grow: `MapPage` (the practical filter chips — "Open" client-side, "Has
 capacity" server-side — the orange reported marker + `Reported` legend entry, row trust
-badges), `ShelterDetailPage` (the trust header badges, "Report this shelter" — five radio
-types, and "Report how full" — three large band buttons pre-selected from
+badges), `ShelterDetailPage` (the trust header badges, "Report this shelter" — three radio
+types (NON_EXISTENT / WRONG_LOCATION / OTHER), and "Report how full" — three large band buttons pre-selected from
 `yourOccupancyBand`), the `ContributionsPanel` (auto-hidden rows marked "Hidden — reported
 by the community (N reports)", no restore action; the 409 shelter-cap surfaces the server
 message in the row error), and the `--color-reported` design token (light `#c2410c`, high-

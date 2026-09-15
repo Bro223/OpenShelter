@@ -25,7 +25,7 @@ Conventions:
 | − oversize field → 400 (distinct from 409) | A | `auth/AuthApiIT.oversizedRegisterFieldReturns400WhileDuplicateReturns409` |
 | − empty/whitespace fields → client-side required errors, no request | A | FE `register-page.spec.ts` (does not submit an empty form) |
 | − per-IP rate limit burst → 429 | A | `auth/AuthRateLimitIT.registerBurstOverCapacityReturns429`; FE 429 slow-down copy |
-| − per-contact OTP cap (3rd event in 24 h) → 429 | A | `auth/OtpContactCapIT.registerEmailCapThrottlesRepeatedRegistration` |
+| − per-contact OTP cap (6th event in 24 h in prod; the IT runs cap 2, so its 3rd request throttles) → 429 | A | `auth/OtpContactCapIT.registerEmailCapThrottlesRepeatedRegistration` |
 | − PII stored as ciphertext + blind index at register | A | `security/PiiAtRestIT.aRegisteredUserIsStoredAsCiphertextWithBlindIndex` |
 | − real first-code delivery end-to-end | A | **NEEDS MANUAL TEST** (tests use `RecordingSmtpSender`/`RecordingSmsSender`) |
 
@@ -83,7 +83,7 @@ Conventions:
 | − 5 wrong codes lock the code (even correct one after) | A | `security/PasswordRecoveryFlowIT`, `auth/PasswordResetServiceTest.resetFailsAfterMaxAttemptsEvenWithTheCorrectCode` |
 | − code reuse → refused | A | `security/PasswordRecoveryFlowIT.aUsedCodeCannotBeReused`, `auth/PasswordResetServiceTest.resetCodeIsSingleUse` |
 | − expired code → refused, not counted as attempt | A | `security/PasswordRecoveryFlowIT.anExpiredCodeIsRefused`, `auth/PasswordResetServiceTest.resetWithExpiredCodeDoesNotCountAsAnAttempt` |
-| − confirm per-(IP,email) bucket burst → 429 | A | `auth/AuthRateLimitIT.resetRequestBurstOverCapacityReturns429` (+ confirm bucket in `SecurityConfig.java:92-95`) |
+| − confirm per-(IP,email) bucket burst → 429 | A | `auth/AuthRateLimitIT.resetRequestBurstOverCapacityReturns429` (+ confirm bucket in `SecurityConfig.java`) |
 | − empty/invalid email, non-6-digit code, mismatched passwords → client-side block | A | FE `reset-page.spec.ts` |
 | − real delivery + 15-min expiry boundary | A | **NEEDS MANUAL TEST** |
 
@@ -99,7 +99,7 @@ Conventions:
 | − resend within 60 s cooldown → 429 | R | `auth/AccountControllerIT.resendWithinCooldownReturns429`, `auth/ContactChangeServiceTest.resendWithinCooldownIsThrottledAndReplacesAfterCooldown` |
 | − confirm with no pending change → 400 | R | `auth/AccountControllerIT.confirmWithoutPendingChangeReturns400` |
 | − over-length new email (256)/phone (65) rejected inline, request never sent | R | FE `account-page.spec.ts` (M6 boundary tests) |
-| − per-IP change-request spray → 429 | R | limiter bean `SecurityConfig.java:144-147`; IT-level: **NEEDS MANUAL TEST** (unit-level cooldown covered) |
+| − per-IP change-request spray → 429 | R | limiter bean `SecurityConfig.java`; IT-level: **NEEDS MANUAL TEST** (unit-level cooldown covered) |
 | − real SMS leg of email change | R | **NEEDS MANUAL TEST** |
 
 ## 7. Account profile (`GET /account/me`, `PUT /account/profile`)
@@ -171,7 +171,7 @@ Conventions:
 | + private-home declaration (locationKind PRIVATE) round-trips | V | FE submit spec (checkbox), `api/CommunityReviewIT.aPrivateDeclarationRoundTripsOnEverySurface` |
 | + description/capacity optional fields | V | FE submit spec (sends description and capacity) |
 | − anonymous → 401; unverified → 403 (route redirects to /verify first) | A/R | `api/ShelterApiIT.postShelterAnonymousIs401WithErrorShape`, `postShelterUnverifiedIs403WithErrorShape`, `app/ShelterServiceTest.guestCannotAddPlace`; FE `core/guards.spec.ts` (verifiedGuard) |
-| − outside Estonia bbox → 400, nothing persisted | V | `api/ShelterApiIT.putOutsideEstoniaIs400AndChangesNothing` (create path shares `requireInsideEstonia`, `ShelterController.java:293-298`); FE out-of-Estonia inline test |
+| − outside Estonia bbox → 400, nothing persisted | V | `api/ShelterApiIT.putOutsideEstoniaIs400AndChangesNothing` (create path shares `requireInsideEstonia`, `ShelterController.java`); FE out-of-Estonia inline test |
 | − blank/oversize name, oversize description, out-of-range capacity → 400 | V | `api/ShelterApiIT.postShelterWithBlankNameIs400WithErrorShape`, `api/ShelterRequestConstraintParityTest`; FE inline validators |
 | − 11th active shelter → 409; delete frees slot; ADMIN exempt | V | `api/ShelterReportIT.eleventhActiveShelterIs409AndDeletingFreesTheCap`, `app/ShelterServiceTest` (cap cases) |
 | − 6th submission in 24 h → 429 + Retry-After; delete frees slot; ADMIN exempt | V | `api/ShelterDailyLimitIT` (4) |
@@ -192,7 +192,7 @@ Conventions:
 | − registry/legacy row PUT/DELETE → 403 for everyone | V/AD | `api/ShelterApiIT.putOnRegistryAndLegacyRowsIs403ForEveryoneAndMissingIs404`, `deleteOnRegistryAndLegacyRows...` |
 | − anonymous PUT → 401; unverified → 403 | A/R | `api/ShelterApiIT.putAnonymousIs401AndUnverifiedIs403` |
 | − concurrent edit (optimistic lock) → 409 "resource changed under you" | V | `persistence/ShelterOptimisticLockingIT`, `api/ApiErrorHandlerTest` (stale-state mapping) |
-| − owner PUT cannot reset admin state (review_status/note/autoHideDisarmed) | V | `api/ShelterController.java:248-260` (server copies admin state); FE: covered indirectly by `CommunityReviewIT` (review state on rows) — explicit negative: **NEEDS MANUAL TEST** (assert a self-edit of a NEW row doesn't confirm it) |
+| − owner PUT cannot reset admin state (review_status/note/autoHideDisarmed) | V | `api/ShelterController.java` (server copies admin state); FE: covered indirectly by `CommunityReviewIT` (review state on rows) — explicit negative: **NEEDS MANUAL TEST** (assert a self-edit of a NEW row doesn't confirm it) |
 | − two-step delete cancel in FE | V | FE `contributions-panel.spec.ts` |
 
 ## 14. Shelter reports / occupancy / open-status
@@ -283,7 +283,7 @@ All admin cases: also run each with **A** and **R** to re-verify 401/403 (`secur
 | + terms page: safety framing, limits honesty, verified-gap pinning | A | `features/legal/terms-page.spec.ts` (8) |
 | + i18n: default en, stored pref honored, invalid → en, catalog parity, no empty values, `<html lang>` | A | `core/i18n/i18n.spec.ts` (10), `core/title.spec.ts` (4) |
 | + switcher flips chrome + titles + persists both directions | A | `shared/page-shell.spec.ts` (switcher tests) |
-| − **known gap: feature-page copy still English** (account, admin, verify, shelter detail/submit, legal have 0 `| t` uses; only chrome + auth pages + consent + parts of map are translated) | A | partial automation: `i18n.spec.ts` en/et parity is catalog-only. Full Estonian UI pass over feature pages: **NEEDS MANUAL TEST** |
+| − **known gap: some feature-page copy still English** (shelter detail + submit are translated — 33 and 36 `| t` uses; account, contributions, verify, admin and legal are not; only chrome + auth pages + consent + parts of map are translated) | A | partial automation: `i18n.spec.ts` en/et parity is catalog-only. Full Estonian UI pass over feature pages: **NEEDS MANUAL TEST** |
 | + high-contrast toggle: attribute + persistence + reload survival + pre-paint script | A | `core/theme-store.spec.ts` (7), `shared/page-shell.spec.ts`, `design-tokens.spec.ts` |
 | + contrast: text pairs ≥ 4.5:1, borders ≥ 3:1 in both themes; HC block overrides same token set | A | `design-tokens.spec.ts` (contrast + HC coverage tests) |
 | − visual audit of every page under high-contrast (real browser) | A | **NEEDS MANUAL TEST** |

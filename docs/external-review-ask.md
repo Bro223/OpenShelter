@@ -7,8 +7,8 @@ says what the project is, what we want you to look at, what we deliberately do *
 want re-decided, and how to get your feedback back to us.
 
 **Package date:** 2026-09-13 · **Code state:** branch `feature/frontend`, commit
-`ab3c488` (M15) · **Test state:** 706 backend + 887 frontend automated tests, all
-green
+`ab3c488` (M15) · **Test state at that commit:** 706 backend + 887 frontend automated
+tests. (Re-counted at the current head, 2026-09-15: 788 backend + 953 frontend, green.)
 
 ## 1. What the project is (60 seconds)
 
@@ -49,8 +49,10 @@ Tick what you can judge; skip what you can't — partial feedback is welcome.
 - [ ] **Open question for you:** the publisher's licence terms for the CSV are not
       yet confirmed in writing (the explainer document is machine-unreadable). How
       should attribution/licencing be worded for a public deploy?
-- [ ] The provenance taxonomy (Official / Partner / Community-reported / Proposed /
-      Reported) — does the vocabulary make the trust model legible to a
+- [ ] The provenance taxonomy (server values: Official / Partner / Community-reported /
+      Proposed / Reported-inactive / Rejected; the map legend renders the four public
+      ones as Registry / New by community / Confirmed by community / Reported) — does the
+      vocabulary make the trust model legible to a
       non-technical user?
 
 ### The no-pre-publication-moderation model
@@ -59,8 +61,10 @@ Tick what you can judge; skip what you can't — partial feedback is welcome.
       review reports hide at five; live occupancy reports are display-only) + one
       env-provisioned admin working the queues after the fact — is this a sound
       trust model for a crisis-context map, or does it need a second human layer?
-- [ ] Ratings are a read-only signal (the filter was demoted, not removed) — does the
-      demotion read as an improvement or a regression?
+- [ ] Ratings were demoted in M11 and then **removed entirely in V21**
+      (`V21__drop_reviews.sql` drops `shelter_reviews` + `review_reports`, and the
+      `minRating` filter is gone) — does the removal read as an improvement or a
+      regression?
 - [ ] Are the abuse valves sufficient without CAPTCHA (a locked decision): 10 report
       actions per rolling hour per user, 5 submissions per rolling day, 10 active
       shelters, near-duplicate 409, per-IP/per-contact token buckets?
@@ -72,8 +76,8 @@ Tick what you can judge; skip what you can't — partial feedback is welcome.
       erasure (`DELETE /account`). Does the posture match what you would expect of a
       civic app?
 - [ ] **Open question for you:** the data-retention schedule is an owner decision
-      still in the open (how long to keep inactive accounts, reviews and audit
-      rows). What retention horizon would you consider appropriate, and how should it
+      still in the open (how long to keep inactive accounts and audit rows). What
+      retention horizon would you consider appropriate, and how should it
       be stated on the privacy page?
 - [ ] The privacy policy and terms (`/privacy`, `/terms`) — anything misleading or
       missing?

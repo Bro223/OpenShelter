@@ -14,8 +14,13 @@ conventions, and build order** that the diagrams don't carry.
 The build is complete through the **admin-moderation wave** (post-step-7 additions):
 steps 0–6 (core, verification, auth, ingestion, shelter API, reviews) plus the trust &
 reports layer (V9) and the env-provisioned admin + moderation API (V10, `/admin/*`).
-`mvn test` is green — **464 tests** (counted 2026-09-12). This pack is now also a
+`mvn test` is green — **788 tests / 0 failures** (latest run 2026-09-15; 464 was the
+2026-09-12 count at the end of the admin-moderation wave). This pack is now also a
 reference: every context file and diagram below reflects the implemented reality.
+The pack does NOT cover the later waves — the crisis-guidance subsystem
+(`V23__crisis_guidance.sql`, `ee.sheltermap.guidance`, the guidance/media controllers,
+the public `GET /api/guidance/**` and `/api/media/**` routes), the V22 open-status layer
+and the V20 mark-inaccurate layer.
 
 ## Folder map
 

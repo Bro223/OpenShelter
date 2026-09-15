@@ -392,8 +392,10 @@ note bottom of AuthController
   Thin HTTP shell - zero logic, just wiring (Ch 1). permitAll = exactly
   these 6 POST /auth/* endpoints (register, login, refresh, logout,
   password-reset request + confirm); GET /api/shelters/** (except /mine)
-  + GET /api/data-source (M5 provenance read) + actuator health/info are
-  the only other open routes - everything else is JWT (see 04-CONTEXT-AUTH
+  + GET /api/data-source (M5 provenance read) + GET /api/guidance/** and
+  GET /api/media/** (public crisis-guidance reads) + actuator health/info
+  are the only other open routes; /swagger-ui + /v3/api-docs are open in
+  the dev/test profiles only - everything else is JWT (see 04-CONTEXT-AUTH
   wiring). Rate limiting (2026-09-08
   hardened, SDI Ch 4 token bucket, keys via ClientIps):
     - /auth/register          per client IP (account spam)

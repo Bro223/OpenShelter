@@ -116,7 +116,7 @@ AS --> PG : redirect /map
 participant "ResetPage" as RP
 Person -> RP : e-mail
 RP -> AG : requestPasswordReset(email)
-AG -> AC : post<void>('/auth/password-reset/request', body)
+AG -> AC : post<CodeSentDto>('/auth/password-reset/request', body)
 AC -> API : POST /auth/password-reset/request
 API --> AC : 200 (always - anti-enumeration)
 AC --> RP : ok

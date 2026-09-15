@@ -267,8 +267,9 @@ the client if the WFS is permanently retired.
 - `qa/feature-matrix.md:16` lists `review_reports` as a live V9 table — dropped by V21.
 - `context-and-tasks/05-shelter-api.puml:443-445,854-856,941-945`,
   `context-and-tasks/agent/06-CONTEXT-API.md:23,96-97,122,316,346`,
-  `context-and-tasks/agent/07-STEPS.md:103-104,358,373,382` still diagram/document
-  `shelter_reviews` / `review_reports` / `minRating`.
+  `context-and-tasks/agent/07-STEPS.md:103-104,358,373,382` still diagram/document the V9-era `shelter_reviews` / `review_reports` / `minRating` model —
+  removed by `V21__drop_reviews.sql` (which drops `shelter_reviews` and `review_reports`); the
+  live admin surface has 15 `AdminController` mappings and six tabs, no review-report queue.
 - `docs/security/threat-model.md:91` — "star display stays" is now false; the star display was
   removed with the review model (V21).
 - **Backend evidence contradicts a frontend comment touched in the current batch:** the
