@@ -355,7 +355,7 @@ forms and legal bodies; the app chrome is already ET/EN).
 |---|---|
 | Auth | `POST /auth/register` (201/409), `POST /auth/login` (200/401), `POST /auth/refresh` (rotate), `POST /auth/logout`, `POST /auth/password-reset/request|confirm` |
 | Verification | `POST /verify/request` (202/409/429), `POST /verify/confirm` (200/400) |
-| Account | `GET /account/me`, `PUT /account/profile`, `POST /account/email-change/request|confirm`,`POST /account/phone-change/request|confirm`,`GET /account/export`,`DELETE /account`,`GET /account/reviews/mine` |
+| Account | `GET /account/me`, `PUT /account/profile`, `POST /account/email-change/request|confirm`,`POST /account/phone-change/request|confirm`,`GET /account/export`,`DELETE /account` |
 | Shelters | `GET /api/shelters` (+ `?provenance=`, `?source=`, `?reviewed=`, `?hasCapacity=`), `GET /api/shelters/{id}`, `POST /api/shelters` (verified), `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (author-only) |
 | Trust & reports | `POST /api/shelters/{id}/reports` (verified), `PUT /api/shelters/{id}/occupancy` (verified), `POST /api/shelters/{id}/reviews/{reviewId}/reports` (verified) |
 | Reviews | `GET /api/shelters/{id}/reviews`, `POST /api/shelters/{id}/reviews` (verified, upsert), `PUT`/`DELETE` (author-only) |
