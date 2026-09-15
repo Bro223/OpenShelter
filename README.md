@@ -27,7 +27,7 @@ auth, verification, shelter submission, community reports); run/build docs in
 > Dated build log. The review/rating model that the earlier waves below mention was later
 > removed (`V21__drop_reviews.sql`) — **Features** and **API** describe the current surface.
 
-- ✅ **Admin moderation (admin-moderation)** — the env-provisioned admin + moderation API:
+- **Admin moderation (admin-moderation)** — the env-provisioned admin + moderation API:
   `ADMIN_EMAIL`/`ADMIN_PASSWORD` provision one ADMIN-kind account at startup (create-if-absent,
   never re-hashed, no-op when either var is unset; login through the normal `/auth/login`),
   fresh `UserKind.ADMIN` lookup per `/admin/*` request (no JWT role claim — 401 anonymous /
@@ -39,7 +39,7 @@ auth, verification, shelter submission, community reports); run/build docs in
   tabs, account-page badge, `AdminGateway`) ships with it. Current repo-wide counts:
   **719 backend tests / 953 frontend tests** (counted 2026-09-15 on this tree;
   the per-wave numbers further down are historical).
-- ✅ **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
+- **Trust & reports (shelter-trust-and-reports)** — community trust layer: shelter
   reports (the 5th "does not exist" auto-hides the shelter from the public list/map), live
   occupancy bands (display-only, 2 h freshness), trust filters on the public list
   (`hasCapacity` / `provenance`), the 10-active-shelter submission cap, a durable per-user
@@ -50,28 +50,28 @@ auth, verification, shelter submission, community reports); run/build docs in
   the "Report how full" 3-band picker, the contributions-panel hidden state, the
   `--color-reported` token) at **657 frontend tests across 35 spec files** (both counted
   2026-09-11), all green.
-- ✅ **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
+- **Steps 0–6 complete + verification HTTP surface + hardening pass + Twilio SMS plan** —
   backend functional end-to-end, **321 tests green** (counted 2026-09-11, pre-fix-wave) —
   2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
-- ✅ **2026-09-08 code-review fix campaign** — a 4-lead/13-child review found P0 security
+- **2026-09-08 code-review fix campaign** — a 4-lead/13-child review found P0 security
   issues (reset-code brute force, XFF rate-limit spoofing, fail-open dev JWT secret) plus
   backend/frontend/architecture findings; all in-scope findings were fixed over 3 waves with
   tests (see [2026-09-08 code review — fix log](docs/code-review/2026-09-08-fix-log.md)).
   Frontend: **513 tests green across 33 spec files** (counted 2026-09-10, pre-fix-wave) —
   2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
-- ✅ **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
+- **Live data source wired** — real shelter data is fetched from the Maa-amet WFS layer
   (`VARJEKOHT`, Päästeamet open data), transformed and stored in the local DB.
-- ✅ **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
+- **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
   (email/phone), so the full loop works: register → verify → add shelter → report.
-- ✅ **Anti-spam throttle on verification** — resend cooldown + per-user daily cap (file-backed,
+- **Anti-spam throttle on verification** — resend cooldown + per-user daily cap (file-backed,
   survives restarts) + per-IP bucket → 429.
-- ✅ **Real SMS channel** — Twilio Programmable Messaging implemented (send-only; OTP logic stays
+- **Real SMS channel** — Twilio Programmable Messaging implemented (send-only; OTP logic stays
   on our side), E.164 normalization, swappable via `app.sms.provider`.
-- ✅ **Hardening pass (code review)** — duplicate registration → 409, unique email/phone +
+- **Hardening pass (code review)** — duplicate registration → 409, unique email/phone +
   one-active-claim constraints (V3), register rate limiting, X-Forwarded-For-aware buckets,
   atomic password reset + import, no-N+1 trust aggregates, stored `description`/`capacity`,
   CORS, SMTP delivery failures never surface as 500s. See [Hardening](#hardening-pass).
-- ⚠️ **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
+- **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
   dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), SMS delivery needs
   Twilio credentials in `.env`, Smart-ID is a stub.
 
