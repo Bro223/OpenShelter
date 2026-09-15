@@ -61,11 +61,18 @@ export class PageShell implements OnDestroy {
       .then((ds) => this.dataSource.set(ds));
   }
 
-  /** Any completed navigation closes the open menu (bound to
-      NavigationEnd — close on any). Unsubscribed in ngOnDestroy. */
+  /** True until the first NavigationEnd: that one is the initial document
+      load, where the browser's own focus start — and the F-01 skip link —
+      must win. */
+  private firstNavigation = true;
+
+  /** Any completed navigation closes the open menu and lands focus on the
+      routed content (bound to NavigationEnd — on any). Unsubscribed in
+      ngOnDestroy. */
   private readonly routerClose = this.router.events.subscribe((event) => {
     if (event instanceof NavigationEnd) {
       this.menuOpen.set(false);
+      this.focusMainOnRouteChange();
     }
   });
 
@@ -106,6 +113,25 @@ export class PageShell implements OnDestroy {
       this.menuOpen.set(false);
     }
   };
+
+  /** A route change replaces the page without a document load, so the
+      keyboard/screen-reader user would stay parked on the nav item they
+      clicked (or on <body>) while the content below changed. Focus the
+      routed container — the skip link's landing target — for every
+      navigation after the initial load. An open modal dialog owns the
+      keyboard (the consent overlay links to /privacy, so a route change can
+      happen with it open): never pull focus out from behind it. */
+  private focusMainOnRouteChange(): void {
+    if (this.firstNavigation) {
+      this.firstNavigation = false;
+      return;
+    }
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest('[aria-modal="true"]') !== null) {
+      return;
+    }
+    this.host.nativeElement.querySelector<HTMLElement>('#main')?.focus();
+  }
 
   async logout(): Promise<void> {
     await this.auth.logout();

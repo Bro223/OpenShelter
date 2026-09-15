@@ -1,8 +1,8 @@
 # Context — Verification
 
 **Source diagram:** `../01-user-verification.puml` (packages `verification` + `app`)
-**Used by steps:** 2 (create). Referenced by: auth (login relies on claims), api (review requires
-verified user).
+**Used by steps:** 2 (create). Referenced by: auth (login relies on claims), api (reports and
+submissions require a verified user).
 
 ## Purpose
 
@@ -38,7 +38,7 @@ tokens) lives in the auth context (`03-auth.puml`).
 
 | Type | Kind | Key members / notes |
 |---|---|---|
-| `UserService` | class | `register(name, email, phone): RegisteredUser`, `findByEmailOrPhone(contact): RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`. (The service-level `getData(user)` read is gone — profile data comes from the domain `User.getData()`; `guest()`/`deleteAccount(user)` were removed in the review-fix pass — account deletion is not part of the product contract, the domain `User.deleteAccount()` cascade remains for future use.) |
+| `UserService` | class | `register(name, email, phone): RegisteredUser`, `findByEmailOrPhone(contact): RegisteredUser`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`. (The service-level `getData(user)` read is gone — profile data comes from the domain `User.getData()`; `guest()` was removed in the review-fix pass. Account deletion IS part of the product contract: `DELETE /account` (legal-recovery M4) delegates to `auth.AccountService.deleteAccount(registered)`, which purges the declared private homes, redacts the audit reasons, orphans the public rows and ends in the domain `User.deleteAccount()` cascade.) |
 | `UserRepository` | interface | `save(user): void`, `findById(id): User`, `findByEmail(email): RegisteredUser`, `findByPhone(phone): RegisteredUser`, `findByIds(ids: Collection<Long>): Map<Long, User>` (batched lookup — no N+1 on listings). |
 | `ShelterService` | class | `addPlace(user: User, place: Shelter): void` — **checks `user.canWrite()` first**, then saves (status `ACTIVE`, source `USER`). |
 | `ShelterRepository` | interface | `save(shelter): void`, `findByExternalId(String): Optional<Shelter>`, `findById(Long): Optional<Shelter>`, `deleteBySourceAndExternalIdNotIn(ShelterSource, List<String>): int`, `findAll(): List<Shelter>`, `findAllActiveBySourceIn(List<ShelterSource>): List<Shelter>` (the ACTIVE-only public projection), `countByCreatedByAndSourceAndStatus`, `countByCreatedByAndSourceAndCreatedAtAfter`, `countByCreatedByAndSourceAndReviewStatus`, `findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc`, `findByCreatedBy(Long): List<Shelter>`, `findByIds(Collection<Long>): List<Shelter>`, `deleteById(Long): void`. (`saveAll` / `findAllBySourceIn` no longer exist.) |

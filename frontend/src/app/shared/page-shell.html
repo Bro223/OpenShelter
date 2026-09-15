@@ -92,7 +92,10 @@
 </header>
 
 <!-- The routed content. tabindex="-1" is the skip link's landing target:
-     focusing it moves the next Tab into the page instead of back to the nav. -->
+     focusing it moves the next Tab into the page instead of back to the nav.
+     page-shell.ts focuses it on every route change after the initial load
+     too (accessibility F-04), so a client-side swap lands the keyboard the
+     way a document load does. -->
 <main class="shell-body" id="main" tabindex="-1">
   <router-outlet />
 </main>

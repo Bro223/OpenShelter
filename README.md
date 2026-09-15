@@ -471,8 +471,10 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
   alongside login + reset-request.
 - **`description`/`capacity` are stored** — user submissions used to validate these fields then
   silently drop them; they now persist (V3 columns, domain, entity, mapper, DTO).
-- **No N+1 on the shelter listing** — rating aggregates are computed in ONE batched query
-  (`findRatingAggregates`) instead of one query per shelter.
+- **No N+1 on the shelter listing** — the per-row trust derivations (creator verification,
+  report counts, fresh occupancy, the last-verified stamp) are computed in ONE batched query per
+  listing (`ShelterQueryService`), not one query per shelter. (The rating aggregates this fix
+  originally batched went with the review model — V21.)
 - **X-Forwarded-For-aware rate limiting** — behind a reverse proxy, every user used to share one
   IP bucket (global lockout risk); `X-Forwarded-For` is honored only from configured trusted
   proxies (`RATELIMIT_TRUSTED_PROXIES`), so clients can't spoof their key.
@@ -481,7 +483,8 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 
 **Low**
 
-- Review add is upsert-safe under concurrency (unique-constraint race → update, not 500).
+- Review add is moot — the whole review model (and with it that upsert race) was dropped in
+  `V21__drop_reviews.sql`.
 - Concurrent verification confirms can't produce duplicate active claims (unique
   `(user_id, level)` on non-revoked claims); failed attempts are persisted so the limit holds
   across HTTP requests.

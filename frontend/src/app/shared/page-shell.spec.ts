@@ -4,6 +4,7 @@ import { provideRouter, Router } from '@angular/router';
 import { AccountGateway } from '../gateways/account-gateway';
 import { AuthGateway } from '../gateways/auth-gateway';
 import { DataSourceGateway } from '../gateways/data-source-gateway';
+import { ConsentStore } from '../core/consent-store';
 import type { DataSourceDto, TokenResponse } from '../core/models';
 import { AuthStore } from '../session/auth-store';
 import { PageShell } from './page-shell';
@@ -102,6 +103,50 @@ describe('PageShell', () => {
     const main = element.querySelector('main#main');
     expect(main, 'the outlet container must carry id="main"').not.toBeNull();
     expect(main?.getAttribute('tabindex')).toBe('-1');
+  });
+
+  /* Route-change focus (accessibility F-04): a client-side route swap
+     replaces the page without a document load, so the shell has to land the
+     keyboard on the routed content itself. The modal case is the consent
+     overlay — it links to /privacy, so a route change can complete while the
+     dialog owns focus. */
+  describe('route-change focus (accessibility F-04)', () => {
+    /** The shell reads its FIRST NavigationEnd as the document load. The
+        TestBed does not guarantee the initial navigation ran (these spec
+        routes have no '' path), so a case primes with one navigation and
+        asserts on the next. */
+    async function primeNavigation(): Promise<void> {
+      await router.navigate(['/map']);
+    }
+
+    it('lands focus on the routed content on every later route change', async () => {
+      // Acknowledged consent: the open consent dialog would hold focus.
+      TestBed.inject(ConsentStore).acknowledge();
+      fixture.detectChanges();
+      await primeNavigation();
+
+      await router.navigate(['/login']);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const main = (fixture.nativeElement as HTMLElement).querySelector('main#main');
+      expect(document.activeElement).toBe(main);
+    });
+
+    it('never pulls focus out of an open modal dialog (the consent overlay)', async () => {
+      fixture.detectChanges();
+      const element = fixture.nativeElement as HTMLElement;
+      const dialog = element.querySelector('.consent-dialog') as HTMLElement;
+      expect(dialog, 'the consent modal renders while undecided').not.toBeNull();
+      dialog.focus();
+
+      await primeNavigation();
+      await router.navigate(['/login']);
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(document.activeElement).toBe(dialog);
+    });
   });
 
   it('hides auth controls until init settled, then shows log in / register for guests', async () => {
