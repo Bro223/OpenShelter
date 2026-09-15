@@ -43,7 +43,7 @@ authenticated non-admins, 401 for anonymous — the existing vocabulary.
 
 | Endpoint | Action | Guard rails |
 |---|---|---|
-| `GET /admin/shelters?status=&source=&q=` | list all incl. hidden, with `nonexistentReports`, `statusFlag`, occupancy, review counts | q = name/address substring |
+| `GET /admin/shelters?status=&source=&q=` | list all incl. hidden, with `nonexistentReports`, `status` (ACTIVE/INACTIVE), `reviewStatus`, `occupancy`, `provenance`, `inaccurate`, `infoRequest` | q = name/address substring |
 | `POST /admin/shelters/{id}/status` body `{status}` | manual hide/restore | USER rows only; registry rows → 409 (import-owned, D4); restore sets the manual-change marker that disarms auto-hide (reports change) |
 | `DELETE /admin/shelters/{id}` | hard delete (cascade: reviews, reports, occupancy) | USER rows only; registry rows → 409; 404 unknown |
 | `GET /admin/reports?shelterId=` | shelter report queue, newest first, with shelter + reporter name | dismissible rows |

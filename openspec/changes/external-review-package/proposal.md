@@ -20,7 +20,7 @@ a project that does not exist.
   versioning, `data_imports` audit, public `GET /api/data-source`),
   national-ID removal, PII at rest (AES-GCM + blind index, fail-closed
   keys), provenance taxonomy, the community trust layer (shelter/review
-  reports, occupancy, auto-hide, throttles), rating demotion, admin
+  reports, occupancy, auto-hide, throttles), review/rating model removal (V21), admin
   moderation + dashboard completion, data export + account erasure, legal
   pages, location & navigation, mobile polish, i18n foundation (ET/EN
   chrome), the M15 threat model + operations runbook, 706/887 tests, three
@@ -29,7 +29,7 @@ a project that does not exist.
 - **`docs/whitepaper-brief.md`** — the same refresh on one page (dataset
   source, registration fields, provenance markers + trust filters, detail
   page last-verified/occupancy, community reports, Proposed submission +
-  caps, rating demotion, data audit + footer, privacy by architecture +
+  caps, review/rating model removal (V21), data audit + footer, privacy by architecture +
   your-data, routes 8→11, 706/887 tests, three review efforts, status line).
 - **`docs/external-review-ask.md`** (new) — the review-request cover sheet:
   60-second project summary, suggested reading order, the per-domain

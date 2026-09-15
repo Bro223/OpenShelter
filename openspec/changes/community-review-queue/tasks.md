@@ -30,4 +30,4 @@
 - [x] Full gates (mvn test, ng test, tsc ×2, prettier)
 - [ ] Review (deepseek-v4-flash) → fix findings → re-verify  (watchdog pass 2026-09-13: performed a full code-vs-spec verification sweep in lieu of the model review — every Phase 1/2 item verified against source; the model review itself is still owed to the owner's orchestrator)
 - [x] Docs/agent-pack + puml sync (marker legend, trust lifecycle)
-- [ ] Commit, restart dev backend, live-verify (submit → NEW/amber → confirm report → green; reject → hidden)  (watchdog pass 2026-09-13: committed; the dev backend restart + live-verify is owed to the owner — the watchdog must never restart the protected spring-boot:run dev server, and it is still running the pre-V11 build)
+- [ ] Restart dev backend, live-verify (submit → NEW/amber → confirm report → green; reject → hidden)  (watchdog pass 2026-09-13: committed; the dev backend restart + live-verify is owed to the owner — the watchdog must never restart the protected spring-boot:run dev server, and it is still running the pre-V11 build)

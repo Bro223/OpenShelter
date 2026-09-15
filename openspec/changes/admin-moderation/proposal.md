@@ -33,18 +33,13 @@ review reports.
     identity, age)
   - `POST /admin/reports/{id}/dismiss` — mark a shelter report resolved
     (keeps the row, records the dismissal)
-  - `GET /admin/review-reports` — review report queue incl. hidden
-    reviews
-  - `POST /admin/reviews/{id}/hide` / `POST /admin/reviews/{id}/restore`
-    — immediate hide / clear `hidden_at`
 - **Registry rows are read-only for admins** (`POST .../status` and
   `DELETE` on registry rows → 409): the registry import owns their
   lifecycle and rebuilds them as `ACTIVE` on every run, so admin edits
   would silently revert — the provenance story stays intact.
 - **Admin UX**: a new `/admin` route (nav item visible only when
   `isAdmin`), three tabs — Shelters (table with inline activate/hide/
-  delete), Shelter reports (queue with dismiss), Review reports (queue
-  with hide/restore) — built on the existing tokens and 48px target
+  delete), Shelter reports (queue with dismiss) — built on the existing tokens and 48px target
   rules.
 - **Exemptions**: the admin is exempt from the 10-shelter submission cap
   (the reports change already scopes this); admin accounts cannot be

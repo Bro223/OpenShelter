@@ -8,9 +8,10 @@ are one click: only `OTHER` carries free text, so a "closed" or
 (no "when", no actual address). Second, the rating is framed as the
 map's primary trust instrument — a "N-star-plus" filter select sits in the trust
 filter row — while the actual trust levers are community reports + admin
-moderation. Locked decision: ratings are DEMOTED, not removed — reviews
-stay postable, the average keeps displaying (read-only star display),
-but the filter goes and the rating-first framing retires.
+moderation. Locked decision: the rating model was REMOVED in V21 (`V21__drop_reviews.sql` drops
+`shelter_reviews` and `review_reports`) — no review list, write, delete
+or star display; the moderation channel is the shelter report system
+(`shelter_reports`, V9)
 
 ## What Changes
 

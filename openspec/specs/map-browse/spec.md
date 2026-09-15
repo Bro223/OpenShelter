@@ -156,21 +156,21 @@ instance or DOM listener leaks between visits.
 
 ### Requirement: Nearest shelter action
 
-The map page SHALL provide a "Nearest shelter" button (styled with the
-`--color-cta` safety-orange token — the token's only consumers are this
-CTA and its matching row emphasis (`.shelter-row--nearest`); orange is
+The map page SHALL provide a "Show shelters around you" button (styled with
+the `--color-cta` safety-orange token — the token's only consumer is this
+CTA; orange is
 the single crisis affordance) that requests high-accuracy geolocation,
 computes the closest shelter from the already-loaded list client-side,
 pans and zooms the map to it, and
 highlights the matching list row. Per-error states SHALL show specific copy
 for permission denied, timeout, unsupported, and unavailable (same
 vocabulary as the submit page's geolocation errors). An empty shelter list
-SHALL show "No shelters near you yet." with a link to /submit for
+SHALL show "No listed locations around you yet." with a link to /submit for
 authenticated users. The action SHALL NOT add a backend call.
 
 #### Scenario: nearest found
 
-- **WHEN** the user taps "Nearest shelter" and geolocation succeeds
+- **WHEN** the user taps "Show shelters around you" and geolocation succeeds
 - **THEN** the map centers on the closest shelter and that list row is
   visually emphasized
 

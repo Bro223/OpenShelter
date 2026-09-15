@@ -7,7 +7,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 1 — Migration + domain
 
-- [ ] `V23__crisis_guidance.sql` (D1): `media_assets` (`filename` UNIQUE,
+- [x] `V23__crisis_guidance.sql` (D1): `media_assets` (`filename` UNIQUE,
       `original_filename`, `content_type` CHECK in image/jpeg|image/png|
       image/webp, `width`/`height`/`size_bytes` CHECK > 0, `uploaded_by`
       REFERENCES users ON DELETE SET NULL, `created_at`) and
@@ -21,7 +21,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       'PUBLISHED'`, `guidance_posts (hero_image_id)` and
       `media_assets (created_at)`; and `ALTER TABLE moderation_actions ADD
       COLUMN subject_label VARCHAR(300) NULL` (D12)
-- [ ] Migration header comment in the repo's V22 style: what the tables are,
+- [x] Migration header comment in the repo's V22 style: what the tables are,
       WHY the hero reference is an id (never a URL), WHY `subject_label` has
       no FK, and the `ddl-auto=validate` note
 - [ ] Domain: `GuidancePost` + `MediaAsset` (`domain/`), their entities +
@@ -44,7 +44,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       `proj4j`/`twilio` convention) and a comment naming WHY the sanitizer is
       a library rather than hand-rolled (parser differentials) — the ONLY new
       dependency; no npm change anywhere
-- [ ] `BodySanitizer` (single unit, only producer of `body_html`): element
+- [x] `BodySanitizer` (single unit, only producer of `body_html`): element
       allowlist `h2 h3 p br strong em ul ol li a blockquote`, attribute
       allowlist exactly `a[href]`, href protocol allowlist
       `http`/`https`/`mailto`, no `target`; returns the sanitized HTML string
@@ -62,27 +62,27 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 3 — Guidance service (D3, D4, D5, D6, D11)
 
-- [ ] `SlugFactory` (D5): lowercase → explicit Estonian transliteration
+- [x] `SlugFactory` (D5): lowercase → explicit Estonian transliteration
       (`õ ä ö ü š ž`) → non-alphanumeric runs to single `-` → trim →
       bound to the column width → `post` fallback; plus the
       `^[a-z0-9]+(-[a-z0-9]+)*$` validator for admin-supplied slugs
-- [ ] `GuidanceService`: create (`DRAFT` by default, `PUBLISHED` on explicit
+- [x] `GuidanceService`: create (`DRAFT` by default, `PUBLISHED` on explicit
       request), update (full replace, slug unchanged when omitted), publish
       (stamps `publishedAt` from the injected `Clock`), unpublish (clears
       it), pin/unpin, listing for the admin (drafts included,
       newest-updated first), public list (PUBLISHED, pinned-first), public
       by-slug (PUBLISHED only, 404 otherwise), delete (`confirm` required)
-- [ ] Every body write runs through `BodySanitizer` (create AND update) —
+- [x] Every body write runs through `BodySanitizer` (create AND update) —
       the stored value is sanitizer output; the admin read returns the
       stored HTML
-- [ ] Auto-generated slug collisions take `-2`, `-3`, …; an admin-supplied
+- [x] Auto-generated slug collisions take `-2`, `-3`, …; an admin-supplied
       collision answers 409 naming the slug (never silently rewritten);
       uniqueness spans drafts and published posts
-- [ ] Validation: title required and bounded, body required, alt mandatory
+- [x] Validation: title required and bounded, body required, alt mandatory
       iff a hero image is set (400 otherwise), alt supplied without a hero
       image → 400, locale defaults from `app.guidance.default-locale` (D11),
       unknown id → 404
-- [ ] Audit wiring (D12): publish / unpublish / delete call `recordLabeled`
+- [x] Audit wiring (D12): publish / unpublish / delete call `recordLabeled`
       inside the same `@Transactional` method with the label
       `Guidance post "<title>" (<slug>)`; a no-op publish/unpublish writes
       NO row
@@ -97,14 +97,14 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       `spring.servlet.multipart.max-file-size`/`max-request-size` at 6MB so
       our own cap produces the documented 413 instead of the servlet
       container's 1MB default rejection
-- [ ] `MediaImageInspector`: magic-byte sniffing (JPEG, PNG, WebP) + header
+- [x] `MediaImageInspector`: magic-byte sniffing (JPEG, PNG, WebP) + header
       dimension reader (PNG `IHDR`, JPEG `SOFn`, WebP `VP8`/`VP8L`/`VP8X`)
       — `ImageIO` has no WebP reader and the listing needs dimensions, so
       this stays dependency-free with fixture byte arrays in its tests
 - [ ] `.gitignore`: explicit `data/media/` entry (the default dir is already
       under the ignored `data/` tree — verified with
       `git check-ignore -v data/media/x.jpg`)
-- [ ] `MediaStorage`: create the configured directory at startup when
+- [x] `MediaStorage`: create the configured directory at startup when
       missing, fail the boot with a clear message when it cannot be created
       or written, generate the stored filename (32 hex + sniffed extension),
       write the file, delete the file on asset deletion
@@ -112,13 +112,13 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       magic bytes (400) → sniffed type must equal the declared part type
       (400) → dimensions readable (400); the original filename is metadata
       only and never part of a path
-- [ ] `MediaService`: upload, the library listing with the reused-by count
+- [x] `MediaService`: upload, the library listing with the reused-by count
       (ONE batched query, no N+1), deletion (D8) — unreferenced: delete row +
       file; referenced without `confirm=true`: 409 naming the affected posts;
       referenced with `confirm=true`: delete in the same transaction and
       clear both `hero_image_id` and `hero_image_alt` on every referencing
       post
-- [ ] Media delete writes its audit row (`MEDIA_DELETE`,
+- [x] Media delete writes its audit row (`MEDIA_DELETE`,
       `Media asset "<original>" (<stored>)`) in the same transaction; a
       refused deletion writes nothing
 
@@ -128,16 +128,16 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       `/api/media/**` (the public pages need them anonymously); the
       `/admin/**` rules already cover the write side, with the per-request
       `UserKind.ADMIN` check reused unchanged
-- [ ] `GuidanceController` (public): `GET /api/guidance` and
+- [x] `GuidanceController` (public): `GET /api/guidance` and
       `GET /api/guidance/{slug}` — PUBLISHED-only filters live in the query,
       not in the mapping layer; draft and unknown slug answer the SAME 404
-- [ ] `MediaController`: `GET /api/media/{filename}` — name matched against
+- [x] `MediaController`: `GET /api/media/{filename}` — name matched against
       `^[a-f0-9]{32}\.(jpg|png|webp)$`, resolved under the upload directory
       with a parent-equality check, `Content-Type` from the stored type,
       `Cache-Control: public, max-age=31536000, immutable`, 404 otherwise
-- [ ] `AdminGuidanceController`: list / get / create / update / publish /
+- [x] `AdminGuidanceController`: list / get / create / update / publish /
       unpublish / delete (`confirm=true` required, 400 without it)
-- [ ] `AdminMediaController`: list / upload (multipart) / delete
+- [x] `AdminMediaController`: list / upload (multipart) / delete
       (`confirm=true` semantics per D8)
 - [ ] DTOs (`GuidancePostDto` public + admin shapes, `MediaAssetDto`) and the
       `ApiErrorHandler` mappings for the new failures (400 validation, 409

@@ -8,16 +8,16 @@ The map page SHALL offer source-filter chips (All, Registry, User) that
 refetch shelters from the server with the corresponding `?source=` value;
 filtering SHALL be server-side, not client-side. The same list endpoint
 SHALL additionally accept optional trust filters, composable with the
-source filter: `reviewed=true` (shelter has at least one visible review;
-`false` is the negation) and `hasCapacity=true` (capacity data present).
+source filter: `hasCapacity=true` (capacity data present) and
+`provenance=<value>`.
 There is NO rating filter: the `minRating` parameter was removed in M11
 (rating demotion — the rating is context, not a lever) and a request
 carrying it is ignored, not an error. The map page SHALL expose these as
 a `Reviewed` toggle chip and a `Has capacity` toggle chip beside the
 source chips — no rating control of any kind. All filter states SHALL
 refetch from the server and clear/rebuild the list the same way the
-source chips do. The star summary on list rows and the detail page
-remains a READ-ONLY rating display (unchanged by M11).
+source chips do. No rating display or filter of any kind exists (the rating model was
+removed in V21).
 
 #### Scenario: Filter by registry
 

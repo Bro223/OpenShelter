@@ -6,8 +6,8 @@
 
 The system SHALL provide `POST /api/shelters/{id}/reports` accepting a JSON
 body `{ "type": <NON_EXISTENT | CLOSED | OPEN_CONFIRMED | WRONG_LOCATION |
-OTHER>, "detail": <optional text, max 500 chars> }` (detail is free text
-for `OTHER`, otherwise ignored). Reporting SHALL require a verified
+OTHER>, "detail": <optional text, max 500 chars> }` (detail is STORED for the factual types `CLOSED` and `WRONG_LOCATION`
+and for `OTHER`; it is stored as null for the binary types). Reporting SHALL require a verified
 registered user (the same
 `canWrite()` gate as submissions; unverified → the standard 403/redirect
 vocabulary). A user SHALL have at most one report of a given type per

@@ -20,7 +20,8 @@ consequences, a community-confirmation filter, and a live "how full" signal
   a display flag ("Reported closed" / "Confirmed open"); they never hide a
   shelter. Schools and daycares that are normally closed but may open in an
   emergency stay visible with the flag.
-- **Review reports** (verified users only, one per user per review):
+- **Review reports** (verified users only, one per user per review — the
+  V9-era review model, removed by `V21__drop_reviews.sql`):
   `FALSY_DATA`, `NOT_RELEVANT`, `SPAM`, `OTHER` (free-text reason). 5
   reports hide the review: it disappears from the list, the average rating,
   the review count, and the "reviewed" filter; only an admin can restore it.
@@ -30,13 +31,16 @@ consequences, a community-confirmation filter, and a live "how full" signal
   ("Reported full"); ≥ 2 agreeing fresh reports show "Full". Occupancy is
   display-only — it never hides a shelter and never changes marker colors.
 - **Trust filters on the public list** (composable with the existing
-  `source` filter): `reviewed=true` (≥ 1 visible review), `minRating=1..5`
-  (minimum average, UI select), `hasCapacity=true`.
+  `source` filter): `reviewed=true` (≥ 1 visible review) and `minRating=1..5`
+  (minimum average, UI select) — both tied to the V9-era review/rating model
+  removed by `V21__drop_reviews.sql` — plus `hasCapacity=true`.
 - **Spam floor**: a user may have at most 10 active shelters (409 above
   that); report endpoints reuse the existing throttle pattern.
-- **Frontend**: filter chip row + rating select, orange reported-dot +
+- **Frontend**: filter chip row + rating select (the rating select is the
+  V9-era review/rating model — `V21__drop_reviews.sql`), orange reported-dot +
   "Reported closed"/"Full" badges in list and detail, "Report" actions on
-  the detail page (shelter and per-review), and a "Report how full" band
+  the detail page (shelter, and per-review — the per-review action is the
+  V9-era review model), and a "Report how full" band
   picker. `/mine` shows hidden status of the user's own shelters.
 
 ## Capabilities
@@ -49,8 +53,8 @@ consequences, a community-confirmation filter, and a live "how full" signal
 ### Modified Capabilities
 
 - `shelter-submission`: per-user active-shelter cap (10).
-- `map-browse`: extended list query (`reviewed`, `minRating`,
-  `hasCapacity`), reported/occupancy presentation in list + markers.
+- `map-browse`: extended list query (`reviewed` + `minRating` — V9-era
+  review/rating model, `V21__drop_reviews.sql`; `hasCapacity`), reported/occupancy presentation in list + markers.
 - `user-contributions`: own-shelters view shows hidden (auto-hidden) state.
 
 ## Impact
@@ -58,10 +62,11 @@ consequences, a community-confirmation filter, and a live "how full" signal
 - Affected specs: `shelter-reports` (new), `shelter-submission`,
   `map-browse`, `user-contributions`.
 - Affected code: backend — Flyway V9 (`shelter_reports`,
-  `shelter_occupancy_reports`, `review_reports`, `shelter_reviews.hidden_at`),
+  `shelter_occupancy_reports`, `review_reports` + `shelter_reviews.hidden_at`
+  — the review tables are the V9-era model dropped by `V21__drop_reviews.sql`),
   `ShelterController`/services (report + occupancy endpoints, list filter
   params, cap check), `ShelterDto` (report flags, occupancy), review
-  service (hidden exclusion, review-report endpoint), throttling.
+  service (hidden exclusion, review-report endpoint — V9-era, removed), throttling.
   Frontend — `features/map/` (chips, select, badges),
   `features/shelter/shelter-detail-page.*` (report + occupancy UI),
   `features/account/contributions-panel.*` (hidden state), API client +

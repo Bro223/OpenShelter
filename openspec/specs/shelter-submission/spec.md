@@ -80,50 +80,6 @@ user on the form with their input intact.
 - **THEN** the user sees the 403 message with a path back to verification, and the form input is
   preserved
 
-### Requirement: The submit form SHALL capture location by text, link, geolocation, or map pick
-
-The shelter submission form SHALL provide a location section with four
-capture modes that all write to one shared location state: (1) a smart
-text input accepting coordinate strings (incl. DMS, with reversed lng/lat
-auto-swap) and long-form map URLs, (2) a `maps.app.goo.gl` short link
-resolved by the backend, (3) a "Use my location" geolocation button,
-(4) the existing map click/drag picking. The resolved coordinates are
-shown in a read-only readout — a display of the shared state, NOT a
-capture mode. Manual numeric latitude/longitude entry is removed (the
-smart text input replaces it). Submitting without a resolved location
-SHALL keep the existing inline validation error.
-
-#### Scenario: Coordinate string
-
-- **WHEN** the user types `59.4370, 24.7535` (or with space/semicolon)
-- **THEN** the marker moves to that position, the coordinates display
-  updates, and no error shows
-
-#### Scenario: Reversed order auto-swap
-
-- **WHEN** the user pastes `24.7535, 59.4370` (lng,lat — outside the
-  Estonia box in that order)
-- **THEN** the form uses (59.4370, 24.7535) and shows a hint that the
-  values were detected as longitude,latitude
-
-#### Scenario: DMS string
-
-- **WHEN** the user pastes `59°26'13"N 24°45'12"E`
-- **THEN** the marker moves to the equivalent decimal position
-
-#### Scenario: Unparseable text
-
-- **WHEN** the input contains no coordinate pair
-- **THEN** an inline error tells the user the text has no recognizable
-  coordinates and offers map picking or "Use my location"
-
-#### Scenario: Out-of-Estonia coordinates
-
-- **WHEN** a parsed pair is outside the Estonia bounding box in both
-  orders
-- **THEN** an inline error says the location is outside Estonia and the
-  marker is not placed
-
 ### Requirement: Map URLs with embedded coordinates SHALL be accepted client-side
 
 Long-form map URLs (Google `?q=lat,lng` / `?ll=` / `?daddr=`,
@@ -271,12 +227,13 @@ ShelterDto SHALL expose `submitterVerified` — true when the shelter's
 creator exists and has a completed verification, false otherwise (registry
 shelters are false). List rows and the detail page SHALL display the
 provenance plainly: "Paasteamet registry", "Municipal registry",
-"Verified user", or "User-submitted".
+"Newly added", "Community-checked", or "Rejected" (the last shown on
+the admin and own-submission surfaces only).
 
 #### Scenario: verified user shelter
 
 - **WHEN** a shelter was submitted by a user with completed verification
-- **THEN** its row and detail page show "Verified user"
+- **THEN** its row and detail page show "Newly added"
 
 #### Scenario: registry shelter
 

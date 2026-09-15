@@ -7,7 +7,7 @@ FK→users CASCADE, type VARCHAR CHECK IN ('NON_EXISTENT','CLOSED','OPEN_
 CONFIRMED','WRONG_LOCATION','OTHER'), detail VARCHAR(500) NULL,
 created_at TIMESTAMPTZ,
 UNIQUE(shelter_id, user_id, type))`. `detail` is the optional free text
-for `OTHER` (same vocabulary as review reports). The type column is what
+for `OTHER` (same vocabulary as the V9-era review reports — the review model is removed by `V21__drop_reviews.sql`). The type column is what
 routes the
 consequence; the table, the guard rails (verified-only, one per user per
 type, throttle), and the admin queue are shared by all types.
@@ -23,15 +23,15 @@ per the resolved rule pinned in `ShelterQueryServiceTest`).
 - `WRONG_LOCATION` / `OTHER` → admin queue only, no user-facing change.
 
 Display derivations are computed at query time in the list projection
-(batched, same no-N+1 pattern as `submitterVerified` and
-`averageRating`), never stored — the counts are small and the list is
+(batched, same no-N+1 pattern as `submitterVerified` and the V9-era
+`averageRating` — the review/rating model is removed by `V21__drop_reviews.sql`), never stored — the counts are small and the list is
 small (Estonia scale). `ShelterDto` gains: `Integer nonexistentReports`
-(0 when none), `String statusFlag` (`REPORTED_CLOSED` / `CONFIRMED_OPEN` /
-null) and the occupancy block (D4). Markers: `nonexistentReports > 0` →
+(0 when none), `openStatus` block (`state` = OPEN/CLOSED, fresh ≤ 2 h,
+or null) and the occupancy block (D4). Markers: `nonexistentReports > 0` →
 orange dot (the single "reported" affordance, distinct from provenance
 colors); otherwise provenance color as today.
 
-## D2 — Review reports and hidden reviews
+## D2 — Review reports and hidden reviews (V9-era model — `V21__drop_reviews.sql` dropped `shelter_reviews` + `review_reports`; everything in this section is historical)
 
 `review_reports(id BIGSERIAL PK, review_id FK→shelter_reviews CASCADE,
 user_id FK→users CASCADE, reason VARCHAR CHECK IN ('FALSY_DATA',
@@ -52,7 +52,7 @@ false/spam must not keep distorting the rating it attacked.
 
 ## D3 — Verified-only, throttled, one-per-target
 
-All three report/occupancy endpoints require a verified registered user
+All three report/occupancy/review-report endpoints (the review-report one is the V9-era model — `V21__drop_reviews.sql`) require a verified registered user
 (`canWrite()`, same guard as submissions). The `UNIQUE` constraints are
 the per-target abuse bound; on top, a per-user report rate limit reuses
 the existing throttle pattern (same table family and window style as the
@@ -86,13 +86,15 @@ is checked at read time).
 
 ## D5 — List query extension
 
-`GET /api/shelters` gains optional `reviewed` (bool), `minRating` (int
-1..5, invalid → 400), `hasCapacity` (bool), composable with existing
+`GET /api/shelters` gains optional `reviewed` (bool) and `minRating` (int
+1..5, invalid → 400) — both tied to the V9-era review/rating model removed
+by `V21__drop_reviews.sql` — plus `hasCapacity` (bool), composable with existing
 `source`. All three are applied in the in-memory projection over the
 already-fetched list (the list is small; the ratings/counts are computed
 there today anyway — no new SQL surface, no new repository methods).
 `reviewed` counts visible reviews only; `minRating` compares the
-computed average (shelters with 0 reviews never pass `minRating ≥ 1`).
+computed average (shelters with 0 reviews never pass `minRating ≥ 1`) —
+both retired with the review model (`V21__drop_reviews.sql`).
 The public list query itself SHALL be filtered to `status = ACTIVE`
 (auto-hidden shelters disappear from map and list); the owner list
 (`/mine`) and the admin list include all statuses, and `findById`
@@ -104,14 +106,17 @@ anonymous users null) so the occupancy picker can pre-select.
 
 - Chip row becomes: `All / Registry / User` (existing, unchanged) +
   toggle chip `Reviewed` + chip `Has capacity` + rating `<select>`
-  (Any rating / 1-star-plus … 5-star-plus). All four combine with the source chips.
+  (Any rating / 1-star-plus … 5-star-plus — the Reviewed chip + rating
+  select are the V9-era review/rating model, removed by
+  `V21__drop_reviews.sql`). All four combine with the source chips.
 - List row + detail header badges: orange "Reported" (nonexistent > 0),
-  amber "Reported closed" / green "Confirmed open" (statusFlag),
+  amber "Reported closed" / green "Confirmed open" (openStatus),
   neutral "Full · X min ago" (occupancy, never green — "space available"
   is not a celebration).
 - Detail page: "Report" button (auth-gated, verified-gated with the
   existing redirect) opening a type picker incl. free text for `OTHER`;
-  per-review "Report" action with reason + optional text; "Report how
+  per-review "Report" action with reason + optional text (the per-review
+  action is the V9-era review model — `V21__drop_reviews.sql`); "Report how
   full" — three big band buttons, one tap, latest-wins, with the user's
   current band pre-selected.
 - `/mine`: a hidden own-shelter shows "Hidden — reported by the

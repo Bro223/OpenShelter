@@ -47,7 +47,7 @@ do.
 Shelters with `nonexistentReports > 0` SHALL render an orange reported
 marker on the map and an orange "Reported" badge on the list row (the
 orange is the single "reported" affordance; provenance colors apply only
-to unreported shelters). The `statusFlag` SHALL render as an amber
+to unreported shelters). The `openStatus` block (`state` = OPEN/CLOSED, fresh ≤ 2 h) SHALL render as an amber
 "Reported closed" or green "Confirmed open" badge on the list row and
 detail header. Fresh occupancy SHALL render as a neutral badge with
 recency ("Full · 12 min ago"; hedged "Reported full" for lone reports) —

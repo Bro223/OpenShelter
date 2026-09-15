@@ -123,10 +123,12 @@ replace(s) the framework boilerplate.
 #### Scenario: Deferrals are honest
 
 - **WHEN** the README describes v1 scope
-- **THEN** it explicitly lists the true deferred items (paging / nearest-bbox search, i18n,
-  MapLibre migration, httpOnly-cookie auth, SSR/prerender, e2e framework) as deferrals rather
-  than implying they exist — while `GET /account/me` is documented as a SHIPPED feature
-  (implemented with the account-profile change), not a deferral
+- **THEN** it explicitly lists the true deferred items (paging / nearest-bbox search,
+  i18n for feature pages (app chrome is bilingual EN/ET — `core/i18n`, the translate
+  pipe, the language switcher, pre-paint locale), MapLibre migration, httpOnly-cookie
+  auth, SSR/prerender, e2e framework) as deferrals rather than implying they exist —
+  while `GET /account/me` is documented as a SHIPPED feature (implemented with the
+  account-profile change), not a deferral
 
 ### Requirement: Outgoing user messages SHALL carry the product name
 
@@ -184,8 +186,11 @@ change cannot drift silently.
 ### Requirement: User-facing strings SHALL not be duplicated or intensifier-laden
 
 Repeating user-facing strings (≥2 occurrences) SHALL be named
-constants in their owning module. The map home subtitle SHALL match
-the meta description verbatim (no soft intensifier like "every").
+constants in their owning module. The map home subtitle ("Find
+registered and community-submitted bomb shelters in Estonia.") and
+the meta description ("Find registered and community-reported bomb
+shelters in Estonia.") SHALL both name the project and its scope
+(no soft intensifier like "every").
 User-visible copy SHALL not use the em-dash as its default clause
 joiner: of the current 12 em-dash clauses, the most formulaic ~6 SHALL
 become separate sentences or commas (remaining natural uses allowed;

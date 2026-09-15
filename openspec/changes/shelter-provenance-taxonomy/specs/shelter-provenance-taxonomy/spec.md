@@ -42,8 +42,8 @@ derived provenance matches, applied in-memory over the projected list
 (same precedent as the trust filters), composable with `?source=` and
 the trust filters. `REPORTED_INACTIVE` and `REJECTED` SHALL filter to
 an empty list on the public (ACTIVE-only) endpoint. A value outside the
-enum SHALL be a 400. `?source=` remains accepted (compatibility); the
-frontend no longer sends it.
+enum SHALL be a 400. `?source=` remains accepted and is still sent by the frontend;
+`?provenance=` is additive
 
 #### Scenario: Each visible value filters to its own rows
 
@@ -70,10 +70,9 @@ amber — with the reported-state orange overriding all four for ACTIVE
 rows with `nonexistentReports > 0`. The legend SHALL show the five
 public-map entries (Official / Partner / Community / New community /
 Reported); the grey (REPORTED_INACTIVE) and red (REJECTED) tones SHALL
-render only on the detail page's static pin. The filter chips SHALL be
-the five provenance values (All / Official / Partner / Community /
-New community), each chip refetching server-side; they replace the old
-All / Registry / User source chips.
+render only on the detail page's static pin. provenance is server-derived and filterable (`?provenance=`);
+the UI uses the community-review-queue trust palette rather than
+provenance chips
 
 #### Scenario: Each provenance renders its pin colour
 
