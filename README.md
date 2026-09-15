@@ -71,9 +71,10 @@ auth, verification, shelter submission, community reports); run/build docs in
   one-active-claim constraints (V3), register rate limiting, X-Forwarded-For-aware buckets,
   atomic password reset + import, no-N+1 trust aggregates, stored `description`/`capacity`,
   CORS, SMTP delivery failures never surface as 500s. See [Hardening](#hardening-pass).
-- **Remaining gaps** (see [Current state](#current-state--known-gaps)): email delivery is
-  dev console by default (real SMTP via `app.mail.provider=smtp-pulse`), SMS delivery needs
-  Twilio credentials in `.env`, Smart-ID is a stub.
+- **Integrations** (see [Current state](#current-state--known-gaps)): e-mail and SMS are live —
+  `SmtpPulseSmtpSender` and `TwilioSmsSender` are wired through `MAIL_PROVIDER`/`SMS_PROVIDER`
+  and their credentials in the gitignored `.env`, with the dev console senders only as the
+  unset fallback. Smart-ID remains a stub (rejected with 400 up front).
 
 ## Features
 
@@ -698,20 +699,31 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
 - Persistence (Flyway `V1`–`V22` + the Java `V13`, JPA, `ddl-auto=validate`), uniform error handling
 - Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
-**Known gaps / next steps:**
+**Configured integrations (working — not gaps):**
 
-1. **E-mail delivery is dev console by default** (`DevSmtpSender` logs messages). Real SMTP is
-   implemented (`SmtpPulseSmtpSender`) — enable with `MAIL_PROVIDER=smtp-pulse`,
-   `SMTP_USERNAME=…`, `SMTP_PASSWORD=…` (smtp-pulse.com:587). **SMS delivery** needs real
-   Twilio credentials: set `SMS_PROVIDER=twilio` plus `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`
-   and `TWILIO_MESSAGING_SERVICE_SID` (or `TWILIO_FROM`) in `.env` — the sender is implemented
-   and tested, only the live account is unverified. Smart-ID remains a stub (rejected with 400
-   up front).
-2. **nearest/bbox search + paging** — documented as deferred, not built.
+- **E-mail** — `SmtpPulseSmtpSender` is wired through `MAIL_PROVIDER=smtp-pulse` plus
+  `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD`/`SMTP_FROM` (smtp-pulse.com:587) in the
+  gitignored `.env`; `DevSmtpSender` is only the fallback when those variables are unset. Live
+  delivery is confirmed.
+- **SMS** — `TwilioSmsSender` is wired through `SMS_PROVIDER=twilio` plus
+  `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` and `TWILIO_FROM` (or a messaging-service SID); live
+  delivery to a handset is confirmed. `DevSmsSender` logs instead when the provider is unset.
+- **Nearest-shelter search** — implemented client-side over the loaded list: the "Nearest
+  shelter" call to action uses `findNearest` and a Haversine distance in
+  `frontend/src/app/features/map/map-page.ts`, with permission-aware geolocation whose denied and
+  unsupported states are covered by tests.
+
+**Genuine gaps (deferred or stubbed):**
+
+1. **Server-side bounding-box search + paging** — not built. `GET /api/shelters` takes no
+   `minLat`/`minLng`/`maxLat`/`maxLng` and no `limit`/`offset`
+   (`src/main/java/ee/sheltermap/api/ShelterController.java` carries the TODO), so the client
+   filters and pages the full loaded list instead.
+2. **Smart-ID verification** — a stub: requests are rejected with 400 up front.
 3. **Deployment hardening** — HTTPS, real secret management, monitoring (dev-grade config today).
 4. **Frontend v1 deferrals** — shipped in `frontend/` (M0–M6 complete + M7/M8 additions);
-   the honest deferral list (paging/nearest-bbox search, i18n, MapLibre, httpOnly cookies,
-   SSR, e2e framework) is in
+   the deferral list (server-side bbox search + paging, further content i18n beyond the shipped
+   ET/EN chrome, MapLibre, httpOnly cookies, SSR, e2e framework) is in
    [frontend/README.md](frontend/README.md#deferrals-v1-honest-list).
 5. **2026-09-08 review deferrals** — the low-severity tail (reset-token global prune
    scheduler, TokenBucket sweep race, send-log UTC-midnight assumption, 403-vs-401
