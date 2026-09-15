@@ -141,16 +141,6 @@ package "domain" {
     + lng : double
   }
 
-  class ShelterReview {
-    - id : Long
-    - shelterId : Long
-    - userId : Long
-    - rating : int
-    - comment : String
-    - createdAt : Instant
-    - updatedAt : Instant
-  }
-
 }
 
 package "verification" {
@@ -273,7 +263,6 @@ package "verification" {
 package "app" {
   class UserService {
     + register(name : String, email : String, phone : String) : RegisteredUser
-    + getData(user : User) : UserData
     + findByEmailOrPhone(contact : String) : RegisteredUser
     + findByEmail(email : String) : RegisteredUser
     + findByPhone(phone : String) : RegisteredUser
@@ -298,18 +287,17 @@ package "app" {
 interface ShelterRepository {
     + save(shelter : Shelter) : void
     + findByExternalId(externalId : String) : Optional<Shelter>
-    + saveAll(shelters : List<Shelter>) : void
+    + findById(id : Long) : Optional<Shelter>
     + deleteBySourceAndExternalIdNotIn(source : ShelterSource, externalIds : List<String>) : int
     + findAll() : List<Shelter>
-    + findAllBySourceIn(sources : List<ShelterSource>) : List<Shelter>
-  }
-
-  interface ShelterReviewRepository {
-    + save(review : ShelterReview) : void
-    + findById(id : Long) : Optional<ShelterReview>
-    + findByShelterId(shelterId : Long) : List<ShelterReview>
-    + findByShelterIdAndUserId(shelterId : Long, userId : Long) : Optional<ShelterReview>
-    + delete(review : ShelterReview) : void
+    + findAllActiveBySourceIn(sources : List<ShelterSource>) : List<Shelter>
+    + countByCreatedByAndSourceAndStatus(createdBy : Long, source : ShelterSource, status : ShelterStatus) : long
+    + countByCreatedByAndSourceAndCreatedAtAfter(createdBy : Long, source : ShelterSource, createdAtAfter : Instant) : long
+    + countByCreatedByAndSourceAndReviewStatus(createdBy : Long, source : ShelterSource, reviewStatus : ReviewStatus) : long
+    + findFirstByCreatedByAndSourceAndCreatedAtAfterOrderByCreatedAtAsc(createdBy : Long, source : ShelterSource, createdAtAfter : Instant) : Optional<Shelter>
+    + findByCreatedBy(userId : Long) : List<Shelter>
+    + findByIds(ids : Collection<Long>) : List<Shelter>
+    + deleteById(id : Long) : void
   }
 }
 
@@ -328,11 +316,6 @@ RegisteredUser ..> Shelter : addPlace() creates
 VerificationPolicy --> VerificationRules : reads rules
 VerificationRules --> Capability
 VerificationRules --> VerificationLevel
-
-' ==================== REVIEWS (community rating) ====================
-ShelterReview --> Shelter : rated
-RegisteredUser "1" *-- "many" ShelterReview : writes
-ShelterReviewRepository ..> ShelterReview : persists
 
 ' ==================== PROVIDERS (Ch 9) ====================
 EmailVerificationProvider ..|> VerificationProvider
@@ -366,18 +349,11 @@ ShelterService ..> Shelter : creates ACTIVE shelter (no moderation)
 ShelterService ..> ShelterRepository
 ShelterRepository ..> Shelter : persists
 
-note bottom of ShelterReview
-  Community rating IS the moderation - one review per user per shelter
-  (unique constraint on shelterId + userId). Re-rating = update, not insert.
-  Comments with text = the comment section (no separate entity in v1).
-  rating: 1..5, comment <= 500 chars.
-end note
-
 note bottom of Shelter
   User submissions are created ACTIVE immediately - nothing to approve,
-  there is no moderator. Quality is governed by community ratings
-  (ShelterReview) instead. (ShelterStatus.PENDING/REJECTED were removed
-  in the review-fix pass.)
+  there is no moderator. Quality is governed by community reports +
+  confirmation (ReviewStatus on the shelter) instead. (ShelterStatus.
+  PENDING/REJECTED were removed in the review-fix pass.)
 end note
 
 note bottom of User

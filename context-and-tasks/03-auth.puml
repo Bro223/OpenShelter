@@ -57,7 +57,9 @@ package "auth" {
   interface RefreshTokenRepository {
     + save(tokenHash : String, userId : Long, expiresAt : Instant) : void
     + findByTokenHash(tokenHash : String) : RefreshTokenRecord
-    + revoke(tokenHash : String) : void
+    + revoke(tokenHash : String) : int
+    ' conditional UPDATE ... WHERE revoked_at IS NULL: 1 row claimed,
+    ' 0 when the token is unknown or already revoked (rotation TOCTOU fix)
     + revokeAllForUser(userId : Long) : void
   }
 
@@ -90,10 +92,8 @@ package "auth" {
 
   interface PasswordResetTokenRepository {
     + save(token : PasswordResetToken) : void
-    + findByTokenHash(tokenHash : String) : PasswordResetToken
     + findActiveByUserId(userId : Long, now : Instant) : PasswordResetToken
     + deleteActiveByUserId(userId : Long, now : Instant) : void
-    + markUsed(id : Long) : void
   }
 
   interface RateLimiter {
@@ -179,8 +179,9 @@ package "auth" {
     + confirmEmailChange(request : ConfirmChangeRequest) : void
     + requestPhoneChange(request : ChangePhoneRequest) : void
     + confirmPhoneChange(request : ConfirmChangeRequest) : void
-    + myReviews() : List<MyReviewDto>
-    ' All 7 endpoints require JWT (user resolved from the token, never the
+    + dataExport() : DataExportResponse
+    + deleteAccount() : void
+    ' All 8 endpoints require JWT (user resolved from the token, never the
     ' body); the two change-request endpoints are additionally per-IP
     ' rate-limited (changeRequestRateLimiter).
   }
@@ -188,12 +189,9 @@ package "auth" {
   class AccountService {
     + profile(user : RegisteredUser) : MeResponse
     + updateProfile(user : RegisteredUser, request : ProfileUpdateRequest) : MeResponse
-    + myReviews(user : RegisteredUser) : List<MyReviewDto>
     ' profile = real profile + REAL verified claims (frontend single source
     ' of truth); updateProfile verifies currentPassword against the Argon2
-    ' hash BEFORE any write (wrong -> 401, nothing updated); myReviews =
-    ' the caller's reviews across ALL shelters, shelter names batched
-    ' (ShelterRepository.findByIds - no N+1).
+    ' hash BEFORE any write (wrong -> 401, nothing updated).
   }
 
   class ContactChangeService {
@@ -247,17 +245,6 @@ package "auth" {
                          ' freshly loaded user's KIND is ADMIN (kind is the
                          ' truth - never a token claim). Gates the frontend
                          ' nav item + the /admin route.
-  }
-
-  class MyReviewDto <<record>> {
-    ' One row of GET /account/reviews/mine - the caller's review of a
-    ' shelter, carrying the shelter's id + name for navigation.
-    + shelterId : long
-    + shelterName : String
-    + rating : int
-    + comment : String
-    + createdAt : Instant
-    + updatedAt : Instant
   }
 
   class ChangeEmailRequest <<record>> {
@@ -336,7 +323,7 @@ AdminSeeder --> UR : create-if-absent check + save (interface, 01)
 AdminSeeder --> UserCredentialsRepository : stores the Argon2 hash
 AdminSeeder ..> PasswordHasher : the SAME encoder registration uses
 
-AccountController --> AccountService : me / profile / myReviews
+AccountController --> AccountService : me / profile
 AccountController --> ContactChangeService : all contact-change endpoints
 AccountController ..> RateLimiter : guards change-request endpoints (per IP)
 AccountService --> UserCredentialsRepository : current-password check + write
@@ -405,8 +392,9 @@ note bottom of AuthController
   Thin HTTP shell - zero logic, just wiring (Ch 1). permitAll = exactly
   these 6 POST /auth/* endpoints (register, login, refresh, logout,
   password-reset request + confirm); GET /api/shelters/** (except /mine)
-  + actuator health/info are the only other open routes - everything else
-  is JWT (see 04-CONTEXT-AUTH wiring). Rate limiting (2026-09-08
+  + GET /api/data-source (M5 provenance read) + actuator health/info are
+  the only other open routes - everything else is JWT (see 04-CONTEXT-AUTH
+  wiring). Rate limiting (2026-09-08
   hardened, SDI Ch 4 token bucket, keys via ClientIps):
     - /auth/register          per client IP (account spam)
     - /auth/login             per (IP, normalized contact) AND a per-IP

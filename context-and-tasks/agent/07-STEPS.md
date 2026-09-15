@@ -42,8 +42,7 @@ Each step lists its **inputs** (puml + context files to read), **deliverables**,
 `User` (abstract), `GuestUser`, `RegisteredUser`, `UserData` (record),
 `VerificationLevel` (enum), `VerificationClaim`, `VerificationPolicy`, `VerificationRules`
 (record, `ofDefaults()`), `Capability` (enum), `Shelter`, `ShelterStatus` (enum),
-`ShelterSource` (enum), `GeoPoint` (record), `ShelterReview`, `ShelterReviewRepository`
-(interface). Plus unit tests.
+`ShelterSource` (enum), `GeoPoint` (record). Plus unit tests.
 
 **Key decisions:** verification = `Set<VerificationClaim>` data, never subclasses; policy rules as
 data; `levels()` derived from non-revoked claims.
@@ -100,11 +99,10 @@ checks `canWrite()` first, saves ACTIVE/USER.
 **Deliverables**
 
 - Flyway migration `V1__schema.sql`: tables `users`, `verification_claims`, `pending_verifications`,
-  `shelters`, `shelter_reviews`, `user_credentials`, `refresh_tokens`, `password_reset_tokens`;
-  unique constraint on `shelter_reviews(shelter_id, user_id)`; indexes for lookups.
+  `shelters`, `user_credentials`, `refresh_tokens`, `password_reset_tokens`; indexes for lookups.
 - JPA entities + Spring Data repositories in `ee.sheltermap.persistence` implementing the domain
   repository interfaces (all of them: `UserRepository`, `ShelterRepository`,
-  `ShelterReviewRepository`, `PendingVerificationRepository`, `UserCredentialsRepository`,
+  `PendingVerificationRepository`, `UserCredentialsRepository`,
   `RefreshTokenRepository`, `PasswordResetTokenRepository`).
 - **Mapping decision — pick with the human before coding:** (A) JPA annotations directly on domain
   classes (pragmatic, class count == diagram count) or (B) separate `@Entity` classes + mapping
@@ -181,27 +179,23 @@ USER rows; malformed rows skipped + counted; registry down → failed result, no
 
 ---
 
-## Step 6 — Shelter API (read/write + reviews)
+## Step 6 — Shelter API (read/write)
 
 **Inputs:** `05-shelter-api.puml` (class + sequence), `06-CONTEXT-API.md`.
 
-**Deliverables** — `ee.sheltermap.api`: `ShelterController`, `ReviewController`,
-`ShelterQueryService`, `ShelterReviewService`, `ShelterDto`, `CreateShelterRequest`,
-`ReviewRequest`, `ShelterReviewDto`, `RatingSummaryDto`, `ErrorResponse`,
+**Deliverables** — `ee.sheltermap.api`: `ShelterController`,
+`ShelterQueryService`, `ShelterDto`, `CreateShelterRequest`,
+`ErrorResponse`,
 `ShelterSourceFilter` (enum), global `@RestControllerAdvice`. MockMvc tests.
 
-**Key decisions:** GETs public; POST shelter needs JWT + `canWrite()`; reviews need verified user,
-author-only update/delete, one review per user (upsert); uniform `ErrorResponse`; nearest/bbox +
-paging documented as deferred, not built.
+**Key decisions:** GETs public; POST shelter needs JWT + `canWrite()`; uniform `ErrorResponse`;
+nearest/bbox + paging documented as deferred, not built.
 
 **Acceptance**
 
-- `GET /api/shelters?source=USER` returns only USER rows as DTOs (with rating aggregates).
+- `GET /api/shelters?source=USER` returns only USER rows as DTOs.
 - `POST /api/shelters` anonymous → 401; verified → 201 + Location.
-- Reviews: unverified → 403; duplicate review updates; non-author PUT/DELETE → 403; error body is
-  always `ErrorResponse`.
-- End-to-end integration: register → verify (dev sender) → add shelter → review it → fetch with
-  `averageRating`.
+- End-to-end integration: register → verify (dev sender) → add shelter → fetch it.
 
 **Manual review:** full API surface + error handling.
 
@@ -236,7 +230,7 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
   `ShelterImportService` so the scheduler and the startup runner share it.
 - **Register rate limiting** — per client IP (account-spam vector), alongside login/reset.
 - **`description`/`capacity` stored** (V3 columns) — previously validated then dropped.
-- **No N+1** — rating aggregates in one batched query (`findRatingAggregates`).
+- **No N+1** — the batched read projection (one query per derivation per listing).
 - **X-Forwarded-For-aware rate limiting** — header honored only from configured trusted
   proxies; per-IP buckets survive reverse proxies without a global-lockout hazard.
 - **Actuator hardening** — `show-details: when-authorized`; mail health check disabled
@@ -244,12 +238,10 @@ criteria never checked (the suite validated the happy paths per spec, not the ed
 
 *Low*
 
-- Review upsert is concurrency-safe (unique-constraint race → update, not 500).
 - One active claim per (user, level) (V3 unique index) — concurrent confirms can't dup.
 - Startup import and scheduler share one overlap guard.
 - Intra-fetch duplicate `externalId`s counted as skipped.
 - Registry client sends a `User-Agent`.
-- `RatingSummaryDto.average` `null` for no reviews (consistent with `ShelterDto`).
 - CORS configured for the browser frontend.
 - `/dev/email-test` recipient allowlist (never an open relay).
 - Dead code removed (`VerificationService.revoke`).
@@ -300,7 +292,7 @@ Follow-up code review findings, all fixed (dead-code removal was part of this pa
 - **`CreateShelterRequest.capacity`** bounded `@Max(100_000)`; user-shelter coordinates sanity-
   checked inside Estonia (bbox) → 400 via `InvalidShelterException`.
 - **Dead code removed** — `AdminUser`, `User.canWatch()`, `UserService.guest()`/`deleteAccount()`,
-  `Capability.PUBLISH_INSTANTLY`, `ShelterReviewService.getRatingSummary()`,
+  `Capability.PUBLISH_INSTANTLY`,
   `ShelterStatus.PENDING/REJECTED`. Hierarchy is now `User` → `GuestUser`/`RegisteredUser` only.
 - **Prod JWT guard** — refuses to boot with `spring.profiles.active=prod` and the dev-default
   `JWT_SECRET` (`ProdJwtGuard`).
@@ -324,11 +316,11 @@ shares POST's Estonia bbox gate via a small helper; only the five fields
 name/description/capacity/lat/lng are writable) and `GET /account/reviews/mine` (`MyReviewDto[]`,
 shelter names batched — no N+1); deleting a shelter cascades to its reviews (DB `ON DELETE
 CASCADE` — `JpaShelterRepository.deleteById` flushes so the cascade is visible to in-transaction
-reads). Frontend: `ShelterGateway.mine()/update()/remove()` + `AccountGateway.myReviews()` +
-models `UpdateShelterRequest`/`MyReviewDto`; inline-expanding edit forms (no modals),
+reads). Frontend: `ShelterGateway.mine()/update()/remove()` +
+models `UpdateShelterRequest`; inline-expanding edit forms (no modals),
 two-step delete confirms (no `window.confirm`), per-list loading/empty/error states. Docs/puml
 synced (`05-shelter-api.puml` + render, `06-CONTEXT-API.md`, `02-CONTEXT-DOMAIN.md`,
-frontend `06-CONTEXT-SHELTER.md` + `05-shelter-review-flow.puml`, both READMEs).
+frontend `06-CONTEXT-SHELTER.md`, both READMEs).
 **Acceptance:** `mvn test` + `ng test` green, live journey verified (submit → review → both
 appear in the panel → edit persists on the detail page → delete removes shelter + review;
 non-author and registry attempts → 403).
@@ -355,11 +347,6 @@ FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with 
   report per user per shelter (a re-report updates the row, `updated_at` refreshed); indexes
   (shelter_id), (user_id). Freshness (2 h on `updated_at`) is checked at read time — no
   cleanup job.
-- `review_reports` — `id BIGSERIAL PK, review_id BIGINT NOT NULL → shelter_reviews(id)
-  CASCADE, user_id BIGINT NOT NULL → users(id) CASCADE, reason VARCHAR(16) NOT NULL CHECK IN
-  (FALSY_DATA, NOT_RELEVANT, SPAM, OTHER), detail VARCHAR(500) (free text for OTHER, NULL
-  otherwise), created_at TIMESTAMPTZ NOT NULL DEFAULT now()`; **UNIQUE (review_id, user_id)**;
-  indexes (review_id), (user_id).
 - `report_actions` — the durable log behind the report throttle (same table family and window
   style as the password-reset rotation guard): `id BIGSERIAL PK, user_id BIGINT NOT NULL →
   users(id) CASCADE, action VARCHAR(32) NOT NULL (SHELTER_REPORT | REVIEW_REPORT | OCCUPANCY),
@@ -370,16 +357,14 @@ FK is `ON DELETE CASCADE` (a deleted shelter/user/review drops its reports with 
   (FALSE while the shelter may still be auto-hidden by the 5th NON_EXISTENT report; a manual
   admin restore sets it TRUE — the admin-moderation change lands the write path, the condition
   is honoured from day one).
-- `shelter_reviews.hidden_at TIMESTAMPTZ` (nullable) — set once when the 5th review report
-  lands; never cleared automatically (admin moderation only).
 
 **Endpoints** — `POST /api/shelters/{id}/reports` (204; 401/403/404/400/409/429, see
 `06-CONTEXT-API.md` for the full matrix), `PUT /api/shelters/{id}/occupancy` (204 upsert;
 401/403/404/400/429 — no 409, a re-send is the update),
 `POST /api/shelters/{id}/reviews/{reviewId}/reports` (204; 401/403 own-or-unverified/404/400/
 409/429). All three require a Bearer JWT + a verified registered user (the same `canWrite()`
-gate and error vocabulary as submissions). `GET /api/shelters` gains the optional trust filters
-`reviewed` / `minRating` (1..5, else 400) / `hasCapacity` (composable with `source`) and is now
+gate and error vocabulary as submissions). `GET /api/shelters` gains the optional trust filter
+`hasCapacity` (composable with `source`) and is now
 **ACTIVE-only** (auto-hidden shelters disappear from the public list and map); `GET
 /api/shelters/mine` and `GET /api/shelters/{id}` keep all statuses. `POST /api/shelters`
 rejects the 11th ACTIVE USER shelter with 409 (ADMIN kind exempt — the `isAdmin` seam).

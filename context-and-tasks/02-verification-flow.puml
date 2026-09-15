@@ -27,7 +27,7 @@ note over Person, GU
 end note
 
 == 1. Register ==
-Person -> US : register(name, email, phone, idCode, password)
+Person -> US : register(name, email, phone, password)
 US -> RU : new RegisteredUser(...)
 note over Person, US
   The password is captured here but stored by the AUTH
@@ -118,9 +118,10 @@ Person -> SS : addPlace(user, shelter)
 SS -> RU : canWrite()
 RU --> SS : true
 SS -> DB : save shelter (status = ACTIVE)
-SS --> Person : submitted (published immediately - community rating governs quality)
+SS --> Person : submitted (published immediately - community reports + confirmation govern quality)
 
 ' Email = same two-phase shape (request -> confirm).
 ' Smart-ID = future session + polling (stub in v1).
-' No moderator: quality governed by ShelterReview ratings (see 05-shelter-api.puml).
+' No moderator: quality governed by community reports + confirmation
+' (ReviewStatus on the shelter - see 05-shelter-api.puml).
 @enduml
