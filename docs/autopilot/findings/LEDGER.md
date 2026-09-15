@@ -102,13 +102,13 @@ new `frontend/src/app/core/prepaint.ts`, `frontend/src/app/features/map/map-page
 
 | ID | Sev | Area | File(s) + lines | Problem | Required fix | WS |
 |---|---|---|---|---|---|---|
-| F-06 | P2 | frontend | `design-tokens.spec.ts:201-202` | Contrast assertion is commented with the removed review form | Update the comment to name the admin editor error; keep the assertion (the pair is real) | WS-4 |
-| F-07 | P2 | frontend | `app.routes.ts:21,76-77,80-81` | Three comments describe review controls and a review-form lazy chunk that no longer exist; the bundle-budget rationale is explained by a dead form | Reword to auth/verification branching and marker/row-click lazy load (same fix as docs-report D20 — apply once) | WS-4 |
-| F-10 | P2 | frontend | new `shared/form-helpers.spec.ts` | The only `shared/*` module without a spec, though all four exports are production-used (`CODE_SIX_DIGITS`, `readCoordinate`, `capacityValidator`, `nameBlankValidator`) | Table-driven spec per validator (valid/invalid/empty/boundary) | WS-4 |
-| F-11 | P2 | frontend | `index.html:14-40`; new `core/prepaint.ts` | The two pre-paint boot scripts encode the theme and `<html lang>` guarantees and are never executed by the suite, so a regression ships green | Extract the logic into an exported module + unit spec (or a spec that evaluates the script source) | WS-4 |
-| F-14 | P3 | frontend | `features/map/map-page.ts`; `features/shelter/shelter-detail-page.ts` | The geolocation mechanism (+ error mapping + Haversine) is duplicated across two pages (the *copy* mirroring is deliberate and stays) | Extract a typed `GeolocationService`; keep the divergent copy per feature | WS-4 |
-| F-16 | P3 | frontend | `features/map/map-page.ts`; `features/shelter/shelter-detail-page.ts`; `features/shelter/submit-shelter-page.ts`; `features/account/verify-page.ts`; `features/account/reset-page.ts` | Manual `ngOnDestroy` unsubscribes everywhere; `takeUntilDestroyed`/`DestroyRef` unused (0 matches) | Migrate the subscriptions in these files as they are touched. `page-shell.ts`, `account-page.ts`, `contributions-panel.ts` are owned by WS-3 → deferred | WS-4 |
-| MODELS-JSDOC | P2 | frontend | `core/models.ts:636-646` | The `AdminAuditRow` doc claims `REVIEW_HIDE`/`REVIEW_RESTORE` "persist in historical rows", but V21 deletes exactly those rows and the enums no longer declare the values | Drop the persist claim (the audit tab can never render them) | WS-4 |
+| F-06 [closed W2] | P2 | frontend | `design-tokens.spec.ts:201-202` | Contrast assertion is commented with the removed review form | Update the comment to name the admin editor error; keep the assertion (the pair is real) | WS-4 |
+| F-07 [closed W2] | P2 | frontend | `app.routes.ts:21,76-77,80-81` | Three comments describe review controls and a review-form lazy chunk that no longer exist; the bundle-budget rationale is explained by a dead form | Reword to auth/verification branching and marker/row-click lazy load (same fix as docs-report D20 — apply once) | WS-4 |
+| F-10 [closed W2] | P2 | frontend | new `shared/form-helpers.spec.ts` | The only `shared/*` module without a spec, though all four exports are production-used (`CODE_SIX_DIGITS`, `readCoordinate`, `capacityValidator`, `nameBlankValidator`) | Table-driven spec per validator (valid/invalid/empty/boundary) | WS-4 |
+| F-11 [closed W2] | P2 | frontend | `index.html:14-40`; new `core/prepaint.ts` | The two pre-paint boot scripts encode the theme and `<html lang>` guarantees and are never executed by the suite, so a regression ships green | Extract the logic into an exported module + unit spec (or a spec that evaluates the script source) | WS-4 |
+| F-14 [closed W2] | P3 | frontend | `features/map/map-page.ts`; `features/shelter/shelter-detail-page.ts` | The geolocation mechanism (+ error mapping + Haversine) is duplicated across two pages (the *copy* mirroring is deliberate and stays) | Extract a typed `GeolocationService`; keep the divergent copy per feature | WS-4 |
+| F-16 [open W2: not attempted this wave - no fixer report line; the "migrate as touched" takeUntilDestroyed/DestroyRef subscription cleanup is still outstanding in its five files] | P3 | frontend | `features/map/map-page.ts`; `features/shelter/shelter-detail-page.ts`; `features/shelter/submit-shelter-page.ts`; `features/account/verify-page.ts`; `features/account/reset-page.ts` | Manual `ngOnDestroy` unsubscribes everywhere; `takeUntilDestroyed`/`DestroyRef` unused (0 matches) | Migrate the subscriptions in these files as they are touched. `page-shell.ts`, `account-page.ts`, `contributions-panel.ts` are owned by WS-3 → deferred | WS-4 |
+| MODELS-JSDOC [closed W2] | P2 | frontend | `core/models.ts:636-646` | The `AdminAuditRow` doc claims `REVIEW_HIDE`/`REVIEW_RESTORE` "persist in historical rows", but V21 deletes exactly those rows and the enums no longer declare the values | Drop the persist claim (the audit tab can never render them) | WS-4 |
 
 ## WS-5 — docs: `context-and-tasks` diagrams + written contracts (11 rows)
 
@@ -272,3 +272,35 @@ two of the reviewer's P0 blockers and regenerated the snapshot, so these rows ar
 
 | ORCH-10 | P1 | docs | frontend/docs/agent/01-TASK.md ; frontend/docs/agent/06-CONTEXT-SHELTER.md ; frontend/docs/agent/07-STEPS.md | Wave-2 reviewer: these still document the REMOVED review model (ReviewGateway, RatingStars, AdminReviewReportDto, a "Review reports" admin tab) and are owned by NO ledger row - the same never-owned-file class as ORCH-1. They are the last whole-document instances of the deleted feature in the frontend build pack. | Rewrite the review-model rows/sections in all three against the shipped surface (trust reports + confirmation ReviewStatus, the six real admin tabs), then grep the pack for the removed identifiers. | next docs wave |
 | ORCH-11 | P3 | docs-process | docs/autopilot/findings/LEDGER.md (WS-5/WS-6 rows) | The ledger still says "out/ re-render pending" for rows whose renders the orchestrator has since regenerated (reviewer content-verified: Trust Reports in 05-shelter-review-flow.svg, now : Instant in 03-auth.svg). | Tick the re-render notes as done. | orchestrator/state-writer |
+
+## ORCHESTRATOR PRIORITY NOTE — 2026-09-15T00:54:34Z
+
+Read this before choosing a wave. Wave 3 (WS-6, WS-3, WS-7) covers the *partial/open* rows of workstreams
+already worked twice; **WS-2 has five rows that have never been attempted**, and one of them is the most
+valuable single row left in the ledger:
+
+- **ORCH-5**: `api/ShelterRequestConstraintParityTest` reflects `RecordComponent::getAnnotations()`, which is
+  always empty for Jakarta constraints - so this guard has NEVER asserted anything real. Switch it to the
+  backing-field read (the pattern `AuthRequestConstraintParityTest` now uses) and replace its expectations
+  with the real hard-coded bound sets, so removing a bound fails the test.
+- **WS-2's rows**: backend test gaps (`auth/AccountService` orchestration, `config/JwtAuthenticationFilter`,
+  `RateLimitProperties`) plus the two small residue items (unbounded dev-only test-send inputs,
+  `PaasteametRegistryClient` dead-by-default note).
+
+DISPATCH WS-2 IN THE NEXT WAVE (it is file-disjoint from everything already closed: no frontend, no docs).
+
+## Orchestrator additions (v4 wave findings) — 2026-09-15T03:40:00Z (timestamp derived; this lane has no shell clock)
+
+The orphan v4 wave (WS-6, WS-5, WS-4) ran and was stopped by the orchestrator before its state lane
+ran, so its reviewer findings were never written down. These rows capture them:
+
+| ID | Sev | Area | File(s) | Problem | Required fix | Owner |
+|---|---|---|---|---|---|---|
+| ORCH-12 | P1 | openspec | `openspec/changes/shelter-trust-and-reports/specs/map-browse/spec.md:10-50`; `openspec/changes/shelter-trust-and-reports/specs/shelter-reports/spec.md:86-114` | These surviving deltas still specify the removed review/rating model, so archiving that change would re-introduce spec text for a removed endpoint and a dropped table | Strip the review/rating requirements from both deltas (keep the trust/report ones) and re-run `openspec validate --all` | next openspec wave |
+| ORCH-13 [closed W2: resolved by this record] | P2 | docs-process | `docs/autopilot/findings/LEDGER.md` (WS-4 rows) | The WS-4 rows were untagged, so STATE.json `open_items` was not traceable for that workstream | Resolved by this record — the 7 WS-4 rows now carry `[closed W2]` (F-06, F-07, F-10, F-11, F-14, MODELS-JSDOC) and `[open W2]` (F-16), so `open_items` traces to the tags | state-writer |
+| ORCH-16 | P2 | docs-puml | `context-and-tasks/05-shelter-api.puml` (ShelterController box) | WS-5 partial (the D2 caveat, still open in the v4 review): the box lists 8 of the 10 live controller operations | Complete the box to the 10 live ops and re-render `context-and-tasks/out/` | next docs wave |
+| ORCH-17 | P3 | docs | `context-and-tasks/agent/02-CONTEXT-DOMAIN.md:27` | WS-5 partial (the D6 residual, still open in the v4 review): still lists the removed `ShelterStatusFlag` enum; the live type is `OpenStatusState` (overlaps ORCH-9) | Replace the row with the live enum | next docs wave |
+
+| ORCH-14 | P3 | swagger | docs/api/openapi.json, the 8 domain enums | SW-F1..F3's enum half is closed by ruling (A): the 8 enums live in domain/, and the row's own hard rule forbids annotating domain/* - 'domain is pure Java' is a verified invariant, so a swagger-annotations dependency there would trade that invariant for cosmetic prose. Enum values are machine-readable in the document already; only per-constant prose is missing. | If per-value prose is ever wanted, add it WITHOUT touching domain: either a springdoc ModelConverter driven by an external description map, or DTO-field @Schema(allowableValues/description). | future swagger wave |
+
+| ORCH-18 | P2 | docs-puml | context-and-tasks/05-shelter-api.puml:10-22 | The v4 reviewer's caveat: the diagram's ShelterController box lists only 8 of the controller's 10 live operations - `POST /{id}/info-request/reply` and `PUT /{id}/open-status` are missing (verified against ShelterController.java:130,166,184,228,246,268,298,318,337,389). The wave-1 record closed D2 with the 8-op box, so this survived unnoticed. | Add the two missing operations to the box and re-render context-and-tasks/out/. | next docs wave |

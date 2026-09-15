@@ -1,11 +1,11 @@
 {
   "started_at": "2026-09-14T23:19:44.555691Z",
-  "updated_at": "2026-09-15T00:46:29Z",
+  "updated_at": "2026-09-15T03:40:00Z",
   "budget_hours_soft": 3,
   "budget_hours_hard": 4,
   "phase": "fixing",
-  "last_wave": "Wave 2 (WS-6, WS-5, WS-3): frontend docs sweep + a11y fix + context-and-tasks diagram/contract re-sync; reviewer verdict needs-fix (WS-3 code and WS-5 edits correct/keepable; WS-6 sweep incomplete). 23 work rows newly closed (D17, D23, the 13 WS-6 rows, the 8 WS-3 rows); D9, F-04, D21, ORCH-1, ORCH-2 kept open; new follow-up ORCH-10 (review model still in frontend/docs/agent/{01-TASK,06-CONTEXT-SHELTER,07-STEPS}.md). Orchestrator gates still owed: npm test, mvn clean test, openspec validate --all + the D21 git mv.",
-  "open_items": 17,
+  "last_wave": "Orphan v4-wave record (WS-6, WS-5, WS-4) added retroactively - that wave was stopped by the orchestrator before its state lane ran, and two later waves were recorded above it. Fixers: WS-6/WS-5 docs edits reported done; WS-4 reported 6/7 rows fixed (F-06, F-07, F-10, F-11, F-14, MODELS-JSDOC). Reviewer (run 13e1413f) verdict needs-fix, no runtime regression: the 6 WS-4 rows verified and now tagged [closed W2] (F-16 kept open - not attempted); WS-5 left two partials (new ORCH-16: context-and-tasks/05-shelter-api.puml ShelterController box lists 8 of 10 live ops; new ORCH-17: context-and-tasks/agent/02-CONTEXT-DOMAIN.md:27 lists the removed ShelterStatusFlag enum); new merge-blocking ORCH-12 (the surviving shelter-trust-and-reports map-browse/shelter-reports deltas still specify the removed review/rating model). open_items 17->11 (the 68 work rows minus 57 closed; 6 WS-4 rows newly closed, F-16 open) - open ORCH follow-ups tracked separately in the ledger.",
+  "open_items": 11,
   "model_policy": {
     "intended": {
       "token_heavy": "hpc-vllm/Qwen3.8-27B",
