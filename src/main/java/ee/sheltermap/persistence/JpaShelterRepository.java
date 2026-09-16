@@ -1,6 +1,7 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.ShelterRepository;
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
@@ -107,6 +108,19 @@ public class JpaShelterRepository implements ShelterRepository {
     @Transactional(readOnly = true)
     public List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources) {
         return shelters.findAllBySourceInAndStatusOrderByIdAsc(sources, ShelterStatus.ACTIVE).stream()
+                .map(JpaShelterRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox) {
+        // Inclusive BETWEEN on both coordinates (shelter-bbox-paging D2);
+        // the V23.1 (latitude, longitude) B-tree backs the range scan — no PostGIS (D3).
+        return shelters.findAllBySourceInAndStatusAndLatitudeBetweenAndLongitudeBetweenOrderByIdAsc(
+                        sources, ShelterStatus.ACTIVE,
+                        bbox.minLat(), bbox.maxLat(), bbox.minLng(), bbox.maxLng())
+                .stream()
                 .map(JpaShelterRepository::toDomain)
                 .toList();
     }

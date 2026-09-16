@@ -8,6 +8,7 @@ import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.ShelterService;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.LocationKind;
@@ -61,9 +62,15 @@ import java.util.List;
  * and legacy rows are unmanageable by anyone) — ids are public (public
  * GET), so 403-vs-404 leaks nothing.
  *
- * <p>Deferred (06-CONTEXT-API.md decision 2, deliberately NOT built):
- * nearest/bbox queries need GeoService + PostGIS GIST index; paging
- * (limit/offset) — Estonia-scale data is small. TODO: add when it grows.
+ * <p>Viewport + paging (shelter-bbox-paging, the 06-CONTEXT-API.md
+ * decision-2 deferral now built): the list accepts an optional bbox
+ * (minLat/minLng/maxLat/maxLng — all four together or none) and offset/
+ * limit paging over the stable id-ascending order. No PostGIS and no
+ * GeoService by design (a (latitude, longitude) B-tree index plus the
+ * bbox predicate is enough at Estonia scale — V23.1). What STAYS deferred:
+ * nearest-shelter search — it is a ranking, not a filter, and remains
+ * client-side (the map ranks the loaded list; the "around you" action
+ * adds no backend call by spec).
  *
  * <p>Trust layer (shelter-trust-and-reports): the public list is
  * ACTIVE-only (D5) and accepts the optional trust filters; the detail
@@ -126,6 +133,18 @@ public class ShelterController {
      * and REJECTED filter to an empty list by construction). Absent = no
      * provenance filter; combines with every other filter. A value outside
      * the enum is a 400 (Spring enum binding, same as {@code source}).
+     *
+     * <p>Viewport + paging (shelter-bbox-paging): the optional
+     * {@code minLat}/{@code minLng}/{@code maxLat}/{@code maxLng} box (ALL
+     * four together or none; inclusive edges) restricts the SQL read, and
+     * {@code limit} (1…200) / {@code offset} (≥ 0) page the stably
+     * id-ordered answer — the trust filters apply BEFORE the slice, so a
+     * page never contains a row they would drop. Omitting all of them
+     * answers exactly what the endpoint answered before (the same SQL,
+     * order and body). Bad values are 400s with the uniform error body —
+     * the same vocabulary as the POST/PUT Estonia bbox check; a
+     * non-numeric value stays on Spring binding's 400 (same as
+     * {@code source}).
      */
     @GetMapping
     @Operation(summary = "The public shelter list",
@@ -135,10 +154,20 @@ public class ShelterController {
                     + "unknown minRating param is ignored for API compatibility, not "
                     + "an error. provenance: keeps rows whose server-derived "
                     + "provenance matches; absent = no provenance filter; a value "
-                    + "outside the enum is a 400 (same as source).")
+                    + "outside the enum is a 400 (same as source). Viewport "
+                    + "(shelter-bbox-paging): minLat/minLng/maxLat/maxLng are ALL or "
+                    + "NONE, inclusive, and keep the rows inside the box; limit "
+                    + "(1..200) and offset (>= 0) page the stable id-ascending answer "
+                    + "— the trust filters apply before paging. Omitting all of them "
+                    + "answers exactly the pre-change list.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The ACTIVE rows", content =
-                    @Content(array = @ArraySchema(schema = @Schema(implementation = ShelterDto.class))))
+                    @Content(array = @ArraySchema(schema = @Schema(implementation = ShelterDto.class)))),
+            @ApiResponse(responseCode = "400", description = "A bad viewport or paging "
+                    + "value (partial box, non-finite/out-of-range/inverted edges, "
+                    + "limit outside 1..200, negative offset) — the uniform error body.",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
     })
     @SecurityRequirements({})
     public List<ShelterDto> list(@Parameter(description = "Source filter: ALL | REGISTRY "
@@ -151,8 +180,33 @@ public class ShelterController {
                                  @Parameter(description = "Only rows with this "
                                          + "server-derived provenance (optional; 400 "
                                          + "outside the enum).")
-                                 @RequestParam(required = false) Provenance provenance) {
-        return queryService.findAll(source, hasCapacity, provenance);
+                                 @RequestParam(required = false) Provenance provenance,
+                                 @Parameter(description = "Optional viewport: the inclusive "
+                                         + "min latitude. ALL FOUR edges together or none — "
+                                         + "a partial box is a 400.")
+                                 @RequestParam(required = false) Double minLat,
+                                 @Parameter(description = "Optional viewport: the inclusive "
+                                         + "min longitude. ALL FOUR edges together or none — "
+                                         + "a partial box is a 400.")
+                                 @RequestParam(required = false) Double minLng,
+                                 @Parameter(description = "Optional viewport: the inclusive "
+                                         + "max latitude. ALL FOUR edges together or none — "
+                                         + "a partial box is a 400.")
+                                 @RequestParam(required = false) Double maxLat,
+                                 @Parameter(description = "Optional viewport: the inclusive "
+                                         + "max longitude. ALL FOUR edges together or none — "
+                                         + "a partial box is a 400.")
+                                 @RequestParam(required = false) Double maxLng,
+                                 @Parameter(description = "Optional page size: 1..200; "
+                                         + "absent = no paging (the whole filtered list).")
+                                 @RequestParam(required = false) Integer limit,
+                                 @Parameter(description = "Optional offset into the stable "
+                                         + "id-ascending, filter-applied list: >= 0; past the "
+                                         + "end answers an empty array.")
+                                 @RequestParam(required = false) Integer offset) {
+        return queryService.findAll(source, hasCapacity, provenance,
+                requireBbox(minLat, minLng, maxLat, maxLng),
+                requireLimit(limit), requireOffset(offset));
     }
 
     /**
@@ -415,6 +469,65 @@ public class ShelterController {
         if (!GeoPoint.inEstonia(latitude, longitude)) {
             throw new InvalidShelterException("Shelter location must be inside Estonia");
         }
+    }
+
+    /**
+     * The optional viewport box (shelter-bbox-paging D1): ALL four edges
+     * together or none. The friendly 400 messages are thrown HERE (the
+     * existing {@link InvalidShelterException} → 400 mapping, the same
+     * vocabulary as the POST/PUT Estonia gate); {@link BoundingBox}'s own
+     * constructor is the defense in depth. Note the explicit finiteness
+     * check: Spring binds the literal "NaN" to {@code Double.NaN}, and
+     * every comparison against NaN is false — a range check alone would
+     * let it through and answer an empty list that reads as "no shelters".
+     */
+    private static BoundingBox requireBbox(Double minLat, Double minLng, Double maxLat, Double maxLng) {
+        boolean any = minLat != null || minLng != null || maxLat != null || maxLng != null;
+        if (!any) {
+            return null;
+        }
+        if (minLat == null || minLng == null || maxLat == null || maxLng == null) {
+            throw new InvalidShelterException("minLat, minLng, maxLat and maxLng must be given together");
+        }
+        if (!Double.isFinite(minLat) || !Double.isFinite(minLng)
+                || !Double.isFinite(maxLat) || !Double.isFinite(maxLng)) {
+            throw new InvalidShelterException("Bounding box coordinates must be finite numbers");
+        }
+        if (minLat < -90 || minLat > 90 || maxLat < -90 || maxLat > 90) {
+            throw new InvalidShelterException("Latitude must be between -90 and 90");
+        }
+        if (minLng < -180 || minLng > 180 || maxLng < -180 || maxLng > 180) {
+            throw new InvalidShelterException("Longitude must be between -180 and 180");
+        }
+        if (minLat > maxLat) {
+            throw new InvalidShelterException("minLat must be <= maxLat");
+        }
+        if (minLng > maxLng) {
+            throw new InvalidShelterException("minLng must be <= maxLng");
+        }
+        return new BoundingBox(minLat, minLng, maxLat, maxLng);
+    }
+
+    /** The page size bound (shelter-bbox-paging D1): absent = no paging. */
+    private static Integer requireLimit(Integer limit) {
+        if (limit == null) {
+            return null;
+        }
+        if (limit < 1 || limit > ShelterQueryService.MAX_PAGE_SIZE) {
+            throw new InvalidShelterException("limit must be between 1 and " + ShelterQueryService.MAX_PAGE_SIZE);
+        }
+        return limit;
+    }
+
+    /** The offset bound (shelter-bbox-paging D1): absent = the first page. */
+    private static Integer requireOffset(Integer offset) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset < 0) {
+            throw new InvalidShelterException("offset must be non-negative");
+        }
+        return offset;
     }
 
     /** Bearer JWT + verified registered account (author mutations, mirroring the shelter author-mutation convention). */

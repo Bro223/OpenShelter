@@ -9,6 +9,7 @@ import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit tests for the read side of the shelter API: source-filter mapping
@@ -629,5 +631,98 @@ class ShelterQueryServiceTest {
         reports.save(confirmation);
 
         assertThat(service.findById(userShelter.getId()).orElseThrow().lastVerifiedAt()).isNull();
+    }
+
+    // ---------- viewport + paging (shelter-bbox-paging) ----------
+
+    /** A fixture row at explicit coordinates (the default fixtures sit at (59.4, 24.7)). */
+    private Shelter saveAt(String name, ShelterSource source, double lat, double lng) {
+        Shelter shelter = new Shelter(name, new GeoPoint(lat, lng), ShelterStatus.ACTIVE,
+                "ext-" + name, source);
+        shelters.save(shelter);
+        return shelter;
+    }
+
+    private static final BoundingBox BOX = new BoundingBox(57.999, 23.0, 59.2, 27.0);
+
+    @Test
+    void theViewportKeepsInsideRowsInclusivelyOfTheEdges() {
+        // the fixture rows (59.4, 24.7) are outside the box
+        saveAt("Sees", ShelterSource.USER, 58.5, 25.0);
+        saveAt("Aarel", ShelterSource.USER, 57.999, 25.0); // exactly ON the minLat edge
+        saveAt("Valjas", ShelterSource.USER, 57.9, 25.0);  // one leg outside
+
+        List<ShelterDto> dtos = service.findAll(ShelterSourceFilter.ALL, null, null, BOX, null, null);
+
+        assertThat(dtos).extracting(ShelterDto::name)
+                .containsExactly("Sees", "Aarel"); // id-ascending, inclusive edge, outside excluded
+    }
+
+    @Test
+    void theViewportCombinesWithTheSourceFilter() {
+        saveAt("Kasutaja sees", ShelterSource.USER, 58.5, 25.0);
+        saveAt("Reg sees", ShelterSource.PAASETEAMET, 58.6, 25.1);
+
+        assertThat(service.findAll(ShelterSourceFilter.USER, null, null, BOX, null, null))
+                .extracting(ShelterDto::name)
+                .containsExactly("Kasutaja sees");
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, BOX, null, null))
+                .extracting(ShelterDto::name)
+                .containsExactly("Kasutaja sees", "Reg sees");
+    }
+
+    @Test
+    void limitAndOffsetSliceTheStableIdOrder() {
+        // the fixture: three rows, ids in insertion order
+        List<Long> allIds = service.findAll(ShelterSourceFilter.ALL, null, null, null, null, null)
+                .stream().map(ShelterDto::id).toList();
+        assertThat(allIds).hasSize(3);
+
+        // limit truncates from the start, offset skips, the two compose
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, 2, null))
+                .extracting(ShelterDto::id).containsExactlyElementsOf(allIds.subList(0, 2));
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, null, 1))
+                .extracting(ShelterDto::id).containsExactlyElementsOf(allIds.subList(1, 3));
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, 1, 1))
+                .extracting(ShelterDto::id).containsExactly(allIds.get(1));
+        // an offset past the end is an empty page, never an error
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, 1, 3)).isEmpty();
+        // deterministic over the stable id order — the same call twice, the same page
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, 2, null))
+                .extracting(ShelterDto::id)
+                .isEqualTo(service.findAll(ShelterSourceFilter.ALL, null, null, null, 2, null)
+                        .stream().map(ShelterDto::id).toList());
+    }
+
+    @Test
+    void theTrustFiltersApplyBeforeTheSlice() {
+        // the fixture rows have no capacity data; one capacity row joins LATER
+        // (a higher id) — the filtered list's first row is NOT the unfiltered one
+        Shelter withCap = new Shelter("Maht", new GeoPoint(58.5, 25.0), ShelterStatus.ACTIVE,
+                null, ShelterSource.USER, null, null, null, null, null, null, 40);
+        shelters.save(withCap);
+
+        assertThat(service.findAll(ShelterSourceFilter.ALL, null, null, null, 1, null))
+                .extracting(ShelterDto::name).doesNotContain("Maht");
+        // the page of the FILTERED list: its first row, not the first row filtered out
+        assertThat(service.findAll(ShelterSourceFilter.ALL, true, null, null, 1, null))
+                .extracting(ShelterDto::name).containsExactly("Maht");
+    }
+
+    @Test
+    void theBoundingBoxRecordSelfValidates() {
+        // defense in depth — the API's friendly 400s come from the controller first
+        assertThatThrownBy(() -> new BoundingBox(60.0, 23.0, 57.0, 27.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("minLat must be <= maxLat");
+        assertThatThrownBy(() -> new BoundingBox(57.0, 23.0, 59.0, 190.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Longitude must be between -180 and 180");
+        assertThatThrownBy(() -> new BoundingBox(Double.NaN, 23.0, 59.0, 27.0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Bounding box coordinates must be finite numbers");
+        // the containment is inclusive of the edges, like the SQL BETWEEN
+        assertThat(BOX.contains(57.999, 27.0)).isTrue();
+        assertThat(BOX.contains(57.998, 25.0)).isFalse();
     }
 }

@@ -503,6 +503,28 @@
         },
         "type" : "object"
       },
+      "ErrorResponse" : {
+        "properties" : {
+          "error" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "path" : {
+            "type" : "string"
+          },
+          "status" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timestamp" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ExportedProfile" : {
         "properties" : {
           "email" : {
@@ -5009,7 +5031,7 @@
     },
     "/api/shelters" : {
       "get" : {
-        "description" : "ACTIVE rows only (auto-hidden shelters are absent). The optional trust filters combine: hasCapacity (capacity data present). The minRating rating filter was removed in V21 — an unknown minRating param is ignored for API compatibility, not an error. provenance: keeps rows whose server-derived provenance matches; absent = no provenance filter; a value outside the enum is a 400 (same as source).",
+        "description" : "ACTIVE rows only (auto-hidden shelters are absent). The optional trust filters combine: hasCapacity (capacity data present). The minRating rating filter was removed in V21 — an unknown minRating param is ignored for API compatibility, not an error. provenance: keeps rows whose server-derived provenance matches; absent = no provenance filter; a value outside the enum is a 400 (same as source). Viewport (shelter-bbox-paging): minLat/minLng/maxLat/maxLng are ALL or NONE, inclusive, and keep the rows inside the box; limit (1..200) and offset (>= 0) page the stable id-ascending answer — the trust filters apply before paging. Omitting all of them answers exactly the pre-change list.",
         "operationId" : "list",
         "parameters" : [ {
           "name" : "source",
@@ -5037,6 +5059,60 @@
             "type" : "string",
             "enum" : [ "OFFICIAL", "PARTNER_VERIFIED", "COMMUNITY_REPORTED", "UNDER_REVIEW", "REPORTED_INACTIVE", "REJECTED" ]
           }
+        }, {
+          "name" : "minLat",
+          "in" : "query",
+          "description" : "Optional viewport: the inclusive min latitude. ALL FOUR edges together or none — a partial box is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }, {
+          "name" : "minLng",
+          "in" : "query",
+          "description" : "Optional viewport: the inclusive min longitude. ALL FOUR edges together or none — a partial box is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }, {
+          "name" : "maxLat",
+          "in" : "query",
+          "description" : "Optional viewport: the inclusive max latitude. ALL FOUR edges together or none — a partial box is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }, {
+          "name" : "maxLng",
+          "in" : "query",
+          "description" : "Optional viewport: the inclusive max longitude. ALL FOUR edges together or none — a partial box is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "number",
+            "format" : "double"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = no paging (the whole filtered list).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the stable id-ascending, filter-applied list: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -5060,7 +5136,7 @@
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A bad viewport or paging value (partial box, non-finite/out-of-range/inverted edges, limit outside 1..200, negative offset) — the uniform error body."
           },
           "401" : {
             "content" : {

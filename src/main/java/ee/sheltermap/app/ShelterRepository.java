@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -35,6 +36,14 @@ public interface ShelterRepository {
      * all statuses.
      */
     List<Shelter> findAllActiveBySourceIn(List<ShelterSource> sources);
+
+    /**
+     * The public list projection restricted to a viewport
+     * (shelter-bbox-paging): {@code ACTIVE} rows of the given sources
+     * whose coordinates fall inside the inclusive {@code bbox} — the same
+     * stable id-ascending order as {@link #findAllActiveBySourceIn}.
+     */
+    List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox);
 
     /**
      * The caller's shelters with the given source/status — the input of

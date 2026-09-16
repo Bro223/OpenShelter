@@ -9,6 +9,7 @@ import ee.sheltermap.app.ShelterReportRepository;
 import ee.sheltermap.app.ShelterReportRepository.ReportTypeCount;
 import ee.sheltermap.app.ShelterInfoRequestLog;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
@@ -80,6 +81,9 @@ public class ShelterQueryService {
     /** Freshness window for the live state blocks (occupancy D4, and the open/closed tap on the same level): reports older than this are silent. */
     public static final Duration OCCUPANCY_FRESHNESS_WINDOW = Duration.ofHours(2);
 
+    /** The largest page the public list answers (shelter-bbox-paging D1): beyond it the caller narrows the viewport. */
+    public static final int MAX_PAGE_SIZE = 200;
+
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
     private final ShelterReportRepository reportRepository;
@@ -119,11 +123,65 @@ public class ShelterQueryService {
      * API compatibility.)
      * NEW community rows are listed like any other ACTIVE row
      * (community-review-queue v2 D2 — no visibility gate).
+     *
+     * <p>No viewport, no paging (shelter-bbox-paging): delegates to the
+     * full overload with everything omitted, which is EXACTLY the
+     * pre-paging behaviour — the backward-compatibility contract.
      */
     public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean hasCapacity,
                                     Provenance provenance) {
-        List<ShelterDto> dtos = toDtos(shelterRepository.findAllActiveBySourceIn(source.sources()), null);
-        return applyTrustFilters(dtos, hasCapacity, provenance);
+        return findAll(source, hasCapacity, provenance, null, null, null);
+    }
+
+    /**
+     * The public list with the optional viewport filter and offset/limit
+     * paging (shelter-bbox-paging D2):
+     *
+     * <ol>
+     * <li>SQL: the ACTIVE rows of the source set, inside the inclusive
+     * {@code bbox} when one is given, {@code ORDER BY id ASC} — the stable
+     * order every list answer uses (the id is unique, so the order is
+     * total and paging over it is deterministic);</li>
+     * <li>the batched DTO mapping (no N+1) over exactly that set;</li>
+     * <li>the in-memory trust filters ({@code hasCapacity},
+     * {@code provenance}) — unchanged semantics;</li>
+     * <li>the {@code offset}/{@code limit} slice LAST, over the filtered
+     * stably-ordered list — a page never contains a row the filters would
+     * drop, and consecutive pages tile the filtered list without overlap
+     * or skipped rows.</li>
+     * </ol>
+     *
+     * <p>Omitting the bbox and both paging params answers byte-identical
+     * to the pre-change endpoint (the no-viewport repository query is the
+     * untouched one, so the SQL is unchanged too).
+     */
+    public List<ShelterDto> findAll(ShelterSourceFilter source, Boolean hasCapacity,
+                                    Provenance provenance, BoundingBox bbox,
+                                    Integer limit, Integer offset) {
+        List<Shelter> shelters = bbox == null
+                ? shelterRepository.findAllActiveBySourceIn(source.sources())
+                : shelterRepository.findAllActiveBySourceInWithin(source.sources(), bbox);
+        List<ShelterDto> dtos = toDtos(shelters, null);
+        List<ShelterDto> filtered = applyTrustFilters(dtos, hasCapacity, provenance);
+        return slice(filtered, offset, limit);
+    }
+
+    /**
+     * The offset/limit slice over the stably-ordered list
+     * (shelter-bbox-paging D2). Paging without a stable order is
+     * meaningless — this runs over the id-ascending answer and nowhere
+     * else. Nulls mean "no paging" (the offset defaults to 0); an offset
+     * past the end answers an empty page, never an error. The bounds
+     * themselves (1…{@link #MAX_PAGE_SIZE}, non-negative offset) are the
+     * controller's validation, so this never sees a negative offset.
+     */
+    static List<ShelterDto> slice(List<ShelterDto> rows, Integer offset, Integer limit) {
+        int from = offset == null ? 0 : offset;
+        if (from >= rows.size()) {
+            return List.of();
+        }
+        int to = limit == null ? rows.size() : Math.min(rows.size(), from + limit);
+        return List.copyOf(rows.subList(from, to));
     }
 
     /** The single-shelter read without a caller (internal projections). */

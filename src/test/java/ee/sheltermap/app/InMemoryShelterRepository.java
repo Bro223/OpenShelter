@@ -1,5 +1,6 @@
 package ee.sheltermap.app;
 
+import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
@@ -64,6 +65,17 @@ public class InMemoryShelterRepository implements ShelterRepository {
         return store.values().stream()
                 .filter(s -> sources.contains(s.getSource()))
                 .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
+                .toList();
+    }
+
+    @Override
+    public List<Shelter> findAllActiveBySourceInWithin(List<ShelterSource> sources, BoundingBox bbox) {
+        // The JPA query's inclusive BETWEEN and stable id order, mirrored in memory.
+        return store.values().stream()
+                .filter(s -> sources.contains(s.getSource()))
+                .filter(s -> s.getStatus() == ShelterStatus.ACTIVE)
+                .filter(s -> bbox.contains(s.getLocation().lat(), s.getLocation().lng()))
+                .sorted(Comparator.comparing(Shelter::getId))
                 .toList();
     }
 
