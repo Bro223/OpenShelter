@@ -97,3 +97,6 @@ data/media/
 /vitest_node_modules/
 /test_node_modules/
 .vitest/
+
+# Angular build cache (generated at the repo root when a build is run from here)
+/.angular/
