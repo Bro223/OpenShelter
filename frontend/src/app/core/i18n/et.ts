@@ -349,7 +349,7 @@ export const ET: Messages = {
   'admin.guidance.col.published': 'Avaldatud',
   'admin.guidance.col.updated': 'Muudetud',
   'admin.guidance.col.actions': 'Tegevused',
-  'admin.guidance.status.draft': 'Mustand',
+  'admin.guidance.status.draft': 'Mustand — pole avalik',
   'admin.guidance.status.published': 'Avaldatud',
   'admin.guidance.pinned.yes': 'Jah',
   'admin.guidance.pinned.no': 'Ei',
@@ -419,6 +419,19 @@ export const ET: Messages = {
   'admin.guidance.editor.status.publish': 'Salvesta ja avalda',
   'admin.guidance.editor.statusNote':
     'Avaldamisoleku muudavad loendis toimingud Avalda ja Tühista avaldamine.',
+  /** Muutmisrežiim, mustand: oleku rida ülevaates — mustand ei ole
+   *  avalik enne avaldamist; nimetab teekonna. Avaldatud post hoiab
+   *  statusNote'i (hädutamata). */
+  'admin.guidance.editor.draftState':
+    'See post on mustand — see ei ole lehel /blog nähtav, kuni sa seda ei avalda. Kasuta loendis toimingut Avalda.',
+  /** Pärast mustandi salvestamist loomisrežiimis: tagajärg + teekond.
+   *  Tavaline olek, mitte viga (toimetaja infoteade). */
+  'admin.guidance.editor.savedAsDraft':
+    'Salvestatud mustandina. Post ei ole lehel /blog nähtav, kuni sa seda ei avalda — kasuta loendis toimingut Avalda või salvesta ja avalda.',
+  /** Pärast olemasoleva mustandi muutmist: post jääb mustandiks ja ei
+   *  ole /blog-il nähtav, kuni avaldatud (muutmiskeha ei saa statusit). */
+  'admin.guidance.editor.stillDraft':
+    'Salvestatud. Post on endiselt mustand, seega ei ole see lehel /blog nähtav, kuni sa seda ei avalda — kasuta loendis toimingut Avalda.',
   'admin.guidance.editor.save': 'Salvesta',
   'admin.guidance.editor.saving': 'Salvestan…',
   'admin.guidance.editor.cancel': 'Tühista',

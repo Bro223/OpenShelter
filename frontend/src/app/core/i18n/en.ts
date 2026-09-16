@@ -345,7 +345,7 @@ export const EN: Messages = {
   'admin.guidance.col.published': 'Published',
   'admin.guidance.col.updated': 'Updated',
   'admin.guidance.col.actions': 'Actions',
-  'admin.guidance.status.draft': 'Draft',
+  'admin.guidance.status.draft': 'Draft — not public',
   'admin.guidance.status.published': 'Published',
   'admin.guidance.pinned.yes': 'Yes',
   'admin.guidance.pinned.no': 'No',
@@ -414,6 +414,20 @@ export const EN: Messages = {
   'admin.guidance.editor.status.publish': 'Save and publish',
   'admin.guidance.editor.statusNote':
     'The publication state is changed with the Publish and Unpublish actions on the list.',
+  /** Edit mode, draft post: the at-a-glance state line (a draft is not
+   *  public until published; names the way out). A published post keeps
+   *  the statusNote instead (no nag). */
+  'admin.guidance.editor.draftState':
+    'This post is a draft — it is not visible on /blog until you publish it. Use Publish in the list.',
+  /** After a create-mode draft save: the consequence + the way out. A
+   *  normal state, not an error (the editor's info notice). */
+  'admin.guidance.editor.savedAsDraft':
+    'Saved as a draft. It is not visible on /blog until you publish it — use Publish in the list, or save and publish.',
+  /** After an edit of an existing draft: it stays a draft, still not
+   *  visible on /blog until published (the edit payload carries no
+   *  status). */
+  'admin.guidance.editor.stillDraft':
+    'Saved. It is still a draft, so it is not visible on /blog until you publish it — use Publish in the list.',
   'admin.guidance.editor.save': 'Save',
   'admin.guidance.editor.saving': 'Saving…',
   'admin.guidance.editor.cancel': 'Cancel',

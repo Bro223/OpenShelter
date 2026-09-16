@@ -16,6 +16,13 @@
        admin just picks again. -->
   <app-banner severity="error" [message]="heroUploadError()" />
 
+  <!-- A draft save is never silent: after a save that leaves the post a
+       draft, the notice names the consequence (invisible on /blog) and
+       the way out (Publish in the list; save and publish in create
+       mode). A normal state — the info treatment, never the error one;
+       hidden while a failed save's message is up. -->
+  <app-banner severity="info" [message]="draftSavedMessage()" />
+
   <form [formGroup]="form" (ngSubmit)="onSave()">
     <div class="field">
       <label for="ge-title">{{ 'admin.guidance.editor.titleLabel' | t }}</label>
@@ -203,7 +210,16 @@
         </label>
       </fieldset>
     } @else {
-      <p class="field-note">{{ 'admin.guidance.editor.statusNote' | t }}</p>
+      <!-- Edit mode: the at-a-glance state line. A draft post names its
+           consequence (invisible on /blog) and the way out; a published
+           post keeps the complementary note (no nag). -->
+      <p class="field-note">
+        {{
+          (isDraftPost()
+            ? 'admin.guidance.editor.draftState'
+            : 'admin.guidance.editor.statusNote') | t
+        }}
+      </p>
     }
 
     <div class="guidance-editor__actions">

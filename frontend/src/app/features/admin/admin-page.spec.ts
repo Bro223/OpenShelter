@@ -1484,6 +1484,23 @@ describe('AdminPage', () => {
     expect(thumb?.getAttribute('src')).toBe(GUIDANCE_PUBLISHED.heroImageUrl);
   });
 
+  it('the draft row badge says the post is not public (the meaning, not just the state)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const { element, fixture } = await openAdmin();
+
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelector<HTMLElement>('tr.admin-row');
+    expect(draftRow).not.toBeNull();
+    const badge = draftRow!.querySelector('.badge--draft');
+    expect(badge).not.toBeNull();
+    expect(badge!.textContent).toContain('Draft — not public');
+    // The way out sits in the same row: the Publish action.
+    expect(buttonByText(draftRow!, 'Publish')).not.toBeNull();
+  });
+
   it('the guidance list shows the empty state (with the New post button)', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue([]);

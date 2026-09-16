@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { FormControl } from '@angular/forms';
@@ -57,6 +57,9 @@ const EDIT_POST: AdminGuidancePostDto = {
   updatedAt: '2026-09-02T09:00:00Z',
 };
 
+/** The edit-mode DRAFT counterpart of EDIT_POST (the draft-state tests). */
+const DRAFT_POST: AdminGuidancePostDto = { ...EDIT_POST, id: 12, status: 'DRAFT' };
+
 const NEW_ASSET: MediaAssetDto = {
   id: 7,
   url: '/api/media/0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.webp',
@@ -71,14 +74,17 @@ const NEW_ASSET: MediaAssetDto = {
 };
 /** The host: post null = create mode, a post = edit mode (the prefill runs
  *  in the editor's ngOnInit — so the inputs are set BEFORE the first
- *  detectChanges, like the page binds them). */
+ *  detectChanges, like the page binds them). `error` is a REAL signal:
+ *  the app runs zoneless, so a plain host property would not re-render
+ *  the child's serverError input after creation (the repo's zoneless
+ *  spec convention). */
 @Component({
   imports: [GuidanceEditor],
   template: `<app-guidance-editor
     [post]="post"
     [mediaAssets]="assets"
     [busy]="busy"
-    [serverError]="error"
+    [serverError]="error()"
     (save)="onSave($event)"
     (cancel)="cancelled = true"
   />`,
@@ -87,7 +93,7 @@ class Host {
   post: AdminGuidancePostDto | null = EDIT_POST;
   assets: MediaAssetDto[] | null = MEDIA_ASSETS;
   busy = false;
-  error: string | null = null;
+  error = signal<string | null>(null);
   lastSave: GuidanceEditorSave | null = null;
   cancelled = false;
   onSave(event: GuidanceEditorSave): void {
@@ -551,6 +557,101 @@ describe('GuidanceEditor', () => {
     h.editor.onSave();
     expect(h.host.lastSave?.create?.heroImageId).toBe(NEW_ASSET.id);
     expect(h.host.lastSave?.create?.heroImageAlt).toBe('Varjund, vaade seest');
+  });
+
+  // ---- the draft consequence (a draft save is never silent) ---------------
+
+  it('a create-mode draft save shows the "saved as a draft" notice (consequence + way out)', () => {
+    const h = createHost(null);
+    fillRequired(h);
+
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).toContain(
+      'Saved as a draft. It is not visible on /blog until you publish it',
+    );
+  });
+
+  it('the draft-save notice names the publish action (the way out)', () => {
+    const h = createHost(null);
+    fillRequired(h);
+
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    // The info treatment (a normal state, not the error banner).
+    const notice = h.element.querySelector('.banner--info');
+    expect(notice).not.toBeNull();
+    expect(notice!.textContent).toContain('Publish');
+    expect(notice!.textContent).toContain('save and publish');
+    expect(h.element.querySelector('.banner--error')).toBeNull();
+  });
+
+  it('a create-mode save-and-publish shows no draft notice', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    (inputById(h.element, 'ge-status-published') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).not.toContain('Saved as a draft.');
+    expect(h.element.querySelector('.banner')).toBeNull();
+  });
+
+  it('editing a draft: the at-a-glance line shows on open, and saving shows the draft notice', () => {
+    const h = createHost(DRAFT_POST);
+    h.fixture.detectChanges();
+
+    // At a glance (before any save): the state line names the consequence
+    // and the way out (the published post's complementary note is gone).
+    expect(h.element.textContent).toContain(
+      'This post is a draft — it is not visible on /blog until you publish it',
+    );
+    expect(h.element.textContent).toContain('Publish');
+    expect(h.element.textContent).not.toContain(
+      'The publication state is changed with the Publish and Unpublish actions on the list.',
+    );
+
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).toContain(
+      'Saved. It is still a draft, so it is not visible on /blog until you publish it',
+    );
+    const notice = h.element.querySelector('.banner--info');
+    expect(notice!.textContent).toContain('Publish');
+  });
+
+  it('editing a published post keeps the complementary note and shows no draft notice (no nag)', () => {
+    const h = createHost(EDIT_POST);
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).not.toContain('This post is a draft');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).not.toContain('Saved as a draft.');
+    expect(h.element.textContent).not.toContain('still a draft');
+    expect(h.element.querySelector('.banner')).toBeNull();
+  });
+
+  it('a failed draft save shows the error banner, not the "saved as a draft" notice', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.element.textContent).toContain('Saved as a draft.');
+
+    // The parent keeps the editor open on a failed save (the server
+    // message comes down through the serverError input).
+    h.host.error.set('slug "uus-juhis" is already in use');
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).toContain('slug "uus-juhis" is already in use');
+    expect(h.element.textContent).not.toContain('Saved as a draft.');
   });
 
   // ---- the slug validator (the shared unit) ----------------------------------

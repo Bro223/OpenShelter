@@ -149,6 +149,14 @@ export class GuidanceEditor implements OnInit {
 
   /** The hero-picker panel's open state (toggled from the hero field). */
   protected readonly heroPickerOpen = signal(false);
+  /** The last validated save left the post a DRAFT (create mode: the
+   *  draft radio; edit mode: the post is a draft — the update payload
+   *  carries no status, so the post's current state decides). Drives the
+   *  "saved as a draft" notice: a draft save must never be silent about
+   *  its consequence (the post is invisible on /blog until published).
+   *  Starts false, and the page recreates the editor on every open, so it
+   *  cannot leak from a previous post. */
+  protected readonly draftSaved = signal(false);
 
   ngOnInit(): void {
     const post = this.post();
@@ -212,6 +220,26 @@ export class GuidanceEditor implements OnInit {
   /** The Save guard: the form's own validity AND the cross-field rule. */
   protected canSave(): boolean {
     return this.form.valid && this.heroAltViolation() === null;
+  }
+
+  /** The "saved as a draft" notice: shown after a save that leaves the
+   *  post a DRAFT, hidden while a failed save's message is up (that save
+   *  was not stored — the error banner is the treatment then). A normal
+   *  state, not an error — the editor's info treatment. */
+  protected draftSavedMessage(): string | null {
+    if (!this.draftSaved() || this.serverError() !== null) {
+      return null;
+    }
+    return this.post() === null
+      ? this.i18n.t('admin.guidance.editor.savedAsDraft')
+      : this.i18n.t('admin.guidance.editor.stillDraft');
+  }
+
+  /** Edit mode: the bound post is a draft — the at-a-glance state line
+   *  (a draft is not public until published) replaces the published
+   *  post's complementary note. */
+  protected isDraftPost(): boolean {
+    return this.post()?.status === 'DRAFT';
   }
 
   /**
@@ -346,11 +374,15 @@ export class GuidanceEditor implements OnInit {
     };
     const post = this.post();
     if (post === null) {
-      this.save.emit({
-        id: null,
-        create: { ...common, status: this.form.get('status')?.value ?? 'DRAFT' },
-      });
+      const status = this.form.get('status')?.value ?? 'DRAFT';
+      // A create-mode draft save: the consequence notice follows the
+      // emission (a draft save must never be silent about its outcome).
+      this.draftSaved.set(status === 'DRAFT');
+      this.save.emit({ id: null, create: { ...common, status } });
     } else {
+      // Saving a draft leaves it a draft (the PUT body carries no
+      // status) — the notice follows it the same way.
+      this.draftSaved.set(post.status === 'DRAFT');
       this.save.emit({ id: post.id, update: common });
     }
   }

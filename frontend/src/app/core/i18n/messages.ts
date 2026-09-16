@@ -336,6 +336,8 @@ export interface Messages {
   'admin.guidance.col.published': string;
   'admin.guidance.col.updated': string;
   'admin.guidance.col.actions': string;
+  /** The list badge: the draft's consequence, not just the state name
+   *  (a draft is not public until published). */
   'admin.guidance.status.draft': string;
   'admin.guidance.status.published': string;
   'admin.guidance.pinned.yes': string;
@@ -411,6 +413,17 @@ export interface Messages {
   'admin.guidance.editor.status.publish': string;
   /** Edit mode: the publication state is owned by the row actions. */
   'admin.guidance.editor.statusNote': string;
+  /** Edit mode, draft post: the at-a-glance state line (a draft is not
+   *  public until published; names the way out). A published post keeps
+   *  the statusNote instead (no nag). */
+  'admin.guidance.editor.draftState': string;
+  /** After a create-mode draft save: the consequence + the way out. A
+   *  normal state, not an error (the editor's info notice). */
+  'admin.guidance.editor.savedAsDraft': string;
+  /** After an edit of an existing draft: it stays a draft, still not
+   *  visible on /blog until published (the edit payload carries no
+   *  status). */
+  'admin.guidance.editor.stillDraft': string;
   'admin.guidance.editor.save': string;
   'admin.guidance.editor.saving': string;
   'admin.guidance.editor.cancel': string;
