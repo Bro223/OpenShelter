@@ -47,6 +47,15 @@ Angular 22 + Leaflet frontend.
   exist" report takes the shelter off the public map**, admin-restore only, never
   re-hidden), report the live open/closed state, or report how full it is right
   now (shown to everyone while fresh).
+- **Crisis guidance** — a public guidance index (`/blog`) + post detail pages:
+  admin-authored posts (published only, pinned first), the body HTML sanitized
+  server-side (allowlist) and again by the browser; a draft slug and an unknown
+  slug answer the same 404.
+- **Viewport + paging** — the shelter list also accepts the optional
+  `minLat`/`minLng`/`maxLat`/`maxLng` box (all four together or none — a partial
+  box is a 400) and `limit` (1…200) / `offset` (≥ 0) paging over the stable
+  id-ascending order; the index is a plain composite B-tree on the coordinates —
+  **no PostGIS**; "nearest" stays a client-side ranking of the loaded list.
 
 **Contributing (verified users)**
 
@@ -62,7 +71,11 @@ Angular 22 + Leaflet frontend.
   worked after the fact by a single env-provisioned admin (report queues, mark
   inaccurate, request info, suspend; every action audited; registry rows are
   read-only). There is no star rating — the review model was removed
-  (`V21__drop_reviews.sql`).
+  (`V21__drop_reviews.sql`). The same admin authors the crisis guidance: the
+  **Guidance** tab (create/edit/publish/unpublish/delete, the hero image chosen from
+  the **Media library** tab — upload, delete with the in-use confirm naming the
+  affected posts) backs the public pages above (`media_assets` + `guidance_posts`,
+  V23).
 
 **Data (the living registry)**
 
@@ -74,8 +87,10 @@ Angular 22 + Leaflet frontend.
 
 **UI**
 
-- 11 routes: map (default), shelter detail, submit, login, register, reset, verify,
-  account, privacy, terms, admin (the moderation panel). High-contrast accessibility
+- 13 routes: map (default), shelter detail, submit, login, register, reset, verify,
+  account, privacy, terms, the two guidance pages (/blog, /blog/:slug), admin (the
+  moderation panel incl. the Guidance authoring + media library tabs). High-contrast
+  accessibility
   theme toggle (near-black background with blue/orange accents), design-token system,
   fluid layout that survives narrow viewports,
   **bilingual EN/ET switcher** (app chrome translated, feature pages in progress),
@@ -84,8 +99,8 @@ Angular 22 + Leaflet frontend.
 
 ## Quality bar
 
-788 backend + 953 frontend automated tests (re-counted 2026-09-15; 706/887 was the
-2026-09-13 snapshot); PostgreSQL
+806 backend + 1026 frontend automated tests (re-counted 2026-09-16; 788/953 was the
+2026-09-15 re-count, 706/887 the 2026-09-13 snapshot); PostgreSQL
 integration tests via Testcontainers; three completed security/review efforts —
 2026-09-08 campaign (reset-code brute-force, XFF-spoofing fix, fail-closed prod JWT
 guard), 2026-09-11 wave (uniqueness races, transactional import, N+1 removal,
@@ -93,9 +108,10 @@ canonical phone/email, Twilio fail-fast, full-history secret scan), 2026-09-13
 twelve-attack threat model + operations runbook + 15 API security pins;
 architecture docs (PlantUML + build packs) re-synced to code after every milestone.
 
-**Status (13 Sept 2026; test counts refreshed 2026-09-15).** Fully functional end-to-end
+**Status (16 Sept 2026; test counts refreshed 2026-09-16).** Fully functional end-to-end
 (register → verify → browse → submit → report → manage), bilingual app chrome (ET/EN);
-the crisis-guidance authoring/publishing backend landed after this date and its public and
-admin UI are the next wave. Remaining: real
+the crisis-guidance wave has landed (public /blog pages, the admin Guidance authoring tab
++ media library, V23) and the shelter list gained the viewport filter + offset/limit
+paging (V23.1 — composite B-tree, no PostGIS). Remaining: real
 Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
 PWA offline cache, production deployment.

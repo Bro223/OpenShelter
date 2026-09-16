@@ -186,7 +186,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 7 — Public frontend pages (D10, D11)
 
-- [ ] `features/guidance/` (own folder — no cross-feature imports): guidance
+- [x] `features/guidance/` (own folder — no cross-feature imports): guidance
       list page and detail page + their gateway (`core` API client, the
       existing gateway conventions)
 - [ ] `app.routes.ts`: `/blog` and `/blog/:slug`, both lazy
@@ -194,7 +194,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       use), both public, with `title.guidance` / `title.guidanceDetail` and
       a comment stating WHY the URL says "blog" while the feature says
       guidance (D5)
-- [ ] `core/i18n/{messages,en,et}.ts`: `nav.guidance`, `title.guidance`,
+- [x] `core/i18n/{messages,en,et}.ts`: `nav.guidance`, `title.guidance`,
       `title.guidanceDetail` in BOTH catalogs (the parity guard makes a
       one-sided key a failing test); `shared/page-shell.html`: the nav entry,
       visible to anonymous and authenticated visitors alike
@@ -202,7 +202,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       only when present — a hero thumbnail (`loading="lazy"`,
       `decoding="async"`, reserved aspect box); loading, empty and error
       states
-- [ ] Detail page: title as the page's single `h1`, hero `<img>` with the
+- [x] Detail page: title as the page's single `h1`, hero `<img>` with the
       stored alt (or NO image element at all), body rendered with
       `[innerHTML]` and never `bypassSecurityTrustHtml`, not-found state for
       a 404 slug with a link back to the index
@@ -211,7 +211,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 8 — Admin editor + media library UI (D8, D9, D10)
 
-- [ ] Admin tab set: add `guidance` and `media` to `AdminTab`
+- [x] Admin tab set: add `guidance` and `media` to `AdminTab`
       (`features/admin/admin-page.ts`) with their labels; the audit tab's
       action labels gain the four new values, and `core/models.ts` gains the
       DTOs + the four `AdminAuditAction` members (a type error until it does)
@@ -228,7 +228,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       paste handler; link dialog with the `http`/`https`/`mailto` prefix
       check; **no new npm dependency**; content replaced by the server's
       stored HTML after a successful save
-- [ ] **Media library tab**: asset grid/table (thumbnail with the original
+- [x] **Media library tab**: asset grid/table (thumbnail with the original
       filename as alt, filename, dimensions, size, uploaded date, reused-by
       count), upload control with the server's errors surfaced, delete action
       — where the in-use 409 answer opens the confirm dialog naming the
@@ -254,7 +254,7 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       confirm dialog and only proceeds on confirm, the editor shows the
       server's sanitized body after save, toolbar actions are keyboard
       activatable
-- [ ] Admin media tab: rows show thumbnail/filename/dimensions/size/date/
+- [x] Admin media tab: rows show thumbnail/filename/dimensions/size/date/
       reused-by; an unreferenced delete proceeds without a dialog; an in-use
       delete renders the confirm dialog naming the affected posts and retries
       with `confirm=true`; a rejected upload surfaces the server message
@@ -268,14 +268,14 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
 
 ## Phase 10 — Docs, whitepaper, validation
 
-- [ ] `README.md`: features entry; API table rows (`GET /api/guidance`,
+- [x] `README.md`: features entry; API table rows (`GET /api/guidance`,
       `GET /api/guidance/{slug}`, `GET /api/media/{filename}`,
       `/admin/guidance*`, `/admin/media*`); env-table rows
       (`MEDIA_UPLOAD_DIR`, `MEDIA_MAX_BYTES`, `GUIDANCE_DEFAULT_LOCALE`);
       a short "Crisis guidance" section stating WHERE sanitization happens
       (server, on every write, allowlist, stored sanitized) and the media
       directory/boot behaviour; the refreshed test counts once run
-- [ ] `docs/whitepaper.md`: the guidance + media-library paragraph (public
+- [x] `docs/whitepaper.md`: the guidance + media-library paragraph (public
       pinned-first guidance, admin authoring with server-sanitized rich
       text, the media library) and the two honest v1 deferrals (no inline
       body images; locale stored but no translation workflow), plus the
@@ -290,5 +290,5 @@ Next free Flyway version: **V23** — verified against the repo, not assumed:
       the two reported spec-sync items for the in-flight `admin-moderation`
       delta are re-stated in the archive notes (do NOT edit that change's
       artifacts here)
-- [ ] Confirm no upload ever becomes repo content: `git check-ignore -v
+- [x] Confirm no upload ever becomes repo content: `git check-ignore -v
       data/media/<file>` and `git status --short` show no media files

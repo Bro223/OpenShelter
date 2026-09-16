@@ -90,7 +90,7 @@ what lets you check and build every file manually — exactly how the backend wa
   anonymous AND authenticated non-admins redirect home), the admin-only "Admin" nav item,
   `AuthStore.isAdmin` from `GET /account/me` (fail-closed false on a failed profile fetch),
   the account-page "Admin" provenance-style badge, `AdminGateway` (all fifteen `/admin/*`
-  endpoints) and `features/admin/` — six tabs: Unconfirmed (the NEW community locations —
+  endpoints) and `features/admin/` — eight tabs: Unconfirmed (the NEW community locations —
   "Mark confirmed" / "Reject" with a required reason), Shelters (search + inline
   Hide/Activate, two-tap Delete with confirm; registry rows read-only), Shelter reports
   (queue + dismiss, dismissed rows dimmed, "Restore shelter" shortcut on hidden-shelter

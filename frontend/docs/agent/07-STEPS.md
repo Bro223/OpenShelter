@@ -272,7 +272,7 @@ REJECT community-review-queue override), `listShelterHistory(id)`, `requestInfo(
 `AdminShelterFilters`/`AdminShelterReportDto`/`AdminOccupancy` and the per-tab row models in
 `core/models.ts` (field-for-field; see `02-CONTEXT-API.md`).
 
-**`features/admin/` — six tabs** (three at this wave, grown by the later ones), each a table
+**`features/admin/` — eight tabs** (three at this wave, grown by the later ones), each a table
 with 48px action targets on the existing tokens (own feature folder — the
 no-cross-feature-imports rule holds):
 

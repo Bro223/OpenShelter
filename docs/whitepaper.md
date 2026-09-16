@@ -2,7 +2,7 @@
 
 **A community-verified bomb-shelter map for Estonia**
 
-*Version 1.1 — 2026-09-13 — Aleks Bratsun (TalTech MSc)*
+*Version 1.2 — 2026-09-16 — Aleks Bratsun (TalTech MSc)*
 
 ---
 
@@ -21,8 +21,9 @@ The system consists of a Spring Boot / PostgreSQL backend (auth, multi-channel
 verification, weekly registry ingestion, shelter API, community reports and trust
 state) and an
 Angular single-page frontend (map, shelter detail, account and verification flows).
-Both sides are test-heavy: 788 backend and 953 frontend automated tests at the time of
-writing (re-counted 2026-09-15; 706/887 was the 2026-09-13 snapshot), with three completed
+Both sides are test-heavy: 806 backend and 1026 frontend automated tests at the time of
+writing (re-counted 2026-09-16; 788/953 was the 2026-09-15 re-count, 706/887 the
+2026-09-13 snapshot), with three completed
 security/code-review efforts that hardened
 the whole stack: the 2026-09-08 review campaign, the 2026-09-11 review wave, and the
 2026-09-13 threat-model + security-posture pass (a twelve-attack model, an operations
@@ -112,7 +113,7 @@ authentication and batch queries rather than N+1).
         ▼              ▼                  ▼                    ┌──────▼──────┐  ┌────▼──────────┐
   Päästeamet        SMTP relay         SMS provider           │ PostgreSQL  │  │ File state     │
   open data (CSV)   (smtp-pulse / dev) (Twilio / dev console) │ (Flyway     │  │ (verification  │
-        ▲              ▲                  ▲                    │  V1–V23)   │  │  send log)     │
+        ▲              ▲                  ▲                    │  V1–V23.1) │  │  send log)     │
         │              └──────────────────┴────────────────────┴──────┬──────┘  └───────────────┘
         │  weekly import (Mon 03:00 Europe/Tallinn) + manual trigger  │
         └─────────────────────────────────────────────────────────────┘
@@ -191,8 +192,12 @@ open status) → the server-derived trust state is served with every shelter lis
 ### 5.5 Shelter API, map, and community layer
 
 - Public read API: list with source, provenance and trust filters
-  (`?source=`, `?provenance=`, `?hasCapacity=`), detail endpoint, every derivation
-  batched (no N+1). The public list is ACTIVE-only and carries the server-computed
+  (`?source=`, `?provenance=`, `?hasCapacity=`) plus the optional viewport box
+  (`minLat`/`minLng`/`maxLat`/`maxLng` — all four together or none; a partial, non-finite,
+  out-of-range or inverted box is a 400) and `limit` (1…200) / `offset` (≥ 0) paging over
+  the stable id-ascending order, filters applied before the slice (shelter-bbox-paging:
+  a plain composite B-tree on the coordinates — no PostGIS; the scale-up path is recorded
+  in the change's design), detail endpoint, every derivation batched (no N+1). The public list is ACTIVE-only and carries the server-computed
   trust state: report counts, the fresh open/closed block, fresh occupancy, the
   last-verified moment and the inaccurate mark.
 - **Provenance taxonomy**: every shelter carries a server-derived `provenance`
@@ -234,6 +239,33 @@ open status) → the server-derived trust state is served with every shelter lis
   viewports, and a bilingual ET/EN language
   switcher (app chrome fully translated; feature-page copy in progress).
 
+### 5.6 Crisis guidance and the media library
+
+- **Public pages** (no login): the `/blog` index lists the published posts pinned-first,
+  then by publication date; `/blog/:slug` renders one published post — its title is the
+  page's single `h1` and the body is the stored, sanitized HTML. A draft slug and an
+  unknown slug answer the SAME 404 — a draft's existence is never revealed.
+- **Admin authoring**: the env-provisioned admin works the **Guidance** tab (every post,
+  drafts included; create/edit with the hero image chosen from the media library and the
+  mandatory-alt rule; publish/unpublish; pin; delete with confirmation) and the **Media
+  library** tab (upload JPEG/PNG/WebP; delete — a still-referenced asset answers 409
+  naming the affected posts, and the confirmed delete clears the hero from them in the
+  same transaction). Every guidance/media mutation is audited with a human-readable
+  subject label.
+- **Content model** (`V23__crisis_guidance.sql`): the `media_assets` + `guidance_posts`
+  tables; a post's hero image is a REFERENCE (`hero_image_id`), never a URL — deleting an
+  asset nulls the reference, so no broken image can reach a page. The locale is stored per
+  post (v1 has no translation workflow).
+- **Sanitization is the security boundary for the body**: admin-authored HTML is
+  sanitized server-side on EVERY write (jsoup allowlist — the only elements that survive
+  are `h2 h3 p br strong em ul ol li a blockquote`; links limited to http/https/mailto),
+  the stored value is always the sanitizer's output, and the browser re-sanitizes on
+  render (Angular's `[innerHTML]` — never a `bypassSecurityTrustHtml` escape).
+- **Honest v1 deferrals**: the allowlist deliberately has no `img` element — a post's
+  only image is the hero; inline body images and the derivative/thumbnail pipeline the
+  index hero thumbnails would need are follow-ups (the public index renders titles +
+  dates without thumbnails).
+
 ## 6. Security and abuse prevention
 
 | Layer | Mechanism |
@@ -274,7 +306,7 @@ test-pinned:
 | Concern | Choice |
 |---|---|
 | Backend | Java 21, Maven, Spring Boot 3.3.x (web, validation, data-jpa, security, actuator) |
-| Data | PostgreSQL 16, Flyway migrations V1–V23 (`V13` is a Java migration), JPA with `ddl-auto=validate` |
+| Data | PostgreSQL 16, Flyway migrations V1–V23 + the index-only dotted V23.1 (`V13` is a Java migration), JPA with `ddl-auto=validate` |
 | Auth | jjwt 0.12.x; spring-security-crypto (Argon2id) |
 | Ingestion | Hand-written Päästeamet CSV client (quote-aware semicolon parse, transient-only retry/backoff, Last-Modified versioning) with the legacy WFS client as alternate; proj4j (EPSG:3301 → WGS84) |
 | Testing | JUnit 5 + AssertJ + Testcontainers (PostgreSQL); **no Mockito** (JDK-agnostic hand-written fakes) |
@@ -295,9 +327,10 @@ path), with consistent HTTP semantics (400 validation, 401 unauthenticated,
 
 ## 8. Quality assurance
 
-- **788 backend tests** (unit + PostgreSQL integration via Testcontainers) and
-  **953 frontend tests** (unit + component, TestBed with hand-written fakes) at the
-  time of writing (re-counted 2026-09-15; the 706/887 pair was the 2026-09-13 snapshot);
+- **806 backend tests** (unit + PostgreSQL integration via Testcontainers) and
+  **1026 frontend tests** (unit + component, TestBed with hand-written fakes) at the
+  time of writing (re-counted 2026-09-16; the 788/953 pair was the 2026-09-15 re-count,
+  the 706/887 pair the 2026-09-13 snapshot);
   both suites run in CI style per milestone, before anything is committed.
 - **Three review efforts** (detailed in §6): the hardening pass (uniqueness
   constraints, transactional import, batched queries, X-Forwarded-For-aware rate
@@ -337,8 +370,10 @@ the server-derived trust state; community submissions, reports and live
 occupancy (auto-hide on the fifth trust-weighted "does not exist" report); the
 env-provisioned admin moderation panel (report queues, suspension, edit history,
 info requests, inaccurate marks, audit trail); data export + account deletion;
-privacy/terms pages; the Angular map, detail, auth, verification, account, legal
-and admin surfaces; bilingual ET/EN app chrome.
+privacy/terms pages; the crisis-guidance pages (public `/blog` index + detail, the admin
+authoring tab + media library, the server-side body sanitizer); the shelter-list viewport
+filter + offset/limit paging (composite B-tree, no PostGIS); the Angular map, detail,
+auth, verification, account, legal and admin surfaces; bilingual ET/EN app chrome.
 
 **In progress:** bilingual feature-page copy (i18n slice 2 — the trust copy,
 forms and legal bodies; the app chrome is already ET/EN).
@@ -351,8 +386,9 @@ forms and legal bodies; the app chrome is already ET/EN).
    RUS/UA not started (kriis.ee ships all four)
 3. Saved/bookmarked shelters
 4. PWA + offline-last-good cache (crisis context)
-5. Nearest/bbox + paging query endpoints (nearest is now client-side by design; the
-   server endpoints remain deferred)
+5. Server-side nearest search (the list's bbox filter + offset/limit paging is built —
+   shelter-bbox-paging, the composite B-tree index, no PostGIS; nearest stays
+   client-side by design — a ranking, not a filter)
 6. Additional registry sources (municipality-level clients behind the existing
    `ShelterRegistryClient` seam; the `PARTNER_VERIFIED` provenance is already
    reserved for them)
@@ -365,18 +401,25 @@ forms and legal bodies; the app chrome is already ET/EN).
 | Auth | `POST /auth/register` (201/409), `POST /auth/login` (200/401), `POST /auth/refresh` (rotate), `POST /auth/logout`, `POST /auth/password-reset/request|confirm` |
 | Verification | `POST /verify/request` (202/409/429), `POST /verify/confirm` (200/400) |
 | Account | `GET /account/me`, `PUT /account/profile`, `POST /account/email-change/request|confirm`,`POST /account/phone-change/request|confirm`,`GET /account/export`,`DELETE /account` |
-| Shelters | `GET /api/shelters` (+ `?provenance=`, `?source=`, `?hasCapacity=`), `GET /api/shelters/{id}`, `POST /api/shelters` (verified), `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (author-only), `POST /api/shelters/{id}/info-request/reply` (author-only) |
+| Shelters | `GET /api/shelters` (+ `?provenance=`, `?source=`, `?hasCapacity=`, the all-or-none `minLat`/`minLng`/`maxLat`/`maxLng` viewport, `?limit=` 1..200 + `?offset=`), `GET /api/shelters/{id}`, `POST /api/shelters` (verified), `GET /api/shelters/mine`, `PUT`/`DELETE /api/shelters/{id}` (author-only), `POST /api/shelters/{id}/info-request/reply` (author-only) |
 | Trust & reports | `POST /api/shelters/{id}/reports` (verified), `PUT /api/shelters/{id}/occupancy` (verified), `PUT /api/shelters/{id}/open-status` (verified) |
 | Data source | `GET /api/data-source` (public — source, official URL, last-import status) |
+| Crisis guidance (public) | `GET /api/guidance` (published only, pinned first), `GET /api/guidance/{slug}` (404 = unknown or draft slug — the same answer), `GET /api/media/{filename}` (the stored images) |
+| Crisis guidance (admin) | `GET`/`POST /admin/guidance`, `GET`/`PUT`/`DELETE /admin/guidance/{id}` (delete requires `confirm=true`), `POST /admin/guidance/{id}/publish` / `.../unpublish`, `GET`/`POST /admin/media` (multipart upload), `DELETE /admin/media/{id}` (409 while referenced → `?confirm=true`) |
 | Admin (env-provisioned) | `GET /admin/shelters` (+ history, request-info, mark/clear inaccurate), `POST /admin/shelters/{id}/status`, `DELETE /admin/shelters/{id}`, `GET /admin/reports`, `POST /admin/reports/{id}/dismiss`,`GET /admin/users`,`POST /admin/users/{id}/suspend|unsuspend`,`GET /admin/alerts` |
 | Diagnostics (opt-in) | `POST /dev/email-test`, `POST /dev/sms-test` — JWT + allowlist, never enabled by default |
 
 ---
-*This whitepaper describes the project as of 2026-09-13. Test counts and
+*This whitepaper describes the project as of 2026-09-16. Test counts and
 roadmap items reflect the state at the time of writing.*
 
 **Version history**
 
+- **1.2 (2026-09-16)** — the crisis-guidance wave (public `/blog` index + detail pages,
+  the admin Guidance authoring tab + media library, `V23__crisis_guidance.sql`, the
+  server-side body sanitizer) and the shelter-list viewport filter + offset/limit paging
+  (`V23.1__shelter_bbox_index.sql` — composite B-tree, no PostGIS); 806/1026 automated
+  tests (re-counted 2026-09-16; 788/953 at the 2026-09-15 re-count).
 - **1.1 (2026-09-13)** — full refresh against the shipped code: official
   Päästeamet open-data CSV pipeline (audit + public data-source API), national-ID
   removal, PII at rest, provenance taxonomy, community trust layer (reports,

@@ -36,7 +36,7 @@ and fold the surviving sections into `04-map-browse-flow.puml` (nothing else ref
 records `ReviewRequest`, `ShelterReviewDto`, `MyReviewDto`, `ReviewReportRequest`; `ReviewReportRepository`;
 `AdminReviewReportDto` + `/admin/review-reports` + `/admin/reviews/{id}/hide|restore` in the `AdminController` box
 (V9-era review model — removed by `V21__drop_reviews.sql`; the live admin surface has 15 `AdminController`
-mappings and six tabs, no review-report queue); the trust-layer paragraph's `review_reports (UNIQUE review_id,
+mappings and eight tabs, no review-report queue); the trust-layer paragraph's `review_reports (UNIQUE review_id,
 user_id)` and `shelter_reviews.hidden_at`; sequence
 flows 3, 4, 8 and 11 (reviews); `ShelterSourceFilter ..> ShelterRepository : ?source= maps to findAllBySourceIn()`.
 **Code:** no review classes at all (grep above). Real `AdminController` mappings (`src/main/java/ee/sheltermap/api/AdminController.java`):
@@ -147,7 +147,7 @@ actually render (`nonexistentReports`, `openStatus`, `occupancy`, `provenance`).
 `class RatingStars` in `shared/` + `ShelterDetailPage --> RatingStars` (l.300-301, 378);
 `ContributionsPanel --> ReviewGateway` (l.380); `AdminGateway` methods `listReviewReports/hideReview/restoreReview` (l.220-225)
 and the `AdminPage` note "three tabs … Review reports (queue + Hide/Restore + hidden badge)" (l.~290)
-— V9-era review model, removed by `V21__drop_reviews.sql`: the live admin page has six tabs and no
+— V9-era review model, removed by `V21__drop_reviews.sql`: the live admin page has eight tabs and no
 review-report queue;
 the routes note lists 9 routes and omits `/privacy` + `/terms`.
 **Code:** `grep -rl 'ReviewGateway\|ReviewForm\|RatingStars' frontend/src` → 0 matches (RatingStars was deleted with the review model);

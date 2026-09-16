@@ -19,7 +19,8 @@ plan M0–M6, all milestones complete). OpenSpec change history: `openspec/chang
 - **TypeScript** (strict) · **SCSS**
 - **Leaflet 1.9** (plain CSS import, no `ng-leaflet`) for the map
 - **Vitest + @angular/build:unit-test** (Karma-style specs, `fakeAsync`-free: explicit
-  tick/polling against real async timing)
+  tick/polling against real async timing) — the suite is **1026 tests across 49 spec
+  files** (counted 2026-09-16 with `npx ng test --watch=false`)
 - No state library, no UI kit, no e2e framework in v1 (see [Deferrals](#deferrals))
 
 ## Quick start (dev)
@@ -66,23 +67,26 @@ src/
 │   │                  #   ApiInterceptor, titleGuard (route titles), models
 │   ├── session/       # AuthStore (session state + REAL profile from /account/me)
 │   ├── gateways/      # auth / verify / account / shelter / geo / geocode / admin /
-│   │                  #   data-source (*-gateway.ts) — HTTP, no UI
+│   │                  #   data-source / guidance (*-gateway.ts) — HTTP, no UI
 │   │                  #   (geocode = raw fetch to Nominatim)
 │   ├── features/
 │   │   ├── auth/      # login, register, reset (guestGuard)
 │   │   ├── account/   # verify (cross-channel), contact change, ContributionsPanel (M8)
 │   │   ├── admin/     # the moderation tool (adminGuard): unconfirmed review queue,
-│   │   │              #   shelters, shelter reports, alerts, users, audit
+│   │   │              #   shelters, shelter reports, alerts, users, guidance (post
+│   │   │              #   authoring + editor), media library, audit
 │   │   ├── legal/     # privacy + terms static pages (no backend)
 │   │   ├── map/       # browse: Leaflet map + list + source filter (default route);
 │   │   │              #   crisis actions: "Nearest shelter" CTA + "Add shelter" entry (auth-only)
-│   │   └── shelter/   # detail + submit; the detail header carries the
-│   │                  #   "Navigate" + "Open in Apple Maps" deep links
+│   │   ├── shelter/   # detail + submit; the detail header carries the
+│   │   │              #   "Navigate" + "Open in Apple Maps" deep links
+│   │   └── guidance/  # the public /blog index + detail pages (crisis-guidance — lazy,
+│   │                  #   public, no auth guard)
 │   ├── shared/        # PageShell (header + main; nav lives in the header), BannerComponent,
 │   │                  #   LoadingIndicator (real component, role=status), LeafletService,
 │   │                  #   error-copy, form-helpers, shelter-copy,
 │   │                  #   location-input.ts (pure location-string parser)
-│   ├── app.routes.ts  # 11 component routes + 2 redirects ('', '**') — the 11
+│   ├── app.routes.ts  # 13 component routes + 2 redirects ('', '**') — the 13
 │   │                  #   component routes carry data.title + titleGuard; the two
 │   │                  #   redirects ('', '**') carry neither
 │   └── design-tokens.spec.ts   # M6 audit: tokens defined/used, responsive + title mechanics
@@ -122,8 +126,8 @@ npm run build     # → dist/frontend/browser/ (outputHashing: all, relative ass
   tooling keeps the rationale here, not in the file): the default route `/map` is a
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
   500 kB default warning is unreachable without dropping the map from first paint.
-  Five routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
-  terms). Measured initial total on a fresh build (2026-09-15):
+  Seven routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
+  terms, the two /blog guidance routes). Measured initial total on a fresh build (2026-09-15):
   **645.6 kB raw / 159.3 kB transfer** — this now **exceeds** `maximumWarning: 560kB`
   by 85.6 kB, so a fresh build prints a bundle-budget warning (three component SCSS
   budgets warn as well). Trimming the initial bundle, or raising the warning with a
@@ -148,11 +152,14 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
 
 ## Deferrals (v1, honest list)
 
-- **Paging / bbox search** — the backend list is unpaged in v1; the map shows all rows
-  (≈300). Server-side bbox/nearest search (`GET /api/shelters/nearest`-style, which would need a
-  GeoService + PostGIS GIST index) and list paging are documented as deferred on the backend —
-  **no such endpoint exists**. The "Show shelters around you" action ranks the already-loaded
-  list client-side instead (browser geolocation + Haversine, no server round-trip).
+- **Server-side nearest search** — the list's viewport filter + paging IS built
+  (shelter-bbox-paging): `GET /api/shelters` takes the optional `minLat`/`minLng`/`maxLat`/
+  `maxLng` box (all four together or none — a partial box is a 400) and `limit` (1…200) /
+  `offset` (≥ 0) over the stable id-ascending order; the index is a plain composite B-tree
+  on the coordinates — **no PostGIS** (the deployment stays a single database with no
+  extensions). What stays deferred is a *nearest* endpoint: nearest is a ranking, not a
+  filter, and the "Show shelters around you" action keeps ranking the already-loaded list
+  client-side (browser geolocation + Haversine, no server round-trip) by design.
 - **i18n (feature pages)** — the app chrome (header nav/actions, footer,
   document titles) is bilingual EN/ET (M14 slice 1: `core/i18n`, the `t`
   pipe, the header language switcher, persisted `openshelter-locale`, default
