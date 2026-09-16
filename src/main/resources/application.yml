@@ -237,8 +237,9 @@ app:
     # 'dev' (local fixture)
     client: ${REGISTRY_CLIENT:csv}
     # The publisher's open-data page — surfaced on the UI provenance line
-    # (GET /api/data-source). Licence wording stays unasserted until the
-    # publisher's explainer PDF is readable (marked TODO in design.md).
+    # (GET /api/data-source). Licence wording stays unasserted: the dataset
+    # page states no licence (checked 2026-09-15) and the explainer PDF is
+    # unreadable (TODO O1 in the official-dataset-csv change).
     # Default when unset: the rescue.ee open-data page (see
     # RegistryProperties for the URL).
     official-url: ${REGISTRY_OFFICIAL_URL:}

@@ -43,8 +43,15 @@
 
 ## Open items (owner-owed, logged in design.md)
 
-- [ ] O1: licence/attribution wording — explainer PDF unreadable
-      (FlateDecode); do NOT assert licence terms until readable
+- [ ] O1: licence/attribution wording — **OWNER DECISION, still open**. The
+      publisher's dataset page (rescue.ee/et/juhend/avaandmed/avalikud-varjumiskohad,
+      checked 2026-09-15) states no licence at all, and the explainer PDF is unreadable
+      (FlateDecode). Estonian state open data defaults to CC BY 4.0 under the RIA
+      licensing guidance, which would carry an attribution duty; and because the import
+      reprojects EPSG:3301 → WGS84, any CC BY notice would also have to state that the
+      data was modified. Do NOT assert licence terms until the publisher confirms them:
+      the safe default is to credit "Päästeamet / Siseministeerium", link the dataset,
+      and name no licence.
 - [ ] O2: confirm upstream update cadence (no version field in the file)
 - [ ] O3: confirm dataset semantic scope (official-only vs adjacent
       structures mixed in)
