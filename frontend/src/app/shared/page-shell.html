@@ -37,6 +37,9 @@
   >
     <nav class="shell-nav" aria-label="Primary">
       <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
+      <!-- Public crisis-guidance index (crisis-guidance D6): permit-all —
+           anonymous visitors see it too, like the map. -->
+      <a routerLink="/blog" routerLinkActive="active">{{ 'nav.guidance' | t }}</a>
       @if (auth.initialized() && auth.authenticated()) {
         <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
         <!-- Admin-kind only (admin-moderation D5): regular users see the

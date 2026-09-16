@@ -1,0 +1,33 @@
+<!-- /blog — the public crisis-guidance index (crisis-guidance D4/D6).
+     The server owns ordering (PUBLISHED only, pinned first, then
+     publishedAt descending); the page renders the array as-is. The index
+     does not carry the post body — the detail page does. -->
+<section class="guidance-list">
+  <header class="guidance-list__header">
+    <h1 class="page-title">{{ 'guidance.title' | t }}</h1>
+    <p class="page-subtitle">{{ 'guidance.subtitle' | t }}</p>
+  </header>
+
+  <app-banner severity="error" [message]="error()" />
+
+  @if (loading()) {
+    <app-loading-indicator class="guidance-state" [message]="'guidance.loading' | t" />
+  } @else if (posts(); as list) {
+    @if (list.length === 0) {
+      <p class="guidance-list__empty">{{ 'guidance.empty' | t }}</p>
+    } @else {
+      <ul class="guidance-list__posts">
+        @for (post of list; track post.slug) {
+          <li class="guidance-post">
+            <h2 class="guidance-post__title">
+              <a [routerLink]="['/blog', post.slug]">{{ post.title }}</a>
+            </h2>
+            <p class="guidance-post__date">
+              {{ post.publishedAt | date: 'medium' : undefined : i18n.locale() }}
+            </p>
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

@@ -548,7 +548,14 @@ export type AdminAuditAction =
   | 'USER_SUSPEND'
   | 'USER_UNSUSPEND'
   | 'MARK_INACCURATE'
-  | 'CLEAR_INACCURATE';
+  | 'CLEAR_INACCURATE'
+  // Guidance/media rows (crisis-guidance D12): the subject is the row's
+  // subjectLabel snapshot (both shelterId and subjectUserId are null) —
+  // the tab's "Subject" column renders it as the shelterName text.
+  | 'GUIDANCE_PUBLISH'
+  | 'GUIDANCE_UNPUBLISH'
+  | 'GUIDANCE_DELETE'
+  | 'MEDIA_DELETE';
 
 /**
  * One row of GET /admin/audit (newest first; the backend returns the
@@ -692,4 +699,160 @@ export interface DataSourceDto {
   sourceName: string;
   officialUrl: string;
   lastImport: DataSourceLastImport | null;
+}
+
+// ---------------------------------------------------------------------------
+// Crisis guidance (public /blog reads — crisis-guidance D3/D4)
+// ---------------------------------------------------------------------------
+
+/**
+ * The public guidance post — GET /api/guidance (the index: PUBLISHED only,
+ * pinned first, then publishedAt descending; `bodyHtml` is null on the
+ * index rows) and GET /api/guidance/{slug} (one published post by slug,
+ * `bodyHtml` carried). A draft slug and an unknown slug answer the SAME
+ * 404 — a draft's existence is never revealed.
+ */
+export interface GuidancePostDto {
+  slug: string;
+  title: string;
+  /**
+   * The stored (server-sanitized, jsoup allowlist) HTML body. The index
+   * does not expose it (null); the detail carries it for the [innerHTML]
+   * render (which auto-sanitizes again client-side).
+   */
+  bodyHtml: string | null;
+  /** The serving URL of the hero image; null when the post has none. */
+  heroImageUrl: string | null;
+  /** The stored hero alt text; null when the post has no hero. */
+  heroImageAlt: string | null;
+  /** Pinned posts sort first in the public index. */
+  pinned: boolean;
+  /** The post's own locale, returned verbatim (v1: no translation workflow). */
+  locale: string;
+  /** ISO-8601 instant. */
+  publishedAt: string;
+  /** ISO-8601 instant. */
+  updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Crisis guidance (admin authoring — crisis-guidance D3/D8/D9): the
+// /admin/guidance* + /admin/media* DTOs. Every field is admin-only data
+// (drafts, hero references, asset inventory) — never rendered outside the
+// /admin feature.
+// ---------------------------------------------------------------------------
+
+/** The publication state of a guidance post (backend GuidanceStatus). */
+export type GuidanceStatus = 'DRAFT' | 'PUBLISHED';
+
+/**
+ * The admin's view of one guidance post (GET /admin/guidance — every post,
+ * drafts included, newest-updated first — and GET /admin/guidance/{id},
+ * the id-keyed detail the admin form edits by). `bodyHtml` is the STORED
+ * (server-sanitized) HTML — the editor round-trips exactly what is stored.
+ * The hero fields are the full reference: `heroImageId` (the media-library
+ * picker's key), the serving `heroImageUrl` and the stored alt — all three
+ * null when the post has no hero. NOTE: the admin projection carries NO
+ * `publishedAt` (the publication instant is public state — the /api/guidance
+ * index is where it lives).
+ */
+export interface AdminGuidancePostDto {
+  id: number;
+  slug: string;
+  title: string;
+  /** The stored (sanitized) HTML body. */
+  bodyHtml: string;
+  /** The post's own locale, returned verbatim (v1: no translation workflow). */
+  locale: string;
+  status: GuidanceStatus;
+  /** Pinned posts sort first in the public index. */
+  pinned: boolean;
+  /** The media-library key of the hero image; null = no hero. */
+  heroImageId: number | null;
+  heroImageUrl: string | null;
+  /** The stored hero alt; null when the post has no hero. */
+  heroImageAlt: string | null;
+  /** The author's user id; null after the account's erasure. */
+  createdBy: number | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** ISO-8601 instant. */
+  updatedAt: string;
+}
+
+/**
+ * POST /admin/guidance body (crisis-guidance D3/D4/D5/D11). `title` +
+ * `body` are required (400 otherwise); `slug` omitted = the server derives
+ * one from the title (a given slug is used exactly as given — collision →
+ * 409 naming it); `locale` omitted = the server default (D11); the alt is
+ * MANDATORY IFF a hero is set (the cross-field 400 rule); an explicit
+ * `status` PUBLISHED makes the create a one-shot write-and-publish
+ * (DRAFT otherwise).
+ */
+export interface CreateGuidancePostRequest {
+  /** Required, at most 255 characters. */
+  title: string;
+  /** Omitted when blank (the server derives it from the title). */
+  slug?: string;
+  /** Required (the stored value is the sanitizer output). */
+  body: string;
+  /** At most 5 characters (a language code like `en`/`et`). */
+  locale?: string;
+  pinned: boolean;
+  /** null = no hero (the alt must be null too — the 400 pairing rule). */
+  heroImageId: number | null;
+  /** At most 300 characters; null when there is no hero. */
+  heroImageAlt: string | null;
+  /** DRAFT by default; an explicit PUBLISHED publishes in one call. */
+  status: GuidanceStatus;
+}
+
+/**
+ * PUT /admin/guidance/{id} body: a FULL replace of the editable fields,
+ * same constraints as create. `slug` omitted = KEEP the current one (a
+ * given slug that another post holds → 409). `status` is deliberately ABSENT
+ * — the publication state moves only through the publish/unpublish
+ * endpoints (their stamps own publishedAt).
+ */
+export interface UpdateGuidancePostRequest {
+  title: string;
+  /** Omitted when blank (the post keeps its current slug). */
+  slug?: string;
+  body: string;
+  locale?: string;
+  pinned: boolean;
+  /** null = clear the hero (the previous asset stays in the library, D8). */
+  heroImageId: number | null;
+  /** null when there is no hero (the 400 pairing rule, both directions). */
+  heroImageAlt: string | null;
+}
+
+/**
+ * One media-library asset (crisis-guidance D8): GET /admin/media (every
+ * asset, newest first), POST /admin/media (201 — the stored asset), and
+ * DELETE /admin/media/{id} (200 — the pre-delete snapshot). `url` is the
+ * public serving URL (`/api/media/<stored filename>`) — the admin
+ * thumbnails and the public pages both load it. `originalFilename` is the
+ * client-supplied display metadata (never part of a path); `storedFilename`
+ * is the server-generated name. `reusedBy` = the number of guidance posts
+ * currently using the asset as their hero image (0 for an unused asset —
+ * it is listed like any other).
+ */
+export interface MediaAssetDto {
+  id: number;
+  /** The public serving URL (`/api/media/<stored filename>`). */
+  url: string;
+  /** The server-generated name (32 hex + sniffed extension). */
+  storedFilename: string;
+  /** The client-supplied display metadata. */
+  originalFilename: string;
+  /** image/jpeg | image/png | image/webp (the sniffed type). */
+  contentType: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** How many posts use the asset as their hero image (0 = unused). */
+  reusedBy: number;
 }

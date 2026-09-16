@@ -2,7 +2,13 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
-import type { AdminShelterDto } from '../core/models';
+import type {
+  AdminGuidancePostDto,
+  AdminShelterDto,
+  CreateGuidancePostRequest,
+  MediaAssetDto,
+  UpdateGuidancePostRequest,
+} from '../core/models';
 import { AdminGateway } from './admin-gateway';
 
 const SHELTER_ROW: AdminShelterDto = {
@@ -380,5 +386,255 @@ describe('AdminGateway', () => {
 
     expect(api.post).toHaveBeenCalledTimes(1);
     expect(api.post).toHaveBeenCalledWith('/admin/shelters/7/clear-inaccurate');
+  });
+
+  // ---- GET /admin/guidance (crisis-guidance D3/D8) ------------------------
+
+  const GUIDANCE_ROW: AdminGuidancePostDto = {
+    id: 11,
+    slug: 'varjumine-droonirunnaku-ajal',
+    title: 'Varjumine droonirünnaku ajal',
+    bodyHtml: '<p>Pöördu peavarjendisse.</p>',
+    locale: 'et',
+    status: 'PUBLISHED',
+    pinned: true,
+    heroImageId: 5,
+    heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+    heroImageAlt: 'Kelder, vaade sissepääsust',
+    createdBy: 1,
+    createdAt: '2026-09-01T09:00:00Z',
+    updatedAt: '2026-09-02T09:00:00Z',
+  };
+
+  it('listGuidancePosts GETs the bare /admin/guidance (drafts included, server order)', async () => {
+    api.get.mockReturnValue(of([GUIDANCE_ROW]));
+
+    const rows = await gateway.listGuidancePosts();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/guidance');
+    expect(rows).toEqual([GUIDANCE_ROW]);
+  });
+
+  it('getGuidancePost GETs /admin/guidance/{id} (the id-keyed detail)', async () => {
+    api.get.mockReturnValue(of(GUIDANCE_ROW));
+
+    const row = await gateway.getGuidancePost(11);
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/guidance/11');
+    expect(row).toEqual(GUIDANCE_ROW);
+  });
+
+  // ---- POST /admin/guidance ------------------------------------------------
+
+  const CREATE_REQUEST: CreateGuidancePostRequest = {
+    title: 'Varjumine droonirünnaku ajal',
+    body: '<p>Pöördu peavarjendisse.</p>',
+    locale: 'et',
+    pinned: true,
+    heroImageId: 5,
+    heroImageAlt: 'Kelder, vaade sissepääsust',
+    status: 'DRAFT',
+  };
+
+  it('createGuidancePost POSTs the body to /admin/guidance and resolves with the created post (200)', async () => {
+    api.post.mockReturnValue(of(GUIDANCE_ROW));
+
+    const row = await gateway.createGuidancePost(CREATE_REQUEST);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/guidance', CREATE_REQUEST);
+    expect(row).toEqual(GUIDANCE_ROW);
+  });
+
+  it('createGuidancePost omits blank slug/locale and sends null hero fields (no hero)', async () => {
+    api.post.mockReturnValue(of({ ...GUIDANCE_ROW, heroImageId: null, heroImageUrl: null, heroImageAlt: null }));
+
+    await gateway.createGuidancePost({
+      title: 'Uus post',
+      body: '<p>Keha</p>',
+      pinned: false,
+      heroImageId: null,
+      heroImageAlt: null,
+      status: 'PUBLISHED',
+    });
+
+    expect(api.post).toHaveBeenCalledWith('/admin/guidance', {
+      title: 'Uus post',
+      body: '<p>Keha</p>',
+      pinned: false,
+      heroImageId: null,
+      heroImageAlt: null,
+      status: 'PUBLISHED',
+    });
+  });
+
+  it('createGuidancePost rejects with the 409 when the slug is already held (naming the slug)', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: '2026-09-05T10:00:00Z',
+        status: 409,
+        error: 'Conflict',
+        message: 'slug "varjumine" is already in use',
+        path: '/admin/guidance',
+      },
+      '/admin/guidance',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.createGuidancePost(CREATE_REQUEST)).rejects.toBe(failure);
+  });
+
+  // ---- PUT /admin/guidance/{id} --------------------------------------------
+
+  const UPDATE_REQUEST: UpdateGuidancePostRequest = {
+    title: 'Varjumine droonirünnaku ajal',
+    slug: 'varjumine',
+    body: '<p>Uus keha</p>',
+    locale: 'et',
+    pinned: false,
+    heroImageId: null,
+    heroImageAlt: null,
+  };
+
+  it('updateGuidancePost PUTs the full-replace body to /admin/guidance/{id} (no status field) and resolves with the updated post (200)', async () => {
+    api.put.mockReturnValue(of({ ...GUIDANCE_ROW, title: UPDATE_REQUEST.title, pinned: false }));
+
+    const row = await gateway.updateGuidancePost(11, UPDATE_REQUEST);
+
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith('/admin/guidance/11', UPDATE_REQUEST);
+    expect(row).toEqual({ ...GUIDANCE_ROW, title: UPDATE_REQUEST.title, pinned: false });
+  });
+
+  // ---- POST /admin/guidance/{id}/publish + unpublish -----------------------
+
+  it('publishGuidancePost POSTs /admin/guidance/{id}/publish and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.publishGuidancePost(11);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/guidance/11/publish');
+  });
+
+  it('unpublishGuidancePost POSTs /admin/guidance/{id}/unpublish and resolves with no body (204)', async () => {
+    api.post.mockReturnValue(of(undefined));
+
+    await gateway.unpublishGuidancePost(11);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/guidance/11/unpublish');
+  });
+
+  // ---- DELETE /admin/guidance/{id} (confirm REQUIRED) -----------------------
+
+  it('deleteGuidancePost DELETEs /admin/guidance/{id}?confirm=true and resolves with no body (204)', async () => {
+    api.delete.mockReturnValue(of(undefined));
+
+    await gateway.deleteGuidancePost(11);
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith('/admin/guidance/11?confirm=true');
+  });
+
+  // ---- GET /admin/media (crisis-guidance D8) --------------------------------
+
+  const MEDIA_ROW: MediaAssetDto = {
+    id: 5,
+    url: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+    storedFilename: '0123456789abcdef0123456789abcdef.jpg',
+    originalFilename: 'kelder.jpg',
+    contentType: 'image/jpeg',
+    width: 1600,
+    height: 900,
+    sizeBytes: 204800,
+    createdAt: '2026-09-01T09:00:00Z',
+    reusedBy: 1,
+  };
+
+  it('listMediaAssets GETs the bare /admin/media (newest first, with usage counts)', async () => {
+    api.get.mockReturnValue(of([MEDIA_ROW]));
+
+    const rows = await gateway.listMediaAssets();
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/media');
+    expect(rows).toEqual([MEDIA_ROW]);
+  });
+
+  // ---- POST /admin/media (multipart) ----------------------------------------
+
+  it('uploadMediaAsset POSTs a FormData with the file part to /admin/media and resolves with the stored asset (201)', async () => {
+    api.post.mockReturnValue(of(MEDIA_ROW));
+    const file = new File(['jpeg-bytes'], 'kelder.jpg', { type: 'image/jpeg' });
+
+    const asset = await gateway.uploadMediaAsset(file);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/media', expect.any(FormData));
+    const form = (api.post.mock.calls[0]?.[1] as FormData | undefined) ?? new FormData();
+    expect(form.get('file')).toBe(file);
+    expect(asset).toEqual(MEDIA_ROW);
+  });
+
+  it('uploadMediaAsset rejects with the 413 when the file is over the cap (the message names the cap)', async () => {
+    const failure = ApiError.fromHttp(
+      413,
+      {
+        timestamp: '2026-09-05T10:00:00Z',
+        status: 413,
+        error: 'Payload Too Large',
+        message: 'image exceeds the 5 MB cap',
+        path: '/admin/media',
+      },
+      '/admin/media',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    await expect(
+      gateway.uploadMediaAsset(new File(['x'.repeat(10)], 'big.jpg', { type: 'image/jpeg' })),
+    ).rejects.toBe(failure);
+  });
+
+  // ---- DELETE /admin/media/{id} (409 in-use -> confirm=true) ----------------
+
+  it('deleteMediaAsset without confirm DELETEs the bare /admin/media/{id} and resolves with the pre-delete snapshot (200)', async () => {
+    api.delete.mockReturnValue(of(MEDIA_ROW));
+
+    const deleted = await gateway.deleteMediaAsset(5, false);
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith('/admin/media/5');
+    expect(deleted).toEqual(MEDIA_ROW);
+  });
+
+  it('deleteMediaAsset with confirm DELETEs /admin/media/{id}?confirm=true (the in-use re-issue)', async () => {
+    api.delete.mockReturnValue(of(MEDIA_ROW));
+
+    const deleted = await gateway.deleteMediaAsset(5, true);
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith('/admin/media/5?confirm=true');
+    expect(deleted).toEqual(MEDIA_ROW);
+  });
+
+  it('deleteMediaAsset rejects with the 409 when the asset is still referenced (naming the posts)', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: '2026-09-05T10:00:00Z',
+        status: 409,
+        error: 'Conflict',
+        message: 'still used by Guidance post "Varjumine" (varjumine)',
+        path: '/admin/media/5',
+      },
+      '/admin/media/5',
+    );
+    api.delete.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.deleteMediaAsset(5, false)).rejects.toBe(failure);
   });
 });

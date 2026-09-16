@@ -10,6 +10,7 @@ import type { Messages } from './messages';
 export const EN: Messages = {
   'menu.aria': 'Menu',
   'nav.map': 'Shelter map',
+  'nav.guidance': 'Guidance',
   'nav.account': 'Account',
   'nav.admin': 'Admin',
   'nav.skip': 'Skip to content',
@@ -44,6 +45,8 @@ export const EN: Messages = {
   'title.shelterDetail': 'Shelter detail',
   'title.submit': 'Submit a shelter',
   'title.admin': 'Admin',
+  'title.guidance': 'Crisis guidance',
+  'title.guidanceDetail': 'Guidance post',
 
   // --- consent banner (first-level data-usage notice). The app has no
   // optional cookies, trackers or analytics, so this is a necessary-only
@@ -314,4 +317,113 @@ export const EN: Messages = {
   'submit.geocode.rateLimited': 'The address search is busy — please wait a moment and try again.',
   'submit.geocode.network':
     'Address search is unreachable right now. Use the map or a link instead.',
+
+  // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
+  // body are admin copy (rendered verbatim), never catalog keys.
+  'guidance.title': 'Crisis guidance',
+  'guidance.subtitle': 'Practical guidance for crisis situations.',
+  'guidance.loading': 'Loading guidance…',
+  'guidance.loadingDetail': 'Loading guidance post…',
+  'guidance.empty': 'No guidance yet — check back soon.',
+  'guidance.backToList': 'Back to all guidance',
+  'guidance.notFoundTitle': 'Guidance post not found',
+  'guidance.notFoundBody': 'This guidance post does not exist — it may have been unpublished.',
+  'guidance.published': 'Published',
+
+  // --- admin: guidance tab + editor + media library (crisis-guidance D8).
+  'admin.retry': 'Retry',
+
+  'admin.guidance.tab': 'Guidance',
+  'admin.guidance.loading': 'Loading guidance posts…',
+  'admin.guidance.empty': 'No guidance posts yet.',
+  'admin.guidance.create': 'New post',
+  'admin.guidance.col.title': 'Title',
+  'admin.guidance.col.status': 'Status',
+  'admin.guidance.col.locale': 'Locale',
+  'admin.guidance.col.pinned': 'Pinned',
+  'admin.guidance.col.published': 'Published',
+  'admin.guidance.col.updated': 'Updated',
+  'admin.guidance.col.actions': 'Actions',
+  'admin.guidance.status.draft': 'Draft',
+  'admin.guidance.status.published': 'Published',
+  'admin.guidance.pinned.yes': 'Yes',
+  'admin.guidance.pinned.no': 'No',
+  'admin.guidance.edit': 'Edit',
+  'admin.guidance.publish': 'Publish',
+  'admin.guidance.unpublish': 'Unpublish',
+  'admin.guidance.delete': 'Delete',
+  'admin.guidance.delete.confirm':
+    'Delete this post permanently? Its image stays in the media library.',
+  'admin.guidance.delete.confirmButton': 'Confirm delete',
+  'admin.guidance.delete.cancel': 'Cancel',
+  'admin.guidance.working': 'Working…',
+  'admin.guidance.success.created': 'Post created.',
+  'admin.guidance.success.updated': 'Post updated.',
+  'admin.guidance.success.published': 'Post published.',
+  'admin.guidance.success.unpublished': 'Post unpublished.',
+  'admin.guidance.success.deleted': 'Post deleted.',
+
+  'admin.guidance.editor.createTitle': 'New guidance post',
+  'admin.guidance.editor.editTitle': 'Edit guidance post',
+  'admin.guidance.editor.loading': 'Loading the post…',
+  'admin.guidance.editor.titleLabel': 'Title *',
+  'admin.guidance.editor.titleRequired': 'A title is required.',
+  'admin.guidance.editor.titleTooLong': 'Title must be 255 characters or fewer.',
+  'admin.guidance.editor.slugLabel': 'Slug (optional)',
+  'admin.guidance.editor.slugHint.create':
+    'Lowercase letters, numbers and dashes. Leave blank to generate one from the title.',
+  'admin.guidance.editor.slugHint.edit':
+    'Lowercase letters, numbers and dashes. Leave blank to keep the current slug.',
+  'admin.guidance.editor.slugInvalid':
+    'Use lowercase letters, numbers and dashes (no leading or trailing dash).',
+  'admin.guidance.editor.bodyLabel': 'Body *',
+  'admin.guidance.editor.bodyHint':
+    'Sanitized HTML: h2, h3, p, br, strong, em, ul, ol, li, a and blockquote survive; everything else is stripped on save.',
+  'admin.guidance.editor.bodyRequired': 'A body is required.',
+  'admin.guidance.editor.heroLabel': 'Hero image',
+  'admin.guidance.editor.hero.current': 'Current image',
+  'admin.guidance.editor.hero.choose': 'Choose from the media library',
+  'admin.guidance.editor.hero.loading': 'Loading the media library…',
+  'admin.guidance.editor.hero.empty':
+    'No images in the media library yet — upload one in the Media library tab.',
+  'admin.guidance.editor.hero.remove': 'Remove image',
+  'admin.guidance.editor.altLabel': 'Hero image alt text (optional)',
+  'admin.guidance.editor.altRequired': 'Alt text is required when a hero image is chosen.',
+  'admin.guidance.editor.altForbidden': 'Remove the alt text or choose a hero image.',
+  'admin.guidance.editor.altTooLong': 'Alt text must be 300 characters or fewer.',
+  'admin.guidance.editor.localeLabel': 'Locale (optional)',
+  'admin.guidance.editor.localeHint':
+    'The post language, e.g. en or et. Blank uses the server default.',
+  'admin.guidance.editor.localeTooLong': 'Locale must be 5 characters or fewer.',
+  'admin.guidance.editor.pinnedLabel': 'Pin this post to the top of the guidance list',
+  'admin.guidance.editor.statusLabel': 'Publish',
+  'admin.guidance.editor.status.draft': 'Save as draft',
+  'admin.guidance.editor.status.publish': 'Save and publish',
+  'admin.guidance.editor.statusNote':
+    'The publication state is changed with the Publish and Unpublish actions on the list.',
+  'admin.guidance.editor.save': 'Save',
+  'admin.guidance.editor.saving': 'Saving…',
+  'admin.guidance.editor.cancel': 'Cancel',
+
+  'admin.media.tab': 'Media library',
+  'admin.media.loading': 'Loading the media library…',
+  'admin.media.empty': 'No images in the library yet.',
+  'admin.media.upload': 'Upload image',
+  'admin.media.uploading': 'Uploading…',
+  'admin.media.uploadHint': 'JPEG, PNG or WebP.',
+  'admin.media.col.image': 'Image',
+  'admin.media.col.file': 'File',
+  'admin.media.col.dimensions': 'Dimensions',
+  'admin.media.col.size': 'Size',
+  'admin.media.col.uploaded': 'Uploaded',
+  'admin.media.col.usedBy': 'Used by',
+  'admin.media.col.actions': 'Actions',
+  'admin.media.delete': 'Delete',
+  'admin.media.delete.working': 'Checking…',
+  'admin.media.delete.inUse':
+    'This image is still used by a guidance post. Deleting it removes the hero image from the affected posts.',
+  'admin.media.delete.confirmButton': 'Delete anyway',
+  'admin.media.delete.cancel': 'Cancel',
+  'admin.media.success.uploaded': 'Image uploaded.',
+  'admin.media.success.deleted': 'Image deleted.',
 };

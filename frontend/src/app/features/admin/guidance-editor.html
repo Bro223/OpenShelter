@@ -1,0 +1,198 @@
+<section class="guidance-editor">
+  <h2 class="guidance-editor__heading">
+    {{ (post() === null ? 'admin.guidance.editor.createTitle' : 'admin.guidance.editor.editTitle') | t }}
+  </h2>
+
+  <!-- The failed save's server message (400 validation / 409 slug
+       collision / 404 unknown hero): the editor STAYS open — the admin
+       keeps the draft, the message is echoed verbatim. -->
+  <app-banner severity="error" [message]="serverError()" />
+
+  <form [formGroup]="form" (ngSubmit)="onSave()">
+    <div class="field">
+      <label for="ge-title">{{ 'admin.guidance.editor.titleLabel' | t }}</label>
+      <input
+        id="ge-title"
+        type="text"
+        formControlName="title"
+        maxlength="255"
+        autocomplete="off"
+      />
+      @if (title().invalid && title().touched) {
+        <p class="field-error">
+          {{
+            (title().errors?.['maxlength']
+              ? 'admin.guidance.editor.titleTooLong'
+              : 'admin.guidance.editor.titleRequired') | t
+          }}
+        </p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="ge-slug">{{ 'admin.guidance.editor.slugLabel' | t }}</label>
+      <input
+        id="ge-slug"
+        type="text"
+        formControlName="slug"
+        maxlength="200"
+        autocomplete="off"
+      />
+      <p class="field-note">
+        {{ (post() === null ? 'admin.guidance.editor.slugHint.create' : 'admin.guidance.editor.slugHint.edit') | t }}
+      </p>
+      @if (slug().invalid && slug().touched) {
+        <p class="field-error">{{ 'admin.guidance.editor.slugInvalid' | t }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="ge-body">{{ 'admin.guidance.editor.bodyLabel' | t }}</label>
+      <textarea id="ge-body" formControlName="body" rows="10"></textarea>
+      <p class="field-note">{{ 'admin.guidance.editor.bodyHint' | t }}</p>
+      @if (body().invalid && body().touched) {
+        <p class="field-error">{{ 'admin.guidance.editor.bodyRequired' | t }}</p>
+      }
+    </div>
+
+    <!-- Hero image: choose from the media library (the D8 inventory).
+         The alt field below carries the cross-field rule (mandatory iff a
+         hero is set) — enforced here AND by the server (400). -->
+    <div class="field">
+      <span class="guidance-editor__field-caption">{{ 'admin.guidance.editor.heroLabel' | t }}</span>
+
+      @if (selectedHero(); as hero) {
+        <div class="guidance-editor__hero-current">
+          <img
+            class="guidance-editor__hero-thumb"
+            [src]="hero.url"
+            [alt]="hero.name"
+            width="56"
+            height="56"
+            loading="lazy"
+            decoding="async"
+          />
+          <div class="guidance-editor__hero-meta">
+            <span class="guidance-editor__hero-name">{{ hero.name }}</span>
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="removeHero()"
+              [disabled]="busy()"
+            >
+              {{ 'admin.guidance.editor.hero.remove' | t }}
+            </button>
+          </div>
+        </div>
+      }
+
+      <button
+        type="button"
+        class="btn btn--ghost"
+        (click)="heroPickerOpen.set(!heroPickerOpen())"
+        [disabled]="busy()"
+      >
+        {{ 'admin.guidance.editor.hero.choose' | t }}
+      </button>
+
+      @if (heroPickerOpen()) {
+        <div class="hero-picker" role="group" aria-label="Media library">
+          @if (mediaAssets() === null) {
+            <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
+          } @else if ((mediaAssets() ?? []).length === 0) {
+            <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
+          } @else {
+            @for (asset of mediaAssets() ?? []; track asset.id) {
+              <button
+                type="button"
+                class="hero-picker__item"
+                [class.hero-picker__item--selected]="heroImageId().value === asset.id"
+                [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
+                (click)="selectHero(asset)"
+                [disabled]="busy()"
+              >
+                <img
+                  [src]="asset.url"
+                  [alt]="asset.originalFilename"
+                  width="72"
+                  height="72"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <span class="hero-picker__name">{{ asset.originalFilename }}</span>
+              </button>
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <div class="field">
+      <label for="ge-alt">{{ 'admin.guidance.editor.altLabel' | t }}</label>
+      <input
+        id="ge-alt"
+        type="text"
+        formControlName="heroImageAlt"
+        maxlength="300"
+        autocomplete="off"
+      />
+      @if (heroAltViolation() === 'required') {
+        <p class="field-error">{{ 'admin.guidance.editor.altRequired' | t }}</p>
+      } @else if (heroAltViolation() === 'forbidden') {
+        <p class="field-error">{{ 'admin.guidance.editor.altForbidden' | t }}</p>
+      } @else if (heroImageAlt().invalid && heroImageAlt().touched) {
+        <p class="field-error">{{ 'admin.guidance.editor.altTooLong' | t }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
+      <input
+        id="ge-locale"
+        type="text"
+        formControlName="locale"
+        maxlength="5"
+        autocomplete="off"
+      />
+      <p class="field-note">{{ 'admin.guidance.editor.localeHint' | t }}</p>
+      @if (locale().invalid && locale().touched) {
+        <p class="field-error">{{ 'admin.guidance.editor.localeTooLong' | t }}</p>
+      }
+    </div>
+
+    <div class="field">
+      <label class="guidance-editor__check-label" for="ge-pinned">
+        <input id="ge-pinned" type="checkbox" formControlName="pinned" />
+        {{ 'admin.guidance.editor.pinnedLabel' | t }}
+      </label>
+    </div>
+
+    @if (post() === null) {
+      <!-- Create mode only: the one-shot write-and-publish choice (D4).
+           The edit form never sends a status — publication state is owned
+           by the Publish / Unpublish row actions. -->
+      <fieldset class="field">
+        <legend>{{ 'admin.guidance.editor.statusLabel' | t }}</legend>
+        <label class="guidance-editor__check-label">
+          <input id="ge-status-draft" type="radio" formControlName="status" value="DRAFT" />
+          {{ 'admin.guidance.editor.status.draft' | t }}
+        </label>
+        <label class="guidance-editor__check-label">
+          <input id="ge-status-published" type="radio" formControlName="status" value="PUBLISHED" />
+          {{ 'admin.guidance.editor.status.publish' | t }}
+        </label>
+      </fieldset>
+    } @else {
+      <p class="field-note">{{ 'admin.guidance.editor.statusNote' | t }}</p>
+    }
+
+    <div class="guidance-editor__actions">
+      <button type="submit" class="btn btn--primary" [disabled]="busy() || !canSave()">
+        {{ busy() ? ('admin.guidance.editor.saving' | t) : ('admin.guidance.editor.save' | t) }}
+      </button>
+      <button type="button" class="btn btn--ghost" (click)="onCancel()" [disabled]="busy()">
+        {{ 'admin.guidance.editor.cancel' | t }}
+      </button>
+    </div>
+  </form>
+</section>

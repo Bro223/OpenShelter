@@ -84,6 +84,26 @@ export const routes: Routes = [
     data: { title: 'title.shelterDetail' },
     canActivate: [titleGuard],
   },
+  // Public: the crisis-guidance index (crisis-guidance D4/D6) — permit-all,
+  // the top-nav item lands here.
+  {
+    path: 'blog',
+    // Lazy (bundle budget): the index is not needed for first paint of the map.
+    loadComponent: () =>
+      import('./features/guidance/guidance-list-page').then((m) => m.GuidanceListPage),
+    data: { title: 'title.guidance' },
+    canActivate: [titleGuard],
+  },
+  // Public: one published guidance post by slug — a draft slug and an
+  // unknown slug answer the SAME 404 (D4, the page renders not-found).
+  {
+    path: 'blog/:slug',
+    // Lazy (bundle budget): a post is only needed after an index click.
+    loadComponent: () =>
+      import('./features/guidance/guidance-detail-page').then((m) => m.GuidanceDetailPage),
+    data: { title: 'title.guidanceDetail' },
+    canActivate: [titleGuard],
+  },
   // Verified accounts only — mirrors the backend 403 (design decision 5).
   {
     path: 'submit',

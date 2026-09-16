@@ -3,15 +3,19 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AdminGateway } from '../../gateways/admin-gateway';
+import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
 import { adminGuard } from '../../core/guards';
 import { AuthStore } from '../../session/auth-store';
 import type {
+  AdminGuidancePostDto,
   AdminShelterDto,
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
+  GuidancePostDto,
+  MediaAssetDto,
   MeResponse,
   TokenResponse,
 } from '../../core/models';
@@ -139,6 +143,80 @@ const HISTORY_EVENTS: AdminShelterHistoryEvent[] = [
   },
 ];
 
+// guidance + media fixtures (crisis-guidance D8) ----------------------------
+
+const GUIDANCE_DRAFT: AdminGuidancePostDto = {
+  id: 12,
+  slug: 'uus-juhis',
+  title: 'Uus juhis (mustand)',
+  bodyHtml: '<p>Keha</p>',
+  locale: 'et',
+  status: 'DRAFT',
+  pinned: false,
+  heroImageId: null,
+  heroImageUrl: null,
+  heroImageAlt: null,
+  createdBy: 1,
+  createdAt: '2026-09-01T09:00:00Z',
+  updatedAt: '2026-09-01T10:00:00Z',
+};
+
+const GUIDANCE_PUBLISHED: AdminGuidancePostDto = {
+  id: 11,
+  slug: 'varjumine-droonirunnaku-ajal',
+  title: 'Varjumine droonirünnaku ajal',
+  bodyHtml: '<p>Pöördu peavarjendisse.</p>',
+  locale: 'et',
+  status: 'PUBLISHED',
+  pinned: true,
+  heroImageId: 5,
+  heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+  heroImageAlt: 'Kelder, vaade sissepääsust',
+  createdBy: 1,
+  createdAt: '2026-09-01T09:00:00Z',
+  updatedAt: '2026-09-02T09:00:00Z',
+};
+
+/** The public index row (permit-all) — the Published column's instant is
+ *  merged from here by slug (the admin DTO has no publishedAt). */
+const PUBLIC_POST: GuidancePostDto = {
+  slug: 'varjumine-droonirunnaku-ajal',
+  title: 'Varjumine droonirünnaku ajal',
+  bodyHtml: null,
+  heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+  heroImageAlt: 'Kelder, vaade sissepääsust',
+  pinned: true,
+  locale: 'et',
+  publishedAt: '2026-09-02T12:00:00Z',
+  updatedAt: '2026-09-02T09:00:00Z',
+};
+
+const MEDIA_ROW: MediaAssetDto = {
+  id: 5,
+  url: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+  storedFilename: '0123456789abcdef0123456789abcdef.jpg',
+  originalFilename: 'kelder.jpg',
+  contentType: 'image/jpeg',
+  width: 1600,
+  height: 900,
+  sizeBytes: 204800,
+  createdAt: '2026-09-01T09:00:00Z',
+  reusedBy: 1,
+};
+
+const MEDIA_ROW_UNUSED: MediaAssetDto = {
+  id: 6,
+  url: '/api/media/fedcba9876543210fedcba9876543210.png',
+  storedFilename: 'fedcba9876543210fedcba9876543210.png',
+  originalFilename: 'maapilt.png',
+  contentType: 'image/png',
+  width: 800,
+  height: 600,
+  sizeBytes: 51200,
+  createdAt: '2026-09-02T09:00:00Z',
+  reusedBy: 0,
+};
+
 // ---- hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics) ----
 
 class FakeAdminGateway {
@@ -157,6 +235,23 @@ class FakeAdminGateway {
   listUsers = vi.fn();
   suspendUser = vi.fn();
   unsuspendUser = vi.fn();
+  listGuidancePosts = vi.fn();
+  getGuidancePost = vi.fn();
+  createGuidancePost = vi.fn();
+  updateGuidancePost = vi.fn();
+  publishGuidancePost = vi.fn();
+  unpublishGuidancePost = vi.fn();
+  deleteGuidancePost = vi.fn();
+  listMediaAssets = vi.fn();
+  uploadMediaAsset = vi.fn();
+  deleteMediaAsset = vi.fn();
+}
+
+/** The permit-all public guidance index — the guidance tab merges the
+ *  publication instants from it (the admin DTO has no publishedAt). */
+class FakeGuidanceGateway {
+  list = vi.fn();
+  getBySlug = vi.fn();
 }
 
 class FakeAuthGateway {
@@ -189,6 +284,7 @@ class Host {}
 
 describe('AdminPage', () => {
   let admin: FakeAdminGateway;
+  let publicGuidance: FakeGuidanceGateway;
   let auth: FakeAuthGateway;
   let account: FakeAccountGateway;
   let store: AuthStore;
@@ -198,6 +294,7 @@ describe('AdminPage', () => {
   beforeEach(() => {
     localStorage.clear();
     admin = new FakeAdminGateway();
+    publicGuidance = new FakeGuidanceGateway();
     auth = new FakeAuthGateway();
     account = new FakeAccountGateway();
     admin.setShelterStatus.mockResolvedValue(undefined);
@@ -210,6 +307,7 @@ describe('AdminPage', () => {
     admin.listUsers.mockResolvedValue([]);
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
+    publicGuidance.list.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
       providers: [
@@ -221,6 +319,7 @@ describe('AdminPage', () => {
           { path: 'admin', component: AdminPage, canActivate: [adminGuard] },
         ]),
         { provide: AdminGateway, useValue: admin as unknown as AdminGateway },
+        { provide: GuidanceGateway, useValue: publicGuidance as unknown as GuidanceGateway },
         { provide: AccountGateway, useValue: account as unknown as AccountGateway },
         { provide: AuthGateway, useValue: auth as unknown as AuthGateway },
       ],
@@ -254,13 +353,52 @@ describe('AdminPage', () => {
     };
   }
 
-  function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null {
-    return (
-      [...root.querySelectorAll<HTMLButtonElement>('button')].find(
-        (b) => (b.textContent ?? '').trim() === text,
-      ) ?? null
-    );
-  }
+function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null {
+  return (
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => (b.textContent ?? '').trim() === text,
+    ) ?? null
+  );
+}
+
+/** Let a fire-and-forget load settle (the page's own promise chains). */
+async function settle(
+  fixture: { whenStable(): Promise<unknown>; detectChanges(): void },
+): Promise<void> {
+  await fixture.whenStable();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  fixture.detectChanges();
+}
+
+/** Click a tab button and let its lazy load settle. */
+async function switchTab(
+  name: string,
+  element: HTMLElement,
+  fixture: { whenStable(): Promise<unknown>; detectChanges(): void },
+): Promise<void> {
+  buttonByText(element, name)!.click();
+  await settle(fixture);
+}
+
+/** The editor's title/body inputs live in the child component's template. */
+function inputById(
+  root: HTMLElement,
+  id: string,
+): HTMLInputElement | HTMLTextAreaElement | null {
+  return root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
+}
+
+/** Set a reactive control's value through the DOM (dispatch 'input', then
+ *  change detection) — the established spec convention. */
+function typeValue(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+  fx: { detectChanges(): void },
+): void {
+  el.value = value;
+  el.dispatchEvent(new Event('input'));
+  fx.detectChanges();
+}
 
   function firstRow(root: HTMLElement): HTMLElement {
     const row = root.querySelector('tr.admin-row, li.admin-queue-row');
@@ -1267,6 +1405,8 @@ describe('AdminPage', () => {
     admin.listAudit.mockResolvedValue([]);
     admin.listAlerts.mockResolvedValue([]);
     admin.listUsers.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([]);
     const { element, fixture } = await openAdmin();
 
     // Default tab: the unconfirmed queue is empty (no shelters at all).
@@ -1296,10 +1436,402 @@ describe('AdminPage', () => {
     fixture.detectChanges();
     expect(element.textContent).toContain('No accounts yet.');
 
+    buttonByText(element, 'Guidance')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No guidance posts yet.');
+
+    buttonByText(element, 'Media library')!.click();
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+    expect(element.textContent).toContain('No images in the library yet.');
+
     buttonByText(element, 'Audit log')!.click();
     await fixture.whenStable();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
     expect(element.textContent).toContain('No moderation actions yet.');
+  });
+
+  // ---- guidance tab (crisis-guidance D3/D8) ---------------------------------
+
+  it('the guidance tab lazy-loads and renders rows (status, locale, pin, merged published date, hero)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const { element, fixture } = await openAdmin();
+    expect(admin.listGuidancePosts).not.toHaveBeenCalled();
+
+    await switchTab('Guidance', element, fixture);
+
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(2);
+    // The published row: status badge, locale, pin, hero thumbnail.
+    expect(rows[1]!.textContent).toContain('Varjumine droonirünnaku ajal');
+    expect(rows[1]!.textContent).toContain('varjumine-droonirunnaku-ajal');
+    expect(rows[1]!.textContent).toContain('Published');
+    expect(rows[1]!.textContent).toContain('et');
+    expect(rows[1]!.querySelectorAll('td')[3]!.textContent!.trim()).toBe('Yes');
+    // The Published column is merged from the public index by slug (not '—').
+    expect(rows[1]!.querySelectorAll('td')[4]!.textContent!.trim()).not.toBe('—');
+    // The draft row: no publication instant (—), no pin.
+    expect(rows[0]!.textContent).toContain('Uus juhis (mustand)');
+    expect(rows[0]!.textContent).toContain('Draft');
+    expect(rows[0]!.querySelectorAll('td')[3]!.textContent!.trim()).toBe('No');
+    expect(rows[0]!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
+    const thumb = rows[1]!.querySelector<HTMLImageElement>('img.admin-guidance-thumb');
+    expect(thumb?.getAttribute('src')).toBe(GUIDANCE_PUBLISHED.heroImageUrl);
+  });
+
+  it('the guidance list shows the empty state (with the New post button)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([]);
+    const { element, fixture } = await openAdmin();
+
+    await switchTab('Guidance', element, fixture);
+
+    expect(element.textContent).toContain('No guidance posts yet.');
+    expect(buttonByText(element, 'New post')).not.toBeNull();
+  });
+
+  it('the guidance list error state shows the banner with Retry; Retry re-loads', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockRejectedValueOnce(
+      apiError(503, 'upstream down', '/admin/guidance'),
+    );
+    const { element, fixture } = await openAdmin();
+
+    await switchTab('Guidance', element, fixture);
+
+    expect(element.textContent).toContain('Something went wrong. Please try again.');
+    expect(buttonByText(element, 'Retry')).not.toBeNull();
+    expect(buttonByText(element, 'New post')).not.toBeNull();
+
+    admin.listGuidancePosts.mockResolvedValueOnce([GUIDANCE_DRAFT]);
+    buttonByText(element, 'Retry')!.click();
+    await settle(fixture);
+
+    expect(element.querySelectorAll('tbody tr').length).toBe(1);
+  });
+
+  it('create: the editor saves a draft (DRAFT status, null hero), the row is prepended', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.createGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    buttonByText(element, 'New post')!.click();
+    await settle(fixture);
+    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+
+    typeValue(inputById(element, 'ge-title')!, 'Uus juhis (mustand)', fixture);
+    typeValue(inputById(element, 'ge-body')!, '<p>Keha</p>', fixture);
+    buttonByText(element, 'Save')!.click();
+    await settle(fixture);
+
+    expect(admin.createGuidancePost).toHaveBeenCalledTimes(1);
+    const payload = admin.createGuidancePost.mock.calls[0]![0];
+    expect(payload.title).toBe('Uus juhis (mustand)');
+    expect(payload.status).toBe('DRAFT');
+    expect(payload.heroImageId).toBeNull();
+    expect(payload.heroImageAlt).toBeNull();
+    // The editor is closed; the created row is at the top; the success copy.
+    expect(element.querySelector('app-guidance-editor')).toBeNull();
+    expect(element.textContent).toContain('Post created.');
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.textContent).toContain('Uus juhis (mustand)');
+  });
+
+  it('create: a 409 slug collision keeps the editor open with the server message', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.createGuidancePost.mockRejectedValue(
+      apiError(409, 'slug "uus-juhis" is already in use', '/admin/guidance'),
+    );
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    buttonByText(element, 'New post')!.click();
+    await settle(fixture);
+    typeValue(inputById(element, 'ge-title')!, 'Uus juhis', fixture);
+    typeValue(inputById(element, 'ge-body')!, '<p>Keha</p>', fixture);
+    buttonByText(element, 'Save')!.click();
+    await settle(fixture);
+
+    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+    expect(element.textContent).toContain('slug "uus-juhis" is already in use');
+  });
+
+  it('edit: opens with the fetched post; Save PUTs the update body (no status field)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.updateGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    buttonByText(rows[1]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(11);
+    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+
+    // The prefill is valid (hero + alt paired) — save as-is.
+    buttonByText(element, 'Save')!.click();
+    await settle(fixture);
+
+    expect(admin.updateGuidancePost).toHaveBeenCalledTimes(1);
+    expect(admin.updateGuidancePost.mock.calls[0]![0]).toBe(11);
+    const body = admin.updateGuidancePost.mock.calls[0]![1];
+    expect(body.status).toBeUndefined();
+    expect(body.title).toBe(GUIDANCE_PUBLISHED.title);
+    expect(body.heroImageId).toBe(5);
+    expect(body.heroImageAlt).toBe(GUIDANCE_PUBLISHED.heroImageAlt);
+    expect(element.querySelector('app-guidance-editor')).toBeNull();
+    expect(element.textContent).toContain('Post updated.');
+  });
+
+  it('publish: the 204 flips the row in place to Published (and the index is re-fetched)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.publishGuidancePost.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    expect(draftRow.textContent).toContain('Draft');
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
+    await settle(fixture);
+
+    expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
+    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Published');
+    expect(element.textContent).toContain('Post published.');
+    // loadGuidance's refresh + publish's refresh.
+    expect(publicGuidance.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('unpublish: the 204 flips the row in place to Draft', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.unpublishGuidancePost.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const publishedRow = element.querySelectorAll('tbody tr')[1]!;
+    expect(publishedRow.textContent).toContain('Published');
+    buttonByText(publishedRow.querySelector('td.admin-cell--actions')!, 'Unpublish')!.click();
+    await settle(fixture);
+
+    expect(admin.unpublishGuidancePost).toHaveBeenCalledWith(11);
+    expect(element.querySelectorAll('tbody tr')[1]!.textContent).toContain('Draft');
+    expect(element.textContent).toContain('Post unpublished.');
+  });
+
+  it('delete: two-tap confirm, then the row is removed', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.deleteGuidancePost.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Delete')!.click();
+    fixture.detectChanges();
+    // The strip is armed (the shared two-tap confirm); nothing is sent yet.
+    expect(element.textContent).toContain('Delete this post permanently?');
+    expect(admin.deleteGuidancePost).not.toHaveBeenCalled();
+
+    buttonByText(element, 'Confirm delete')!.click();
+    await settle(fixture);
+
+    expect(admin.deleteGuidancePost).toHaveBeenCalledWith(12);
+    expect(element.querySelectorAll('tbody tr').length).toBe(1);
+    expect(element.textContent).toContain('Post deleted.');
+  });
+
+  // ---- media library tab (crisis-guidance D8) --------------------------------
+
+  it('the media tab lazy-loads and renders rows (filename, dimensions, size, usage, thumbnail)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    const { element, fixture } = await openAdmin();
+    expect(admin.listMediaAssets).not.toHaveBeenCalled();
+
+    await switchTab('Media library', element, fixture);
+
+    expect(admin.listMediaAssets).toHaveBeenCalledTimes(1);
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.textContent).toContain('kelder.jpg');
+    expect(rows[0]!.textContent).toContain('1600 × 900');
+    expect(rows[0]!.textContent).toContain('200 KB');
+    expect(rows[0]!.querySelectorAll('td')[5]!.textContent!.trim()).toBe('1');
+    expect(rows[1]!.textContent).toContain('maapilt.png');
+    expect(rows[1]!.textContent).toContain('800 × 600');
+    expect(rows[1]!.textContent).toContain('50 KB');
+    const thumb = rows[0]!.querySelector<HTMLImageElement>('img.admin-media-thumb');
+    expect(thumb?.getAttribute('src')).toBe(MEDIA_ROW.url);
+  });
+
+  it('upload: choosing a file POSTs the multipart and prepends the returned row', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.uploadMediaAsset.mockResolvedValue(MEDIA_ROW_UNUSED);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Media library', element, fixture);
+
+    const input = element.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) {
+      throw new Error('no file input rendered');
+    }
+    const file = new File(['x'.repeat(51200)], 'maapilt.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { value: [file] });
+    input.dispatchEvent(new Event('change'));
+    await settle(fixture);
+
+    expect(admin.uploadMediaAsset).toHaveBeenCalledWith(file);
+    expect(element.textContent).toContain('Image uploaded.');
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.textContent).toContain('maapilt.png');
+  });
+
+  it('upload: a rejected upload shows the banner and keeps the old list', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.uploadMediaAsset.mockRejectedValue(
+      apiError(413, 'image exceeds the 5 MB cap', '/admin/media'),
+    );
+    const { element, fixture } = await openAdmin();
+    await switchTab('Media library', element, fixture);
+
+    const input = element.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) {
+      throw new Error('no file input rendered');
+    }
+    const file = new File(['x'.repeat(51200)], 'big.png', { type: 'image/png' });
+    Object.defineProperty(input, 'files', { value: [file] });
+    input.dispatchEvent(new Event('change'));
+    await settle(fixture);
+
+    expect(element.textContent).toContain('image exceeds the 5 MB cap');
+    expect(element.querySelectorAll('tbody tr').length).toBe(1);
+  });
+
+  it('media delete of an unused asset: the bare DELETE resolves, the row is removed (no dialog)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    admin.deleteMediaAsset.mockResolvedValue(MEDIA_ROW_UNUSED);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Media library', element, fixture);
+
+    const unusedRow = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(unusedRow.querySelector('td.admin-cell--actions')!, 'Delete')!.click();
+    await settle(fixture);
+
+    expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
+    expect(admin.deleteMediaAsset).toHaveBeenCalledWith(6, false);
+    expect(element.querySelectorAll('tbody tr').length).toBe(1);
+    expect(element.textContent).toContain('Image deleted.');
+  });
+
+  it('media delete of an in-use asset: 409 arms the confirm; the re-issue sends confirm=true', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    const conflict = apiError(
+      409,
+      'still used by Guidance post "Varjumine" (varjumine)',
+      '/admin/media/5',
+    );
+    admin.deleteMediaAsset.mockRejectedValueOnce(conflict).mockResolvedValueOnce(MEDIA_ROW);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Media library', element, fixture);
+
+    const inUseRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(inUseRow.querySelector('td.admin-cell--actions')!, 'Delete')!.click();
+    await settle(fixture);
+
+    // First tap → the bare DELETE → the 409 arms the strip with the server's message.
+    expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
+    expect(admin.deleteMediaAsset).toHaveBeenLastCalledWith(5, false);
+    expect(element.textContent).toContain('This image is still used by a guidance post');
+    expect(element.textContent).toContain('still used by Guidance post "Varjumine" (varjumine)');
+
+    buttonByText(element, 'Delete anyway')!.click();
+    await settle(fixture);
+
+    expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(2);
+    expect(admin.deleteMediaAsset).toHaveBeenLastCalledWith(5, true);
+    expect(element.querySelectorAll('tbody tr').length).toBe(1);
+    expect(element.textContent).toContain('Image deleted.');
+  });
+
+  it('media delete cancel: the strip closes without a second call', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    const conflict = apiError(
+      409,
+      'still used by Guidance post "Varjumine" (varjumine)',
+      '/admin/media/5',
+    );
+    admin.deleteMediaAsset.mockRejectedValueOnce(conflict);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Media library', element, fixture);
+
+    const inUseRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(inUseRow.querySelector('td.admin-cell--actions')!, 'Delete')!.click();
+    await settle(fixture);
+    expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
+
+    buttonByText(element, 'Cancel')!.click();
+    fixture.detectChanges();
+
+    expect(element.textContent).not.toContain('This image is still used by a guidance post');
+    expect(admin.deleteMediaAsset).toHaveBeenCalledTimes(1);
+  });
+
+  // ---- audit labels for the new actions (crisis-guidance D12) ---------------
+
+  it('the audit trail labels the guidance and media actions', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue([
+      {
+        id: 9201,
+        createdAt: ago(2 * 60_000),
+        moderatorName: 'Admin',
+        shelterId: null,
+        shelterName: 'Guidance post "Varjumine" (varjumine)',
+        action: 'GUIDANCE_PUBLISH',
+        previousStatus: null,
+        newStatus: null,
+        reason: null,
+      },
+      {
+        id: 9202,
+        createdAt: ago(4 * 60_000),
+        moderatorName: 'Admin',
+        shelterId: null,
+        shelterName: 'Media asset "kelder.jpg" (0123.jpg)',
+        action: 'MEDIA_DELETE',
+        previousStatus: null,
+        newStatus: null,
+        reason: null,
+      },
+    ]);
+    const { element, fixture } = await openAdmin();
+
+    await switchTab('Audit log', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    expect(rows[0]!.textContent).toContain('Guidance published');
+    expect(rows[1]!.textContent).toContain('Media asset deleted');
   });
 });

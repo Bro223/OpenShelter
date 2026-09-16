@@ -1,0 +1,29 @@
+@if (notFound()) {
+  <section class="guidance-detail guidance-detail--not-found">
+    <h1 class="page-title">{{ 'guidance.notFoundTitle' | t }}</h1>
+    <p class="page-subtitle">{{ 'guidance.notFoundBody' | t }}</p>
+    <a routerLink="/blog" class="btn btn--primary">{{ 'guidance.backToList' | t }}</a>
+  </section>
+} @else {
+  <section class="guidance-detail">
+    <a routerLink="/blog" class="back-link">&larr; {{ 'guidance.backToList' | t }}</a>
+
+    <app-banner severity="error" [message]="error()" />
+
+    @if (loading()) {
+      <app-loading-indicator class="guidance-state" [message]="'guidance.loadingDetail' | t" />
+    } @else if (post(); as p) {
+      <header class="guidance-detail__header">
+        <h1 class="page-title">{{ p.title }}</h1>
+        <p class="guidance-detail__date">
+          {{ 'guidance.published' | t }}
+          {{ p.publishedAt | date: 'medium' : undefined : i18n.locale() }}
+        </p>
+      </header>
+      <!-- The stored body: admin-authored HTML sanitized server-side (jsoup
+           allowlist). [innerHTML] auto-sanitizes AGAIN client-side — no
+           bypassSecurityTrustHtml, no DomSanitizer bypass. -->
+      <article class="guidance-detail__body" [innerHTML]="p.bodyHtml ?? ''"></article>
+    }
+  </section>
+}

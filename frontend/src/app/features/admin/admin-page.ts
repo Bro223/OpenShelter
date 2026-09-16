@@ -17,17 +17,21 @@ import type {
   AdminAlertRow,
   AdminAuditAction,
   AdminAuditRow,
+  AdminGuidancePostDto,
   AdminOccupancy,
   AdminShelterDto,
   AdminShelterHistoryEvent,
   AdminShelterHistoryFieldChange,
   AdminShelterReportDto,
   AdminUserDto,
+  GuidanceStatus,
+  MediaAssetDto,
   ShelterOccupancy,
   ShelterReportType,
   ShelterStatus,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
+import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import { nameBlankValidator } from '../../shared/form-helpers';
 import {
@@ -43,12 +47,26 @@ import {
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
+import { ApiError } from '../../core/api-error';
+import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
-/** The six moderation tabs: the review queue FIRST, the audit trail LAST
- *  (community-review-queue); the Users tab sits before the audit. */
-export type AdminTab = 'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'audit';
+/** The moderation tabs: the review queue FIRST, the audit trail LAST
+ *  (community-review-queue); the Users tab sits before the authoring tabs;
+ *  the guidance (crisis-guidance D8) and media-library tabs sit before the
+ *  audit. */
+export type AdminTab =
+  | 'unconfirmed'
+  | 'shelters'
+  | 'reports'
+  | 'alerts'
+  | 'users'
+  | 'guidance'
+  | 'media'
+  | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -84,6 +102,13 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   USER_UNSUSPEND: 'User unsuspended',
   MARK_INACCURATE: 'Marked inaccurate',
   CLEAR_INACCURATE: 'Inaccurate cleared',
+  // Guidance/media rows (crisis-guidance D12): the subject is the row's
+  // subjectLabel snapshot ("Guidance post \"…\" (slug)" / "Media asset
+  // \"…\" (stored)") — the tab's Subject column renders it verbatim.
+  GUIDANCE_PUBLISH: 'Guidance published',
+  GUIDANCE_UNPUBLISH: 'Guidance unpublished',
+  GUIDANCE_DELETE: 'Guidance post deleted',
+  MEDIA_DELETE: 'Media asset deleted',
 };
 
 /** Shelter-history action labels (the Shelters-tab panel). */
@@ -104,7 +129,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
  * non-admins are redirected home by the guard, mirroring the backend's
- * 401/403 per request). Six tabs, each one queue:
+ * 401/403 per request). Eight tabs, each one queue:
  *
  *  - UNCONFIRMED (first, default) — the community review queue: every USER
  *    row in the NEW state (client-side filter of the shelters list — the
@@ -125,10 +150,33 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  *    near-duplicate rejection (409), newest first. Read-only; the ring
  *    is in-memory on the backend (cleared on a restart — a triage view,
  *    not a durable log).
+ *  - GUIDANCE (crisis-guidance D8) — the post list (title + hero
+ *    thumbnail, status, locale, pinned, published date, updated) with
+ *    create / edit / publish / unpublish / delete (two-tap). The editor
+ *    is the inline GuidanceEditor form (title, slug, body, hero picker
+ *    + mandatory-iff-set alt, locale, pinned, and the create-mode
+ *    write-and-publish choice); the body is a plain textarea over the
+ *    stored (sanitized) HTML. The admin DTO carries NO publishedAt — the
+ *    published-date column merges the permit-all public index by slug
+ *    (a merge failure degrades the column to "—", never the list).
+ *  - MEDIA LIBRARY (crisis-guidance D8) — the asset inventory: thumbnail,
+ *    filename, dimensions, size, upload date, reused-by count; the
+ *    multipart upload (field `file`); delete is API-FIRST — the first tap
+ *    calls DELETE (unreferenced → 200, row gone; referenced → 409 naming
+ *    the affected posts, which arms the confirm strip that re-issues with
+ *    confirm=true — never a dead end).
  *  - AUDIT (last) — the read-only moderation trail, newest 100 (lazy load
  *    on first switch): when / moderator / shelter / action / change /
  *    reason. Shelter names are resolved server-side (a deleted shelter
- *    reads "Deleted shelter").
+ *    reads "Deleted shelter"); the guidance/media rows (D12) read their
+ *    subjectLabel snapshot in the same column.
+ *  - USERS (before the authoring tabs) — the account list: name, e-mail,
+ *    kind, suspension state. Suspend is two-tap (arm + confirm, like the
+ *    shelter delete) and idempotent server-side; a suspended row is dimmed
+ *    with a "Suspended" badge and an Unsuspend action. Admin-kind rows are
+ *    listed (the provisioned account is visible) but the Suspend action is
+ *    never offered for them (backend 409 — lockout vector). Suspension
+ *    stops the ACCOUNT (login/refresh/tokens), not its shelters.
  *
  * Mutations update the in-memory row in place (no full refetch — the backend
  * answers 204 with no body); a rejected mutation surfaces the server message
@@ -136,24 +184,27 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
  * backend message; 401 mid-session is the global interceptor's job). The
  * review actions are the exception: they refetch the shelters list so the
  * unconfirmed queue and the Shelters tab both reflect the new state.
- *
- *  - USERS (before the audit) — the account list: name, e-mail,
- *    kind, suspension state. Suspend is two-tap (arm + confirm, like the
- *    shelter delete) and idempotent server-side; a suspended row is dimmed
- *    with a "Suspended" badge and an Unsuspend action. Admin-kind rows are
- *    listed (the provisioned account is visible) but the Suspend action is
- *    never offered for them (backend 409 — lockout vector). Suspension
- *    stops the ACCOUNT (login/refresh/tokens), not its shelters.
  */
 @Component({
   selector: 'app-admin-page',
-  imports: [ReactiveFormsModule, RouterLink, NgClass, DatePipe, BannerComponent, LoadingIndicator],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    NgClass,
+    DatePipe,
+    BannerComponent,
+    LoadingIndicator,
+    TranslatePipe,
+    GuidanceEditor,
+  ],
   templateUrl: './admin-page.html',
   styleUrl: './admin-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdminPage implements OnInit {
   private readonly admin = inject(AdminGateway);
+  private readonly publicGuidance = inject(GuidanceGateway);
+  private readonly i18n = inject(I18nService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   // ---- tabs ----------------------------------------------------------------
@@ -239,6 +290,44 @@ export class AdminPage implements OnInit {
    *  id, carrying which action was armed — the shared ConfirmAction owns the
    *  state machine, the focus move and the focus restore. */
   protected readonly userActionConfirm = new ConfirmAction<number, 'suspend' | 'unsuspend'>(
+    this.host.nativeElement,
+  );
+
+  // ---- guidance tab (crisis-guidance D8) -------------------------------------
+  /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
+   *  Every post, drafts included, in the server's order. */
+  protected readonly guidanceRows = signal<AdminGuidancePostDto[] | null>(null);
+  protected readonly guidanceLoadError = signal<string | null>(null);
+  /** The Published column's instants (slug -> publishedAt). The admin DTO
+   *  carries NO publishedAt — the instants live in the permit-all public
+   *  index, which this map merges (a failed merge degrades the column to
+   *  "—", never the list). */
+  protected readonly publishedAtBySlug = signal<Map<string, string>>(new Map());
+  /** The open editor: null = closed; 'new' = create mode; a post = edit
+   *  mode (the id-keyed GET result — the row's copy may be stale). */
+  protected readonly guidanceEditor = signal<AdminGuidancePostDto | 'new' | null>(null);
+  protected readonly guidanceEditorLoading = signal(false);
+  /** The failed save's server message (the editor stays open — the admin
+   *  keeps the draft). */
+  protected readonly guidanceEditorError = signal<string | null>(null);
+  /** Two-tap delete confirm (no window.confirm): the armed post id. The
+   *  gateway ALWAYS sends confirm=true (the server 400s without it). */
+  protected readonly guidanceDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
+  /** The monotonic guidance-list fetch sequence — a stale (out-of-order)
+   *  response is dropped (the detail page's pattern). */
+  private guidanceFetchSeq = 0;
+  /** The monotonic editor-detail fetch sequence (same guard). */
+  private editorFetchSeq = 0;
+
+  // ---- media library tab (crisis-guidance D8) ---------------------------------
+  /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
+   *  Newest first; the editor's hero picker reuses this list. */
+  protected readonly mediaRows = signal<MediaAssetDto[] | null>(null);
+  protected readonly mediaLoadError = signal<string | null>(null);
+  /** The in-use delete confirm: the armed asset id, carrying the 409's
+   *  server message (naming the affected posts) — the strip re-issues the
+   *  delete with confirm=true. */
+  protected readonly mediaDeleteInUse = new ConfirmAction<number, string>(
     this.host.nativeElement,
   );
 
@@ -344,6 +433,9 @@ export class AdminPage implements OnInit {
     this.closeHistory();
     this.closeInfo();
     this.closeInaccurate();
+    this.closeGuidanceEditor();
+    this.guidanceDeleteConfirm.disarm();
+    this.mediaDeleteInUse.disarm();
     switch (tab) {
       case 'shelters':
         if (this.shelterRows() === null && this.shelterLoadError() === null) {
@@ -363,6 +455,16 @@ export class AdminPage implements OnInit {
       case 'users':
         if (this.userRows() === null && this.userLoadError() === null) {
           this.loadUsers();
+        }
+        break;
+      case 'guidance':
+        if (this.guidanceRows() === null && this.guidanceLoadError() === null) {
+          this.loadGuidance();
+        }
+        break;
+      case 'media':
+        if (this.mediaRows() === null && this.mediaLoadError() === null) {
+          this.loadMedia();
         }
         break;
       case 'audit':
@@ -848,6 +950,399 @@ export class AdminPage implements OnInit {
       .listAudit()
       .then((rows) => this.auditRows.set(rows))
       .catch((error: unknown) => this.auditLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  // -------------------------------------------------------------------------
+  // Guidance tab (crisis-guidance D8)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Load every post (drafts included, newest-updated first — the list
+   * renders in the server's order). The monotonic fetch sequence drops a
+   * stale (out-of-order) response: a superseded load must not overwrite a
+   * newer one (the detail page's pattern).
+   */
+  loadGuidance(): void {
+    this.guidanceRows.set(null);
+    this.guidanceLoadError.set(null);
+    const seq = ++this.guidanceFetchSeq;
+    this.admin
+      .listGuidancePosts()
+      .then((rows) => {
+        if (seq !== this.guidanceFetchSeq) {
+          return; // a newer load superseded this response
+        }
+        this.guidanceRows.set(rows);
+        // The admin projection has NO publishedAt — the publication instants
+        // live in the permit-all public index; merge them (a failed merge
+        // degrades the column to "—", never the list itself).
+        if (rows.some((r) => r.status === 'PUBLISHED')) {
+          this.refreshPublishedIndex();
+        } else {
+          this.publishedAtBySlug.set(new Map());
+        }
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.guidanceFetchSeq) {
+          return;
+        }
+        this.guidanceLoadError.set(bannerMessage(error, 'shelter'));
+      });
+  }
+
+  /** The publishedAt merge source (the permit-all public index — PUBLISHED
+   *  posts with their publication instants, keyed by slug). Fire-and-forget:
+   *  a failure just leaves the column showing "—" until the next load. */
+  private refreshPublishedIndex(): void {
+    this.publicGuidance
+      .list()
+      .then((posts) =>
+        this.publishedAtBySlug.set(new Map(posts.map((p) => [p.slug, p.publishedAt]))),
+      )
+      .catch(() => this.publishedAtBySlug.set(new Map()));
+  }
+
+  /** The Published column's instant (PUBLISHED rows only; null = the merge
+   *  has no entry for the slug yet — the column renders "—"). */
+  protected publishedAtFor(row: AdminGuidancePostDto): string | null {
+    if (row.status !== 'PUBLISHED') {
+      return null;
+    }
+    return this.publishedAtBySlug().get(row.slug) ?? null;
+  }
+
+  /**
+   * Open the editor. Create mode opens directly; edit mode fetches the
+   * id-keyed detail FIRST (the stored (sanitized) bodyHtml is what the
+   * editor round-trips — the row's copy may be stale after a save from
+   * elsewhere). The media library loads for the hero picker when the media
+   * tab hasn't loaded it yet.
+   */
+  openGuidanceEditor(post: AdminGuidancePostDto | null): void {
+    this.clearFeedback();
+    this.guidanceEditorError.set(null);
+    this.guidanceDeleteConfirm.disarm();
+    this.ensureMediaLoaded();
+    if (post === null) {
+      this.guidanceEditor.set('new');
+      return;
+    }
+    const seq = ++this.editorFetchSeq;
+    this.guidanceEditor.set('new'); // the editor section renders (loading…)
+    this.guidanceEditorLoading.set(true);
+    this.admin
+      .getGuidancePost(post.id)
+      .then((fetched) => {
+        if (seq !== this.editorFetchSeq) {
+          return; // superseded (a newer open/cancel) — drop the stale post
+        }
+        this.guidanceEditor.set(fetched);
+        this.guidanceEditorLoading.set(false);
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.editorFetchSeq) {
+          return;
+        }
+        // 404 (the post went away) or any other failure: close the editor,
+        // surface the server message on the page banner.
+        this.guidanceEditor.set(null);
+        this.guidanceEditorLoading.set(false);
+        this.error.set(bannerMessage(error, 'shelter'));
+      });
+  }
+
+  /** Close the editor (tab switch, cancel, a successful save). Bumps the
+   *  fetch sequence so an in-flight edit detail cannot land late. */
+  closeGuidanceEditor(): void {
+    this.editorFetchSeq++;
+    this.guidanceEditor.set(null);
+    this.guidanceEditorLoading.set(false);
+    this.guidanceEditorError.set(null);
+  }
+
+  /** The post the editor is bound to: null = create mode, the fetched post
+   *  = edit mode. The 'new' loading placeholder never reaches the editor
+   *  (template type narrowing can't exclude it from the union). */
+  guidanceEditorPost(): AdminGuidancePostDto | null {
+    const v = this.guidanceEditor();
+    return v === 'new' ? null : v;
+  }
+
+  /** The editor's hero picker needs the library — load it when the media
+   *  tab hasn't loaded it yet (the same lazy rule, no double fetch). */
+  private ensureMediaLoaded(): void {
+    if (this.mediaRows() === null && this.mediaLoadError() === null) {
+      this.loadMedia();
+    }
+  }
+
+  /**
+   * Route the editor's validated payload to the right endpoint: create
+   * (POST, 200 with the created post) or update (PUT, 200 with the
+   * updated post). The 200 bodies carry the STORED post (sanitized body,
+   * server-derived slug) — the row adopts it in place. On failure the
+   * editor STAYS open (the admin keeps the draft); the server message
+   * (400 validation / 409 slug collision naming the slug / 404 unknown
+   * hero) is echoed in the editor's banner.
+   */
+  async saveGuidancePost(save: GuidanceEditorSave): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.guidanceEditorError.set(null);
+    this.busy.set(true);
+    try {
+      let result: AdminGuidancePostDto;
+      if (save.id === null) {
+        result = await this.admin.createGuidancePost(save.create!);
+        this.guidanceRows.update((rows) => [result, ...(rows ?? [])]);
+        this.success.set(this.i18n.t('admin.guidance.success.created'));
+      } else {
+        result = await this.admin.updateGuidancePost(save.id, save.update!);
+        this.guidanceRows.update((rows) =>
+          (rows ?? []).map((r) => (r.id === result.id ? result : r)),
+        );
+        this.success.set(this.i18n.t('admin.guidance.success.updated'));
+      }
+      this.closeGuidanceEditor();
+      // The slug may have moved (or a save-and-publish set the status) —
+      // the publishedAt merge follows the new state.
+      this.refreshPublishedIndex();
+    } catch (error) {
+      this.guidanceEditorError.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Publish (POST /{id}/publish, 204, idempotent). The row patches in
+   *  place; the stamp itself is server state the 204 does not carry — the
+   *  public index refresh refreshes the Published column. */
+  async publishGuidancePost(row: AdminGuidancePostDto): Promise<void> {
+    await this.setGuidancePublished(row, 'PUBLISHED');
+  }
+
+  /** Unpublish (POST /{id}/unpublish, 204, idempotent) — back to DRAFT,
+   *  publishedAt cleared. */
+  async unpublishGuidancePost(row: AdminGuidancePostDto): Promise<void> {
+    await this.setGuidancePublished(row, 'DRAFT');
+  }
+
+  private async setGuidancePublished(
+    row: AdminGuidancePostDto,
+    status: GuidanceStatus,
+  ): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      if (status === 'PUBLISHED') {
+        await this.admin.publishGuidancePost(row.id);
+      } else {
+        await this.admin.unpublishGuidancePost(row.id);
+      }
+      this.patchGuidance(row.id, { status });
+      // The 204 carries no body — the publication instant is public state;
+      // refresh the merge (publish: a fresh stamp; unpublish: the slug is
+      // off the public index).
+      if (status === 'PUBLISHED') {
+        this.refreshPublishedIndex();
+      } else {
+        this.publishedAtBySlug.update((m) => {
+          const next = new Map(m);
+          next.delete(row.slug);
+          return next;
+        });
+      }
+      this.success.set(
+        this.i18n.t(
+          status === 'PUBLISHED'
+            ? 'admin.guidance.success.published'
+            : 'admin.guidance.success.unpublished',
+        ),
+      );
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /** Step 1 of the two-tap delete: arm the confirm strip for the row. */
+  requestDeleteGuidance(id: number): void {
+    this.clearFeedback();
+    this.guidanceDeleteConfirm.arm(id);
+  }
+
+  cancelDeleteGuidance(): void {
+    this.guidanceDeleteConfirm.cancel();
+  }
+
+  /** Step 2: DELETE /admin/guidance/{id}?confirm=true (204 — the gateway
+   *  always sends the required confirm flag). The row is removed in place;
+   *  its media assets stay in the library, its audit rows keep their label
+   *  snapshot. */
+  async confirmDeleteGuidance(id: number): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      const row = (this.guidanceRows() ?? []).find((r) => r.id === id) ?? null;
+      await this.admin.deleteGuidancePost(id);
+      this.guidanceRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
+      if (row !== null && row.status === 'PUBLISHED') {
+        this.publishedAtBySlug.update((m) => {
+          const next = new Map(m);
+          next.delete(row.slug);
+          return next;
+        });
+      }
+      this.success.set(this.i18n.t('admin.guidance.success.deleted'));
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      // A deleted post being edited: the form's target is gone.
+      const editor = this.guidanceEditor();
+      if (editor !== null && editor !== 'new' && editor.id === id) {
+        this.closeGuidanceEditor();
+      }
+      this.guidanceDeleteConfirm.disarm();
+      this.busy.set(false);
+    }
+  }
+
+  private patchGuidance(id: number, patch: Partial<AdminGuidancePostDto>): void {
+    this.guidanceRows.update((rows) =>
+      (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Media library tab (crisis-guidance D8)
+  // -------------------------------------------------------------------------
+
+  /** Load the asset inventory (newest first, with the reused-by counts).
+   *  The editor's hero picker reuses these rows. */
+  loadMedia(): void {
+    this.mediaRows.set(null);
+    this.mediaLoadError.set(null);
+    this.admin
+      .listMediaAssets()
+      .then((rows) => this.mediaRows.set(rows))
+      .catch((error: unknown) => this.mediaLoadError.set(bannerMessage(error, 'shelter')));
+  }
+
+  /** The file input's change: hand the chosen file to the upload (the
+   *  input value resets FIRST — the same file stays re-selectable). */
+  onMediaFileChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    // Index access (not .item): FileList is indexable, and the spec sets a
+    // plain array on `files`.
+    const file = input.files?.[0];
+    input.value = '';
+    if (file !== null && file !== undefined) {
+      void this.uploadMediaFile(file);
+    }
+  }
+
+  /**
+   * POST /admin/media (multipart, field `file`) -> 201 with the stored
+   *  asset (the generated name — the client's filename is display metadata
+   *  only). The new asset prepends to the inventory (newest first). A
+   *  rejected upload (400 unsupported / declared-type mismatch, 413 over
+   *  the cap — the message names the cap) surfaces the server message
+   *  through the page banner — the shared error-copy convention.
+   */
+  async uploadMediaFile(file: File): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      const asset = await this.admin.uploadMediaAsset(file);
+      this.mediaRows.update((rows) => [asset, ...(rows ?? [])]);
+      this.success.set(this.i18n.t('admin.media.success.uploaded'));
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  /**
+   * First tap of the media delete: the API decides — an UNREFERENCED asset
+   * deletes straight (200, the row goes); a still-referenced one answers
+   * 409 naming the affected posts, which arms the confirm strip (the
+   *  re-issue with confirm=true) instead of being a dead end.
+   */
+  async requestMediaDelete(id: number): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      const deleted = await this.admin.deleteMediaAsset(id, false);
+      this.mediaRows.update((rows) => (rows ?? []).filter((r) => r.id !== deleted.id));
+      this.success.set(this.i18n.t('admin.media.success.deleted'));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // Still referenced: the 409 message names the affected posts —
+        // it is echoed in the confirm strip after the fixed copy.
+        this.mediaDeleteInUse.arm(id, error.message);
+      } else {
+        this.error.set(bannerMessage(error, 'shelter'));
+      }
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  cancelMediaDelete(): void {
+    this.mediaDeleteInUse.cancel();
+  }
+
+  /**
+   * Second tap: DELETE /admin/media/{id}?confirm=true -> 200 (the
+   *  pre-delete snapshot). Every referencing post loses BOTH
+   *  hero_image_id and hero_image_alt in the same transaction (the posts
+   *  still render, with no image) — the affected posts' rows here show
+   *  the lost hero on the next list load, so the guidance list refreshes
+   *  when it is loaded.
+   */
+  async confirmMediaDelete(id: number): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      const deleted = await this.admin.deleteMediaAsset(id, true);
+      this.mediaRows.update((rows) => (rows ?? []).filter((r) => r.id !== deleted.id));
+      this.success.set(this.i18n.t('admin.media.success.deleted'));
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.mediaDeleteInUse.disarm();
+      this.busy.set(false);
+    }
+  }
+
+  /** The asset's human size (the listing's Size column). */
+  protected mediaSizeText(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+    if (bytes < 1024 * 1024) {
+      return `${Math.round(bytes / 1024)} KB`;
+    }
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   private clearFeedback(): void {

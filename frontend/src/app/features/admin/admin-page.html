@@ -9,7 +9,9 @@
   <app-banner severity="error" [message]="error()" />
 
   <!-- Tabs: the review queue FIRST, the audit trail LAST (community-review-queue).
-       The queues load lazily on first switch.
+       The guidance + media-library authoring tabs (crisis-guidance D8) sit
+       between the Users and the audit tabs. The queues load lazily on first
+       switch.
        A plain group of pressed-state toggles, NOT a
        role="tablist" widget — the panels are inline @if blocks (a real
        role="tabpanel" would need a wrapper element that breaks the .admin
@@ -61,6 +63,24 @@
       (click)="switchTab('users')"
     >
       Users
+    </button>
+    <button
+      type="button"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'guidance'"
+      [attr.aria-pressed]="tab() === 'guidance' ? 'true' : 'false'"
+      (click)="switchTab('guidance')"
+    >
+      {{ 'admin.guidance.tab' | t }}
+    </button>
+    <button
+      type="button"
+      class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'media'"
+      [attr.aria-pressed]="tab() === 'media' ? 'true' : 'false'"
+      (click)="switchTab('media')"
+    >
+      {{ 'admin.media.tab' | t }}
     </button>
     <button
       type="button"
@@ -743,6 +763,327 @@
                     <!-- ADMIN kind: listed for visibility, not suspendable
                          (lockout vector — the backend answers 409). -->
                     <span class="admin-muted">Not suspendable</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ============================ Guidance ============================ -->
+  <!-- crisis-guidance D8: the authoring surface. The list (title + hero
+       thumbnail, status, locale, pinned, published, updated) and the inline
+       editor; the Published column's instants merge from the public index
+       (the admin DTO has no publishedAt — a failed merge shows "—"). -->
+  @if (tab() === 'guidance') {
+    @if (guidanceEditor() === null) {
+      <button
+        type="button"
+        class="btn btn--primary"
+        (click)="openGuidanceEditor(null)"
+        [disabled]="busy()"
+      >
+        {{ 'admin.guidance.create' | t }}
+      </button>
+    }
+
+    @if (guidanceEditor() !== null) {
+      <div class="admin-editor">
+        @if (guidanceEditorLoading()) {
+          <app-loading-indicator
+            class="admin-state"
+            [message]="'admin.guidance.editor.loading' | t"
+          />
+        } @else if (guidanceEditor() === 'new') {
+          <app-guidance-editor
+            [post]="null"
+            [busy]="busy()"
+            [serverError]="guidanceEditorError()"
+            [mediaAssets]="mediaRows()"
+            (save)="saveGuidancePost($event)"
+            (cancel)="closeGuidanceEditor()"
+          />
+        } @else {
+          <app-guidance-editor
+            [post]="guidanceEditorPost()"
+            [busy]="busy()"
+            [serverError]="guidanceEditorError()"
+            [mediaAssets]="mediaRows()"
+            (save)="saveGuidancePost($event)"
+            (cancel)="closeGuidanceEditor()"
+          />
+        }
+      </div>
+    }
+
+    @if (guidanceRows() === null && guidanceLoadError() === null) {
+      <app-loading-indicator class="admin-state" [message]="'admin.guidance.loading' | t" />
+    } @else if (guidanceLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadGuidance()">
+        {{ 'admin.retry' | t }}
+      </button>
+    } @else if ((guidanceRows() ?? []).length === 0) {
+      <p class="admin-state">{{ 'admin.guidance.empty' | t }}</p>
+    } @else {
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Guidance posts">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'admin.guidance.col.title' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.status' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.locale' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.pinned' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.published' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.updated' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">
+                {{ 'admin.guidance.col.actions' | t }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of guidanceRows() ?? []; track row.id) {
+              <tr class="admin-row" [class.admin-row--hidden]="row.status === 'DRAFT'">
+                <td>
+                  <div class="admin-guidance-title">
+                    <!-- The hero thumbnail, only when the post has one. -->
+                    @if (row.heroImageUrl; as heroUrl) {
+                      <img
+                        class="admin-guidance-thumb"
+                        [src]="heroUrl"
+                        [alt]="row.heroImageAlt ?? ''"
+                        width="40"
+                        height="40"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    }
+                    <div class="admin-guidance-title__text">
+                      <span class="admin-guidance-title__name">{{ row.title }}</span>
+                      <span class="admin-muted">{{ row.slug }}</span>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  @if (row.status === 'PUBLISHED') {
+                    <span class="badge badge--published">{{ 'admin.guidance.status.published' | t }}</span>
+                  } @else {
+                    <span class="badge badge--draft">{{ 'admin.guidance.status.draft' | t }}</span>
+                  }
+                </td>
+                <td class="admin-cell--nowrap">{{ row.locale }}</td>
+                <td class="admin-cell--nowrap">
+                  {{ row.pinned ? ('admin.guidance.pinned.yes' | t) : ('admin.guidance.pinned.no' | t) }}
+                </td>
+                <td class="admin-cell--nowrap">
+                  @if (publishedAtFor(row); as publishedAt) {
+                    {{ publishedAt | date: 'medium' }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
+                <td class="admin-cell--actions">
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="openGuidanceEditor(row)"
+                    [disabled]="busy()"
+                  >
+                    {{ 'admin.guidance.edit' | t }}
+                  </button>
+                  @if (!guidanceDeleteConfirm.isArmed(row.id)) {
+                    @if (row.status === 'PUBLISHED') {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="unpublishGuidancePost(row)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy()
+                            ? ('admin.guidance.working' | t)
+                            : ('admin.guidance.unpublish' | t)
+                        }}
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="publishGuidancePost(row)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
+                        }}
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-trigger]="row.id"
+                      (click)="requestDeleteGuidance(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.guidance.delete' | t }}
+                    </button>
+                  } @else {
+                    <!-- two-tap confirm (no window.confirm, the app's inline
+                         style). The gateway sends confirm=true — the server
+                         400s without it. -->
+                    <span class="admin-confirm" role="status">
+                      {{ 'admin.guidance.delete.confirm' | t }}
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-focus]="row.id"
+                      (click)="confirmDeleteGuidance(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.guidance.working' | t)
+                          : ('admin.guidance.delete.confirmButton' | t)
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="cancelDeleteGuidance()"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.guidance.delete.cancel' | t }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ========================= Media library ========================= -->
+  <!-- crisis-guidance D8: the asset inventory (the editor's hero picker and
+       this grid both list it). Upload is multipart (field `file`); delete
+       is API-first — the 409 (still referenced) arms the confirm strip that
+       re-issues with confirm=true. -->
+  @if (tab() === 'media') {
+    <div class="admin-media-upload">
+      <div class="field admin-search__field">
+        <label for="media-upload-file">
+          {{ busy() ? ('admin.media.uploading' | t) : ('admin.media.upload' | t) }}
+        </label>
+        <input
+          id="media-upload-file"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          (change)="onMediaFileChange($event)"
+          [disabled]="busy()"
+        />
+      </div>
+      <p class="admin-hint admin-media-upload__hint">{{ 'admin.media.uploadHint' | t }}</p>
+    </div>
+
+    @if (mediaRows() === null && mediaLoadError() === null) {
+      <app-loading-indicator class="admin-state" [message]="'admin.media.loading' | t" />
+    } @else if (mediaLoadError(); as loadErr) {
+      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+      <button type="button" class="btn btn--ghost" (click)="loadMedia()">
+        {{ 'admin.retry' | t }}
+      </button>
+    } @else if ((mediaRows() ?? []).length === 0) {
+      <p class="admin-state">{{ 'admin.media.empty' | t }}</p>
+    } @else {
+      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Media library">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th scope="col">{{ 'admin.media.col.image' | t }}</th>
+              <th scope="col">{{ 'admin.media.col.file' | t }}</th>
+              <th scope="col">{{ 'admin.media.col.dimensions' | t }}</th>
+              <th scope="col">{{ 'admin.media.col.size' | t }}</th>
+              <th scope="col">{{ 'admin.media.col.uploaded' | t }}</th>
+              <th scope="col">{{ 'admin.media.col.usedBy' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">{{ 'admin.media.col.actions' | t }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of mediaRows() ?? []; track row.id) {
+              <tr class="admin-row">
+                <td>
+                  <img
+                    class="admin-media-thumb"
+                    [src]="row.url"
+                    [alt]="row.originalFilename"
+                    width="40"
+                    height="40"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </td>
+                <td class="admin-cell--name">
+                  <span class="admin-media-name">{{ row.originalFilename }}</span>
+                  <span class="admin-muted">{{ row.contentType }}</span>
+                </td>
+                <td class="admin-cell--nowrap">{{ row.width }} × {{ row.height }}</td>
+                <td class="admin-cell--nowrap">{{ mediaSizeText(row.sizeBytes) }}</td>
+                <td class="admin-cell--nowrap">{{ row.createdAt | date: 'medium' }}</td>
+                <td>
+                  @if (row.reusedBy !== 0) {
+                    {{ row.reusedBy }}
+                  } @else {
+                    <span class="admin-muted">—</span>
+                  }
+                </td>
+                <td class="admin-cell--actions">
+                  @if (mediaDeleteInUse.isArmed(row.id)) {
+                    <!-- The in-use 409 answer, turned into the confirm step:
+                         the fixed copy + the server message (naming the
+                         affected posts); Confirm re-issues with confirm=true. -->
+                    <span class="admin-confirm" role="status">
+                      {{ 'admin.media.delete.inUse' | t }}
+                      <span class="admin-muted">{{ mediaDeleteInUse.armed()!.value }}</span>
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-focus]="row.id"
+                      (click)="confirmMediaDelete(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.media.delete.working' | t)
+                          : ('admin.media.delete.confirmButton' | t)
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="cancelMediaDelete()"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.media.delete.cancel' | t }}
+                    </button>
+                  } @else {
+                    <!-- The first tap CALLS the API (the unreferenced asset
+                         deletes straight; the referenced one answers 409
+                         and arms the strip above). -->
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-trigger]="row.id"
+                      (click)="requestMediaDelete(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{ busy() ? ('admin.media.delete.working' | t) : ('admin.media.delete' | t) }}
+                    </button>
                   }
                 </td>
               </tr>

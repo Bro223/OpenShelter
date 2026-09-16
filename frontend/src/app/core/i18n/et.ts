@@ -10,6 +10,7 @@ import type { Messages } from './messages';
 export const ET: Messages = {
   'menu.aria': 'Menüü',
   'nav.map': 'Varjupaikade kaart',
+  'nav.guidance': 'Juhised',
   'nav.account': 'Konto',
   'nav.admin': 'Admin',
   'nav.skip': 'Liigu põhisisu juurde',
@@ -44,6 +45,8 @@ export const ET: Messages = {
   'title.shelterDetail': 'Varjupaiga detailid',
   'title.submit': 'Varjupaiga lisamine',
   'title.admin': 'Admin',
+  'title.guidance': 'Kriisijuhtimine',
+  'title.guidanceDetail': 'Juhise artikkel',
 
   // --- consent banner (first-level data-usage notice). The app has no
   // optional cookies, trackers or analytics, so this is a necessary-only
@@ -317,4 +320,113 @@ export const ET: Messages = {
   'submit.geocode.rateLimited': 'Aadressiotsing on koormatud. Palun oota hetke ja proovi uuesti.',
   'submit.geocode.network':
     'Aadressiotsingule ei pääse praegu ligi. Kasuta selle asemel kaart või link.',
+
+  // --- kriisijuhtimine (/blog — crisis-guidance D4/D6). Artikli pealkiri ja
+  // keha on administraatori tekst (kuvatakse muutmatuna), mitte sõnastiku võtmed.
+  'guidance.title': 'Kriisijuhtimine',
+  'guidance.subtitle': 'Praktilised juhised kriisiseisundiks.',
+  'guidance.loading': 'Juhiseid laetakse…',
+  'guidance.loadingDetail': 'Juhise artiklit laetakse…',
+  'guidance.empty': 'Juhiseid pole veel — vaata hiljem uuesti.',
+  'guidance.backToList': 'Tagasi kõikidele juhistele',
+  'guidance.notFoundTitle': 'Juhise artiklit ei leitud',
+  'guidance.notFoundBody': 'Sellist juhisteposti ei ole — see on tõenäoliselt eemaldatud või avaldamata.',
+  'guidance.published': 'Avaldatud',
+
+  // --- administraator: juhisepostid + toimetaja + meediakogumik (crisis-guidance D8).
+  'admin.retry': 'Proovi uuesti',
+
+  'admin.guidance.tab': 'Juhised',
+  'admin.guidance.loading': 'Juhiseposte laetakse…',
+  'admin.guidance.empty': 'Juhiseposte pole veel.',
+  'admin.guidance.create': 'Uus post',
+  'admin.guidance.col.title': 'Pealkiri',
+  'admin.guidance.col.status': 'Olek',
+  'admin.guidance.col.locale': 'Keel',
+  'admin.guidance.col.pinned': 'Kinnitatud',
+  'admin.guidance.col.published': 'Avaldatud',
+  'admin.guidance.col.updated': 'Muudetud',
+  'admin.guidance.col.actions': 'Tegevused',
+  'admin.guidance.status.draft': 'Mustand',
+  'admin.guidance.status.published': 'Avaldatud',
+  'admin.guidance.pinned.yes': 'Jah',
+  'admin.guidance.pinned.no': 'Ei',
+  'admin.guidance.edit': 'Muuda',
+  'admin.guidance.publish': 'Avalda',
+  'admin.guidance.unpublish': 'Tühista avaldamine',
+  'admin.guidance.delete': 'Kusta',
+  'admin.guidance.delete.confirm':
+    'Kustuta see post jäädavalt? Pilt jääb meediakogumikku.',
+  'admin.guidance.delete.confirmButton': 'Kinnita kustutamine',
+  'admin.guidance.delete.cancel': 'Tühista',
+  'admin.guidance.working': 'Töötlen…',
+  'admin.guidance.success.created': 'Post loodud.',
+  'admin.guidance.success.updated': 'Post uuendatud.',
+  'admin.guidance.success.published': 'Post avaldatud.',
+  'admin.guidance.success.unpublished': 'Posti avaldamine tühistatud.',
+  'admin.guidance.success.deleted': 'Post kustutatud.',
+
+  'admin.guidance.editor.createTitle': 'Uus juhisepost',
+  'admin.guidance.editor.editTitle': 'Juhiseposti muutmine',
+  'admin.guidance.editor.loading': 'Posti laetakse…',
+  'admin.guidance.editor.titleLabel': 'Pealkiri *',
+  'admin.guidance.editor.titleRequired': 'Pealkiri on kohustuslik.',
+  'admin.guidance.editor.titleTooLong': 'Pealkiri võib olla maksimaalselt 255 tähemärki.',
+  'admin.guidance.editor.slugLabel': 'Sluug (valikuga)',
+  'admin.guidance.editor.slugHint.create':
+    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jättes genereeritakse sluuug pealkirjast.',
+  'admin.guidance.editor.slugHint.edit':
+    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jättes jääb praegune sluuug säilima.',
+  'admin.guidance.editor.slugInvalid':
+    'Kasuta väiketähti, numbreid ja sidekriipsusid (ilma alg- või lõpusidekriipsuta).',
+  'admin.guidance.editor.bodyLabel': 'Sisukeha *',
+  'admin.guidance.editor.bodyHint':
+    'Sanitizeeritud HTML: säilivad h2, h3, p, br, strong, em, ul, ol, li, a ja blockquote; muu eemaldatakse salvestamisel.',
+  'admin.guidance.editor.bodyRequired': 'Sisukeha on kohustuslik.',
+  'admin.guidance.editor.heroLabel': 'Pealtpilt',
+  'admin.guidance.editor.hero.current': 'Praegune pilt',
+  'admin.guidance.editor.hero.choose': 'Vali meediakogumikust',
+  'admin.guidance.editor.hero.loading': 'Meediakogumikku laetakse…',
+  'admin.guidance.editor.hero.empty':
+    'Meediakogumikus pilte ei ole — laadi üles pilt Meediakogumiku kaardil.',
+  'admin.guidance.editor.hero.remove': 'Eemalda pilt',
+  'admin.guidance.editor.altLabel': 'Pealtpildi alt-tekst (valikuga)',
+  'admin.guidance.editor.altRequired': 'Kui pealtpilt on valitud, on alt-tekst kohustuslik.',
+  'admin.guidance.editor.altForbidden': 'Eemalda alt-tekst või vali pealtpilt.',
+  'admin.guidance.editor.altTooLong': 'Alt-tekst võib olla maksimaalselt 300 tähemärki.',
+  'admin.guidance.editor.localeLabel': 'Keel (valikuga)',
+  'admin.guidance.editor.localeHint':
+    'Posti keel, nt en või et. Tühjaks jättes kasutatakse serveri vaikimisi keelt.',
+  'admin.guidance.editor.localeTooLong': 'Keel võib olla maksimaalselt 5 tähemärki.',
+  'admin.guidance.editor.pinnedLabel': 'Kinnita see post juhiseliste tippu',
+  'admin.guidance.editor.statusLabel': 'Avaldamine',
+  'admin.guidance.editor.status.draft': 'Salvesta mustandina',
+  'admin.guidance.editor.status.publish': 'Salvesta ja avalda',
+  'admin.guidance.editor.statusNote':
+    'Avaldamisoleku muudavad loendis toimingud Avalda ja Tühista avaldamine.',
+  'admin.guidance.editor.save': 'Salvesta',
+  'admin.guidance.editor.saving': 'Salvestan…',
+  'admin.guidance.editor.cancel': 'Tühista',
+
+  'admin.media.tab': 'Meediakogumik',
+  'admin.media.loading': 'Meediakogumikku laetakse…',
+  'admin.media.empty': 'Kogumikus pilte ei ole.',
+  'admin.media.upload': 'Laadi pilt üles',
+  'admin.media.uploading': 'Laen üles…',
+  'admin.media.uploadHint': 'JPEG, PNG või WebP.',
+  'admin.media.col.image': 'Pilt',
+  'admin.media.col.file': 'Fail',
+  'admin.media.col.dimensions': 'Mõõdud',
+  'admin.media.col.size': 'Suurus',
+  'admin.media.col.uploaded': 'Üles laaditud',
+  'admin.media.col.usedBy': 'Kasutavad',
+  'admin.media.col.actions': 'Tegevused',
+  'admin.media.delete': 'Kusta',
+  'admin.media.delete.working': 'Kontrollin…',
+  'admin.media.delete.inUse':
+    'Seda pilti kasutab siiski juhisepost. Kustutamine eemaldab mõjutatud postidelt pealtpildi.',
+  'admin.media.delete.confirmButton': 'Kustuta siiski',
+  'admin.media.delete.cancel': 'Tühista',
+  'admin.media.success.uploaded': 'Pilt üles laaditud.',
+  'admin.media.success.deleted': 'Pilt kustutatud.',
 };

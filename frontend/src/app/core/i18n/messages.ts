@@ -15,6 +15,7 @@ export interface Messages {
   /** Burger button aria-label. */
   'menu.aria': string;
   'nav.map': string;
+  'nav.guidance': string;
   'nav.account': string;
   'nav.admin': string;
   /** Skip-to-content link, the shell's first element. */
@@ -57,6 +58,8 @@ export interface Messages {
   'title.shelterDetail': string;
   'title.submit': string;
   'title.admin': string;
+  'title.guidance': string;
+  'title.guidanceDetail': string;
 
   // --- consent banner (first-level data-usage notice)
   /** Accessible name of the consent banner region. */
@@ -296,6 +299,139 @@ export interface Messages {
   'submit.geocode.noResults': string;
   'submit.geocode.rateLimited': string;
   'submit.geocode.network': string;
+
+  // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
+  // body are admin copy (rendered verbatim), never catalog keys.
+  'guidance.title': string;
+  'guidance.subtitle': string;
+  'guidance.loading': string;
+  'guidance.loadingDetail': string;
+  'guidance.empty': string;
+  'guidance.backToList': string;
+  'guidance.notFoundTitle': string;
+  'guidance.notFoundBody': string;
+  /** The date-line label in front of the locale-aware publication date. */
+  'guidance.published': string;
+
+  // --- admin: guidance tab + editor + media library (crisis-guidance D8).
+  // The admin surface is i18n'd from the guidance tabs on: every string
+  // below runs through the `t` pipe; post TITLES/BODIES are admin copy
+  // (rendered verbatim), never catalog keys.
+  /** The shared Retry button on a failed tab load. */
+  'admin.retry': string;
+
+  // guidance tab: the post list (title, status, locale, pinned, published
+  // date — from the public index merge, the admin DTO has no publishedAt —
+  // updated) and the row actions.
+  'admin.guidance.tab': string;
+  'admin.guidance.loading': string;
+  'admin.guidance.empty': string;
+  'admin.guidance.create': string;
+  'admin.guidance.col.title': string;
+  'admin.guidance.col.status': string;
+  'admin.guidance.col.locale': string;
+  'admin.guidance.col.pinned': string;
+  'admin.guidance.col.published': string;
+  'admin.guidance.col.updated': string;
+  'admin.guidance.col.actions': string;
+  'admin.guidance.status.draft': string;
+  'admin.guidance.status.published': string;
+  'admin.guidance.pinned.yes': string;
+  'admin.guidance.pinned.no': string;
+  'admin.guidance.edit': string;
+  'admin.guidance.publish': string;
+  'admin.guidance.unpublish': string;
+  'admin.guidance.delete': string;
+  /** The two-tap confirm strip prompt (the image-stays note is honest
+   * copy: the delete never touches the media library). */
+  'admin.guidance.delete.confirm': string;
+  'admin.guidance.delete.confirmButton': string;
+  'admin.guidance.delete.cancel': string;
+  /** The shared in-flight button copy on this tab's row actions. */
+  'admin.guidance.working': string;
+  'admin.guidance.success.created': string;
+  'admin.guidance.success.updated': string;
+  'admin.guidance.success.published': string;
+  'admin.guidance.success.unpublished': string;
+  'admin.guidance.success.deleted': string;
+
+  // guidance editor (the create/edit form). The body is a plain textarea
+  // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance D9 is
+  // defence-in-depth on the server sanitizer).
+  'admin.guidance.editor.createTitle': string;
+  'admin.guidance.editor.editTitle': string;
+  'admin.guidance.editor.loading': string;
+  'admin.guidance.editor.titleLabel': string;
+  'admin.guidance.editor.titleRequired': string;
+  'admin.guidance.editor.titleTooLong': string;
+  'admin.guidance.editor.slugLabel': string;
+  /** Create mode: a blank slug is derived from the title server-side. */
+  'admin.guidance.editor.slugHint.create': string;
+  /** Edit mode: a blank slug KEEPS the current one (server rule). */
+  'admin.guidance.editor.slugHint.edit': string;
+  /** The generated-slug shape, enforced up front (server 400 otherwise). */
+  'admin.guidance.editor.slugInvalid': string;
+  'admin.guidance.editor.bodyLabel': string;
+  /** The sanitizer allowlist, stated where the admin types it. */
+  'admin.guidance.editor.bodyHint': string;
+  'admin.guidance.editor.bodyRequired': string;
+  'admin.guidance.editor.heroLabel': string;
+  /** The selected hero's caption (above its thumbnail). */
+  'admin.guidance.editor.hero.current': string;
+  'admin.guidance.editor.hero.choose': string;
+  'admin.guidance.editor.hero.loading': string;
+  /** The picker's empty state (points at the Media library tab). */
+  'admin.guidance.editor.hero.empty': string;
+  'admin.guidance.editor.hero.remove': string;
+  /** The alt's label; the cross-field rule (mandatory iff a hero is set)
+   *  is enforced in the UI with the two errors below, mirroring the
+   *  server's 400 so a pointless round trip never happens. */
+  'admin.guidance.editor.altLabel': string;
+  'admin.guidance.editor.altRequired': string;
+  'admin.guidance.editor.altForbidden': string;
+  'admin.guidance.editor.altTooLong': string;
+  'admin.guidance.editor.localeLabel': string;
+  'admin.guidance.editor.localeHint': string;
+  'admin.guidance.editor.localeTooLong': string;
+  'admin.guidance.editor.pinnedLabel': string;
+  /** Create mode only: the one-shot write-and-publish choice. */
+  'admin.guidance.editor.statusLabel': string;
+  'admin.guidance.editor.status.draft': string;
+  'admin.guidance.editor.status.publish': string;
+  /** Edit mode: the publication state is owned by the row actions. */
+  'admin.guidance.editor.statusNote': string;
+  'admin.guidance.editor.save': string;
+  'admin.guidance.editor.saving': string;
+  'admin.guidance.editor.cancel': string;
+
+  // media library tab (the asset inventory: the editor's hero picker and
+  // this grid both list it). Delete is API-first: the first tap calls the
+  // endpoint, and a 409 (still referenced) arms the confirm that re-issues
+  // with confirm=true.
+  'admin.media.tab': string;
+  'admin.media.loading': string;
+  'admin.media.empty': string;
+  'admin.media.upload': string;
+  'admin.media.uploading': string;
+  /** The accepted types (the server re-checks magic bytes + declared type). */
+  'admin.media.uploadHint': string;
+  'admin.media.col.image': string;
+  'admin.media.col.file': string;
+  'admin.media.col.dimensions': string;
+  'admin.media.col.size': string;
+  'admin.media.col.uploaded': string;
+  'admin.media.col.usedBy': string;
+  'admin.media.col.actions': string;
+  'admin.media.delete': string;
+  /** The first tap is in flight (the API decides: 200 gone / 409 in-use). */
+  'admin.media.delete.working': string;
+  /** The in-use confirm copy (the 409 message names the posts; it is
+   *  echoed after this sentence). */
+  'admin.media.delete.inUse': string;
+  'admin.media.delete.confirmButton': string;
+  'admin.media.delete.cancel': string;
+  'admin.media.success.uploaded': string;
+  'admin.media.success.deleted': string;
 }
 
 /** A catalog key — templates/guards pass these to `t()` / the `t` pipe. */

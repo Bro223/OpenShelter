@@ -4,24 +4,29 @@ import { ApiClient } from '../core/api-client';
 import type {
   AdminAlertRow,
   AdminAuditRow,
+  AdminGuidancePostDto,
   AdminShelterDto,
   AdminShelterFilters,
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
   AdminUserDto,
+  CreateGuidancePostRequest,
+  MediaAssetDto,
   ReviewShelterRequest,
   ReviewShelterResponse,
   ShelterStatus,
+  UpdateGuidancePostRequest,
 } from '../core/models';
 
 /**
- * The door to the /admin/* controller group (admin-moderation D3). Every
- * endpoint requires the caller's JWT AND admin kind (backend re-checks the
- * kind per request — a fresh lookup, never a JWT claim: 401 anonymous, 403
+ * The door to the /admin/* controller group (admin-moderation D3, plus the
+ * crisis-guidance D3 authoring + media-library endpoints). Every endpoint
+ * requires the caller's JWT AND admin kind (backend re-checks the kind per
+ * request — a fresh lookup, never a JWT claim: 401 anonymous, 403
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The fifteen endpoints, 1:1:
+ * The twenty-five endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -38,6 +43,16 @@ import type {
  *   GET    /admin/users                        -> AdminUserDto[]
  *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
  *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
+ *   GET    /admin/guidance                     -> AdminGuidancePostDto[] (drafts incl.)
+ *   GET    /admin/guidance/{id}                -> AdminGuidancePostDto
+ *   POST   /admin/guidance                     -> AdminGuidancePostDto (200)
+ *   PUT    /admin/guidance/{id}                -> AdminGuidancePostDto (200)
+ *   POST   /admin/guidance/{id}/publish        -> 204 (idempotent)
+ *   POST   /admin/guidance/{id}/unpublish      -> 204 (idempotent)
+ *   DELETE /admin/guidance/{id}?confirm=true   -> 204 (confirm REQUIRED)
+ *   GET    /admin/media                        -> MediaAssetDto[] (newest first)
+ *   POST   /admin/media (multipart: file)      -> MediaAssetDto (201)
+ *   DELETE /admin/media/{id}[?confirm=true]    -> MediaAssetDto (200; 409 in-use)
  */
 @Injectable({ providedIn: 'root' })
 export class AdminGateway {
@@ -200,6 +215,124 @@ export class AdminGateway {
    */
   unsuspendUser(id: number): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/users/${id}/unsuspend`));
+  }
+
+  // ------------------------------------------------------------------
+  // Guidance (crisis-guidance D3/D4): the authoring endpoints
+  // ------------------------------------------------------------------
+
+  /**
+   * GET /admin/guidance -> AdminGuidancePostDto[] — every post, drafts
+   * included, newest-updated first (the list renders in the server's
+   * order — no client sort). The stored (sanitized) bodyHtml is returned
+   * — the editor round-trips what is stored.
+   */
+  listGuidancePosts(): Promise<AdminGuidancePostDto[]> {
+    return lastValueFrom(this.api.get<AdminGuidancePostDto[]>('/admin/guidance'));
+  }
+
+  /**
+   * GET /admin/guidance/{id} -> AdminGuidancePostDto — the id-keyed detail
+   * (the admin form edits by id — a draft has a slug, but the form never
+   * navigates by it). 404 unknown id.
+   */
+  getGuidancePost(id: number): Promise<AdminGuidancePostDto> {
+    return lastValueFrom(this.api.get<AdminGuidancePostDto>(`/admin/guidance/${id}`));
+  }
+
+  /**
+   * POST /admin/guidance -> 200 with the created post. DRAFT by default;
+   * an explicit status PUBLISHED publishes in one call. 400 validation
+   * (title/body required, the alt/hero pairing, the slug shape); 409 an
+   * admin-supplied slug another post already holds (naming the slug); 404
+   * a heroImageId with no such asset.
+   */
+  createGuidancePost(request: CreateGuidancePostRequest): Promise<AdminGuidancePostDto> {
+    return lastValueFrom(this.api.post<AdminGuidancePostDto>('/admin/guidance', request));
+  }
+
+  /**
+   * PUT /admin/guidance/{id} -> 200 with the updated post. Full replace of
+   * the editable fields; the slug is kept when omitted (a given slug that
+   * another post holds → 409 naming it); the body is re-sanitized
+   * server-side (the stored value is the sanitizer output). The
+   * publication state is NOT editable here — publish/unpublish own it.
+   * 404 unknown id (or a heroImageId with no such asset).
+   */
+  updateGuidancePost(id: number, request: UpdateGuidancePostRequest): Promise<AdminGuidancePostDto> {
+    return lastValueFrom(this.api.put<AdminGuidancePostDto>(`/admin/guidance/${id}`, request));
+  }
+
+  /**
+   * POST /admin/guidance/{id}/publish -> 204 (no body). Stamps publishedAt
+   * from the server clock (a re-publish stamps a FRESH instant);
+   * idempotent — an already-published post is a 204 no-op that writes no
+   * audit row. 404 unknown id.
+   */
+  publishGuidancePost(id: number): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/guidance/${id}/publish`));
+  }
+
+  /**
+   * POST /admin/guidance/{id}/unpublish -> 204 (no body). Back to DRAFT,
+   * publishedAt cleared (the public surface no longer exposes it);
+   * idempotent. 404 unknown id.
+   */
+  unpublishGuidancePost(id: number): Promise<void> {
+    return lastValueFrom(this.api.post<void>(`/admin/guidance/${id}/unpublish`));
+  }
+
+  /**
+   * DELETE /admin/guidance/{id}?confirm=true -> 204 (no body). The confirm
+   * query parameter is REQUIRED (400 without it) — the UI's two-tap
+   * confirm precedes the call, so the gateway always sends it. The post's
+   * media assets stay in the library (uploads are inventory, not
+   * garbage) and its audit rows keep their label snapshot. 404 unknown id.
+   */
+  deleteGuidancePost(id: number): Promise<void> {
+    return lastValueFrom(this.api.delete<void>(`/admin/guidance/${id}?confirm=true`));
+  }
+
+  // ------------------------------------------------------------------
+  // Media library (crisis-guidance D7/D8): the asset inventory
+  // ------------------------------------------------------------------
+
+  /**
+   * GET /admin/media -> MediaAssetDto[] — every asset newest-first, with
+   * the serving URL, dimensions, size, upload date and the reused-by-post
+   * count (0 for an unused asset — the library is the admin's inventory).
+   */
+  listMediaAssets(): Promise<MediaAssetDto[]> {
+    return lastValueFrom(this.api.get<MediaAssetDto[]>('/admin/media'));
+  }
+
+  /**
+   * POST /admin/media -> 201 with the stored asset. Multipart (field name:
+   * `file`); the FormData body is sent as-is — Angular's HttpClient sets
+   * the multipart/form-data content type (with its boundary) for FormData
+   * bodies, so no explicit headers. 400 not a readable JPEG/PNG/WebP, or
+   * the declared type contradicts the bytes; 413 over the size cap (the
+   * server message names the cap — no partial file is left behind).
+   */
+  uploadMediaAsset(file: File): Promise<MediaAssetDto> {
+    const form = new FormData();
+    form.append('file', file);
+    return lastValueFrom(this.api.post<MediaAssetDto>('/admin/media', form));
+  }
+
+  /**
+   * DELETE /admin/media/{id} -> 200 with the pre-delete asset snapshot.
+   * With `confirm=false` (the default) an unreferenced asset deletes
+   * straight; a still-referenced one answers 409 naming the affected
+   * posts (nothing deleted) — the UI turns that answer into its confirm
+   * step and re-issues with `confirm=true`, which clears BOTH
+   * hero_image_id and hero_image_alt on every referencing post in the
+   * same transaction (the posts still render, with no image). 404 unknown
+   * id.
+   */
+  deleteMediaAsset(id: number, confirm: boolean): Promise<MediaAssetDto> {
+    const path = confirm ? `/admin/media/${id}?confirm=true` : `/admin/media/${id}`;
+    return lastValueFrom(this.api.delete<MediaAssetDto>(path));
   }
 }
 
