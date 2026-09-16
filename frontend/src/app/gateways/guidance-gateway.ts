@@ -14,7 +14,7 @@ export class GuidanceGateway {
   private readonly api = inject(ApiClient);
 
   /**
-   * GET /api/guidance -> GuidancePostDto[] — the public index (D6):
+   * GET /api/guidance -> GuidancePostDto[] — the public index, pinned first then newest:
    * PUBLISHED only (drafts are invisible), pinned first, then publishedAt
    * descending (id descending tie-break). 200 with [] when nothing is
    * published. The index does not carry the post body (bodyHtml is null).
@@ -25,7 +25,7 @@ export class GuidanceGateway {
 
   /**
    * GET /api/guidance/{slug} -> one GuidancePostDto — the public detail
-   * (D4): PUBLISHED only, by slug (never by id), carrying the stored
+   * PUBLISHED only, fetched by slug (never by id), carrying the stored
    * (sanitized) bodyHtml. A draft slug and an unknown slug answer the
    * SAME 404 (a draft's existence is never revealed).
    */

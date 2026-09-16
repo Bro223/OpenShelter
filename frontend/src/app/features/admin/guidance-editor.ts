@@ -69,7 +69,7 @@ export function slugShapeValidator(control: AbstractControl): ValidationErrors |
  *
  * The body is a plain `<textarea>` over the stored (server-sanitized)
  * HTML — no WYSIWYG: sanitization is defence in depth on the server, and
- * the editor round-trips exactly what is stored (D2/D9).
+ * the editor round-trips exactly what is stored — the server re-sanitizes on every write.
  */
 @Component({
   selector: 'app-guidance-editor',
@@ -221,7 +221,7 @@ export class GuidanceEditor implements OnInit {
     this.heroPickerOpen.set(false);
   }
 
-  /** Clear the hero (the asset stays in the library — D8). */
+  /** Clear the hero; the asset itself stays in the media library. */
   removeHero(): void {
     this.heroImageId().setValue(null);
   }

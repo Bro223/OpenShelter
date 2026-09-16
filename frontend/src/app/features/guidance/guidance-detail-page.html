@@ -20,9 +20,8 @@
           {{ p.publishedAt | date: 'medium' : undefined : i18n.locale() }}
         </p>
       </header>
-      <!-- The stored body: admin-authored HTML sanitized server-side (jsoup
-           allowlist). [innerHTML] auto-sanitizes AGAIN client-side — no
-           bypassSecurityTrustHtml, no DomSanitizer bypass. -->
+      <!-- Bound through Angular's sanitizer as well as the server's allowlist,
+           so this site can never introduce a bypass. -->
       <article class="guidance-detail__body" [innerHTML]="p.bodyHtml ?? ''"></article>
     }
   </section>

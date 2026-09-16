@@ -16,7 +16,8 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
  * Thin shell (01-TASK.md §7): state in signals, the gateway owns the API
  * (a permit-all read — no auth). The body is admin-authored HTML the
  * server already sanitized (jsoup allowlist) — it is rendered through
- * [innerHTML], which auto-sanitizes AGAIN client-side (never
+ * [innerHTML], which runs Angular's sanitizer before the value reaches the
+ * DOM, so the stored HTML is sanitized a second time client-side (never
  * bypassSecurityTrustHtml, never a DomSanitizer bypass).
  *
  * A 404 — an unknown slug OR a draft slug (the SAME answer, by design: a

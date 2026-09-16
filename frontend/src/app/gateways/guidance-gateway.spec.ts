@@ -18,7 +18,7 @@ const POST: GuidancePostDto = {
 };
 
 const POST_NO_BODY: GuidancePostDto = {
-  // The index rows never carry the body (D6).
+  // The public index rows never carry the body; only the detail request does.
   ...POST,
   slug: 'power-outages',
   title: 'Power outages',

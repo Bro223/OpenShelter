@@ -16,7 +16,8 @@ class FakeGuidanceGateway {
   getBySlug = vi.fn(async (slug: string): Promise<GuidancePostDto> => {
     const row = this.rows.get(slug);
     if (row === undefined) {
-      // A draft slug and an unknown slug answer the SAME 404 (D4).
+      // A draft slug and an unknown slug answer the same 404, so a draft is
+    // never distinguishable from a post that does not exist.
       throw ApiError.fromHttp(
         404,
         {
@@ -167,9 +168,9 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
     });
 
     it('re-sanitizes client-side: a script tag in the stored body never lands in the DOM', async () => {
-      // Even though the server already ran the jsoup allowlist, [innerHTML]
-      // auto-sanitizes AGAIN — the page must never paste the body through a
-      // bypass. The fixture simulates a body that slipped a script tag.
+      // The server runs the jsoup allowlist first; [innerHTML] then sanitizes
+      // the value again before it reaches the DOM, so a body that still carried
+      // a script tag cannot inject one. The fixture simulates exactly that.
       guidanceGateway.rows.set(
         'rogue',
         guidancePost({
@@ -243,7 +244,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Not-found: an unknown slug AND a draft slug answer the SAME 404 (D4) —
+  // Not-found: an unknown slug AND a draft slug answer the same 404 —
   // the page must not reveal which one it hit.
   // ---------------------------------------------------------------------------
   describe('not-found (404)', () => {

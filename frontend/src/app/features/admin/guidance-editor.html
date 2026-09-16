@@ -156,7 +156,8 @@
     </div>
 
     @if (post() === null) {
-      <!-- Create mode only: the one-shot write-and-publish choice (D4).
+      <!-- Create mode only: the status travels with the create request, and a later
+       edit never changes it.
            The edit form never sends a status — publication state is owned
            by the Publish / Unpublish row actions. -->
       <fieldset class="field">
