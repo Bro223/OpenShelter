@@ -401,7 +401,13 @@ public class AdminModerationService {
                 .map(ModerationAuditLog.Row::moderatorId).filter(Objects::nonNull).collect(Collectors.toSet()));
         return rows.stream()
                 .map(row -> {
-                    User moderator = moderators.get(row.moderatorId());
+                    // V14: moderation_actions.moderator_id is ON DELETE SET NULL,
+                    // so a row can outlive its moderator with a null id. The lookup
+                    // must not take that null key — an immutable map throws on
+                    // get(null) instead of answering null — hence the guard, and the
+                    // "Unknown" fallback the spec promises for an erased moderator.
+                    Long moderatorId = row.moderatorId();
+                    User moderator = moderatorId == null ? null : moderators.get(moderatorId);
                     return new AdminAuditDto(
                             row.id(),
                             row.shelterId(),
@@ -477,7 +483,10 @@ public class AdminModerationService {
         if (row.shelterId() != null) {
             return shelterNames.getOrDefault(row.shelterId(), DELETED_SHELTER_NAME);
         }
-        User subject = subjects.get(row.subjectUserId());
+        // Same dangling-id hazard as the moderator slot: the subject lookup may be
+        // an immutable empty map, so a null key must never reach it.
+        Long subjectId = row.subjectUserId();
+        User subject = subjectId == null ? null : subjects.get(subjectId);
         if (subject == null) {
             return DELETED_ACCOUNT_NAME;
         }

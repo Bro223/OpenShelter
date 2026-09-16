@@ -304,6 +304,30 @@ class AdminModerationServiceTest {
         assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(InvalidShelterException.class);
     }
 
+    @Test
+    void anErasedActorRendersAsUnknownInsteadOfFailingTheRead() {
+        // V14: moderation_actions.moderator_id is ON DELETE SET NULL, so a row can
+        // outlive its moderator (and a user-scoped row can outlive its subject).
+        // The spec promises the read renders those as "Unknown"/deleted rather than
+        // failing — this is the case that used to NPE, because the batched id→user
+        // lookup is an immutable map when nothing resolves and get(null) throws.
+        audit.recordWithDanglingModerator(null, submitterId,
+                ModerationAuditLog.Action.USER_SUSPEND, "reason", null, null);
+        audit.recordWithDanglingModerator(null, null,
+                ModerationAuditLog.Action.USER_SUSPEND, "reason", null, null);
+
+        List<AdminAuditDto> rows = service.listAudit(null);
+
+        assertThat(rows).hasSize(2);
+        // The first row's subject resolves (only its actor dangles).
+        assertThat(rows.get(1).moderatorName()).isEqualTo("Unknown");
+        assertThat(rows.get(1).shelterName()).isEqualTo("Account: Autor (autor@example.ee)");
+        // The second has no subject either: neither lookup may take a null key.
+        assertThat(rows.get(0).moderatorName()).isEqualTo("Unknown");
+        assertThat(rows.get(0).shelterName())
+                .isEqualTo(AdminModerationService.DELETED_ACCOUNT_NAME);
+    }
+
     // ---------- user suspension ----------
 
     @Test

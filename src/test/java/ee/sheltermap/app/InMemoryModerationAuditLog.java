@@ -42,6 +42,19 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
                 null, null, clock.instant(), subjectLabel));
     }
 
+    /**
+     * Records a row whose actor no longer exists — the state V14's
+     * {@code moderation_actions.moderator_id ON DELETE SET NULL} produces when a
+     * moderator's account is erased. Only the database can make a null actor, so
+     * the fake has to be able to as well for the read path to be tested.
+     */
+    public synchronized void recordWithDanglingModerator(Long shelterId, Long subjectUserId, Action action,
+                                                         String reason, ReviewStatus previousStatus,
+                                                         ReviewStatus newStatus) {
+        rows.add(new Row(nextId++, shelterId, subjectUserId, null, action, reason,
+                previousStatus, newStatus, clock.instant(), null));
+    }
+
     @Override
     public synchronized long countByModeratorAndAction(long moderatorId, Action action) {
         return rows.stream()
