@@ -4,6 +4,7 @@ import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -85,5 +86,27 @@ public class InMemoryUserRepository implements UserRepository {
     @Override
     public List<User> findAll() {
         return List.copyOf(store.values());
+    }
+
+    @Override
+    public void markActive(long userId, Instant at) {
+        User user = store.get(userId);
+        if (user != null) {
+            user.markActive(at);
+        }
+    }
+
+    @Override
+    public List<User> findInactiveBefore(Instant cutoff) {
+        // Mirrors the JPA query: REGISTERED-kind only (AdminUser is-a
+        // RegisteredUser — it is the domain mirror of the kind column and
+        // must be excluded here too), and an unstamped row cannot occur
+        // (the column is NOT NULL; the JPA impl only ever sees stamped
+        // rows, so a null stamp is filtered out rather than pruned).
+        return store.values().stream()
+                .filter(u -> u instanceof RegisteredUser)
+                .filter(u -> !(u instanceof AdminUser))
+                .filter(u -> u.getLastActivityAt() != null && u.getLastActivityAt().isBefore(cutoff))
+                .toList();
     }
 }

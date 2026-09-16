@@ -24,6 +24,16 @@ public abstract class User {
      */
     private Instant suspendedAt;
 
+    /**
+     * Last sign-in activity (retention-pruning): registration, a
+     * successful login, or a refresh-token rotation stamps it. The
+     * retention job prunes accounts idle beyond the owner's horizon by
+     * this column, so a persisted row always carries a value (V24 is
+     * NOT NULL — a NULL would read as "inactive since forever" and the
+     * first run would erase every account).
+     */
+    private Instant lastActivityAt;
+
 
     public Long getId() {
         return id;
@@ -70,5 +80,26 @@ public abstract class User {
     /** Lifts the suspension (a no-op on an active account). */
     public void unsuspend() {
         this.suspendedAt = null;
+    }
+
+    /** The last sign-in-activity stamp (never null for a persisted row). */
+    public Instant getLastActivityAt() {
+        return lastActivityAt;
+    }
+
+    /**
+     * Persistence boundary only (the mapper restores the stored stamp on
+     * load); business code uses {@link #markActive(Instant)}.
+     */
+    public void setLastActivityAt(Instant lastActivityAt) {
+        this.lastActivityAt = lastActivityAt;
+    }
+
+    /**
+     * Records sign-in activity (register / login / refresh) — the stamp
+     * starts (or restarts) the account's retention idle clock.
+     */
+    public void markActive(Instant when) {
+        this.lastActivityAt = Objects.requireNonNull(when, "when");
     }
 }

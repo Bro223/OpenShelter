@@ -58,17 +58,19 @@
       under the e-mail field: verification code + password resets; under
       the phone field: verification code + later login)
 
-## Slice 4 — retention rules + explicit geolocation consent (partial — retention owner-owed)
+## Slice 4 — retention rules + explicit geolocation consent (complete)
 
 - [x] Geolocation consent: the "Show shelters around you" CTA stays the
       ONLY user-initiated trigger; a standing consent line under it now
       states the browser asks first and the location is never sent to the
       servers (the nearest ranking is client-side — no backend call);
       never IP geolocation (no such code path exists — verified in review)
-- [ ] Retention rules — **OWNER PRODUCT CALL (logged 2026-09-13, not
-      decided)**: whether to run any calendar-based retention (e.g. auto-
-      deletion of inactive accounts, or a data-prune schedule). The
-      privacy policy states the CURRENT behavior only (data kept for the
-      life of the account, no automatic deletion today) and flags that it
-      will be updated if that changes. M15 (security/backups/monitoring)
-      is the natural place to revisit this with the owner.
+- [x] Retention rules — **DECIDED (owner, 2026-09-16)**: accounts with
+      no sign-in activity for **24 months** are pruned; moderation/audit
+      records older than **24 months** are pruned; data export and
+      account erasure stay immediate (unchanged). Implemented and
+      tested in the separate **retention-pruning** change (V24 +
+      `ee.sheltermap.retention` + `RETENTION_ENABLED`, default off);
+      the privacy policy's `[RETENTION PERIOD TO BE CONFIRMED]`
+      placeholder is replaced with the decided wording. Data export and
+      account erasure remain immediate.

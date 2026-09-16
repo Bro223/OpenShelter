@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.User;
 import ee.sheltermap.domain.RegisteredUser;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -71,4 +72,22 @@ public interface UserRepository {
      * Ordered by id for a stable tab.
      */
     List<User> findAll();
+
+    /**
+     * Stamps sign-in activity (retention-pruning): a registration,
+     * a successful login, or a refresh rotation. Column-only write —
+     * the auth paths must not pay a full aggregate re-save (PII
+     * re-encryption, claim diff) on every credential use. Unknown ids
+     * are a no-op (the same convention as the column-only reads above).
+     */
+    void markActive(long userId, Instant at);
+
+    /**
+     * The REGISTERED-kind accounts whose last sign-in activity is
+     * strictly before {@code cutoff} — the retention job's prune
+     * candidates. ADMIN rows never qualify (the job must NEVER prune an
+     * admin, no matter how idle) and GUEST rows have no sign-in route,
+     * so neither kind is returned. Ordered by id for a deterministic run.
+     */
+    List<User> findInactiveBefore(Instant cutoff);
 }

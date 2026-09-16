@@ -85,14 +85,19 @@ public class AuthService {
         if (users.findByPhone(phone) != null) {
             throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
         }
+        RegisteredUser user;
         try {
-            RegisteredUser user = users.register(request.name(), email, phone);
+            user = users.register(request.name(), email, phone);
             credentials.save(new UserCredentials(user.getId(), passwordHasher.hash(request.password()),
                     clock.instant()));
         } catch (DataIntegrityViolationException e) {
             // concurrent duplicate slipped past the pre-check — same 409
             throw new DuplicateAccountException("An account with this email or phone already exists");
         }
+        // Retention-pruning: registration is the account's first sign-in
+        // activity — stamp it (the V24 backfill covers pre-existing rows
+        // only; a fresh account must not start life "inactive").
+        users.markActive(user.getId(), clock.instant());
     }
 
     /**
@@ -149,6 +154,9 @@ public class AuthService {
         if (user.isSuspended()) {
             throw new SuspendedAccountException();
         }
+        // Retention-pruning: a successful login is sign-in activity —
+        // stamp it before issuing the session tokens.
+        users.markActive(user.getId(), clock.instant());
         return tokens.issue(user);
     }
 

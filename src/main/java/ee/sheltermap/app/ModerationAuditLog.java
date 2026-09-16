@@ -119,6 +119,15 @@ public interface ModerationAuditLog {
     int clearReasonByShelterIds(Collection<Long> shelterIds);
 
     /**
+     * Retention-pruning: removes every row strictly older than
+     * {@code cutoff} and returns how many went — the owner's
+     * 24-month moderation/audit horizon. A bulk delete in its own
+     * transaction: the background job, not the same-transaction action
+     * record every other write on this log is.
+     */
+    int deleteOlderThan(Instant cutoff);
+
+    /**
      * The newest rows first (created_at descending, id descending as the
      * same-timestamp tie-break), at most {@code limit} of them.
      */

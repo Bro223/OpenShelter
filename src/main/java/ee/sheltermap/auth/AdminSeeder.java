@@ -98,6 +98,10 @@ public class AdminSeeder implements ApplicationRunner {
         // pre-set SMART_ID claim carries the e-mail as its external ref.
         AdminUser admin = AdminUser.provisioned("Admin", email, clock.instant());
         users.save(admin);
+        // Retention-pruning: provisioning is the admin's activity stamp
+        // (the admin is never a prune candidate — the stamp keeps the
+        // NOT NULL last_activity_at column honest).
+        users.markActive(admin.getId(), clock.instant());
         credentials.save(new UserCredentials(admin.getId(), passwordHasher.hash(password), clock.instant()));
         log.info("Seeded admin account {}", email);
     }

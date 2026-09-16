@@ -17,7 +17,7 @@ class FakeGuidanceGateway {
     const row = this.rows.get(slug);
     if (row === undefined) {
       // A draft slug and an unknown slug answer the same 404, so a draft is
-    // never distinguishable from a post that does not exist.
+      // never distinguishable from a post that does not exist.
       throw ApiError.fromHttp(
         404,
         {

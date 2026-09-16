@@ -5,6 +5,7 @@ import ee.sheltermap.domain.ReviewStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -88,6 +89,16 @@ public class JpaModerationAuditLog implements ModerationAuditLog {
         }
         // Runs in the caller's transaction (the erasure service is @Transactional).
         return actions.clearReasonByShelterIds(shelterIds);
+    }
+
+    @Override
+    @Transactional
+    public int deleteOlderThan(Instant cutoff) {
+        Objects.requireNonNull(cutoff, "cutoff");
+        // The background retention job — its OWN transaction (the caller
+        // is the scheduler, not an action service), so a prune failure
+        // rolls back only the prune, never an admin action.
+        return actions.deleteOlderThan(cutoff);
     }
 
     @Override

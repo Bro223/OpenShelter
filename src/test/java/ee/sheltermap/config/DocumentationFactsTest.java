@@ -34,7 +34,7 @@ class DocumentationFactsTest {
     private static final Path MIGRATIONS = Path.of("src/main/resources/db/migration");
     private static final Path CONTROLLERS = Path.of("src/main/java/ee/sheltermap/api");
 
-    /** `V1`–`V23` (as the README writes it) or a plain `V1-V23`. */
+    /** `V1`–`V24` (as the README writes it) or a plain `V1-V24`. */
     private static final Pattern README_RANGE =
             Pattern.compile("V1`[–-]`V(\\d+)");
 

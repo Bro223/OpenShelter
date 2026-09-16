@@ -10,6 +10,7 @@ import ee.sheltermap.auth.JwtProperties;
 import ee.sheltermap.auth.JwtTokenService;
 import ee.sheltermap.auth.RateLimiter;
 import ee.sheltermap.auth.TokenBucketRateLimiter;
+import ee.sheltermap.retention.RetentionProperties;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,7 +51,7 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties({JwtProperties.class, RateLimitProperties.class, VerificationProperties.class,
-        ContactChangeProperties.class, ReportProperties.class})
+        ContactChangeProperties.class, ReportProperties.class, RetentionProperties.class})
 public class SecurityConfig {
 
     @Bean

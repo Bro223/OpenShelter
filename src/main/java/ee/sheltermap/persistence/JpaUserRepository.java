@@ -10,6 +10,7 @@ import ee.sheltermap.verification.PhoneNumbers;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,19 +36,33 @@ public class JpaUserRepository implements UserRepository {
     private final SpringDataUserRepository users;
     private final SpringDataVerificationClaimRepository claims;
     private final PiiCrypto piiCrypto;
+    /** Last-resort last-activity backstop in {@link #save} (retention-pruning). */
+    private final Clock clock;
 
     public JpaUserRepository(SpringDataUserRepository users,
                              SpringDataVerificationClaimRepository claims,
-                             PiiCrypto piiCrypto) {
+                             PiiCrypto piiCrypto,
+                             Clock clock) {
         this.users = Objects.requireNonNull(users, "users");
         this.claims = Objects.requireNonNull(claims, "claims");
         this.piiCrypto = Objects.requireNonNull(piiCrypto, "piiCrypto");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
     @Transactional
     public void save(User user) {
         UserEntity entity = UserMapper.toEntity(user, piiCrypto);
+        // Retention-pruning backstop: no user row may ever be written
+        // with a NULL last_activity_at — a NULL reads as "inactive since
+        // forever" and the retention job would prune it. The auth paths
+        // stamp explicitly (register / login / refresh); this covers every
+        // other save (test fixtures, future creation paths). A loaded
+        // aggregate round-trips its stored stamp through the mapper, so
+        // this only ever fills a genuinely absent value.
+        if (entity.getLastActivityAt() == null) {
+            entity.setLastActivityAt(clock.instant());
+        }
         UserEntity saved = users.save(entity);
         user.setId(saved.getId());
         if (user instanceof RegisteredUser registered) {
@@ -207,6 +222,34 @@ public class JpaUserRepository implements UserRepository {
         List<UserEntity> entities = users.findAllByOrderByIdAsc();
         // One batched claims query for all users — no per-user N+1 (the
         // findByIds idiom).
+        Map<Long, List<VerificationClaimEntity>> claimsByUser =
+                entities.isEmpty() ? Map.of()
+                        : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()
+                                .collect(Collectors.groupingBy(VerificationClaimEntity::getUserId));
+        return entities.stream()
+                .map(e -> UserMapper.toDomain(e, claimsByUser.getOrDefault(e.getId(), List.of()), piiCrypto))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void markActive(long userId, Instant at) {
+        Objects.requireNonNull(at, "at");
+        // Column-only on purpose (the isSuspended convention): the auth
+        // paths call this on every credential use, so it must not pay a
+        // domain mapping (PII decrypt, claims load).
+        users.markLastActivityById(userId, at);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> findInactiveBefore(Instant cutoff) {
+        Objects.requireNonNull(cutoff, "cutoff");
+        // REGISTERED-kind only: the job prunes accounts — ADMIN is never
+        // a candidate, GUEST rows have no sign-in route. One batched
+        // claims query for the candidates (the findAll idiom).
+        List<UserEntity> entities =
+                users.findAllByKindAndLastActivityAtBefore(UserKind.REGISTERED, cutoff);
         Map<Long, List<VerificationClaimEntity>> claimsByUser =
                 entities.isEmpty() ? Map.of()
                         : claims.findByUserIdIn(entities.stream().map(UserEntity::getId).toList()).stream()

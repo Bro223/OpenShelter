@@ -55,6 +55,15 @@ public class UserEntity {
     @Column(name = "suspended_at")
     private Instant suspendedAt;
 
+    /**
+     * Last sign-in-activity stamp (retention-pruning, V24). NOT NULL —
+     * the retention job prunes accounts by this column, and a NULL would
+     * read as "inactive since forever" (the V24 backfill + the auth-path
+     * stamps + the DB default keep it filled; see the migration).
+     */
+    @Column(name = "last_activity_at", nullable = false)
+    private Instant lastActivityAt;
+
     public Long getId() {
         return id;
     }
@@ -121,5 +130,13 @@ public class UserEntity {
 
     public void setSuspendedAt(Instant suspendedAt) {
         this.suspendedAt = suspendedAt;
+    }
+
+    public Instant getLastActivityAt() {
+        return lastActivityAt;
+    }
+
+    public void setLastActivityAt(Instant lastActivityAt) {
+        this.lastActivityAt = lastActivityAt;
     }
 }

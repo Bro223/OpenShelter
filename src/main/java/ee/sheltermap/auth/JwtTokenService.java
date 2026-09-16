@@ -91,6 +91,9 @@ public class JwtTokenService implements TokenService {
         if (registered.isSuspended()) {
             throw new SuspendedAccountException();
         }
+        // Retention-pruning: a successful refresh rotation is sign-in
+        // activity (the session is being renewed) — stamp it.
+        users.markActive(registered.getId(), now);
         return issue(registered);
     }
 

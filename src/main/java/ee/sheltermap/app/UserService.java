@@ -3,6 +3,7 @@ package ee.sheltermap.app;
 import ee.sheltermap.domain.RegisteredUser;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Objects;
 
 /**
@@ -50,5 +51,14 @@ public class UserService {
     /** Duplicate-registration pre-check: {@code null} if the phone is free. */
     public RegisteredUser findByPhone(String phone) {
         return userRepository.findByPhone(phone);
+    }
+
+    /**
+     * Stamps sign-in activity (retention-pruning) — a column-only write;
+     * the auth paths (register / login / refresh) call this on every
+     * credential use.
+     */
+    public void markActive(long userId, Instant at) {
+        userRepository.markActive(userId, at);
     }
 }

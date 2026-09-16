@@ -47,6 +47,9 @@ final class UserMapper {
         // Suspension state round-trips on every kind — it is
         // account state, not a registered-user attribute.
         entity.setSuspendedAt(user.getSuspendedAt());
+        // Last-activity stamp round-trips the same way — a profile save
+        // must never clobber the retention clock with a stale/null value.
+        entity.setLastActivityAt(user.getLastActivityAt());
         return entity;
     }
 
@@ -68,6 +71,7 @@ final class UserMapper {
         };
         user.setId(entity.getId());
         user.setSuspendedAt(entity.getSuspendedAt());
+        user.setLastActivityAt(entity.getLastActivityAt());
         if (user instanceof RegisteredUser registered) {
             for (VerificationClaimEntity ce : claimEntities) {
                 VerificationClaim claim = new VerificationClaim(

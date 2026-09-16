@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * In-memory fake of {@link ModerationAuditLog} for tests: the same
@@ -74,6 +75,14 @@ public class InMemoryModerationAuditLog implements ModerationAuditLog {
             }
         }
         return redacted;
+    }
+
+    @Override
+    public synchronized int deleteOlderThan(Instant cutoff) {
+        Objects.requireNonNull(cutoff, "cutoff");
+        int before = rows.size();
+        rows.removeIf(row -> row.createdAt().isBefore(cutoff));
+        return before - rows.size();
     }
 
     @Override

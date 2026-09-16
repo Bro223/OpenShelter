@@ -77,11 +77,20 @@ describe('PrivacyPolicyPage', () => {
     expect(text()).toContain('download a JSON export');
   });
 
+  it('states the decided retention horizons and the deployment-gated job', () => {
+    // The owner's decision (retention-pruning): 24-month horizons, stated
+    // as the app's rule, with the enforcing job flagged as a
+    // deployment-level switch (off in this repository's dev config).
+    expect(text()).toContain('24 months');
+    expect(text()).toContain('no sign-in activity');
+    expect(text()).toContain('RETENTION_ENABLED');
+    expect(text()).not.toContain('[RETENTION PERIOD TO BE CONFIRMED]');
+  });
+
   it('carries visible placeholders for unconfirmed operator and legal details', () => {
     expect(text()).toContain('[OPERATOR LEGAL NAME]');
     expect(text()).toContain('[CONTACT EMAIL]');
     expect(text()).toContain('[DATA PROTECTION CONTACT]');
-    expect(text()).toContain('[RETENTION PERIOD TO BE CONFIRMED]');
     expect(text()).toContain('[LEGAL BASIS TO BE CONFIRMED]');
   });
 

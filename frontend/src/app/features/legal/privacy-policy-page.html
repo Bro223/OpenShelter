@@ -1,6 +1,6 @@
 <article class="legal-page">
   <h1 class="page-title">Privacy policy</h1>
-  <p class="legal-page__updated">Last updated: 13 September 2026</p>
+  <p class="legal-page__updated">Last updated: 16 September 2026</p>
 
   <nav class="legal-page__toc" aria-label="Table of contents">
     <ol>
@@ -205,13 +205,24 @@
     <h2>Data retention</h2>
     <p>
       Your account data is kept for as long as your account exists. Deleting your account removes
-      your account data: shelters you declared as a private home are removed, and public shelters
-      you submitted stay on the map without a submitter. We do not currently run automatic deletion
-      of inactive accounts.
+      your personal data immediately: shelters you declared as a private home are removed, and
+      public shelters you submitted stay on the map without a submitter.
     </p>
     <p>
-      The retention period for moderation records and for content left on the map after account
-      deletion is [RETENTION PERIOD TO BE CONFIRMED].
+      We also apply fixed retention periods: an account with no sign-in activity (registration,
+      login, or session refresh) for <strong>24 months</strong> is deleted with the same erasure
+      rule as account deletion, and moderation and audit records older than
+      <strong>24 months</strong> are removed.
+    </p>
+    <p>
+      Those periods are the app's retention rule. The scheduled job that enforces them is a
+      deployment-level switch (<code>RETENTION_ENABLED</code>): it is off in this repository's
+      development setup, and it is enabled by whoever operates a deployment. In a deployment
+      where the job is off, inactive accounts and old audit records are simply kept.
+    </p>
+    <p>
+      Public community submissions are never removed automatically: they stay on the map without
+      attribution until a moderator removes them.
     </p>
   </section>
 

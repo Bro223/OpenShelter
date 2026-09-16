@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,6 +18,10 @@ class JwtTokenServiceTest {
     private static final JwtProperties PROPS = new JwtProperties(
             "test-secret-test-secret-test-secret-test-secret", Duration.ofMinutes(15), Duration.ofDays(30));
     private static final Instant NOW = Instant.parse("2026-08-23T12:00:00Z");
+
+    private static Instant monthsBefore(Instant from, long months) {
+        return ZonedDateTime.ofInstant(from, ZoneOffset.UTC).minusMonths(months).toInstant();
+    }
 
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final InMemoryUserRepository users = new InMemoryUserRepository();
@@ -59,6 +64,20 @@ class JwtTokenServiceTest {
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex(first.refreshToken())).revokedAt()).isNotNull();
         assertThat(refreshTokens.findByTokenHash(Hashes.sha256Hex(second.refreshToken())).revokedAt()).isNull();
         assertThat(tokens.validateAccessToken(second.accessToken())).isEqualTo(user.getId());
+    }
+
+    @Test
+    void refreshStampsFreshActivity() {
+        // Retention-pruning: a successful refresh rotation is sign-in
+        // activity (the session is being renewed).
+        RegisteredUser user = savedUser();
+        user.markActive(monthsBefore(NOW, 12));
+        users.save(user);
+        TokenResponse first = tokens.issue(user);
+
+        tokens.refresh(first.refreshToken());
+
+        assertThat(user.getLastActivityAt()).isEqualTo(NOW);
     }
 
     @Test

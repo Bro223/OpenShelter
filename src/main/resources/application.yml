@@ -237,9 +237,10 @@ app:
     # 'dev' (local fixture)
     client: ${REGISTRY_CLIENT:csv}
     # The publisher's open-data page — surfaced on the UI provenance line
-    # (GET /api/data-source). Licence wording stays unasserted: the dataset
-    # page states no licence (checked 2026-09-15) and the explainer PDF is
-    # unreadable (TODO O1 in the official-dataset-csv change).
+    # (GET /api/data-source). Licence wording stays unasserted by owner
+    # decision (2026-09-16): the publisher states no licence, so the app
+    # credits the publisher and links the dataset instead of naming a licence,
+    # and the footer notes that the data is transformed (EPSG:3301 -> WGS84).
     # Default when unset: the rescue.ee open-data page (see
     # RegistryProperties for the URL).
     official-url: ${REGISTRY_OFFICIAL_URL:}
@@ -250,6 +251,20 @@ app:
     # Disable entirely with --app.registry.schedule-enabled=false.
     schedule-enabled: true
     cron: 0 0 3 * * MON
+    zone: Europe/Tallinn
+  retention:
+    # Data-retention horizons (owner product decision, legal-recovery
+    # slice 4, decided 2026-09-16): a daily job prunes accounts with no
+    # sign-in activity for RETENTION_INACTIVE_ACCOUNT_MONTHS (24) and
+    # moderation/audit rows older than RETENTION_AUDIT_MONTHS (24), using
+    # the DELETE /account erasure rule. OFF by default — the destructive
+    # job ships disabled and whoever operates a deployment enables it;
+    # when off nothing runs and nothing is logged.
+    enabled: ${RETENTION_ENABLED:false}
+    inactive-account-months: ${RETENTION_INACTIVE_ACCOUNT_MONTHS:24}
+    audit-months: ${RETENTION_AUDIT_MONTHS:24}
+    # Daily run, offset 30 min from the registry import (03:00).
+    cron: 0 30 3 * * *
     zone: Europe/Tallinn
   media:
     # Crisis-guidance media library (D7/D13): uploads land in this

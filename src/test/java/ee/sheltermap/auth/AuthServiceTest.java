@@ -44,6 +44,27 @@ class AuthServiceTest {
     }
 
     @Test
+    void registerStampsTheAccountsFirstActivity() {
+        // Retention-pruning: registration is sign-in activity — the
+        // account must not start life "inactive" (the V24 backfill
+        // covers pre-existing rows only).
+        registerMari();
+
+        assertThat(users.findAll().get(0).getLastActivityAt()).isEqualTo(clock.instant());
+    }
+
+    @Test
+    void loginStampsFreshActivity() {
+        registerMari();
+        clock.advance(Duration.ofDays(400));
+
+        auth.login(new LoginRequest("mari@example.ee", "s3cret"));
+
+        // The idle clock restarted at the login, not at the registration.
+        assertThat(users.findAll().get(0).getLastActivityAt()).isEqualTo(clock.instant());
+    }
+
+    @Test
     void loginUnknownUserThrowsGenericError() {
         assertThatThrownBy(() -> auth.login(new LoginRequest("ghost@example.ee", "x")))
                 .isInstanceOf(InvalidCredentialsException.class)

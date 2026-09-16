@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,6 +21,11 @@ public interface SpringDataModerationActionRepository extends JpaRepository<Mode
     @Query("update ModerationActionEntity e set e.reason = null "
             + "where e.shelterId in :shelterIds and e.reason is not null")
     int clearReasonByShelterIds(@Param("shelterIds") Collection<Long> shelterIds);
+
+    /** Retention-pruning: the bulk horizon delete (runs in its own transaction). */
+    @Modifying
+    @Query("delete from ModerationActionEntity a where a.createdAt < :cutoff")
+    int deleteOlderThan(@Param("cutoff") Instant cutoff);
 
     /** One row per shelter: [shelterId, newest createdAt] over the given confirming actions. */
     @Query("select a.shelterId, max(a.createdAt) from ModerationActionEntity a "

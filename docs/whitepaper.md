@@ -117,7 +117,7 @@ authentication and batch queries rather than N+1).
         ▼              ▼                  ▼                    ┌──────▼──────┐  ┌────▼──────────┐
   Päästeamet        SMTP relay         SMS provider           │ PostgreSQL  │  │ File state     │
   open data (CSV)   (smtp-pulse / dev) (Twilio / dev console) │ (Flyway     │  │ (verification  │
-        ▲              ▲                  ▲                    │  V1–V23.1) │  │  send log)     │
+        ▲              ▲                  ▲                    │  V1–V24)   │  │  send log)     │
         │              └──────────────────┴────────────────────┴──────┬──────┘  └───────────────┘
         │  weekly import (Mon 03:00 Europe/Tallinn) + manual trigger  │
         └─────────────────────────────────────────────────────────────┘
@@ -311,7 +311,7 @@ test-pinned:
 | Concern | Choice |
 |---|---|
 | Backend | Java 21, Maven, Spring Boot 3.3.x (web, validation, data-jpa, security, actuator) |
-| Data | PostgreSQL 16, Flyway migrations V1–V23 + the index-only dotted V23.1 (`V13` is a Java migration), JPA with `ddl-auto=validate` |
+| Data | PostgreSQL 16, Flyway migrations V1–V24 + the index-only dotted V23.1 (`V13` is a Java migration), JPA with `ddl-auto=validate` |
 | Auth | jjwt 0.12.x; spring-security-crypto (Argon2id) |
 | Ingestion | Hand-written Päästeamet CSV client (quote-aware semicolon parse, transient-only retry/backoff, Last-Modified versioning) with the legacy WFS client as alternate; proj4j (EPSG:3301 → WGS84) |
 | Testing | JUnit 5 + AssertJ + Testcontainers (PostgreSQL); **no Mockito** (JDK-agnostic hand-written fakes) |
