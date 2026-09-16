@@ -311,7 +311,7 @@ describe('PageShell', () => {
         a.getAttribute('href'),
       );
       expect(links).toContain('https://www.päästeamet.ee');
-      expect(links).toContain('https://www.maaamet.ee');
+      expect(links).toContain('https://www.siseministeerium.ee');
       // New tab, no referrer leakage to the official sites.
       for (const a of notice.querySelectorAll<HTMLAnchorElement>('a')) {
         expect(a.target).toBe('_blank');
@@ -507,7 +507,7 @@ describe('PageShell', () => {
       const noticeLinks = [...notice.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
         a.textContent?.trim(),
       );
-      expect(noticeLinks).toEqual(['Päästeamet', 'Maa-amet']);
+      expect(noticeLinks).toEqual(['Päästeamet', 'Siseministeerium']);
       const legal = element.querySelector('.shell-footer__legal') as Element;
       const legalLabels = [...legal.querySelectorAll('a')].map((a) => a.textContent?.trim());
       expect(legalLabels).toEqual(['Privaatsuspoliitika', 'Kasutustingimused']);
@@ -572,6 +572,9 @@ describe('PageShell', () => {
       const link = element.querySelector('a[href="' + DS.officialUrl + '"]');
       expect(link).not.toBeNull();
       expect(link?.textContent?.trim()).toBe('official open data');
+      // The attribution duty: the coordinates are reprojected, so the footer has
+      // to say the data was modified (the publisher states no licence to cite).
+      expect(t).toContain('transformed by OpenShelter');
     });
 
     it('hides the line while loading and when the fetch failed', async () => {

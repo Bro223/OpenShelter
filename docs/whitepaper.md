@@ -33,7 +33,11 @@ runbook and end-to-end API security pins — see §6).
 
 Estonia maintains a public registry of bomb shelters, published as open data by the
 Päästeamet (the Rescue Board) — a weekly-updated CSV of ~300 locations (the legacy
-Maa-amet WFS layer that originally advertised it is no longer available). But raw open
+Maa-amet WFS layer that originally advertised it is no longer available). The publisher
+states no licence for the dataset, so the application asserts none: it credits the
+publisher, links the dataset, and notes that the coordinates are transformed into WGS84 —
+the attribution a CC BY-style licence would ask for, without naming terms the publisher has
+not confirmed. But raw open
 data is not a product: an ordinary citizen cannot practically query it, judge its
 freshness, or contribute local knowledge to it.
 
@@ -176,7 +180,8 @@ open status) → the server-derived trust state is served with every shelter lis
 ### 5.4 Registry ingestion
 
 - The official dataset is the **Päästeamet open-data CSV** (~300 rows; the legacy
-  Maa-amet WFS layer is kept as a working alternate). Versioning is the upstream
+  Maa-amet WFS client is retained as a tested alternate, but its upstream layer no longer
+  serves data — every request to it answers 404). Versioning is the upstream
   `Last-Modified` (fallback `ETag`): the previous stamp is sent as `If-Modified-Since`,
   and a 304 applies nothing — no delist over an empty set, and not a failure.
 - Weekly scheduled import (Mondays 03:00, Europe/Tallinn) plus a manual/on-startup

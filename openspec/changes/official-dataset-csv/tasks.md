@@ -43,7 +43,7 @@
 
 ## Open items (owner-owed, logged in design.md)
 
-- [ ] O1: licence/attribution wording — **OWNER DECISION, still open**. The
+- [x] O1: licence/attribution wording — **DECIDED 2026-09-16: name no licence; credit and link only.** The
       publisher's dataset page (rescue.ee/et/juhend/avaandmed/avalikud-varjumiskohad,
       checked 2026-09-15) states no licence at all, and the explainer PDF is unreadable
       (FlateDecode). Estonian state open data defaults to CC BY 4.0 under the RIA
@@ -52,6 +52,6 @@
       data was modified. Do NOT assert licence terms until the publisher confirms them:
       the safe default is to credit "Päästeamet / Siseministeerium", link the dataset,
       and name no licence.
-- [ ] O2: confirm upstream update cadence (no version field in the file)
-- [ ] O3: confirm dataset semantic scope (official-only vs adjacent
+- [x] O2: upstream update cadence — **DECIDED 2026-09-16: weekly, as configured** (`0 0 3 * * MON`, Europe/Tallinn) with `If-Modified-Since`; the file carries no version field, so the cadence is a configuration choice, not an upstream promise.
+- [x] O3: dataset semantic scope — **DECIDED 2026-09-16: official-only.** The importer touches only `PAASETEAMET`/`MUNICIPALITY` rows, and no adjacent structures are imported. (Original wording: official-only vs adjacent
       structures mixed in)

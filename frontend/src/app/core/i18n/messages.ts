@@ -36,8 +36,10 @@ export interface Messages {
   /** Link label → www.päästeamet.ee. */
   'footer.rescueBoard': string;
   'footer.and': string;
-  /** Link label → www.maaamet.ee. */
-  'footer.maaAmet': string;
+  /** Link label → www.siseministeerium.ee (publisher of the shelter dataset). */
+  'footer.ministry': string;
+  /** Attribution: the imported coordinates are transformed, so the UI says so. */
+  'footer.dataSourceTransformed': string;
   // --- footer: legal links
   'footer.privacy': string;
   'footer.terms': string;

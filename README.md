@@ -69,7 +69,9 @@ auth, verification, shelter submission, community reports); run/build docs in
 - **Live data source wired** — real shelter data is fetched from the Päästeamet open-data CSV
   (`https://opendata.smit.ee/gis/varjumiskohad.csv`, EPSG:3301), transformed and stored in the
   local DB. The old Maa-amet WFS layer (`VARJEKOHT`) is no longer published — every request to it
-  now answers 404.
+  now answers 404. The publisher states no licence for the dataset, so the app names none: it
+  credits Päästeamet / Siseministeerium, links the dataset, and the footer notes that the
+  coordinates are transformed (EPSG:3301 → WGS84).
 - **Verification reachable over HTTP** — `POST /verify/request` + `POST /verify/confirm`
   (email/phone), so the full loop works: register → verify → add shelter → report.
 - **Anti-spam throttle on verification** — resend cooldown + per-user daily cap (file-backed,

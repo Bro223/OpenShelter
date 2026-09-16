@@ -46,9 +46,12 @@ Tick what you can judge; skip what you can't — partial feedback is welcome.
       Last-Modified versioning, per-run audit in `data_imports`, public
       `GET /api/data-source` + footer transparency.)
 - [ ] Is the per-row "last verified" + report-count display honest about freshness?
-- [ ] **Open question for you:** the publisher's licence terms for the CSV are not
-      yet confirmed in writing (the explainer document is machine-unreadable). How
-      should attribution/licencing be worded for a public deploy?
+- [x] **Decided (2026-09-16):** the publisher states no licence for the CSV, so the
+      application names none. It credits the publisher (Päästeamet /
+      Siseministeerium), links the dataset, and the footer notes that the coordinates
+      are transformed (EPSG:3301 → WGS84) — the attribution duty a CC BY-style licence
+      would carry, without asserting terms. Flag it if you think another stance is
+      warranted for a public deploy.
 - [ ] The provenance taxonomy (server values: Official / Partner / Community-reported /
       Proposed / Reported-inactive / Rejected; the map legend renders the four public
       ones as Registry / New by community / Confirmed by community / Reported) — does the

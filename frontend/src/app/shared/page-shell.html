@@ -134,6 +134,8 @@
         <a [href]="ds.officialUrl" target="_blank" rel="noopener">{{
           'footer.officialOpenData' | t
         }}</a>
+        <span aria-hidden="true">&middot;</span>
+        {{ 'footer.dataSourceTransformed' | t }}
       </p>
     }
   </div>
@@ -146,7 +148,9 @@
       'footer.rescueBoard' | t
     }}</a>
     {{ 'footer.and' | t }}
-    <a href="https://www.maaamet.ee" target="_blank" rel="noopener">{{ 'footer.maaAmet' | t }}</a
+    <a href="https://www.siseministeerium.ee" target="_blank" rel="noopener">{{
+      'footer.ministry' | t
+    }}</a
     >.
   </p>
 </footer>
