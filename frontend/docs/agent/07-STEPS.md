@@ -186,7 +186,7 @@ refetch shelter.
 reflow, route titles + favicon, loading/empty/error audit, production `environment.ts`,
 documented bundle budget (initial 530.5 kB → justified 560 kB warning), README rewritten,
 manual E2E via headless Chromium/CDP driver — 16/16 journey steps, zero console errors.
-See `openspec/changes/frontend-m6-polish-prod/`.
+See `openspec/changes/archive/2026-09-09-frontend-m6-polish-prod/`.
 
 **Inputs:** all context files, `01-frontend-architecture.puml`.
 

@@ -57,7 +57,7 @@ UNIQUE duplicate backstop run on. The crypto lives ONLY in the persistence layer
 repositories) — `AuthService`/`AccountService`/`AdminSeeder` and the DTOs above keep
 their plaintext contracts. Keys: `PII_AES_KEY` / `PII_HMAC_KEY` (32-byte base64,
 env-only, fail-closed at boot, never committed, never logged). Full design:
-`openspec/changes/pii-at-rest/design.md`.
+`openspec/changes/archive/2026-09-16-pii-at-rest/design.md`.
 
 ## Design decisions (from the puml notes — do not silently change)
 

@@ -644,7 +644,7 @@ the field no longer exists, `users.national_id_code` dropped in V12).
 ## PII at rest (M2)
 
 User identity contacts (e-mail, phone) are stored **encrypted** — a stolen DB dump or
-backup alone no longer exposes account identities. Design: `openspec/changes/pii-at-rest/design.md`.
+backup alone no longer exposes account identities. Design: `openspec/changes/archive/2026-09-16-pii-at-rest/design.md`.
 
 - **What is encrypted where.** `users.email` / `users.phone`, `verification_claims.external_ref`,
   `pending_verifications.contact` and `pending_contact_changes.target` store a `v1:` +

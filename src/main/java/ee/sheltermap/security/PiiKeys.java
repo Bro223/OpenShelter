@@ -17,7 +17,7 @@ import java.util.Base64;
  * environment / gitignored {@code .env} — never in the repo.
  *
  * <p>Key management and rotation: see README ("PII at rest") and
- * {@code openspec/changes/pii-at-rest/design.md}. A lost key makes the
+ * {@code openspec/changes/archive/2026-09-16-pii-at-rest/design.md}. A lost key makes the
  * affected accounts unloginable by contact — keep an offline backup.
  */
 @Component

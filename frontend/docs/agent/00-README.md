@@ -75,7 +75,7 @@ what lets you check and build every file manually — exactly how the backend wa
   spec), 375px reflow, route titles + favicon, loading/empty/error audit, production
   `environment.ts`, documented bundle budget (initial 530.5 kB → 560 kB warning),
   README rewritten, full manual E2E (headless Chromium driver, zero console errors).
-  See `openspec/changes/frontend-m6-polish-prod/`.
+  See `openspec/changes/archive/2026-09-09-frontend-m6-polish-prod/`.
 - **Trust & reports (shelter-trust-and-reports)** — DONE: map trust filter chips
   (`Open`, client-side / `Has capacity`, server-refetched with the source filter), the
   orange reported marker + `Reported` legend entry (`--color-reported` token,

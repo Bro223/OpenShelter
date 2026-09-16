@@ -218,7 +218,7 @@ is rendered (`RatingStars` deleted). The **test names cited in the same tables a
 **Fix:** retitle A2 to "Brigading / fake reports" and delete the "star display stays" clause; leave every `CommunityReviewIT`
 citation alone (it is a live test).
 
-### 16. `openspec/changes/shelter-trust-and-reports/specs/shelter-detail-reviews/spec.md` — delta can no longer be archived
+### 16. `openspec/specs/shelter-detail/spec.md` — delta can no longer be archived
 
 **Claims:** l.5 `### Requirement: Community review list` declared `MODIFIED`.
 **Code/effect:** the current spec no longer contains that requirement (removed and recorded in
@@ -260,12 +260,12 @@ remains only as an explicit opt-in (`PaasteametRegistryClient.java:39-43`).
 **Code:** there is no review form (`grep -rl ReviewForm frontend/src` → 0).
 **Fix:** delete "+ review form" from the comment.
 
-### 21. `openspec/specs/shelter-detail-reviews/` — capability directory name still says "reviews" (known, self-documented)
+### 21. `openspec/specs/shelter-detail/` — the capability was renamed from `shelter-detail-reviews` in D21 (resolved)
 
 **Claims:** the spec itself notes the rename follow-up: `git mv openspec/specs/shelter-detail-reviews openspec/specs/shelter-detail`
-(`openspec/specs/shelter-detail-reviews/spec.md:13-14`).
+(`openspec/specs/shelter-detail/spec.md`, the rename note).
 **Code:** the capability's surviving content is the detail page only.
-**Fix:** perform the rename **only together with** the delta references — `openspec/changes/shelter-trust-and-reports/specs/shelter-detail-reviews/`
+**Fix:** perform the rename **only together with** the delta references — `openspec/specs/shelter-detail/`
 (#16) and the archive entry reference it by path; renaming without #16 leaves a dangling delta.
 
 ### 22. `qa/` and `.agent-orchestration/` — unreferenced artifact sets (owner decision needed)
@@ -298,7 +298,7 @@ orphaned and will rot silently.
   migrations stated as V1–V22 + the Java V13 and counts as 679/870 are consistent with the tree.
 - `frontend/README.md:85` — "11 component routes + 2 redirects" is **correct** (`app.routes.ts`: 11 component paths + `''` and `'**'`).
 - `openspec/specs/*` (other than #21) — clean: a grep for `rating|review` across `openspec/specs` returns only
-  `shelter-detail-reviews/spec.md` (which is the deliberate removal record).
+  `shelter-detail/spec.md` (which records that removal; the capability was renamed in D21).
 - `docs/code-review/*` — dated historical logs (`2026-09-08-fix-log.md`, `2026-09-14-p2-audit.md`, `fix-process.md`).
   Their review references are historically accurate; do not "sync" them.
 - `src/test/java/ee/sheltermap/VerificationFlowTest.java:41` — names `02-verification-flow.puml` as its executable spec;
