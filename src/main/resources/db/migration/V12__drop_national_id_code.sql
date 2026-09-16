@@ -1,4 +1,4 @@
--- remove-national-id: stop collecting the national ID code.
+-- M1 (remove-national-id): stop collecting the national ID code.
 --
 -- The column was written at registration, editable on the account page,
 -- and read by nothing: no validation, no query, no verification channel

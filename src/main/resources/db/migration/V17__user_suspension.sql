@@ -1,4 +1,4 @@
--- Shelter Map — V17 (moderation-dashboard-completion).
+-- Shelter Map — V17 (moderation-dashboard-completion M10, slice 1).
 -- User suspension: one timestamp on the account (NULL = active; an
 -- indefinite suspension the admin lifts manually — no expiry policy
 -- exists). Suspension is enforced by fresh lookups at the three

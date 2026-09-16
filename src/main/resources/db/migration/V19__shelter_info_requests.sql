@@ -1,4 +1,4 @@
--- Shelter Map — V19 (moderation-dashboard-completion).
+-- Shelter Map — V19 (moderation-dashboard-completion M10, slice 3).
 -- The moderator→submitter information request: ONE row per shelter, kept
 -- after the reply (audit posture — a replied request is never deleted).
 -- The submitter sees the pending request on their own row (/mine) and

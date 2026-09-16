@@ -138,6 +138,36 @@ cp data/verification-send.log /backup/verification-send-$(date +%F).log
   import (re-run the import), and any in-memory state (rate buckets, alert
   ring) — both self-heal.
 
+### Migration files are append-only — do not edit an applied migration
+
+Flyway stores a **checksum of every migration file** in
+`flyway_schema_history`. Editing a file that a database has already applied —
+comments included, since the checksum covers the whole file — makes that
+database refuse to boot with `Migration checksum mismatch for migration
+version N`, and the app exits before serving a single request.
+
+This actually happened: a comment-cleanup pass touched 14 migrations
+(V1, V3, V5, V8, V9, V12, V14–V21) after the dev database had applied them,
+so the next restart failed and took the whole API down for every client.
+Tests never caught it — Testcontainers always starts from an empty database,
+so it applies the edited files and records their new checksums, which is
+self-consistent and green.
+
+So: **add a new migration; never rewrite an applied one.** If a file has
+already been edited, the database's history is the source of truth — the file
+must be restored to the bytes that built it, or the history repaired:
+
+```bash
+# Restore the applied bytes (preferred when the edit was cosmetic):
+git log --oneline -- src/main/resources/db/migration/V7__shelter_created_by.sql
+git checkout <last-good-rev> -- src/main/resources/db/migration/V7__shelter_created_by.sql
+```
+
+`flyway repair` rewrites the stored checksums to match the current files and
+is the right tool when the SQL itself intentionally changed — but it requires
+the Flyway CLI or plugin (neither ships with this repo) and, unlike restoring
+the file, it does not prove the database still matches what the file claims.
+
 ## 5. Monitoring
 
 The app ships **no APM and no metrics endpoint** beyond actuator health —

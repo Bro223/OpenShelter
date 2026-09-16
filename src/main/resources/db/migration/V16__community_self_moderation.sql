@@ -1,4 +1,4 @@
--- Shelter Map — V16 (community-self-moderation, D3).
+-- Shelter Map — V16 (community-self-moderation M9, D3).
 -- Dampening flag on shelter reports: a NON_EXISTENT report filed by a
 -- reporter who holds their own other USER listing of the same place is
 -- self-interested (the displaced rival / the edited-into-duplicate

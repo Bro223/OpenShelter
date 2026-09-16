@@ -1,19 +1,19 @@
--- Shelter Map — V8.
--- 1) password_reset_tokens.token_hash is NOT UNIQUE: the service keeps
+-- Shelter Map — V8 (2026-09-08 review hardening pass).
+-- 1) password_reset_tokens.token_hash is no longer UNIQUE: the service keeps
 --    ONE ACTIVE code per user (delete-then-insert), but USED and EXPIRED
---    history rows are pruned only opportunistically — a UNIQUE constraint
---    there served no security purpose (codes are random and hashed)
+--    history rows are pruned only opportunistically — the old unique
+--    constraint served no security purpose (codes are random and hashed)
 --    and would collide if two users ever draw the same 6-digit code.
 --    (refresh_tokens.token_hash stays UNIQUE — a refresh token must be
 --    redeemable exactly once by exactly one row.)
 -- 2) password_reset_tokens.created_at: anchors the per-user reset-rotation
 --    cooldown (>= 60 s) and the per-UTC-day reissue cap (5) — rotation
---    brute-force guard. Existing rows are backfilled with now() by
+--    brute-force guard (S1b). Existing rows are backfilled with now() by
 --    the column default.
 -- 3) users.email uniqueness becomes case-insensitive (lower(email)): login
 --    lookup is case-insensitive and registration lower-cases before the
 --    uniqueness check, so a case-variant duplicate could bypass the
---    case-sensitive index and later break findByEmail.
+--    case-sensitive index and later break findByEmail (backend nit N14).
 -- 4) shelters.version: optimistic-lock counter for concurrent author edits
 --    (user-contributions PUT race -> 409 via OptimisticLockException).
 -- ddl-auto=validate must stay green against these definitions.
