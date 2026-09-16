@@ -1,6 +1,9 @@
 <section class="guidance-editor">
   <h2 class="guidance-editor__heading">
-    {{ (post() === null ? 'admin.guidance.editor.createTitle' : 'admin.guidance.editor.editTitle') | t }}
+    {{
+      (post() === null ? 'admin.guidance.editor.createTitle' : 'admin.guidance.editor.editTitle')
+        | t
+    }}
   </h2>
 
   <!-- The failed save's server message (400 validation / 409 slug
@@ -11,19 +14,14 @@
   <form [formGroup]="form" (ngSubmit)="onSave()">
     <div class="field">
       <label for="ge-title">{{ 'admin.guidance.editor.titleLabel' | t }}</label>
-      <input
-        id="ge-title"
-        type="text"
-        formControlName="title"
-        maxlength="255"
-        autocomplete="off"
-      />
+      <input id="ge-title" type="text" formControlName="title" maxlength="255" autocomplete="off" />
       @if (title().invalid && title().touched) {
         <p class="field-error">
           {{
             (title().errors?.['maxlength']
               ? 'admin.guidance.editor.titleTooLong'
-              : 'admin.guidance.editor.titleRequired') | t
+              : 'admin.guidance.editor.titleRequired'
+            ) | t
           }}
         </p>
       }
@@ -31,15 +29,14 @@
 
     <div class="field">
       <label for="ge-slug">{{ 'admin.guidance.editor.slugLabel' | t }}</label>
-      <input
-        id="ge-slug"
-        type="text"
-        formControlName="slug"
-        maxlength="200"
-        autocomplete="off"
-      />
+      <input id="ge-slug" type="text" formControlName="slug" maxlength="200" autocomplete="off" />
       <p class="field-note">
-        {{ (post() === null ? 'admin.guidance.editor.slugHint.create' : 'admin.guidance.editor.slugHint.edit') | t }}
+        {{
+          (post() === null
+            ? 'admin.guidance.editor.slugHint.create'
+            : 'admin.guidance.editor.slugHint.edit'
+          ) | t
+        }}
       </p>
       @if (slug().invalid && slug().touched) {
         <p class="field-error">{{ 'admin.guidance.editor.slugInvalid' | t }}</p>
@@ -59,7 +56,9 @@
          The alt field below carries the cross-field rule (mandatory iff a
          hero is set) — enforced here AND by the server (400). -->
     <div class="field">
-      <span class="guidance-editor__field-caption">{{ 'admin.guidance.editor.heroLabel' | t }}</span>
+      <span class="guidance-editor__field-caption">{{
+        'admin.guidance.editor.heroLabel' | t
+      }}</span>
 
       @if (selectedHero(); as hero) {
         <div class="guidance-editor__hero-current">
@@ -74,12 +73,7 @@
           />
           <div class="guidance-editor__hero-meta">
             <span class="guidance-editor__hero-name">{{ hero.name }}</span>
-            <button
-              type="button"
-              class="btn btn--ghost"
-              (click)="removeHero()"
-              [disabled]="busy()"
-            >
+            <button type="button" class="btn btn--ghost" (click)="removeHero()" [disabled]="busy()">
               {{ 'admin.guidance.editor.hero.remove' | t }}
             </button>
           </div>
@@ -147,13 +141,7 @@
 
     <div class="field">
       <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
-      <input
-        id="ge-locale"
-        type="text"
-        formControlName="locale"
-        maxlength="5"
-        autocomplete="off"
-      />
+      <input id="ge-locale" type="text" formControlName="locale" maxlength="5" autocomplete="off" />
       <p class="field-note">{{ 'admin.guidance.editor.localeHint' | t }}</p>
       @if (locale().invalid && locale().touched) {
         <p class="field-error">{{ 'admin.guidance.editor.localeTooLong' | t }}</p>

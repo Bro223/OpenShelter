@@ -111,7 +111,7 @@ architecture docs (PlantUML + build packs) re-synced to code after every milesto
 **Status (16 Sept 2026; test counts refreshed 2026-09-16).** Fully functional end-to-end
 (register → verify → browse → submit → report → manage), bilingual app chrome (ET/EN);
 the crisis-guidance wave has landed (public /blog pages, the admin Guidance authoring tab
-+ media library, V23) and the shelter list gained the viewport filter + offset/limit
+- media library, V23) and the shelter list gained the viewport filter + offset/limit
 paging (V23.1 — composite B-tree, no PostGIS). Remaining: real
 Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
 PWA offline cache, production deployment.

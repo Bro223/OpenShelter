@@ -353,52 +353,50 @@ describe('AdminPage', () => {
     };
   }
 
-function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null {
-  return (
-    [...root.querySelectorAll<HTMLButtonElement>('button')].find(
-      (b) => (b.textContent ?? '').trim() === text,
-    ) ?? null
-  );
-}
+  function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null {
+    return (
+      [...root.querySelectorAll<HTMLButtonElement>('button')].find(
+        (b) => (b.textContent ?? '').trim() === text,
+      ) ?? null
+    );
+  }
 
-/** Let a fire-and-forget load settle (the page's own promise chains). */
-async function settle(
-  fixture: { whenStable(): Promise<unknown>; detectChanges(): void },
-): Promise<void> {
-  await fixture.whenStable();
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  fixture.detectChanges();
-}
+  /** Let a fire-and-forget load settle (the page's own promise chains). */
+  async function settle(fixture: {
+    whenStable(): Promise<unknown>;
+    detectChanges(): void;
+  }): Promise<void> {
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+  }
 
-/** Click a tab button and let its lazy load settle. */
-async function switchTab(
-  name: string,
-  element: HTMLElement,
-  fixture: { whenStable(): Promise<unknown>; detectChanges(): void },
-): Promise<void> {
-  buttonByText(element, name)!.click();
-  await settle(fixture);
-}
+  /** Click a tab button and let its lazy load settle. */
+  async function switchTab(
+    name: string,
+    element: HTMLElement,
+    fixture: { whenStable(): Promise<unknown>; detectChanges(): void },
+  ): Promise<void> {
+    buttonByText(element, name)!.click();
+    await settle(fixture);
+  }
 
-/** The editor's title/body inputs live in the child component's template. */
-function inputById(
-  root: HTMLElement,
-  id: string,
-): HTMLInputElement | HTMLTextAreaElement | null {
-  return root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
-}
+  /** The editor's title/body inputs live in the child component's template. */
+  function inputById(root: HTMLElement, id: string): HTMLInputElement | HTMLTextAreaElement | null {
+    return root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
+  }
 
-/** Set a reactive control's value through the DOM (dispatch 'input', then
- *  change detection) — the established spec convention. */
-function typeValue(
-  el: HTMLInputElement | HTMLTextAreaElement,
-  value: string,
-  fx: { detectChanges(): void },
-): void {
-  el.value = value;
-  el.dispatchEvent(new Event('input'));
-  fx.detectChanges();
-}
+  /** Set a reactive control's value through the DOM (dispatch 'input', then
+   *  change detection) — the established spec convention. */
+  function typeValue(
+    el: HTMLInputElement | HTMLTextAreaElement,
+    value: string,
+    fx: { detectChanges(): void },
+  ): void {
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+    fx.detectChanges();
+  }
 
   function firstRow(root: HTMLElement): HTMLElement {
     const row = root.querySelector('tr.admin-row, li.admin-queue-row');

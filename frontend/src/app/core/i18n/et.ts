@@ -330,7 +330,8 @@ export const ET: Messages = {
   'guidance.empty': 'Juhiseid pole veel — vaata hiljem uuesti.',
   'guidance.backToList': 'Tagasi kõikidele juhistele',
   'guidance.notFoundTitle': 'Juhise artiklit ei leitud',
-  'guidance.notFoundBody': 'Sellist juhisteposti ei ole — see on tõenäoliselt eemaldatud või avaldamata.',
+  'guidance.notFoundBody':
+    'Sellist juhisteposti ei ole — see on tõenäoliselt eemaldatud või avaldamata.',
   'guidance.published': 'Avaldatud',
 
   // --- administraator: juhisepostid + toimetaja + meediakogumik (crisis-guidance D8).
@@ -355,8 +356,7 @@ export const ET: Messages = {
   'admin.guidance.publish': 'Avalda',
   'admin.guidance.unpublish': 'Tühista avaldamine',
   'admin.guidance.delete': 'Kusta',
-  'admin.guidance.delete.confirm':
-    'Kustuta see post jäädavalt? Pilt jääb meediakogumikku.',
+  'admin.guidance.delete.confirm': 'Kustuta see post jäädavalt? Pilt jääb meediakogumikku.',
   'admin.guidance.delete.confirmButton': 'Kinnita kustutamine',
   'admin.guidance.delete.cancel': 'Tühista',
   'admin.guidance.working': 'Töötlen…',

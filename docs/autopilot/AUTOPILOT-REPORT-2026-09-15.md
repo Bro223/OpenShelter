@@ -214,11 +214,11 @@ final count is 1 open). The seven that remained, plus orchestrator-found follow-
 | `ORCH-7` | Manual keyboard pass (skip link → page, Delete → Confirm → Cancel → return; back/forward + scroll position per `ORCH-20`) | needs a browser |
 | `H-B8`, `H-D22` | Pre-existing HUMAN rows: the two tracked TODOs (PostGIS/bbox, licence wording) and the orphaned `qa/` + `.agent-orchestration/` sets (link-or-move, **do not delete**) | owner decision |
 
-_**Formatting quirk, noted inline (untracked):** the repaired guard renders `Size(min=5, )` when
+***Formatting quirk, noted inline (untracked):** the repaired guard renders `Size(min=5, )` when
 only `min` is set — unreachable today. An earlier draft of this table carried it as a row
 "`ORCH-24` (below)", but `ORCH-24` was never created in any tracking record (`LEDGER.md`,
 `RUNLOG.md`, `STATE.json` all have 0 hits) and "(below)" pointed at nothing — the row is struck
-and the quirk recorded here instead._
+and the quirk recorded here instead.*
 
 **A structural fix worth keeping.** Three separate reviewers found files still describing the
 removed feature that **no workstream owned**, because the ledger enumerated ownership file-by-file.
@@ -255,7 +255,8 @@ The docs workstream's ownership is now the **glob** (`context-and-tasks/agent/**
    fixers on the free `hpc-vllm/Qwen3.8-27B`, wave-2 fixers on `deepseek-flash`, wave-3/wave-4
    fixer models unrecorded; orchestrators and reviewers on `deepseek-flash`.
 
-### Resume instructions (exact) — **OBSOLETE**: wave 4 is committed (`68f431a`, `23192fc`,
+### Resume instructions (exact) — **OBSOLETE**: wave 4 is committed (`68f431a`, `23192fc`
+
 `96a54b9`; artifacts + this report in `0b4d367`), so the tree is clean and the steps below no
 longer apply. Kept for the record.
 

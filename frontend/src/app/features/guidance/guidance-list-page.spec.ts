@@ -111,7 +111,9 @@ describe('GuidanceListPage (/blog)', () => {
     };
   }
 
-  async function settle(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): Promise<void> {
+  async function settle(
+    fixture: ReturnType<typeof TestBed.createComponent<PageShell>>,
+  ): Promise<void> {
     await fixture.whenStable();
     fixture.detectChanges();
     await Promise.resolve();

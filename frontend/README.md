@@ -157,7 +157,7 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   `maxLng` box (all four together or none — a partial box is a 400) and `limit` (1…200) /
   `offset` (≥ 0) over the stable id-ascending order; the index is a plain composite B-tree
   on the coordinates — **no PostGIS** (the deployment stays a single database with no
-  extensions). What stays deferred is a *nearest* endpoint: nearest is a ranking, not a
+  extensions). What stays deferred is a _nearest_ endpoint: nearest is a ranking, not a
   filter, and the "Show shelters around you" action keeps ranking the already-loaded list
   client-side (browser geolocation + Haversine, no server round-trip) by design.
 - **i18n (feature pages)** — the app chrome (header nav/actions, footer,

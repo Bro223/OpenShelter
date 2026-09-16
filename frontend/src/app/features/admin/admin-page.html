@@ -869,14 +869,20 @@
                 </td>
                 <td>
                   @if (row.status === 'PUBLISHED') {
-                    <span class="badge badge--published">{{ 'admin.guidance.status.published' | t }}</span>
+                    <span class="badge badge--published">{{
+                      'admin.guidance.status.published' | t
+                    }}</span>
                   } @else {
                     <span class="badge badge--draft">{{ 'admin.guidance.status.draft' | t }}</span>
                   }
                 </td>
                 <td class="admin-cell--nowrap">{{ row.locale }}</td>
                 <td class="admin-cell--nowrap">
-                  {{ row.pinned ? ('admin.guidance.pinned.yes' | t) : ('admin.guidance.pinned.no' | t) }}
+                  {{
+                    row.pinned
+                      ? ('admin.guidance.pinned.yes' | t)
+                      : ('admin.guidance.pinned.no' | t)
+                  }}
                 </td>
                 <td class="admin-cell--nowrap">
                   @if (publishedAtFor(row); as publishedAt) {
@@ -904,9 +910,7 @@
                         [disabled]="busy()"
                       >
                         {{
-                          busy()
-                            ? ('admin.guidance.working' | t)
-                            : ('admin.guidance.unpublish' | t)
+                          busy() ? ('admin.guidance.working' | t) : ('admin.guidance.unpublish' | t)
                         }}
                       </button>
                     } @else {
@@ -1010,7 +1014,9 @@
               <th scope="col">{{ 'admin.media.col.size' | t }}</th>
               <th scope="col">{{ 'admin.media.col.uploaded' | t }}</th>
               <th scope="col">{{ 'admin.media.col.usedBy' | t }}</th>
-              <th scope="col" class="admin-table__actions-head">{{ 'admin.media.col.actions' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">
+                {{ 'admin.media.col.actions' | t }}
+              </th>
             </tr>
           </thead>
           <tbody>

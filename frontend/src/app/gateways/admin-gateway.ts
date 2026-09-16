@@ -259,7 +259,10 @@ export class AdminGateway {
    * publication state is NOT editable here — publish/unpublish own it.
    * 404 unknown id (or a heroImageId with no such asset).
    */
-  updateGuidancePost(id: number, request: UpdateGuidancePostRequest): Promise<AdminGuidancePostDto> {
+  updateGuidancePost(
+    id: number,
+    request: UpdateGuidancePostRequest,
+  ): Promise<AdminGuidancePostDto> {
     return lastValueFrom(this.api.put<AdminGuidancePostDto>(`/admin/guidance/${id}`, request));
   }
 

@@ -31,7 +31,10 @@ new hardcoded color/type/spacing values.
 
 The application SHALL remain usable at narrow (mobile) widths: the primary page layouts (map,
 detail, forms, auth pages) stack or reflow so no horizontal scrolling is required for core
-content, and the map + sidebar arrangement degrades gracefully.
+content, and the map + sidebar arrangement degrades gracefully. Native form controls
+(checkboxes, radios) SHALL keep their native glyph size inside flex form rows — the global
+form-control width rule SHALL NOT stretch them into wide flex items that displace the row's
+label text.
 
 #### Scenario: Narrow viewport on the map page
 
@@ -44,6 +47,14 @@ content, and the map + sidebar arrangement degrades gracefully.
 - **WHEN** a form or the shelter detail page is viewed at a mobile width
 - **THEN** the layout reflows to the narrow screen and all controls remain reachable and
   operable
+
+#### Scenario: Checkbox and radio rows at any width
+
+- **WHEN** a form row pairs a native checkbox or radio with a text label (the /submit
+  private-home declaration, the report-type options)
+- **THEN** the control renders at its native size (the app's 18px glyph) directly beside the
+  label, the label wraps below/after it on narrow widths, and the row stays left-aligned
+  without a stretched control box
 
 ### Requirement: Route titles and favicon
 
@@ -238,3 +249,36 @@ existing light theme.
 
 - **WHEN** a user with no stored preference opens the app
 - **THEN** the light theme is shown
+
+### Requirement: Localization (Estonian/English)
+
+The application chrome (header nav, header actions, footer, document
+titles) SHALL be available in both English (`en`) and Estonian (`et`). A
+language switcher SHALL let the user choose the active locale; the choice
+SHALL persist across reloads and the document language (`<html lang>`) SHALL
+reflect the active locale from before first paint. The default locale (no
+stored preference) SHALL be `en`, preserving the existing first-load
+behavior.
+
+The two locale catalogs SHALL stay key-complete: every message key present
+in one catalog SHALL be present in the other (no untranslated/empty strings
+may silently ship).
+
+#### Scenario: Switching language re-renders the chrome
+
+- **WHEN** the user selects the Estonian option in the header language
+  switcher
+- **THEN** the nav labels, header actions, footer notice, legal links and
+  data-provenance line render in Estonian, `<html lang>` becomes `et`, and
+  the choice is persisted so a reload starts in Estonian
+
+#### Scenario: No stored preference keeps the default
+
+- **WHEN** the app loads with no stored locale preference
+- **THEN** the chrome renders in English and `<html lang>` is `en`
+
+#### Scenario: Catalogs stay in lockstep
+
+- **WHEN** a message key is added to one locale catalog
+- **THEN** the key-parity guard fails unless the other catalog carries the
+  same key with a non-empty value

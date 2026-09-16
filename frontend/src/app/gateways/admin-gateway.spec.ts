@@ -449,7 +449,9 @@ describe('AdminGateway', () => {
   });
 
   it('createGuidancePost omits blank slug/locale and sends null hero fields (no hero)', async () => {
-    api.post.mockReturnValue(of({ ...GUIDANCE_ROW, heroImageId: null, heroImageUrl: null, heroImageAlt: null }));
+    api.post.mockReturnValue(
+      of({ ...GUIDANCE_ROW, heroImageId: null, heroImageUrl: null, heroImageAlt: null }),
+    );
 
     await gateway.createGuidancePost({
       title: 'Uus post',

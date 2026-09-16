@@ -109,10 +109,7 @@ function createHost(
   };
 }
 
-function inputById(
-  root: HTMLElement,
-  id: string,
-): HTMLInputElement | HTMLTextAreaElement | null {
+function inputById(root: HTMLElement, id: string): HTMLInputElement | HTMLTextAreaElement | null {
   return root.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`);
 }
 

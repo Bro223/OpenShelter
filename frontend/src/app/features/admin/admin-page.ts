@@ -59,14 +59,7 @@ registerLocaleData(localeEnGB, 'en-GB');
  *  the guidance (crisis-guidance D8) and media-library tabs sit before the
  *  audit. */
 export type AdminTab =
-  | 'unconfirmed'
-  | 'shelters'
-  | 'reports'
-  | 'alerts'
-  | 'users'
-  | 'guidance'
-  | 'media'
-  | 'audit';
+  'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'guidance' | 'media' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -327,9 +320,7 @@ export class AdminPage implements OnInit {
   /** The in-use delete confirm: the armed asset id, carrying the 409's
    *  server message (naming the affected posts) — the strip re-issues the
    *  delete with confirm=true. */
-  protected readonly mediaDeleteInUse = new ConfirmAction<number, string>(
-    this.host.nativeElement,
-  );
+  protected readonly mediaDeleteInUse = new ConfirmAction<number, string>(this.host.nativeElement);
 
   // ---- shared UI state ---------------------------------------------------------
   /** One in-flight mutation at a time (the row buttons all share it). */

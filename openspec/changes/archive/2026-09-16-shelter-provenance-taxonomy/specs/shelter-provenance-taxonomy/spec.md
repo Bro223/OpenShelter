@@ -62,42 +62,26 @@ enum SHALL be a 400. `?source=` remains accepted and is still sent by the fronte
 - **WHEN** the caller requests `?provenance=BOGUS`
 - **THEN** the response is a 400 with the standard error shape
 
-### Requirement: Provenance-coloured markers, legend and chips
+### Requirement: Provenance presentation stays on the trust palette
 
-The map's marker tone SHALL follow the row's provenance — OFFICIAL
-blue, PARTNER_VERIFIED yellow, COMMUNITY_REPORTED green, UNDER_REVIEW
-amber — with the reported-state orange overriding all four for ACTIVE
-rows with `nonexistentReports > 0`. The legend SHALL show the five
-public-map entries (Official / Partner / Community / New community /
-Reported); the grey (REPORTED_INACTIVE) and red (REJECTED) tones SHALL
-render only on the detail page's static pin. provenance is server-derived and filterable (`?provenance=`);
-the UI uses the community-review-queue trust palette rather than
-provenance chips
+The UI SHALL NOT render provenance as its own chips, legend entries or
+marker colours. Provenance is server-derived metadata that the API exposes
+(the `?provenance=` filter); the map's visible trust signals remain the
+community-review-queue palette — the source chips (All / Registry / User)
+plus the Open and Has-capacity chips — together with the reported-state and
+private-home markers.
 
-#### Scenario: Each provenance renders its pin colour
+#### Scenario: The map offers no provenance chips
 
-- **WHEN** the map renders one row per visible provenance
-- **THEN** the pins carry the registry (blue), partner (yellow), user
-  (green) and new (amber) marker classes respectively
+- **WHEN** the map filter bar renders
+- **THEN** it offers the three source chips and the Open / Has-capacity
+  chips, and no chip or legend entry naming a provenance value
 
-#### Scenario: The reported state still beats the provenance colour
+#### Scenario: Provenance stays available through the API
 
-- **WHEN** an UNDER_REVIEW row has `nonexistentReports > 0`
-- **THEN** its pin carries the reported (orange) class, not the amber
-  one
-
-#### Scenario: A chip refetches server-side with the provenance param
-
-- **WHEN** the user clicks the Partner chip
-- **THEN** the gateway requests `?provenance=PARTNER_VERIFIED`, the
-  list rebuilds from the response, and the chip becomes active
-
-#### Scenario: The hidden tones render on the detail pin
-
-- **WHEN** the detail page pins a REPORTED_INACTIVE (respectively
-  REJECTED) row
-- **THEN** the static pin carries the inactive (grey) / rejected (red)
-  marker class
+- **WHEN** a client sends `GET /api/shelters?provenance=<value>`
+- **THEN** the list narrows to rows whose server-derived provenance matches,
+  and the UI never has to render the value as a chip
 
 ### Requirement: Provenance badges on every surface
 

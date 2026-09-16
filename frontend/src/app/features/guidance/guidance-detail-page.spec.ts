@@ -121,7 +121,9 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
     };
   }
 
-  async function settle(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): Promise<void> {
+  async function settle(
+    fixture: ReturnType<typeof TestBed.createComponent<PageShell>>,
+  ): Promise<void> {
     await fixture.whenStable();
     fixture.detectChanges();
     await Promise.resolve();
@@ -173,8 +175,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
         guidancePost({
           slug: 'rogue',
           title: 'Rogue body',
-          bodyHtml:
-            '<p>Stay indoors.</p><script>window.__pwned = true;</script>',
+          bodyHtml: '<p>Stay indoors.</p><script>window.__pwned = true;</script>',
         }),
       );
       const { element, fixture } = await open('/blog/rogue');

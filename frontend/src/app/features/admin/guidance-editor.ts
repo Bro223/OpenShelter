@@ -116,7 +116,10 @@ export class GuidanceEditor implements OnInit {
     pinned: new FormControl(false, { nonNullable: true }),
     /** The picked hero's media-library id; null = no hero. */
     heroImageId: new FormControl<number | null>(null, { nonNullable: true }),
-    heroImageAlt: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(300)] }),
+    heroImageAlt: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(300)],
+    }),
     /** Create mode only: DRAFT by default, PUBLISHED = one-shot
      *  write-and-publish. The edit form never sends it. */
     status: new FormControl<GuidanceStatus>('DRAFT', { nonNullable: true }),
