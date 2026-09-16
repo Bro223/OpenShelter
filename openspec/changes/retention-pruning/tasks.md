@@ -56,7 +56,10 @@
 
 ## Phase 5 — owner-owed follow-ups (NOT in this change's scope)
 
-- [ ] README/docs sync: the `DocumentationFactsTest` Flyway-range
+- [x] Spec sync: the archived `legal-recovery` spec's "Legal pages" requirement still
+      stated "retention is for the life of the account with no automatic deletion of
+      inactive accounts yet" — superseded by this decision and updated in place
+- [x] README/docs sync: the `DocumentationFactsTest` Flyway-range
       guard now expects `V1`–`V24` in README.md (this change adds
       V24; the README update is owner-owed)
 - [ ] enabling the job in a real deployment (set
