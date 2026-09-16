@@ -391,6 +391,20 @@ export const ET: Messages = {
   'admin.guidance.editor.hero.empty':
     'Meediakogumikus pilte ei ole — laadi üles pilt Meediakogumiku kaardil.',
   'admin.guidance.editor.hero.remove': 'Eemalda pilt',
+  /** Pealtpildi valija üleslaadimise kontroll: failivälja silt (server
+   *  aktsepteerib täpselt neid kolme tüüpi, magic-byte kontrolliga). */
+  'admin.guidance.editor.hero.uploadLabel': 'Laadi pilt üles',
+  /** Üleslaadimise 413: ületab serveri suuruse piiri (MEDIA_MAX_BYTES). */
+  'admin.guidance.editor.hero.uploadError.tooLarge':
+    'See pilt ületab 5 MB üleslaadimise piiri.',
+  /** Üleslaadimise 400: pole lugemisvõimeline pilt või deklareeritud tüüp
+   *  ei klapi baitytega (serveri magic-byte kontroll). */
+  'admin.guidance.editor.hero.uploadError.unsupported':
+    'See fail pole toetatud pilt (JPEG, PNG või WebP) või selle tüüp ei klapi.',
+  /** Iga muu üleslaadimise ebaõnnestumine (5xx, võrgu viga): üldine
+   *  uuesti proovida sõnum. */
+  'admin.guidance.editor.hero.uploadError.generic':
+    'Pildi üleslaadimine ebaõnnestus. Palun proovi uuesti.',
   'admin.guidance.editor.altLabel': 'Pealtpildi alt-tekst (valikuga)',
   'admin.guidance.editor.altRequired': 'Kui pealtpilt on valitud, on alt-tekst kohustuslik.',
   'admin.guidance.editor.altForbidden': 'Eemalda alt-tekst või vali pealtpilt.',

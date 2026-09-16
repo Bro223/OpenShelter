@@ -385,6 +385,15 @@ export interface Messages {
   /** The picker's empty state (points at the Media library tab). */
   'admin.guidance.editor.hero.empty': string;
   'admin.guidance.editor.hero.remove': string;
+  /** The hero picker's upload control (the backend accepts exactly these
+   *  three types, magic-byte checked). */
+  'admin.guidance.editor.hero.uploadLabel': string;
+  /** 413 from the upload: over the server's size cap (names the cap). */
+  'admin.guidance.editor.hero.uploadError.tooLarge': string;
+  /** 400 from the upload: unsupported type / declared-type mismatch. */
+  'admin.guidance.editor.hero.uploadError.unsupported': string;
+  /** Any other upload failure (5xx, network): the generic retry copy. */
+  'admin.guidance.editor.hero.uploadError.generic': string;
   /** The alt's label; the cross-field rule (mandatory iff a hero is set)
    *  is enforced in the UI with the two errors below, mirroring the
    *  server's 400 so a pointless round trip never happens. */

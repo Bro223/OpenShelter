@@ -388,6 +388,18 @@ export const EN: Messages = {
   'admin.guidance.editor.hero.empty':
     'No images in the media library yet — upload one in the Media library tab.',
   'admin.guidance.editor.hero.remove': 'Remove image',
+  /** The hero picker's upload control: the file input's label (the backend
+   *  accepts exactly these three types, magic-byte checked). */
+  'admin.guidance.editor.hero.uploadLabel': 'Upload an image',
+  /** 413 from the upload: over the server's size cap (MEDIA_MAX_BYTES). */
+  'admin.guidance.editor.hero.uploadError.tooLarge':
+    'That image is larger than the 5 MB upload cap.',
+  /** 400 from the upload: not a readable image, or the declared type
+   *  contradicts the bytes (the server's magic-byte check). */
+  'admin.guidance.editor.hero.uploadError.unsupported':
+    'That file is not a supported image (JPEG, PNG or WebP), or its type does not match.',
+  /** Any other upload failure (5xx, network): the generic retry copy. */
+  'admin.guidance.editor.hero.uploadError.generic': 'The image upload failed. Please try again.',
   'admin.guidance.editor.altLabel': 'Hero image alt text (optional)',
   'admin.guidance.editor.altRequired': 'Alt text is required when a hero image is chosen.',
   'admin.guidance.editor.altForbidden': 'Remove the alt text or choose a hero image.',

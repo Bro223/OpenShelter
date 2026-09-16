@@ -11,6 +11,11 @@
        keeps the draft, the message is echoed verbatim. -->
   <app-banner severity="error" [message]="serverError()" />
 
+  <!-- The hero upload's mapped failure (413 names the cap, 400 the
+       unsupported type, other the retry copy) — the form is untouched, the
+       admin just picks again. -->
+  <app-banner severity="error" [message]="heroUploadError()" />
+
   <form [formGroup]="form" (ngSubmit)="onSave()">
     <div class="field">
       <label for="ge-title">{{ 'admin.guidance.editor.titleLabel' | t }}</label>
@@ -73,7 +78,12 @@
           />
           <div class="guidance-editor__hero-meta">
             <span class="guidance-editor__hero-name">{{ hero.name }}</span>
-            <button type="button" class="btn btn--ghost" (click)="removeHero()" [disabled]="busy()">
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="removeHero()"
+              [disabled]="busy() || uploading()"
+            >
               {{ 'admin.guidance.editor.hero.remove' | t }}
             </button>
           </div>
@@ -84,7 +94,7 @@
         type="button"
         class="btn btn--ghost"
         (click)="heroPickerOpen.set(!heroPickerOpen())"
-        [disabled]="busy()"
+        [disabled]="busy() || uploading()"
       >
         {{ 'admin.guidance.editor.hero.choose' | t }}
       </button>
@@ -93,17 +103,17 @@
         <div class="hero-picker" role="group" aria-label="Media library">
           @if (mediaAssets() === null) {
             <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
-          } @else if ((mediaAssets() ?? []).length === 0) {
+          } @else if (pickerAssets().length === 0) {
             <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
           } @else {
-            @for (asset of mediaAssets() ?? []; track asset.id) {
+            @for (asset of pickerAssets(); track asset.id) {
               <button
                 type="button"
                 class="hero-picker__item"
                 [class.hero-picker__item--selected]="heroImageId().value === asset.id"
                 [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
                 (click)="selectHero(asset)"
-                [disabled]="busy()"
+                [disabled]="busy() || uploading()"
               >
                 <img
                   [src]="asset.url"
@@ -119,6 +129,27 @@
           }
         </div>
       }
+
+      <!-- Upload a hero image right here (no media-library detour): the
+           labelled file input (the backend accepts exactly these three
+           types, magic-byte checked). On success the new asset is
+           auto-selected as the hero; the control is busy-blocked while the
+           upload is in flight. -->
+      <div class="guidance-editor__hero-upload">
+        <label for="ge-hero-upload">
+          {{
+            uploading() ? ('admin.media.uploading' | t) : ('admin.guidance.editor.hero.uploadLabel' | t)
+          }}
+        </label>
+        <input
+          id="ge-hero-upload"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          (change)="onHeroFileChange($event)"
+          [disabled]="busy() || uploading()"
+        />
+        <p class="field-note">{{ 'admin.media.uploadHint' | t }}</p>
+      </div>
     </div>
 
     <div class="field">
@@ -176,7 +207,7 @@
     }
 
     <div class="guidance-editor__actions">
-      <button type="submit" class="btn btn--primary" [disabled]="busy() || !canSave()">
+      <button type="submit" class="btn btn--primary" [disabled]="busy() || uploading() || !canSave()">
         {{ busy() ? ('admin.guidance.editor.saving' | t) : ('admin.guidance.editor.save' | t) }}
       </button>
       <button type="button" class="btn btn--ghost" (click)="onCancel()" [disabled]="busy()">

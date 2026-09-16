@@ -146,6 +146,26 @@
   text-align: center;
 }
 
+/* The hero picker's upload control (the media tab's upload shape: the
+   labelled file input + the accepted-types hint below). The input is
+   natively keyboard reachable; it is disabled while the upload is in
+   flight (no double submit). */
+.guidance-editor__hero-upload {
+  margin-top: var(--space-8);
+
+  label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
+  }
+
+  input[type='file'] {
+    width: 100%;
+    font-size: var(--text-sm);
+  }
+}
+
 /* Checkbox / radio rows (pinned + the create-mode publish choice). */
 .guidance-editor__check-label {
   display: flex;

@@ -8,6 +8,8 @@ import type {
   MediaAssetDto,
   UpdateGuidancePostRequest,
 } from '../../core/models';
+import { AdminGateway } from '../../gateways/admin-gateway';
+import { ApiError } from '../../core/api-error';
 import { GuidanceEditor, type GuidanceEditorSave, slugShapeValidator } from './guidance-editor';
 
 // ---- fixtures ----------------------------------------------------------------
@@ -55,6 +57,18 @@ const EDIT_POST: AdminGuidancePostDto = {
   updatedAt: '2026-09-02T09:00:00Z',
 };
 
+const NEW_ASSET: MediaAssetDto = {
+  id: 7,
+  url: '/api/media/0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.webp',
+  storedFilename: '0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f.webp',
+  originalFilename: 'varjund.webp',
+  contentType: 'image/webp',
+  width: 1200,
+  height: 800,
+  sizeBytes: 102400,
+  createdAt: '2026-09-03T09:00:00Z',
+  reusedBy: 0,
+};
 /** The host: post null = create mode, a post = edit mode (the prefill runs
  *  in the editor's ngOnInit — so the inputs are set BEFORE the first
  *  detectChanges, like the page binds them). */
@@ -86,13 +100,28 @@ interface EditorHarness {
   editor: GuidanceEditor;
   element: HTMLElement;
   fixture: ReturnType<typeof TestBed.createComponent<Host>>;
+  admin: FakeAdminGateway;
+}
+
+// ---- hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics) ----
+
+class FakeAdminGateway {
+  uploadMediaAsset = vi.fn();
+}
+
+function apiError(status: number, message: string, path: string): ApiError {
+  return ApiError.fromHttp(status, { timestamp: 't', status, error: 'Error', message, path }, path);
 }
 
 function createHost(
   post: AdminGuidancePostDto | null = EDIT_POST,
   assets: MediaAssetDto[] | null = MEDIA_ASSETS,
 ): EditorHarness {
-  TestBed.configureTestingModule({ imports: [Host] });
+  const admin = new FakeAdminGateway();
+  TestBed.configureTestingModule({
+    imports: [Host],
+    providers: [{ provide: AdminGateway, useValue: admin }],
+  });
   const fixture = TestBed.createComponent(Host);
   fixture.componentInstance.post = post;
   fixture.componentInstance.assets = assets;
@@ -106,6 +135,7 @@ function createHost(
     editor: debug.componentInstance as GuidanceEditor,
     element: debug.nativeElement as HTMLElement,
     fixture,
+    admin,
   };
 }
 
@@ -137,6 +167,25 @@ function typeValue(
 function fillRequired(h: EditorHarness, title = 'Uus post', body = '<p>Keha</p>'): void {
   typeValue(inputById(h.element, 'ge-title')!, title, h.fixture);
   typeValue(inputById(h.element, 'ge-body')!, body, h.fixture);
+}
+
+/** Drive the file input the way a real selection would: set `files`
+ *  (a plain array — the page-spec convention) and dispatch 'change'. */
+function selectFile(input: HTMLInputElement, file: File): void {
+  // configurable: the busy-block test selects twice on the same input.
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  input.dispatchEvent(new Event('change'));
+}
+
+/** Let in-flight gateway promises + zone work settle, then re-detect
+ *  (the page-spec settle shape). */
+async function settle(fixture: {
+  whenStable(): Promise<unknown>;
+  detectChanges(): void;
+}): Promise<void> {
+  await fixture.whenStable();
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  fixture.detectChanges();
 }
 
 describe('GuidanceEditor', () => {
@@ -366,6 +415,142 @@ describe('GuidanceEditor', () => {
     buttonByText(h.element, 'Cancel')!.click();
     h.fixture.detectChanges();
     expect(h.host.cancelled).toBe(true);
+  });
+
+  // ---- hero upload (the picker's inline upload — no library detour) -------
+
+  it('upload: choosing a file calls the gateway and auto-selects the new asset', async () => {
+    const h = createHost(null);
+    h.admin.uploadMediaAsset.mockResolvedValue(NEW_ASSET);
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.getAttribute('accept')).toBe('image/png,image/jpeg,image/webp');
+    const file = new File(['x'.repeat(102400)], 'varjund.webp', { type: 'image/webp' });
+
+    selectFile(input, file);
+    await settle(h.fixture);
+
+    expect(h.admin.uploadMediaAsset).toHaveBeenCalledWith(file);
+    expect(h.editor.form.get('heroImageId')?.value).toBe(NEW_ASSET.id);
+    // The current-image card shows the new asset; the picker closed
+    // (no second click needed).
+    const thumb = h.element.querySelector<HTMLImageElement>('.guidance-editor__hero-current img');
+    expect(thumb?.getAttribute('src')).toBe(NEW_ASSET.url);
+    expect(h.element.querySelector('.hero-picker')).toBeNull();
+    // The picker list refreshed: the new asset is FIRST (newest first).
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+    const items = h.element.querySelectorAll<HTMLButtonElement>('.hero-picker__item');
+    expect(items.length).toBe(3);
+    expect(items[0]!.textContent).toContain('varjund.webp');
+  });
+
+  it('upload: the busy state blocks a second upload (the input is disabled, one gateway call)', async () => {
+    const h = createHost(null);
+    let resolveUpload: (asset: MediaAssetDto) => void = () => undefined;
+    h.admin.uploadMediaAsset.mockReturnValue(
+      new Promise<MediaAssetDto>((resolve) => {
+        resolveUpload = resolve;
+      }),
+    );
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+    const fileA = new File(['a'], 'a.png', { type: 'image/png' });
+    const fileB = new File(['b'], 'b.png', { type: 'image/png' });
+
+    selectFile(input, fileA);
+    h.fixture.detectChanges();
+    expect(h.editor.uploading()).toBe(true);
+    expect(input.disabled).toBe(true);
+
+    // A second selection while in flight is ignored (the guard, not the
+    // disabled attribute, is what enforces it).
+    selectFile(input, fileB);
+    h.fixture.detectChanges();
+    expect(h.admin.uploadMediaAsset).toHaveBeenCalledTimes(1);
+    expect(h.admin.uploadMediaAsset).toHaveBeenCalledWith(fileA);
+
+    resolveUpload(NEW_ASSET);
+    await settle(h.fixture);
+    expect(h.admin.uploadMediaAsset).toHaveBeenCalledTimes(1);
+    expect(input.disabled).toBe(false);
+    expect(h.editor.form.get('heroImageId')?.value).toBe(NEW_ASSET.id);
+  });
+
+  it('upload: a 413 shows the cap message and selects nothing (the form is untouched)', async () => {
+    const h = createHost(null);
+    h.admin.uploadMediaAsset.mockRejectedValue(
+      apiError(413, 'image exceeds the 5 MB cap', '/admin/media'),
+    );
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+
+    selectFile(input, new File(['x'.repeat(51200)], 'big.png', { type: 'image/png' }));
+    await settle(h.fixture);
+
+    // The MAPPED message names the cap (the server text is not echoed).
+    expect(h.element.textContent).toContain('That image is larger than the 5 MB upload cap.');
+    expect(h.element.textContent).not.toContain('image exceeds the 5 MB cap');
+    // No partial state: nothing selected, the picker list unchanged,
+    // the input reset (the same file stays re-selectable).
+    expect(h.editor.form.get('heroImageId')?.value).toBeNull();
+    expect(input.value).toBe('');
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+    expect(h.element.querySelectorAll('.hero-picker__item').length).toBe(2);
+  });
+
+  it('upload: a 400 shows the unsupported-type message (no server echo)', async () => {
+    const h = createHost(null);
+    h.admin.uploadMediaAsset.mockRejectedValue(
+      apiError(400, 'file is not a readable image', '/admin/media'),
+    );
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+
+    selectFile(input, new File(['x'], 'mitte-pilt.webp', { type: 'image/webp' }));
+    await settle(h.fixture);
+
+    expect(h.element.textContent).toContain(
+      'That file is not a supported image (JPEG, PNG or WebP), or its type does not match.',
+    );
+    expect(h.element.textContent).not.toContain('file is not a readable image');
+    expect(h.editor.form.get('heroImageId')?.value).toBeNull();
+  });
+
+  it('upload: an unhandled failure (5xx) shows the generic retry copy', async () => {
+    const h = createHost(null);
+    h.admin.uploadMediaAsset.mockRejectedValue(
+      apiError(500, 'internal error', '/admin/media'),
+    );
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+
+    selectFile(input, new File(['x'], 'a.png', { type: 'image/png' }));
+    await settle(h.fixture);
+
+    expect(h.element.textContent).toContain('The image upload failed. Please try again.');
+    expect(h.editor.form.get('heroImageId')?.value).toBeNull();
+  });
+
+  it('upload: the alt-required rule applies after an auto-selected hero', async () => {
+    const h = createHost(null);
+    fillRequired(h);
+    h.admin.uploadMediaAsset.mockResolvedValue(NEW_ASSET);
+    const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
+
+    selectFile(input, new File(['x'.repeat(102400)], 'varjund.webp', { type: 'image/webp' }));
+    await settle(h.fixture);
+
+    // Exactly as picking from the library: hero set + blank alt = the
+    // altRequired copy, Save blocked; the alt unblocks.
+    expect(h.element.textContent).toContain('Alt text is required when a hero image is chosen.');
+    const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(save?.disabled).toBe(true);
+    h.editor.onSave();
+    expect(h.host.lastSave).toBeNull();
+
+    typeValue(inputById(h.element, 'ge-alt')!, 'Varjund, vaade seest', h.fixture);
+    expect(save?.disabled).toBe(false);
+    h.editor.onSave();
+    expect(h.host.lastSave?.create?.heroImageId).toBe(NEW_ASSET.id);
+    expect(h.host.lastSave?.create?.heroImageAlt).toBe('Varjund, vaade seest');
   });
 
   // ---- the slug validator (the shared unit) ----------------------------------

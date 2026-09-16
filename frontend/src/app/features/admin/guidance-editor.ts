@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  inject,
   type OnInit,
   input,
   output,
@@ -15,6 +16,9 @@ import {
   Validators,
 } from '@angular/forms';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { ApiError, toApiError } from '../../core/api-error';
+import { AdminGateway } from '../../gateways/admin-gateway';
 import type {
   AdminGuidancePostDto,
   GuidanceStatus,
@@ -62,10 +66,13 @@ export function slugShapeValidator(control: AbstractControl): ValidationErrors |
 
 /**
  * The guidance create/edit form (crisis-guidance D8/D9 — the admin
- * authoring surface). Pure form component: the PARENT (AdminPage) owns
- * every gateway call and the page-level banners — this component validates
- * (incl. the hero/alt cross-field rule, shown up front so the server's
- * 400 never fires for it) and emits the wire payload on Save.
+ * authoring surface). The PARENT (AdminPage) owns the save calls and the
+ * page-level banners — this component validates (incl. the hero/alt
+ * cross-field rule, shown up front so the server's 400 never fires for it)
+ * and emits the wire payload on Save. The one exception is the hero
+ * upload: it is a self-contained picker flow (upload → refresh the
+ * picker list → auto-select the new asset), so the editor calls
+ * AdminGateway.uploadMediaAsset itself.
  *
  * The body is a plain `<textarea>` over the stored (server-sanitized)
  * HTML — no WYSIWYG: sanitization is defence in depth on the server, and
@@ -92,6 +99,21 @@ export class GuidanceEditor implements OnInit {
 
   readonly save = output<GuidanceEditorSave>();
   readonly cancel = output<void>();
+
+  private readonly admin = inject(AdminGateway);
+  private readonly i18n = inject(I18nService);
+
+  /** The in-flight hero upload (one at a time — the control is disabled
+   *  while true so a double submit cannot fire two uploads). Public so
+   *  specs can drive it (the page-spec convention). */
+  readonly uploading = signal(false);
+  /** The last upload failure, mapped by status (413 names the cap, 400
+   *  the unsupported type, other the generic retry copy). */
+  protected readonly heroUploadError = signal<string | null>(null);
+  /** The assets uploaded in THIS editor session (newest first). The page
+   *  passes the library list as `mediaAssets` and cannot be bumped from
+   *  here, so the picker draws from this overlay + the library. */
+  protected readonly heroUploads = signal<MediaAssetDto[]>([]);
 
   readonly form = new FormGroup({
     title: new FormControl('', {
@@ -197,12 +219,18 @@ export class GuidanceEditor implements OnInit {
    * matched by id, falling back to the post's stored hero reference when
    * the library list has not loaded it yet (the serving URL is public).
    */
+  /** The picker's list: the assets uploaded in this session (newest
+   *  first) over the library (itself newest first). */
+  protected pickerAssets(): MediaAssetDto[] {
+    return [...this.heroUploads(), ...(this.mediaAssets() ?? [])];
+  }
+
   protected selectedHero(): { url: string; name: string } | null {
     const id = this.heroImageId().value;
     if (id === null) {
       return null;
     }
-    const match = (this.mediaAssets() ?? []).find((a) => a.id === id);
+    const match = this.pickerAssets().find((a) => a.id === id);
     if (match) {
       return { url: match.url, name: match.originalFilename };
     }
@@ -224,6 +252,62 @@ export class GuidanceEditor implements OnInit {
   /** Clear the hero; the asset itself stays in the media library. */
   removeHero(): void {
     this.heroImageId().setValue(null);
+  }
+
+  // ---- hero upload ---------------------------------------------------------
+  /** The upload input's change: hand the chosen file to the upload (the
+   *  input value resets FIRST — the same file stays re-selectable).
+   *  The media-tab convention (AdminPage.onMediaFileChange). */
+  onHeroFileChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    // Index access (not .item): FileList is indexable, and the spec sets a
+    // plain array on `files`.
+    const file = input.files?.[0];
+    input.value = '';
+    if (file !== null && file !== undefined) {
+      void this.uploadHeroFile(file);
+    }
+  }
+
+  /**
+   * POST /admin/media via the gateway (the media tab's exact approach):
+   * on success the new asset prepends to the picker list and is selected
+   * as the hero (the picker closes, like a library pick — the alt stays
+   * as typed, the cross-field rule takes over when it is blank). On
+   * failure the form is left EXACTLY as it was — nothing is selected, the
+   * input is already reset — and the mapped message surfaces in the
+   * editor's error banner.
+   */
+  async uploadHeroFile(file: File): Promise<void> {
+    if (this.uploading() || this.busy()) {
+      return; // one in-flight mutation at a time (the page-level busy too)
+    }
+    this.heroUploadError.set(null);
+    this.uploading.set(true);
+    try {
+      const asset = await this.admin.uploadMediaAsset(file);
+      this.heroUploads.update((rows) => [asset, ...rows]);
+      this.selectHero(asset);
+    } catch (error) {
+      this.heroUploadError.set(this.heroUploadErrorMessage(error));
+    } finally {
+      this.uploading.set(false);
+    }
+  }
+
+  /** The upload failure, mapped by status: 413 names the 5 MB cap, 400 is
+   *  the unsupported/type-mismatch (the backend magic-byte check), and
+   *  everything else — 5xx, network — is the generic retry copy (never an
+   *  echo of a non-JSON body, the error-copy convention). */
+  private heroUploadErrorMessage(error: unknown): string {
+    const api = error instanceof ApiError ? error : toApiError(error);
+    if (api.status === 413) {
+      return this.i18n.t('admin.guidance.editor.hero.uploadError.tooLarge');
+    }
+    if (api.status === 400) {
+      return this.i18n.t('admin.guidance.editor.hero.uploadError.unsupported');
+    }
+    return this.i18n.t('admin.guidance.editor.hero.uploadError.generic');
   }
 
   // ---- submit / cancel ----------------------------------------------------
