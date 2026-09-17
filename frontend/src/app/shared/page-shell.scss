@@ -179,6 +179,41 @@
       align-items: baseline;
     }
   }
+
+  /* Narrow (<900px, same documented 900px literal): the meta groups stack
+     (the base rule is already column) and now CENTRE to match the notice
+     below them — the footer reads as one centred block instead of left
+     meta over centred notice. The decorative · separator spans are
+     hidden: they are aria-hidden already (outside the accessibility tree,
+     so no screen reader is affected) and, left visible, they could wrap
+     onto a line of their own — with them gone the sentence flows as plain
+     centred text wrapping only at word boundaries. No fixed widths and no
+     nowrap anywhere: every string must fit 320-430px without horizontal
+     overflow (the notice's "Ministry of the Interior" wraps between its
+     words). */
+  @media (max-width: 900px) {
+    .shell-footer__legal,
+    .shell-footer__data {
+      text-align: center;
+    }
+
+    /* Only the aria-hidden separator spans inside the two meta groups
+       (the groups contain no other elements with that attribute). */
+    .shell-footer__legal [aria-hidden='true'],
+    .shell-footer__data [aria-hidden='true'] {
+      display: none;
+    }
+
+    /* Tap targets for the two legal links: >=44px hit area via vertical
+       padding (16px x 2 + the ~20px text-sm line box ≈ 52px). One step
+       under the 48px --space-48 button/row convention on purpose — this
+       is a legal footnote, not an action row: comfortable to tap without
+       button weight (no background, no border, text stays small/muted).
+       Horizontal padding keeps the tap target accurate, not just tall. */
+    .shell-footer__legal a {
+      padding: var(--space-16) var(--space-12);
+    }
+  }
 }
 
 /* Narrow-viewport breakpoint — the documented 900px literal (the

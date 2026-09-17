@@ -485,15 +485,23 @@ describe('PageShell', () => {
     );
     // The narrow block is where the burger lives (display: none at >=900).
     // Extracted by brace balancing (the design-tokens.spec.ts blockLines
-    // idiom) — a regex alone would over-run into the file tail.
+    // idiom) — a regex alone would over-run into the file tail. The file
+    // now carries TWO max-width blocks (the narrow-footer one is nested in
+    // .shell-footer), so select by content, not by position.
     function narrowBlock(): string | null {
       const lines = shellScss.split('\n');
-      const start = lines.findIndex((l) => l.trim() === '@media (max-width: 900px) {');
-      if (start === -1) return null;
-      let depth = 0;
-      for (let i = start; i < lines.length; i++) {
-        depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
-        if (depth <= 0) return lines.slice(start, i + 1).join('\n');
+      for (let start = 0; start < lines.length; start++) {
+        if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
+        let depth = 0;
+        for (let i = start; i < lines.length; i++) {
+          depth +=
+            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          if (depth <= 0) {
+            const block = lines.slice(start, i + 1).join('\n');
+            if (block.includes('.shell-burger')) return block;
+            break;
+          }
+        }
       }
       return null;
     }
@@ -571,6 +579,85 @@ describe('PageShell', () => {
       expect(guard, 'the reduced-motion guard must exist alongside the transition').not.toBeNull();
       expect(guard![0], 'the guard must cover the bars').toContain('.shell-burger__bar');
       expect(guard![0], 'the guard must remove the transition').toMatch(/transition: none/);
+    });
+  });
+
+  /* Narrow footer (page-shell.scss invariants): at ≤900px the stacked meta
+     groups must centre to match the notice below them, and the decorative
+     · separators must hide so they can never wrap onto a line of their
+     own. jsdom cannot measure media queries or line wrapping, so — same
+     mechanism-assertion idiom as the burger bars block above — the
+     stylesheet content itself is the acceptance; the rendered geometry
+     (no orphaned dots, no 320px overflow) still needs a browser check. */
+  describe('narrow footer (page-shell.scss invariants)', () => {
+    // The test runner's cwd is the frontend project root (npx ng test).
+    const shellScss = readFileSync(
+      `${process.cwd()}/src/app/shared/page-shell.scss`,
+      'utf8',
+    );
+
+    // The file has TWO `@media (max-width: 900px)` blocks (the burger
+    // panel at top level, the footer one nested in .shell-footer). Extract
+    // every max-width block by brace balancing (the blockLines idiom) and
+    // keep the one containing the footer's meta groups. Matching the media
+    // line verbatim also pins the documented 900px literal the
+    // design-tokens audit requires on every @media line.
+    function narrowFooterBlock(): string | null {
+      const lines = shellScss.split('\n');
+      for (let start = 0; start < lines.length; start++) {
+        if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
+        let depth = 0;
+        for (let i = start; i < lines.length; i++) {
+          depth +=
+            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          if (depth <= 0) {
+            const block = lines.slice(start, i + 1).join('\n');
+            if (block.includes('.shell-footer__legal')) return block;
+            break;
+          }
+        }
+      }
+      return null;
+    }
+
+    const footerNarrow = narrowFooterBlock();
+
+    it('at ≤900px the stacked meta groups centre like the notice and the decorative separators hide (no orphaned ·)', () => {
+      expect(
+        footerNarrow,
+        'page-shell.scss must keep a narrow footer block inside .shell-footer',
+      ).not.toBeNull();
+      // The stacked groups take the notice's alignment: centred text, both
+      // groups as a pair (one rule, so they cannot drift apart).
+      const centred = footerNarrow!.match(
+        /\.shell-footer__legal,\s*\.shell-footer__data \{[^}]*\}/,
+      );
+      expect(centred, 'the two meta groups must be centred together').not.toBeNull();
+      expect(centred![0]).toMatch(/text-align: center/);
+      // The separators are the only [aria-hidden] elements inside the two
+      // groups — hiding them removes the orphaned dots without touching
+      // the accessibility tree (they were aria-hidden already).
+      const hidden = footerNarrow!.match(
+        /\.shell-footer__legal \[aria-hidden='true'\],\s*\.shell-footer__data \[aria-hidden='true'\] \{[^}]*\}/,
+      );
+      expect(hidden, 'the decorative separator spans must not render at ≤900').not.toBeNull();
+      expect(hidden![0]).toMatch(/display: none/);
+    });
+
+    it('the legal links get a ≥44px hit area via padding (footnote, not the 48px button row) and nothing may overflow 320px', () => {
+      expect(footerNarrow).not.toBeNull();
+      const links = footerNarrow!.match(/\.shell-footer__legal a \{[^}]*\}/);
+      expect(links, 'the narrow legal-link tap-target rule must exist').not.toBeNull();
+      // 16px vertical × 2 + the ~20px text-sm line box (1.5 line-height)
+      // ≈ 52px ≥ the 44px minimum tap target.
+      expect(links![0], 'the hit area is built with vertical padding')
+        .toMatch(/padding: var\(--space-16\) var\(--space-12\)/);
+      // No fixed widths and no nowrap: the long strings (provenance line,
+      // "Ministry of the Interior") must wrap between words at 320-430px.
+      expect(footerNarrow!, 'no fixed widths in the narrow footer block').not.toMatch(
+        /(^|\n)\s*(width|min-width)\s*:/,
+      );
+      expect(footerNarrow!, 'no nowrap on the long footer strings').not.toMatch(/nowrap/);
     });
   });
 
