@@ -1,6 +1,18 @@
-/* The page fills the shell body (flex chain: shell-body > map-page >
-   map-page__layout), so the map+sidebar block stretches to the viewport
-   instead of a fixed 560px block floating above the footer. */
+/* The page fills the shell body, so the map+sidebar block stretches to
+   the viewport instead of a fixed 560px block floating above the footer.
+   Angular renders the routed component AFTER the <router-outlet> as a
+   sibling (not inside it — see the router-outlet rule in page-shell.scss),
+   so the growth is declared on the host itself; without it the host stays
+   a content-height block and .map-page's flex: 1 has nothing to grow
+   into. Chain: shell-body > app-map-page (:host) > .map-page >
+   map-page__layout. No min-height: 0 on the host: a short viewport must
+   scroll (the 725px layout min) rather than clip under the footer. */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .map-page {
   flex: 1;
   display: flex;

@@ -36,6 +36,32 @@ export class GuidanceListPage implements OnInit {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
+  /**
+   * Slugs whose hero <img> failed to load (404/network): the broken image
+   * element is dropped and a fixed-size neutral placeholder takes its
+   * place, so the row keeps its height and the title link stays the row's
+   * single accessible link.
+   */
+  private readonly failedHeroSlugs = signal<ReadonlySet<string>>(new Set());
+
+  /** Template seam: did this post's hero image fail to load? */
+  heroFailed(slug: string): boolean {
+    return this.failedHeroSlugs().has(slug);
+  }
+
+  /**
+   * The <img (error)> handler: drop the broken thumbnail for this post.
+   * Idempotent — a natural load error and a synthetic one may both arrive.
+   */
+  onHeroImageError(_event: Event, slug: string): void {
+    const failed = new Set(this.failedHeroSlugs());
+    if (failed.has(slug)) {
+      return;
+    }
+    failed.add(slug);
+    this.failedHeroSlugs.set(failed);
+  }
+
   ngOnInit(): void {
     this.load();
   }
