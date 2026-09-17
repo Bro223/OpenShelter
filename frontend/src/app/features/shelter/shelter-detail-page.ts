@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { DatePipe, NgClass } from '@angular/common';
+import { NgClass } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/api-error';
@@ -115,7 +115,6 @@ const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
   imports: [
     RouterLink,
     NgClass,
-    DatePipe,
     ReactiveFormsModule,
     BannerComponent,
     LoadingIndicator,
