@@ -27,9 +27,11 @@
 }
 
 /* The body editor: toolbar (block-type group + inline group) over the
-   contenteditable region. The buttons are the app's own small tool
-   shape (the picker card's pressed-state language for the active one);
-   the region keeps the old textarea's footprint (the 10-row height). */
+   Quill editor. The buttons are the app's own small tool shape (the
+   picker card's pressed-state language for the active one); the editor
+   keeps the old textarea's footprint (the 10-row height). The pressed
+   state lives in Quill's DOM (it toggles ql-active + aria-pressed on
+   the controls itself) — no template binding. */
 .body-editor {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -51,25 +53,40 @@
 }
 
 /* The toolbar buttons: the app's small-tool shape (the picker card's
-   pressed-state language for the active one). */
+   pressed-state language for the active one). The touch-target rule
+   applies to every control (≥44px; the app's 48px standard). */
 .body-editor__tool {
   display: inline-flex;
-  padding: var(--space-4) var(--space-8);
+  align-items: center;
+  min-height: var(--space-48);
+  padding: 0 var(--space-8);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-surface);
+  color: inherit;
+  font-family: inherit;
   font-size: var(--text-sm);
+  line-height: 1;
   /* Every toolbar control is clickable: the app's .btn cursor treatment
      (a pointer on hover — the <button> default would read as inert).
      A disabled control goes back to the default cursor, as .btn:disabled. */
   cursor: pointer;
 
-  /* The pressed/active state (aria-pressed mirrors it): the primary
-     outline, the picker card's selected language. */
-  &.body-editor__tool--active {
+  &:hover:not(:disabled) {
+    background: var(--color-surface-hover);
+  }
+
+  /* The pressed/active state — Quill's toolbar toggles this class (and
+     the aria-pressed attribute) on every selection/text change. */
+  &.ql-active {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 1px var(--color-primary);
     background: var(--color-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
   }
 
   &:disabled {
@@ -78,24 +95,42 @@
   }
 }
 
+/* The Quill container (the template's host element after init). The
+   vendored snow CSS gives .ql-container a fixed float/margin/font it
+   does not want — reset the base rules here, in the app's vocabulary. */
 .body-editor__region {
-  min-height: calc(var(--space-48) * 6); /* the old textarea's 10 rows */
-  padding: var(--space-8) var(--space-12);
+  float: none;
+  margin: 0;
+  width: 100%;
+  height: auto;
+  font-family: inherit;
   font-size: var(--text-base);
+  background: transparent;
+}
+
+/* Quill creates the editable root AFTER the view is initialised, so its
+   elements carry no view-encapsulation attribute — the rules below
+   escape the scope with ::ng-deep (the repo's only use: everything else
+   in this component styles template elements). The typography mirrors
+   the public detail page's body styling so what the admin sees is what
+   the visitor gets. */
+::ng-deep .body-editor__region .ql-editor {
+  min-height: calc(var(--space-48) * 6); /* the old textarea's 10 rows */
+  height: auto;
+  padding: var(--space-8) var(--space-12);
+  font-family: inherit;
+  font-size: var(--text-base);
+  line-height: inherit;
+  margin: 0;
 
   /* The region's keyboard focus ring (the global :focus-visible rule
-     lists only a/button/input/textarea — the contenteditable region
+     lists only a/button/input/textarea — the contenteditable root
      needs its own). */
   &:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 1px;
   }
 
-  /* The region's typography mirrors the public detail page's body
-     styling (guidance-detail__body) EXACTLY — p, h2, ul/ol and a are
-     the only tags the public page styles, so h3/blockquote stay at
-     their UA defaults in both places: what the admin sees is what
-     the visitor gets. */
   p {
     margin: 0 0 var(--space-12);
   }

@@ -34,6 +34,16 @@ const SRC_DIR = `${process.cwd()}/src`;
 function collectScss(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
+    // src/vendor/** is vendored third-party bytes (Quill 2.0.3 and its
+    // snow CSS — see src/vendor/quill/README.md): the token audit
+    // governs THIS app's stylesheets only. Auditing a dependency's own
+    // literals would fail on them, and a re-vendor of a new upstream
+    // version could never be trusted to pass. (Quill's stylesheet is a
+    // .css today, which the .scss walk would skip anyway — the guard
+    // keeps that true if a re-vendor ever ships an .scss.)
+    if (dir === SRC_DIR && entry === 'vendor') {
+      continue;
+    }
     const full = `${dir}/${entry}`;
     if (statSync(full).isDirectory()) {
       out.push(...collectScss(full));

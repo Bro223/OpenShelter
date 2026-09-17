@@ -30,7 +30,10 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"],
+            "styles": [
+              "src/styles.scss",
+              "src/vendor/quill/2.0.3/dist/quill.snow.css"
+            ],
             "allowedCommonJsDependencies": ["leaflet"]
           },
           "configurations": {

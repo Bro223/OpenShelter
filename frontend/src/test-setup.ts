@@ -27,3 +27,37 @@ Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
   writable: true,
 });
+
+/**
+ * jsdom implements no CSS layout: `Range` lacks `getBoundingClientRect`/
+ * `getClientRects` entirely (Element's exists and reports zeros). Quill 2's
+ * `setSelection()` calls `scrollSelectionIntoView` → `getBounds`, which reads
+ * the selection's rect — so the specs shim a zero rect, the standard jsdom
+ * treatment for layout-dependent code. Test environment only; real browsers
+ * have real layout.
+ */
+function zeroRect(): DOMRect {
+  return {
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: 0,
+    height: 0,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+if (typeof Range !== 'undefined' && Range.prototype.getBoundingClientRect === undefined) {
+  Range.prototype.getBoundingClientRect = zeroRect;
+  // SAFETY: jsdom's Range lacks getClientRects; the spec code under test
+  // (Quill's getBounds) only ever calls getBoundingClientRect, so an
+  // empty list shape is all any consumer needs.
+  Range.prototype.getClientRects = () =>
+    ({
+      length: 0,
+      item: () => null,
+      [Symbol.iterator]: function* () {},
+    }) as unknown as ReturnType<Range['getClientRects']>;
+}

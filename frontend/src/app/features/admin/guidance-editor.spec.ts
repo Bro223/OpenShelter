@@ -11,10 +11,12 @@ import type {
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { ApiError } from '../../core/api-error';
+import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js';
 import {
   GuidanceEditor,
   type GuidanceEditorSave,
-  bodyCommands,
+  BODY_EDITOR_FORMATS,
+  BODY_EDITOR_FORMAT_TAGS,
   bodyHtmlBlankValidator,
   slugShapeValidator,
 } from './guidance-editor';
@@ -165,7 +167,9 @@ function buttonByText(root: HTMLElement, text: string): HTMLButtonElement | null
 }
 
 /** Set a reactive control's value through the DOM (the page-spec
- *  convention: dispatch 'input', then change detection). */
+ *  convention: dispatch 'input', then change detection). For #ge-body the
+ *  "input" is the value seam Quill's root exposes (the setter loads the
+ *  markup into the editor). */
 function typeValue(
   el: HTMLInputElement | HTMLTextAreaElement,
   value: string,
@@ -201,102 +205,47 @@ async function settle(fixture: {
   fixture.detectChanges();
 }
 
-/** The body editor's region (the contenteditable the toolbar drives). */
-function regionOf(h: EditorHarness): HTMLElement {
-  return h.element.querySelector<HTMLElement>('#ge-body')!;
+// ---- the Quill seam (the spec drives the editor the way a user would) --------
+
+/** The editor instance (created in ngAfterViewInit — always present after
+ *  the harness's first detectChanges). */
+function quillOf(h: EditorHarness): NonNullable<GuidanceEditor['quill']> {
+  const quill = h.editor.quill;
+  if (quill === null) {
+    throw new Error('the editor was not initialised (ngAfterViewInit)');
+  }
+  return quill;
 }
 
-/** Select the whole text node containing `text` in the region (the jsdom
- *  selection seam — the specs have no real caret). */
-function selectRegionText(region: HTMLElement, text: string): void {
-  const range = document.createRange();
-  const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode()) !== null) {
-    if ((node.textContent ?? '').includes(text)) {
-      range.selectNodeContents(node);
-      break;
-    }
-  }
-  const sel = window.getSelection();
-  if (sel === null) {
-    throw new Error('jsdom: no selection');
-  }
-  sel.removeAllRanges();
-  sel.addRange(range);
+/** The editable root (the #ge-body element, inside the Quill container). */
+function rootOf(h: EditorHarness): HTMLElement {
+  return quillOf(h).root;
 }
 
-/** A COLLAPSED caret (no selection) at `offset` in the text node with
- *  full text `nodeText`. */
-function selectCollapsed(region: HTMLElement, nodeText: string, offset: number): void {
-  const range = document.createRange();
-  const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode()) !== null) {
-    if ((node.textContent ?? '') === nodeText) {
-      range.setStart(node, offset);
-      range.setEnd(node, offset);
-      break;
-    }
+/** Run `fn` with the link prompt stubbed (jsdom's real prompt is a
+ *  no-op console warning). */
+function withPrompt<T>(url: string | null, fn: () => T): T {
+  const original = window.prompt;
+  window.prompt = vi.fn().mockReturnValue(url) as typeof window.prompt;
+  try {
+    return fn();
+  } finally {
+    window.prompt = original;
   }
-  const sel = window.getSelection();
-  if (sel === null) {
-    throw new Error('jsdom: no selection');
-  }
-  sel.removeAllRanges();
-  sel.addRange(range);
 }
 
-/** The region's current selection text (empty string if collapsed/none). */
-function selectedText(): string {
-  const sel = window.getSelection();
-  return sel !== null && sel.rangeCount > 0 ? sel.toString() : '';
-}
-
-/** Fire the component's paste handler with a controlled clipboard payload:
- *  `plain` is what getData('text/plain') returns; `rich` (ignored by design)
- *  is the markup a real clipboard would also carry. */
-function paste(region: HTMLElement, plain: string, rich = ''): void {
+/** Fire a paste at the editor root the way a real clipboard would:
+ *  `plain` is what getData('text/plain') returns; `rich` is the markup a
+ *  real clipboard would also carry (never read — the paste contract is
+ *  plain text only). Dispatching at the root lets the component's
+ *  capture-phase handler on the host see the event first. */
+function pastePlainText(root: HTMLElement, plain: string, rich = ''): void {
   const event = new Event('paste', { bubbles: true, cancelable: true });
   Object.defineProperty(event, 'clipboardData', {
-    value: { getData: (t: string) => (t === 'text/plain' ? plain : rich) },
+    value: { getData: (type: string) => (type === 'text/plain' ? plain : rich) },
     configurable: true,
   });
-  region.dispatchEvent(event);
-}
-
-/** Dispatch the region's `beforeinput` the way a real keystroke delivers
- *  it (inputType 'insertText', data the typed text). jsdom has no
- *  contenteditable typing engine: the beforeinput event IS the keystroke,
- *  and the component's armed-format takeover performs the insertion
- *  itself — so these tests exercise exactly the code path a real browser
- *  would hand over. Returns whether the handler took the insertion over
- *  (preventDefault) or left it to the browser's NATIVE insertion, which
- *  jsdom does not perform — the unformatted character actually landing is
- *  the part only a real-browser click-through can prove. */
-function typeChar(region: HTMLElement, text: string): boolean {
-  const event = new InputEvent('beforeinput', {
-    inputType: 'insertText',
-    data: text,
-    bubbles: true,
-    cancelable: true,
-  });
-  region.dispatchEvent(event);
-  return event.defaultPrevented;
-}
-
-/** A real multi-block selection: from the start of the block holding
- *  `firstText` to after the block holding `lastText`. */
-function selectAcrossBlocks(region: HTMLElement, firstText: string, lastText: string): void {
-  const blocks = [...region.querySelectorAll('p, li, h2, h3, blockquote')];
-  const first = blocks.find((el) => (el.textContent ?? '').includes(firstText))!;
-  const last = blocks.find((el) => (el.textContent ?? '').includes(lastText))!;
-  const range = region.ownerDocument.createRange();
-  range.selectNodeContents(first);
-  range.setEndAfter(last);
-  const sel = getSelection()!;
-  sel.removeAllRanges();
-  sel.addRange(range);
+  root.dispatchEvent(event);
 }
 
 /** The tags the sanitizer keeps — the submitted value must contain ONLY
@@ -344,63 +293,23 @@ function submittedBody(h: EditorHarness): string {
   h.fixture.detectChanges();
   return h.host.lastSave?.create?.body ?? h.host.lastSave?.update?.body ?? '';
 }
-/** A PARTIAL selection: a real hand-built Range over a substring of one
- *  text node (`nodeText` must equal the node's full text; `from`/`to` are
- *  character offsets into it). This is the owner's case — drag across part
- *  of a sentence — which `selectRegionText` (whole node) never exercises.
- *  For a cross-paragraph span, pass two nodes via `selectOffsetSpan`. */
-function selectOffsetRange(
-  region: HTMLElement,
-  nodeText: string,
-  from: number,
-  to: number,
-): void {
-  const range = document.createRange();
-  const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
-  let node: Node | null;
-  while ((node = walker.nextNode()) !== null) {
-    if ((node.textContent ?? '') === nodeText) {
-      range.setStart(node, from);
-      range.setEnd(node, to);
-      break;
+
+/** The format names a converted (pasted/loaded) delta carries. */
+function deltaFormats(delta: QuillDelta): Set<string> {
+  const out = new Set<string>();
+  for (const op of delta.ops) {
+    for (const key of Object.keys(op.attributes ?? {})) {
+      out.add(key);
     }
   }
-  const sel = window.getSelection();
-  if (sel === null) {
-    throw new Error('jsdom: no selection');
-  }
-  sel.removeAllRanges();
-  sel.addRange(range);
+  return out;
 }
 
-/** A partial selection that STARTS in one text node and ENDS in another
- *  (cross-paragraph). Node identity is by full text content. */
-function selectOffsetSpan(
-  region: HTMLElement,
-  startText: string,
-  startOffset: number,
-  endText: string,
-  endOffset: number,
-): void {
-  const find = (content: string): Node => {
-    const walker = document.createTreeWalker(region, NodeFilter.SHOW_TEXT);
-    let node: Node | null;
-    while ((node = walker.nextNode()) !== null) {
-      if ((node.textContent ?? '') === content) {
-        return node;
-      }
-    }
-    throw new Error(`no text node with content "${content}"`);
-  };
-  const range = document.createRange();
-  range.setStart(find(startText), startOffset);
-  range.setEnd(find(endText), endOffset);
-  const sel = window.getSelection();
-  if (sel === null) {
-    throw new Error('jsdom: no selection');
-  }
-  sel.removeAllRanges();
-  sel.addRange(range);
+/** The link hrefs a converted delta carries. */
+function deltaLinks(delta: QuillDelta): string[] {
+  return delta.ops
+    .map((op) => op.attributes?.['link'])
+    .filter((value): value is string => typeof value === 'string');
 }
 
 describe('GuidanceEditor', () => {
@@ -766,13 +675,16 @@ describe('GuidanceEditor', () => {
     expect(h.host.lastSave?.create?.heroImageAlt).toBe('Varjund, vaade seest');
   });
 
-  // ---- the visual body editor (the toolbar over the contenteditable) -------
+  // ---- the visual body editor (Quill 2 over the sanitizer's allowlist) -----
 
-  it('loading a stored body puts its HTML in the editor, and Save submits it unchanged', () => {
+  it('round-trips the stored HTML unchanged: load puts the markup in, Save submits the same string', () => {
     const h = createHost({ ...EDIT_POST, bodyHtml: '<h2>X</h2><p>Y</p>' });
-    const region = regionOf(h);
+    const root = rootOf(h);
     // The stored (sanitized) markup goes in as markup, not escaped text.
-    expect(region.innerHTML).toBe('<h2>X</h2><p>Y</p>');
+    expect(root.innerHTML).toBe('<h2>X</h2><p>Y</p>');
+    // The form's body control carries the document (the value seam reads
+    // it back — the same surface the page spec drives).
+    expect(inputById(h.element, 'ge-body')!.value).toBe('<h2>X</h2><p>Y</p>');
 
     h.editor.onSave();
     h.fixture.detectChanges();
@@ -781,49 +693,18 @@ describe('GuidanceEditor', () => {
     expect(h.host.lastSave?.update?.body).toBe('<h2>X</h2><p>Y</p>');
   });
 
-  it('choosing a block type applies the expected tag (Heading 2 → <h2>)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
-    selectRegionText(region, 'Pöördu');
+  it('a stored blockquote still round-trips (the normalizer keeps it even without a toolbar choice)', () => {
+    const h = createHost({ ...EDIT_POST, bodyHtml: '<p>a</p><blockquote>quoted</blockquote><p>b</p>' });
+    const root = rootOf(h);
+    // The stored blockquote loads as markup (the normalizer does not unwrap it).
+    expect(root.innerHTML).toBe('<p>a</p><blockquote>quoted</blockquote><p>b</p>');
 
-    buttonByText(h.element, 'Heading 2')!.click();
+    h.editor.onSave();
     h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<h2>Pöördu peavarjendisse.</h2>');
-    expect(h.editor.form.get('body')?.value).toBe('<h2>Pöördu peavarjendisse.</h2>');
+    expect(h.host.lastSave?.update?.body).toBe('<p>a</p><blockquote>quoted</blockquote><p>b</p>');
   });
 
-  it('the block group pressed state reflects where the selection sits', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<h2>Pöördu peavarjendisse.</h2>');
-    const region = regionOf(h);
-    selectRegionText(region, 'Pöördu');
-    (h.editor as unknown as { refreshToolbarState(): void }).refreshToolbarState();
-    h.fixture.detectChanges();
-
-    expect(buttonByText(h.element, 'Heading 2')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Paragraph')!.getAttribute('aria-pressed')).toBe('false');
-  });
-
-  it('the list choices map to ul/ol with li items', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
-
-    selectRegionText(region, 'Pöördu');
-    buttonByText(h.element, 'Bulleted list')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<ul><li>Pöördu peavarjendisse.</li></ul>');
-
-    selectRegionText(region, 'Pöördu');
-    buttonByText(h.element, 'Numbered list')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<ol><li>Pöördu peavarjendisse.</li></ol>');
-    expect(h.editor.form.get('body')?.value).toBe('<ol><li>Pöördu peavarjendisse.</li></ol>');
-  });
-
-  it('Quote is not offered by the toolbar (the owner removed the choice)', () => {
+  it('the toolbar offers exactly the sanitizer allowlist (Quote is not offered — the owner removed the choice)', () => {
     const h = createHost(null);
     fillRequired(h);
     expect(buttonByText(h.element, 'Quote')).toBeNull();
@@ -842,62 +723,205 @@ describe('GuidanceEditor', () => {
     ]);
   });
 
-  it('a stored blockquote still round-trips (the normalizer keeps it even without a toolbar choice)', () => {
-    const h = createHost({ ...EDIT_POST, bodyHtml: '<p>a</p><blockquote>quoted</blockquote><p>b</p>' });
-    const region = regionOf(h);
-    // The stored blockquote loads as markup (the normalizer does not unwrap it).
-    expect(region.innerHTML).toBe('<p>a</p><blockquote>quoted</blockquote><p>b</p>');
-
-    h.editor.onSave();
-    h.fixture.detectChanges();
-    expect(h.host.lastSave?.update?.body).toBe('<p>a</p><blockquote>quoted</blockquote><p>b</p>');
-  });
-
-  it('Bold applies <strong> and Italic <em> — never <b>/<i> (the sanitizer spellings)', () => {
+  it('choosing a block type applies the expected tag (Heading 2 → <h2>, Heading 3 → <h3>, Paragraph back)', () => {
     const h = createHost(null);
     fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
+    const quill = quillOf(h);
+    const root = rootOf(h);
+    const length = quill.getText(0, quill.getLength() - 1).length;
 
-    selectRegionText(region, 'Pöördu');
+    quill.setSelection(0, length);
+    buttonByText(h.element, 'Heading 2')!.click();
+    h.fixture.detectChanges();
+    expect(root.innerHTML).toBe('<h2>Pöördu peavarjendisse.</h2>');
+    expect(h.editor.form.get('body')?.value).toBe('<h2>Pöördu peavarjendisse.</h2>');
+
+    quill.setSelection(0, length);
+    buttonByText(h.element, 'Heading 3')!.click();
+    h.fixture.detectChanges();
+    expect(root.innerHTML).toBe('<h3>Pöördu peavarjendisse.</h3>');
+
+    quill.setSelection(0, length);
+    buttonByText(h.element, 'Paragraph')!.click();
+    h.fixture.detectChanges();
+    expect(root.innerHTML).toBe('<p>Pöördu peavarjendisse.</p>');
+  });
+
+  it('the block group pressed state reflects where the selection sits (Quill owns the state)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<h2>Pöördu peavarjendisse.</h2>');
+    const quill = quillOf(h);
+    quill.setSelection(0, 3);
+    h.fixture.detectChanges();
+
+    expect(buttonByText(h.element, 'Heading 2')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonByText(h.element, 'Paragraph')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonByText(h.element, 'Heading 3')!.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('typing then formatting yields allowlist tags (the round-trip contract)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>Pealkiri siin</p>');
+    const quill = quillOf(h);
+
+    // Type (a user edit — Quill records it for undo).
+    quill.insertText(quill.getLength() - 1, ' Ja veel.', 'user');
+    // Bold the first word, then make the whole line a heading.
+    quill.setSelection(0, 5);
     buttonByText(h.element, 'Bold')!.click();
     h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong>Pöördu peavarjendisse.</strong></p>');
-
-    selectRegionText(region, 'Pöördu');
-    buttonByText(h.element, 'Italic')!.click();
+    quill.setSelection(0, quill.getLength() - 1);
+    buttonByText(h.element, 'Heading 2')!.click();
     h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong><em>Pöördu peavarjendisse.</em></strong></p>');
-    expect(region.innerHTML).not.toMatch(/<b>|<\/b>|<i>|<\/i>/);
-    expect(h.editor.form.get('body')?.value).toBe(
-      '<p><strong><em>Pöördu peavarjendisse.</em></strong></p>',
-    );
+
+    const body = submittedBody(h);
+    expect(body).toBe('<h2><strong>Pealk</strong>iri siin Ja veel.</h2>');
+    assertCleanBody(body);
   });
 
-  it('Ctrl/Cmd+B and Ctrl/Cmd+I apply strong/em (the keyboard spelling of the toolbar)', () => {
+  it('Bold wraps the selection in <strong>; a second immediate Bold toggles it OFF (never <b>)', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const bold = buttonByText(h.element, 'Bold')!;
 
-    selectRegionText(region, 'Pöördu');
-    region.dispatchEvent(
+    quill.setSelection(6, 5); // "brave"
+    bold.click();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
+    expect(bold.getAttribute('aria-pressed')).toBe('true');
+
+    // The selection stays on the formatted word — a repeat click is the
+    // documented "the format ends" way.
+    bold.click();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>hello brave world</p>');
+    expect(bold.getAttribute('aria-pressed')).toBe('false');
+    expect(rootOf(h).innerHTML).not.toMatch(/<b>|<\/b>/);
+  });
+
+  it('Bold at a COLLAPSED caret toggles ON (the button reads active, the format is armed) then OFF (inactive, nothing left)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const bold = buttonByText(h.element, 'Bold')!;
+
+    quill.setSelection(6); // the caret between "hello " and "brave"
+    bold.click();
+    h.fixture.detectChanges();
+    expect(bold.getAttribute('aria-pressed')).toBe('true');
+    expect(quill.getFormat(6, 0)['bold']).toBe(true);
+    expect(rootOf(h).querySelector('strong')).not.toBeNull();
+
+    bold.click();
+    h.fixture.detectChanges();
+    expect(bold.getAttribute('aria-pressed')).toBe('false');
+    expect(quill.getFormat(6, 0)['bold']).toBeFalsy();
+    expect(rootOf(h).querySelector('strong')).toBeNull();
+    // Only the (invisible, normalizer-stripped) arming cursor may remain
+    // in the text — no visible change.
+    expect((rootOf(h).textContent ?? '').replace(/\uFEFF/g, '')).toBe('hello brave world');
+  });
+
+  it('Bold and Italic are independent: both nest, turning Italic OFF leaves Bold ON', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const bold = buttonByText(h.element, 'Bold')!;
+    const italic = buttonByText(h.element, 'Italic')!;
+
+    quill.setSelection(6, 5); // "brave"
+    bold.click();
+    h.fixture.detectChanges();
+    italic.click();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>hello <strong><em>brave</em></strong> world</p>');
+    expect(bold.getAttribute('aria-pressed')).toBe('true');
+    expect(italic.getAttribute('aria-pressed')).toBe('true');
+
+    // The selection is still on "brave" — Italic toggles off, Bold stays.
+    italic.click();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
+    expect(bold.getAttribute('aria-pressed')).toBe('true');
+    expect(italic.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('undo removes the last edit, redo restores it (Quill history)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>keha</p>');
+    const quill = quillOf(h);
+
+    quill.insertText(4, ' veel', 'user');
+    expect(rootOf(h).innerHTML).toBe('<p>keha veel</p>');
+
+    quill.history.undo();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>keha</p>');
+    expect(h.editor.form.get('body')?.value).toBe('<p>keha</p>');
+
+    quill.history.redo();
+    h.fixture.detectChanges();
+    expect(rootOf(h).innerHTML).toBe('<p>keha veel</p>');
+  });
+
+  it('a stored bulleted list round-trips clean, and the toolbar switches it to numbered', () => {
+    const h = createHost({ ...EDIT_POST, bodyHtml: '<ul><li>one</li><li>two</li></ul>' });
+    const quill = quillOf(h);
+    const root = rootOf(h);
+
+    // The list loads (Quill 2 renders every list as <ol> with
+    // data-list items — the snow CSS paints the bullets; the WIRE value
+    // is what must be semantic).
+    expect(root.querySelectorAll('li').length).toBe(2);
+
+    // The wire value is the clean allowlist — Quill's editing-time
+    // bookkeeping (the ol container, data-list, the list UI span) is
+    // remapped/stripped by the normalizer on Save.
+    const body = submittedBody(h);
+    expect(body).toBe('<ul><li>one</li><li>two</li></ul>');
+    assertCleanBody(body);
+
+    // Switch the kind over the whole list: the WIRE shape flips too.
+    quill.setSelection(0, quill.getLength() - 1);
+    buttonByText(h.element, 'Numbered list')!.click();
+    h.fixture.detectChanges();
+    const numbered = submittedBody(h);
+    expect(numbered).toBe('<ol><li>one</li><li>two</li></ol>');
+    assertCleanBody(numbered);
+  });
+
+  it('Ctrl+B and Ctrl+I apply strong/em (Quill keyboard module — never <b>/<i>)', () => {
+    // Ctrl, not Cmd: jsdom reports a non-Mac platform, where Quill's
+    // keyboard shortcut is Ctrl.
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const root = rootOf(h);
+
+    quill.setSelection(6, 5);
+    root.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'b', ctrlKey: true, bubbles: true, cancelable: true }),
     );
     h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong>Pöördu peavarjendisse.</strong></p>');
+    expect(root.innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
 
-    selectRegionText(region, 'Pöördu');
-    region.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'i', metaKey: true, bubbles: true, cancelable: true }),
+    quill.setSelection(6, 5);
+    root.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'i', ctrlKey: true, bubbles: true, cancelable: true }),
     );
     h.fixture.detectChanges();
-    expect(region.innerHTML).toContain('<em>');
-    expect(region.innerHTML).not.toContain('<i>');
+    expect(root.innerHTML).toContain('<em>');
+    expect(root.innerHTML).not.toContain('<i>');
   });
 
   it('an empty editor counts as empty: Save is blocked with the bodyRequired copy', () => {
     const h = createHost(null);
     typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    // The region holds nothing — exactly as an empty textarea did.
+    // The document holds Quill's empty shape (<p><br></p>) — exactly as an
+    // empty region did; the form carries the empty string.
+    expect(rootOf(h).innerHTML).toBe('<p><br></p>');
+    expect(h.editor.form.get('body')?.value).toBe('');
 
     const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
     expect(save?.disabled).toBe(true);
@@ -906,6 +930,19 @@ describe('GuidanceEditor', () => {
     h.fixture.detectChanges();
 
     expect(h.host.lastSave).toBeNull();
+    expect(h.element.textContent).toContain('A body is required.');
+  });
+
+  it('a block choice on an empty editor still counts as EMPTY (save stays blocked, body stays blank)', () => {
+    const h = createHost(null);
+    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
+    quillOf(h).setSelection(0);
+    buttonByText(h.element, 'Paragraph')!.click();
+    h.fixture.detectChanges();
+
+    const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(save?.disabled).toBe(true);
+    expect(submittedBody(h)).toBe('');
     expect(h.element.textContent).toContain('A body is required.');
   });
 
@@ -918,1087 +955,204 @@ describe('GuidanceEditor', () => {
     expect(bodyHtmlBlankValidator(ctrl('<h2>X</h2><p>Y</p>'))).toBeNull();
   });
 
-  it('a javascript: link is refused with a readable message and inserts nothing', () => {
+  // ---- the link control (prompt + the allowlisted protocols) ----------------
+
+  it('an allowed link is created with its href; the wire value is clean (no editing-time target/rel)', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
-    selectRegionText(region, 'Pöördu');
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('javascript:alert(1)') as typeof window.prompt;
-    try {
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    quill.setSelection(6, 5); // "brave"
+
+    withPrompt('https://example.com', () => {
       buttonByText(h.element, 'Link')!.click();
       h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-
-    expect(h.element.textContent).toContain('Only http, https and mailto links are kept');
-    expect(region.querySelector('a')).toBeNull();
-    expect(region.innerHTML).toBe('<p>Pöördu peavarjendisse.</p>');
-  });
-
-  it('an allowed link is inserted with its href (the sanitizer keeps a[href])', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
-    selectRegionText(region, 'Pöördu');
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('https://www.päästeamet.ee') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-
-    expect(region.innerHTML).toBe(
-      '<p><a href="https://www.päästeamet.ee">Pöördu peavarjendisse.</a></p>',
-    );
-    expect(h.editor.form.get('body')?.value).toBe(
-      '<p><a href="https://www.päästeamet.ee">Pöördu peavarjendisse.</a></p>',
-    );
-  });
-
-  it('paste inserts plain text, never the source markup', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>Pöördu peavarjendisse.</p>');
-    const region = regionOf(h);
-    selectRegionText(region, 'Pöördu');
-
-    const event = new Event('paste', { bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'clipboardData', {
-      value: {
-        getData: (type: string) =>
-          type === 'text/plain' ? 'Kaitseorganite juhised' : '<b>markup</b>',
-      },
-      configurable: true,
     });
-    region.dispatchEvent(event);
-    h.fixture.detectChanges();
 
-    // The rich-clipboard payload is never consulted or kept.
-    expect(region.innerHTML).toBe('<p>Kaitseorganite juhised</p>');
-    expect(h.editor.form.get('body')?.value).toBe('<p>Kaitseorganite juhised</p>');
-  });
-
-  // ---- PARTIAL selections (the owner's case — a hand-built range over part
-  // ---- of a sentence, NOT a whole node). These are the paths the whole-node
-  // ---- helper never reaches: text-node splitting via extractContents,
-  // ---- clipToBlock boundary logic, and per-block clipping across two <p>.
-
-  it('(a) partial selection + Bold wraps ONLY the selected word in <strong>', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    // "brave" = offsets 6..11 of "hello brave world".
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
-  });
-
-  it('(b) partial selection + Italic wraps ONLY the selected word in <em>', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>hello <em>brave</em> world</p>');
-  });
-
-  it('(c) partial selection + Heading 2 converts the WHOLE containing block', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
-
-    // The whole sentence becomes the heading, not just the selected word.
-    expect(region.innerHTML).toBe('<h2>hello brave world</h2>');
-  });
-
-  it('(d) partial selection + Link wraps only the selected word in <a href>', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('https://example.ee') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-
-    expect(region.innerHTML).toBe('<p>hello <a href="https://example.ee">brave</a> world</p>');
-  });
-
-  it('(e) two commands in a row: Bold word A, then Italic word B — both apply', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-
-    // Command 1: Bold "brave" (offsets 6..11).
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
-
-    // Command 2: Italic "world" — now in the " world" node (offsets 1..6).
-    selectOffsetRange(region, ' world', 1, 6);
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>hello <strong>brave</strong> <em>world</em></p>');
-  });
-
-  it('(f) a selection spanning two paragraphs bolds in EACH, never one <strong> across blocks', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>first para</p><p>second para</p>');
-    const region = regionOf(h);
-    // From the start of "first para" to "second" (offset 6) in the second.
-    selectOffsetSpan(region, 'first para', 0, 'second para', 6);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe(
-      '<p><strong>first para</strong></p><p><strong>second</strong> para</p>',
-    );
-  });
-
-  it('(g) a partial-selection Bold survives the save path (the normalizer keeps it)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    h.editor.onSave();
-    h.fixture.detectChanges();
-
-    expect(h.host.lastSave?.create?.body).toBe('<p>hello <strong>brave</strong> world</p>');
-  });
-
-  // ---- Part 2: the "glitchy" editor — selection/caret/focus sanity after a
-  // ---- command. These are the behaviours the owner's partial-selection
-  // ---- case exercises and the whole-node tests never did.
-
-  it('P2.2 after Bold the selection is restored INSIDE the formatted text; a second immediate Bold toggles off', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
-
-    // The selection must now sit on the just-formatted word (a sane place),
-    // NOT be collapsed/lost. A second IMMEDIATE Bold (no re-select) toggles off.
-    expect(selectedText()).toContain('brave');
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello brave world</p>');
-  });
-
-  it('P2.1 a command keeps focus in the region (the toolbar does not steal it)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    region.focus();
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(document.activeElement).toBe(region);
-    expect(selectedText()).toContain('brave');
-  });
-
-  it('P2.3 three commands in a row on three different words all apply (no stale range, no silent no-op)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>one two three four</p>');
-    const region = regionOf(h);
-
-    // "one" 0..3 -> Bold
-    selectOffsetRange(region, 'one two three four', 0, 3);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    // "two" 4..7 -> Italic (now in " two three four")
-    selectOffsetRange(region, ' two three four', 1, 4);
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    // "three" -> Bold (now in " three four")
-    selectOffsetRange(region, ' three four', 1, 6);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe(
-      '<p><strong>one</strong> <em>two</em> <strong>three</strong> four</p>',
-    );
-  });
-
-  it('P2.4 typing straight after a command inserts at the caret (the DOM was not rewritten under it)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    const pBefore = region.querySelector('p')!;
-
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    // A wholesale rewrite (innerHTML re-set) would replace the <p> and every
-    // node under it, dropping the caret to the start — the "glitchy" feel.
-    expect(region.querySelector('p')).toBe(pBefore);
-    expect(region.querySelector('p')!.querySelector('strong')).not.toBeNull();
-    // The caret/selection is restored to the formatted word, so the next
-    // keystroke lands where the user just looked.
-    expect(selectedText()).toContain('brave');
-  });
-
-  it('P2.5 toolbar pressed state matches the selection: inside a list, inside a link, and bold+italic at once', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<ul><li>hello brave world</li></ul>');
-    const region = regionOf(h);
-
-    // Inside a list item -> the list button is pressed.
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    (h.editor as unknown as { refreshToolbarState(): void }).refreshToolbarState();
-    h.fixture.detectChanges();
-    expect(buttonByText(h.element, 'Bulleted list')!.getAttribute('aria-pressed')).toBe('true');
-
-    // Bold + Italic at once -> both pressed.
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('P2.6a a block type with a COLLAPSED caret applies to the containing block', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    // A caret in the middle of the text (collapsed).
-    selectCollapsed(region, 'hello brave world', 8);
-
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<h2>hello brave world</h2>');
-  });
-
-  it('P2.6b a block type with a partial selection converts the WHOLE containing block', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-
-    buttonByText(h.element, 'Heading 3')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<h3>hello brave world</h3>');
-  });
-
-  it('P2.7 a command does not rewrite the region: the untouched text node stays the same node', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    const pBefore = region.querySelector('p')!;
-
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    // extractContents legitimately splits the text node, but the block and
-    // region must be stable nodes (a wholesale innerHTML rewrite would
-    // replace the <p> and every node under it).
-    expect(region.querySelector('p')).toBe(pBefore);
-    expect(region.innerHTML).toBe('<p>hello <strong>brave</strong> world</p>');
-  });
-
-  // ---- Part 3: the combination matrix ("all sorts of text combinations").
-  // ---- Cross-cutting rule: after each, the SUBMITTED value holds only
-  // ---- allowlist tags, no class/style/id/event attributes, a[href]
-  // ---- restricted to http/https/mailto.
-
-  it('C1a bold at the very START of a text node', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 0, 5);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong>hello</strong> brave world</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C1b bold at the very END of a text node', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 12, 17);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello brave <strong>world</strong></p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C1c bold spanning two words', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 17); // "brave world"
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello <strong>brave world</strong></p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C2 a selection from one text node to another (across an inline element)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>aaa <em>bb</em> ccc</p>');
-    const region = regionOf(h);
-    selectOffsetSpan(region, 'aaa ', 2, ' ccc', 2);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    // The whole span becomes bold; the <em> inside is preserved (not nested).
-    expect(region.innerHTML).toBe('<p>aa<strong>a <em>bb</em> c</strong>cc</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C3a bold spanning an existing <strong> does not nest a duplicate', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello <strong>brave</strong> world</p>');
-    const region = regionOf(h);
-    // Span ACROSS the existing <strong>: "lo " + "brave" + " wor".
-    selectOffsetSpan(region, 'hello ', 3, ' world', 3);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hel<strong>lo brave wo</strong>rld</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C4a bold inside a link keeps the link and wraps only the word', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>see <a href="https://x.ee">here now</a> ok</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'here now', 0, 4); // "here"
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe(
-      '<p>see <a href="https://x.ee"><strong>here</strong> now</a> ok</p>',
-    );
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C4b italic inside bold: both apply (nested em inside strong)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    buttonByText(h.element, 'Italic')!.click(); // selection restored over the strong
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello <strong><em>brave</em></strong> world</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C4c toggle bold off, then italic off, on a bold+italic span', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello <strong><em>brave</em></strong> world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'brave', 0, 5);
-    buttonByText(h.element, 'Bold')!.click(); // removes the strong
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello <em>brave</em> world</p>');
-    buttonByText(h.element, 'Italic')!.click(); // removes the em
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello brave world</p>');
-  });
-
-  // ---- Part 3 (cont): block, list, paste, link, empty-region combos ----
-
-  it('C5.1 Heading 2 over a selection spanning two paragraphs', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>para one</p><p>para two</p>');
-    const region = regionOf(h);
-    selectAcrossBlocks(region, 'para one', 'para two');
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<h2>para one</h2><h2>para two</h2>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C5.2 Heading 2 over a list item and a following paragraph', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<ul><li>an item</li></ul><p>then a paragraph</p>');
-    const region = regionOf(h);
-    selectAcrossBlocks(region, 'an item', 'then a paragraph');
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
-    expect([...region.querySelectorAll('h2')].map((el) => el.textContent)).toEqual([
-      'an item',
-      'then a paragraph',
-    ]);
-    expect(region.querySelector('ul, ol, li')).toBeNull();
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C6.1 switching a bulleted list to numbered over its full selection', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<ul><li>one</li><li>two</li></ul>');
-    const region = regionOf(h);
-    selectAcrossBlocks(region, 'one', 'two');
-    buttonByText(h.element, 'Numbered list')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<ol><li>one</li><li>two</li></ol>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C6.2 list -> paragraph: Paragraph on a list item', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<ul><li>an item</li></ul>');
-    const region = regionOf(h);
-    selectRegionText(region, 'an item');
-    buttonByText(h.element, 'Paragraph')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>an item</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C6.3 adding a list to a caret in the middle of a paragraph', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>before and after</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'before and after', 6);
-    buttonByText(h.element, 'Bulleted list')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<ul><li>before and after</li></ul>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C7.1 paste into a collapsed caret inserts at the caret', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello brave world', 5);
-    paste(region, 'X');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>helloX brave world</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C7.2 paste over a selection replaces the selection', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-    paste(region, 'X');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello X world</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C7.3 paste containing newlines becomes <br> separators', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello world', 6, 11); // "world"
-    paste(region, 'line1\nline2');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello line1<br>line2</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C7.4 paste carrying markup lands as plain text only', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11); // "brave"
-    paste(region, 'safe text', '<b>safe</b> text');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello safe text world</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C8.1 a valid https link is inserted with its href', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('https://example.com') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-    expect(region.innerHTML).toBe(
-      '<p>hello <a href="https://example.com">brave</a> world</p>',
-    );
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C8.2 a valid mailto link is kept', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    const originalPrompt = window.prompt;
-    window.prompt = vi
-      .fn()
-      .mockReturnValue('mailto:kontakt@example.ee') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-    expect(region.innerHTML).toBe(
-      '<p>hello <a href="mailto:kontakt@example.ee">brave</a> world</p>',
-    );
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C8.3 a javascript: link is refused and inserts nothing', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'hello brave world', 6, 11);
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('javascript:alert(1)') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-    expect(region.querySelector('a')).toBeNull();
-    expect(region.innerHTML).toBe('<p>hello brave world</p>');
-  });
-
-  it('C8.4 a link over a cross-block selection wraps ONE anchor per block', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>first para</p><p>second para</p>');
-    const region = regionOf(h);
-    selectAcrossBlocks(region, 'first para', 'second para');
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('https://example.com') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-    expect(region.innerHTML).toBe(
-      '<p><a href="https://example.com">first para</a></p>' +
-        '<p><a href="https://example.com">second para</a></p>',
-    );
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C8.5 re-linking over an existing link rewrites the href (no nesting)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>see <a href="https://old.ee">link text</a> ok</p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'link text', 0, 9);
-    const originalPrompt = window.prompt;
-    window.prompt = vi.fn().mockReturnValue('https://new.ee') as typeof window.prompt;
-    try {
-      buttonByText(h.element, 'Link')!.click();
-      h.fixture.detectChanges();
-    } finally {
-      window.prompt = originalPrompt;
-    }
-    expect(region.innerHTML).toBe('<p>see <a href="https://new.ee">link text</a> ok</p>');
-    assertCleanBody(submittedBody(h));
-  });
-
-  it('C9.1 empty-region shapes still block save after a block action', () => {
-    const h = createHost(null);
-    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    const region = regionOf(h);
-    expect(region.innerHTML).toBe('');
-    buttonByText(h.element, 'Paragraph')!.click();
-    h.fixture.detectChanges();
-    const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
-    expect(save?.disabled).toBe(true);
-    expect(submittedBody(h)).toBe('');
-    expect(h.element.textContent).toContain('A body is required.');
-  });
-
-  // ---- Part 4: the owner's three reported behaviours ----------------------
-  // ---- 1) Bold/Italic with a bare caret must ARM the format (the next
-  // ---- typed text lands inside it — the WordPress behaviour); 2) unbolding
-  // ---- PART of a bold word must unbold only the selected part (the tag
-  // ---- splits, it is never re-merged); 3) the toolbar controls take a
-  // ---- pointer cursor (enabled, not disabled).
-
-  it('P4.1 Bold with a bare caret in an EMPTY region ARMS (the button reads pressed, the caret sits inside the empty <strong>); a second click disarms; typing after a re-arm lands in the wrapper', () => {
-    const h = createHost(null);
-    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    typeValue(inputById(h.element, 'ge-body')!, '', h.fixture);
-    const region = regionOf(h);
-    expect(region.innerHTML).toBe('');
-    // A bare (collapsed) caret in the region — no selection at all.
-    const range = document.createRange();
-    range.setStart(region, 0);
-    range.collapse(true);
-    window.getSelection()!.removeAllRanges();
-    window.getSelection()!.addRange(range);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    // ARMED: the region was seeded with a paragraph (the block command's
-    // shape) holding an EMPTY <strong>; the caret sits INSIDE it and the
-    // button reads pressed the moment it is clicked.
-    expect(region.innerHTML).toBe('<p><strong><br></strong></p>');
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
-    expect(window.getSelection()!.anchorNode).toBe(region.querySelector('strong'));
-
-    // A second click DISARMS: the empty wrapper is gone, the caret back
-    // where the wrapper was, the button unpressed.
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><br></p>');
-    expect(region.querySelector('strong')).toBeNull();
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
-
-    // Re-arm, then TYPE (the region's own text-insert primitive — the
-    // caret's landing place): the text lands inside the wrapper, so the
-    // format applies to what follows.
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    bodyCommands.insertPlainText(region, 'Varjend');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong>Varjend<br></strong></p>');
-  });
-
-  it('P4.2 Bold with the editor UNFOCUSED moves focus into the region and arms at the start of the content', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const region = regionOf(h);
-    // No selection anywhere (the editor was never focused).
-    window.getSelection()!.removeAllRanges();
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(document.activeElement).toBe(region);
-    expect(region.innerHTML).toBe('<p><strong></strong>hello brave world</p>');
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('P4.3 Bold with the editor unfocused and the region EMPTY seeds a paragraph and arms in it', () => {
-    const h = createHost(null);
-    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    typeValue(inputById(h.element, 'ge-body')!, '', h.fixture);
-    const region = regionOf(h);
-    window.getSelection()!.removeAllRanges();
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(document.activeElement).toBe(region);
-    expect(region.innerHTML).toBe('<p><strong><br></strong></p>');
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('P4.4 a region holding ONLY an armed-but-unused wrapper still counts as EMPTY (save blocked, both shapes)', () => {
-    const h = createHost(null);
-    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    for (const html of ['<p><strong><br></strong></p>', '<p><em></em></p>']) {
-      typeValue(inputById(h.element, 'ge-body')!, html, h.fixture);
-
-      const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
-      expect(save?.disabled, `region holding only ${html} must stay blocked`).toBe(true);
-
-      h.editor.onSave();
-      h.fixture.detectChanges();
-      expect(h.host.lastSave, `${html} must not be saved`).toBeNull();
-      expect(h.element.textContent).toContain('A body is required.');
-    }
-  });
-
-  it('P4.5 an armed-but-unused wrapper never reaches the saved value (the normalizer drops the empty inline, keeps the <br>)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello</p><p><strong><br></strong></p>');
-
-    h.editor.onSave();
-    h.fixture.detectChanges();
-
-    // The wrapper is gone from the wire value — the line keeps the
-    // established empty shape (<p><br></p>).
-    expect(h.host.lastSave?.create?.body).toBe('<p>hello</p><p><br></p>');
-  });
-
-  it('S1 unbolding the MIDDLE of a bold word splits it: the selected part is plain, both halves keep the tag (no re-merge)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
-    const region = regionOf(h);
-    // "ol" = offsets 1..3 of "bold".
-    selectOffsetRange(region, 'bold', 1, 3);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p><strong>b</strong>ol<strong>d</strong></p>');
-    // The selection lands on the just-unwrapped part (inside what remains).
-    expect(selectedText()).toBe('ol');
-
-    // A repeat Bold re-wraps ONLY the unwrapped part — the halves are NOT
-    // re-merged into one <strong> (that would defeat the action).
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><strong>b</strong><strong>ol</strong><strong>d</strong></p>');
-  });
-
-  it('S2 unbolding the FIRST half of a bold word leaves the second half bold', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
-    const region = regionOf(h);
-    // "bo" = offsets 0..2.
-    selectOffsetRange(region, 'bold', 0, 2);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>bo<strong>ld</strong></p>');
-  });
-
-  it('S3 unbolding the SECOND half of a bold word leaves the first half bold', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
-    const region = regionOf(h);
-    // "ld" = offsets 2..4.
-    selectOffsetRange(region, 'bold', 2, 4);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p><strong>bo</strong>ld</p>');
-  });
-
-  it('S4 unbolding the WHOLE word still unwraps the tag fully (the text-level exact span)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
-    const region = regionOf(h);
-    selectOffsetRange(region, 'bold', 0, 4);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>bold</p>');
-  });
-
-  // ---- Part 5: arming + typing — the deterministic beforeinput takeover ----
-  // ---- The owner's case: click Italic with a bare caret, then type.
-  // ---- Arming inserts an EMPTY wrapper and the browser's native
-  // ---- insertion into it is not reliable (it may land the character
-  // ---- BESIDE the wrapper — the "format silently clears" bug), so the
-  // ---- component takes the text insertion over while a format is armed
-  // ---- (onBodyBeforeInput). jsdom has no contenteditable typing engine:
-  // ---- the beforeinput event IS the keystroke here, and the takeover
-  // ---- performs the insertion itself. What jsdom CANNOT prove is the
-  // ---- browser's NATIVE insertion — exactly what the takeover replaces;
-  // ---- the tests that assert "the takeover declined" (typeChar returns
-  // ---- false) leave the actual character landing to a real browser.
-
-  it('A1 arm Italic at a bare caret, type one character: <em>a</em>, the caret after the "a", the button pressed, the form value synced', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5); // the bare caret after "hello"
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
-
-    expect(typeChar(region, 'a')).toBe(true); // the handler took the insertion over
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>hello<em>a</em> world</p>');
-    // The caret is immediately after the inserted character (inside the
-    // wrapper) — the following characters keep landing in it.
-    const sel = window.getSelection()!;
-    expect(sel.isCollapsed).toBe(true);
-    const node = sel.getRangeAt(0).startContainer as Text;
-    expect(node.textContent).toBe('a');
-    expect(sel.getRangeAt(0).startOffset).toBe(1);
-    // The prevented default means no native `input` event — the form
-    // value is synced by the handler itself.
-    expect(h.editor.form.get('body')?.value).toBe('<p>hello<em>a</em> world</p>');
-    // Pressed state immediately after the click AND while typing.
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('A2 typing three characters after arming yields ONE <em>abc</em> (the arming stays on — never three wrappers)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-
-    typeChar(region, 'a');
-    typeChar(region, 'b');
-    typeChar(region, 'c');
-    h.fixture.detectChanges();
-
-    expect(region.querySelectorAll('em').length).toBe(1);
-    expect(region.innerHTML).toBe('<p>hello<em>abc</em> world</p>');
-    expect(h.editor.form.get('body')?.value).toBe('<p>hello<em>abc</em> world</p>');
-  });
-
-  it('A3 arm Bold then arm Italic then type: deterministic nesting <strong><em>abc</em></strong> (last-armed is innermost)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
-
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<strong></strong> world</p>');
-
-    // The second arming nests at the caret, inside the first wrapper.
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<strong><em></em></strong> world</p>');
-
-    typeChar(region, 'a');
-    typeChar(region, 'b');
-    typeChar(region, 'c');
-    h.fixture.detectChanges();
-
-    // Both formats apply: the text is bold AND italic, one wrapper each.
-    expect(region.querySelectorAll('strong').length).toBe(1);
-    expect(region.querySelectorAll('em').length).toBe(1);
-    expect(region.innerHTML).toBe('<p>hello<strong><em>abc</em></strong> world</p>');
-    // The caret is inside BOTH wrappers — both buttons read pressed.
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('A3b arm Italic then arm Bold then type: the nesting inverts — <em><strong>ab</strong></em> (the last-clicked format is the inner wrapper)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em><strong></strong></em> world</p>');
-
-    typeChar(region, 'a');
-    typeChar(region, 'b');
-    h.fixture.detectChanges();
-
-    expect(region.innerHTML).toBe('<p>hello<em><strong>ab</strong></em> world</p>');
-  });
-
-  it('A4 arm Italic and type nothing: the live DOM keeps the armed wrapper, but the SUBMITTED value has no <em> (the empty-wrapper drop stays intact)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+    const anchor = rootOf(h).querySelector('a');
+    expect(anchor).not.toBeNull();
+    expect(anchor?.getAttribute('href')).toBe('https://example.com');
 
     const body = submittedBody(h);
-    expect(body).toBe('<p>hello world</p>');
-    expect(body).not.toContain('<em>');
+    // Quill adds target/rel while editing (a new tab); the normalizer
+    // strips them — the public page keeps links in the same tab, as before.
+    expect(body).toBe('<p>hello <a href="https://example.com">brave</a> world</p>');
     assertCleanBody(body);
   });
 
-  it('A5 arming a format, then selecting text and bolding it, still produces the selection-wrap result (selecting ends the arming, the unused wrapper is dropped)', () => {
+  it('a valid mailto link is kept', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 0);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    quill.setSelection(6, 5);
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><em></em>hello world</p>');
+    withPrompt('mailto:kontakt@example.ee', () => {
+      buttonByText(h.element, 'Link')!.click();
+      h.fixture.detectChanges();
+    });
 
-    // The user changes their mind: select "hello" and bold it.
-    selectOffsetRange(region, 'hello world', 0, 5);
-    buttonByText(h.element, 'Bold')!.click();
-    h.fixture.detectChanges();
-
-    // The existing selection-wrap result, exactly as without the arming.
-    expect(region.innerHTML).toBe('<p><strong>hello</strong> world</p>');
-    expect(region.querySelector('em')).toBeNull();
+    expect(submittedBody(h)).toBe(
+      '<p>hello <a href="mailto:kontakt@example.ee">brave</a> world</p>',
+    );
   });
 
-  it('A6 the toolbar\'s pressed state reflects the armed format immediately after the click and while typing into it', () => {
+  it('a javascript: link is refused with the invalid-protocol copy and inserts nothing', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    quill.setSelection(6, 5);
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
+    withPrompt('javascript:alert(1)', () => {
+      buttonByText(h.element, 'Link')!.click();
+      h.fixture.detectChanges();
+    });
 
-    typeChar(region, 'a');
-    h.fixture.detectChanges();
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-    typeChar(region, 'b');
-    h.fixture.detectChanges();
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
+    expect(h.element.textContent).toContain('Only http, https and mailto links are kept');
+    expect(rootOf(h).querySelector('a')).toBeNull();
+    expect(rootOf(h).innerHTML).toBe('<p>hello brave world</p>');
   });
 
-  it('A7 the arming ends when the caret leaves the wrapper: the next keystroke is NOT intercepted (native, unformatted) and the unused wrapper is dropped', () => {
+  it('a link with no selection is refused with the noSelection copy', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    // A collapsed caret is not a selection for the link contract.
+    quill.setSelection(6);
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+    withPrompt('https://example.com', () => {
+      buttonByText(h.element, 'Link')!.click();
+      h.fixture.detectChanges();
+    });
 
-    // The caret moves to "world" — outside the armed wrapper.
-    selectCollapsed(region, ' world', 2);
-    // The handler must decline the takeover (no preventDefault): the
-    // character is left to the browser's native insertion, which lands
-    // UNFORMATTED at the new caret. jsdom performs no native insertion —
-    // the unformatted character itself is the part only a real browser
-    // can prove.
-    expect(typeChar(region, 'X')).toBe(false);
-    h.fixture.detectChanges();
-    expect(region.querySelector('em')).toBeNull();
-    expect(region.innerHTML).toBe('<p>hello world</p>');
+    expect(h.element.textContent).toContain('Select the text to link first.');
+    expect(rootOf(h).querySelector('a')).toBeNull();
   });
 
-  it('A8 the region losing focus ends the arming (the unused wrapper is dropped; later typing is not intercepted)', () => {
+  // ---- paste (plain text only; the conversion guard drops disallowed
+  // ---- formats from anything that does reach the document) -----------------
+
+  it('paste inserts plain text, never the source markup', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    region.focus();
-    selectCollapsed(region, 'hello world', 5);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const root = rootOf(h);
+    quill.setSelection(6, 5); // "brave"
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
-
-    region.blur();
+    pastePlainText(root, 'Kaitseorganite juhised', '<b>markup</b>');
     h.fixture.detectChanges();
 
-    expect(region.querySelector('em')).toBeNull();
-    expect(region.innerHTML).toBe('<p>hello world</p>');
-
-    selectCollapsed(region, ' world', 1);
-    expect(typeChar(region, 'X')).toBe(false); // nothing armed anymore
+    // The rich-clipboard payload is never consulted or kept: the
+    // selection is replaced by PLAIN text, nothing else of the source
+    // markup survives.
+    expect(root.innerHTML).toBe('<p>hello Kaitseorganite juhised world</p>');
+    expect(h.editor.form.get('body')?.value).toBe('<p>hello Kaitseorganite juhised world</p>');
   });
 
-  it('A9 clicking the same button again ends the arming (the existing disarm: the wrapper is removed, the caret restored, later typing not intercepted)', () => {
+  it('paste over a selection replaces it; newlines become line breaks (plain text only)', () => {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const quill = quillOf(h);
+    const root = rootOf(h);
+    quill.setSelection(6, 5); // "brave"
 
-    buttonByText(h.element, 'Italic')!.click();
+    pastePlainText(root, 'line1\nline2', '<div>rich</div>');
     h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello world</p>');
-    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('false');
-
-    selectCollapsed(region, ' world', 1);
-    expect(typeChar(region, 'X')).toBe(false);
+    expect(root.innerHTML).toBe('<p>hello line1</p><p>line2 world</p>');
+    assertCleanBody(submittedBody(h));
   });
 
-  it('A10 arm Italic in an EMPTY region, type: the <br> height-keeper stays, the text precedes it', () => {
+  it('the conversion guard drops disallowed formats from pasted/loaded markup (h1/h4, bad link protocols, task-list checkboxes)', () => {
     const h = createHost(null);
-    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
-    const region = regionOf(h);
-    // A bare (collapsed) caret in the empty region — no selection at all.
-    const range = document.createRange();
-    range.setStart(region, 0);
-    range.collapse(true);
-    window.getSelection()!.removeAllRanges();
-    window.getSelection()!.addRange(range);
+    fillRequired(h, 'Uus post', '<p>hello</p>');
+    const quill = quillOf(h);
 
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><em><br></em></p>');
+    const delta = quill.clipboard.convert({
+      html:
+        '<h1>too big</h1><h4>too small</h4>' +
+        '<p>ok <b>bold</b> <i>italic</i></p>' +
+        '<p><a href="javascript:alert(1)">bad</a> ' +
+        '<a href="tel:+3725555555">phone</a> ' +
+        '<a href="https://ok.ee">fine</a> ' +
+        '<a href="relative/page">rel</a></p>' +
+        '<ul><li data-checked="true">task</li></ul>',
+    });
 
-    typeChar(region, 'a');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><em>a<br></em></p>');
+    // header is stripped entirely (h1/h4 are not values 2/3); the task
+    // list degrades to a bullet; b/i map to the sanitizer's spellings;
+    // only allowlisted (or relative) links survive.
+    expect(deltaFormats(delta)).toEqual(new Set(['bold', 'italic', 'link', 'list']));
+    expect(deltaLinks(delta)).toEqual(['https://ok.ee', 'relative/page']);
 
-    typeChar(region, 'b');
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p><em>ab<br></em></p>');
-    expect(h.editor.form.get('body')?.value).toBe('<p><em>ab<br></em></p>');
-  });
-
-  it('A11 a line break (insertParagraph) ends the arming; the unused wrapper is dropped (the paragraph itself stays the browser\'s)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
-
-    buttonByText(h.element, 'Italic')!.click();
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
-
-    region.dispatchEvent(
-      new InputEvent('beforeinput', {
-        inputType: 'insertParagraph',
-        bubbles: true,
-        cancelable: true,
-      }),
+    // The same pipeline at the DOM level (the load path): the document
+    // shows no h1 and no dead/bad anchors — and the wire stays clean.
+    quill.clipboard.dangerouslyPasteHTML(
+      '<h1>too big</h1><p>yes <a href="javascript:x">bad</a> <a href="https://ok.ee">fine</a></p>',
     );
     h.fixture.detectChanges();
-
-    expect(region.querySelector('em')).toBeNull();
-    // jsdom performs no native paragraph insertion — only a real browser
-    // can show the line break itself; the state (disarmed, wrapper gone)
-    // is what the component owns.
+    expect(rootOf(h).querySelector('h1')).toBeNull();
+    expect(rootOf(h).querySelectorAll('a').length).toBe(1);
+    expect(rootOf(h).querySelector('a')!.getAttribute('href')).toBe('https://ok.ee');
+    assertCleanBody(submittedBody(h));
   });
 
-  it('A12 typing with nothing armed is left to the browser (no interception, no wrapper created, the form value untouched)', () => {
+  // ---- the durable guard (editor features ⊆ server sanitizer) --------------
+
+  it('the editor formats list is a subset of the BodySanitizer allowlist (durable guard)', () => {
+    // The sanitizer's tag set, mirrored from BodySanitizer.java's Safelist
+    // (the elements + the a[href] attribute). If the server's allowlist
+    // ever changes, this set changes with it — and the mapping below must
+    // too, or the test fails.
+    const SANITIZER_TAGS = new Set([
+      'h2',
+      'h3',
+      'p',
+      'br',
+      'strong',
+      'em',
+      'ul',
+      'ol',
+      'li',
+      'a',
+      'blockquote',
+    ]);
+
+    // 1. The tag map covers EXACTLY the formats list (no orphan formats,
+    //    no unguarded tags).
+    expect(Object.keys(BODY_EDITOR_FORMAT_TAGS).sort()).toEqual([...BODY_EDITOR_FORMATS].sort());
+
+    // 2. Every tag a format can produce is one the server keeps.
+    const offenders: string[] = [];
+    for (const [format, tags] of Object.entries(BODY_EDITOR_FORMAT_TAGS)) {
+      for (const tag of tags) {
+        if (!SANITIZER_TAGS.has(tag)) {
+          offenders.push(`${format} -> <${tag}>`);
+        }
+      }
+    }
+    expect(offenders, 'editor formats producing tags the BodySanitizer would strip').toEqual([]);
+
+    // 3. The header format is the one value-subset the formats list cannot
+    //    express: the toolbar offers heading levels 2 and 3 only (plus the
+    //    empty-valued paragraph button, which means "no heading").
+    const headerValues = h_headerValues();
+    expect(headerValues, 'the paragraph button carries the empty header value').toContain('');
+    expect(
+      headerValues.filter((value) => value !== ''),
+      'the only heading levels offered are 2 and 3',
+    ).toEqual(['2', '3']);
+  });
+
+  /** The toolbar's ql-header value attributes (the offered heading
+   *  levels + the paragraph's empty value) — read from the rendered
+   *  toolbar, so a template edit that offers h1/h4-h6 fails the guard. */
+  function h_headerValues(): string[] {
     const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello world</p>');
-    const region = regionOf(h);
-    selectCollapsed(region, 'hello world', 5);
+    return [...h.element.querySelectorAll<HTMLButtonElement>('.ql-header')].map(
+      (b) => b.getAttribute('value') ?? '',
+    );
+  }
 
-    expect(typeChar(region, 'X')).toBe(false);
-    h.fixture.detectChanges();
-    expect(region.innerHTML).toBe('<p>hello world</p>'); // jsdom inserts nothing natively
-    expect(h.editor.form.get('body')?.value).toBe('<p>hello world</p>');
-  });
-
-  it('D3 the toolbar tools take a pointer cursor when enabled, not when disabled (the .btn treatment, pinned in the stylesheet)', () => {
+  it('the toolbar tools take a pointer cursor when enabled, not when disabled (the .btn treatment, pinned in the stylesheet)', () => {
     // jsdom cannot observe a hovered cursor — the repo pins CSS invariants
     // by reading the stylesheet (the design-tokens.spec.ts convention;
     // this assertion lives here so that file stays untouched).
