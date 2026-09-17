@@ -376,9 +376,35 @@ export interface Messages {
   /** The generated-slug shape, enforced up front (server 400 otherwise). */
   'admin.guidance.editor.slugInvalid': string;
   'admin.guidance.editor.bodyLabel': string;
-  /** The sanitizer allowlist, stated where the admin types it. */
+  /** The sanitizer allowlist, stated where the admin types it: the
+   *  toolbar is the feature set (no H1 — the page owns the single h1 —
+   *  no inline images — hero-only), and pasted text is plain. */
   'admin.guidance.editor.bodyHint': string;
   'admin.guidance.editor.bodyRequired': string;
+  /** The body toolbar's aria-label (its formatting controls). */
+  'admin.guidance.editor.toolbar': string;
+  /** The block-type group's aria-label. */
+  'admin.guidance.editor.blockLabel': string;
+  /** The inline-style group's aria-label. */
+  'admin.guidance.editor.inlineLabel': string;
+  /** The block-type choices — the sanitizer's block set (no h1: the
+   *  public page owns the single h1). */
+  'admin.guidance.editor.block.p': string;
+  'admin.guidance.editor.block.h2': string;
+  'admin.guidance.editor.block.h3': string;
+  'admin.guidance.editor.block.ul': string;
+  'admin.guidance.editor.block.ol': string;
+  /** The inline controls (the sanitizer's inline set: strong/em/a). */
+  'admin.guidance.editor.bold': string;
+  'admin.guidance.editor.italic': string;
+  'admin.guidance.editor.link': string;
+  /** The link URL prompt (names the allowed protocols). */
+  'admin.guidance.editor.link.prompt': string;
+  /** A refused link protocol (javascript:/data:/relative): names the
+   *  rule; nothing is inserted. */
+  'admin.guidance.editor.link.invalid': string;
+  /** A link with no selected text. */
+  'admin.guidance.editor.link.noSelection': string;
   'admin.guidance.editor.heroLabel': string;
   /** The selected hero's caption (above its thumbnail). */
   'admin.guidance.editor.hero.current': string;

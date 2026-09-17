@@ -1,8 +1,9 @@
 /* The guidance create/edit form (crisis-guidance D8/D9). The form
    vocabulary is the app-wide one (.field / .field-error / .btn); the
-   tokens are the app-wide set. The body is a plain textarea over the
-   stored (sanitized) HTML — no WYSIWYG (the server sanitizer is the
-   defence, the editor round-trips what is stored). */
+   tokens are the app-wide set. The body is a visual editor (toolbar +
+   contenteditable region): the toolbar offers exactly the sanitizer's
+   allowlist — the toolbar IS the feature set (BodySanitizer is the
+   authority on what survives). */
 .guidance-editor {
   display: flex;
   flex-direction: column;
@@ -25,20 +26,84 @@
   margin: var(--space-4) 0 0;
 }
 
-.field {
-  textarea {
-    width: 100%;
-    padding: var(--space-8) var(--space-12);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    font-size: var(--text-base);
-    font-family: monospace;
-    resize: vertical;
+/* The body editor: toolbar (block-type group + inline group) over the
+   contenteditable region. The buttons are the app's own small tool
+   shape (the picker card's pressed-state language for the active one);
+   the region keeps the old textarea's footprint (the 10-row height). */
+.body-editor {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
 
-    &:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 1px;
-    }
+.body-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  padding: var(--space-8);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.body-editor__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+/* The toolbar buttons: the app's small-tool shape (the picker card's
+   pressed-state language for the active one). */
+.body-editor__tool {
+  display: inline-flex;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  font-size: var(--text-sm);
+
+  /* The pressed/active state (aria-pressed mirrors it): the primary
+     outline, the picker card's selected language. */
+  &.body-editor__tool--active {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary);
+    background: var(--color-surface-hover);
+  }
+}
+
+.body-editor__region {
+  min-height: calc(var(--space-48) * 6); /* the old textarea's 10 rows */
+  padding: var(--space-8) var(--space-12);
+  font-size: var(--text-base);
+
+  /* The region's keyboard focus ring (the global :focus-visible rule
+     lists only a/button/input/textarea — the contenteditable region
+     needs its own). */
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+
+  /* The region's typography mirrors the public detail page's body
+     styling (guidance-detail__body) EXACTLY — p, h2, ul/ol and a are
+     the only tags the public page styles, so h3/blockquote stay at
+     their UA defaults in both places: what the admin sees is what
+     the visitor gets. */
+  p {
+    margin: 0 0 var(--space-12);
+  }
+
+  h2 {
+    margin: var(--space-20) 0 var(--space-8);
+    font-size: var(--text-lg);
+  }
+
+  ul,
+  ol {
+    margin: 0 0 var(--space-12);
+    padding-left: var(--space-16);
+  }
+
+  a {
+    color: var(--color-primary);
   }
 }
 
