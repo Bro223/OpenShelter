@@ -59,6 +59,10 @@
   border-radius: var(--radius-sm);
   background: var(--color-bg-surface);
   font-size: var(--text-sm);
+  /* Every toolbar control is clickable: the app's .btn cursor treatment
+     (a pointer on hover — the <button> default would read as inert).
+     A disabled control goes back to the default cursor, as .btn:disabled. */
+  cursor: pointer;
 
   /* The pressed/active state (aria-pressed mirrors it): the primary
      outline, the picker card's selected language. */
@@ -66,6 +70,11 @@
     border-color: var(--color-primary);
     box-shadow: 0 0 0 1px var(--color-primary);
     background: var(--color-surface-hover);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
 }
 

@@ -133,8 +133,10 @@
           aria-multiline="true"
           [attr.aria-describedby]="linkError() !== null ? 'ge-body-link-error' : 'ge-body-hint'"
           (input)="onBodyInput()"
+          (beforeinput)="onBodyBeforeInput($event)"
           (paste)="onBodyPaste($event)"
           (keydown)="onBodyKeydown($event)"
+          (blur)="onBodyBlur()"
         ></div>
       </div>
 

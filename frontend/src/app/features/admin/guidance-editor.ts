@@ -105,6 +105,23 @@ const BLOCK_TAG: Record<BodyBlock, string> = {
  *  so a link that is ever stored is one the server will keep. */
 export const ALLOWED_LINK_PROTOCOL = /^(https?|mailto):/i;
 
+/** The empty-region seed (the block commands' shape): wrap any stray
+ *  leading bare text (typing into an empty region puts text nodes
+ *  directly under the region) in a fresh block of `blockTag`, add a
+ *  `<br>` when nothing is there, append to the region, return the block.
+ *  A region holding only this shape is EMPTY (the blank rule). */
+function seedEmptyBlock(editor: HTMLElement, blockTag: string): HTMLElement {
+  const seed = document.createElement(blockTag);
+  while (editor.firstChild !== null && editor.firstChild.nodeType !== Node.ELEMENT_NODE) {
+    seed.appendChild(editor.firstChild);
+  }
+  if (seed.childNodes.length === 0) {
+    seed.appendChild(document.createElement('br'));
+  }
+  editor.appendChild(seed);
+  return seed;
+}
+
 /* ---- the body editor's command adapter ---------------------------------- */
 
 /**
@@ -127,16 +144,7 @@ export const bodyCommands = {
     const target = BLOCK_TAG[block];
     const targets = selectionBlocks(editor);
     if (targets.length === 0) {
-      const seed = document.createElement(target);
-      // Wrap any stray bare text (typing into an empty region puts text
-      // nodes directly under the region).
-      while (editor.firstChild !== null && editor.firstChild.nodeType !== Node.ELEMENT_NODE) {
-        seed.appendChild(editor.firstChild);
-      }
-      if (seed.childNodes.length === 0) {
-        seed.appendChild(document.createElement('br'));
-      }
-      editor.appendChild(seed);
+      const seed = seedEmptyBlock(editor, target);
       restoreSelection(editor, [seed]);
       return;
     }
@@ -207,14 +215,19 @@ export const bodyCommands = {
   },
 
   /** Bold: wrap the selection in `<strong>` in each block it touches;
-   *  a selection fully inside one strong unwraps it (toggle). */
-  bold(editor: HTMLElement): void {
-    inlineFormat(editor, 'strong');
+   *  a selection fully inside one strong unwraps it (toggle). Returns the
+   *  wrapper when the command ARMED the format at a bare caret (the caller
+   *  tracks it so the text typed next lands inside it — the component's
+   *  beforeinput takeover), or null for every non-arming path (a wrap, a
+   *  toggle, a disarm, an already-formatted caret) — a null return ends
+   *  any arming the caller was tracking. */
+  bold(editor: HTMLElement): HTMLElement | null {
+    return inlineFormat(editor, 'strong');
   },
 
   /** Italic: the same, with `<em>`. */
-  italic(editor: HTMLElement): void {
-    inlineFormat(editor, 'em');
+  italic(editor: HTMLElement): HTMLElement | null {
+    return inlineFormat(editor, 'em');
   },
 
   /** Wrap the selection in `<a href>` (one anchor per block it touches —
@@ -470,27 +483,69 @@ function listToParagraphs(list: HTMLElement): HTMLElement[] {
   return paragraphs;
 }
 
-/** bold/italic shared: toggle off when the whole selection sits inside
- *  one existing tag, otherwise wrap per touched block. */
-function inlineFormat(editor: HTMLElement, tag: 'strong' | 'em'): void {
+/** bold/italic shared. A selection over one existing tag's content
+ *  unformats the SELECTED part (the tag splits into halves around it —
+ *  the mirror of the wrap direction, never re-merged); a selection
+ *  covering the tag's whole text unwraps the tag fully (the toggle); a
+ *  COLLAPSED caret ARMS the format — an empty wrapper at the caret, so
+ *  the text typed next lands inside it (and disarms again); a selection
+ *  outside any such tag wraps per touched block. Returns the armed
+ *  wrapper when the command armed, or null otherwise (the null's meaning
+ *  is documented on bodyCommands.bold). */
+function inlineFormat(editor: HTMLElement, tag: 'strong' | 'em'): HTMLElement | null {
   const range = selectionRangeIn(editor);
-  if (range === null || range.collapsed) {
-    return;
+  if (range === null) {
+    // No selection in the region (the editor was never focused): focus
+    // it, seed an empty paragraph when the region is empty (exactly as
+    // the block command does), and arm at the start of the content —
+    // where a fresh focus lands.
+    const first = topBlocks(editor)[0] ?? seedEmptyBlock(editor, 'p');
+    editor.focus();
+    return armAt(collapsedAt(first, 0), tag);
+  }
+  if (range.collapsed) {
+    const node = range.commonAncestorContainer;
+    const wrapper = closestTag(node, tag, editor);
+    if (wrapper !== null) {
+      // Inside the format: an armed (still empty) wrapper disarms — the
+      // caret goes back where the wrapper was; a non-empty one is the
+      // already-formatted state, nothing to do. Neither arms — the tracked
+      // arming, if any, ends (null): clicking the same button again is the
+      // documented "the format ends" way.
+      if (isEmptyInline(wrapper)) {
+        disarmAt(wrapper);
+      }
+      return null;
+    }
+    // A bare caret: ARM — the format waits for the text typed next. A
+    // caret with no block under it (an empty, or blockless, region)
+    // seeds a paragraph first, exactly as the block command does, and
+    // arms at the content's start.
+    const block = topBlocks(editor).find((b) => b.contains(node));
+    const at =
+      block === undefined ? collapsedAt(topBlocks(editor)[0] ?? seedEmptyBlock(editor, 'p'), 0) : range;
+    return armAt(at, tag);
   }
   const existing = closestTag(range.commonAncestorContainer, tag, editor);
-  // Toggle off when the WHOLE selection sits inside one existing tag. The
-  // common ancestor may BE the tag when the selection covers it exactly (the
-  // state a prior command's restoreSelection leaves), so treat that as
-  // "inside" too — otherwise a second immediate Bold would nest a duplicate.
   if (
     existing !== null &&
     (existing === range.commonAncestorContainer ||
       (existing.contains(range.startContainer) && existing.contains(range.endContainer)))
   ) {
-    const contents: Node[] = [...existing.childNodes];
-    unwrapElement(existing);
-    restoreSelection(editor, contents);
-    return;
+    // The whole selection sits inside one existing tag. One covering the
+    // tag's ENTIRE text content unwraps the tag fully — the state a
+    // prior command's restoreSelection leaves (the common ancestor IS
+    // the tag; a second immediate Bold toggles off) and the whole-word
+    // case alike. A shorter one unformats ONLY the selected part: the
+    // tag splits into two halves around the now-plain text.
+    if (range.toString() === (existing.textContent ?? '')) {
+      const contents: Node[] = [...existing.childNodes];
+      unwrapElement(existing);
+      restoreSelection(editor, contents);
+      return null;
+    }
+    unwrapPartial(editor, existing, range, tag);
+    return null;
   }
   const wraps: HTMLElement[] = [];
   for (const block of topBlocks(editor)) {
@@ -504,6 +559,231 @@ function inlineFormat(editor: HTMLElement, tag: 'strong' | 'em'): void {
   }
   if (wraps.length > 0) {
     restoreSelection(editor, wraps);
+  }
+  return null;
+}
+
+/** A collapsed range at `node`'s `offset`. */
+function collapsedAt(node: Node, offset: number): Range {
+  const r = document.createRange();
+  r.setStart(node, offset);
+  r.collapse(true);
+  return r;
+}
+
+/** An armed wrapper that never got text (a `<br>` height-keeper does not
+ *  count) — the Bold/Italic the admin armed but did not use. */
+function isEmptyInline(el: Element): boolean {
+  return (el.textContent ?? '').trim() === '';
+}
+
+/** The node in document order immediately after a (collapsed caret's)
+ *  position (null at the end of the document). */
+function nodeAfterPosition(container: Node, offset: number): Node | null {
+  const child = container.childNodes.item(offset);
+  if (child !== null) {
+    return child;
+  }
+  let node: Node | null = container;
+  while (node !== null) {
+    if (node.nextSibling !== null) {
+      return node.nextSibling;
+    }
+    node = node.parentNode;
+  }
+  return null;
+}
+
+/** ARM: an empty `tag` wrapper at the caret, the caret placed INSIDE it
+ *  (the text typed next lands inside the wrapper — that is what makes
+ *  the format apply to what follows). A `<br>` immediately after the
+ *  caret is the line's height-keeper: it goes inside the wrapper too
+ *  (browsers wrap it with the format; the empty-semantics rule knows
+ *  the `<strong><br></strong>` shape). Returns the wrapper — the caller
+ *  tracks it as the armed one (the beforeinput takeover inserts typed
+ *  text into it). */
+function armAt(range: Range, tag: string): HTMLElement {
+  const next = nodeAfterPosition(range.startContainer, range.startOffset);
+  const wrap = document.createElement(tag);
+  range.insertNode(wrap);
+  if (
+    next !== null &&
+    next !== wrap &&
+    next.nodeType === Node.ELEMENT_NODE &&
+    (next as Element).tagName === 'BR'
+  ) {
+    wrap.appendChild(next);
+  }
+  const sel = window.getSelection();
+  if (sel !== null) {
+    const caret = document.createRange();
+    caret.setStart(wrap, 0);
+    caret.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(caret);
+  }
+  return wrap;
+}
+
+/** DISARM: the armed wrapper is still empty — remove it (a `<br>` child
+ *  stays: the established empty-line shape) and put the caret back where
+ *  the wrapper was. */
+function disarmAt(wrapper: HTMLElement): void {
+  const parent = wrapper.parentNode;
+  if (parent === null) {
+    return;
+  }
+  let index = 0;
+  for (let c = parent.firstChild; c !== null && c !== wrapper; c = c.nextSibling) {
+    index += 1;
+  }
+  unwrapElement(wrapper);
+  const caret = document.createRange();
+  caret.setStart(parent, index);
+  caret.collapse(true);
+  const sel = window.getSelection();
+  if (sel === null) {
+    return;
+  }
+  sel.removeAllRanges();
+  sel.addRange(caret);
+}
+
+/**
+ * Insert `text` at the (collapsed) caret inside the ARMED `wrapper` and
+ * leave the caret immediately after the inserted text — the deterministic
+ * twin of the browser's native insertion, for the one case where the
+ * native one cannot be trusted: a fresh character into a just-armed,
+ * still-empty wrapper, which a contenteditable browser may put BESIDE the
+ * empty inline instead of inside it (the "format silently clears" bug).
+ *
+ * The wrapper is NOT re-created per character: every armed keystroke
+ * reuses the one the arming created, so "abc" typed after arming Italic
+ * is one `<em>abc</em>`, never three wrappers. A `<br>` height-keeper in
+ * the wrapper is kept, on the side of the text the caret dictates (armAt
+ * left the caret before it, so the text precedes it — the established
+ * `<strong>text<br></strong>` shape).
+ */
+function insertArmedText(wrapper: HTMLElement, range: Range, text: string): void {
+  // The zero-length marker pins the caret's position (the standing rule:
+  // no boundary-point math — jsdom's compareBoundaryPoints is not
+  // portable).
+  const marker = placeMarker(range.startContainer, range.startOffset);
+  const node = document.createTextNode(text);
+  marker.parentNode!.insertBefore(node, marker.nextSibling);
+  marker.parentNode!.removeChild(marker);
+  const caret = document.createRange();
+  caret.setStart(node, text.length);
+  caret.collapse(true);
+  const sel = window.getSelection();
+  if (sel === null) {
+    return;
+  }
+  sel.removeAllRanges();
+  sel.addRange(caret);
+}
+
+/** A zero-length marker at a range boundary, splitting a text node the
+ *  boundary cuts (the boundary then sits BETWEEN two nodes — a place
+ *  extractContents can start or end cleanly). */
+function placeMarker(container: Node, offset: number): Text {
+  const marker = document.createTextNode('');
+  if (container.nodeType === Node.TEXT_NODE) {
+    const text = container as Text;
+    if (offset > 0 && offset < text.data.length) {
+      text.splitText(offset);
+    }
+    // offset 0 -> before the text; offset === length -> after it.
+    const before = offset === 0 ? text : text.nextSibling;
+    text.parentNode!.insertBefore(marker, before ?? null);
+    return marker;
+  }
+  // An element-level boundary: between its children.
+  (container as Element).insertBefore(marker, (container as Element).childNodes[offset] ?? null);
+  return marker;
+}
+
+/**
+ * Unformat only the SELECTED part of a tag: the tag SPLITS into two
+ * halves around the now-plain text (`<strong>bold</strong>` with "ol"
+ * selected -> `<strong>b</strong>ol<strong>d</strong>`) — the mirror of
+ * wrapRange's clip/extract technique. The halves are deliberately NOT
+ * re-merged: a repeat command must be able to re-wrap exactly the part
+ * that just lost the tag.
+ *
+ * Two zero-length markers pin the head|selected|tail split across the
+ * two extracts (extractContents collapses the range, so the boundaries
+ * must survive as nodes) — no boundary-point math anywhere (jsdom's
+ * compareBoundaryPoints is not portable, the file's standing rule).
+ */
+function unwrapPartial(editor: HTMLElement, existing: HTMLElement, range: Range, tag: string): void {
+  const parent = existing.parentNode;
+  if (parent === null) {
+    return;
+  }
+  // The END marker first: splitting a text node at the end boundary would
+  // shift the start boundary's offset if they shared the node.
+  const mEnd = placeMarker(range.endContainer, range.endOffset);
+  const mStart = placeMarker(range.startContainer, range.startOffset);
+  // 1. The selected part (whole nodes only — the markers pin node edges).
+  const midRange = document.createRange();
+  midRange.setStartAfter(mStart);
+  midRange.setEndBefore(mEnd);
+  const mid = midRange.extractContents();
+  // 2. The tail: from the end marker to the tag's content end.
+  const tailRange = document.createRange();
+  tailRange.selectNodeContents(existing);
+  tailRange.setStartAfter(mEnd);
+  const tail = tailRange.extractContents();
+  // The markers are left at the head's edge (both extracts started after
+  // them) — remove them, wherever they landed.
+  for (const m of [mStart, mEnd]) {
+    m.parentNode?.removeChild(m);
+  }
+  // The selected part loses the tag: nested duplicates of it inside
+  // unwrap too (the mirror of wrapRange's mergeTag de-dup).
+  for (const t of [...mid.querySelectorAll(tag)]) {
+    unwrapElement(t);
+  }
+  // A covered nested element can leave the head holding only empty
+  // inlines — drop those (the split's leftover).
+  dropEmptyInlines(existing);
+  // The mid's children are captured BEFORE the fragment is inserted
+  // (inserting a fragment detaches it from its children).
+  const midNodes = [...mid.childNodes];
+  const ref: Node | null = existing.nextSibling;
+  if (existing.firstChild === null) {
+    parent.removeChild(existing); // nothing left in the head
+  }
+  // Both pieces go before the same reference node (the node that followed
+  // the tag) — the mid first, then the tail half, in content order.
+  if (midNodes.length > 0) {
+    parent.insertBefore(mid, ref);
+  }
+  if (tail.childNodes.length > 0) {
+    const tailEl = document.createElement(tag);
+    tailEl.appendChild(tail);
+    dropEmptyInlines(tailEl);
+    if (tailEl.firstChild !== null) {
+      parent.insertBefore(tailEl, ref);
+    }
+  }
+  // The selection lands on the just-unformatted part (inside what
+  // remains) — a repeat command re-wraps exactly it, the toggle's
+  // symmetry.
+  restoreSelection(editor, midNodes);
+}
+
+/** Remove `strong`/`em` elements that hold no text. An armed-but-unused
+ *  wrapper (or a split leftover) must not reach the saved value, and a
+ *  region holding only such wrappers still counts as EMPTY for the
+ *  blank rule. A `<br>` child stays — the established empty-line shape
+ *  (`<p><br></p>`). */
+function dropEmptyInlines(root: ParentNode): void {
+  for (const el of [...root.querySelectorAll('strong, em')]) {
+    if (isEmptyInline(el)) {
+      unwrapElement(el);
+    }
   }
 }
 
@@ -543,6 +823,10 @@ export function normalizeBodyRegion(editor: HTMLElement): void {
       unwrapElement(el);
     }
   }
+  // The empty inline drop: an armed-but-unused wrapper must not reach the
+  // saved value (a `<br>` child stays, so a region of only such wrappers
+  // still counts as EMPTY for the blank rule).
+  dropEmptyInlines(editor);
   for (const el of [...editor.querySelectorAll('*')]) {
     for (const name of [...el.getAttributeNames()]) {
       if (!(el.tagName.toLowerCase() === 'a' && name === 'href')) {
@@ -730,6 +1014,19 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   protected readonly activeBold = signal(false);
   /** The caret sits inside an <em> (the Italic button's pressed state). */
   protected readonly activeItalic = signal(false);
+  /** The wrapper of the format the admin armed with a bare caret and is
+   *  still typing into (the empty `<strong>`/`<em>` armAt created; null
+   *  = nothing armed). The DOM alone cannot tell "armed, still typing"
+   *  from "an unrelated caret that happens to sit in a `<em>`", so the
+   *  arming is tracked here rather than derived from the markup: the
+   *  Bold/Italic commands set it (their non-null return), and it ends
+   *  when the same button is clicked again, the caret leaves the
+   *  wrapper, a selection is made, a line break is inserted, or the
+   *  region loses focus. While set, the beforeinput handler inserts
+   *  typed text INSIDE the wrapper itself — the browser's native
+   *  insertion into a just-armed empty inline is not reliable (it may
+   *  land beside the wrapper: the reported "format silently clears"). */
+  private armedWrapper: HTMLElement | null = null;
   /** The last refused link (the field's error line; a new attempt clears
    *  it). */
   protected readonly linkError = signal<string | null>(null);
@@ -762,6 +1059,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     Object.defineProperty(region, 'value', {
       get: () => region.innerHTML,
       set: (next: string) => {
+        this.endArmedFormat(); // a re-prefill detaches the armed wrapper — the arming ends
         setRegionHtml(region, next);
         this.syncBodyFromRegion();
       },
@@ -783,7 +1081,28 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
 
   private readonly onSelectionChange = (): void => {
     this.refreshToolbarState();
+    this.checkArmedCaret();
   };
+
+  /** The armed format ends when the caret LEAVES the wrapper or a
+   *  (non-collapsed) selection is made — a bare caret that stays inside
+   *  the wrapper keeps it armed (the following characters land in it).
+   *  Real browsers fire selectionchange for both cases; onBodyBeforeInput
+   *  re-checks the same rule as a backstop, so the arming can never
+   *  survive where the event does not fire. */
+  private checkArmedCaret(): void {
+    const wrapper = this.armedWrapper;
+    if (wrapper === null || !wrapper.isConnected) {
+      return;
+    }
+    const sel = window.getSelection();
+    const range = sel !== null && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    const stillInside =
+      range !== null && range.collapsed && wrapper.contains(range.startContainer);
+    if (!stillInside) {
+      this.endArmedFormat();
+    }
+  }
 
   /** The editing region (null before the view is ready). */
   private region(): HTMLElement | null {
@@ -857,12 +1176,114 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     }
   }
 
+  /**
+   * TYPING WITH AN ARMED FORMAT — the deterministic takeover. Arming
+   * (a format clicked at a bare caret) inserts an EMPTY wrapper at the
+   * caret and relied on the browser putting the next character inside
+   * it; in a contenteditable a browser may instead insert the character
+   * BESIDE the empty inline, so the text lands unformatted, the wrapper
+   * stays empty, and the save normalizer correctly drops it (the
+   * reported "click Italic, type, and it is not italic"). While a format
+   * is armed, plain text insertion (`inputType 'insertText'`) is taken
+   * over instead: the character is inserted inside the armed wrapper at
+   * the caret, the caret lands immediately after it — and the arming
+   * STAYS on, so the following characters keep landing in the same
+   * wrapper ("abc" typed after arming Italic is one `<em>abc</em>`,
+   * never three wrappers).
+   *
+   * The arming ends (the takeover stops) when: the same button is
+   * clicked again (the command returns null, handled in applyBold /
+   * applyItalic); the caret leaves the wrapper, a selection is made, or
+   * the region blurs (endArmedFormat — checked in checkArmedCaret, here
+   * as a backstop, and on blur); a line break (insertParagraph — the
+   * caret leaves the wrapper with the new block). On any ending a
+   * still-EMPTY wrapper is dropped; a wrapper that already holds typed
+   * text keeps it (the format landed there). This is also the guarantee
+   * that the format never reaches unrelated text typed much later: the
+   * arming always ends the moment the caret is no longer inside the
+   * wrapper, and a keystroke anywhere else is never intercepted.
+   *
+   * Everything else is left to the browser exactly as before: un-armed
+   * typing, selection replacements, deletions, and IME composition
+   * updates (isComposing — the committed text still arrives as a plain
+   * insertText and IS intercepted). The prevented default means no
+   * native `input` event follows, so the form value and the toolbar's
+   * pressed state are synced by hand.
+   */
+  protected onBodyBeforeInput(event: InputEvent): void {
+    if (event.inputType === 'insertParagraph') {
+      // A line break ends the armed format (the caret leaves the wrapper
+      // with the new block); the still-empty wrapper is dropped. The
+      // paragraph insertion itself stays the browser's.
+      this.endArmedFormat();
+      return;
+    }
+    if (event.inputType !== 'insertText' || event.isComposing) {
+      return;
+    }
+    const data = event.data;
+    const region = this.region();
+    const wrapper = this.armedWrapper;
+    if (data === null || data === '' || region === null || wrapper === null) {
+      return; // nothing armed — the browser inserts natively (unchanged)
+    }
+    const sel = window.getSelection();
+    const range = sel !== null && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+    const inside =
+      range !== null &&
+      range.collapsed &&
+      region.contains(range.commonAncestorContainer) &&
+      wrapper.isConnected &&
+      wrapper.contains(range.startContainer);
+    if (!inside) {
+      // The caret is not inside the armed wrapper (it moved away, a
+      // selection was made, or the region was re-prefilled): the format
+      // has ENDED — it must not silently apply to this, unrelated, text.
+      // Drop the still-empty wrapper and let the browser insert
+      // natively (unformatted) where the caret now is.
+      this.endArmedFormat();
+      return;
+    }
+    event.preventDefault();
+    insertArmedText(wrapper, range, data);
+    this.syncBodyFromRegion();
+    this.refreshToolbarState();
+  }
+
+  /** The region losing focus ends the armed format (the admin went
+   *  elsewhere — the format must not greet text typed later, and an
+   *  armed-but-unused wrapper is dropped rather than left behind). */
+  protected onBodyBlur(): void {
+    this.endArmedFormat();
+  }
+
+  /** End the armed format (the endings are documented on
+   *  onBodyBeforeInput). A wrapper that never got text is REMOVED — an
+   *  armed-but-unused wrapper must not linger in the DOM (the save
+   *  normalizer would drop it anyway, and a stray empty inline would
+   *  confuse a caret that lands on it); a wrapper that already holds
+   *  typed text keeps it. The caret is NOT moved: whichever way the
+   *  format ended, the caret stays where the user put it. */
+  private endArmedFormat(): void {
+    const wrapper = this.armedWrapper;
+    if (wrapper === null) {
+      return;
+    }
+    this.armedWrapper = null;
+    if (wrapper.isConnected && isEmptyInline(wrapper)) {
+      unwrapElement(wrapper);
+    }
+  }
+
   /** A block choice (Paragraph / Heading 2 / Heading 3 / lists). */
   protected applyBlock(block: BodyBlock): void {
     const region = this.region();
     if (region === null) {
       return;
     }
+    // A block operation is not the format's own toggle — it ends the
+    // armed format (a still-empty armed wrapper is dropped).
+    this.endArmedFormat();
     if (block === 'ul' || block === 'ol') {
       bodyCommands.toggleList(region, block);
     } else {
@@ -877,7 +1298,15 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     if (region === null) {
       return;
     }
-    bodyCommands.bold(region);
+    // The command's result IS the arming state: a bare-caret click arms
+    // (the wrapper comes back); a selection wrap, a toggle, a disarm, or
+    // an already-formatted caret all end any tracked arming.
+    const armed = bodyCommands.bold(region);
+    if (armed !== null) {
+      this.armedWrapper = armed;
+    } else {
+      this.endArmedFormat();
+    }
     this.syncBodyFromRegion();
     this.refreshToolbarState();
   }
@@ -887,7 +1316,12 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     if (region === null) {
       return;
     }
-    bodyCommands.italic(region);
+    const armed = bodyCommands.italic(region);
+    if (armed !== null) {
+      this.armedWrapper = armed;
+    } else {
+      this.endArmedFormat();
+    }
     this.syncBodyFromRegion();
     this.refreshToolbarState();
   }
@@ -918,6 +1352,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       return;
     }
     this.linkError.set(null);
+    // A link requires a selection — selecting the text ended the armed
+    // format (a still-empty armed wrapper is dropped).
+    this.endArmedFormat();
     bodyCommands.createLink(region, raw);
     this.syncBodyFromRegion();
     this.refreshToolbarState();

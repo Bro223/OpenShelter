@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { FormControl } from '@angular/forms';
+import { readFileSync } from 'node:fs';
 import type {
   AdminGuidancePostDto,
   CreateGuidancePostRequest,
@@ -13,6 +14,7 @@ import { ApiError } from '../../core/api-error';
 import {
   GuidanceEditor,
   type GuidanceEditorSave,
+  bodyCommands,
   bodyHtmlBlankValidator,
   slugShapeValidator,
 } from './guidance-editor';
@@ -261,6 +263,26 @@ function paste(region: HTMLElement, plain: string, rich = ''): void {
     configurable: true,
   });
   region.dispatchEvent(event);
+}
+
+/** Dispatch the region's `beforeinput` the way a real keystroke delivers
+ *  it (inputType 'insertText', data the typed text). jsdom has no
+ *  contenteditable typing engine: the beforeinput event IS the keystroke,
+ *  and the component's armed-format takeover performs the insertion
+ *  itself — so these tests exercise exactly the code path a real browser
+ *  would hand over. Returns whether the handler took the insertion over
+ *  (preventDefault) or left it to the browser's NATIVE insertion, which
+ *  jsdom does not perform — the unformatted character actually landing is
+ *  the part only a real-browser click-through can prove. */
+function typeChar(region: HTMLElement, text: string): boolean {
+  const event = new InputEvent('beforeinput', {
+    inputType: 'insertText',
+    data: text,
+    bubbles: true,
+    cancelable: true,
+  });
+  region.dispatchEvent(event);
+  return event.defaultPrevented;
 }
 
 /** A real multi-block selection: from the start of the block holding
@@ -1519,6 +1541,481 @@ describe('GuidanceEditor', () => {
     expect(save?.disabled).toBe(true);
     expect(submittedBody(h)).toBe('');
     expect(h.element.textContent).toContain('A body is required.');
+  });
+
+  // ---- Part 4: the owner's three reported behaviours ----------------------
+  // ---- 1) Bold/Italic with a bare caret must ARM the format (the next
+  // ---- typed text lands inside it — the WordPress behaviour); 2) unbolding
+  // ---- PART of a bold word must unbold only the selected part (the tag
+  // ---- splits, it is never re-merged); 3) the toolbar controls take a
+  // ---- pointer cursor (enabled, not disabled).
+
+  it('P4.1 Bold with a bare caret in an EMPTY region ARMS (the button reads pressed, the caret sits inside the empty <strong>); a second click disarms; typing after a re-arm lands in the wrapper', () => {
+    const h = createHost(null);
+    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
+    typeValue(inputById(h.element, 'ge-body')!, '', h.fixture);
+    const region = regionOf(h);
+    expect(region.innerHTML).toBe('');
+    // A bare (collapsed) caret in the region — no selection at all.
+    const range = document.createRange();
+    range.setStart(region, 0);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    // ARMED: the region was seeded with a paragraph (the block command's
+    // shape) holding an EMPTY <strong>; the caret sits INSIDE it and the
+    // button reads pressed the moment it is clicked.
+    expect(region.innerHTML).toBe('<p><strong><br></strong></p>');
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
+    expect(window.getSelection()!.anchorNode).toBe(region.querySelector('strong'));
+
+    // A second click DISARMS: the empty wrapper is gone, the caret back
+    // where the wrapper was, the button unpressed.
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><br></p>');
+    expect(region.querySelector('strong')).toBeNull();
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
+
+    // Re-arm, then TYPE (the region's own text-insert primitive — the
+    // caret's landing place): the text lands inside the wrapper, so the
+    // format applies to what follows.
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+    bodyCommands.insertPlainText(region, 'Varjend');
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><strong>Varjend<br></strong></p>');
+  });
+
+  it('P4.2 Bold with the editor UNFOCUSED moves focus into the region and arms at the start of the content', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
+    const region = regionOf(h);
+    // No selection anywhere (the editor was never focused).
+    window.getSelection()!.removeAllRanges();
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(document.activeElement).toBe(region);
+    expect(region.innerHTML).toBe('<p><strong></strong>hello brave world</p>');
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('P4.3 Bold with the editor unfocused and the region EMPTY seeds a paragraph and arms in it', () => {
+    const h = createHost(null);
+    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
+    typeValue(inputById(h.element, 'ge-body')!, '', h.fixture);
+    const region = regionOf(h);
+    window.getSelection()!.removeAllRanges();
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(document.activeElement).toBe(region);
+    expect(region.innerHTML).toBe('<p><strong><br></strong></p>');
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('P4.4 a region holding ONLY an armed-but-unused wrapper still counts as EMPTY (save blocked, both shapes)', () => {
+    const h = createHost(null);
+    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
+    for (const html of ['<p><strong><br></strong></p>', '<p><em></em></p>']) {
+      typeValue(inputById(h.element, 'ge-body')!, html, h.fixture);
+
+      const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(save?.disabled, `region holding only ${html} must stay blocked`).toBe(true);
+
+      h.editor.onSave();
+      h.fixture.detectChanges();
+      expect(h.host.lastSave, `${html} must not be saved`).toBeNull();
+      expect(h.element.textContent).toContain('A body is required.');
+    }
+  });
+
+  it('P4.5 an armed-but-unused wrapper never reaches the saved value (the normalizer drops the empty inline, keeps the <br>)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello</p><p><strong><br></strong></p>');
+
+    h.editor.onSave();
+    h.fixture.detectChanges();
+
+    // The wrapper is gone from the wire value — the line keeps the
+    // established empty shape (<p><br></p>).
+    expect(h.host.lastSave?.create?.body).toBe('<p>hello</p><p><br></p>');
+  });
+
+  it('S1 unbolding the MIDDLE of a bold word splits it: the selected part is plain, both halves keep the tag (no re-merge)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
+    const region = regionOf(h);
+    // "ol" = offsets 1..3 of "bold".
+    selectOffsetRange(region, 'bold', 1, 3);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p><strong>b</strong>ol<strong>d</strong></p>');
+    // The selection lands on the just-unwrapped part (inside what remains).
+    expect(selectedText()).toBe('ol');
+
+    // A repeat Bold re-wraps ONLY the unwrapped part — the halves are NOT
+    // re-merged into one <strong> (that would defeat the action).
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><strong>b</strong><strong>ol</strong><strong>d</strong></p>');
+  });
+
+  it('S2 unbolding the FIRST half of a bold word leaves the second half bold', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
+    const region = regionOf(h);
+    // "bo" = offsets 0..2.
+    selectOffsetRange(region, 'bold', 0, 2);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p>bo<strong>ld</strong></p>');
+  });
+
+  it('S3 unbolding the SECOND half of a bold word leaves the first half bold', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
+    const region = regionOf(h);
+    // "ld" = offsets 2..4.
+    selectOffsetRange(region, 'bold', 2, 4);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p><strong>bo</strong>ld</p>');
+  });
+
+  it('S4 unbolding the WHOLE word still unwraps the tag fully (the text-level exact span)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p><strong>bold</strong></p>');
+    const region = regionOf(h);
+    selectOffsetRange(region, 'bold', 0, 4);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p>bold</p>');
+  });
+
+  // ---- Part 5: arming + typing — the deterministic beforeinput takeover ----
+  // ---- The owner's case: click Italic with a bare caret, then type.
+  // ---- Arming inserts an EMPTY wrapper and the browser's native
+  // ---- insertion into it is not reliable (it may land the character
+  // ---- BESIDE the wrapper — the "format silently clears" bug), so the
+  // ---- component takes the text insertion over while a format is armed
+  // ---- (onBodyBeforeInput). jsdom has no contenteditable typing engine:
+  // ---- the beforeinput event IS the keystroke here, and the takeover
+  // ---- performs the insertion itself. What jsdom CANNOT prove is the
+  // ---- browser's NATIVE insertion — exactly what the takeover replaces;
+  // ---- the tests that assert "the takeover declined" (typeChar returns
+  // ---- false) leave the actual character landing to a real browser.
+
+  it('A1 arm Italic at a bare caret, type one character: <em>a</em>, the caret after the "a", the button pressed, the form value synced', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5); // the bare caret after "hello"
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+
+    expect(typeChar(region, 'a')).toBe(true); // the handler took the insertion over
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p>hello<em>a</em> world</p>');
+    // The caret is immediately after the inserted character (inside the
+    // wrapper) — the following characters keep landing in it.
+    const sel = window.getSelection()!;
+    expect(sel.isCollapsed).toBe(true);
+    const node = sel.getRangeAt(0).startContainer as Text;
+    expect(node.textContent).toBe('a');
+    expect(sel.getRangeAt(0).startOffset).toBe(1);
+    // The prevented default means no native `input` event — the form
+    // value is synced by the handler itself.
+    expect(h.editor.form.get('body')?.value).toBe('<p>hello<em>a</em> world</p>');
+    // Pressed state immediately after the click AND while typing.
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('A2 typing three characters after arming yields ONE <em>abc</em> (the arming stays on — never three wrappers)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+
+    typeChar(region, 'a');
+    typeChar(region, 'b');
+    typeChar(region, 'c');
+    h.fixture.detectChanges();
+
+    expect(region.querySelectorAll('em').length).toBe(1);
+    expect(region.innerHTML).toBe('<p>hello<em>abc</em> world</p>');
+    expect(h.editor.form.get('body')?.value).toBe('<p>hello<em>abc</em> world</p>');
+  });
+
+  it('A3 arm Bold then arm Italic then type: deterministic nesting <strong><em>abc</em></strong> (last-armed is innermost)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<strong></strong> world</p>');
+
+    // The second arming nests at the caret, inside the first wrapper.
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<strong><em></em></strong> world</p>');
+
+    typeChar(region, 'a');
+    typeChar(region, 'b');
+    typeChar(region, 'c');
+    h.fixture.detectChanges();
+
+    // Both formats apply: the text is bold AND italic, one wrapper each.
+    expect(region.querySelectorAll('strong').length).toBe(1);
+    expect(region.querySelectorAll('em').length).toBe(1);
+    expect(region.innerHTML).toBe('<p>hello<strong><em>abc</em></strong> world</p>');
+    // The caret is inside BOTH wrappers — both buttons read pressed.
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('A3b arm Italic then arm Bold then type: the nesting inverts — <em><strong>ab</strong></em> (the last-clicked format is the inner wrapper)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em><strong></strong></em> world</p>');
+
+    typeChar(region, 'a');
+    typeChar(region, 'b');
+    h.fixture.detectChanges();
+
+    expect(region.innerHTML).toBe('<p>hello<em><strong>ab</strong></em> world</p>');
+  });
+
+  it('A4 arm Italic and type nothing: the live DOM keeps the armed wrapper, but the SUBMITTED value has no <em> (the empty-wrapper drop stays intact)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+
+    const body = submittedBody(h);
+    expect(body).toBe('<p>hello world</p>');
+    expect(body).not.toContain('<em>');
+    assertCleanBody(body);
+  });
+
+  it('A5 arming a format, then selecting text and bolding it, still produces the selection-wrap result (selecting ends the arming, the unused wrapper is dropped)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 0);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><em></em>hello world</p>');
+
+    // The user changes their mind: select "hello" and bold it.
+    selectOffsetRange(region, 'hello world', 0, 5);
+    buttonByText(h.element, 'Bold')!.click();
+    h.fixture.detectChanges();
+
+    // The existing selection-wrap result, exactly as without the arming.
+    expect(region.innerHTML).toBe('<p><strong>hello</strong> world</p>');
+    expect(region.querySelector('em')).toBeNull();
+  });
+
+  it('A6 the toolbar\'s pressed state reflects the armed format immediately after the click and while typing into it', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
+
+    typeChar(region, 'a');
+    h.fixture.detectChanges();
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+    typeChar(region, 'b');
+    h.fixture.detectChanges();
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonByText(h.element, 'Bold')!.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('A7 the arming ends when the caret leaves the wrapper: the next keystroke is NOT intercepted (native, unformatted) and the unused wrapper is dropped', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+
+    // The caret moves to "world" — outside the armed wrapper.
+    selectCollapsed(region, ' world', 2);
+    // The handler must decline the takeover (no preventDefault): the
+    // character is left to the browser's native insertion, which lands
+    // UNFORMATTED at the new caret. jsdom performs no native insertion —
+    // the unformatted character itself is the part only a real browser
+    // can prove.
+    expect(typeChar(region, 'X')).toBe(false);
+    h.fixture.detectChanges();
+    expect(region.querySelector('em')).toBeNull();
+    expect(region.innerHTML).toBe('<p>hello world</p>');
+  });
+
+  it('A8 the region losing focus ends the arming (the unused wrapper is dropped; later typing is not intercepted)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    region.focus();
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+
+    region.blur();
+    h.fixture.detectChanges();
+
+    expect(region.querySelector('em')).toBeNull();
+    expect(region.innerHTML).toBe('<p>hello world</p>');
+
+    selectCollapsed(region, ' world', 1);
+    expect(typeChar(region, 'X')).toBe(false); // nothing armed anymore
+  });
+
+  it('A9 clicking the same button again ends the arming (the existing disarm: the wrapper is removed, the caret restored, later typing not intercepted)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('true');
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello world</p>');
+    expect(buttonByText(h.element, 'Italic')!.getAttribute('aria-pressed')).toBe('false');
+
+    selectCollapsed(region, ' world', 1);
+    expect(typeChar(region, 'X')).toBe(false);
+  });
+
+  it('A10 arm Italic in an EMPTY region, type: the <br> height-keeper stays, the text precedes it', () => {
+    const h = createHost(null);
+    typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
+    const region = regionOf(h);
+    // A bare (collapsed) caret in the empty region — no selection at all.
+    const range = document.createRange();
+    range.setStart(region, 0);
+    range.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><em><br></em></p>');
+
+    typeChar(region, 'a');
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><em>a<br></em></p>');
+
+    typeChar(region, 'b');
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p><em>ab<br></em></p>');
+    expect(h.editor.form.get('body')?.value).toBe('<p><em>ab<br></em></p>');
+  });
+
+  it('A11 a line break (insertParagraph) ends the arming; the unused wrapper is dropped (the paragraph itself stays the browser\'s)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    buttonByText(h.element, 'Italic')!.click();
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello<em></em> world</p>');
+
+    region.dispatchEvent(
+      new InputEvent('beforeinput', {
+        inputType: 'insertParagraph',
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    h.fixture.detectChanges();
+
+    expect(region.querySelector('em')).toBeNull();
+    // jsdom performs no native paragraph insertion — only a real browser
+    // can show the line break itself; the state (disarmed, wrapper gone)
+    // is what the component owns.
+  });
+
+  it('A12 typing with nothing armed is left to the browser (no interception, no wrapper created, the form value untouched)', () => {
+    const h = createHost(null);
+    fillRequired(h, 'Uus post', '<p>hello world</p>');
+    const region = regionOf(h);
+    selectCollapsed(region, 'hello world', 5);
+
+    expect(typeChar(region, 'X')).toBe(false);
+    h.fixture.detectChanges();
+    expect(region.innerHTML).toBe('<p>hello world</p>'); // jsdom inserts nothing natively
+    expect(h.editor.form.get('body')?.value).toBe('<p>hello world</p>');
+  });
+
+  it('D3 the toolbar tools take a pointer cursor when enabled, not when disabled (the .btn treatment, pinned in the stylesheet)', () => {
+    // jsdom cannot observe a hovered cursor — the repo pins CSS invariants
+    // by reading the stylesheet (the design-tokens.spec.ts convention;
+    // this assertion lives here so that file stays untouched).
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/features/admin/guidance-editor.scss`,
+      'utf8',
+    );
+    const block = scss.match(/\.body-editor__tool \{[\s\S]*?\n\}/);
+    expect(block, 'guidance-editor.scss must style .body-editor__tool').not.toBeNull();
+    expect(block![0], 'an enabled toolbar control must show a pointer').toContain(
+      'cursor: pointer',
+    );
+    const disabled = block![0].match(/&:disabled \{[^}]*\}/);
+    expect(disabled, 'a disabled state must be declared on the tool').not.toBeNull();
+    expect(disabled![0], 'a disabled toolbar control must not show a pointer').toContain(
+      'cursor: default',
+    );
   });
 
   // ---- the draft consequence (a draft save is never silent) ---------------
