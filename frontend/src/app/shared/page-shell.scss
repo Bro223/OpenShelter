@@ -17,7 +17,12 @@
   .brand {
     font-weight: var(--font-weight-bold);
     font-size: var(--text-xl);
-    color: inherit;
+    /* The brand ink (the brand/chrome use of the palette). The header
+       itself stays a LIGHT surface — every header control (nav links,
+       language switcher, burger, theme toggle, focus ring) is tuned for
+       it, and the high-contrast theme already covers dark surfaces. Do
+       not "improve" the header into a dark band. */
+    color: var(--color-brand);
     text-decoration: none;
     letter-spacing: var(--tracking-brand);
   }

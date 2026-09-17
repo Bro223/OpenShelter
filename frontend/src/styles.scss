@@ -16,23 +16,38 @@
 
 :root {
   /* ============ Colors ================================================
-   * Exact shipped values — collected here without changing a single
-   * one (no visual redesign).
+   * The owner's civic palette: ink on a cool off-white, civic blue as the
+   * primary, a deep brand ink for wordmark/headings, and a darkened teal
+   * as the selected-state accent. Every ratio in the comments is computed
+   * from the hex value that ships — design-tokens.spec.ts re-runs the
+   * math on the literals and fails the suite if a claim goes stale.
    */
 
   /* Text & surfaces */
-  --color-text: #1c1c1e; /* primary text */
-  --color-muted: #5f5f66; /* secondary text (the whole app) */
-  --color-bg: #fafafa; /* page background */
-  --color-bg-surface: #fff; /* cards, rows, list items, text on primary */
-  --color-bg-subtle: #f6f7f8; /* inset note background (proof-note) */
-  --color-surface-hover: #f0f0f2; /* ghost button hover fill */
-  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay */
+  --color-text: #17232d; /* ink — 14.74:1 on bg, 15.97:1 on the surface */
+  --color-muted: #536473; /* slate, secondary text — 5.64/6.11/5.31/4.74:1 on bg/surface/subtle/hover */
+  --color-bg: #f4f6f8; /* cool off-white page background */
+  --color-bg-surface: #ffffff; /* cards, rows, list items, text on primary */
+  --color-bg-subtle: #eaf0f4; /* the muted surface (inset notes, map placeholder) */
+  --color-surface-hover: #dbe4eb; /* ghost button hover fill — a slightly darker tint of bg-subtle */
+  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay — white card, neutral on the new background */
   --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
 
   /* Brand */
-  --color-primary: #0b5cad;
-  --color-primary-hover: #094e99;
+  --color-primary: #1769aa; /* civic blue — buttons + links (white on it = 5.77:1) */
+  --color-primary-hover: #0f568e; /* white on it = 7.66:1 */
+  /* Brand ink — the wordmark (page-shell .brand) and the .page-title
+     family. Brand-as-CHROME only: the header is NOT inverted to a dark
+     band. Every header control (nav links, language switcher, burger,
+     theme toggle, focus ring) is tuned for a light surface, and the
+     high-contrast theme already covers dark surfaces — do not "improve"
+     the header into a dark band later.
+     12.53:1 on bg, 13.57:1 on the surface. */
+  --color-brand: #12304a;
+  /* Accent — the selected/active state. Darkened from the owner's #168c8c
+     (4.07:1 on white — fails AA) to 6.04:1 on the surface. 5.58:1 on bg,
+     5.26:1 on the muted surface. */
+  --color-accent: #0f6e6e;
 
   /* Crisis CTA (map-crisis-actions D1) — the "Nearest shelter" button on
      /map is the ONLY consumer of this token; the orange is the crisis
@@ -58,54 +73,62 @@
      badge, not body text; the legend swatch reuses the marker class). */
   --color-new: #f59f00;
 
-  /* Borders */
-  --color-border: #d8d8dd; /* inputs, cards, list rows */
-  --color-border-subtle: #e3e3e3; /* shell header divider */
+  /* Borders — quiet by design, below 3:1 on purpose (the documented
+     exemption in design-tokens.spec.ts: the control is identified by its
+     fill + label, not its border). #d7e0e7 = 1.34:1 on the surface,
+     1.23:1 on the page background. */
+  --color-border: #d7e0e7; /* inputs, cards, list rows */
+  --color-border-subtle: #e3eaf0; /* shell header divider — a lighter tint of the border */
 
   /* Status palette (BannerComponent + verification level chips)
    *
-   * NOTE (two reds on purpose — documented, not a defect):
-   *   --color-danger  #8c1d18  — the DARK red for page-level error surfaces:
-   *       banners, field errors, the two-step delete confirm, danger
-   *       buttons. Highest-contrast red in the app.
-   *   --color-error   #c0392b  — the BRIGHTER red used ONLY by the admin
-   *       moderation inline editors (admin-page.scss .admin-reason__error:
-   *       the reject-reason, info-request and mark-inaccurate error lines).
-   *       In-context field feedback is intentionally more vivid than the
-   *       page-level banner red so it reads as "fix this field".
-   *       Collapsing it onto --color-danger would change the visible
-   *       contrast of those error lines (5.4:1 vs 9.1:1) — kept as two
-   *       tokens.
+   * NOTE (one red on purpose):
+   *   --color-danger and --color-error are the SAME #b33a3a in the owner's
+   *   palette — red has ONE voice. The old light theme split them into a
+   *   dark page-level red and a brighter admin-editor red; the new scheme
+   *   collapsed the split. The admin inline editors (admin-page.scss
+   *   .admin-reason__error and kin) keep the --color-error token NAME
+   *   because their rules reference it, but it now resolves to the same
+   *   tone as --color-danger (5.86:1 on the surface).
+   *
+   * NOTE (warning tone): the token carries TEXT (the warning banner, the
+   *   badge--closed / badge--inaccurate badges, .admin-inaccurate on the
+   *   page surface, the "Newly added" badge), so it must hold 4.5:1 on
+   *   every fill it sits on. The owner's #a66a00 fails on white at 4.48:1
+   *   and is 3.64:1 on the amber badge tint → darkened to #965a00:
+   *   5.59:1 on white, 5.24:1 on warning-bg, 4.53:1 on badge-new.
    */
-  --color-danger: #8c1d18; /* page-level error text (banners, field errors) */
-  --color-danger-bg: #fdecea;
-  --color-danger-border: #f5c6c3;
-  --color-error: #c0392b; /* admin moderation inline error text (slightly brighter red) */
-  --color-warning: #7a4d00;
-  --color-warning-bg: #fff7e6;
-  --color-warning-border: #ffd591;
-  --color-info: #15476e;
-  --color-info-bg: #e8f1fb;
-  --color-info-border: #b9d6f5;
-  --color-success: #1a5b2d;
-  --color-success-bg: #e8f8ee;
-  --color-success-border: #b7e3c4;
-  --color-success-bg-soft: #f4fcf6; /* fully-verified panel fill */
+  --color-danger: #b33a3a; /* page-level error text (banners, field errors) — 5.86:1 on the surface */
+  --color-danger-bg: #fbeded; /* light tint of the danger red — danger on it = 5.15:1 */
+  --color-danger-border: #efc9c9; /* mid tint of the danger red (decorative border) */
+  --color-error: #b33a3a; /* admin moderation inline error text — unified with --color-danger (see note) */
+  --color-warning: #965a00; /* darker ochre (see note) — 5.24:1 on warning-bg, 4.53:1 on badge-new */
+  --color-warning-bg: #fff7e6; /* pale amber tint — warning on it = 5.24:1 */
+  --color-warning-border: #ffd591; /* amber border (decorative) */
+  --color-info: #16598a; /* re-derived from the new blue family — the darker, quieter cousin of the primary; 6.50:1 on info-bg */
+  --color-info-bg: #e8f1fb; /* light tint of the blue family — info on it = 6.50:1 */
+  --color-info-border: #b9d6f5; /* light blue border (decorative) */
+  --color-success: #237a57; /* 4.66:1 on success-bg */
+  --color-success-bg: #e8f4ed; /* light tint of the success green — success on it = 4.66:1 */
+  --color-success-border: #bfe0d2; /* mid tint of the success green (decorative) */
+  --color-success-bg-soft: #f3faf6; /* fully-verified panel fill — softest tint */
 
-  /* Source badges (shelter detail page) */
-  --color-badge-registry: #e8eef7;
-  --color-badge-user: #e8f3ea;
+  /* Source badges (shelter detail page) — light tints of the marker hues;
+     each takes its marker token as TEXT and every pair passes 4.5:1
+     (registry 4.86:1, user 4.50:1, warning on amber 4.53:1). */
+  --color-badge-registry: #e2edf7; /* light tint of the official blue */
+  --color-badge-user: #e8f3ea; /* light tint of the community green */
   /* New community state (community-review-queue D5): pale amber fill, text =
-     --color-warning (#7a4d00 on #f9e6b8 = 5.91:1) — the trust-state badge
+     --color-warning (#965a00 on #f9e6b8 = 4.53:1) — the trust-state badge
      for NEW rows. */
   --color-badge-new: #f9e6b8;
 
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
-  --color-shelter-registry: #0b5cad; /* registry (Päästeamet / municipality) */
-  --color-shelter-user: #2e7d32; /* user-submitted */
-  --color-shelter-pick: #d32f2f; /* selected-point pin on /submit */
-  --color-map-placeholder: #e9eef2; /* map container before the first tiles */
+  --color-shelter-registry: #1769aa; /* registry (Päästeamet / municipality) — doubles as the badge text */
+  --color-shelter-user: #2e7d32; /* user-submitted — community rows stay green */
+  --color-shelter-pick: #0f6e6e; /* selected-point pin = the accent (it was red — red now means "reported" and nothing else) */
+  --color-map-placeholder: #eaf0f4; /* the muted surface, before the first tiles paint */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
   /* Focus rings use --color-primary everywhere. */
 
@@ -184,7 +207,8 @@
      + UI component boundaries ≥ 3:1):
      text #ffffff          on bg/surface/subtle/hover  19.8 / 18.4 / 16.5 / 15.1
      muted #cfcfcf         on bg/surface/subtle/hover  12.7 / 11.8 / 10.6 /  9.7
-     primary #7db8f0       on bg/surface/subtle        9.4 /  8.8 /  7.8 (focus ring too)
+     brand #b9cde4         on bg/surface/subtle        12.2 / 11.3 / 10.1 (wordmark, page titles)
+     primary #7db8f0       on bg/surface/subtle        9.4 /  8.8 /  7.8 (links, btn--primary)
      primary-hover #a8d0f5 on bg/surface               12.3 / 11.4
      surface #141414 text  on primary/primary-hover    8.8 / 11.4 (btn--primary)
      surface #141414 text  on cta #ff9f1c              9.0 (.map-cta)
@@ -197,7 +221,9 @@
      badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
      badge green #7ac98a   on badge-user #11301d       7.2
      same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
-     pick #ff8a80          on bg / surface / subtle     8.7 /  8.1 /  7.2
+     accent/pick #4dd0c4   on bg / surface / subtle    10.5 /  9.8 /  8.7 (the pick pin;
+     the keyboard focus ring stays the primary blue — the component-scoped
+     rings hardcode it, so a mixed focus colour was deliberately avoided)
      (the user-reported dark-on-dark was NOT a
      token pair — every text token pair above passes. The dark texts were
      elements whose colour comes from the UA stylesheet instead of a token
@@ -218,18 +244,18 @@
 
      Map context (D1): the MAP is not themed — OSM tiles stay light, so the
      marker tokens keep their SOURCE coding (blue=registry, green=user,
-     red=pick). --color-shelter-registry/user are brightened from #0b5cad/
+     teal=the selected pick — red means "reported" only).
+     --color-shelter-registry/user are brightened from #1769aa/
      #2e7d32 because the SAME tokens double as source/trust-badge TEXT in the
      component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
      untouched per D1) and dark blue/green text fails 4.5:1 on the dark
      surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
      --color-bg-surface border (#141414 here) plus the hue carry the marker —
      the documented trade-off of one token serving map + UI. --color-shelter-
-     pick is brightened the same way as a safe superset: it is the only
-     "unchanged (map context)" colour token and is
-     used today only as the /submit pin fill, but #ff8a80 keeps ≥4.5:1 on
-     every HC surface if it ever serves as text (the 2px border + the red hue
-     keep the pin identifiable on the light tiles). --color-map-placeholder
+     pick is the accent teal (the selected state; the light value = the
+     accent): brightened to #4dd0c4 it keeps ≥4.5:1 on every HC surface if
+     it ever serves as text (the 2px border + the teal hue keep the pin
+     identifiable on the light tiles). --color-map-placeholder
      stays light: it IS the map surface (tiles about to paint).
      Leaflet's own core literals (attribution rgba(255,255,255,0.8), zoom
      buttons #fff, container #ddd) sit ON the light tiles — or are overridden
@@ -246,8 +272,12 @@
   --color-backdrop: rgba(0, 0, 0, 0.7); /* darker modal overlay on the dark theme */
 
   /* Brand */
-  --color-primary: #7db8f0; /* link/focus colour AND btn--primary fill (text flips to #141414) */
+  --color-primary: #7db8f0; /* link colour AND btn--primary fill (text flips to #141414) */
   --color-primary-hover: #a8d0f5;
+  /* Brand ink + accent — dark-surface twins of the light values: wordmark
+     and page titles in the brand ink, the pick pin in the accent. */
+  --color-brand: #b9cde4;
+  --color-accent: #4dd0c4;
 
   /* Crisis CTA — the CTA button's text is --color-bg-surface (dark on orange). */
   --color-cta: #ff9f1c;
@@ -290,7 +320,7 @@
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
   --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
-  --color-shelter-pick: #ff8a80; /* brightened from #d32f2f — safe superset, see note above */
+  --color-shelter-pick: #4dd0c4; /* the brightened accent — the pick pin is the selected state (see note above) */
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
 }
 
@@ -373,8 +403,12 @@ textarea {
   background-color: var(--color-bg-surface);
 }
 
-/* Page titles */
+/* Page titles — the brand ink on the heading type styles.scss owns.
+   Brand-as-chrome: the header stays a LIGHT surface (every header control
+   is tuned for it, and the high-contrast theme owns dark surfaces) — do
+   not invert it into a dark band "for contrast". */
 .page-title {
+  color: var(--color-brand);
   font-size: var(--text-3xl);
   font-weight: var(--font-weight-title);
   letter-spacing: var(--tracking-tight);
@@ -533,9 +567,11 @@ textarea {
   background: var(--color-reported);
 }
 
-/* Selected-location pin on the /submit mini-map (leaflet-service setPick).
- * Registry/user markers already fill their circle; without a background the
- * pick pin rendered as a hollow ring and was invisible on OSM tiles. */
+/* Selected-location pin on the /submit mini-map (leaflet-service setPick)
+ * — the accent teal, the app's selected-state colour (red is reserved for
+ * "reported"). Registry/user markers already fill their circle; without a
+ * background the pick pin rendered as a hollow ring and was invisible on
+ * OSM tiles. */
 .shelter-marker--pick {
   background: var(--color-shelter-pick);
   border-color: var(--color-bg-surface);
