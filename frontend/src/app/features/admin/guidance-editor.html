@@ -145,7 +145,9 @@
       <div class="guidance-editor__hero-upload">
         <label for="ge-hero-upload">
           {{
-            uploading() ? ('admin.media.uploading' | t) : ('admin.guidance.editor.hero.uploadLabel' | t)
+            uploading()
+              ? ('admin.media.uploading' | t)
+              : ('admin.guidance.editor.hero.uploadLabel' | t)
           }}
         </label>
         <input
@@ -215,15 +217,18 @@
            post keeps the complementary note (no nag). -->
       <p class="field-note">
         {{
-          (isDraftPost()
-            ? 'admin.guidance.editor.draftState'
-            : 'admin.guidance.editor.statusNote') | t
+          (isDraftPost() ? 'admin.guidance.editor.draftState' : 'admin.guidance.editor.statusNote')
+            | t
         }}
       </p>
     }
 
     <div class="guidance-editor__actions">
-      <button type="submit" class="btn btn--primary" [disabled]="busy() || uploading() || !canSave()">
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="busy() || uploading() || !canSave()"
+      >
         {{ busy() ? ('admin.guidance.editor.saving' | t) : ('admin.guidance.editor.save' | t) }}
       </button>
       <button type="button" class="btn btn--ghost" (click)="onCancel()" [disabled]="busy()">

@@ -395,8 +395,7 @@ export const ET: Messages = {
    *  aktsepteerib täpselt neid kolme tüüpi, magic-byte kontrolliga). */
   'admin.guidance.editor.hero.uploadLabel': 'Laadi pilt üles',
   /** Üleslaadimise 413: ületab serveri suuruse piiri (MEDIA_MAX_BYTES). */
-  'admin.guidance.editor.hero.uploadError.tooLarge':
-    'See pilt ületab 5 MB üleslaadimise piiri.',
+  'admin.guidance.editor.hero.uploadError.tooLarge': 'See pilt ületab 5 MB üleslaadimise piiri.',
   /** Üleslaadimise 400: pole lugemisvõimeline pilt või deklareeritud tüüp
    *  ei klapi baitytega (serveri magic-byte kontroll). */
   'admin.guidance.editor.hero.uploadError.unsupported':
