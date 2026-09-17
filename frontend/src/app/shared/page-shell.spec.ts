@@ -661,6 +661,148 @@ describe('PageShell', () => {
     });
   });
 
+  /* Chrome band (page-shell.scss invariants): the header, the footer and
+     the <900 dropdown panel stand out from the page body on the navy
+     chrome band (the --color-chrome-* tokens in styles.scss). jsdom
+     cannot render colours or measure the band, so — same
+     mechanism-assertion idiom as the burger bars and narrow footer
+     blocks above — the stylesheet content itself is the acceptance; how
+     the band actually LOOKS (navy against the page, white chrome on it,
+     the divider's subtlety) still needs a browser eyeball. */
+  describe('chrome band (page-shell.scss invariants)', () => {
+    const shellScss = readFileSync(
+      `${process.cwd()}/src/app/shared/page-shell.scss`,
+      'utf8',
+    );
+
+    // Top-level rule block by exact selector line (brace-balanced, the
+    // design-tokens.spec.ts blockLines idiom) — the nested rules (the
+    // .brand descendant, the footer's media queries) stay in the
+    // returned text.
+    function topLevelBlock(selector: string): string | null {
+      const lines = shellScss.split('\n');
+      for (let start = 0; start < lines.length; start++) {
+        if (lines[start].trim() !== `${selector} {`) continue;
+        let depth = 0;
+        for (let i = start; i < lines.length; i++) {
+          depth +=
+            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          if (depth <= 0) {
+            return lines.slice(start, i + 1).join('\n');
+          }
+        }
+      }
+      return null;
+    }
+
+    const headerBlock = topLevelBlock('.shell-header');
+    const footerBlock = topLevelBlock('.shell-footer');
+
+    it('the header is the band: chrome background + text + divider, white wordmark', () => {
+      expect(headerBlock, 'page-shell.scss must keep a top-level .shell-header rule').not.toBeNull();
+      expect(headerBlock, 'the header takes the band background').toContain(
+        'background: var(--color-chrome-bg)',
+      );
+      expect(headerBlock, 'the base text of the header is the chrome text token').toMatch(
+        /(^|\n)\s*color: var\(--color-chrome-text\)/,
+      );
+      expect(headerBlock, 'the bottom edge of the header is the chrome divider').toContain(
+        'border-bottom: 1px solid var(--color-chrome-border)',
+      );
+      expect(
+        headerBlock,
+        'the wordmark moves to the chrome text token (brand ink stays the heading colour)',
+      ).toMatch(/\.brand \{[\s\S]*?color: var\(--color-chrome-text\)/);
+    });
+
+    it('the footer is the band: chrome background, divider top edge, muted text, chrome-text links', () => {
+      expect(footerBlock, 'page-shell.scss must keep a top-level .shell-footer rule').not.toBeNull();
+      expect(footerBlock, 'the footer takes the band background').toContain(
+        'background: var(--color-chrome-bg)',
+      );
+      expect(footerBlock, 'the top edge of the footer is the chrome divider').toContain(
+        'border-top: 1px solid var(--color-chrome-border)',
+      );
+      const muted = footerBlock!.match(/color: var\(--color-chrome-muted\)/g) ?? [];
+      expect(muted.length, 'notice + legal + provenance all move to chrome-muted').toBe(3);
+      const links = footerBlock!.match(/color: var\(--color-chrome-text\)/g) ?? [];
+      expect(links.length, 'all three footer link groups move to chrome-text').toBe(3);
+      expect(
+        footerBlock,
+        'no light-theme text token left in the footer',
+      ).not.toMatch(/color: var\(--color-(muted|primary)\)/);
+    });
+
+    it('the ghost .btns on the band get the chrome treatment (white text, chrome border/hover)', () => {
+      const ghost = shellScss.match(/\.shell-header \.btn--ghost \{[\s\S]*?\n\}/);
+      expect(
+        ghost,
+        'page-shell.scss must scope a .shell-header .btn--ghost rule',
+      ).not.toBeNull();
+      expect(ghost![0], 'chrome text on the ghost button').toMatch(
+        /color: var\(--color-chrome-text\)/,
+      );
+      expect(ghost![0], 'the chrome divider as the resting border').toMatch(
+        /border-color: var\(--color-chrome-border\)/,
+      );
+      expect(
+        ghost![0],
+        'the hover brightens the border to chrome-muted instead of filling with the light hover tint',
+      ).toMatch(
+        /&:hover:not\(:disabled\) \{[^}]*background: transparent;[^}]*border-color: var\(--color-chrome-muted\)/,
+      );
+    });
+
+    it('the active nav item is white text + a 2px chrome-active indicator', () => {
+      expect(
+        shellScss,
+        'the active nav rule must take the chrome indicator',
+      ).toMatch(
+        /&\.active \{[\s\S]*?color: var\(--color-chrome-text\)[\s\S]*?text-decoration-color: var\(--color-chrome-active\)/,
+      );
+      expect(shellScss, 'the indicator is exactly 2px').toMatch(
+        /text-decoration-thickness: 2px/,
+      );
+    });
+
+    it('a chrome-scoped :focus-visible ring (--color-chrome-focus) covers header, footer and the skip link', () => {
+      expect(
+        shellScss,
+        'the chrome focus rule must exist (the global ring is 2.35:1 on navy)',
+      ).toMatch(
+        /\.shell-header :focus-visible,\n\.shell-footer :focus-visible,\n\.skip-link:focus-visible \{\s*outline: 2px solid var\(--color-chrome-focus\);\s*outline-offset: 2px;\s*\}/,
+      );
+    });
+
+    it('the <900 dropdown panel is band chrome too (band background, chrome divider edge)', () => {
+      // The panel's styles live in the narrow block that also carries the
+      // burger (same brace-balanced idiom as the burger bars block).
+      const lines = shellScss.split('\n');
+      let panel = '';
+      for (let start = 0; start < lines.length; start++) {
+        if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
+        let depth = 0;
+        for (let i = start; i < lines.length; i++) {
+          depth +=
+            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          if (depth <= 0) {
+            const block = lines.slice(start, i + 1).join('\n');
+            if (block.includes('.shell-burger')) panel = block;
+            break;
+          }
+        }
+      }
+      const menu = panel.match(/\.shell-menu \{[\s\S]*?\n {2}\}/);
+      expect(menu, 'the narrow block must style .shell-menu').not.toBeNull();
+      expect(menu![0], 'the panel takes the band background').toContain(
+        'background: var(--color-chrome-bg)',
+      );
+      expect(menu![0], 'the bottom edge of the panel is the chrome divider').toContain(
+        'border-bottom: 1px solid var(--color-chrome-border)',
+      );
+    });
+  });
+
   /* Language switcher (i18n-et-en): the active locale's
      button carries aria-pressed; the choice persists (openshelter-locale)
      and flips <html lang> + the whole chrome. jsdom cannot measure media

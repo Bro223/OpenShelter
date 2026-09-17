@@ -36,18 +36,44 @@
   /* Brand */
   --color-primary: #1769aa; /* civic blue — buttons + links (white on it = 5.77:1) */
   --color-primary-hover: #0f568e; /* white on it = 7.66:1 */
-  /* Brand ink — the wordmark (page-shell .brand) and the .page-title
-     family. Brand-as-CHROME only: the header is NOT inverted to a dark
-     band. Every header control (nav links, language switcher, burger,
-     theme toggle, focus ring) is tuned for a light surface, and the
-     high-contrast theme already covers dark surfaces — do not "improve"
-     the header into a dark band later.
+  /* Brand ink — the .page-title family and the colour the chrome band
+     reuses through its own --color-chrome-bg token (below). Brand ink
+     STAYS the heading colour on light surfaces; the wordmark goes white
+     because it now sits ON the band, not because this token changed.
      12.53:1 on bg, 13.57:1 on the surface. */
   --color-brand: #12304a;
   /* Accent — the selected/active state. Darkened from the owner's #168c8c
      (4.07:1 on white — fails AA) to 6.04:1 on the surface. 5.58:1 on bg,
      5.26:1 on the muted surface. */
   --color-accent: #0f6e6e;
+
+  /* Chrome band (header + footer + the <900 menu panel, owner decision):
+     the shell's chrome stands out from the page body on a navy band.
+     The band is the brand value #12304a through its own token. Civic
+     blue #1769aa was measured and REJECTED for the band: secondary text
+     on it falls to 3.74:1 and 2.68:1 (fails AA), and the light-theme
+     focus ring #277fbd on it is 1.34:1 — effectively invisible. Navy
+     passes every pair on the band (design-tokens.spec.ts re-runs this
+     math on the literals and enforces the pairs):
+       chrome-text   #ffffff  on chrome-bg  13.57:1 (wordmark, nav links,
+                                                            footer links)
+       chrome-muted  #c3d2e0  on chrome-bg   8.80:1 (footer notice + provenance)
+       chrome-focus  #7fc4f5  on chrome-bg   7.18:1 (the focus ring ON the band)
+       chrome-active #4dd0c4  on chrome-bg   7.20:1 (the active nav indicator)
+     A quieter third text tier would still pass if the band ever needs
+     one (#9fb3c8 = 6.31:1 on the band). */
+  --color-chrome-bg: #12304a;
+  --color-chrome-text: #ffffff;
+  --color-chrome-muted: #c3d2e0;
+  --color-chrome-focus: #7fc4f5;
+  --color-chrome-active: #4dd0c4;
+  /* A subtle divider that reads on navy — the header's bottom edge, the
+     footer's top edge, the mobile panel's bottom edge and the ghost
+     buttons' border. Decorative: 1.54:1 on chrome-bg, deliberately
+     below 3:1 (the same exemption as the light theme's 1.34:1
+     --color-border: the control is identified by its fill + label, not
+     its border). */
+  --color-chrome-border: #2e4d6a;
 
   /* Crisis CTA (map-crisis-actions D1) — the "Nearest shelter" button on
      /map is the ONLY consumer of this token; the orange is the crisis
@@ -130,7 +156,10 @@
   --color-shelter-pick: #0f6e6e; /* selected-point pin = the accent (it was red — red now means "reported" and nothing else) */
   --color-map-placeholder: #eaf0f4; /* the muted surface, before the first tiles paint */
   --shadow-marker: 0 1px 3px rgba(0, 0, 0, 0.45);
-  /* Focus rings use --color-primary everywhere. */
+  /* Focus rings use --color-primary everywhere — EXCEPT the chrome band:
+     header/footer controls take --color-chrome-focus (the light ring is
+     2.35:1 on navy, the chrome ring 7.18:1 — see the scoped rule in
+     page-shell.scss). */
 
   /* ============ Typography ============================================ */
   --font-sans:
@@ -279,6 +308,18 @@
   --color-brand: #b9cde4;
   --color-accent: #4dd0c4;
 
+  /* Chrome band — theme-invariant: the band is the brand navy in BOTH
+     themes, and its text/focus/indicator values already clear the
+     theme's floors on #12304a (text 13.57:1, muted 8.80:1, focus 7.18:1,
+     active 7.20:1). Same token names as :root (D1); the values are
+     identical by design, not an oversight. */
+  --color-chrome-bg: #12304a;
+  --color-chrome-text: #ffffff;
+  --color-chrome-muted: #c3d2e0;
+  --color-chrome-focus: #7fc4f5;
+  --color-chrome-active: #4dd0c4;
+  --color-chrome-border: #2e4d6a;
+
   /* Crisis CTA — the CTA button's text is --color-bg-surface (dark on orange). */
   --color-cta: #ff9f1c;
 
@@ -404,9 +445,9 @@ textarea {
 }
 
 /* Page titles — the brand ink on the heading type styles.scss owns.
-   Brand-as-chrome: the header stays a LIGHT surface (every header control
-   is tuned for it, and the high-contrast theme owns dark surfaces) — do
-   not invert it into a dark band "for contrast". */
+   Headings sit on the LIGHT page surface, so they keep the brand ink;
+   the chrome band (header/footer) is the --color-chrome-* family and
+   carries its own white wordmark. */
 .page-title {
   color: var(--color-brand);
   font-size: var(--text-3xl);

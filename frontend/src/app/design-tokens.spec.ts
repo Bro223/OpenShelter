@@ -128,6 +128,8 @@ describe('design tokens (M6)', () => {
       '--color-bg-surface',
       '--color-surface-overlay',
       '--color-primary',
+      '--color-chrome-bg',
+      '--color-chrome-text',
       '--color-cta',
       '--color-reported',
       '--color-border',
@@ -228,6 +230,14 @@ describe('design tokens (M6)', () => {
     // Trust-state badge text on its fill (community-review-queue D5):
     // the NEW community rows' "Newly added" badge on every surface.
     ['--color-warning', '--color-badge-new'],
+    // Chrome band (header + footer + <900 menu panel): every text pair on
+    // the navy band, both themes (the HC theme pins the same values — see
+    // the block comment in styles.scss). Measured: 13.57 / 8.80 / 7.18 /
+    // 7.20:1.
+    ['--color-chrome-text', '--color-chrome-bg'],
+    ['--color-chrome-muted', '--color-chrome-bg'],
+    ['--color-chrome-focus', '--color-chrome-bg'],
+    ['--color-chrome-active', '--color-chrome-bg'],
   ];
 
   /** --color-shelter-pick × the HC surfaces it could sit on (HC-only, see
@@ -287,6 +297,22 @@ describe('design tokens (M6)', () => {
       bg: '--color-bg',
       min: 3,
       reason: 'non-text card/list-row boundary (1.36:1) — same rationale as vs the surface',
+    },
+    {
+      theme: 'light',
+      fg: '--color-chrome-border',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'non-text chrome divider/ghost-button border (1.54:1) — decorative, same exemption as the light --color-border: the band is identified by its content, the controls by fill + label',
+    },
+    {
+      theme: 'high-contrast',
+      fg: '--color-chrome-border',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'non-text chrome divider/ghost-button border (1.54:1) — the HC block pins the same band values, so the same documented exemption applies',
     },
   ];
 

@@ -12,17 +12,24 @@
   flex-wrap: wrap; /* brand/nav/actions reflow instead of overflowing at narrow widths */
   gap: var(--space-12) var(--space-24);
   padding: var(--space-12) var(--space-20);
-  border-bottom: 1px solid var(--color-border-subtle);
+  /* The chrome band (owner decision): the header stands out from the page
+     body on the navy band, with the chrome divider at its bottom edge.
+     color: chrome-text whitens EVERYTHING that inherits inside — the nav
+     links (color: inherit) and the burger (color: inherit → the bars'
+     currentColor) follow automatically. The <900 dropdown panel is a DOM
+     child of this header, so it is scoped by the same rules (it sets its
+     own background on the same token, see the narrow block below). */
+  background: var(--color-chrome-bg);
+  color: var(--color-chrome-text);
+  border-bottom: 1px solid var(--color-chrome-border);
 
   .brand {
     font-weight: var(--font-weight-bold);
     font-size: var(--text-xl);
-    /* The brand ink (the brand/chrome use of the palette). The header
-       itself stays a LIGHT surface — every header control (nav links,
-       language switcher, burger, theme toggle, focus ring) is tuned for
-       it, and the high-contrast theme already covers dark surfaces. Do
-       not "improve" the header into a dark band. */
-    color: var(--color-brand);
+    /* The wordmark is white on the navy band (13.57:1). --color-brand —
+       the same navy value — STAYS the heading colour on light surfaces
+       (.page-title family); it is not deleted. */
+    color: var(--color-chrome-text);
     text-decoration: none;
     letter-spacing: var(--tracking-brand);
   }
@@ -56,7 +63,13 @@
     padding: var(--space-4) var(--space-6);
 
     &.active {
+      /* White text + a 2px indicator in the bright teal (7.20:1 on the
+         band) instead of a bare underline — deliberately subtle: one
+         thin line, no fill, no pill (civic crisis app, not marketing). */
+      color: var(--color-chrome-text);
       text-decoration: underline;
+      text-decoration-color: var(--color-chrome-active);
+      text-decoration-thickness: 2px;
       text-underline-offset: 4px;
     }
   }
@@ -67,6 +80,39 @@
   display: flex;
   align-items: center;
   gap: var(--space-10);
+}
+
+/* Chrome treatment for the ghost .btns that sit ON the band (language
+   switcher, theme toggle, Log in / Log out — at desktop widths AND in the
+   <900 panel, which is a child of .shell-header). The light-surface ghost
+   fails on navy: its ink text on the band is 1.18:1 and its light hover
+   fill would invert the band. On the band: white text, the chrome
+   divider as the resting border, and a hover that brightens the border
+   to chrome-muted (8.80:1) instead of filling. .btn--primary (Create
+   account) is intentionally untouched — its blue fill + white text
+   carries on the band. */
+.shell-header .btn--ghost {
+  color: var(--color-chrome-text);
+  border-color: var(--color-chrome-border);
+
+  &:hover:not(:disabled) {
+    background: transparent;
+    border-color: var(--color-chrome-muted);
+  }
+}
+
+/* The focus ring ON the band — the detail that breaks in every
+   dark-header refit: the global ring is --color-primary, 2.35:1 on navy
+   (effectively invisible). --color-chrome-focus is 7.18:1 on the band
+   (verified; design-tokens.spec.ts re-runs the math). Covers every
+   control inside the header — nav links, burger, switcher/toggle/auth
+   buttons and, by scope, the <900 dropdown panel — plus the footer
+   links, and the skip link, whose revealed pill sits over the band. */
+.shell-header :focus-visible,
+.shell-footer :focus-visible,
+.skip-link:focus-visible {
+  outline: 2px solid var(--color-chrome-focus);
+  outline-offset: 2px;
 }
 
 /* Language switcher (i18n-et-en): a compact two-button group
@@ -106,14 +152,17 @@
 
 /* App-wide safety-notice footer (see page-shell.html): secondary text,
    never crisis orange; the footer hugs the bottom of the page flow
-   (min-height keeps it below the body). Layout (owner's decision): the meta
+   (min-height keeps it below the body). The footer is the SAME chrome
+   band as the header (owner decision): band background, the chrome
+   divider at its top edge, chrome-muted notice/legal/provenance text and
+   chrome-text links. Layout (owner's decision): the meta
    row (legal + provenance, centred as a pair) on TOP, the notice on the
    BOTTOM — centred, on its own full-width line (no max-width cap: the
    combined sentence must not wrap on desktop; 20px side padding only). */
 .shell-footer {
   width: 100%;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-chrome-border);
+  background: var(--color-chrome-bg);
 
   .shell-footer__notice {
     max-width: none;
@@ -122,10 +171,10 @@
     text-align: center;
     font-size: var(--text-sm);
     line-height: 1.4;
-    color: var(--color-muted);
+    color: var(--color-chrome-muted);
 
     a {
-      color: var(--color-primary);
+      color: var(--color-chrome-text);
     }
   }
 
@@ -143,10 +192,10 @@
   .shell-footer__legal {
     margin: 0;
     font-size: var(--text-sm);
-    color: var(--color-muted);
+    color: var(--color-chrome-muted);
 
     a {
-      color: var(--color-primary);
+      color: var(--color-chrome-text);
     }
 
     span {
@@ -157,10 +206,10 @@
   .shell-footer__data {
     margin: 0;
     font-size: var(--text-sm);
-    color: var(--color-muted);
+    color: var(--color-chrome-muted);
 
     a {
-      color: var(--color-primary);
+      color: var(--color-chrome-text);
     }
 
     span {
@@ -292,8 +341,12 @@
        top/bottom padding already keeps the first/last row off the edge). */
     gap: var(--space-12);
     padding: var(--space-8) var(--space-20) var(--space-16);
-    background: var(--color-bg-surface);
-    border-bottom: 1px solid var(--color-border-subtle);
+    /* The panel IS header chrome: the band colour, and the chrome
+       divider at its bottom edge. Its row seams stay the documented
+       gap-based spacing (no per-row border rules exist) — the mobile
+       spacing is untouched. */
+    background: var(--color-chrome-bg);
+    border-bottom: 1px solid var(--color-chrome-border);
 
     &.shell-menu--open {
       display: flex;
