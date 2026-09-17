@@ -38,6 +38,27 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 export SPRING_PROFILES_ACTIVE=dev
 
+# Postgres preflight: Flyway runs before the web server starts, so a database
+# that is not accepting connections turns into a wall of Hikari retries and a
+# stack trace that buries the one fact that matters. Check the socket first
+# (briefly waiting, because a container that just restarted needs a moment)
+# and, on failure, say what to do about it instead of letting Maven dump 25 s
+# of connection errors.
+DB_HOST="${DB_HOST:-localhost}"
+DB_PORT="${DB_PORT:-5432}"
+for _ in $(seq 1 15); do
+  (exec 3<>"/dev/tcp/${DB_HOST}/${DB_PORT}") 2>/dev/null && break
+  sleep 1
+done
+if ! (exec 3<>"/dev/tcp/${DB_HOST}/${DB_PORT}") 2>/dev/null; then
+  echo "dev-start.sh: Postgres is not accepting connections on ${DB_HOST}:${DB_PORT}." >&2
+  echo "  The backend cannot boot without it — Flyway migrates before the web server starts." >&2
+  echo "  Start it:   docker compose up -d db" >&2
+  echo "  Wait for:   docker compose ps        # until the db reports 'healthy'" >&2
+  echo "  Then rerun: ./dev-start.sh" >&2
+  exit 1
+fi
+
 # ./dev-start.sh --run-registry → one-shot Päästeamet import on startup.
 if [[ "${1:-}" == "--run-registry" ]]; then
   exec mvn spring-boot:run -Dspring-boot.run.arguments="--app.registry.run-on-startup=true"
