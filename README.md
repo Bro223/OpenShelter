@@ -451,23 +451,35 @@ Requirements: JDK 21, Maven 3.9+, Docker (Compose).
 
 ```bash
 # 1. Start PostgreSQL 16 (dev credentials: sheltermap / sheltermap — dev only)
+#    It returns as soon as the container is created, so give it a few seconds:
+#    `docker compose ps` until the db reports "healthy". Order matters — Flyway
+#    migrates at boot, and the app exits rather than starting without a database.
 docker compose up -d
 
-# 2. Build
+# 2. (Optional — to build and test, not to run)
 mvn -q compile
 
-# 3. Run tests (Testcontainers spins its own postgres:16; 806 backend tests, 0 failures —
-#    counted 2026-09-16 on this tree with `mvn clean test`)
+# 3. (Optional) Run tests (Testcontainers spins its own postgres:16; 806 backend
+#    tests, 0 failures — counted 2026-09-16 on this tree with `mvn clean test`)
 mvn test
 
-# 4. Run the app (Flyway enabled, JPA ddl-auto=validate)
+# 4. Run the API (Flyway enabled, JPA ddl-auto=validate) — waits briefly for the
+#    database and, if it is not up, prints what to do instead of failing obscurely.
 #    dev-start.sh pins SPRING_PROFILES_ACTIVE=dev (see note below) — a bare
 #    `mvn spring-boot:run` now refuses to boot (fail-closed guards).
 ./dev-start.sh
 
 # 5. Health check — expect {"status":"UP"}
 curl http://localhost:8080/actuator/health
+
+# 6. Run the web app (second terminal) → http://localhost:5173
+#    The dev server proxies /api, /auth, /account/, /verify/ and /admin/ to :8080,
+#    so the SPA is same-origin and no CORS or API-origin config is needed.
+cd frontend && npm install && npm start
 ```
+
+Steps 2–3 are build/verification steps; steps 1, 4 and 6 are all it takes to run
+the application. (`frontend/README.md` covers the frontend on its own.)
 
 > **Use `./dev-start.sh` to run the app locally.** Since the 2026-09-08 review the app is
 > **fail-closed at boot** via four guards: `ProdJwtGuard` (refuses the published dev-default /
