@@ -19,6 +19,49 @@
       <ul class="guidance-list__posts">
         @for (post of list; track post.slug) {
           <li class="guidance-post">
+            <!-- Hero thumbnail on top (the index hero projection).
+                 NO-HERO RULE REVISITED — supersedes the earlier rule
+                 "a post WITHOUT a hero renders NO image element at all":
+                 that rule evened out a TEXT ROW list, but a card GRID
+                 aligns rows of CARDS, not text — a hero-less card with no
+                 box is shorter than its neighbours and every grid row
+                 goes ragged. In a grid the evenness comes from the BOX,
+                 so a hero-less card now renders a NEUTRAL PLACEHOLDER
+                 BOX of the SAME aspect ratio — one visual language for
+                 "no image", shared with the load-failure case below.
+                 A present URL renders a full-card-width box (object-fit:
+                 cover, aspect-ratio + matching width/height attributes,
+                 lazy + async — the admin hero-thumb media idiom at card
+                 scale), so loading never shifts the card. -->
+            @if (post.heroImageUrl; as heroUrl) {
+              @if (heroFailed(post.slug)) {
+                <!-- The thumbnail 404'd / the network failed: the SAME
+                     placeholder box takes its place (the card keeps its
+                     height, the title link stays the card's single
+                     accessible link) — a broken-image icon is never the
+                     feedback. -->
+                <span class="guidance-post__thumb guidance-post__thumb--failed" aria-hidden="true"></span>
+              } @else {
+                <!-- Alt: the stored hero alt (the admin sets it; mandatory
+                     whenever a hero exists). A null alt with a present URL
+                     = decorative empty alt — never the post title, which
+                     would duplicate the link text. -->
+                <img
+                  class="guidance-post__hero"
+                  [src]="heroUrl"
+                  [alt]="post.heroImageAlt ?? ''"
+                  width="400"
+                  height="300"
+                  loading="lazy"
+                  decoding="async"
+                  (error)="onHeroImageError($event, post.slug)"
+                />
+              }
+            } @else {
+              <!-- No hero: the neutral placeholder box (see the comment
+                   above — the grid's alignment comes from the box). -->
+              <span class="guidance-post__thumb" aria-hidden="true"></span>
+            }
             <h2 class="guidance-post__title">
               <a [routerLink]="['/blog', post.slug]">{{ post.title }}</a>
             </h2>

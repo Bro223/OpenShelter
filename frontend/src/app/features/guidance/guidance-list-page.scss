@@ -2,33 +2,73 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-20);
-  /* page-specific layout dimension (documented exception, not spacing) */
-  max-width: 44rem;
+  /* The old 44rem cap was a readable TEXT column for the row list. The
+     four-up card grid needs the shell's full content width instead, so
+     the cap is deliberately REMOVED — the shell's --content-max-width
+     (1080px, .shell-body in page-shell.scss) stays the outer bound. */
 }
 
 .guidance-list__posts {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  /* Card grid: self-adjusting, no new breakpoints (the repo documents a
+     single 900px literal, --bp-narrow). At the shell's desktop content
+     width (1080px cap - 2 x 20px .shell-body padding = 1040px) with the
+     16px gap, minmax(200px, 1fr) yields exactly 4 columns of 248px
+     (5 would need 1064px). Narrowing degrades 3 / 2 / 1 at 888px /
+     672px / 456px viewports — the step-downs land just outside the
+     documented 900px breakpoint, so no @media is needed at all. */
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  /* 200px: the card minimum — page-specific layout dimension (documented
+     exception, not spacing) */
+  gap: var(--space-16);
 }
 
+/* One card: thumbnail on top, then the title (the card's only link),
+   then the date. */
 .guidance-post {
-  padding: var(--space-12) 0;
-  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  padding: var(--space-12);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
 
-  &:first-child {
-    padding-top: 0;
-  }
+/* The hero thumbnail: the admin hero-thumb media idiom at card scale —
+   full card width in a fixed 4/3 aspect-ratio box, object-fit: cover,
+   with matching width/height attributes on the <img>, so the card never
+   shifts while the image loads. 4/3 (over 16/9): at the ~248px desktop
+   card width it gives a ~166px-tall image — clearly bigger than the old
+   64px row thumbnail — without a banner-wide image that would push the
+   title + date far down the card. */
+.guidance-post__hero,
+.guidance-post__thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-md);
+}
 
-  &:last-child {
-    border-bottom: none;
-  }
+.guidance-post__hero {
+  object-fit: cover;
+}
+
+/* The "no image" box — ONE visual language for BOTH a post without a
+   hero and a 404'd / unreachable thumbnail (the --failed modifier marks
+   the failed state in the DOM; the look is the same in both cases, on
+   purpose). Same box, same aspect ratio as the image, so every card has
+   the same height and the grid rows stay aligned. */
+.guidance-post__thumb {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-subtle);
 }
 
 .guidance-post__title {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-size: var(--text-lg);
 
   a {

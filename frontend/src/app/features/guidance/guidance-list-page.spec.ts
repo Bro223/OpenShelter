@@ -213,4 +213,124 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelector('.guidance-list__empty')).toBeNull();
     expect(element.querySelector('h1')?.textContent).toBe('Crisis guidance');
   });
+
+  it('renders the hero thumbnail with the stored URL and alt', async () => {
+    // A data: URI — the row renders the stored URL verbatim, and no
+    // network fetch races the assertions.
+    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: heroUrl, heroImageAlt: 'A kettle on a camp stove' }),
+    ];
+    const { element } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe(heroUrl);
+    expect(img?.getAttribute('alt')).toBe('A kettle on a camp stove');
+    // The no-layout-shift + lazy-load contract (the admin hero-thumb idiom).
+    expect(img?.getAttribute('loading')).toBe('lazy');
+    expect(img?.getAttribute('decoding')).toBe('async');
+    // The title stays the row's single link (no duplicate link to the post).
+    expect(element.querySelectorAll('.guidance-list__posts a')).toHaveLength(1);
+  });
+
+  it('renders a placeholder box for a post without a hero, and still links its title', async () => {
+    guidanceGateway.rows = [guidancePost()]; // heroImageUrl + heroImageAlt null
+    const { element } = await open('/blog');
+
+    // Card grid — supersedes the old row rule "no image element at all":
+    // a hero-less card renders a NEUTRAL PLACEHOLDER BOX of the same
+    // aspect ratio, so grid rows stay aligned (no <img>, no broken
+    // state). It is the no-hero box, not the load-failure box.
+    expect(element.querySelector('img')).toBeNull();
+    expect(element.querySelector('.guidance-post__thumb')).not.toBeNull();
+    expect(element.querySelector('.guidance-post__thumb--failed')).toBeNull();
+    const link = element.querySelector<HTMLAnchorElement>('.guidance-list__posts a');
+    expect(link?.textContent).toBe('Water and heating in the first days');
+    expect(link?.getAttribute('href')).toBe('/blog/water-and-heating');
+  });
+
+  it('renders the thumbnail above the title in DOM order (card, not row)', async () => {
+    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: heroUrl, heroImageAlt: 'A kettle on a camp stove' }),
+    ];
+    const { element } = await open('/blog');
+
+    const card = element.querySelector('.guidance-post') as HTMLElement;
+    // The card's direct children, in order: thumbnail -> title -> date
+    // (the thumbnail is the card's TOP element, not a row sibling).
+    expect([...card.children].map((c) => c.className)).toEqual([
+      'guidance-post__hero',
+      'guidance-post__title',
+      'guidance-post__date',
+    ]);
+    // DOM order: the thumbnail precedes the title link.
+    const img = card.querySelector('.guidance-post__hero') as Element;
+    const link = card.querySelector('.guidance-post__title a') as Element;
+    expect(img.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('falls back to an empty (decorative) alt when the stored alt is null', async () => {
+    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    guidanceGateway.rows = [guidancePost({ heroImageUrl: heroUrl, heroImageAlt: null })];
+    const { element } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img?.getAttribute('src')).toBe(heroUrl);
+    // Decorative empty alt — never the post title (it would duplicate the
+    // adjacent link text).
+    expect(img?.getAttribute('alt')).toBe('');
+    expect(img?.getAttribute('alt')).not.toContain('Water and heating');
+  });
+
+  it('keeps the card aligned when the hero image fails to load (the same placeholder box)', async () => {
+    // A data: URI that is not a valid image — it 404s in principle; the
+    // synthetic dispatch below makes the failure deterministic either way.
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: 'data:image/gif;base64,not-an-image', heroImageAlt: 'gone' }),
+    ];
+    const { element, fixture } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img).not.toBeNull();
+    expect(() => img?.dispatchEvent(new Event('error'))).not.toThrow();
+    await settle(fixture);
+
+    const card = element.querySelector('.guidance-post') as HTMLElement;
+    // The placeholder takes the SAME first slot the image held (one
+    // visual language for "no image"), so the card's height — and the
+    // title + date below it — never shift.
+    const thumb = card.querySelector('.guidance-post__thumb') as Element;
+    expect(thumb).not.toBeNull();
+    expect(card.firstElementChild).toBe(thumb);
+    const link = card.querySelector('.guidance-post__title a') as HTMLAnchorElement;
+    expect(thumb.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(link.textContent).toBe('Water and heating in the first days');
+    expect(link.getAttribute('href')).toBe('/blog/water-and-heating');
+  });
+
+  it('keeps the row usable when the hero image fails to load', async () => {
+    // A data: URI that is not a valid image — it 404s in principle; the
+    // synthetic dispatch below makes the failure deterministic either way.
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: 'data:image/gif;base64,not-an-image', heroImageAlt: 'gone' }),
+    ];
+    const { element, fixture } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img).not.toBeNull();
+    // No exception: the handler swallows the error into the failure set.
+    expect(() => img?.dispatchEvent(new Event('error'))).not.toThrow();
+    await settle(fixture);
+
+    // The broken <img> is gone — a broken-image icon is never the feedback.
+    expect(element.querySelector('.guidance-post__hero')).toBeNull();
+    // The fixed-size placeholder box stays (the row keeps its height).
+    expect(element.querySelector('.guidance-post__thumb--failed')).not.toBeNull();
+    // The title link survives the error, still pointing at the post.
+    const link = element.querySelector<HTMLAnchorElement>('.guidance-list__posts a');
+    expect(link?.textContent).toBe('Water and heating in the first days');
+    expect(link?.getAttribute('href')).toBe('/blog/water-and-heating');
+  });
 });
