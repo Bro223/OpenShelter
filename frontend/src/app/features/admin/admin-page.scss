@@ -90,10 +90,17 @@
   }
 }
 
+/* The width hints live on the real table cell (the column's floor).
+   The flex LAYOUT lives on the inner __*-body wrapper div, never on the
+   td itself: display:flex on a td demotes it from table-cell to a
+   block-level flex box, so the border-bottom from the .admin-table
+   th,td rule is then painted at the box's content height instead of the
+   row's bottom — whenever a sibling cell is taller, the row separator
+   splits into two segments at different heights (the owner-reported
+   staggered line breaking near the middle of the row). With every td a
+   real table cell, border-collapse: collapse fuses the per-cell rules
+   into ONE continuous line across the whole row, at every width. */
 .admin-cell--name {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   min-width: 180px;
 
   a {
@@ -102,11 +109,20 @@
 }
 
 .admin-cell--actions {
+  min-width: 220px;
+}
+
+.admin-cell__name-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-cell__actions-body {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
   align-items: center;
-  min-width: 220px;
 }
 
 /* Hidden (INACTIVE) rows: dimmed — the badge says WHY, the row shows it's

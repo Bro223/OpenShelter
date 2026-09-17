@@ -122,12 +122,14 @@
             @for (row of unconfirmedRows(); track row.id) {
               <tr class="admin-row">
                 <td class="admin-cell--name">
+                  <div class="admin-cell__name-body">
                   <!-- Plain text: NEW rows are public, but the link goes to
                        the Shelters tab's context, not a detail nav. -->
                   {{ row.name }}
                   @if (isPrivateLocation(row)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>
                   }
+                  </div>
                 </td>
                 <td>
                   @if (row.address) {
@@ -144,6 +146,7 @@
                   }
                 </td>
                 <td class="admin-cell--actions admin-cell--actions-review">
+                  <div class="admin-cell__actions-body admin-cell--actions-review">
                   <button
                     type="button"
                     class="btn btn--ghost"
@@ -194,6 +197,7 @@
                       Reject
                     </button>
                   }
+                  </div>
                 </td>
               </tr>
             }
@@ -244,6 +248,7 @@
             @for (row of shelterRows() ?? []; track row.id) {
               <tr class="admin-row" [class.admin-row--hidden]="row.status === 'INACTIVE'">
                 <td class="admin-cell--name">
+                  <div class="admin-cell__name-body">
                   <a [routerLink]="['/shelters', row.id]">{{ row.name }}</a>
                   @if (row.address) {
                     <span class="admin-muted">{{ row.address }}</span>
@@ -254,6 +259,7 @@
                   @if (row.inaccurate) {
                     <span class="admin-inaccurate">{{ inaccurateWarning }}</span>
                   }
+                  </div>
                 </td>
                 <td>
                   <!-- Source/trust state (community-review-queue D5):
@@ -297,6 +303,7 @@
                   }
                 </td>
                 <td class="admin-cell--actions">
+                  <div class="admin-cell__actions-body">
                   @if (row.source === 'USER') {
                     <!-- Edit-history toggle: USER rows only —
                          registry import rows keep their own data_imports
@@ -403,6 +410,7 @@
                   } @else {
                     <span class="admin-hint">read-only</span>
                   }
+                  </div>
                 </td>
               </tr>
               <!-- Inline edit-history panel: the row's
@@ -699,6 +707,7 @@
                   }
                 </td>
                 <td class="admin-cell--actions">
+                  <div class="admin-cell__actions-body">
                   @if (row.kind === 'REGISTERED') {
                     @if (userActionConfirm.isArmed(row.id)) {
                       <!-- two-tap confirm (no window.confirm, the app's inline
@@ -764,6 +773,7 @@
                          (lockout vector — the backend answers 409). -->
                     <span class="admin-muted">Not suspendable</span>
                   }
+                  </div>
                 </td>
               </tr>
             }
@@ -893,6 +903,7 @@
                 </td>
                 <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
                 <td class="admin-cell--actions">
+                  <div class="admin-cell__actions-body">
                   <button
                     type="button"
                     class="btn btn--ghost"
@@ -963,6 +974,7 @@
                       {{ 'admin.guidance.delete.cancel' | t }}
                     </button>
                   }
+                  </div>
                 </td>
               </tr>
             }
@@ -1034,8 +1046,10 @@
                   />
                 </td>
                 <td class="admin-cell--name">
+                  <div class="admin-cell__name-body">
                   <span class="admin-media-name">{{ row.originalFilename }}</span>
                   <span class="admin-muted">{{ row.contentType }}</span>
+                  </div>
                 </td>
                 <td class="admin-cell--nowrap">{{ row.width }} × {{ row.height }}</td>
                 <td class="admin-cell--nowrap">{{ mediaSizeText(row.sizeBytes) }}</td>
@@ -1048,6 +1062,7 @@
                   }
                 </td>
                 <td class="admin-cell--actions">
+                  <div class="admin-cell__actions-body">
                   @if (mediaDeleteInUse.isArmed(row.id)) {
                     <!-- The in-use 409 answer, turned into the confirm step:
                          the fixed copy + the server message (naming the
@@ -1091,6 +1106,7 @@
                       {{ busy() ? ('admin.media.delete.working' | t) : ('admin.media.delete' | t) }}
                     </button>
                   }
+                  </div>
                 </td>
               </tr>
             }
