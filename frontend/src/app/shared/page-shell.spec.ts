@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
@@ -367,6 +368,21 @@ describe('PageShell', () => {
       expect(panel().classList).not.toContain('shell-menu--open');
     });
 
+    it('draws three CSS-only bars, all decorative (aria-hidden), under one accessible name', () => {
+      fixture.detectChanges();
+      const bars = burger().querySelectorAll('.shell-burger__bar');
+      expect(bars, 'the burger is drawn with three bars').toHaveLength(3);
+      for (const bar of bars) {
+        expect(bar.getAttribute('aria-hidden'), 'bars are decoration').toBe('true');
+        expect(bar.textContent, 'bars are CSS-drawn, not a glyph').toBe('');
+      }
+      // The single accessible name stays menu.aria: the open/cross state
+      // rides on aria-expanded, so the bars add no second label anywhere
+      // inside the button.
+      expect(burger().getAttribute('aria-label')).toBe('Menu');
+      expect(burger().querySelector('[aria-label]')).toBeNull();
+    });
+
     it('clicking the burger toggles aria-expanded AND the panel open state', () => {
       fixture.detectChanges();
 
@@ -453,6 +469,108 @@ describe('PageShell', () => {
 
       expect(hostRemove).toHaveBeenCalledWith('keydown', expect.anything());
       expect(routerUnsubscribe).toHaveBeenCalled();
+    });
+  });
+
+  /* Burger-bar stylesheet invariants (the owner's uniformity requirement +
+     the aria-expanded cross + the motion guard). jsdom cannot measure
+     media queries, so — same mechanism-assertion idiom as
+     design-tokens.spec.ts — the stylesheet content itself is the
+     acceptance. */
+  describe('burger bars (page-shell.scss invariants)', () => {
+    // The test runner's cwd is the frontend project root (npx ng test).
+    const shellScss = readFileSync(
+      `${process.cwd()}/src/app/shared/page-shell.scss`,
+      'utf8',
+    );
+    // The narrow block is where the burger lives (display: none at >=900).
+    // Extracted by brace balancing (the design-tokens.spec.ts blockLines
+    // idiom) — a regex alone would over-run into the file tail.
+    function narrowBlock(): string | null {
+      const lines = shellScss.split('\n');
+      const start = lines.findIndex((l) => l.trim() === '@media (max-width: 900px) {');
+      if (start === -1) return null;
+      let depth = 0;
+      for (let i = start; i < lines.length; i++) {
+        depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+        if (depth <= 0) return lines.slice(start, i + 1).join('\n');
+      }
+      return null;
+    }
+
+    const narrow = narrowBlock();
+
+    /** Every .shell-burger__bar rule inside the narrow block — full
+        selector line included, so the aria-expanded gate stays visible. */
+    function barRules(): string[] {
+      return narrow
+        ? [...narrow.matchAll(/^[ \t]*[^{\n]*\.shell-burger__bar[^{\n]*\{[^}]*\}/gm)].map(
+            (m) => m[0],
+          )
+        : [];
+    }
+
+    it('closed-state bars are pixel-uniform: one shared rule, no per-bar overrides', () => {
+      expect(narrow, 'page-shell.scss must keep the narrow @media block').not.toBeNull();
+      // Any per-bar rule (a shorter/heavier middle bar, a different colour,
+      // a leftover transform) would show up here as a second non-open-state
+      // rule and fail the single-rule assertion.
+      const closed = barRules().filter((r) => !r.includes('aria-expanded'));
+      expect(
+        closed.length,
+        'exactly one closed-state bar rule (uniform width/height/colour/radius for all three)',
+      ).toBe(1);
+      const rule = closed[0];
+      expect(rule).toMatch(/width: var\(--space-24\)/);
+      expect(rule).toMatch(/height: var\(--space-2\)/);
+      expect(rule).toMatch(/border-radius: var\(--radius-sm\)/);
+      expect(rule).toMatch(/background: currentColor/);
+      expect(rule, 'the closed state must carry no transform property').not.toMatch(
+        /(^|\n)\s*transform\s*:/,
+      );
+      // The equal seam between the bars is the shared container's flex gap
+      // — the same tokens the open-state translate derives from (cross
+      // test below). The 48px touch target rides on the same rule.
+      const burgerRule = narrow!.slice(
+        narrow!.indexOf('.shell-burger {'),
+        narrow!.indexOf('.shell-burger__bar {'),
+      );
+      expect(burgerRule, 'the .shell-burger rule must precede the bar rule').not.toBe('');
+      expect(burgerRule).toMatch(/gap: var\(--space-6\)/);
+      expect(burgerRule, '48px touch target').toMatch(/min-height: var\(--space-48\)/);
+      expect(burgerRule, '48px touch target').toMatch(/min-width: var\(--space-48\)/);    });
+
+    it('open-state cross: outer bars rotate ±45° onto the centre line, middle bar hides', () => {
+      const open = barRules().filter((r) => r.includes("aria-expanded='true'"));
+      expect(open, 'one open-state rule per bar').toHaveLength(3);
+      const byChild = (n: number): string | undefined =>
+        open.find((r) => r.includes(`:nth-child(${n})`));
+      // Translate distance = one bar height + one bar gap: the closed
+      // column's adjacent bar CENTRES are exactly h/2 + gap + h/2 apart, and
+      // the stack is centred in the box — so this many px lands the outer
+      // bars' centres on the middle bar's. Token-derived, never a
+      // hard-coded number (a token change moves the cross with it).
+      const ontoCentreDown = 'translateY(calc(var(--space-2) + var(--space-6)))';
+      const ontoCentreUp = 'translateY(calc(-1 * (var(--space-2) + var(--space-6))))';
+      expect(byChild(1), 'top bar must move onto the centre line').toContain(ontoCentreDown);
+      expect(byChild(1), 'top bar must rotate 45°').toContain('rotate(45deg)');
+      expect(byChild(3), 'bottom bar must move onto the centre line').toContain(ontoCentreUp);
+      expect(byChild(3), 'bottom bar must rotate -45°').toContain('rotate(-45deg)');
+      expect(byChild(2), 'the middle bar must hide').toMatch(/opacity: 0/);
+    });
+
+    it('the bar transition is guarded by prefers-reduced-motion (no unguarded motion)', () => {
+      const hasTransition = /\.shell-burger__bar[^\n{]*\{[^}]*transition:/.test(shellScss);
+      expect(
+        hasTransition,
+        'the cross morph transition is part of this design (retire it AND the guard together)',
+      ).toBe(true);
+      const guard = shellScss.match(
+        /@media \(max-width: 900px\) and \(prefers-reduced-motion: reduce\) \{[\s\S]*?\n\}/,
+      );
+      expect(guard, 'the reduced-motion guard must exist alongside the transition').not.toBeNull();
+      expect(guard![0], 'the guard must cover the bars').toContain('.shell-burger__bar');
+      expect(guard![0], 'the guard must remove the transition').toMatch(/transition: none/);
     });
   });
 

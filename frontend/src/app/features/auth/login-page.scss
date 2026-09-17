@@ -1,11 +1,22 @@
+/* The host fills the shell body's remaining height (the routed component
+   is the <router-outlet>'s sibling — it, not the outlet, carries the
+   growth; see the router-outlet rule in page-shell.scss) and centres the
+   card on both axes, so the form sits in the middle of the screen instead
+   of pinned below the header. The host keeps min-height: auto (no
+   min-height: 0), so a tall form on a short viewport scrolls the document
+   instead of clipping. */
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
 }
 
 .auth-card {
   /* page-specific layout dimension (documented exception, not spacing) */
   max-width: 26rem;
-  margin: var(--space-32) auto 0;
+  margin: 0 auto;
 }
 
 .auth-links {

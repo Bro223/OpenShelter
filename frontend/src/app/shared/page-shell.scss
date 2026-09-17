@@ -85,15 +85,17 @@
   display: flex;
   flex-direction: column;
 
-  /* The <router-outlet> element stays in the DOM as the routed component's
-     wrapper — it must be a flex pass-through too, or the page root is a
-     block child of a plain inline element and its own flex: 1 has no
-     flex container to work against (the block that never grew). */
+  /* The <router-outlet> is an EMPTY placeholder, not the routed
+     component's wrapper: Angular inserts the routed component AFTER it,
+     as a sibling. It must stay a zero-height element and must NEVER
+     carry flex-grow — a growing outlet absorbs all the free vertical
+     space and pushes every page's content to the bottom of the viewport
+     (the /blog list-sits-low bug). Pages that want to fill the remaining
+     height declare the growth on their own host (map-page.scss :host,
+     login-page.scss :host). Pinned by the regression test in
+     design-tokens.spec.ts. */
   router-outlet {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+    flex: 0 0 auto;
   }
 }
 
@@ -196,13 +198,40 @@
     border-radius: var(--radius-md);
     cursor: pointer;
 
+    /* CLOSED state — three UNIFORM bars (owner's requirement): ONE shared
+       rule, no per-bar overrides — same width, height, colour and radius
+       for all three. page-shell.spec.ts pins the uniformity. */
     .shell-burger__bar {
       display: block;
       width: var(--space-24);
       height: var(--space-2);
       border-radius: var(--radius-sm);
       background: currentColor; /* follows the themed text colour */
+      /* The cross morph; disabled by the reduced-motion guard below. */
+      transition: transform 180ms ease-in-out, opacity 180ms ease-in-out;
     }
+  }
+
+  /* OPEN state — the cross. Driven by aria-expanded='true', the state the
+     template already binds (the menuOpen signal) — no extra flag, no
+     markup change. The outer bars travel onto the middle bar's line and
+     rotate ±45°; the middle bar fades out.
+     Translate distance = ONE bar height + ONE bar gap, i.e.
+     calc(var(--space-2) + var(--space-6)): in the closed column, adjacent
+     bar CENTRES sit exactly h/2 + gap + h/2 = bar-height + gap apart, and
+     the stack is centred in the 48px box (justify-content: center) — so
+     the cross lands visually centred. Derived from the tokens, never a
+     hard-coded px count: a token change moves the cross with it. */
+  .shell-burger[aria-expanded='true'] .shell-burger__bar:nth-child(1) {
+    transform: translateY(calc(var(--space-2) + var(--space-6))) rotate(45deg);
+  }
+
+  .shell-burger[aria-expanded='true'] .shell-burger__bar:nth-child(2) {
+    opacity: 0;
+  }
+
+  .shell-burger[aria-expanded='true'] .shell-burger__bar:nth-child(3) {
+    transform: translateY(calc(-1 * (var(--space-2) + var(--space-6)))) rotate(-45deg);
   }
 
   .shell-menu {
@@ -219,7 +248,9 @@
     display: none;
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
+    /* Group gap: separates the nav rows from the action rows (the panel's
+       top/bottom padding already keeps the first/last row off the edge). */
+    gap: var(--space-12);
     padding: var(--space-8) var(--space-20) var(--space-16);
     background: var(--color-bg-surface);
     border-bottom: 1px solid var(--color-border-subtle);
@@ -231,7 +262,8 @@
     .shell-nav {
       flex-direction: column;
       align-items: stretch;
-      gap: 0;
+      /* Row seams: visually separated rows, 48px targets intact. */
+      gap: var(--space-4);
 
       a {
         display: flex;
@@ -245,7 +277,8 @@
       margin-left: 0;
       flex-direction: column;
       align-items: stretch;
-      gap: 0;
+      /* Row seams, same scale as the nav group above. */
+      gap: var(--space-4);
 
       .btn {
         width: 100%;
@@ -265,5 +298,17 @@
         }
       }
     }
+  }
+}
+
+/* Reduced-motion guard for the burger cross (the repo's motion policy for
+   this control): the OS-level reduce request removes the morph — the state
+   still flips, it just no longer animates. The combined query keeps the
+   documented 900px breakpoint on the @media line (the design-tokens audit
+   requires it on every @media line) — and the burger only exists below
+   the breakpoint anyway, so scoping the guard to it is exact. */
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .shell-burger__bar {
+    transition: none;
   }
 }
