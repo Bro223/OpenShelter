@@ -391,12 +391,104 @@ describe('design tokens (M6)', () => {
     expect(media![0]).toContain('flex-direction: column');
   });
 
+  it(
+    'admin tables — the row separator is ONE continuous rule: no class on a <td> may declare a display (a flex td stops its border-bottom at the box content height, so a taller sibling splits the row line into staggered segments)',
+    () => {
+      // The separator is the shared th,td border-bottom fused by
+      // border-collapse: collapse — one solid line across the whole row at
+      // every width, but ONLY while every td/th is still a real table
+      // cell. display:flex on a td demotes it to a block-level flex box:
+      // its border is then painted at the box's content height instead of
+      // the row bottom, so a taller sibling cell splits the line (owner-
+      // reported: the rule breaking near the middle of the row). The flex
+      // layout must therefore stay on the inner .admin-cell__*-body
+      // wrapper, never on the td itself.
+      const adminScss = readFileSync(
+        `${SRC_DIR}/app/features/admin/admin-page.scss`,
+        'utf8',
+      );
+      const adminHtml = readFileSync(
+        `${SRC_DIR}/app/features/admin/admin-page.html`,
+        'utf8',
+      );
+
+      expect(
+        adminScss,
+        'admin-page.scss must collapse the .admin-table borders',
+      ).toMatch(/\.admin-table \{[\s\S]*?border-collapse: collapse/);
+      expect(
+        adminScss,
+        'the row separator must stay the shared th,td border-bottom (one declaration, not per-column rules that could gap or step)',
+      ).toMatch(
+        /th,\s*\n\s*td \{[\s\S]*?border-bottom: 1px solid var\(--color-border-subtle\)/,
+      );
+
+      // Every class the markup puts on a <td> must keep the cell a real
+      // table cell: its top-level rule must not declare a display at all.
+      const tdClasses = new Set<string>();
+      for (const m of adminHtml.matchAll(/<td\b[^>]*class="([^"]*)"/g)) {
+        for (const c of m[1].split(/\s+/)) if (c) tdClasses.add(c);
+      }
+      expect(
+        [...tdClasses],
+        'expected the classed <td> cells in admin-page.html',
+      ).toEqual(
+        expect.arrayContaining(['admin-cell--name', 'admin-cell--actions']),
+      );
+      for (const c of tdClasses) {
+        const block = adminScss.match(new RegExp(`\\.${c} \\{[\\s\\S]*?\\n\\}`));
+        if (!block) continue;
+        expect(
+          block[0],
+          `.${c} is carried by a <td>; a display declaration there demotes the cell and splits the row separator`,
+        ).not.toMatch(/display\s*:/);
+      }
+    },
+  );
+
+  it('the /blog index is a self-adjusting four-up card grid (guidance-list-page.scss)', () => {
+    // Regression guard for the row -> card grid: the <ul> must be a CSS
+    // grid (auto-fill + the page's chosen card minimum of 200px), which
+    // yields exactly 4 columns at the shell's 1040px desktop content
+    // width and degrades to 3/2/1 as the viewport narrows — no extra
+    // breakpoints. The old 44rem readable-column cap must stay gone: a
+    // four-up grid needs the shell's full width (--content-max-width is
+    // the outer bound).
+    const list = readFileSync(`${SRC_DIR}/app/features/guidance/guidance-list-page.scss`, 'utf8');
+    const grid = list.match(/\.guidance-list__posts \{[\s\S]*?\n\}/);
+    expect(grid, 'guidance-list-page.scss must style .guidance-list__posts').not.toBeNull();
+    expect(grid![0]).toContain('display: grid');
+    expect(grid![0]).toMatch(/repeat\(auto-fill,\s*minmax\(200px,\s*1fr\)\)/);
+    expect(list).not.toContain('max-width: 44rem');
+  });
+
   it('the shell header reflows (wraps) so the chrome never overflows at narrow widths', () => {
     const shell = readFileSync(`${SRC_DIR}/app/shared/page-shell.scss`, 'utf8');
     const header = shell.match(/\.shell-header \{[\s\S]*?\n\}/);
     expect(header, 'page-shell.scss must style .shell-header').not.toBeNull();
     expect(header![0]).toContain('flex-wrap: wrap');
   });
+
+  it(
+    "page-shell.scss — .shell-body gives router-outlet no flex-grow (the routed component is the outlet's sibling, so a growing outlet pushes every page to the bottom)",
+    () => {
+      // Regression guard for the /blog list-sits-low bug: Angular inserts
+      // the routed component AFTER <router-outlet> as a SIBLING — the
+      // outlet is an empty placeholder. A flex-growing placeholder
+      // absorbs all the free vertical space in .shell-body and pushes
+      // every page's content down (owner-reported: the post list floating
+      // low with empty space above it). The growth belongs on each page's
+      // own host instead (map-page.scss :host, login-page.scss :host).
+      const shell = readFileSync(`${SRC_DIR}/app/shared/page-shell.scss`, 'utf8');
+      const outlet = shell.match(/router-outlet \{[\s\S]*?\n {2}\}/);
+      expect(
+        outlet,
+        'page-shell.scss must keep an explicit router-outlet rule in .shell-body',
+      ).not.toBeNull();
+      expect(outlet![0]).not.toMatch(/flex-grow\s*:\s*1/);
+      expect(outlet![0]).not.toMatch(/flex\s*:\s*1/);
+    },
+  );
 
   it('the /submit private-home checkbox keeps its native glyph size (M13 mobile-responsive-polish)', () => {
     // Regression guard: the global `.field input { width: 100% }` form rule
