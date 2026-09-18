@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { EN } from './en';
 import { ET } from './et';
+import { RU } from './ru';
 import { I18nService, interpolate } from './i18n.service';
 import type { Messages } from './messages';
 import { TranslatePipe } from './translate-pipe';
@@ -15,7 +16,7 @@ import { TranslatePipe } from './translate-pipe';
  *  - Seam: t() + {param} interpolation (the seam the domain copy runs on —
  *    no chrome key carries a placeholder yet, so the pure interpolate()
  *    helper is unit-tested directly).
- *  - Guard: en/et catalogs stay key-complete and value-complete, so an
+ *  - Guard: en/et/ru catalogs stay key-complete and value-complete, so an
  *    untranslated string can never silently ship blank.
  */
 
@@ -42,7 +43,7 @@ describe('I18nService (i18n-et-en M14)', () => {
     });
 
     it('falls back to en for an invalid stored value (never crashes first paint)', () => {
-      localStorage.setItem('openshelter-locale', 'ru');
+      localStorage.setItem('openshelter-locale', 'fr');
       const i18n = TestBed.inject(I18nService);
       expect(i18n.locale()).toBe('en');
       expect(document.documentElement.lang).toBe('en');
@@ -102,13 +103,14 @@ describe('TranslatePipe (t)', () => {
   });
 });
 
-describe('catalog parity (en/et lockstep)', () => {
+describe('catalog parity (en/et/ru lockstep)', () => {
   function keysOf(catalog: Messages): string[] {
     return Object.keys(catalog).sort();
   }
 
-  it('en and et carry exactly the same key set', () => {
+  it('en, et and ru carry exactly the same key set', () => {
     expect(keysOf(ET)).toEqual(keysOf(EN));
+    expect(keysOf(RU)).toEqual(keysOf(EN));
   });
 
   it('no catalog value is empty (an untranslated string would render blank)', () => {
@@ -117,6 +119,9 @@ describe('catalog parity (en/et lockstep)', () => {
     }
     for (const [key, value] of Object.entries(ET)) {
       expect(value.trim(), `et key "${key}" must not be empty`).not.toHaveLength(0);
+    }
+    for (const [key, value] of Object.entries(RU)) {
+      expect(value.trim(), `ru key "${key}" must not be empty`).not.toHaveLength(0);
     }
   });
 });

@@ -5,8 +5,10 @@ import {
   applyStoredTheme,
   HIGH_CONTRAST_THEME,
   LOCALE_STORAGE_KEY,
+  SUPPORTED_LOCALES,
   THEME_STORAGE_KEY,
   type PrePaintRoot,
+  type SupportedLocale,
 } from './prepaint';
 
 /**
@@ -157,8 +159,9 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     const rows = [
       { stored: 'en' as string | null, note: 'the persisted "en" preference applies' },
       { stored: 'et', note: 'the persisted "et" preference applies' },
+      { stored: 'ru', note: 'the persisted "ru" preference applies' },
       { stored: 'et-EE', note: 'a locale the app never stores keeps the static lang="en" default' },
-      { stored: 'ru', note: 'an invalid stored value keeps the static lang="en" default' },
+      { stored: 'fr', note: 'an invalid stored value keeps the static lang="en" default' },
       { stored: null, note: 'an absent key keeps the static lang="en" default' },
     ];
 
@@ -166,7 +169,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       const root = fakeRoot();
       const storage = memoryStorage(stored === null ? {} : { [LOCALE_STORAGE_KEY]: stored });
       applyStoredLocale(storage, root);
-      expect(root.lang).toBe(stored === 'en' || stored === 'et' ? stored : 'en');
+      expect(root.lang).toBe(SUPPORTED_LOCALES.includes(stored as SupportedLocale) ? stored : 'en');
     });
   });
 
@@ -174,8 +177,9 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     const rows = [
       { stored: 'en' as string | null, note: 'the persisted "en" preference applies' },
       { stored: 'et', note: 'the persisted "et" preference applies' },
+      { stored: 'ru', note: 'the persisted "ru" preference applies' },
       { stored: 'et-EE', note: 'a locale the app never stores keeps the static lang="en" default' },
-      { stored: 'ru', note: 'an invalid stored value keeps the static lang="en" default' },
+      { stored: 'fr', note: 'an invalid stored value keeps the static lang="en" default' },
       { stored: null, note: 'an absent key keeps the static lang="en" default' },
     ];
 
@@ -183,7 +187,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       const root = fakeRoot();
       const storage = memoryStorage(stored === null ? {} : { [LOCALE_STORAGE_KEY]: stored });
       runInlineScript(LOCALE_SCRIPT!, root, storage);
-      expect(root.lang).toBe(stored === 'en' || stored === 'et' ? stored : 'en');
+      expect(root.lang).toBe(SUPPORTED_LOCALES.includes(stored as SupportedLocale) ? stored : 'en');
     });
   });
 
@@ -216,7 +220,9 @@ describe('pre-paint lockstep (page vs module)', () => {
     { theme: HIGH_CONTRAST_THEME, locale: null },
     { theme: null, locale: 'et' },
     { theme: HIGH_CONTRAST_THEME, locale: 'et' },
-    { theme: 'light', locale: 'ru' },
+    { theme: null, locale: 'ru' },
+    { theme: HIGH_CONTRAST_THEME, locale: 'ru' },
+    { theme: 'light', locale: 'fr' },
   ];
 
   it.each(states)('theme=$theme locale=$locale', ({ theme, locale }) => {

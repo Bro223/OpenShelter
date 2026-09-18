@@ -4,12 +4,13 @@ import { LOCALES } from './locale';
 import type { Messages, MessageKey } from './messages';
 import { EN } from './en';
 import { ET } from './et';
+import { RU } from './ru';
 
 /**
  * Where the UI language preference lives in localStorage (i18n-et-en).
- * Only `en`/`et` are ever stored — the default is the ABSENCE of the key
- * (mirrors the pre-paint script in index.html, which reads this same key
- * before first paint, and the ThemeStore persistence shape).
+ * Only `en`/`et`/`ru` are ever stored — the default is the ABSENCE of the
+ * key (mirrors the pre-paint script in index.html, which reads this same
+ * key before first paint, and the ThemeStore persistence shape).
  */
 const LOCALE_KEY = 'openshelter-locale';
 
@@ -24,7 +25,7 @@ const DEFAULT_LOCALE: Locale = 'en';
 
 /** The message catalogs, keyed by locale — the typed `Messages` interface
     is the compile-time parity guard, i18n.spec.ts the runtime one. */
-const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET };
+const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET, ru: RU };
 
 /**
  * The UI language (i18n-et-en: app chrome + route titles).
