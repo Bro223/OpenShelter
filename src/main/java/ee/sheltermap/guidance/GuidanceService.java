@@ -3,10 +3,12 @@ package ee.sheltermap.guidance;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
+import ee.sheltermap.domain.MediaAsset;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -43,6 +45,18 @@ import java.util.Objects;
  * newest-updated first, the public list PUBLISHED-only pinned-first —
  * both with the id-descending tie-break.
  *
+ * <p>Hero import (guidance-hero-import): a post may carry a PENDING hero
+ * import — an admin-supplied http(s) URL in {@code heroImportUrl} instead
+ * of a library reference. The URL is consumed at the moment the post
+ * TRANSITIONS to PUBLISHED: {@link #publish} (and the one-shot
+ * create-and-publish) run {@link HeroImageImportService} inside the
+ * publish transaction and link the stored asset as the hero. A failed
+ * fetch or validation fails the publish (400/413/502 vocabulary, readable
+ * message) and the post stays a DRAFT with the URL intact — a post is
+ * never published with a hero that could not be fetched and validated.
+ * A published post cannot TAKE a pending URL (the V25 CHECK is
+ * structural; setting one is a 400 — unpublish first).
+ *
  * <p>Audit (D12): publish / unpublish / delete call
  * {@link ModerationAuditLog#recordLabeled} inside this service's
  * {@code @Transactional} method with the label
@@ -65,6 +79,12 @@ public class GuidanceService {
     /** The title column width (V23 {@code guidance_posts.title VARCHAR(255)}) — the service bound. */
     public static final int MAX_TITLE_LENGTH = 255;
 
+    /** The locale column width (V23 {@code guidance_posts.locale VARCHAR(5)}) — the service bound. */
+    public static final int MAX_LOCALE_LENGTH = 5;
+
+    /** The pending-import URL column width (V25 {@code hero_import_url VARCHAR(2048)}). */
+    public static final int MAX_HERO_IMPORT_URL_LENGTH = 2048;
+
     /** The serving-URL prefix for hero images (D7: the path sits under /api/ on purpose). */
     public static final String MEDIA_URL_PREFIX = "/api/media/";
 
@@ -74,30 +94,41 @@ public class GuidanceService {
     private final Clock clock;
     /** The app's primary language (D11: mirrors the frontend's DEFAULT_LOCALE). */
     private final String defaultLocale;
+    /** The remote-hero importer (guidance-hero-import) — runs inside the publish transaction. */
+    private final HeroImageImportService heroImport;
 
     public GuidanceService(GuidancePostRepository posts,
                            MediaAssetRepository mediaAssets,
                            ModerationAuditLog audit,
                            Clock clock,
-                           @Value("${app.guidance.default-locale:en}") String defaultLocale) {
+                           @Value("${app.guidance.default-locale:en}") String defaultLocale,
+                           HeroImageImportService heroImport) {
         this.posts = Objects.requireNonNull(posts, "posts");
         this.mediaAssets = Objects.requireNonNull(mediaAssets, "mediaAssets");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.defaultLocale = Objects.requireNonNull(defaultLocale, "defaultLocale");
+        this.heroImport = Objects.requireNonNull(heroImport, "heroImport");
     }
 
     // ------------------------------------------------------------- reads
 
     /**
-     * The public index (D6): PUBLISHED-only — the filter lives in the
-     * query, so no code path can leak a draft — pinned first, then
-     * {@code publishedAt} descending, id descending as the stable
-     * tie-break. Empty (nothing published) is an empty list, never an error.
+     * The public index (D6): PUBLISHED-only and ONE locale — both filters
+     * live in the query, so no code path can leak a draft or the other
+     * language's text — pinned first, then {@code publishedAt} descending,
+     * id descending as the stable tie-break. {@code locale} is the
+     * reader's requested language or {@code null} for the parameter-absent
+     * call, which falls back to the configured default locale (existing
+     * callers keep their behaviour). A PRESENT but blank or over-long
+     * value is a 400 ({@link #resolveLocale}). Empty (nothing published in
+     * that locale) is an empty list, never an error.
+     *
+     * @throws GuidanceValidationException 400 — a blank or over-long locale
      */
     @Transactional(readOnly = true)
-    public List<GuidancePost> listPublic() {
-        return posts.findPublished();
+    public List<GuidancePost> listPublic(String locale) {
+        return posts.findPublished(resolveLocale(locale));
     }
 
     /**
@@ -110,13 +141,25 @@ public class GuidanceService {
     }
 
     /**
-     * The public detail read (D4): PUBLISHED-only by slug. A slug held by
-     * a DRAFT answers the SAME 404 as an unknown slug — the response must
-     * not reveal that a draft exists.
+     * The public detail read (D4): PUBLISHED-only by slug, in ONE locale.
+     * A slug held by a DRAFT answers the SAME 404 as an unknown slug — the
+     * response must not reveal that a draft exists.
+     *
+     * <p>A slug whose PUBLISHED post lives in ANOTHER locale answers the
+     * same 404: a bilingual site must not serve the other language's text
+     * at a URL — a reader who switches language must not land on a post
+     * that is not in their language (the reader's own re-fetch after the
+     * switch is what resolves the slug in their language). A parameter-
+     * absent call resolves against the default locale, so existing links
+     * keep working. A PRESENT but blank or over-long locale is a 400.
+     *
+     * @throws GuidanceNotFoundException     404 — unknown slug, a draft slug,
+     *                                       or a post in another locale
+     * @throws GuidanceValidationException   400 — a blank or over-long locale
      */
     @Transactional(readOnly = true)
-    public GuidancePost getByPublicSlug(String slug) {
-        return posts.findPublishedBySlug(slug)
+    public GuidancePost getByPublicSlug(String slug, String locale) {
+        return posts.findPublishedBySlugAndLocale(slug, resolveLocale(locale))
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
     }
 
@@ -133,30 +176,50 @@ public class GuidanceService {
      * explicitly asks. The slug is generated from the title when omitted
      * (auto collisions take {@code -2}, {@code -3}, ...); an explicit
      * slug is validated and used exactly as given (collision → 409).
-     * The stored body is the sanitizer output (D2).
+     * The stored body is the sanitizer output (D2). A pending hero import
+     * ({@code heroImportUrl}) is carried by the draft and consumed at
+     * publish — except in the one-shot PUBLISHED create, where it is
+     * imported BEFORE the post is written, so a failed fetch fails the
+     * whole create (nothing is stored).
      *
      * @throws GuidanceValidationException 400 — missing/oversized title or body, a
-     *                                     malformed custom slug, alt without a hero
-     *                                     or a hero without alt
+     *                                     malformed custom slug, a malformed heroImportUrl,
+     *                                     alt without a hero (or a hero without alt)
      * @throws SlugAlreadyUsedException    409 — an admin-supplied slug another post holds
      * @throws GuidanceNotFoundException   404 — a heroImageId with no such asset
+     * @throws HeroImportRefusedException      400 — the one-shot import was refused by policy
+     * @throws HeroImportUnreachableException  502 — the one-shot import could not be fetched
+     * @throws MediaTooLargeException          413 — the one-shot import exceeded the cap
+     * @throws UnsupportedImageException       400 — the one-shot import is not a readable image
      */
     @Transactional
     public GuidancePost create(long adminId, String title, String slug, String body,
                                String locale, boolean pinned, Long heroImageId,
-                               String heroImageAlt, GuidanceStatus requestedStatus) {
+                               String heroImageAlt, String heroImportUrl,
+                               GuidanceStatus requestedStatus) {
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanLocale = localeOrDefault(locale);
-        Long heroId = requireHeroPairing(heroImageId, heroImageAlt);
+        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
+        Long heroId = heroImageId;
+        // A one-shot "write and publish" carrying a pending hero import
+        // publishes with the imported asset: the import runs BEFORE the
+        // post is written, so a failed fetch or validation fails the
+        // whole create — the same rule as the publish endpoint.
+        if (requestedStatus == GuidanceStatus.PUBLISHED && cleanImportUrl != null) {
+            MediaAsset imported = heroImport.importHero(adminId, cleanImportUrl);
+            heroId = imported.getId();
+            cleanImportUrl = null; // consumed
+        }
+        requireHeroPairing(heroId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = slug == null || slug.isBlank()
                 ? nextGeneratedSlug(cleanTitle)
                 : resolveSuppliedSlug(slug, null);
 
         GuidancePost post = GuidancePost.draft(finalSlug, cleanTitle, cleanBody, cleanLocale,
-                pinned, heroId, heroAlt, adminId, now);
+                pinned, heroId, heroAlt, cleanImportUrl, adminId, now);
         if (requestedStatus == GuidanceStatus.PUBLISHED) {
             // One-shot "write and publish" (D4) — the same stamp the
             // publish endpoint would write. This is a CREATE, not a
@@ -168,12 +231,16 @@ public class GuidanceService {
 
     /**
      * Full replace of the editable fields (D3): title, body, locale,
-     * pinned, hero (id + alt). The slug is kept when omitted; when given,
+     * pinned, hero (id + alt + pending import URL). The slug is kept when omitted; when given,
      * it is validated and must not collide with ANOTHER post (409 naming
      * the slug). The stored body is re-sanitized (D2) — the sanitizer
-     * runs on update exactly as on create.
+     * runs on update exactly as on create. A pending import URL is stored as-is (consumed at
+     * the NEXT publish) — except on an already-published post, where it is a 400: a published
+     * post carries no pending import (the V25 CHECK), so the workflow is unpublish → edit →
+     * publish.
      *
-     * @throws GuidanceValidationException 400 — same vocabulary as {@link #create}
+     * @throws GuidanceValidationException 400 — same vocabulary as {@link #create},
+     *                                     plus a pending import URL on a published post
      * @throws SlugAlreadyUsedException    409 — the given slug is held by another post
      * @throws GuidanceNotFoundException   404 — unknown post id, or a heroImageId
      *                                     with no such asset
@@ -181,17 +248,29 @@ public class GuidanceService {
     @Transactional
     public GuidancePost update(long id, String title, String slug, String body,
                                String locale, boolean pinned, Long heroImageId,
-                               String heroImageAlt) {
+                               String heroImageAlt, String heroImportUrl) {
         GuidancePost post = requirePost(id);
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanLocale = localeOrDefault(locale);
-        Long heroId = requireHeroPairing(heroImageId, heroImageAlt);
+        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
+        if (post.isPublished() && cleanImportUrl != null) {
+            // A published post cannot take a pending import (the V25
+            // CHECK makes this structural — a live post's hero is always
+            // a live asset or nothing): unpublishing first is the
+            // workflow, so the 400 says so instead of letting the DB
+            // reject the write with an integrity error.
+            throw new GuidanceValidationException(
+                    "A published post cannot take a pending hero import — unpublish it "
+                            + "first, or pick a hero from the media library");
+        }
+        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = resolveSuppliedSlug(slug, post.getSlug());
 
-        post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, heroId, heroAlt, now);
+        post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, heroImageId,
+                heroAlt, cleanImportUrl, now);
         return posts.save(post);
     }
 
@@ -201,14 +280,38 @@ public class GuidanceService {
      * already-published post is a no-op that writes NO audit row and
      * keeps its earlier stamp (the 204 is the controller's answer).
      *
+     * <p>A pending hero import (guidance-hero-import) is consumed HERE,
+     * inside this transaction: the import runs first, and only a
+     * SUCCESSFUL import links the asset. Any failure — a refused URL,
+     * an unfetchable host, an oversized body, a non-image body, an
+     * over-pixel body, a storage failure — propagates, the transaction
+     * rolls back, and the post stays a DRAFT with the URL intact.
+     *
      * @throws GuidanceNotFoundException 404 — unknown id
+     * @throws HeroImportRefusedException      400 — the import was refused by policy /
+     *                                          the URL is broken
+     * @throws HeroImportUnreachableException  502 — the import could not be fetched
+     * @throws MediaTooLargeException          413 — the import exceeded the cap
+     * @throws UnsupportedImageException       400 — the import is not a readable image
      */
     @Transactional
     public void publish(long adminId, long id) {
         GuidancePost post = requirePost(id);
-        if (!post.isPublished()) {
+        boolean wasPublished = post.isPublished();
+        boolean hadPendingImport = post.getHeroImportUrl() != null;
+        if (hadPendingImport) {
+            MediaAsset imported = heroImport.importHero(adminId, post.getHeroImportUrl());
+            post.linkImportedHero(imported.getId());
+        }
+        if (wasPublished && !hadPendingImport) {
+            // Idempotent no-op: no save, NO audit row (the D4 rule).
+            return;
+        }
+        if (!wasPublished) {
             post.publish(clock.instant());
-            posts.save(post);
+        }
+        posts.save(post);
+        if (!wasPublished) {
             audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_PUBLISH,
                     auditLabel(post), null);
         }
@@ -257,6 +360,29 @@ public class GuidanceService {
     // ------------------------------------------------------------- guards
 
     /**
+     * The reader's requested locale, or the configured default when the
+     * parameter is ABSENT ({@code null}). A PRESENT but blank value is a
+     * 400 (an explicit {@code ?locale=} is a request, not an absence), and
+     * a value longer than the VARCHAR(5) column is a 400 too: it cannot
+     * match any stored row, so the 400 is the honest answer instead of a
+     * silent empty list. The value is trimmed — a stray space is a client
+     * typo, not a locale.
+     */
+    private String resolveLocale(String locale) {
+        if (locale == null) {
+            return defaultLocale;
+        }
+        String trimmed = locale.trim();
+        if (trimmed.isEmpty()) {
+            throw new GuidanceValidationException("locale must not be blank");
+        }
+        if (trimmed.length() > MAX_LOCALE_LENGTH) {
+            throw new GuidanceValidationException("locale must be at most " + MAX_LOCALE_LENGTH + " characters");
+        }
+        return trimmed;
+    }
+
+    /**
      * The D12 subject label — a snapshot of the post's title and slug at
      * the moment of the action (the column has no FK: a deleted post must
      * stay readable in the trail, exactly like a dangling shelter_id).
@@ -291,23 +417,66 @@ public class GuidanceService {
     }
 
     /**
-     * Alt mandatory iff a hero image is set — both directions 400 (the
-     * V23 CHECK mirrors the rule; the 400 is the friendlier answer).
-     * A hero id must name a live asset (unknown id → 404).
+     * Alt mandatory iff a hero is set — a hero being a stored-asset
+     * reference OR a pending import URL (both directions 400; the V23
+     * CHECK mirrors the reference half). A hero id must name a live
+     * asset (unknown id → 404).
      */
-    private Long requireHeroPairing(Long heroImageId, String heroImageAlt) {
-        boolean hasHero = heroImageId != null;
+    private void requireHeroPairing(Long heroImageId, String heroImageAlt, String heroImportUrl) {
+        boolean hasHero = heroImageId != null || heroImportUrl != null;
         boolean hasAlt = heroImageAlt != null && !heroImageAlt.isBlank();
         if (hasHero && !hasAlt) {
             throw new GuidanceValidationException("heroImageAlt is required when a hero image is set");
         }
         if (!hasHero && hasAlt) {
-            throw new GuidanceValidationException("heroImageAlt requires a hero image (heroImageId)");
+            throw new GuidanceValidationException(
+                    "heroImageAlt requires a hero image (heroImageId or heroImportUrl)");
         }
-        if (hasHero && mediaAssets.findById(heroImageId).isEmpty()) {
+        if (heroImageId != null && mediaAssets.findById(heroImageId).isEmpty()) {
             throw new GuidanceNotFoundException(ASSET_NOT_FOUND_MESSAGE);
         }
-        return heroImageId;
+    }
+
+    /**
+     * The admin-supplied pending-import URL, normalized (trimmed) and
+     * shape-checked BEFORE it is stored (the fetch-time policy
+     * re-validates everything — this is the early 400 that saves the
+     * admin a publish round-trip): a parseable absolute http(s) URL
+     * with a host and no embedded credentials. Blank means "no pending
+     * import" (null) — clearing a hero URL is a null, like clearing the
+     * hero id.
+     *
+     * @throws GuidanceValidationException 400 — a malformed, non-http(s),
+     *                                       hostless or credentialed URL
+     */
+    private static String normalizeImportUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String trimmed = url.trim();
+        if (trimmed.length() > MAX_HERO_IMPORT_URL_LENGTH) {
+            throw new GuidanceValidationException("heroImportUrl must be at most "
+                    + MAX_HERO_IMPORT_URL_LENGTH + " characters");
+        }
+        URI uri;
+        try {
+            uri = URI.create(trimmed);
+        } catch (IllegalArgumentException e) {
+            throw new GuidanceValidationException("heroImportUrl must be a valid http(s) URL");
+        }
+        if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+            throw new GuidanceValidationException(
+                    "heroImportUrl must use http or https (got '"
+                            + (uri.getScheme() == null ? "<none>" : uri.getScheme()) + "')");
+        }
+        if (uri.getHost() == null || uri.getHost().isBlank()) {
+            throw new GuidanceValidationException("heroImportUrl must name a host");
+        }
+        if (uri.getUserInfo() != null) {
+            throw new GuidanceValidationException(
+                    "heroImportUrl must not carry credentials (user:pass@)");
+        }
+        return trimmed;
     }
 
     /**

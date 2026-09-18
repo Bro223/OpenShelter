@@ -27,6 +27,7 @@ final class GuidancePostMapper {
         entity.setPinned(post.isPinned());
         entity.setHeroImageId(post.getHeroImageId());
         entity.setHeroImageAlt(post.getHeroImageAlt());
+        entity.setHeroImportUrl(post.getHeroImportUrl());
         entity.setPublishedAt(post.getPublishedAt());
         entity.setCreatedBy(post.getCreatedBy());
         entity.setCreatedAt(post.getCreatedAt());
@@ -37,7 +38,8 @@ final class GuidancePostMapper {
         return GuidancePost.restored(
                 entity.getId(), entity.getSlug(), entity.getTitle(), entity.getBodyHtml(),
                 entity.getLocale(), entity.getStatus(), entity.isPinned(),
-                entity.getHeroImageId(), entity.getHeroImageAlt(), entity.getPublishedAt(),
-                entity.getCreatedBy(), entity.getCreatedAt(), entity.getUpdatedAt());
+                entity.getHeroImageId(), entity.getHeroImageAlt(), entity.getHeroImportUrl(),
+                entity.getPublishedAt(), entity.getCreatedBy(), entity.getCreatedAt(),
+                entity.getUpdatedAt());
     }
 }

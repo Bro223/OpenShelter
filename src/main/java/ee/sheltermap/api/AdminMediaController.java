@@ -169,7 +169,8 @@ public class AdminMediaController {
                 asset.getHeight(),
                 asset.getSizeBytes(),
                 asset.getCreatedAt(),
-                row.reusedBy());
+                row.reusedBy(),
+                asset.getSourceUrl());
     }
 
     /**

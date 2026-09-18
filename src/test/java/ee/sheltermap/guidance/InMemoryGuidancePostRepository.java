@@ -20,10 +20,10 @@ import java.util.Optional;
  * <p>Ordering rules (the ordering tests assert through this fake):
  * <ul>
  *   <li>admin list — {@code updatedAt} descending, {@code id}
- *       descending;</li>
- *   <li>public list — pinned first, then {@code publishedAt}
- *       descending, {@code id} descending (same-instant rows order by
- *       id, so repeated calls are stable).</li>
+ *       descending (locale-blind — the admin sees every language);</li>
+ *   <li>public list — the ONE requested locale, pinned first, then
+ *       {@code publishedAt} descending, {@code id} descending (same-
+ *       instant rows order by id, so repeated calls are stable).</li>
  * </ul>
  */
 public class InMemoryGuidancePostRepository implements GuidancePostRepository {
@@ -82,15 +82,16 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
     }
 
     @Override
-    public List<GuidancePost> findPublished() {
+    public List<GuidancePost> findPublished(String locale) {
         return sorted(store.values().stream()
-                .filter(GuidancePost::isPublished)
+                .filter(p -> p.isPublished() && p.getLocale().equals(locale))
                 .toList(), PUBLIC_ORDER);
     }
 
     @Override
-    public Optional<GuidancePost> findPublishedBySlug(String slug) {
-        return findBySlug(slug).filter(GuidancePost::isPublished);
+    public Optional<GuidancePost> findPublishedBySlugAndLocale(String slug, String locale) {
+        return findBySlug(slug)
+                .filter(p -> p.isPublished() && p.getLocale().equals(locale));
     }
 
     @Override

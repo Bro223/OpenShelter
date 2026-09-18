@@ -57,6 +57,10 @@ public class GuidancePostEntity {
     @Column(name = "hero_image_alt", length = 300)
     private String heroImageAlt;
 
+    /** Pending hero import (V25): a published post carries none (the V25 CHECK). */
+    @Column(name = "hero_import_url", length = 2048)
+    private String heroImportUrl;
+
     /** Stamped on publish, cleared on unpublish — paired with status by the V23 CHECK. */
     @Column(name = "published_at")
     private Instant publishedAt;
@@ -142,6 +146,14 @@ public class GuidancePostEntity {
 
     public void setHeroImageAlt(String heroImageAlt) {
         this.heroImageAlt = heroImageAlt;
+    }
+
+    public String getHeroImportUrl() {
+        return heroImportUrl;
+    }
+
+    public void setHeroImportUrl(String heroImportUrl) {
+        this.heroImportUrl = heroImportUrl;
     }
 
     public Instant getPublishedAt() {

@@ -282,6 +282,23 @@ app:
     # spring.servlet.multipart sit ABOVE this value on purpose (see
     # there for why).
     max-bytes: ${MEDIA_MAX_BYTES:5242880}
+    # Hero-image import (guidance-hero-import): the publish-time fetch of
+    # an admin-supplied URL reuses max-bytes as the streaming size cap.
+    # Connect timeout for the fetch — a host that never completes the
+    # handshake cannot pin a request thread (guard 5).
+    import-connect-timeout: ${HERO_IMPORT_CONNECT_TIMEOUT:3s}
+    # Read timeout: bounds the response head AND the body-read stall
+    # (no bytes for this long aborts the download — guard 5).
+    import-read-timeout: ${HERO_IMPORT_READ_TIMEOUT:5s}
+    # Wall-clock budget for the WHOLE redirect walk — a monotonic
+    # deadline checked before every hop (the geo resolver's idiom);
+    # also bounds how long the publish transaction is held.
+    import-budget: ${HERO_IMPORT_BUDGET:10s}
+    # Pixel cap per side (guard 7, the decompression-bomb bound): the
+    # header dimensions must not exceed it — a few-kilobyte file can
+    # claim a canvas that decodes to a multi-gigabyte bitmap.
+    # 10000 px bounds the decodable bitmap at ~400 MiB of BGRA.
+    import-max-side: ${HERO_IMPORT_MAX_SIDE:10000}
   guidance:
     # Default locale for new guidance posts (D11): mirrors the frontend's
     # DEFAULT_LOCALE (core/i18n, 'en'). Flipping the app's default

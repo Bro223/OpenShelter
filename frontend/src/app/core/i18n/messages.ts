@@ -381,23 +381,6 @@ export interface Messages {
    *  no inline images — hero-only), and pasted text is plain. */
   'admin.guidance.editor.bodyHint': string;
   'admin.guidance.editor.bodyRequired': string;
-  /** The body toolbar's aria-label (its formatting controls). */
-  'admin.guidance.editor.toolbar': string;
-  /** The block-type group's aria-label. */
-  'admin.guidance.editor.blockLabel': string;
-  /** The inline-style group's aria-label. */
-  'admin.guidance.editor.inlineLabel': string;
-  /** The block-type choices — the sanitizer's block set (no h1: the
-   *  public page owns the single h1). */
-  'admin.guidance.editor.block.p': string;
-  'admin.guidance.editor.block.h2': string;
-  'admin.guidance.editor.block.h3': string;
-  'admin.guidance.editor.block.ul': string;
-  'admin.guidance.editor.block.ol': string;
-  /** The inline controls (the sanitizer's inline set: strong/em/a). */
-  'admin.guidance.editor.bold': string;
-  'admin.guidance.editor.italic': string;
-  'admin.guidance.editor.link': string;
   /** The link URL prompt (names the allowed protocols). */
   'admin.guidance.editor.link.prompt': string;
   /** A refused link protocol (javascript:/data:/relative): names the

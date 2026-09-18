@@ -13,6 +13,12 @@ import java.util.Objects;
  * post with a {@code null} hero renders no image element at all. Alt text
  * is mandatory iff a hero is set (the V23 CHECK mirrors the same rule).
  *
+ * <p>The {@code heroImportUrl} (guidance-hero-import) is a PENDING IMPORT,
+ * not a hero: an admin-supplied http(s) URL the server fetches, validates
+ * and stores at publish time. A published post carries none (the V25
+ * CHECK), and {@link #linkImportedHero(Long)} consumes it together with the
+ * link to the imported asset.
+ *
  * <p>Publication state (D4): publishing stamps {@code publishedAt} from
  * the instant the caller passes (the service's injected Clock);
  * unpublishing clears it, so a re-publish stamps a FRESH instant and the
@@ -32,6 +38,8 @@ public class GuidancePost {
     private boolean pinned;
     private Long heroImageId;
     private String heroImageAlt;
+    /** Pending hero import (guidance-hero-import): {@code null} when there is none. */
+    private String heroImportUrl;
     private Instant publishedAt;
     private Long createdBy;
     private Instant createdAt;
@@ -50,7 +58,7 @@ public class GuidancePost {
      */
     public static GuidancePost draft(String slug, String title, String bodyHtml, String locale,
                                      boolean pinned, Long heroImageId, String heroImageAlt,
-                                     Long createdBy, Instant now) {
+                                     String heroImportUrl, Long createdBy, Instant now) {
         GuidancePost post = new GuidancePost();
         post.slug = requireText(slug, "slug");
         post.title = requireText(title, "title");
@@ -59,7 +67,8 @@ public class GuidancePost {
         post.pinned = pinned;
         post.heroImageId = heroImageId;
         post.heroImageAlt = heroImageAlt;
-        requireHeroAltPairing(heroImageId, heroImageAlt);
+        post.heroImportUrl = heroImportUrl;
+        requireHeroAltPairing(heroImageId, heroImageAlt, heroImportUrl);
         post.status = GuidanceStatus.DRAFT;
         post.publishedAt = null;
         post.createdBy = createdBy;
@@ -71,14 +80,16 @@ public class GuidancePost {
 
     /**
      * Restores a stored row (persistence round-trip): the full field set
-     * including the id, the status and its stamped instant. The V23
-     * CHECKs guarantee the stored invariants (status/publishedAt
-     * pairing, hero/alt pairing), so this does not re-validate them.
+     * including the id, the status and its stamped instant. The V23/V25
+     * CHECKs guarantee the stored invariants (status/publishedAt pairing,
+     * hero/alt pairing, no pending import on a published post), so this
+     * does not re-validate them.
      */
     public static GuidancePost restored(Long id, String slug, String title, String bodyHtml,
                                         String locale, GuidanceStatus status, boolean pinned,
-                                        Long heroImageId, String heroImageAlt, Instant publishedAt,
-                                        Long createdBy, Instant createdAt, Instant updatedAt) {
+                                        Long heroImageId, String heroImageAlt, String heroImportUrl,
+                                        Instant publishedAt, Long createdBy, Instant createdAt,
+                                        Instant updatedAt) {
         GuidancePost post = new GuidancePost();
         post.id = id;
         post.slug = slug;
@@ -89,6 +100,7 @@ public class GuidancePost {
         post.pinned = pinned;
         post.heroImageId = heroImageId;
         post.heroImageAlt = heroImageAlt;
+        post.heroImportUrl = heroImportUrl;
         post.publishedAt = publishedAt;
         post.createdBy = createdBy;
         post.createdAt = Objects.requireNonNull(createdAt, "createdAt");
@@ -103,7 +115,7 @@ public class GuidancePost {
      * {@code updatedAt} moves to the caller's instant.
      */
     public void update(String slug, String title, String bodyHtml, String locale, boolean pinned,
-                       Long heroImageId, String heroImageAlt, Instant now) {
+                       Long heroImageId, String heroImageAlt, String heroImportUrl, Instant now) {
         this.slug = requireText(slug, "slug");
         this.title = requireText(title, "title");
         this.bodyHtml = requireText(bodyHtml, "bodyHtml");
@@ -111,8 +123,27 @@ public class GuidancePost {
         this.pinned = pinned;
         this.heroImageId = heroImageId;
         this.heroImageAlt = heroImageAlt;
-        requireHeroAltPairing(heroImageId, heroImageAlt);
+        this.heroImportUrl = heroImportUrl;
+        requireHeroAltPairing(heroImageId, heroImageAlt, heroImportUrl);
         this.updatedAt = Objects.requireNonNull(now, "now");
+    }
+
+    /**
+     * Consumes the pending hero import (guidance-hero-import): the imported
+     * asset becomes the hero — superseding any pre-set {@code heroImageId}
+     * (the replaced asset stays in the library, the D8 replace rule) — and
+     * the URL is cleared, so the V25 CHECK (no pending import on a
+     * published post) holds from this moment on. Called by the guidance
+     * service INSIDE the publish transaction, after the import succeeded.
+     * A post whose hero came only from a URL already has its alt set by the
+     * pairing rule, so nothing else moves here.
+     */
+    public void linkImportedHero(Long assetId) {
+        if (heroImportUrl == null) {
+            throw new IllegalStateException("no pending hero import to consume");
+        }
+        this.heroImageId = Objects.requireNonNull(assetId, "assetId");
+        this.heroImportUrl = null;
     }
 
     /**
@@ -146,7 +177,10 @@ public class GuidancePost {
     /**
      * Clears the hero image (id and alt together, D8): the post stays
      * fully renderable — no image element, title and body intact. The
-     * asset itself is untouched in the media library.
+     * asset itself is untouched in the media library. A PENDING import URL
+     * is left alone when it is present — the import was never consumed,
+     * so the next publish re-imports it (a delete of one asset does not
+     * burn the admin's URL).
      */
     public void clearHero() {
         this.heroImageId = null;
@@ -161,12 +195,13 @@ public class GuidancePost {
     }
 
     /**
-     * Alt text mandatory iff a hero image is set (the V23 CHECK and the
-     * service's 400 enforce the same rule; this keeps the domain honest
-     * on its own): both directions refuse.
+     * Alt text mandatory iff a hero is set — a hero being a stored-asset
+     * reference OR a pending import URL (the V23 CHECK and the service's
+     * 400 enforce the same rule for the reference half; this keeps the
+     * domain honest on its own): both directions refuse.
      */
-    private static void requireHeroAltPairing(Long heroImageId, String heroImageAlt) {
-        boolean hasHero = heroImageId != null;
+    private static void requireHeroAltPairing(Long heroImageId, String heroImageAlt, String heroImportUrl) {
+        boolean hasHero = heroImageId != null || heroImportUrl != null;
         boolean hasAlt = heroImageAlt != null && !heroImageAlt.isBlank();
         if (hasHero && !hasAlt) {
             throw new IllegalArgumentException("heroImageAlt is required when a hero image is set");
@@ -233,6 +268,15 @@ public class GuidancePost {
     /** The hero image's alt text (mandatory iff a hero is set); {@code null} without a hero. */
     public String getHeroImageAlt() {
         return heroImageAlt;
+    }
+
+    /**
+     * The pending hero-import URL (guidance-hero-import); {@code null} when
+     * the hero is a plain library reference (or absent). Never exposed on
+     * the public surface — admin read only.
+     */
+    public String getHeroImportUrl() {
+        return heroImportUrl;
     }
 
     /** Stamped by {@link #publish(Instant)}, cleared by {@link #unpublish()}; {@code null} for drafts. */

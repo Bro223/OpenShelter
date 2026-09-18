@@ -98,6 +98,9 @@
           "heroImageUrl" : {
             "type" : "string"
           },
+          "heroImportUrl" : {
+            "type" : "string"
+          },
           "id" : {
             "format" : "int64",
             "type" : "integer"
@@ -403,6 +406,11 @@
           "heroImageId" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "heroImportUrl" : {
+            "maxLength" : 2048,
+            "minLength" : 0,
+            "type" : "string"
           },
           "locale" : {
             "maxLength" : 5,
@@ -803,6 +811,9 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "sourceUrl" : {
+            "type" : "string"
+          },
           "storedFilename" : {
             "type" : "string"
           },
@@ -1128,6 +1139,11 @@
           "heroImageId" : {
             "format" : "int64",
             "type" : "integer"
+          },
+          "heroImportUrl" : {
+            "maxLength" : 2048,
+            "minLength" : 0,
+            "type" : "string"
           },
           "locale" : {
             "maxLength" : 5,
@@ -2343,7 +2359,7 @@
                 }
               }
             },
-            "description" : "Validation failure (required fields, the alt/hero pairing, the slug shape)"
+            "description" : "Validation failure (required fields, the alt/hero pairing, the slug shape, the import URL shape)"
           },
           "401" : {
             "content" : {
@@ -2385,6 +2401,16 @@
             },
             "description" : "An admin-supplied slug another post already holds (naming the slug)"
           },
+          "413" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminGuidancePostDto"
+                }
+              }
+            },
+            "description" : "The one-shot hero import exceeded the size cap"
+          },
           "429" : {
             "content" : {
               "application/json" : {
@@ -2404,6 +2430,16 @@
               }
             },
             "description" : "Unexpected server error — the uniform error body."
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AdminGuidancePostDto"
+                }
+              }
+            },
+            "description" : "The one-shot hero import could not be fetched (timeout / network / upstream 5xx)"
           }
         },
         "summary" : "Create a guidance post",
@@ -2637,7 +2673,7 @@
                 }
               }
             },
-            "description" : "Validation failure"
+            "description" : "Validation failure (incl. a pending import URL on a published post)"
           },
           "401" : {
             "content" : {
@@ -2709,7 +2745,7 @@
     },
     "/admin/guidance/{id}/publish" : {
       "post" : {
-        "description" : "Stamps publishedAt (a re-publish stamps a FRESH instant). Idempotent: already published → 204 no-op, NO audit row. 204; 404 unknown id.",
+        "description" : "Stamps publishedAt (a re-publish stamps a FRESH instant). A pending hero import URL is fetched, validated and stored first — a failed import fails the publish. Idempotent: already published (and no pending import) → 204 no-op, NO audit row. 204; 400/413/502 import failure; 404 unknown id.",
         "operationId" : "publish",
         "parameters" : [ {
           "name" : "id",
@@ -2725,14 +2761,7 @@
             "description" : "Published (or already published — no-op)"
           },
           "400" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "The pending hero import was refused (URL policy, non-image body) or the URL is broken"
           },
           "401" : {
             "content" : {
@@ -2760,6 +2789,9 @@
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
+          "413" : {
+            "description" : "The pending hero import exceeded the size cap"
+          },
           "429" : {
             "content" : {
               "application/json" : {
@@ -2779,6 +2811,9 @@
               }
             },
             "description" : "Unexpected server error — the uniform error body."
+          },
+          "502" : {
+            "description" : "The pending hero import could not be fetched (timeout / network / upstream 5xx)"
           }
         },
         "summary" : "Publish a guidance post",
@@ -4737,8 +4772,17 @@
     },
     "/api/guidance" : {
       "get" : {
-        "description" : "PUBLISHED only (drafts are invisible), pinned first, then publishedAt descending (id descending tie-break). The index does not carry the post body (bodyHtml is null). 200 with [] when nothing is published.",
+        "description" : "PUBLISHED only (drafts are invisible), ONE locale, pinned first, then publishedAt descending (id descending tie-break). The index does not carry the post body (bodyHtml is null). 200 with [] when nothing is published in the requested locale.",
         "operationId" : "list_1",
+        "parameters" : [ {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "The reader's language (optional): only the published posts of this locale are returned. Absent = the server's default locale. Blank or more than 5 characters is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -4751,17 +4795,20 @@
                 }
               }
             },
-            "description" : "The published posts (pinned first)"
+            "description" : "The published posts of the requested locale (pinned first)"
           },
           "400" : {
             "content" : {
-              "application/json" : {
+              "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/GuidancePostDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A blank or over-long locale (the column is VARCHAR(5))"
           },
           "401" : {
             "content" : {
@@ -4831,12 +4878,20 @@
     },
     "/api/guidance/{slug}" : {
       "get" : {
-        "description" : "PUBLISHED only, by slug. A draft slug and an unknown slug answer the SAME 404. Carries the stored (sanitized) bodyHtml.",
+        "description" : "PUBLISHED only, by slug, in ONE locale. A draft slug, an unknown slug, and a slug whose post is in another locale answer the SAME 404. Carries the stored (sanitized) bodyHtml.",
         "operationId" : "get_1",
         "parameters" : [ {
           "name" : "slug",
           "in" : "path",
           "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "query",
+          "description" : "The reader's language (optional): 404 when the post is in another locale. Absent = the server's default locale. Blank or more than 5 characters is a 400.",
+          "required" : false,
           "schema" : {
             "type" : "string"
           }
@@ -4850,17 +4905,17 @@
                 }
               }
             },
-            "description" : "The published post"
+            "description" : "The published post (in the requested locale)"
           },
           "400" : {
             "content" : {
-              "application/json" : {
+              "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "$ref" : "#/components/schemas/GuidancePostDto"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A blank or over-long locale (the column is VARCHAR(5))"
           },
           "401" : {
             "content" : {
@@ -4890,7 +4945,7 @@
                 }
               }
             },
-            "description" : "Unknown slug (a draft slug is indistinguishable from one)"
+            "description" : "Unknown slug, a draft slug, or a post in another locale (all the same answer)"
           },
           "409" : {
             "content" : {
@@ -6864,9 +6919,6 @@
     "name" : "Admin moderation",
     "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably). Reporter identity is served from this API ONLY."
   }, {
-    "name" : "Public guidance",
-    "description" : "The public crisis-guidance reads — permit-all (no JWT): the /blog pages read these anonymously. PUBLISHED posts only, pinned first; a draft slug and an unknown slug answer the SAME 404 (a draft's existence is never revealed)."
-  }, {
     "name" : "Admin guidance",
     "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably)."
   }, {
@@ -6881,6 +6933,9 @@
   }, {
     "name" : "Account & verification",
     "description" : "The authenticated account surface — every operation requires a Bearer JWT and the user is resolved from the token, never from the body. The change-request endpoints are additionally throttled per client IP (429 above); the confirms are code-verified and attempt-limited instead. The request endpoints ack with CodeSentDto — the cooldown a client should count down before resending."
+  }, {
+    "name" : "Public guidance",
+    "description" : "The public crisis-guidance reads — permit-all (no JWT): the /blog pages read these anonymously. PUBLISHED posts only, pinned first; a draft slug and an unknown slug answer the SAME 404 (a draft's existence is never revealed). Optional locale query parameter: absent = the server's default locale; a post in another locale is a 404."
   }, {
     "name" : "Data source",
     "description" : "The public provenance read (official-dataset-csv M5): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."

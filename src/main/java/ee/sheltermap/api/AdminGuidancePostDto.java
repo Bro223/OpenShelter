@@ -13,7 +13,10 @@ import java.time.Instant;
  * round-trips exactly what is stored (D2/D9). The hero fields are the
  * full reference: {@code heroImageId} (the media-library picker's key),
  * the serving {@code heroImageUrl} and the stored alt — all three
- * {@code null} when the post has no hero.
+ * {@code null} when the post has no hero. {@code heroImportUrl} is the
+ * PENDING hero import (guidance-hero-import): the admin-supplied remote
+ * URL consumed at the next publish ({@code null} when the hero is a
+ * plain library reference — a published post always carries none).
  */
 public record AdminGuidancePostDto(
         long id,
@@ -26,6 +29,7 @@ public record AdminGuidancePostDto(
         Long heroImageId,
         String heroImageUrl,
         String heroImageAlt,
+        String heroImportUrl,
         Long createdBy,
         Instant createdAt,
         Instant updatedAt) {

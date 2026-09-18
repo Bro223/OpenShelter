@@ -49,6 +49,10 @@ public class MediaAssetEntity {
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 
+    /** The remote origin of an imported asset (V25); null for a plain upload. */
+    @Column(name = "source_url", length = 2048)
+    private String sourceUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -114,6 +118,14 @@ public class MediaAssetEntity {
 
     public void setUploadedBy(Long uploadedBy) {
         this.uploadedBy = uploadedBy;
+    }
+
+    public String getSourceUrl() {
+        return sourceUrl;
+    }
+
+    public void setSourceUrl(String sourceUrl) {
+        this.sourceUrl = sourceUrl;
     }
 
     public Instant getCreatedAt() {

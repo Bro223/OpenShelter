@@ -9,8 +9,8 @@ import ee.sheltermap.domain.MediaAsset;
  *
  * <p>Deliberately does NOT touch {@code id} (managed by the primary
  * key). Restored rows round-trip through
- * {@link MediaAsset#create(String, String, String, int, int, long, Long, java.time.Instant)}
- * — the V23 CHECKs guarantee the stored values satisfy its bounds.
+ * {@link MediaAsset#create(String, String, String, int, int, long, Long, java.time.Instant, String)}
+ * — the V23/V25 CHECKs guarantee the stored values satisfy its bounds.
  */
 final class MediaAssetMapper {
 
@@ -26,6 +26,7 @@ final class MediaAssetMapper {
         entity.setHeight(asset.getHeight());
         entity.setSizeBytes(asset.getSizeBytes());
         entity.setUploadedBy(asset.getUploadedBy());
+        entity.setSourceUrl(asset.getSourceUrl());
         entity.setCreatedAt(asset.getCreatedAt());
     }
 
@@ -34,7 +35,7 @@ final class MediaAssetMapper {
         MediaAsset asset = MediaAsset.create(
                 entity.getFilename(), entity.getOriginalFilename(), entity.getContentType(),
                 entity.getWidth(), entity.getHeight(), entity.getSizeBytes(),
-                entity.getUploadedBy(), entity.getCreatedAt());
+                entity.getUploadedBy(), entity.getCreatedAt(), entity.getSourceUrl());
         asset.setId(entity.getId());
         return asset;
     }

@@ -91,8 +91,8 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<GuidancePost> findPublished() {
-        return posts.findByStatusOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus.PUBLISHED)
+    public List<GuidancePost> findPublished(String locale) {
+        return posts.findByStatusAndLocaleOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus.PUBLISHED, locale)
                 .stream()
                 .map(GuidancePostMapper::toDomain)
                 .toList();
@@ -100,8 +100,8 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<GuidancePost> findPublishedBySlug(String slug) {
-        return posts.findBySlugAndStatus(slug, GuidanceStatus.PUBLISHED)
+    public Optional<GuidancePost> findPublishedBySlugAndLocale(String slug, String locale) {
+        return posts.findBySlugAndStatusAndLocale(slug, GuidanceStatus.PUBLISHED, locale)
                 .map(GuidancePostMapper::toDomain);
     }
 

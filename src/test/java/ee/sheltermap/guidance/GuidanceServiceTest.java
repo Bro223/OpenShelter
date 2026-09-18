@@ -8,11 +8,17 @@ import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.MediaAsset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,7 +46,19 @@ class GuidanceServiceTest {
     private InMemoryMediaAssetRepository media;
     private InMemoryModerationAuditLog audit;
     private MutableClock clock;
+    private MediaStorage storage;
+    /**
+     * The seam behind the REAL {@link HeroImageImportService}: every test
+     * decides what the fetch "sees" (a 200 + PNG bytes, a thrown
+     * unreachable, ...) — the walk/policy/store logic on this side is the
+     * production code.
+     */
+    private final AtomicReference<HeroImageFetchClient> fetch = new AtomicReference<>();
+    private HeroImageImportService importService;
     private GuidanceService service;
+
+    @TempDir
+    Path mediaDir;
 
     @BeforeEach
     void setUp() {
@@ -48,13 +66,62 @@ class GuidanceServiceTest {
         posts = new InMemoryGuidancePostRepository(clock);
         media = new InMemoryMediaAssetRepository(posts);
         audit = new InMemoryModerationAuditLog(clock);
-        service = new GuidanceService(posts, media, audit, clock, "en");
+        storage = new MediaStorage(mediaDir);
+        storage.init();
+        fetch.set(refusingClient());
+        importService = new HeroImageImportService(
+                (url, maxBytes) -> fetch.get().fetch(url, maxBytes),
+                host -> publicAddresses(), storage, media, clock,
+                5242880L, Duration.ofSeconds(10), 10000, System::nanoTime);
+        service = new GuidanceService(posts, media, audit, clock, "en", importService);
     }
 
     // ------------------------------------------------------------- helpers
 
+    /** The seam's default: every fetch fails (unreachable). */
+    private static HeroImageFetchClient refusingClient() {
+        return (url, maxBytes) -> {
+            throw new HeroImportUnreachableException("stub: " + url + " is unreachable");
+        };
+    }
+
+    private static HeroImageFetchClient servingPngClient() {
+        return (url, maxBytes) -> new HeroImageFetchClient.FetchedImage(200, null, png(100, 50));
+    }
+
+    /** The fake resolver answers one public address for every host (no DNS). */
+    private static List<InetAddress> publicAddresses() throws UnknownHostException {
+        return List.of(InetAddress.getByName("93.184.216.34"));
+    }
+
+    /** A minimal readable PNG (signature + IHDR) — the inspector's fixture shape. */
+    private static byte[] png(int width, int height) {
+        byte[] b = new byte[33];
+        b[0] = (byte) 0x89; b[1] = 0x50; b[2] = 0x4E; b[3] = 0x47;
+        b[4] = 0x0D; b[5] = 0x0A; b[6] = 0x1A; b[7] = 0x0A;
+        b[8] = 0; b[9] = 0; b[10] = 0; b[11] = 13; // IHDR chunk length
+        b[12] = 'I'; b[13] = 'H'; b[14] = 'D'; b[15] = 'R';
+        b[16] = (byte) (width >>> 24); b[17] = (byte) (width >>> 16);
+        b[18] = (byte) (width >>> 8); b[19] = (byte) width;
+        b[20] = (byte) (height >>> 24); b[21] = (byte) (height >>> 16);
+        b[22] = (byte) (height >>> 8); b[23] = (byte) height;
+        b[24] = 8; // bit depth
+        b[25] = 2; // colour type: truecolour
+        return b;
+    }
+
     private GuidancePost createDraft(String title) {
-        return service.create(ADMIN_ID, title, null, "<p>body</p>", null, false, null, null, null);
+        return service.create(ADMIN_ID, title, null, "<p>body</p>", null, false, null, null, null, null);
+    }
+
+    private GuidancePost createDraft(String title, String locale) {
+        return service.create(ADMIN_ID, title, null, "<p>body</p>", locale, false, null, null, null, null);
+    }
+
+    private GuidancePost createAndPublish(String title, String locale) {
+        GuidancePost post = createDraft(title, locale);
+        service.publish(ADMIN_ID, post.getId());
+        return post;
     }
 
     private MediaAsset newAsset(String storedFilename) {
@@ -78,8 +145,8 @@ class GuidanceServiceTest {
         assertThat(post.getCreatedBy()).isEqualTo(ADMIN_ID);
         // Draft invisibility: absent from the public index, its slug is a
         // 404, and it IS listed by the admin.
-        assertThat(service.listPublic()).isEmpty();
-        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug()))
+        assertThat(service.listPublic(null)).isEmpty();
+        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug(), null))
                 .isInstanceOf(GuidanceNotFoundException.class)
                 .hasMessage(GuidanceService.POST_NOT_FOUND_MESSAGE);
         assertThat(service.listForAdmin())
@@ -92,12 +159,12 @@ class GuidanceServiceTest {
         Instant now = clock.instant();
 
         GuidancePost post = service.create(ADMIN_ID, "First", null, "<p>b</p>",
-                null, false, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
 
         assertThat(post.isPublished()).isTrue();
         assertThat(post.getPublishedAt()).isEqualTo(now);
-        assertThat(service.listPublic()).extracting(GuidancePost::getId).containsExactly(post.getId());
-        assertThat(service.getByPublicSlug(post.getSlug()).getId()).isEqualTo(post.getId());
+        assertThat(service.listPublic(null)).extracting(GuidancePost::getId).containsExactly(post.getId());
+        assertThat(service.getByPublicSlug(post.getSlug(), null).getId()).isEqualTo(post.getId());
     }
 
     @Test
@@ -105,7 +172,7 @@ class GuidanceServiceTest {
         String hostile = "<p>ok</p><script>alert(1)</script>";
 
         GuidancePost post = service.create(ADMIN_ID, "T", null, hostile,
-                null, false, null, null, null);
+                null, false, null, null, null, null);
 
         // The stored value is the sanitizer OUTPUT, not the raw input (D2):
         // exactly what the sanitizer answers for the input, no script left.
@@ -117,24 +184,24 @@ class GuidanceServiceTest {
 
     @Test
     void localeDefaultsFromTheConfiguredPrimaryLanguage() {
-        assertThat(service.create(ADMIN_ID, "D", null, "<p>b</p>", null, false, null, null, null)
+        assertThat(service.create(ADMIN_ID, "D", null, "<p>b</p>", null, false, null, null, null, null)
                 .getLocale()).isEqualTo("en");
-        assertThat(service.create(ADMIN_ID, "E", null, "<p>b</p>", "et", false, null, null, null)
+        assertThat(service.create(ADMIN_ID, "E", null, "<p>b</p>", "et", false, null, null, null, null)
                 .getLocale()).isEqualTo("et");
     }
 
     @Test
     void missingTitleOrBodyAreRefusedAndNothingIsStored() {
-        assertThatThrownBy(() -> service.create(ADMIN_ID, null, null, "<p>b</p>", null, false, null, null, null))
+        assertThatThrownBy(() -> service.create(ADMIN_ID, null, null, "<p>b</p>", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
-        assertThatThrownBy(() -> service.create(ADMIN_ID, "   ", null, "<p>b</p>", null, false, null, null, null))
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "   ", null, "<p>b</p>", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
-        assertThatThrownBy(() -> service.create(ADMIN_ID, "T", null, null, null, false, null, null, null))
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "T", null, null, null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
-        assertThatThrownBy(() -> service.create(ADMIN_ID, "T", null, "   ", null, false, null, null, null))
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "T", null, "   ", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
         assertThatThrownBy(() -> service.create(ADMIN_ID, "x".repeat(GuidanceService.MAX_TITLE_LENGTH + 1),
-                null, "<p>b</p>", null, false, null, null, null))
+                null, "<p>b</p>", null, false, null, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class);
         assertThat(posts.findAllForAdmin()).isEmpty();
     }
@@ -148,7 +215,7 @@ class GuidanceServiceTest {
         String hostile = "<p>new</p><script>x</script>";
 
         GuidancePost updated = service.update(post.getId(), "New Title", null,
-                hostile, null, true, null, null);
+                hostile, null, true, null, null, null);
 
         assertThat(updated.getSlug()).isEqualTo(post.getSlug());
         assertThat(updated.getTitle()).isEqualTo("New Title");
@@ -169,12 +236,12 @@ class GuidanceServiceTest {
         GuidancePost b = createDraft("B");
 
         // Its own slug is a no-op, not a collision.
-        service.update(a.getId(), "A", a.getSlug(), "<p>b</p>", null, false, null, null);
+        service.update(a.getId(), "A", a.getSlug(), "<p>b</p>", null, false, null, null, null);
         assertThat(posts.findById(a.getId()).orElseThrow().getSlug()).isEqualTo(a.getSlug());
 
         // Another post's slug → 409 naming it, nothing changed.
         assertThatThrownBy(() -> service.update(b.getId(), "B", a.getSlug(), "<p>b</p>",
-                null, false, null, null))
+                null, false, null, null, null))
                 .isInstanceOf(SlugAlreadyUsedException.class)
                 .hasMessageContaining(a.getSlug());
         assertThat(posts.findById(b.getId()).orElseThrow().getSlug()).isEqualTo(b.getSlug());
@@ -214,8 +281,8 @@ class GuidanceServiceTest {
         GuidancePost draft = posts.findById(post.getId()).orElseThrow();
         assertThat(draft.isPublished()).isFalse();
         assertThat(draft.getPublishedAt()).isNull();
-        assertThat(service.listPublic()).isEmpty();
-        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug()))
+        assertThat(service.listPublic(null)).isEmpty();
+        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug(), null))
                 .isInstanceOf(GuidanceNotFoundException.class);
         assertThat(audit.rows()).hasSize(2);
         assertLabeledRow(audit.rows().get(1), ModerationAuditLog.Action.GUIDANCE_UNPUBLISH,
@@ -258,7 +325,7 @@ class GuidanceServiceTest {
 
         assertThat(posts.findById(post.getId())).isEmpty();
         assertThat(service.listForAdmin()).isEmpty();
-        assertThat(service.listPublic()).isEmpty();
+        assertThat(service.listPublic(null)).isEmpty();
         assertThat(audit.rows()).hasSize(1);
         assertLabeledRow(audit.rows().get(0), ModerationAuditLog.Action.GUIDANCE_DELETE,
                 "Guidance post \"Bye\" (" + post.getSlug() + ")");
@@ -271,7 +338,7 @@ class GuidanceServiceTest {
                 () -> service.publish(ADMIN_ID, 999L),
                 () -> service.unpublish(ADMIN_ID, 999L),
                 () -> service.delete(ADMIN_ID, 999L, true),
-                () -> service.update(999L, "T", null, "<p>b</p>", null, false, null, null))) {
+                () -> service.update(999L, "T", null, "<p>b</p>", null, false, null, null, null))) {
             assertThatThrownBy(op::run).isInstanceOf(GuidanceNotFoundException.class);
         }
     }
@@ -288,19 +355,19 @@ class GuidanceServiceTest {
         service.publish(ADMIN_ID, c.getId());
 
         // Same publication instant → the id descending tie-break.
-        assertThat(service.listPublic()).extracting(GuidancePost::getId)
+        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
                 .containsExactly(c.getId(), b.getId(), a.getId());
 
         // Pinning the oldest floats it to the top.
-        service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null);
-        assertThat(service.listPublic()).extracting(GuidancePost::getId)
+        service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null);
+        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
                 .containsExactly(a.getId(), c.getId(), b.getId());
 
         // A newer non-pinned post outranks the older non-pinned ones.
         clock.advance(Duration.ofHours(1));
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
-                null, false, null, null, GuidanceStatus.PUBLISHED);
-        assertThat(service.listPublic()).extracting(GuidancePost::getId)
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
                 .containsExactly(a.getId(), d.getId(), c.getId(), b.getId());
     }
 
@@ -310,7 +377,7 @@ class GuidanceServiceTest {
         GuidancePost b = createDraft("B");
         clock.advance(Duration.ofMinutes(10));
 
-        service.update(a.getId(), "A edited", null, "<p>b</p>", null, false, null, null);
+        service.update(a.getId(), "A edited", null, "<p>b</p>", null, false, null, null, null);
 
         assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
                 .containsExactly(a.getId(), b.getId());
@@ -354,7 +421,7 @@ class GuidanceServiceTest {
         createDraft("Taken");
 
         assertThatThrownBy(() -> service.create(ADMIN_ID, "Other", "taken", "<p>b</p>",
-                null, false, null, null, null))
+                null, false, null, null, null, null))
                 .isInstanceOf(SlugAlreadyUsedException.class)
                 .hasMessageContaining("taken");
         // Neither post is changed — the refused create stored nothing.
@@ -366,7 +433,7 @@ class GuidanceServiceTest {
         for (String bad : List.of("UPPER", "has space", "-lead", "trail-",
                 "double--dash", "a".repeat(SlugFactory.MAX_SLUG_LENGTH + 1))) {
             assertThatThrownBy(() -> service.create(ADMIN_ID, "T", bad, "<p>b</p>",
-                    null, false, null, null, null))
+                    null, false, null, null, null, null))
                     .isInstanceOf(GuidanceValidationException.class)
                     .as("slug %s", bad);
             assertThat(posts.findAllForAdmin()).isEmpty();
@@ -389,12 +456,12 @@ class GuidanceServiceTest {
     @Test
     void aPostWithoutAHeroCarriesNullHeroFields() {
         GuidancePost post = service.create(ADMIN_ID, "No hero", null, "<p>b</p>",
-                null, false, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
 
         assertThat(post.getHeroImageId()).isNull();
         assertThat(post.getHeroImageAlt()).isNull();
         // Still fully renderable (200 on its slug).
-        assertThat(service.getByPublicSlug(post.getSlug()).getId()).isEqualTo(post.getId());
+        assertThat(service.getByPublicSlug(post.getSlug(), null).getId()).isEqualTo(post.getId());
     }
 
     @Test
@@ -402,11 +469,11 @@ class GuidanceServiceTest {
         MediaAsset asset = newAsset(slug32("a"));
 
         assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
-                null, false, asset.getId(), null, null))
+                null, false, asset.getId(), null, null, null))
                 .isInstanceOf(GuidanceValidationException.class)
                 .hasMessageContaining("heroImageAlt");
         assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
-                null, false, asset.getId(), "   ", null))
+                null, false, asset.getId(), "   ", null, null))
                 .isInstanceOf(GuidanceValidationException.class);
         assertThat(posts.findAllForAdmin()).isEmpty();
     }
@@ -414,7 +481,7 @@ class GuidanceServiceTest {
     @Test
     void anAltWithoutAHeroIsRefused() {
         assertThatThrownBy(() -> service.create(ADMIN_ID, "A", null, "<p>b</p>",
-                null, false, null, "an alt", null))
+                null, false, null, "an alt", null, null))
                 .isInstanceOf(GuidanceValidationException.class);
         assertThat(posts.findAllForAdmin()).isEmpty();
     }
@@ -422,7 +489,7 @@ class GuidanceServiceTest {
     @Test
     void aHeroIdWithoutAnAssetIs404() {
         assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
-                null, false, 999L, "an alt", null))
+                null, false, 999L, "an alt", null, null))
                 .isInstanceOf(GuidanceNotFoundException.class);
         assertThat(posts.findAllForAdmin()).isEmpty();
     }
@@ -432,10 +499,10 @@ class GuidanceServiceTest {
         MediaAsset oldAsset = newAsset(slug32("a"));
         MediaAsset fresh = newAsset(slug32("b"));
         GuidancePost post = service.create(ADMIN_ID, "H", null, "<p>b</p>",
-                null, false, oldAsset.getId(), "old alt", null);
+                null, false, oldAsset.getId(), "old alt", null, null);
         assertThat(media.referencedCountsByAssetId()).containsEntry(oldAsset.getId(), 1L);
 
-        service.update(post.getId(), "H", null, "<p>b</p>", null, false, fresh.getId(), "new alt");
+        service.update(post.getId(), "H", null, "<p>b</p>", null, false, fresh.getId(), "new alt", null);
 
         assertThat(posts.findById(post.getId()).orElseThrow().getHeroImageId()).isEqualTo(fresh.getId());
         Map<Long, Long> counts = media.referencedCountsByAssetId();
@@ -443,6 +510,225 @@ class GuidanceServiceTest {
         assertThat(counts).containsEntry(fresh.getId(), 1L);
         // The replaced asset stays in the library (replaced, not deleted).
         assertThat(media.findById(oldAsset.getId())).isPresent();
+    }
+
+    // ------------------------------------------------------------- locale filter (public reads)
+
+    @Test
+    void publicListFiltersByTheRequestedLocaleAndTheTwoSetsAreDisjoint() {
+        GuidancePost en1 = createAndPublish("English one", "en");
+        GuidancePost en2 = createAndPublish("English two", "en");
+        GuidancePost et1 = createAndPublish("Eesti uus", "et");
+        GuidancePost et2 = createAndPublish("Eesti kaks", "et");
+
+        Set<Long> enIds = service.listPublic("en").stream()
+                .map(GuidancePost::getId).collect(Collectors.toSet());
+        Set<Long> etIds = service.listPublic("et").stream()
+                .map(GuidancePost::getId).collect(Collectors.toSet());
+
+        // Both sets are NON-EMPTY on this data, hold exactly their own
+        // locale's rows, and are DISJOINT — the filter is real, not a
+        // plumbing accident.
+        assertThat(enIds).containsExactlyInAnyOrder(en1.getId(), en2.getId());
+        assertThat(etIds).containsExactlyInAnyOrder(et1.getId(), et2.getId());
+        assertThat(enIds).doesNotContainAnyElementsOf(etIds);
+
+        // A draft in a locale stays invisible in that same locale.
+        GuidancePost etDraft = createDraft("Eesti draft", "et");
+        assertThat(service.listPublic("et")).extracting(GuidancePost::getId)
+                .doesNotContain(etDraft.getId());
+        assertThat(service.listPublic("et")).extracting(GuidancePost::getId)
+                .containsExactlyInAnyOrder(et1.getId(), et2.getId());
+    }
+
+    @Test
+    void theAbsentLocaleParameterFallsBackToTheConfiguredDefault() {
+        createAndPublish("English", "en");
+        createAndPublish("Eesti", "et");
+
+        // This test's service is configured with default "en"...
+        assertThat(service.listPublic(null)).extracting(GuidancePost::getLocale)
+                .containsExactly("en");
+        // ...and a service configured with "et" falls back to "et" — the
+        // fallback IS app.guidance.default-locale, not a hard-coded value.
+        GuidanceService etDefault = new GuidanceService(posts, media, audit, clock, "et", importService);
+        assertThat(etDefault.listPublic(null)).extracting(GuidancePost::getLocale)
+                .containsExactly("et");
+    }
+
+    @Test
+    void blankOrOverlongLocalesAre400OnIndexAndDetail() {
+        GuidancePost post = createAndPublish("T", "en");
+        for (String bad : List.of("", "   ", "abcdef",
+                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+            assertThatThrownBy(() -> service.listPublic(bad))
+                    .isInstanceOf(GuidanceValidationException.class)
+                    .as("index locale %s", bad);
+            assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug(), bad))
+                    .isInstanceOf(GuidanceValidationException.class)
+                    .as("detail locale %s", bad);
+        }
+        // A value that FITS the column but matches no row is NOT a 400 —
+        // it is an empty list (honest "nothing published in fi").
+        assertThat(service.listPublic("fi")).isEmpty();
+        // A value padded with spaces trims to a real locale.
+        assertThat(service.getByPublicSlug(post.getSlug(), "  en ").getId()).isEqualTo(post.getId());
+    }
+
+    @Test
+    void theDetailAnswers404WhenThePostIsInAnotherLocale() {
+        GuidancePost post = createAndPublish("English only", "en");
+
+        // Matching locale -> the post.
+        assertThat(service.getByPublicSlug(post.getSlug(), "en").getId()).isEqualTo(post.getId());
+        // Parameter absent -> the default locale ("en") resolves it —
+        // existing links keep working.
+        assertThat(service.getByPublicSlug(post.getSlug(), null).getId()).isEqualTo(post.getId());
+        // Another locale -> the SAME 404 as an unknown slug (a bilingual
+        // site must not serve the other language's text at a URL).
+        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug(), "et"))
+                .isInstanceOf(GuidanceNotFoundException.class)
+                .hasMessage(GuidanceService.POST_NOT_FOUND_MESSAGE);
+
+        // A DRAFT in the requested locale is still a 404 — the
+        // PUBLISHED-only rule is untouched by the locale filter.
+        GuidancePost etDraft = createDraft("Eesti draft", "et");
+        assertThatThrownBy(() -> service.getByPublicSlug(etDraft.getSlug(), "et"))
+                .isInstanceOf(GuidanceNotFoundException.class);
+    }
+
+    @Test
+    void theAdminListStaysLocaleBlind() {
+        createAndPublish("English", "en");
+        createAndPublish("Eesti", "et");
+        createDraft("Eesti draft", "et");
+
+        // The admin surface sees EVERY language, drafts included — the
+        // administrator has to manage both.
+        assertThat(service.listForAdmin()).extracting(GuidancePost::getLocale)
+                .containsExactlyInAnyOrder("en", "et", "et");
+    }
+
+    // ------------------------------------------------------------- hero import (guidance-hero-import)
+
+    @Test
+    void aPendingImportIsStoredOnTheDraftAndConsumedAtPublish() {
+        fetch.set(servingPngClient());
+        GuidancePost post = service.create(ADMIN_ID, "Imported", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/hero.png", null);
+
+        // The draft carries the URL as a PENDING import — no asset yet.
+        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/hero.png");
+        assertThat(post.getHeroImageId()).isNull();
+        assertThat(media.findAll()).isEmpty();
+
+        service.publish(ADMIN_ID, post.getId());
+
+        GuidancePost published = posts.findById(post.getId()).orElseThrow();
+        assertThat(published.isPublished()).isTrue();
+        // Consumed: the URL is gone, the imported asset is the hero.
+        assertThat(published.getHeroImportUrl()).isNull();
+        assertThat(published.getHeroImageId()).isNotNull();
+        assertThat(published.getHeroImageAlt()).isEqualTo("an alt");
+        MediaAsset asset = media.findById(published.getHeroImageId()).orElseThrow();
+        assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.png$");
+        assertThat(asset.getContentType()).isEqualTo("image/png");
+        // Attribution: the origin is recorded on the asset (takedown trail).
+        assertThat(asset.getSourceUrl()).isEqualTo("https://images.example.com/hero.png");
+        assertThat(asset.getUploadedBy()).isEqualTo(ADMIN_ID);
+        // Exactly ONE audit row — the publish (the import writes no row of its own).
+        assertThat(audit.rows()).hasSize(1);
+        assertLabeledRow(audit.rows().get(0), ModerationAuditLog.Action.GUIDANCE_PUBLISH,
+                "Guidance post \"Imported\" (imported)");
+    }
+
+    @Test
+    void aFailedImportFailsThePublishAndTheDraftKeepsTheUrl() {
+        // refusingClient() is the default: every fetch is unreachable.
+        GuidancePost post = service.create(ADMIN_ID, "Broken", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/gone.png", null);
+
+        assertThatThrownBy(() -> service.publish(ADMIN_ID, post.getId()))
+                .isInstanceOf(HeroImportUnreachableException.class);
+
+        // The post stays a DRAFT with the URL intact — retryable after a
+        // fix; no asset, no hero, NO audit row.
+        GuidancePost draft = posts.findById(post.getId()).orElseThrow();
+        assertThat(draft.isPublished()).isFalse();
+        assertThat(draft.getHeroImportUrl()).isEqualTo("https://images.example.com/gone.png");
+        assertThat(draft.getHeroImageId()).isNull();
+        assertThat(media.findAll()).isEmpty();
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aOneShotCreateAndPublishWithAFailedImportStoresNothing() {
+        // refusingClient() is the default.
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "X", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/x.png", GuidanceStatus.PUBLISHED))
+                .isInstanceOf(HeroImportUnreachableException.class);
+        assertThat(posts.findAllForAdmin()).isEmpty();
+        assertThat(media.findAll()).isEmpty();
+    }
+
+    @Test
+    void aOneShotCreateAndPublishImportsBeforeWriting() {
+        fetch.set(servingPngClient());
+
+        GuidancePost post = service.create(ADMIN_ID, "Direct", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/d.png", GuidanceStatus.PUBLISHED);
+
+        assertThat(post.isPublished()).isTrue();
+        assertThat(post.getHeroImportUrl()).isNull();
+        assertThat(post.getHeroImageId()).isNotNull();
+        assertThat(media.findById(post.getHeroImageId()).orElseThrow().getSourceUrl())
+                .isEqualTo("https://images.example.com/d.png");
+    }
+
+    @Test
+    void aPublishedPostCannotTakeAPendingImport() {
+        GuidancePost post = createAndPublish("Live", "en");
+
+        assertThatThrownBy(() -> service.update(post.getId(), "Live", null, "<p>b</p>",
+                null, false, null, null, "https://images.example.com/x.png"))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("unpublish");
+        // Untouched.
+        assertThat(posts.findById(post.getId()).orElseThrow().getHeroImportUrl()).isNull();
+    }
+
+    @Test
+    void aPendingImportUrlParticipatesInTheAltPairingRule() {
+        // A URL without alt → 400; a URL + alt → fine.
+        assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
+                null, false, null, null, "https://images.example.com/x.png", null))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("heroImageAlt");
+        assertThat(posts.findAllForAdmin()).isEmpty();
+
+        // Both hero kinds at once is legal: the import supersedes the id at publish.
+        MediaAsset asset = newAsset(slug32("a"));
+        fetch.set(servingPngClient());
+        GuidancePost post = service.create(ADMIN_ID, "Both", null, "<p>b</p>",
+                null, false, asset.getId(), "an alt", "https://images.example.com/x.png", null);
+        service.publish(ADMIN_ID, post.getId());
+        GuidancePost published = posts.findById(post.getId()).orElseThrow();
+        assertThat(published.getHeroImageId()).isNotEqualTo(asset.getId());
+        // The superseded asset stays in the library (the D8 replace rule).
+        assertThat(media.findById(asset.getId())).isPresent();
+    }
+
+    @Test
+    void malformedImportUrlsAreRefusedAtWriteTime() {
+        for (String bad : List.of("file:///etc/passwd", "ftp://images.example.com/x.png",
+                "data:image/png;base64,AAAA", "javascript:alert(1)",
+                "https://user:pass@images.example.com/x.png", "not a url")) {
+            assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
+                    null, false, null, "an alt", bad, null))
+                    .isInstanceOf(GuidanceValidationException.class)
+                    .as("url %s", bad);
+        }
+        assertThat(posts.findAllForAdmin()).isEmpty();
     }
 
     // ------------------------------------------------------------- audit (D12)

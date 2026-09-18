@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, type OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, type OnDestroy, type OnInit, signal } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { skip } from 'rxjs';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
@@ -24,6 +26,12 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
  * draft's existence is never revealed) — lands in the readable not-found
  * state, not the error banner. Any other failure -> the shared error
  * banner with the page chrome intact.
+ *
+ * Locale scope: the server answers ONE language per call (the gateway
+ * sends the active locale), and a slug whose post is in ANOTHER locale
+ * is a 404 — so a language switcher change re-fetches: a reader who
+ * switches into the post's language sees it appear without a reload, and
+ * a mismatch lands in the same readable not-found state.
  */
 @Component({
   selector: 'app-guidance-detail-page',
@@ -32,7 +40,7 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
   styleUrl: './guidance-detail-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GuidanceDetailPage implements OnInit {
+export class GuidanceDetailPage implements OnInit, OnDestroy {
   private readonly gateway = inject(GuidanceGateway);
   private readonly route = inject(ActivatedRoute);
   /** Locale-aware date rendering (the page-shell footer's pattern). */
@@ -47,8 +55,21 @@ export class GuidanceDetailPage implements OnInit {
 
   /** The fetchSeq guard drops a superseded in-flight response (the
       shelter-detail's pattern: an id switch must not land the old
-      post's data over the new load). */
+      post's data over the new load — the same guard covers a language
+      switch, whose 404/200 outcome can flip between fetches). */
   private fetchSeq = 0;
+
+  /** The language switcher sets I18nService.locale: the detail is
+      locale-scoped on the server, so a switch re-fetches (the guard
+      keeps a stale response from the other language from landing).
+      A field initializer (an injection context — toObservable's
+      requirement) builds the subscription; toObservable emits the
+      CURRENT value on subscribe, so skip(1) — only a real switch
+      triggers a load. Unsubscribed in ngOnDestroy (the page shell's
+      router-subscription idiom). */
+  private readonly localeSub = toObservable(this.i18n.locale)
+    .pipe(skip(1))
+    .subscribe(() => this.load());
 
   ngOnInit(): void {
     // Re-read the :slug on EVERY navigation to this route — back/forward
@@ -57,6 +78,10 @@ export class GuidanceDetailPage implements OnInit {
     // completes when the route deactivates, so the subscription needs no
     // manual teardown.
     this.route.paramMap.subscribe((params) => this.readSlug(params.get('slug')));
+  }
+
+  ngOnDestroy(): void {
+    this.localeSub.unsubscribe();
   }
 
   /** Adopt the :slug param (an empty slug is not-found, mirroring the
@@ -77,8 +102,9 @@ export class GuidanceDetailPage implements OnInit {
     this.load();
   }
 
-  /** Fetch the post by slug. 404 -> not-found state; any other failure
-      -> error banner with the page chrome intact (shared convention). */
+  /** Fetch the post by slug. 404 (unknown slug, a draft slug, or a post
+      in ANOTHER locale) -> not-found state; any other failure -> error
+      banner with the page chrome intact (shared convention). */
   load(): Promise<void> {
     const slug = this.slug();
     if (slug === null) {
@@ -86,6 +112,11 @@ export class GuidanceDetailPage implements OnInit {
     }
     const seq = ++this.fetchSeq;
     this.error.set(null);
+    // A fresh fetch may RESOLVE a previously-404'd slug (a language
+    // switch into the post's own language), so the not-found state is
+    // dropped with the other stale state; the 404 handler re-sets it
+    // when the post is still not in this language.
+    this.notFound.set(false);
     this.loading.set(true);
     return this.gateway.getBySlug(slug).then(
       (value) => {

@@ -15,14 +15,17 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
 
     boolean existsBySlug(String slug);
 
-    /** The public detail read: a DRAFT slug answers empty, like an unknown slug (D4). */
-    Optional<GuidancePostEntity> findBySlugAndStatus(String slug, GuidanceStatus status);
+    /** The public detail read in ONE locale — a draft slug and a slug whose
+     *  post lives in another locale both answer empty, like an unknown slug. */
+    Optional<GuidancePostEntity> findBySlugAndStatusAndLocale(String slug, GuidanceStatus status, String locale);
 
     /** Every post, drafts included, newest-updated first (the admin list, D4). */
     List<GuidancePostEntity> findAllByOrderByUpdatedAtDescIdDesc();
 
-    /** The public index order (D6): pinned first, then published_at desc, id desc. */
-    List<GuidancePostEntity> findByStatusOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus status);
+    /** The public index order (D6) in ONE locale — the locale filter rides
+     *  in the same query as the status and ordering (no in-memory filter):
+     *  pinned first, then published_at desc, id desc. */
+    List<GuidancePostEntity> findByStatusAndLocaleOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus status, String locale);
 
     /** The posts using one asset as their hero (D8); the id tie-break keeps the 409 list stable. */
     List<GuidancePostEntity> findByHeroImageIdOrderByUpdatedAtDescIdDesc(Long heroImageId);

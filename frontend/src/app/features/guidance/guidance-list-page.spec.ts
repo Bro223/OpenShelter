@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthStore } from '../../session/auth-store';
 import type { GuidancePostDto, VerificationLevel } from '../../core/models';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
@@ -212,6 +213,73 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelector('.guidance-list__posts')).toBeNull();
     expect(element.querySelector('.guidance-list__empty')).toBeNull();
     expect(element.querySelector('h1')?.textContent).toBe('Crisis guidance');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Locale switch: the server scopes the index by the reader's active
+  // language (the gateway sends it), so a switcher change is a RE-FETCH,
+  // not a re-render — no page reload.
+  // ---------------------------------------------------------------------------
+  describe('locale switch', () => {
+    it('refetches the index when the language switcher changes', async () => {
+      guidanceGateway.rows = [guidancePost()];
+      const { fixture } = await open('/blog');
+      expect(guidanceGateway.list).toHaveBeenCalledTimes(1);
+
+      // The switcher sets the I18nService locale signal; the server then
+      // answers the other language's posts, which the fake serves back.
+      guidanceGateway.rows = [
+        guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' }),
+      ];
+      TestBed.inject(I18nService).setLocale('et');
+      await settle(fixture);
+
+      expect(guidanceGateway.list).toHaveBeenCalledTimes(2);
+      expect(text(fixture)).toContain('Vesi ja kuumus');
+      expect(text(fixture)).not.toContain('Water and heating');
+    });
+
+    it('drops a superseded response — a stale locale must not land over the new fetch', async () => {
+      // The first fetch (EN) hangs in flight...
+      let resolveFirst!: (rows: GuidancePostDto[]) => void;
+      const firstFetch = vi.fn(
+        () =>
+          new Promise<GuidancePostDto[]>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+      guidanceGateway.list = firstFetch as never;
+      const { fixture } = await open('/blog');
+      expect(firstFetch).toHaveBeenCalledTimes(1);
+      expect(text(fixture)).toContain('Loading guidance…');
+
+      // ...and a language switch starts the second fetch (ET) before it
+      // resolves. The NEW fetch resolves FIRST... (the switcher's signal
+      // reaches the page through change detection, so settle before the
+      // second fetch exists and its resolver is captured.)
+      let resolveSecond!: (rows: GuidancePostDto[]) => void;
+      const secondFetch = vi.fn(
+        () =>
+          new Promise<GuidancePostDto[]>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+      guidanceGateway.list = secondFetch as never;
+      TestBed.inject(I18nService).setLocale('et');
+      await settle(fixture);
+      expect(firstFetch).toHaveBeenCalledTimes(1);
+      expect(secondFetch).toHaveBeenCalledTimes(1);
+      resolveSecond([guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })]);
+      await settle(fixture);
+      expect(text(fixture)).toContain('Vesi ja kuumus');
+
+      // ...and the STALE EN response lands LAST: the fetchSeq guard must
+      // drop it — the Estonian rows stay on screen.
+      resolveFirst([guidancePost()]);
+      await settle(fixture);
+      expect(text(fixture)).toContain('Vesi ja kuumus');
+      expect(text(fixture)).not.toContain('Water and heating');
+    });
   });
 
   it('renders the hero thumbnail with the stored URL and alt', async () => {

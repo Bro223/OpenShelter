@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import type { Locale } from '../../core/i18n/locale';
 import { AuthStore } from '../../session/auth-store';
 import type { GuidancePostDto, VerificationLevel } from '../../core/models';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
@@ -10,14 +12,19 @@ import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
 import { GuidanceDetailPage } from './guidance-detail-page';
 
-/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
+/** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics).
+    The fake honours the server's locale contract: a slug resolves PER
+    LOCALE — a row present in one language is a 404 in the other (and a
+    draft is a 404 in every language). The active locale is read from the
+    real I18nService, exactly as the real gateway reads it. */
 class FakeGuidanceGateway {
-  rows = new Map<string, GuidancePostDto>();
+  rows = new Map<string, Partial<Record<Locale, GuidancePostDto>>>();
   getBySlug = vi.fn(async (slug: string): Promise<GuidancePostDto> => {
-    const row = this.rows.get(slug);
+    const locale = TestBed.inject(I18nService).locale();
+    const row = this.rows.get(slug)?.[locale];
     if (row === undefined) {
-      // A draft slug and an unknown slug answer the same 404, so a draft is
-      // never distinguishable from a post that does not exist.
+      // A draft slug, an unknown slug, and a slug in ANOTHER locale all
+      // answer the same 404 — none of the three is distinguishable.
       throw ApiError.fromHttp(
         404,
         {
@@ -25,14 +32,23 @@ class FakeGuidanceGateway {
           status: 404,
           error: 'Not Found',
           message: 'Post not found',
-          path: 'x',
+          path: `x?locale=${locale}`,
         },
-        `/api/guidance/${slug}`,
+        `/api/guidance/${slug}?locale=${locale}`,
       );
     }
     return row;
   });
   list = vi.fn(async (): Promise<GuidancePostDto[]> => []);
+  /** Store a row for the given locales (default: both — most tests don't
+      care which language the fake serves the slug in). */
+  set(slug: string, post: GuidancePostDto, locales: readonly Locale[] = ['en', 'et']): void {
+    const perLocale: Partial<Record<Locale, GuidancePostDto>> = {};
+    for (const l of locales) {
+      perLocale[l] = post;
+    }
+    this.rows.set(slug, perLocale);
+  }
 }
 
 /** AuthStore-shaped fake — real signals so zoneless CD stays reactive. */
@@ -137,7 +153,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
 
   describe('reading (public)', () => {
     it('renders the title, the publication date and the stored body', async () => {
-      guidanceGateway.rows.set('water-and-heating', guidancePost());
+      guidanceGateway.set('water-and-heating', guidancePost());
       const { element, fixture } = await open('/blog/water-and-heating');
 
       expect(guidanceGateway.getBySlug).toHaveBeenCalledWith('water-and-heating');
@@ -171,7 +187,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       // The server runs the jsoup allowlist first; [innerHTML] then sanitizes
       // the value again before it reaches the DOM, so a body that still carried
       // a script tag cannot inject one. The fixture simulates exactly that.
-      guidanceGateway.rows.set(
+      guidanceGateway.set(
         'rogue',
         guidancePost({
           slug: 'rogue',
@@ -191,7 +207,7 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
     });
 
     it('renders a null body as an empty article (no broken state)', async () => {
-      guidanceGateway.rows.set(
+      guidanceGateway.set(
         'no-body',
         guidancePost({ slug: 'no-body', title: 'Bodyless post', bodyHtml: null }),
       );
@@ -265,13 +281,96 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Locale switch: the server answers ONE language per call, and a slug in
+  // the other language is a 404 — so a switcher change re-fetches, and a
+  // reader switching into the post's language sees it appear (no reload).
+  // ---------------------------------------------------------------------------
+  describe('locale switch', () => {
+    it('a mismatch 404 is the not-found state (no error banner), and switching into the post\'s language renders it', async () => {
+      // The post exists ONLY in Estonian.
+      const etPost = guidancePost({
+        slug: 'vesi-ja-kuumus',
+        title: 'Vesi ja kuumus esimesel nädalal',
+        locale: 'et',
+      });
+      guidanceGateway.set('vesi-ja-kuumus', etPost, ['et']);
+
+      // Read in the default (English) UI: the server 404s the other
+      // language's slug — the readable not-found state, NOT the error
+      // banner.
+      const { element, fixture } = await open('/blog/vesi-ja-kuumus');
+      expect(guidanceGateway.getBySlug).toHaveBeenCalledTimes(1);
+      expect(text(fixture)).toContain('Guidance post not found');
+      expect(element.querySelector('.banner--error')).toBeNull();
+      expect(element.querySelector('.guidance-detail__body')).toBeNull();
+
+      // Switch to Estonian: the page re-fetches (no reload) and the post
+      // renders — the not-found state is left behind.
+      TestBed.inject(I18nService).setLocale('et');
+      await settle(fixture);
+
+      expect(guidanceGateway.getBySlug).toHaveBeenCalledTimes(2);
+      expect(element.querySelector('h1')?.textContent).toBe('Vesi ja kuumus esimesel nädalal');
+      expect(element.querySelector('.guidance-detail__body')).not.toBeNull();
+      expect(element.querySelector('.banner--error')).toBeNull();
+
+      // And switching back OUT is a 404 again: the same not-found state.
+      TestBed.inject(I18nService).setLocale('en');
+      await settle(fixture);
+      expect(guidanceGateway.getBySlug).toHaveBeenCalledTimes(3);
+      expect(text(fixture)).toContain('Guidance post not found');
+      expect(element.querySelector('.banner--error')).toBeNull();
+    });
+
+    it('a switch while the fetch is in flight re-fetches, and a stale response cannot land', async () => {
+      // The post exists ONLY in English; the first fetch (EN) hangs.
+      guidanceGateway.set('water-and-heating', guidancePost(), ['en']);
+      let resolveFirst!: (row: GuidancePostDto) => void;
+      const hanging = () =>
+        new Promise<GuidancePostDto>((resolve) => {
+          resolveFirst = resolve;
+        });
+      guidanceGateway.getBySlug = vi.fn(hanging) as never;
+
+      const { element, fixture } = await open('/blog/water-and-heating');
+      expect(text(fixture)).toContain('Loading guidance post…');
+
+      // Switch to Estonian while EN is in flight: the ET fetch 404s and
+      // lands FIRST (the post is not in Estonian) — and the not-found
+      // copy is Estonian, the UI now being in Estonian (the switcher's
+      // signal reaches the page through change detection, so settle
+      // before the outcome asserts).
+      guidanceGateway.getBySlug = vi.fn(async (): Promise<GuidancePostDto> => {
+        throw ApiError.fromHttp(
+          404,
+          { timestamp: 't', status: 404, error: 'Not Found', message: 'Post not found', path: 'x' },
+          '/api/guidance/water-and-heating?locale=et',
+        );
+      }) as never;
+      TestBed.inject(I18nService).setLocale('et');
+      await settle(fixture);
+      expect(text(fixture)).toContain('Juhise artiklit ei leitud');
+      expect(element.querySelector('.banner--error')).toBeNull();
+
+      // ...then the STALE EN 200 arrives last: the fetchSeq guard drops
+      // it — the not-found state stays (the post is not in Estonian).
+      resolveFirst(guidancePost());
+      await settle(fixture);
+      expect(text(fixture)).toContain('Juhise artiklit ei leitud');
+      expect(element.querySelector('h1')?.textContent).not.toBe(
+        'Water and heating in the first days',
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Param switching (the shelter-detail N7 pattern): back/forward between
   // two posts re-loads the new slug instead of keeping the old post.
   // ---------------------------------------------------------------------------
   describe('slug switching', () => {
     it('a manual URL edit to another post re-loads the new slug', async () => {
-      guidanceGateway.rows.set('a', guidancePost({ slug: 'a', title: 'Post A' }));
-      guidanceGateway.rows.set('b', guidancePost({ slug: 'b', title: 'Post B' }));
+      guidanceGateway.set('a', guidancePost({ slug: 'a', title: 'Post A' }));
+      guidanceGateway.set('b', guidancePost({ slug: 'b', title: 'Post B' }));
       const { element, fixture, router } = await open('/blog/a');
       expect(guidanceGateway.getBySlug).toHaveBeenCalledWith('a');
       expect(element.querySelector('h1')?.textContent).toBe('Post A');

@@ -91,7 +91,7 @@ class MediaServiceTest {
 
     private GuidancePost newPostWithHero(String slug, String title, Long heroId, String alt) {
         GuidancePost post = GuidancePost.draft(slug, title, "<p>body</p>", "en",
-                false, heroId, alt, ADMIN_ID, clock.instant());
+                false, heroId, alt, null, ADMIN_ID, clock.instant());
         post.publish(clock.instant());
         return posts.save(post);
     }
@@ -256,7 +256,7 @@ class MediaServiceTest {
             // The post is otherwise untouched: still published, and its
             // public detail still answers (it now renders without an image).
             assertThat(cleared.isPublished()).isTrue();
-            assertThat(posts.findPublishedBySlug(cleared.getSlug())).isPresent();
+            assertThat(posts.findPublishedBySlugAndLocale(cleared.getSlug(), "en")).isPresent();
         }
         assertThat(audit.rows()).hasSize(1);
         ModerationAuditLog.Row row = audit.rows().get(0);

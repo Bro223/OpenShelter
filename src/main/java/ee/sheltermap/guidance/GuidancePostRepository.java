@@ -15,7 +15,7 @@ import java.util.Optional;
  * <ul>
  *   <li>{@link #findAllForAdmin()} — {@code updatedAt} descending,
  *       {@code id} descending;</li>
- *   <li>{@link #findPublished()} — pinned first, then
+ *   <li>{@link #findPublished(String)} — pinned first, then
  *       {@code publishedAt} descending, {@code id} descending (backed by
  *       the V23 partial index).</li>
  * </ul>
@@ -23,7 +23,11 @@ import java.util.Optional;
  * <p>The PUBLISHED filter lives in the query itself (D4): no code path
  * can leak a draft by forgetting a check in the mapping layer — a draft
  * slug and an unknown slug answer the same 404 because both read through
- * {@link #findPublishedBySlug(String)}.
+ * {@link #findPublishedBySlugAndLocale(String, String)}. The public reads
+ * are locale-scoped the same way: a reader in one language only sees the
+ * posts of that language (the locale rides in the query, never in memory),
+ * while {@link #findAllForAdmin()} stays locale-blind — the admin sees
+ * every language.
  */
 public interface GuidancePostRepository {
 
@@ -40,11 +44,19 @@ public interface GuidancePostRepository {
     /** Every post, drafts included, newest-updated first (the admin list). */
     List<GuidancePost> findAllForAdmin();
 
-    /** The public index order: pinned first, then publishedAt descending, id descending. */
-    List<GuidancePost> findPublished();
+    /**
+     * The public index order in ONE locale: pinned first, then
+     * publishedAt descending, id descending. The locale is an exact
+     * column match — the value is validated upstream (the column is
+     * VARCHAR(5)).
+     */
+    List<GuidancePost> findPublished(String locale);
 
-    /** The public detail read — a DRAFT slug answers empty, exactly like an unknown slug. */
-    Optional<GuidancePost> findPublishedBySlug(String slug);
+    /**
+     * The public detail read in ONE locale — a DRAFT slug, a slug whose
+     * post is in ANOTHER locale, and an unknown slug all answer empty.
+     */
+    Optional<GuidancePost> findPublishedBySlugAndLocale(String slug, String locale);
 
     /** The posts currently using the media asset as their hero image (D8: the reused-by count and the in-use check). */
     List<GuidancePost> findByHeroImageId(long mediaAssetId);

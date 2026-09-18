@@ -14,7 +14,9 @@ import jakarta.validation.constraints.Size;
  * the publication state moves only through the publish/unpublish
  * endpoints (D4: their stamps own {@code publishedAt}).
  * {@code heroImageId} {@code null} clears the hero (the previous asset
- * stays in the library, D8).
+ * stays in the library, D8). {@code heroImportUrl} (guidance-hero-import)
+ * {@code null} clears a pending import; a non-null URL on an
+ * already-published post is a 400 (unpublish first — the V25 CHECK).
  */
 public record UpdateGuidancePostRequest(
         @NotBlank @Size(max = 255) String title,
@@ -23,5 +25,6 @@ public record UpdateGuidancePostRequest(
         @Size(max = 5) String locale,
         boolean pinned,
         Long heroImageId,
-        @Size(max = 300) String heroImageAlt) {
+        @Size(max = 300) String heroImageAlt,
+        @Size(max = 2048) String heroImportUrl) {
 }

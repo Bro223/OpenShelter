@@ -128,7 +128,11 @@ public class AdminGuidanceController {
      * Create a post (D4): DRAFT by default; an explicit PUBLISHED in the
      * body makes it a one-shot "write and publish". 200 with the created
      * post; 400 validation; 409 an admin-supplied slug collision naming
-     * the slug; 404 a heroImageId with no such asset.
+     * the slug; 404 a heroImageId with no such asset. A pending hero
+     * import URL (guidance-hero-import) is stored with the draft and
+     * consumed at publish — in the one-shot PUBLISHED create it is
+     * imported first, and a failed import fails the whole create (400
+     * policy/non-image, 413 over cap, 502 unfetchable).
      */
     @PostMapping
     @Operation(summary = "Create a guidance post",
@@ -142,17 +146,21 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "200", description = "The created post",
                     content = @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
             @ApiResponse(responseCode = "400", description = "Validation failure "
-                    + "(required fields, the alt/hero pairing, the slug shape)"),
+                    + "(required fields, the alt/hero pairing, the slug shape, the import URL shape)"),
             @ApiResponse(responseCode = "409", description = "An admin-supplied slug "
                     + "another post already holds (naming the slug)"),
             @ApiResponse(responseCode = "404", description = "heroImageId with no such asset"),
+            @ApiResponse(responseCode = "413", description = "The one-shot hero import "
+                    + "exceeded the size cap"),
+            @ApiResponse(responseCode = "502", description = "The one-shot hero import "
+                    + "could not be fetched (timeout / network / upstream 5xx)"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public AdminGuidancePostDto create(@Valid @RequestBody CreateGuidancePostRequest request) {
         long adminId = requireAdmin();
         GuidancePost post = guidance.create(adminId, request.title(), request.slug(),
                 request.body(), request.locale(), request.pinned(), request.heroImageId(),
-                request.heroImageAlt(),
+                request.heroImageAlt(), request.heroImportUrl(),
                 request.status() == null ? GuidanceStatus.DRAFT : request.status());
         return toAdminDto(post, heroIndexFor(post));
     }
@@ -173,7 +181,8 @@ public class AdminGuidanceController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The updated post",
                     content = @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
-            @ApiResponse(responseCode = "400", description = "Validation failure"),
+            @ApiResponse(responseCode = "400", description = "Validation failure (incl. a "
+                    + "pending import URL on a published post)"),
             @ApiResponse(responseCode = "409", description = "Slug collision (naming the slug)"),
             @ApiResponse(responseCode = "404", description = "Unknown post id (or "
                     + "heroImageId with no such asset)"),
@@ -184,24 +193,37 @@ public class AdminGuidanceController {
         requireAdmin();
         GuidancePost post = guidance.update(id, request.title(), request.slug(),
                 request.body(), request.locale(), request.pinned(), request.heroImageId(),
-                request.heroImageAlt());
+                request.heroImageAlt(), request.heroImportUrl());
         return toAdminDto(post, heroIndexFor(post));
     }
 
     /**
      * Publish (D4): stamps publishedAt from the server clock. Idempotent
      * — an already-published post is a 204 no-op that writes NO audit
-     * row and keeps its earlier stamp. 204; 404 unknown id.
+     * row and keeps its earlier stamp. A pending hero import (the
+     * post's {@code heroImportUrl}) is consumed here: the server fetches,
+     * validates and stores the image inside this call, and a failed
+     * import fails the publish (400 policy/non-image, 413 over cap,
+     * 502 unfetchable) leaving the post a DRAFT. 204; 404 unknown id.
      */
     @PostMapping("/{id}/publish")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Publish a guidance post",
             description = "Stamps publishedAt (a re-publish stamps a FRESH "
-                    + "instant). Idempotent: already published → 204 no-op, NO "
-                    + "audit row. 204; 404 unknown id.")
+                    + "instant). A pending hero import URL is fetched, validated "
+                    + "and stored first — a failed import fails the publish. "
+                    + "Idempotent: already published (and no pending import) → 204 "
+                    + "no-op, NO audit row. 204; 400/413/502 import failure; "
+                    + "404 unknown id.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Published (or already "
                     + "published — no-op)"),
+            @ApiResponse(responseCode = "400", description = "The pending hero import "
+                    + "was refused (URL policy, non-image body) or the URL is broken"),
+            @ApiResponse(responseCode = "413", description = "The pending hero import "
+                    + "exceeded the size cap"),
+            @ApiResponse(responseCode = "502", description = "The pending hero import "
+                    + "could not be fetched (timeout / network / upstream 5xx)"),
             @ApiResponse(responseCode = "404", description = "Unknown post id"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
@@ -287,6 +309,7 @@ public class AdminGuidanceController {
                 post.getHeroImageId(),
                 hero == null ? null : MediaService.MEDIA_URL_PREFIX + hero.getStoredFilename(),
                 post.getHeroImageAlt(),
+                post.getHeroImportUrl(),
                 post.getCreatedBy(),
                 post.getCreatedAt(),
                 post.getUpdatedAt());

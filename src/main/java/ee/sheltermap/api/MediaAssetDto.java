@@ -12,7 +12,8 @@ import java.time.Instant;
  * part of a path); {@code storedFilename} is the server-generated name.
  * {@code reusedBy} is the number of guidance posts currently using the
  * asset as their hero image (0 for an unused asset — it is listed like
- * any other).
+ * any other). {@code sourceUrl} is the origin of an IMPORTED image
+ * (guidance-hero-import — the takedown trail; null for a manual upload).
  */
 public record MediaAssetDto(
         long id,
@@ -24,5 +25,6 @@ public record MediaAssetDto(
         int height,
         long sizeBytes,
         Instant createdAt,
-        long reusedBy) {
+        long reusedBy,
+        String sourceUrl) {
 }

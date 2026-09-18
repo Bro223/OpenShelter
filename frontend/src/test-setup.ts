@@ -8,6 +8,17 @@
  *
  * This file is NEVER bundled into the app — it only runs for `ng test`.
  */
+
+// i18n-et-en: MIRROR of main.ts — the specs that exercise the Estonian UI
+// render the `date` pipe with locale 'et', but the test bootstrap never runs
+// main.ts, so the 'et' locale data (which DatePipe requires) is registered
+// here instead.
+import { registerLocaleData } from '@angular/common';
+import etLocale from '@angular/common/locales/et';
+
+registerLocaleData(etLocale);
+
+
 function createMemoryStorage(): Storage {
   const data = new Map<string, string>();
   return {
