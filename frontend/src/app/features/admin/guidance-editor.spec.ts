@@ -17,6 +17,7 @@ import {
   type GuidanceEditorSave,
   BODY_EDITOR_FORMATS,
   BODY_EDITOR_FORMAT_TAGS,
+  SNOW_THEME_HREF,
   bodyHtmlBlankValidator,
   slugShapeValidator,
 } from './guidance-editor';
@@ -234,18 +235,45 @@ function withPrompt<T>(url: string | null, fn: () => T): T {
   }
 }
 
-/** Fire a paste at the editor root the way a real clipboard would:
- *  `plain` is what getData('text/plain') returns; `rich` is the markup a
- *  real clipboard would also carry (never read — the paste contract is
- *  plain text only). Dispatching at the root lets the component's
- *  capture-phase handler on the host see the event first. */
-function pastePlainText(root: HTMLElement, plain: string, rich = ''): void {
-  const event = new Event('paste', { bubbles: true, cancelable: true });
-  Object.defineProperty(event, 'clipboardData', {
-    value: { getData: (type: string) => (type === 'text/plain' ? plain : rich) },
-    configurable: true,
-  });
-  root.dispatchEvent(event);
+// ---- the standard toolbar (Quill builds it — the specs drive it the way
+// ---- a user would: item clicks on the pickers, button clicks) ------------
+
+/** The standard toolbar's inline buttons (the snow theme builds them from
+ *  the config form with the standard control classes). */
+function toolButton(root: HTMLElement, format: 'bold' | 'italic' | 'link'): HTMLButtonElement {
+  const btn = root.querySelector<HTMLButtonElement>(`.ql-toolbar .ql-${format}`);
+  if (btn === null) {
+    throw new Error(`toolbar control .ql-${format} not built`);
+  }
+  return btn;
+}
+
+/** The list-kind button (bullet/ordered) — both are `ql-list` buttons,
+ *  distinguished by their value attribute. */
+function listButton(root: HTMLElement, kind: 'bullet' | 'ordered'): HTMLButtonElement {
+  const btn = root.querySelector<HTMLButtonElement>(`.ql-toolbar .ql-list[value="${kind}"]`);
+  if (btn === null) {
+    throw new Error(`toolbar control .ql-list[value="${kind}"] not built`);
+  }
+  return btn;
+}
+
+/** Apply a header choice from the standard picker: clicking the item is
+ *  the user path (the item's own click listener selects it and fires the
+ *  toolbar's change). `value` '' = the default (paragraph) item, which
+ *  carries no data-value. */
+function pickHeader(h: EditorHarness, value: string): void {
+  const item =
+    value === ''
+      ? h.element.querySelector<HTMLSpanElement>('.ql-header.ql-picker .ql-picker-item:not([data-value])')
+      : h.element.querySelector<HTMLSpanElement>(
+          `.ql-header.ql-picker .ql-picker-item[data-value="${value}"]`,
+        );
+  if (item === null) {
+    throw new Error(`header picker item ${value === '' ? '(default)' : value} not built`);
+  }
+  item.click();
+  h.fixture.detectChanges();
 }
 
 /** The tags the sanitizer keeps — the submitted value must contain ONLY
@@ -707,20 +735,29 @@ describe('GuidanceEditor', () => {
   it('the toolbar offers exactly the sanitizer allowlist (Quote is not offered — the owner removed the choice)', () => {
     const h = createHost(null);
     fillRequired(h);
-    expect(buttonByText(h.element, 'Quote')).toBeNull();
-    const labels = [...h.element.querySelectorAll<HTMLElement>('.body-editor__group button')].map(
-      (b) => (b.textContent ?? '').trim(),
+    const toolbar = h.element.querySelector('[role="toolbar"]');
+    expect(toolbar, 'the snow theme builds the standard toolbar').not.toBeNull();
+
+    // The header picker offers the default paragraph plus levels 2 and 3
+    // only (no H1 — the page owns it; no H4-h6 — not on the allowlist).
+    const headerValues = [...h.element.querySelectorAll<HTMLElement>('.ql-header.ql-picker .ql-picker-item')].map(
+      (i) => i.getAttribute('data-value') ?? '',
     );
-    expect(labels).toEqual([
-      'Paragraph',
-      'Heading 2',
-      'Heading 3',
-      'Bulleted list',
-      'Numbered list',
-      'Bold',
-      'Italic',
-      'Link',
-    ]);
+    expect(headerValues).toEqual(['2', '3', '']);
+
+    // The remaining controls, in DOM order: the two list buttons and the
+    // three inline buttons — the standard control classes, nothing else.
+    expect(
+      [...h.element.querySelectorAll<HTMLButtonElement>('.ql-toolbar button')].map(
+        (b) => b.getAttribute('aria-label'),
+      ),
+    ).toEqual(['list: bullet', 'list: ordered', 'bold', 'italic', 'link']);
+
+    // No control for a format the sanitizer does not keep, or the owner
+    // removed (Quote): the toolbar IS the feature set.
+    for (const format of ['quote', 'blockquote', 'underline', 'clean', 'code-block', 'image']) {
+      expect(toolbar!.querySelector(`.ql-${format}`), `no .ql-${format} control`).toBeNull();
+    }
   });
 
   it('choosing a block type applies the expected tag (Heading 2 → <h2>, Heading 3 → <h3>, Paragraph back)', () => {
@@ -731,32 +768,42 @@ describe('GuidanceEditor', () => {
     const length = quill.getText(0, quill.getLength() - 1).length;
 
     quill.setSelection(0, length);
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
+    pickHeader(h, '2');
     expect(root.innerHTML).toBe('<h2>Pöördu peavarjendisse.</h2>');
     expect(h.editor.form.get('body')?.value).toBe('<h2>Pöördu peavarjendisse.</h2>');
 
     quill.setSelection(0, length);
-    buttonByText(h.element, 'Heading 3')!.click();
-    h.fixture.detectChanges();
+    pickHeader(h, '3');
     expect(root.innerHTML).toBe('<h3>Pöördu peavarjendisse.</h3>');
 
     quill.setSelection(0, length);
-    buttonByText(h.element, 'Paragraph')!.click();
-    h.fixture.detectChanges();
+    pickHeader(h, '');
     expect(root.innerHTML).toBe('<p>Pöördu peavarjendisse.</p>');
   });
 
-  it('the block group pressed state reflects where the selection sits (Quill owns the state)', () => {
+  it('the header picker pressed state reflects where the selection sits (Quill owns the state)', () => {
     const h = createHost(null);
     fillRequired(h, 'Uus post', '<h2>Pöördu peavarjendisse.</h2>');
     const quill = quillOf(h);
     quill.setSelection(0, 3);
     h.fixture.detectChanges();
 
-    expect(buttonByText(h.element, 'Heading 2')!.getAttribute('aria-pressed')).toBe('true');
-    expect(buttonByText(h.element, 'Paragraph')!.getAttribute('aria-pressed')).toBe('false');
-    expect(buttonByText(h.element, 'Heading 3')!.getAttribute('aria-pressed')).toBe('false');
+    // The picker's label carries the current value (the upstream CSS
+    // paints "Heading 2" from it) and the active class; the level-2 item
+    // is the selected one, the default (paragraph) item is not.
+    const label = h.element.querySelector('.ql-header.ql-picker .ql-picker-label')!;
+    expect(label.getAttribute('data-value')).toBe('2');
+    expect(label.classList.contains('ql-active')).toBe(true);
+    expect(
+      h.element
+        .querySelector('.ql-header.ql-picker .ql-picker-item[data-value="2"]')!
+        .classList.contains('ql-selected'),
+    ).toBe(true);
+    expect(
+      h.element
+        .querySelector('.ql-header.ql-picker .ql-picker-item:not([data-value])')!
+        .classList.contains('ql-selected'),
+    ).toBe(false);
   });
 
   it('typing then formatting yields allowlist tags (the round-trip contract)', () => {
@@ -768,11 +815,10 @@ describe('GuidanceEditor', () => {
     quill.insertText(quill.getLength() - 1, ' Ja veel.', 'user');
     // Bold the first word, then make the whole line a heading.
     quill.setSelection(0, 5);
-    buttonByText(h.element, 'Bold')!.click();
+    toolButton(h.element, 'bold').click();
     h.fixture.detectChanges();
     quill.setSelection(0, quill.getLength() - 1);
-    buttonByText(h.element, 'Heading 2')!.click();
-    h.fixture.detectChanges();
+    pickHeader(h, '2');
 
     const body = submittedBody(h);
     expect(body).toBe('<h2><strong>Pealk</strong>iri siin Ja veel.</h2>');
@@ -783,7 +829,7 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     fillRequired(h, 'Uus post', '<p>hello brave world</p>');
     const quill = quillOf(h);
-    const bold = buttonByText(h.element, 'Bold')!;
+    const bold = toolButton(h.element, 'bold');
 
     quill.setSelection(6, 5); // "brave"
     bold.click();
@@ -804,7 +850,7 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     fillRequired(h, 'Uus post', '<p>hello brave world</p>');
     const quill = quillOf(h);
-    const bold = buttonByText(h.element, 'Bold')!;
+    const bold = toolButton(h.element, 'bold');
 
     quill.setSelection(6); // the caret between "hello " and "brave"
     bold.click();
@@ -827,8 +873,8 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     fillRequired(h, 'Uus post', '<p>hello brave world</p>');
     const quill = quillOf(h);
-    const bold = buttonByText(h.element, 'Bold')!;
-    const italic = buttonByText(h.element, 'Italic')!;
+    const bold = toolButton(h.element, 'bold');
+    const italic = toolButton(h.element, 'italic');
 
     quill.setSelection(6, 5); // "brave"
     bold.click();
@@ -884,7 +930,7 @@ describe('GuidanceEditor', () => {
 
     // Switch the kind over the whole list: the WIRE shape flips too.
     quill.setSelection(0, quill.getLength() - 1);
-    buttonByText(h.element, 'Numbered list')!.click();
+    listButton(h.element, 'ordered').click();
     h.fixture.detectChanges();
     const numbered = submittedBody(h);
     expect(numbered).toBe('<ol><li>one</li><li>two</li></ol>');
@@ -937,8 +983,7 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     typeValue(inputById(h.element, 'ge-title')!, 'Uus post', h.fixture);
     quillOf(h).setSelection(0);
-    buttonByText(h.element, 'Paragraph')!.click();
-    h.fixture.detectChanges();
+    pickHeader(h, '');
 
     const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
     expect(save?.disabled).toBe(true);
@@ -955,6 +1000,54 @@ describe('GuidanceEditor', () => {
     expect(bodyHtmlBlankValidator(ctrl('<h2>X</h2><p>Y</p>'))).toBeNull();
   });
 
+  // ---- the stylesheet wiring (loaded WITH the editor, never globally) ----
+
+  it('the snow stylesheet is not a global style (angular.json stays quill-free)', () => {
+    // The one regression this file guards twice: the stylesheet must ride
+    // in the lazy admin chunk, not in the initial bundle.
+    const config = JSON.parse(
+      readFileSync(`${process.cwd()}/angular.json`, 'utf8'),
+    ) as { projects: Record<string, { architect: Record<string, { options: { styles: string[] } }> }> };
+    const styles = config.projects['frontend']!.architect['build']!.options.styles;
+    expect(
+      styles.some((s) => s.includes('quill')),
+      'quill.snow.css must not be a global style',
+    ).toBe(false);
+  });
+
+  it('initialising the editor loads the snow stylesheet (one versioned link, never global)', () => {
+    // The wiring changed with the load mechanism (and this pin changed
+    // with it, on purpose): the theme is neither inlined into the
+    // component style (the anyComponentStyle budget is a 10 kB ERROR —
+    // ~24 kB of vendor bytes would blow it; a dynamic .css import was
+    // rejected empirically, the esbuild builder emits orphaned CSS files
+    // no code injects) nor a global style (the angular.json pin above).
+    // The editor's init injects ONE <link> per app to the VERSIONED
+    // static asset the build copies verbatim from the vendor directory
+    // (SNOW_THEME_HREF; the angular.json assets entry does the copy).
+    createHost(null);
+    // Exactly ONE — not "at least one": the tests above this one created
+    // the editor many times over (this file's convention is one host per
+    // test). If the link were injected per editor instance instead of
+    // once per app, the count would be in the dozens by now — so the
+    // exact count IS the once-per-app check.
+    const themeLinks = [...document.head.querySelectorAll('link[rel="stylesheet"]')].filter(
+      (l) => l.getAttribute('href') === SNOW_THEME_HREF,
+    );
+    expect(themeLinks.length, 'the editor init must link the snow theme exactly once').toBe(1);
+    // The asset is made from the vendored bytes (fingerprint of
+    // quill.snow.css: without the bullet-marker rule, every list renders
+    // as numbers — Quill 2 draws the marker in the theme CSS, from the
+    // li's .ql-ui span).
+    const vendored = readFileSync(
+      `${process.cwd()}/src/vendor/quill/2.0.3/dist/quill.snow.css`,
+      'utf8',
+    );
+    expect(vendored, 'the vendored snow theme must carry the bullet-marker rule').toContain(
+      'data-list=bullet',
+    );
+  });
+
   // ---- the link control (prompt + the allowlisted protocols) ----------------
 
   it('an allowed link is created with its href; the wire value is clean (no editing-time target/rel)', () => {
@@ -964,7 +1057,7 @@ describe('GuidanceEditor', () => {
     quill.setSelection(6, 5); // "brave"
 
     withPrompt('https://example.com', () => {
-      buttonByText(h.element, 'Link')!.click();
+      toolButton(h.element, 'link').click();
       h.fixture.detectChanges();
     });
 
@@ -986,7 +1079,7 @@ describe('GuidanceEditor', () => {
     quill.setSelection(6, 5);
 
     withPrompt('mailto:kontakt@example.ee', () => {
-      buttonByText(h.element, 'Link')!.click();
+      toolButton(h.element, 'link').click();
       h.fixture.detectChanges();
     });
 
@@ -1002,7 +1095,7 @@ describe('GuidanceEditor', () => {
     quill.setSelection(6, 5);
 
     withPrompt('javascript:alert(1)', () => {
-      buttonByText(h.element, 'Link')!.click();
+      toolButton(h.element, 'link').click();
       h.fixture.detectChanges();
     });
 
@@ -1019,7 +1112,7 @@ describe('GuidanceEditor', () => {
     quill.setSelection(6);
 
     withPrompt('https://example.com', () => {
-      buttonByText(h.element, 'Link')!.click();
+      toolButton(h.element, 'link').click();
       h.fixture.detectChanges();
     });
 
@@ -1027,39 +1120,8 @@ describe('GuidanceEditor', () => {
     expect(rootOf(h).querySelector('a')).toBeNull();
   });
 
-  // ---- paste (plain text only; the conversion guard drops disallowed
-  // ---- formats from anything that does reach the document) -----------------
-
-  it('paste inserts plain text, never the source markup', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const quill = quillOf(h);
-    const root = rootOf(h);
-    quill.setSelection(6, 5); // "brave"
-
-    pastePlainText(root, 'Kaitseorganite juhised', '<b>markup</b>');
-    h.fixture.detectChanges();
-
-    // The rich-clipboard payload is never consulted or kept: the
-    // selection is replaced by PLAIN text, nothing else of the source
-    // markup survives.
-    expect(root.innerHTML).toBe('<p>hello Kaitseorganite juhised world</p>');
-    expect(h.editor.form.get('body')?.value).toBe('<p>hello Kaitseorganite juhised world</p>');
-  });
-
-  it('paste over a selection replaces it; newlines become line breaks (plain text only)', () => {
-    const h = createHost(null);
-    fillRequired(h, 'Uus post', '<p>hello brave world</p>');
-    const quill = quillOf(h);
-    const root = rootOf(h);
-    quill.setSelection(6, 5); // "brave"
-
-    pastePlainText(root, 'line1\nline2', '<div>rich</div>');
-    h.fixture.detectChanges();
-
-    expect(root.innerHTML).toBe('<p>hello line1</p><p>line2 world</p>');
-    assertCleanBody(submittedBody(h));
-  });
+  // ---- the conversion guard (default paste is RICH — the restricted
+  // ---- registry + matchers drop everything the sanitizer does not keep) --
 
   it('the conversion guard drops disallowed formats from pasted/loaded markup (h1/h4, bad link protocols, task-list checkboxes)', () => {
     const h = createHost(null);
@@ -1142,35 +1204,15 @@ describe('GuidanceEditor', () => {
     ).toEqual(['2', '3']);
   });
 
-  /** The toolbar's ql-header value attributes (the offered heading
-   *  levels + the paragraph's empty value) — read from the rendered
-   *  toolbar, so a template edit that offers h1/h4-h6 fails the guard. */
+  /** The header picker's offered values (read from the rendered toolbar,
+   *  so a config edit that offers h1/h4-h6 fails the guard). The default
+   *  (paragraph) item carries no data-value — it reads as ''. */
   function h_headerValues(): string[] {
     const h = createHost(null);
-    return [...h.element.querySelectorAll<HTMLButtonElement>('.ql-header')].map(
-      (b) => b.getAttribute('value') ?? '',
+    return [...h.element.querySelectorAll<HTMLElement>('.ql-header.ql-picker .ql-picker-item')].map(
+      (i) => i.getAttribute('data-value') ?? '',
     );
   }
-
-  it('the toolbar tools take a pointer cursor when enabled, not when disabled (the .btn treatment, pinned in the stylesheet)', () => {
-    // jsdom cannot observe a hovered cursor — the repo pins CSS invariants
-    // by reading the stylesheet (the design-tokens.spec.ts convention;
-    // this assertion lives here so that file stays untouched).
-    const scss = readFileSync(
-      `${process.cwd()}/src/app/features/admin/guidance-editor.scss`,
-      'utf8',
-    );
-    const block = scss.match(/\.body-editor__tool \{[\s\S]*?\n\}/);
-    expect(block, 'guidance-editor.scss must style .body-editor__tool').not.toBeNull();
-    expect(block![0], 'an enabled toolbar control must show a pointer').toContain(
-      'cursor: pointer',
-    );
-    const disabled = block![0].match(/&:disabled \{[^}]*\}/);
-    expect(disabled, 'a disabled state must be declared on the tool').not.toBeNull();
-    expect(disabled![0], 'a disabled toolbar control must not show a pointer').toContain(
-      'cursor: default',
-    );
-  });
 
   // ---- the draft consequence (a draft save is never silent) ---------------
 

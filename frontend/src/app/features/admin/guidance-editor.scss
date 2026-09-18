@@ -1,9 +1,18 @@
+/* The snow theme's stylesheet is NOT inlined here: guidance-editor.ts
+   injects a <link> to the versioned static asset the build copies from
+   the vendor directory (`loadSnowTheme` / SNOW_THEME_HREF) — fetched
+   only when the admin editor initialises. Inlining its ~24 kB here
+   would put third-party bytes into THIS component's inlined style,
+   against the anyComponentStyle budget (a 10 kB error — the project
+   keeps guards that fire). See docs/rich-text-editor.md. */
+
 /* The guidance create/edit form (crisis-guidance D8/D9). The form
    vocabulary is the app-wide one (.field / .field-error / .btn); the
-   tokens are the app-wide set. The body is a visual editor (toolbar +
-   contenteditable region): the toolbar offers exactly the sanitizer's
-   allowlist — the toolbar IS the feature set (BodySanitizer is the
-   authority on what survives). */
+   tokens are the app-wide set. The body is a Quill 2 editor on its OWN
+   default (snow) theme — the toolbar and region look are the vendored
+   quill.snow.css (the versioned static asset the editor's init links in
+   — `loadSnowTheme` in guidance-editor.ts);
+   the ONLY deviations are the marked a11y layer at the bottom. */
 .guidance-editor {
   display: flex;
   flex-direction: column;
@@ -26,129 +35,13 @@
   margin: var(--space-4) 0 0;
 }
 
-/* The body editor: toolbar (block-type group + inline group) over the
-   Quill editor. The buttons are the app's own small tool shape (the
-   picker card's pressed-state language for the active one); the editor
-   keeps the old textarea's footprint (the 10-row height). The pressed
-   state lives in Quill's DOM (it toggles ql-active + aria-pressed on
-   the controls itself) — no template binding. */
+/* The body editor's card frame (ours): Quill's snow toolbar + container
+   sit inside it and draw their own upstream border; this is the page
+   framing, not a Quill-theme replacement. */
 .body-editor {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-bg-surface);
-}
-
-.body-editor__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  padding: var(--space-8);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.body-editor__group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-}
-
-/* The toolbar buttons: the app's small-tool shape (the picker card's
-   pressed-state language for the active one). The touch-target rule
-   applies to every control (≥44px; the app's 48px standard). */
-.body-editor__tool {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--space-48);
-  padding: 0 var(--space-8);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-bg-surface);
-  color: inherit;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  line-height: 1;
-  /* Every toolbar control is clickable: the app's .btn cursor treatment
-     (a pointer on hover — the <button> default would read as inert).
-     A disabled control goes back to the default cursor, as .btn:disabled. */
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--color-surface-hover);
-  }
-
-  /* The pressed/active state — Quill's toolbar toggles this class (and
-     the aria-pressed attribute) on every selection/text change. */
-  &.ql-active {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary);
-    background: var(--color-surface-hover);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 1px;
-  }
-
-  &:disabled {
-    opacity: 0.55;
-    cursor: default;
-  }
-}
-
-/* The Quill container (the template's host element after init). The
-   vendored snow CSS gives .ql-container a fixed float/margin/font it
-   does not want — reset the base rules here, in the app's vocabulary. */
-.body-editor__region {
-  float: none;
-  margin: 0;
-  width: 100%;
-  height: auto;
-  font-family: inherit;
-  font-size: var(--text-base);
-  background: transparent;
-}
-
-/* Quill creates the editable root AFTER the view is initialised, so its
-   elements carry no view-encapsulation attribute — the rules below
-   escape the scope with ::ng-deep (the repo's only use: everything else
-   in this component styles template elements). The typography mirrors
-   the public detail page's body styling so what the admin sees is what
-   the visitor gets. */
-::ng-deep .body-editor__region .ql-editor {
-  min-height: calc(var(--space-48) * 6); /* the old textarea's 10 rows */
-  height: auto;
-  padding: var(--space-8) var(--space-12);
-  font-family: inherit;
-  font-size: var(--text-base);
-  line-height: inherit;
-  margin: 0;
-
-  /* The region's keyboard focus ring (the global :focus-visible rule
-     lists only a/button/input/textarea — the contenteditable root
-     needs its own). */
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 1px;
-  }
-
-  p {
-    margin: 0 0 var(--space-12);
-  }
-
-  h2 {
-    margin: var(--space-20) 0 var(--space-8);
-    font-size: var(--text-lg);
-  }
-
-  ul,
-  ol {
-    margin: 0 0 var(--space-12);
-    padding-left: var(--space-16);
-  }
-
-  a {
-    color: var(--color-primary);
-  }
 }
 
 .guidance-editor__field-caption {
@@ -301,4 +194,63 @@
   flex-wrap: wrap;
   gap: var(--space-8);
   margin-top: var(--space-8);
+}
+
+/* ==========================================================================
+   THE ONE DEVIATION FROM QUILL SNOW'S UPSTREAM STYLING — and the only
+   rule in this file that touches Quill's elements (the component runs
+   with ViewEncapsulation.None precisely so these — and the @imported
+   quill.snow.css — can match the DOM Quill builds at runtime). Everything
+   else the toolbar/region draws — colours, icons, borders, spacing, the
+   list markers — is the vendored quill.snow.css verbatim (imported at the
+   top of this file). The deviations exist because (a) Quill's stock
+   controls are 24px tall, below this repo's 48px touch-target standard,
+   and (b) upstream removes the keyboard focus ring
+   (`.ql-editor { outline: none }`; the toolbar signals focus with an
+   icon-colour shift only). The rules therefore: give the controls the
+   app-standard 48px TALL (their widths stay upstream's), restore the
+   app's focus ring (2px primary, 1px offset — the repo convention) on
+   every focusable control and on the editable region, and keep the region
+   at the old textarea's 10-row minimum height (the default theme sets
+   none). The icon-size, centre and line-height rules keep the UPSTREAM
+   look inside the taller targets (24px glyphs, centred label text). Do
+   not add look rules here — see docs/rich-text-editor.md.
+   ========================================================================== */
+.body-editor {
+  .ql-toolbar button {
+    display: inline-flex; /* centre the upstream 24px icon in the 48px target */
+    align-items: center;
+    justify-content: center;
+    min-height: var(--space-48);
+
+    svg {
+      height: 24px; /* the upstream icon size — the target grows, the glyph does not */
+    }
+  }
+
+  .ql-picker {
+    min-height: var(--space-48);
+  }
+
+  .ql-picker-label::before {
+    line-height: var(--space-48); /* centre the label text in the taller control */
+  }
+
+  .ql-picker-options .ql-picker-item {
+    min-height: var(--space-48);
+    display: flex;
+    align-items: center;
+  }
+
+  .ql-toolbar button:focus-visible,
+  .ql-picker-label:focus-visible,
+  .ql-picker-options .ql-picker-item:focus-visible,
+  .ql-editor:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+
+  .ql-editor {
+    min-height: calc(var(--space-48) * 6); /* the old textarea's 10 rows */
+  }
 }

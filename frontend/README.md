@@ -127,11 +127,23 @@ npm run build     # → dist/frontend/browser/ (outputHashing: all, relative ass
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
   500 kB default warning is unreachable without dropping the map from first paint.
   Seven routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
-  terms, the two /blog guidance routes). Measured initial total on a fresh build (2026-09-15):
-  **645.6 kB raw / 159.3 kB transfer** — this now **exceeds** `maximumWarning: 560kB`
-  by 85.6 kB, so a fresh build prints a bundle-budget warning (three component SCSS
-  budgets warn as well). Trimming the initial bundle, or raising the warning with a
-  recorded rationale, is open work; `maximumError: 1MB` is unchanged.
+  terms, the two /blog guidance routes). Measured initial total on a fresh build
+  (2026-09-18): **670.83 kB raw / 165.10 kB transfer** — this **exceeds**
+  `maximumWarning: 560kB` by 110.83 kB, so a fresh build prints a bundle-budget
+  warning (four component SCSS budgets warn as well: admin-page,
+  shelter-detail-page, map-page, page-shell). The `anyComponentStyle` budget
+  stays at its defaults (4 kB warning / **10 kB error** — no exception, and the
+  30 kB exception a previous lane added for the Quill theme was reverted
+  deliberately): the guidance editor's vendored Quill snow stylesheet (≈24 kB,
+  admin-only) is NOT inlined into the component style and NOT a global style —
+  the build copies it verbatim as the versioned static asset
+  `/vendor/quill/<version>/dist/quill.snow.css` (an `assets` entry), and the
+  editor's init injects one `<link>` per app, so it is fetched only by the
+  admin editor and costs the initial bundle nothing — see
+  [`docs/rich-text-editor.md`](docs/rich-text-editor.md) and
+  [`src/vendor/quill/README.md`](src/vendor/quill/README.md). Trimming
+  the initial bundle, or raising the warning with a recorded rationale,
+  is open work; `maximumError: 1MB` is unchanged.
 - **dist sanity** (M6): hashed assets referenced by `index.html`, Leaflet media
   (marker icons) copied under `media/`, favicon (`.ico` + `.svg`) present, all
   assets 200 when the folder is served statically, `3rdpartylicenses.txt` shipped
@@ -180,4 +192,8 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   context, milestone plan with acceptance criteria).
 - [`docs/`](docs/) PlantUML — source-of-truth UML (`01-frontend-architecture.puml`
   covers layering, guards incl. `titleGuard`, and the route table; `./render.sh` for PNGs).
+- [`docs/rich-text-editor.md`](docs/rich-text-editor.md) — the admin guidance
+  body editor: vendored Quill 2.0.3 (snow theme, standard toolbar), the
+  formats ↔ server-sanitizer contract, the stylesheet's lazy-chunk wiring,
+  and the toolbar/ re-vendor procedures.
 - `openspec/changes/` — change proposals (M6: `frontend-m6-polish-prod`).

@@ -28,11 +28,15 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/dist/quill.snow.css",
+                "input": "src/vendor/quill",
+                "output": "/vendor/quill"
               }
             ],
             "styles": [
-              "src/styles.scss",
-              "src/vendor/quill/2.0.3/dist/quill.snow.css"
+              "src/styles.scss"
             ],
             "allowedCommonJsDependencies": ["leaflet"]
           },

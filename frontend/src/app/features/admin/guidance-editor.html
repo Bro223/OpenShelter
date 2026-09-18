@@ -59,66 +59,24 @@
       <label for="ge-body">{{ 'admin.guidance.editor.bodyLabel' | t }}</label>
 
       <!-- The visual body editor: Quill 2, vendored into the repo
-           (src/vendor/quill — see its README), restricted to exactly what
-           survives the server sanitizer (BodySanitizer is the authority).
-           The toolbar offers that allowlist — no H1 (the public page owns
-           the single h1) and no inline images (images are hero-only); the
-           hint below says so out loud so the absence looks intentional.
-           Quill wires the ql-* classed buttons itself (and owns their
-           ql-active class + aria-pressed — do not template-bind those); no
-           wrapper library is involved. -->
+           (src/vendor/quill — see its README), running on Quill's own
+           default (snow) theme + standard toolbar, restricted to
+           exactly what survives the server sanitizer (BodySanitizer is
+           the authority). The toolbar offers that allowlist — no H1
+           (the public page owns the single h1) and no inline images
+           (images are hero-only); the hint below says so out loud so
+           the absence looks intentional. Quill BUILDS the toolbar DOM
+           itself (standard control classes) as a sibling of the host
+           and owns the controls' pressed state — no wrapper library
+           and no toolbar markup on our side. -->
       <div class="body-editor">
-        <div
-          #quillToolbar
-          class="body-editor__toolbar"
-          role="toolbar"
-          [attr.aria-label]="'admin.guidance.editor.toolbar' | t"
-          (mousedown)="$event.preventDefault()"
-        >
-          <!-- mousedown preventDefault: a tool click must not blur the
-               editing region (Quill restores its saved selection on focus,
-               but keeping focus in the editor avoids the round trip). -->
-          <div
-            class="body-editor__group"
-            role="group"
-            [attr.aria-label]="'admin.guidance.editor.blockLabel' | t"
-          >
-            @for (block of BLOCKS; track block) {
-              <button
-                type="button"
-                [class]="'body-editor__tool ' + BLOCK_QL[block].qlClass"
-                [attr.value]="BLOCK_QL[block].value"
-              >
-                {{ BLOCK_LABELS[block] | t }}
-              </button>
-            }
-          </div>
-          <div
-            class="body-editor__group"
-            role="group"
-            [attr.aria-label]="'admin.guidance.editor.inlineLabel' | t"
-          >
-            <button type="button" class="body-editor__tool ql-bold">
-              {{ 'admin.guidance.editor.bold' | t }}
-            </button>
-            <button type="button" class="body-editor__tool ql-italic">
-              {{ 'admin.guidance.editor.italic' | t }}
-            </button>
-            <!-- The Link button's click is the component's insertLink
-                 (Quill's toolbar `handlers.link` override): prompt + the
-                 allowlisted-protocol check + the field's error line. -->
-            <button type="button" class="body-editor__tool ql-link">
-              {{ 'admin.guidance.editor.link' | t }}
-            </button>
-          </div>
-        </div>
-
-        <!-- The host Quill turns into the editor: it becomes .ql-container
-             and creates the editable .ql-editor root inside it (id ge-body
-             — set in initQuill — so the label's `for` and the specs' value
-             seam target the root). The root's aria-describedby follows the
-             link error state (synced in the component). -->
-        <div #quillHost class="body-editor__region"></div>
+        <!-- The host Quill turns into the editor: it becomes
+             .ql-container and creates the editable .ql-editor root
+             inside it (id ge-body — set in initQuill — so the label's
+             `for` and the specs' value seam target the root). The
+             root's aria-describedby follows the link error state
+             (synced in the component). -->
+        <div #quillHost></div>
       </div>
 
       <p id="ge-body-hint" class="field-note">{{ 'admin.guidance.editor.bodyHint' | t }}</p>

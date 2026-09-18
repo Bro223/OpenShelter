@@ -11,6 +11,7 @@ import {
   input,
   output,
   signal,
+  ViewEncapsulation,
 } from '@angular/core';
 import {
   type AbstractControl,
@@ -22,7 +23,6 @@ import {
 } from '@angular/forms';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { I18nService } from '../../core/i18n/i18n.service';
-import type { MessageKey } from '../../core/i18n/messages';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import type {
@@ -35,7 +35,65 @@ import type {
 import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
 import Quill from '../../../vendor/quill/2.0.3/dist/quill.js';
-import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js';
+import type { QuillDelta } from '../../../vendor/quill/2.0.3/dist/quill.js';// The snow theme's stylesheet loads WITH the editor: the editor's init
+// path (ngOnInit) injects a <link> to a VERSIONED static asset — the
+// build copies the vendored quill.snow.css verbatim into dist (the
+// angular.json assets entry), and the link is fetched only when the
+// admin editor initialises. That keeps the ~24 kB of admin-only
+// third-party CSS out of the component's inlined style (the
+// anyComponentStyle budget is a 10 kB ERROR; inlining the theme here
+// would be 28 kB of vendor bytes) and out of the initial bundle (an
+// angular.json styles entry would put it there). The dynamic-import
+// variant of this was rejected empirically: the esbuild builder emits
+// a dynamic .css import as orphaned CSS files no code injects — see
+// docs/rich-text-editor.md.
+
+/** The runtime URL of the snow theme's stylesheet: a VERSIONED static
+ *  asset (the version in the path is what makes a re-vendor cache-safe —
+ *  a new version directory is a new URL). The build copies the vendored
+ *  file VERBATIM from src/vendor/quill/<version>/dist into dist, keeping
+ *  the vendor tree's layout (the angular.json assets entry); it is
+ *  served publicly, like the admin chunk it styles (styling bytes, no
+ *  secrets). Keep in lockstep with the version directories above. */
+export const SNOW_THEME_HREF = '/vendor/quill/2.0.3/dist/quill.snow.css';
+
+let snowThemeLinked = false;
+
+/**
+ * Inject the snow theme's stylesheet, once per app: the editor's init
+ * path is the one place the theme is ever needed. A `<link>` is the
+ * runtime stylesheet load the esbuild builder cannot provide as a lazy
+ * CSS chunk (a dynamic import of the .css emits orphaned CSS assets no
+ * code references — the theme would render UNstyled), and keeping the
+ * ~24 kB of vendor CSS out of the component's inlined style is what
+ * leaves the anyComponentStyle budget (a 10 kB error) firing for OUR
+ * styles; an angular.json global styles entry would put the theme in
+ * the initial bundle instead. See docs/rich-text-editor.md.
+ */
+function loadSnowTheme(): void {
+  if (snowThemeLinked) {
+    return;
+  }
+  snowThemeLinked = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = SNOW_THEME_HREF;
+  document.head.appendChild(link);
+}
+
+/** One control in the standard toolbar's config form: a bare format
+ *  name (`'bold'`) or a `{ format: value }` pair (a scalar value like
+ *  `'bullet'` builds a value button; an ARRAY of values like
+ *  `[2, 3, false]` builds a picker — `false` marks the default).
+ *  Declared HERE, not in the vendored quill.d.ts: the vendored files are
+ *  kept pristine so a re-vendor is a byte-for-byte replacement (see
+ *  src/vendor/quill/README.md), and the vendored declaration types
+ *  `toolbar.container` as element/selector wiring only — not the config
+ *  form. The shape is checked where it is written (the TOOLBAR constant
+ *  below); Quill's `modules` option accepts it and passes it through. */
+type QuillToolbarControl =
+  | string
+  | Record<string, string | number | boolean | Array<string | number | boolean>>;
 
 /**
  * The generated-slug shape (the backend's SlugFactory validator
@@ -83,15 +141,6 @@ export function bodyHtmlBlankValidator(control: AbstractControl): ValidationErro
   const text = String(control.value ?? '').replace(/<[^>]*>/g, '');
   return text.trim() === '' ? { blank: true } : null;
 }
-
-/** The block kinds the toolbar offers — exactly the BodySanitizer
- *  allowlist's block set (`h2 h3 p br strong em ul ol li a blockquote`)
- *  minus `br` (a byproduct of typing, not a choice the admin makes) and
- *  `blockquote` (the owner removed the Quote choice; a stored one still
- *  round-trips, it just cannot be created from the toolbar). The toolbar
- *  IS the feature set: whatever is not offered here does not survive the
- *  server sanitizer. */
-export type BodyBlock = 'p' | 'h2' | 'h3' | 'ul' | 'ol';
 
 /** The link protocols the sanitizer keeps, required as an explicit
  *  prefix: relative URLs and `javascript:`/`data:` are refused up front
@@ -400,7 +449,10 @@ function dropEmptyInlines(root: ParentNode): void {
  * AdminGateway.uploadMediaAsset itself.
  *
  * The body is a QUILL 2 rich-text editor, vendored into the repo
- * (src/vendor/quill — see its README; no npm dependency). It is
+ * (src/vendor/quill — see its README; no npm dependency), running on
+ * Quill's OWN default (snow) theme and standard toolbar — the look is
+ * upstream's; the only deviations are the a11y overrides in the
+ * component stylesheet (48px touch targets, focus rings). It is
  * restricted to EXACTLY what survives the server sanitizer
  * (BodySanitizer is the authority): the `formats` option limits the
  * registry to the allowlist's capabilities, the clipboard matchers
@@ -409,7 +461,7 @@ function dropEmptyInlines(root: ParentNode): void {
  * and the normalizer keeps the WIRE value clean even though Quill's
  * live DOM carries its own bookkeeping (data-list, noopener anchors,
  * list UI spans). The server still re-sanitizes on every write (defence
- * in depth, unchanged).
+ * in depth, unchanged). See docs/rich-text-editor.md for the contract.
  */
 @Component({
   selector: 'app-guidance-editor',
@@ -417,6 +469,21 @@ function dropEmptyInlines(root: ParentNode): void {
   templateUrl: './guidance-editor.html',
   styleUrl: './guidance-editor.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Unscoped styles ON PURPOSE (the one component in the repo that uses
+  // ViewEncapsulation.None): the a11y overrides below the form styles
+  // target Quill's RUNTIME DOM (the .ql-toolbar controls, the editable
+  // root), and the encapsulation scope attribute the default strategy
+  // appends to every selector would make those rules match NOTHING —
+  // Quill builds its DOM at runtime, so its elements carry no scope
+  // attribute. (The vendored snow theme itself is a versioned static
+  // asset linked in by the editor's init — `loadSnowTheme` — unscoped by
+  // construction, so it needs no help from here.) Consequence: this component's own rules
+  // are global too. They stay admin-only in effect (injected when the
+  // lazy admin page first renders) and cannot change any other page:
+  // every other component that styles a shared class (e.g. .field-note)
+  // does so with its own SCOPED rule, and the scope attribute gives it
+  // higher specificity than a bare global one. See docs/rich-text-editor.md.
+  encapsulation: ViewEncapsulation.None,
 })
 export class GuidanceEditor implements OnInit, AfterViewInit {
   /** null = create mode; the post being edited for an edit (the PARENT
@@ -444,11 +511,9 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  object is the ViewRef with markForCheck.) */
   private readonly viewRef = inject(ChangeDetectorRef);
   /** The element Quill turns into the editor (it becomes .ql-container
-   *  and creates the .ql-editor root inside it). */
+   *  and creates the .ql-editor root inside it). The standard toolbar
+   *  is BUILT by Quill (the snow theme) as a sibling of this element. */
   private readonly quillHostRef = viewChild<ElementRef<HTMLElement>>('quillHost');
-  /** The toolbar element (our template buttons; Quill wires the
-   *  ql-* classed controls inside it and owns their pressed state). */
-  private readonly quillToolbarRef = viewChild<ElementRef<HTMLElement>>('quillToolbar');
 
   /** The editor instance (null before the view is ready). Public so the
    *  spec harness can drive it the way a user would (setSelection,
@@ -514,37 +579,30 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   protected readonly draftSaved = signal(false);
 
   // ---- the body editor (Quill 2 over the sanitizer's allowlist) ----------
-  /** The toolbar's block choices, in display order (the sanitizer's block
-   *  set minus blockquote — the owner does not offer a Quote choice; an
-   *  existing blockquote still round-trips, it simply cannot be created
-   *  from the toolbar. No h1 either: the public page owns the single h1). */
-  readonly BLOCKS: readonly BodyBlock[] = ['p', 'h2', 'h3', 'ul', 'ol'];
-  /** The block buttons' labels (MessageKey, so the template pipes them). */
-  readonly BLOCK_LABELS: Record<BodyBlock, MessageKey> = {
-    p: 'admin.guidance.editor.block.p',
-    h2: 'admin.guidance.editor.block.h2',
-    h3: 'admin.guidance.editor.block.h3',
-    ul: 'admin.guidance.editor.block.ul',
-    ol: 'admin.guidance.editor.block.ol',
-  };
-  /** The Quill toolbar wiring per offered block: the `ql-*` class the
-   *  toolbar module binds, and the `value` attribute it reads on click
-   *  and for the pressed state. The Paragraph button carries
-   *  value="" — with the button INACTIVE (the caret is in an h2/h3/list)
-   *  the toolbar's toggle logic maps the click to `false`, i.e. "back
-   *  to the default block", exactly the old applyBlock('p') contract. */
-  readonly BLOCK_QL: Record<BodyBlock, { qlClass: string; value: string | null }> = {
-    p: { qlClass: 'ql-header', value: '' },
-    h2: { qlClass: 'ql-header', value: '2' },
-    h3: { qlClass: 'ql-header', value: '3' },
-    ul: { qlClass: 'ql-list', value: 'bullet' },
-    ol: { qlClass: 'ql-list', value: 'ordered' },
-  };
+  /** The standard toolbar's control inventory (Quill's config form — the
+   *  toolbar DOM is built by the snow theme from exactly this list):
+   *  the header picker offers heading levels 2/3 plus the default
+   *  paragraph (no h1 — the public page owns the single h1; no h4-h6 —
+   *  not on the sanitizer's allowlist), the two list buttons (bullet/
+   *  ordered — the sanitizer's block set), and the inline bold/italic/
+   *  link. Nothing else is offered — no Quote (the owner removed that
+   *  choice; a stored blockquote still round-trips), no underline, no
+   *  images (hero-only). The toolbar IS the feature set: whatever is not
+   *  offered here does not survive the server sanitizer. */
+  private static readonly TOOLBAR: ReadonlyArray<ReadonlyArray<QuillToolbarControl>> = [
+    [{ header: [2, 3, false] }],
+    [{ list: 'bullet' }, { list: 'ordered' }],
+    ['bold', 'italic', 'link'],
+  ];
   /** The last refused link (the field's error line; a new attempt clears
    *  it). */
   protected readonly linkError = signal<string | null>(null);
 
   ngOnInit(): void {
+    // The theme's stylesheet FIRST (before the create-mode early return —
+    // the editor is created either way): one versioned <link> per app,
+    // see loadSnowTheme().
+    loadSnowTheme();
     const post = this.post();
     if (post === null) {
       return; // create mode — the form starts blank
@@ -562,41 +620,44 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
 
   ngAfterViewInit(): void {
     const host = this.quillHostRef()?.nativeElement;
-    const toolbar = this.quillToolbarRef()?.nativeElement;
-    if (host === undefined || toolbar === undefined) {
+    if (host === undefined) {
       return;
     }
-    this.initQuill(host, toolbar);
+    this.initQuill(host);
   }
 
   /**
-   * Construct the editor on the template's host/toolbar elements (no
-   * wrapper library — the component owns the instance). The DEFAULT
-   * (base) theme is used on purpose: the Snow theme would repaint our
-   * text-labelled buttons with its own SVG icons; the base theme only
-   * adds the container/root classes, and the Toolbar module wires
-   * EXACTLY the `ql-*`-classed buttons this template declares (it owns
-   * their `ql-active` class and `aria-pressed` — do not template-bind
-   * those).
+   * Construct the editor on the template's host element (no wrapper
+   * library — the component owns the instance). The SNOW theme (Quill's
+   * default) and the STANDARD toolbar are used on purpose: the look and
+   * input mechanics are upstream's (default theme CSS, default toolbar
+   * DOM built from the config form, default paste/undo/formatting), and
+   * the only deviations are the a11y overrides in the component
+   * stylesheet. The toolbar module is a QUILL 2 MODULE (a top-level
+   * `toolbar` option is not read): the config form is handed through
+   * `modules.toolbar.container`, and the snow theme builds the standard
+   * control classes (`ql-header` picker, `ql-list` buttons, `ql-bold`/
+   * `ql-italic`/`ql-link`) as a sibling of the host. Quill owns the
+   * controls' `ql-active`/`aria-pressed` state — do not template-bind
+   * those.
    */
-  private initQuill(host: HTMLElement, toolbar: HTMLElement): void {
+  private initQuill(host: HTMLElement): void {
     const quill = new Quill(host, {
-      // The restricted registry: anything not named here (headers beyond
-      // 2/3 in value, colour, underline, images, code blocks, align,
-      // indent, task lists, ...) is dropped from pasted and loaded
-      // markup at the conversion stage.
+      theme: 'snow',
+      // The restricted registry: anything not named here (colour,
+      // underline, images, code blocks, align, indent, task lists, ...)
+      // is dropped from pasted and loaded markup at the conversion
+      // stage.
       formats: [...BODY_EDITOR_FORMATS],
-      // Quill 2 wires the toolbar as a MODULE (a top-level `toolbar`
-      // option is not read — the base theme ships no toolbar, so the
-      // buttons would never be bound).
       modules: {
         // Quill's history records API-sourced edits too by default
         // (userOnly: false) — then the first Ctrl+Z after opening the
         // editor would undo the LOAD of the stored body (an empty
         // document) instead of the admin's first real edit.
         history: { userOnly: true },
+        // The standard toolbar (config form — see TOOLBAR above).
         toolbar: {
-          container: toolbar,
+          container: GuidanceEditor.TOOLBAR,
           handlers: {
             // The toolbar's default for a link control would format with
             // the button's on/off value (a boolean, not a URL). Ours
@@ -622,12 +683,6 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     this.loadBodyHtml(quill, this.body().value);
 
     quill.on('text-change', this.onQuillTextChange);
-    // Plain-text paste (the old editor's contract; the bodyHint says so):
-    // bound on the HOST in the CAPTURE phase, so it runs before Quill's
-    // own paste handler on the root (which bails when the event is
-    // already defaultPrevented) — the rich payload is never read, so
-    // pasted markup cannot carry a format into the document at all.
-    host.addEventListener('paste', this.onBodyPaste, true);
     this.quill = quill;
     this.syncRootAriaDescribedBy();
 
@@ -638,33 +693,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       // with the DOM Angular removes on view destruction. Dropping the
       // reference is the whole teardown.
       this.quill = null;
-      host.removeEventListener('paste', this.onBodyPaste, true);
     });
-  }
-
-  /**
-   * PASTE: plain text only (predictable, and it cannot smuggle markup or
-   *  styles the sanitizer would strip anyway). Newlines become line
-   *  breaks (Quill maps a `\n` to a block boundary). An empty/plain-less
-   *  paste (e.g. an image-only clipboard) is left to Quill's handler,
-   *  whose restricted registry drops anything it does not recognise.
-   */
-  private readonly onBodyPaste = (event: Event): void => {
-    const paste = event as ClipboardEvent;
-    const text = paste.clipboardData?.getData('text/plain') ?? '';
-    if (text === '' || !event.cancelable) {
-      return;
-    }
-    event.preventDefault();
-    const quill = this.quill;
-    const range = quill !== null ? quill.getSelection() : null;
-    if (quill === null || range === null) {
-      return;
-    }
-    if (range.length > 0) {
-      quill.deleteText(range.index, range.length, 'user');
-    }
-    quill.insertText(range.index, text, 'user');
   };
 
   /**

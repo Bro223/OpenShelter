@@ -73,9 +73,38 @@ nothing from Quill's dependency graph reaches our `node_modules`.
   `guidance-editor.ts` (typed by `dist/quill.d.ts`). The UMD is consumed as
   CommonJS by the esbuild/vite pipelines, so the default import is the
   constructor.
-- CSS: `src/vendor/quill/2.0.3/dist/quill.snow.css` is listed in
-  `angular.json` → build.options.styles (after `src/styles.scss`). It is
-  plain CSS, loaded by the builder — not imported through SCSS.
+- CSS: `dist/quill.snow.css` is served as a **versioned static asset**:
+  the build copies it verbatim from this directory into dist (the
+  `angular.json` `assets` entry, `src/vendor/quill` → `/vendor/quill`,
+  layout kept), and the editor's init path injects one
+  `<link rel="stylesheet">` per app to `SNOW_THEME_HREF` in
+  `guidance-editor.ts` — fetched only when the admin editor
+  initialises. It is deliberately NOT listed in `angular.json`'s global
+  styles (that would put it in the initial bundle, which is already over
+  its budget), and NOT `@import`ed into the component stylesheet (the
+  `anyComponentStyle` budget is a 10 kB error, and ~24 kB of vendor bytes
+  in the component style is what fired it — the dynamic-import variant
+  was rejected too: the esbuild builder emits it as orphaned CSS nothing
+  injects; see `frontend/docs/rich-text-editor.md`). Two consequences
+  worth knowing:
+  - `GuidanceEditor` is the one component in the repo that uses
+    `ViewEncapsulation.None`, and that is load-bearing: under the default
+    (emulated) strategy the compiler appends a scope attribute to every
+    selector, and the component's a11y overrides target Quill's RUNTIME
+    DOM (no scope attribute), so scoped they would match nothing. With
+    `None`, this component's own rules are global too; that is safe
+    (they are injected only when the lazy admin page first renders, and
+    every other component that styles a shared class, e.g. `.field-note`,
+    keeps a SCOPED rule whose scope attribute outranks the global one in
+    specificity). The spec pins the wiring both ways: `angular.json` must
+    stay quill-free, and initialising the editor must link the snow theme
+    (search guidance-editor.spec.ts for "stylesheet wiring").
+  - The version in `SNOW_THEME_HREF` must track the version directory:
+    a re-vendor is a new URL, so a stale cache can never serve an old
+    theme over a new one.
+  The editor runs on the snow theme's own look; the only deviations from
+  it are the a11y overrides in `guidance-editor.scss` (48px-tall touch
+  targets, focus rings) — see `frontend/docs/rich-text-editor.md`.
 - `design-tokens.spec.ts` explicitly skips `src/vendor/**`: the vendored
   stylesheet is third-party bytes and not part of our design token system.
 
@@ -89,9 +118,11 @@ nothing from Quill's dependency graph reaches our `node_modules`.
    `dist/quill.snow.css` — **verbatim, never edited** (verify with
    `md5sum` against the extracted files). Do NOT copy the huge
    `dist/quill.js.map` unless its size stops mattering.
-4. Keep the OLD version directory temporarily; point the component import,
-   the `angular.json` styles entry, and this README's version references at
-   the new one; run `npx ng test --watch=false` and `npx ng build`.
+4. Keep the OLD version directory temporarily; point the component's JS
+   import AND `SNOW_THEME_HREF` (both in `guidance-editor.ts`) and this
+   README's version references at the new one (the `angular.json` assets
+   copy follows the version directory automatically); run
+   `npx ng test --watch=false` and `npx ng build`.
 5. Check the upstream changelog/GitHub advisories between the old and new
    version for the behaviour changes (Quill's dist is minified — diff the
    `.d.ts`-relevant API and the CHANGELOG, not the bundle bytes).
