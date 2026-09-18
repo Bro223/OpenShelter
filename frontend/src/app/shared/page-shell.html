@@ -4,8 +4,6 @@
      (<main id="main" tabindex="-1"> below). -->
 <a class="skip-link" href="#main">{{ 'nav.skip' | t }}</a>
 
-<app-consent-banner />
-
 <header class="shell-header">
   <a class="brand" routerLink="/map">OpenShelter</a>
   <!-- Mobile burger (hidden at >=900px): opens the .shell-menu panel below.
@@ -51,21 +49,19 @@
       }
     </nav>
     <div class="shell-actions">
-      <!-- Language switcher (i18n-et-en): the active locale's
-           button carries aria-pressed; the choice persists
-           (openshelter-locale) and applies pre-paint via the inline
-           index.html script. The buttons render from LOCALES; the labels
-           are the language codes themselves — never translated. -->
+      <!-- Language switcher (i18n-et-en): offers only the language the reader
+           can switch TO — the ACTIVE locale is never rendered (clicking it
+           would be a no-op). The choice persists (openshelter-locale) and
+           applies pre-paint via the inline index.html script. The buttons
+           render from LOCALES; the labels are the language codes themselves
+           — never translated. -->
       <div class="shell-lang" role="group" [attr.aria-label]="'lang.label' | t">
         @for (code of locales; track code) {
-          <button
-            type="button"
-            class="btn btn--ghost"
-            [attr.aria-pressed]="i18n.locale() === code"
-            (click)="setLocale(code)"
-          >
-            {{ code | uppercase }}
-          </button>
+          @if (code !== i18n.locale()) {
+            <button type="button" class="btn btn--ghost" (click)="setLocale(code)">
+              {{ code | uppercase }}
+            </button>
+          }
         }
       </div>
       <!-- High-contrast toggle (accessibility-and-provenance D2): always

@@ -1,1 +1,8 @@
 <app-page-shell />
+<!-- The first-level data-usage notice (Workstream B). Mounted at the APP
+     ROOT, next to the shell, not inside it: a modal belongs at the root,
+     and as a direct child of <app-root> no shell ancestor can ever box it
+     (an ancestor transform/filter/etc. would become the containing block
+     of its position:fixed overlay) or clip it. The overlay sizes itself to
+     the viewport — see consent-banner.component.scss. -->
+<app-consent-banner />

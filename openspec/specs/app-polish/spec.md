@@ -135,7 +135,7 @@ replace(s) the framework boilerplate.
 
 - **WHEN** the README describes v1 scope
 - **THEN** it explicitly lists the true deferred items (paging / nearest-bbox search,
-  i18n for feature pages (app chrome is bilingual EN/ET — `core/i18n`, the translate
+  i18n for feature pages (app chrome is trilingual EN/ET/RU — `core/i18n`, the translate
   pipe, the language switcher, pre-paint locale), MapLibre migration, httpOnly-cookie
   auth, SSR/prerender, e2e framework) as deferrals rather than implying they exist —
   while `GET /account/me` is documented as a SHIPPED feature (implemented with the

@@ -95,7 +95,7 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 
 **Status: PARTIAL — known gap (some feature-page copy still English)**
 
-- Switcher infrastructure: locales `['en','et']` (`core/i18n/locale.ts`), typed `Messages` contract with compile-time parity + runtime parity/no-empty-value guard (`core/i18n/messages.ts`, `core/i18n/i18n.spec.ts` 10 cases incl. "en and et carry exactly the same key set"), pre-paint `<html lang>` (`src/index.html`), locale group with `aria-pressed` per language (`page-shell.html`, spec tests both directions + persistence).
+- Switcher infrastructure: locales `['en','et','ru']` (`core/i18n/locale.ts`), typed `Messages` contract with compile-time parity + runtime parity/no-empty-value guard (`core/i18n/messages.ts`, `core/i18n/i18n.spec.ts` 10 cases incl. "en, et and ru carry exactly the same key set"), pre-paint `<html lang>` (`src/index.html`), locale group that offers only the inactive locales — the active one is never rendered (`page-shell.html`, spec tests the switch in both directions + persistence).
 - **Translated** (uses `| t`): page chrome `shared/page-shell.html` (18 uses), consent banner (4), auth pages (login 15, register 25, reset 23), map page partially (6: nav/how-to blocks, e.g. `map-page.html`), and the shelter detail + submit pages (33 and 36 `| t` uses).
 - **NOT translated** (0 `| t` uses, hardcoded English): `features/account/account-page.html`, `features/account/contributions-panel.html`, `features/account/verify-page.html`, `features/admin/admin-page.html`, `features/legal/privacy-policy-page.html`, `features/legal/terms-page.html`.
 - Catalog scope is "app chrome + route titles" by design of M14 slice 1 (`messages.ts` header comment: "Slice 2+ of M14 extends this interface with the feature-page copy") — the gap is tracked, not accidental.
@@ -115,4 +115,4 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 | 6 | Contrast tokens + high-contrast theme | verified at token level; visual pass manual |
 | 7 | Keyboard navigation | partial (structure verified, full walk manual) |
 | 8 | Responsive breakpoint | verified structurally; device pass manual |
-| 9 | i18n (EN/ET) | partial — **known gap: some feature-page copy still English (account, contributions, verify, admin, legal)** |
+| 9 | i18n (EN/ET/RU) | partial — **known gap: some feature-page copy still English (account, contributions, verify, admin, legal); the RU catalog is machine-assisted and awaits native-speaker review** |

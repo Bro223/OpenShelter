@@ -114,7 +114,9 @@ describe('PageShell', () => {
      replaces the page without a document load, so the shell has to land the
      keyboard on the routed content itself. The modal case is the consent
      overlay — it links to /privacy, so a route change can complete while the
-     dialog owns focus. */
+     dialog owns focus. The banner is mounted at the APP ROOT now (see
+     app.spec.ts), so the "never steal focus from the open dialog" assertion
+     lives there, where the dialog actually renders. */
   describe('route-change focus (accessibility F-04)', () => {
     /** The shell reads its FIRST NavigationEnd as the document load. The
         TestBed does not guarantee the initial navigation ran (these spec
@@ -136,21 +138,6 @@ describe('PageShell', () => {
 
       const main = (fixture.nativeElement as HTMLElement).querySelector('main#main');
       expect(document.activeElement).toBe(main);
-    });
-
-    it('never pulls focus out of an open modal dialog (the consent overlay)', async () => {
-      fixture.detectChanges();
-      const element = fixture.nativeElement as HTMLElement;
-      const dialog = element.querySelector('.consent-dialog') as HTMLElement;
-      expect(dialog, 'the consent modal renders while undecided').not.toBeNull();
-      dialog.focus();
-
-      await primeNavigation();
-      await router.navigate(['/login']);
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(document.activeElement).toBe(dialog);
     });
   });
 
@@ -812,10 +799,12 @@ describe('PageShell', () => {
     });
   });
 
-  /* Language switcher (i18n-et-en): the active locale's
-     button carries aria-pressed; the choice persists (openshelter-locale)
-     and flips <html lang> + the whole chrome. jsdom cannot measure media
-     queries, so the acceptance is the DOM/aria/state wiring, not the CSS. */
+  /* Language switcher (i18n-et-en): offers only the languages the reader
+     can switch TO — the active locale is never rendered (a no-op button
+     is not a choice). With three locales, two "switch to" buttons render
+     at a time. The choice persists (openshelter-locale) and flips
+     <html lang> + the whole chrome. jsdom cannot measure media queries,
+     so the acceptance is the DOM/state wiring, not the CSS. */
   describe('language switcher (i18n-et-en M14)', () => {
     function langGroup(): HTMLElement {
       const group = fixture.nativeElement.querySelector('.shell-lang') as HTMLElement;
@@ -827,27 +816,29 @@ describe('PageShell', () => {
       return [...langGroup().querySelectorAll<HTMLButtonElement>('button')];
     }
 
-    it('renders one button per locale (EN first, the default), group aria-wired', () => {
+    it('offers the two other languages (the active one is hidden — a no-op is not a choice)', () => {
       fixture.detectChanges();
       expect(langGroup().getAttribute('role')).toBe('group');
       expect(langGroup().getAttribute('aria-label')).toBe('Language');
+      // The default locale is 'en' — the offered buttons are ET and RU.
       const buttons = langButtons();
-      expect(buttons.map((b) => b.textContent?.trim())).toEqual(['EN', 'ET']);
-      expect(buttons[0].getAttribute('aria-pressed')).toBe('true');
-      expect(buttons[1].getAttribute('aria-pressed')).toBe('false');
+      expect(buttons.map((b) => b.textContent?.trim())).toEqual(['ET', 'RU']);
+      // Momentary "switch to" buttons — no pressed state to carry.
+      expect(buttons[0].getAttribute('aria-pressed')).toBeNull();
+      expect(buttons[1].getAttribute('aria-pressed')).toBeNull();
       expect(document.documentElement.lang).toBe('en');
     });
 
     it('clicking ET switches the chrome, <html lang> and the persisted choice', async () => {
       await store.init();
       fixture.detectChanges();
-      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
 
       expect(document.documentElement.lang).toBe('et');
       expect(localStorage.getItem('openshelter-locale')).toBe('et');
-      expect(langButtons()[1].getAttribute('aria-pressed')).toBe('true');
-      expect(langButtons()[0].getAttribute('aria-pressed')).toBe('false');
+      // The active language is hidden; the buttons now offer the two ways back.
+      expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'RU']);
 
       // The chrome is now Estonian: nav, guest actions and footer.
       const element = fixture.nativeElement as HTMLElement;
@@ -872,16 +863,45 @@ describe('PageShell', () => {
     it('clicking EN after ET returns the English chrome and persistence', async () => {
       await store.init();
       fixture.detectChanges();
-      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
+      // After the first switch the first button is EN — clicking it returns.
       langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
 
       expect(document.documentElement.lang).toBe('en');
       expect(localStorage.getItem('openshelter-locale')).toBe('en');
-      expect(langButtons()[0].getAttribute('aria-pressed')).toBe('true');
+      expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['ET', 'RU']);
       expect(text()).toContain('Log in');
       expect(text()).toContain('High contrast');
+    });
+
+    it('clicking RU switches to the Russian chrome and the persisted choice', async () => {
+      await store.init();
+      fixture.detectChanges();
+      // Default (en) chrome offers [ET, RU] — RU is the second button.
+      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      expect(document.documentElement.lang).toBe('ru');
+      expect(localStorage.getItem('openshelter-locale')).toBe('ru');
+      // The active language is hidden; the buttons offer the two others.
+      expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'ET']);
+
+      // The chrome is now Russian: nav, guest actions and the safety notice.
+      const element = fixture.nativeElement as HTMLElement;
+      expect(element.querySelector('.shell-nav a[href="/map"]')?.textContent).toContain(
+        'Карта укрытий',
+      );
+      expect(text()).toContain('Войти');
+      expect(text()).toContain('Высокий контраст');
+      expect(text()).toContain('Создать аккаунт');
+      const notice = element.querySelector('.shell-footer__notice') as Element;
+      expect(notice.textContent).toContain('В случае чрезвычайной ситуации звоните 112');
+      const noticeLinks = [...notice.querySelectorAll<HTMLAnchorElement>('a')].map((a) =>
+        a.textContent?.trim(),
+      );
+      expect(noticeLinks).toEqual(['Спасательный департамент', 'Министерство внутренних дел']);
     });
 
     it('an authenticated Estonian chrome shows the translated nav + Log out', async () => {
@@ -889,7 +909,7 @@ describe('PageShell', () => {
       gateway.login.mockResolvedValue(PAIR);
       await store.login('user@example.ee', 'secret');
       fixture.detectChanges();
-      langButtons()[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
 
       const element = fixture.nativeElement as HTMLElement;
