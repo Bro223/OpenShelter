@@ -5,6 +5,7 @@ import { routes } from '../app.routes';
 import { I18nService } from './i18n/i18n.service';
 import { EN } from './i18n/en';
 import { ET } from './i18n/et';
+import { RU } from './i18n/ru';
 import type { MessageKey } from './i18n/messages';
 import { APP_NAME, titleGuard } from './title';
 
@@ -14,8 +15,8 @@ import { APP_NAME, titleGuard } from './title';
  *  - Mechanism: titleGuard sets document.title from the route's
  *    data.title MESSAGE KEY on navigation ("<Page> — OpenShelter").
  *  - Completeness: every routable entry in the real route table carries a
- *    data.title that is a key present in BOTH locale catalogs, so a new
- *    route cannot silently ship without a tab title in either language.
+ *    data.title that is a key present in ALL THREE locale catalogs, so a
+ *    new route cannot silently ship without a tab title in any language.
  */
 
 @Component({ template: '<p>stub</p>' })
@@ -58,13 +59,20 @@ describe('route titles', () => {
     expect(document.title).toBe(`Varjupaikade kaart — ${APP_NAME}`);
   });
 
+  it('resolves the title in the active locale (ru)', async () => {
+    document.title = 'initial';
+    i18n.setLocale('ru');
+    await router.navigateByUrl('/a');
+    expect(document.title).toBe(`Карта укрытий — ${APP_NAME}`);
+  });
+
   it('leaves document.title untouched for routes without a title', async () => {
     document.title = 'initial';
     await router.navigateByUrl('/b');
     expect(document.title).toBe('initial');
   });
 
-  it('every routable route title is a message key present in BOTH catalogs', () => {
+  it('every routable route title is a message key present in ALL THREE catalogs', () => {
     // component (eager) OR loadComponent (lazy, bundle budget) — either
     // way the route renders a page and needs a tab title.
     const titled = routes
@@ -77,12 +85,13 @@ describe('route titles', () => {
     for (const title of titled) {
       expect(typeof title, `route missing data.title: ${title}`).toBe('string');
       const key = title as MessageKey;
-      // Both catalogs must carry the key at RUNTIME (the typed access is
-      // compile-time-only; this is the typo guard). The en/et key-parity
-      // guard in i18n.spec.ts keeps the catalogs in lockstep; this check
-      // keeps the ROUTES pointing at real keys.
+      // All three catalogs must carry the key at RUNTIME (the typed access
+      // is compile-time-only; this is the typo guard). The en/et/ru
+      // key-parity guard in i18n.spec.ts keeps the catalogs in lockstep;
+      // this check keeps the ROUTES pointing at real keys.
       expect(EN[key], `en catalog missing key: ${key}`).toBeTruthy();
       expect(ET[key], `et catalog missing key: ${key}`).toBeTruthy();
+      expect(RU[key], `ru catalog missing key: ${key}`).toBeTruthy();
     }
   });
 });

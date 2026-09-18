@@ -20,7 +20,7 @@ export const HIGH_CONTRAST_THEME = 'high-contrast';
 export const LOCALE_STORAGE_KEY = 'openshelter-locale';
 /** The only locales ever stored; absent or invalid key = the static
  *  lang="en" default. */
-export const SUPPORTED_LOCALES = ['en', 'et'] as const;
+export const SUPPORTED_LOCALES = ['en', 'et', 'ru'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 /** The <html> surface the scripts write to (document.documentElement):
@@ -44,15 +44,15 @@ export function applyStoredTheme(storage: Storage, root: PrePaintRoot): void {
 }
 
 /**
- * Apply the persisted UI language to <html lang>: only 'en'/'et' apply —
- * an absent or invalid value keeps the static lang="en" default. A storage
- * read that throws (private mode) is a no-op, same as the inline script's
- * catch.
+ * Apply the persisted UI language to <html lang>: only 'en'/'et'/'ru'
+ * apply — an absent or invalid value keeps the static lang="en" default.
+ * A storage read that throws (private mode) is a no-op, same as the inline
+ * script's catch.
  */
 export function applyStoredLocale(storage: Storage, root: PrePaintRoot): void {
   try {
     const locale = storage.getItem(LOCALE_STORAGE_KEY);
-    if (locale === 'en' || locale === 'et') {
+    if (locale === 'en' || locale === 'et' || locale === 'ru') {
       root.lang = locale;
     }
   } catch {

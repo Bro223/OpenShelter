@@ -29,14 +29,14 @@
     <script>
       // Pre-paint locale (i18n-et-en): apply the persisted UI language
       // BEFORE the app bundle paints — <html lang> is correct for screen
-      // readers / spellcheck from first paint. Only 'en'/'et' are ever
+      // readers / spellcheck from first paint. Only 'en'/'et'/'ru' are ever
       // stored; absent or invalid key = the static lang="en" default.
       // The typed form of this logic is core/prepaint.ts — prepaint.spec.ts
       // runs THIS script source against the same guarantees, so keep them in
       // lockstep (a divergence fails the suite).
       try {
         var openshelterLocale = localStorage.getItem('openshelter-locale');
-        if (openshelterLocale === 'en' || openshelterLocale === 'et') {
+        if (openshelterLocale === 'en' || openshelterLocale === 'et' || openshelterLocale === 'ru') {
           document.documentElement.lang = openshelterLocale;
         }
       } catch (error) {
