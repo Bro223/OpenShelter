@@ -733,24 +733,33 @@ describe('PageShell', () => {
       ).not.toMatch(/color: var\(--color-(muted|primary)\)/);
     });
 
-    it('the ghost .btns on the band get the chrome treatment (white text, chrome border/hover)', () => {
+    it('the ghost .btns on the band are the body ghost button: same ink/border/hover tokens, resting fill the only deviation', () => {
       const ghost = shellScss.match(/\.shell-header \.btn--ghost \{[\s\S]*?\n\}/);
       expect(
         ghost,
         'page-shell.scss must scope a .shell-header .btn--ghost rule',
       ).not.toBeNull();
-      expect(ghost![0], 'chrome text on the ghost button').toMatch(
-        /color: var\(--color-chrome-text\)/,
-      );
-      expect(ghost![0], 'the chrome divider as the resting border').toMatch(
-        /border-color: var\(--color-chrome-border\)/,
+      expect(
+        ghost![0],
+        'resting fill: the page background token itself — the colour a body ghost appears as at rest (the only deviation: the transparent rest would put the ink on the navy band at 1.18:1)',
+      ).toMatch(/background: var\(--color-bg\)/);
+      expect(ghost![0], 'the body ghost ink token (same as .btn--ghost on the page body)').toMatch(
+        /color: var\(--color-text\)/,
       );
       expect(
         ghost![0],
-        'the hover brightens the border to chrome-muted instead of filling with the light hover tint',
+        'the body ghost border token (neutral --color-border, not the navy-derived chrome border)',
+      ).toMatch(/border-color: var\(--color-border\)/);
+      expect(
+        ghost![0],
+        'the body ghost hover token (border unchanged on hover, like on light surfaces)',
       ).toMatch(
-        /&:hover:not\(:disabled\) \{[^}]*background: transparent;[^}]*border-color: var\(--color-chrome-muted\)/,
+        /&:hover:not\(:disabled\) \{[^}]*background: var\(--color-surface-hover\)/,
       );
+      expect(
+        ghost![0],
+        'no chrome text/border/muted tokens on the ghost button (no bespoke band tinting)',
+      ).not.toMatch(/var\(--color-chrome-(text|border|muted)\)/);
     });
 
     it('the active nav item is white text + a 2px chrome-active indicator', () => {

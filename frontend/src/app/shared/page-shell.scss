@@ -82,22 +82,33 @@
   gap: var(--space-10);
 }
 
-/* Chrome treatment for the ghost .btns that sit ON the band (language
-   switcher, theme toggle, Log in / Log out — at desktop widths AND in the
-   <900 panel, which is a child of .shell-header). The light-surface ghost
-   fails on navy: its ink text on the band is 1.18:1 and its light hover
-   fill would invert the band. On the band: white text, the chrome
-   divider as the resting border, and a hover that brightens the border
-   to chrome-muted (8.80:1) instead of filling. .btn--primary (Create
-   account) is intentionally untouched — its blue fill + white text
-   carries on the band. */
+/* Header ghost .btns (language switcher, theme toggle, Log in / Log out —
+   at desktop widths AND in the <900 panel, which is a child of
+   .shell-header, so it takes the same treatment): the SAME button as the
+   app's ordinary body ghosts (styles.scss .btn--ghost), not a bespoke
+   band colour — same ink (--color-text), same border (--color-border),
+   same hover fill (--color-surface-hover). The ONE deviation: the resting
+   fill. Body ghosts rest transparent — they only LOOK like the page
+   background because it shows through — and on the navy band that
+   transparent rest would put the ink on the band at 1.18:1, so the fill
+   is painted explicitly with the page background token itself, --color-bg:
+   exactly the colour a body ghost button appears as, and one shade lighter
+   than the ghost hover tint (so the hover stays the body ghost's own
+   one-step darkening). Measured: ink on the resting/hover fill
+   14.74/12.40:1 (light) and 19.80/15.13:1 (HC); resting/hover fill vs
+   the band 12.53/10.54:1 (light — the 3:1 UI-boundary minimum cleared);
+   in HC the dark-grey fills sit at 1.46/1.12:1 on the band (documented
+   exemptions in design-tokens.spec.ts — the white label + the 2.36:1
+   border carry the identification there). .btn--primary (Create account)
+   is intentionally untouched — its blue fill + white text carries on the
+   band. */
 .shell-header .btn--ghost {
-  color: var(--color-chrome-text);
-  border-color: var(--color-chrome-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
 
   &:hover:not(:disabled) {
-    background: transparent;
-    border-color: var(--color-chrome-muted);
+    background: var(--color-surface-hover);
   }
 }
 

@@ -258,6 +258,17 @@ describe('design tokens (M6)', () => {
       [
         ['--color-border', '--color-bg-surface'],
         ['--color-border', '--color-bg'],
+        // Grey ghost buttons on the chrome band (page-shell.scss
+        // .shell-header .btn--ghost): the resting and hover FILLS against
+        // the navy band, and the ordinary --color-border the button now
+        // carries on the band. The resting fill is --color-bg — the page
+        // background a body ghost shows through its transparent rest.
+        // (The ink-on-fill text pairs need no new entries: --color-text
+        // on --color-bg and --color-surface-hover are already in
+        // TEXT_PAIRS at 4.5:1, both themes.)
+        ['--color-bg', '--color-chrome-bg'],
+        ['--color-surface-hover', '--color-chrome-bg'],
+        ['--color-border', '--color-chrome-bg'],
       ] as [string, string][]
     ).flatMap(([fg, bg]) =>
       (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
@@ -313,6 +324,30 @@ describe('design tokens (M6)', () => {
       min: 3,
       reason:
         'non-text chrome divider/ghost-button border (1.54:1) — the HC block pins the same band values, so the same documented exemption applies',
+    },
+    {
+      theme: 'high-contrast',
+      fg: '--color-bg',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'grey ghost-button resting fill on the chrome band (1.46:1) — the HC page background is a dark grey against the navy band; the button is identified by its white label (19.80:1 on the fill) and the 2.36:1 --color-border, the same fill+label rationale as the chrome-border exemption',
+    },
+    {
+      theme: 'high-contrast',
+      fg: '--color-surface-hover',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'grey ghost-button hover fill on the chrome band (1.12:1) — same HC rationale as the resting fill: label + border carry the identification',
+    },
+    {
+      theme: 'high-contrast',
+      fg: '--color-border',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'ordinary border on the chrome band (2.36:1) — the ghost-button edge on navy in HC; decorative like the documented chrome-border divider (1.54:1)',
     },
   ];
 
