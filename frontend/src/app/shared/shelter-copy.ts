@@ -34,7 +34,7 @@ export function communityTrustLabel(reviewStatus: ReviewStatus): string {
 
 /**
  * The row's source/trust badge label: registry rows carry their registry
- * label ("Paasteamet registry" / "Municipal registry"); USER rows carry
+ * label ("Päästeamet registry" / "Municipal registry"); USER rows carry
  * the trust-state label instead (REJECTED rows are not public — the label
  * exists for the /mine + admin surfaces). Single-sourced: map rows, detail
  * header, /mine badges and the admin list all call this.
@@ -44,7 +44,7 @@ export function sourceTrustLabel(shelter: {
   reviewStatus: ReviewStatus;
 }): string {
   if (shelter.source === 'PAASETEAMET') {
-    return 'Paasteamet registry';
+    return 'Päästeamet registry';
   }
   if (shelter.source === 'MUNICIPALITY') {
     return 'Municipal registry';

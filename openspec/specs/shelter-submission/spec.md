@@ -226,7 +226,7 @@ the single enforcement point.
 ShelterDto SHALL expose `submitterVerified` — true when the shelter's
 creator exists and has a completed verification, false otherwise (registry
 shelters are false). List rows and the detail page SHALL display the
-provenance plainly: "Paasteamet registry", "Municipal registry",
+provenance plainly: "Päästeamet registry", "Municipal registry",
 "Newly added", "Community-checked", or "Rejected" (the last shown on
 the admin and own-submission surfaces only).
 
@@ -237,8 +237,8 @@ the admin and own-submission surfaces only).
 
 #### Scenario: registry shelter
 
-- **WHEN** a shelter came from the Paasteamet registry
-- **THEN** its row and detail page show "Paasteamet registry"
+- **WHEN** a shelter came from the Päästeamet registry
+- **THEN** its row and detail page show "Päästeamet registry"
 
 ### Requirement: Per-user active shelter cap
 

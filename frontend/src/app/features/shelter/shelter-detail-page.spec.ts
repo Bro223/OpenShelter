@@ -246,7 +246,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(shelterGateway.get).toHaveBeenCalledWith(1);
 
       expect(text(fixture)).toContain('Tallinn Central Shelter');
-      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Paasteamet registry');
+      expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Päästeamet registry');
       expect(text(fixture)).toContain('Tornimäe 1, Tallinn');
       // The reviews model is gone: no star strip, no review list, no form.
       expect(element.querySelector('[role="img"]')).toBeNull();
@@ -907,7 +907,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const badges = [...element.querySelectorAll('.shelter-detail__title-row .badge')].map((b) =>
         (b as HTMLElement).textContent?.trim(),
       );
-      expect(badges).toContain('Paasteamet registry');
+      expect(badges).toContain('Päästeamet registry');
       expect(badges).toHaveLength(4);
     });
 
@@ -926,7 +926,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const badges = [...element.querySelectorAll('.shelter-detail__title-row .badge')].map((b) =>
         (b as HTMLElement).textContent?.trim(),
       );
-      expect(badges).toEqual(['Paasteamet registry']);
+      expect(badges).toEqual(['Päästeamet registry']);
     });
 
     it('unreported shelter: no reported/open-status/occupancy badges in the header', async () => {

@@ -76,7 +76,7 @@ export function markerTone(shelter: {
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): the tone follows the trust
- * palette — registry blue (Paasteamet + Municipal), community NEW amber,
+ * palette — registry blue (Päästeamet + Municipal), community NEW amber,
  * community CONFIRMED green (user family); reported rows keep the orange
  * override. The legend reuses the same classes, so the visual stays
  * single-sourced.

@@ -31,9 +31,9 @@ import type { ShelterOccupancy } from '../core/models';
  * A copy change is a spec change — these assertions are the gate.
  */
 describe('sourceTrustLabel (pinned copy)', () => {
-  it('PAASETEAMET -> "Paasteamet registry"', () => {
+  it('PAASETEAMET -> "Päästeamet registry"', () => {
     expect(sourceTrustLabel({ source: 'PAASETEAMET', reviewStatus: 'CONFIRMED' })).toBe(
-      'Paasteamet registry',
+      'Päästeamet registry',
     );
   });
 

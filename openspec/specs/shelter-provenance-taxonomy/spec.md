@@ -1,6 +1,7 @@
 # shelter-provenance-taxonomy Specification
 
 ## Purpose
+
 TBD - created by archiving change shelter-provenance-taxonomy. Update Purpose after archive.
 
 ## Requirements
@@ -91,7 +92,7 @@ private-home markers.
 The map row, the detail header, the /mine list and the admin list SHALL
 render the provenance label and badge tone from the DTO's `provenance`
 via the single-sourced `provenanceText` / `provenanceBadgeClass`. The
-visible values keep their established copy ("Paasteamet registry" /
+visible values keep their established copy ("Päästeamet registry" /
 "Municipal registry" / "Community-checked" / "Newly added"); the hidden
 values read "Reported inactive" (muted grey tone) and "Rejected"
 (danger tone).

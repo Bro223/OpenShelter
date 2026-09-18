@@ -414,7 +414,7 @@ describe('MapPage', () => {
       // reads "Newly added", the registry rows keep their registry labels.
       expect(basementRow.textContent).toContain('Newly added');
       expect(rows[1].textContent).toContain('Municipal registry');
-      expect(rows[2].textContent).toContain('Paasteamet registry');
+      expect(rows[2].textContent).toContain('Päästeamet registry');
       // No rating of any kind renders in a row (the review model is gone).
       expect(basementRow.textContent).not.toContain('★');
       expect(rows[2].textContent).not.toContain('★');
@@ -436,7 +436,7 @@ describe('MapPage', () => {
       expect(badges).toEqual([
         'Newly added', // Community Cellar (USER, NEW)
         'Municipal registry', // Pärnu Municipal Shelter (MUNICIPALITY)
-        'Paasteamet registry', // Tallinn Central Shelter (PAASETEAMET)
+        'Päästeamet registry', // Tallinn Central Shelter (PAASETEAMET)
         'Community-checked', // Verified Cellar (USER, CONFIRMED)
       ]);
     });

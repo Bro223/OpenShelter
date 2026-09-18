@@ -457,7 +457,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Kommunaali Varjend');
     expect(element.textContent).toContain('Linna Varjend');
     expect(element.textContent).toContain('Lossi 2, Tartu');
-    expect(element.textContent).toContain('Paasteamet registry');
+    expect(element.textContent).toContain('Päästeamet registry');
     expect(element.textContent).toContain('Kaja K.');
     // Occupancy: firm band + recency (the shared copy, reportedAt mapped).
     expect(element.textContent).toContain('Full · 12 min ago');
