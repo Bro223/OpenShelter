@@ -14,7 +14,7 @@ and trust reports on top of the combined data. It is designed around three ideas
 **no pre-publication moderation** (community reports — not a moderator, not a rating —
 are the quality mechanism), **provenance as trust** (every shelter shows whether it comes
 from the official registry or a verified community member, and how it got there), and
-**crisis-ready UX** (a calm, fast, high-contrast, bilingual interface that works under
+**crisis-ready UX** (a calm, fast, high-contrast, trilingual interface that works under
 stress).
 
 The system consists of a Spring Boot / PostgreSQL backend (auth, multi-channel
@@ -241,8 +241,9 @@ open status) → the server-derived trust state is served with every shelter lis
   account pages, the admin moderation panel, privacy/terms legal pages, design-token
   theming including a high-contrast mode (near-black background, white text, blue/orange
   accents) after the national crisis-portal pattern, a fluid layout that survives narrow
-  viewports, and a bilingual ET/EN language
-  switcher (app chrome fully translated; feature-page copy in progress).
+  viewports, and a trilingual ET/EN/RU language
+  switcher (app chrome translated in all three — RU machine-assisted, awaiting
+  native-speaker review; feature-page copy in progress).
 
 ### 5.6 Crisis guidance and the media library
 
@@ -315,7 +316,7 @@ test-pinned:
 | Auth | jjwt 0.12.x; spring-security-crypto (Argon2id) |
 | Ingestion | Hand-written Päästeamet CSV client (quote-aware semicolon parse, transient-only retry/backoff, Last-Modified versioning) with the legacy WFS client as alternate; proj4j (EPSG:3301 → WGS84) |
 | Testing | JUnit 5 + AssertJ + Testcontainers (PostgreSQL); **no Mockito** (JDK-agnostic hand-written fakes) |
-| Frontend | Angular 22 (standalone components, zoneless), Leaflet, SCSS design tokens, i18n (EN/ET catalogs with a key-parity guard), Vitest |
+| Frontend | Angular 22 (standalone components, zoneless), Leaflet, SCSS design tokens, i18n (EN/ET/RU catalogs with a key-parity guard), Vitest |
 | Docs-as-code | PlantUML diagrams (architecture + per-flow sequences) rendered via Docker/Kroki; per-milestone "agent build packs" that keep docs in sync with code |
 
 **Backend package layout** (root `ee.sheltermap`): `domain` (pure Java, depends on
@@ -378,17 +379,19 @@ info requests, inaccurate marks, audit trail); data export + account deletion;
 privacy/terms pages; the crisis-guidance pages (public `/blog` index + detail, the admin
 authoring tab + media library, the server-side body sanitizer); the shelter-list viewport
 filter + offset/limit paging (composite B-tree, no PostGIS); the Angular map, detail,
-auth, verification, account, legal and admin surfaces; bilingual ET/EN app chrome.
+auth, verification, account, legal and admin surfaces; trilingual ET/EN/RU app chrome.
 
-**In progress:** bilingual feature-page copy (i18n slice 2 — the trust copy,
-forms and legal bodies; the app chrome is already ET/EN).
+**In progress:** trilingual feature-page copy (i18n slice 2 — the trust copy,
+forms and legal bodies; the app chrome is already ET/EN/RU, the Russian
+catalog machine-assisted and awaiting native-speaker review).
 
 **Roadmap (in priority order):**
 
 1. Smart-ID verification (seam exists; stub today)
-2. Internationalization — ET/EN chrome is live (default locale still `en`; flipping
-   to `et` is a one-line owner decision); feature-page Estonian copy in progress;
-   RUS/UA not started (kriis.ee ships all four)
+2. Internationalization — ET/EN/RU chrome is live (default locale still `en`);
+   the Russian catalog is machine-assisted and awaits native-speaker review
+   (the six Russian guidance posts are DRAFTS); UA not started
+   (kriis.ee ships all four)
 3. Saved/bookmarked shelters
 4. PWA + offline-last-good cache (crisis context)
 5. Server-side nearest search (the list's bbox filter + offset/limit paging is built —

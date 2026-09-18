@@ -93,7 +93,8 @@ Angular 22 + Leaflet frontend.
   accessibility
   theme toggle (near-black background with blue/orange accents), design-token system,
   fluid layout that survives narrow viewports,
-  **bilingual EN/ET switcher** (app chrome translated, feature pages in progress),
+  **trilingual EN/ET/RU switcher** (app chrome translated in all three — RU
+  machine-assisted, awaiting native-speaker review; feature pages in progress),
   crisis-first (one primary action per screen, words beside every color-coded
   status).
 
@@ -109,9 +110,10 @@ twelve-attack threat model + operations runbook + 15 API security pins;
 architecture docs (PlantUML + build packs) re-synced to code after every milestone.
 
 **Status (16 Sept 2026; test counts refreshed 2026-09-16).** Fully functional end-to-end
-(register → verify → browse → submit → report → manage), bilingual app chrome (ET/EN);
+(register → verify → browse → submit → report → manage), trilingual app chrome (ET/EN/RU);
 the crisis-guidance wave has landed (public /blog pages, the admin Guidance authoring tab
 - media library, V23) and the shelter list gained the viewport filter + offset/limit
 paging (V23.1 — composite B-tree, no PostGIS). Remaining: real
-Smart-ID integration, i18n feature-page copy (in progress) + RUS/UA, saved shelters,
+Smart-ID integration, i18n feature-page copy (in progress; RU machine-assisted,
+awaiting native-speaker review, the six RU guidance posts are DRAFTS) + UA, saved shelters,
 PWA offline cache, production deployment.

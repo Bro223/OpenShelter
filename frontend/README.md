@@ -173,9 +173,10 @@ change (Spring security config + Angular `withCredentials`) that v1 deliberately
   filter, and the "Show shelters around you" action keeps ranking the already-loaded list
   client-side (browser geolocation + Haversine, no server round-trip) by design.
 - **i18n (feature pages)** — the app chrome (header nav/actions, footer,
-  document titles) is bilingual EN/ET (M14 slice 1: `core/i18n`, the `t`
+  document titles) is trilingual EN/ET/RU (M14 slice 1: `core/i18n`, the `t`
   pipe, the header language switcher, persisted `openshelter-locale`, default
-  `en`), and shelter detail + submit are translated too (slice 2). Still
+  `en`; the RU catalog is machine-assisted and awaits native-speaker
+  review), and shelter detail + submit are translated too (slice 2). Still
   English-only: the account page, the contributions panel, the verify page,
   the admin panel and the legal page bodies.
 - **MapLibre** — Leaflet 1.9 stays in v1 (MapLibre was considered for M4, deferred).
