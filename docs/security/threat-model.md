@@ -329,6 +329,72 @@ fixed pin the user placed, not a trust input.
 (public projection), `ShelterDuplicateIT`, `CommunityReviewIT`,
 `ShelterReportIT`.
 
+### A13. SSRF via the admin hero-image import
+
+A compromised (or convinced) admin pastes a hero-image URL that the
+SERVER fetches — and the target is not the innocent image host it
+claims: `file:///etc/passwd`, `http://127.0.0.1/admin`, a public
+host that 302s to `http://169.254.169.254/latest/meta-data/` (cloud
+metadata), a 2 GiB body, or a 100001×1 image header. The server is
+the client here, so an admin-supplied URL is a trust input at the
+outbound boundary. (The admin is an insider by the A11 threat
+model; this entry exists so the surface is bounded even for a
+compromised one, and so the guards are test-pinned.)
+
+**Mitigations** (`HeroImageImportService`, guidance-hero-import —
+each guard is test-pinned, not just asserted):
+
+1. **Scheme allowlist** — only `http`/`https` is fetchable;
+   `file:`/`data:`/`gopher:`/`javascript:`/anything-else is refused
+   400 before any I/O.
+2. **No credentials** — `user:pass@` URLs are refused 400 before
+   any I/O: the pasted credentials are never transmitted upstream
+   as an Authorization header.
+3. **SSRF address policy, entry AND every redirect hop** — the
+   host of the URL about to be fetched is resolved and EVERY
+   resolved address classified; loopback, RFC 1918 private,
+   link-local (incl. the cloud-metadata 169.254.169.254 and
+   fe80::/10), unique-local fc00::/7 (incl. the AWS metadata form
+   fd00:ec2::254), multicast and unspecified addresses are refused
+   400 and that URL is NEVER fetched. The HTTP client never
+   auto-follows redirects (`followRedirects(NEVER)`) — the service
+   walks at most 3 hops itself, and every hop target is
+   re-validated (scheme, credentials, shape) and its ADDRESS
+   re-checked the moment before it is fetched, so a public host
+   that 302s to 127.0.0.1 dies at the re-check.
+4. **Streaming size cap** — the body is read against
+   `app.media.max-bytes` WHILE reading; past the cap the
+   connection is aborted (the buffer never exceeds cap + one
+   chunk) and the fetch fails 413 — an oversized body is aborted,
+   not buffered.
+5. **Connect + read timeouts + walk budget** — a connect timeout
+   bounds the handshake, a no-progress read timeout aborts a
+   stalled head or body, and a wall-clock budget (default 10 s)
+   bounds the whole walk: a hostile upstream cannot pin the
+   publish thread.
+6. **Magic-byte validation** — the stored Content-Type is the
+   SNIFFED type, never the remote's header; text bytes served as
+   `image/png` are refused 400.
+7. **Decompression-bomb pixel cap** — declared dimensions over the
+   configured max side (default 10000 px) are refused 400 before
+   anything is stored: a 33-byte file cannot claim a gigapixel
+   image.
+
+Failure vocabulary: policy refusals 400, upstream trouble (DNS,
+timeouts, 5xx, budget) 502, over-cap 413 — and EVERY failure
+leaves the post a DRAFT with the URL intact (the publish
+transaction rolls back), so a failed import never publishes
+anything. The origin of an imported image is recorded on
+`media_assets.source_url` (the takedown trail).
+
+**Status: MITIGATED** with the residuals below stated honestly. **Pins:**
+`HeroAddressPolicyTest` (the classifier), `JdkHeroImageFetchClientTest`
+(cap/stall/redirect against a real local server),
+`HeroImageImportServiceTest` (the walk, incl. redirect-to-127.0.0.1
+refused-and-never-fetched), `GuidanceServiceTest` (draft/publish
+lifecycle, failed publish keeps the DRAFT), `HeroImageImportIT`
+(full-stack endpoint acceptance).
+
 ### Session model — CSRF protection is disabled by design
 
 Authentication is a stateless `Authorization: Bearer` token (JWT), not a
@@ -359,6 +425,7 @@ explicit CSRF tokens on both sides (deferred cross-stack change).
 | A10 | DB leak | `PiiAtRestIT`, `PiiCryptoTest`, `AdminSeederIT`, `SecurityHeadersIT` | — |
 | A11 | Admin compromise | `AdminSeederIT`, `AdminModerationIT`, `UserSuspensionIT`, `ShelterHistoryIT` | `AdminAuthorizationIT` |
 | A12 | Nearest manipulation | `ShelterApiIT`, `ShelterDuplicateIT`, `CommunityReviewIT`, `ShelterReportIT` | — |
+| A13 | Admin-import SSRF | — | `HeroAddressPolicyTest`, `JdkHeroImageFetchClientTest`, `HeroImageImportServiceTest`, `GuidanceServiceTest`, `HeroImageImportIT` |
 
 ## Residual-risk register (accepted, stated once)
 
@@ -378,3 +445,21 @@ explicit CSRF tokens on both sides (deferred cross-stack change).
 6. **Admin e-mail provisioning** (A11): the admin password lives in the
    environment — rotate on suspected exposure (`operations.md`).
 7. **Volumetric DoS / provider compromise**: out of app scope by design.
+8. **DNS rebinding / resolve–connect TOCTOU** (A13): the address is
+   checked at resolve time; a resolver-level rebinding (public at
+   check, private at connect) is not covered — the JDK client
+   connects to the address of the lookup the policy saw (no second
+   lookup in between), which closes the app-level window; the
+   resolver-level window is accepted and noted.
+9. **Third-party content trust** (A13): an imported image is
+   third-party bytes served from our origin; the sniff + pixel cap
+   bound what it can BE, not whether the content is appropriate
+   (the admin is the insider of record — A11).
+10. **Manual-upload pixel-bomb residual** (A13): the decompression
+    bomb guard is wired on the import path; the manual upload path
+    (`POST /admin/media`) has the same declared-dimension exposure
+    and is NOT capped in this change — a follow-up.
+11. **In-transaction network hold** (A13/D2): one admin's publish
+    can hold a DB connection for up to the walk budget (default
+    10 s) while the remote walk runs — accepted for the
+    admin-only, rate-limited publish surface.
