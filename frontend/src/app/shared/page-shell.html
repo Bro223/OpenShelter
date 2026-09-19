@@ -39,7 +39,19 @@
            anonymous visitors see it too, like the map. -->
       <a routerLink="/blog" routerLinkActive="active">{{ 'nav.guidance' | t }}</a>
       @if (auth.initialized() && auth.authenticated()) {
-        <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
+        <!-- The provisioned admin (kind ADMIN — the SAME isAdmin signal as
+             the Admin item below; the account page keys its "nothing to
+             edit here" copy on it too) gets NO Account link: the admin's
+             login and password are deployment environment variables, so
+             /account offers it nothing to edit and the header must not
+             advertise it. The URL stays reachable — the server already
+             refuses the admin's dangerous account actions (403); we only
+             stop linking to it. Hiding the <a> leaves no layout hole:
+             .shell-nav is a gap-based flex row with no separators, and
+             this node serves BOTH the desktop row and the <900px panel. -->
+        @if (!auth.isAdmin()) {
+          <a routerLink="/account" routerLinkActive="active">{{ 'nav.account' | t }}</a>
+        }
         <!-- Admin-kind only (admin-moderation D5): regular users see the
              nav unchanged; a failed profile fetch leaves isAdmin false, so
              the item hides itself fail-closed. -->

@@ -172,6 +172,10 @@ describe('PageShell', () => {
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('a[href="/account"]')).not.toBeNull();
+    // The link lives in the shared .shell-menu nav — the SAME node that is
+    // the <900px dropdown panel, so the mobile menu carries it too (one
+    // source for both widths).
+    expect(element.querySelector('.shell-menu a[href="/account"]')).not.toBeNull();
     // No standalone Verify nav item: verification is a per-contact label on
     // /account; /verify stays reachable by route.
     expect(element.querySelector('a[href="/verify"]')).toBeNull();
@@ -196,6 +200,41 @@ describe('PageShell', () => {
     const adminLink = element.querySelector('a[href="/admin"]');
     expect(adminLink).not.toBeNull();
     expect(adminLink?.textContent?.trim()).toBe('Admin');
+  });
+
+  it('the provisioned admin gets NO Account link — Log out and the Admin item stay', async () => {
+    // The env-provisioned administrator (kind ADMIN — the profile's isAdmin,
+    // the same signal the Admin item renders from): its login and password
+    // are deployment environment variables, so the header must not
+    // advertise /account. The URL itself stays reachable — only the link
+    // is withdrawn (the server already refuses the admin's dangerous
+    // account actions with 403).
+    account.me.mockResolvedValue({
+      name: 'Test User',
+      email: 'user@example.ee',
+      phone: '+37250000001',
+      levels: [],
+      isAdmin: true,
+    });
+    await store.init();
+    gateway.login.mockResolvedValue(PAIR);
+    await store.login('user@example.ee', 'secret');
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('a[href="/account"]')).toBeNull();
+    // The mobile panel is the same .shell-menu node — assert on it directly.
+    expect(element.querySelector('.shell-menu a[href="/account"]')).toBeNull();
+    // The admin keeps everything else: the Admin item and Log out.
+    expect(element.querySelector('a[href="/admin"]')).not.toBeNull();
+    expect(element.textContent).toContain('Log out');
+    // No layout hole: .shell-nav is a gap-based flex row with no
+    // separators, so the hidden link leaves nothing orphaned — the admin's
+    // row is exactly Map + Guidance + Admin.
+    const navLinks = [...element.querySelectorAll('.shell-nav a')].map((a) =>
+      a.getAttribute('href'),
+    );
+    expect(navLinks).toEqual(['/map', '/blog', '/admin']);
   });
 
   it('the nav stays link-stable whether or not a level is verified', async () => {
