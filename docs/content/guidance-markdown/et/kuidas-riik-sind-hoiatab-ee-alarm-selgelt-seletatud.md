@@ -1,0 +1,21 @@
+<p>Kui ohus on inimese elu, tervis või riigi julgeolek, teavitab riik elanikke otse ja võimalikult laiaulatuslikult. Eestis kannab see süsteem nime EE-ALARM ja see on üles ehitatud nii, et teavitus jõuaks kohale mitme kanali kaudu korraga – sest kõige kiiremad kanalid sisaldavad kõige vähem infot ja iga üksik kanal võib tehnilistel põhjustel mitte toimida.</p>
+<p>**Üks teavitus, mitu kanalit**</p>
+<p>EE-ALARM koosneb ohualapõhisest SMS-ist, mobiilirakendustest „Eesti äpp“ ja „Ole valmis!“, sireenidest ning ribatekstist ERR-i kanalitel. Vajadusel kasutatakse ka valjuhääldiga, ukselt-uksele ning droonidega teavitamist. Kriisi ajal jagab infot ka kerksuskeskus.</p>
+<p>**SMS**</p>
+<p>Ohualapõhise SMS-i saatmist korraldab üldjuhul sündmust lahendav asutus – näiteks mürgiste gaaside levikust põlengu korral teavitab Päästeamet, äkkrünnaku korral Politsei- ja Piirivalveamet. Sõnumeid saadetakse vaid ulatuslike või äärmuslike juhtumite korral, kui on otsene oht inimeste eludele. Eesti SIM-kaartide omanikele on saatjaks EE-ALARM, võõramaiste SIM-kaartide puhul number +372 5950 0000. Sõnum algab alati asutuse nimega, kes selle edastab, ning arvestab keele-eelistust, mille oled seadistanud oma mobiilioperaatori juures.</p>
+<p>**Rakendused**</p>
+<p>„Ole valmis!“ on Päästeameti mobiilirakendus, mis keskendub kriisideks valmistumisele: käitumisjuhised, abinumbrid ja esmaabi andmise juhised. „Eesti äpp“ sisaldab infot riigi teenuste kohta ning peamisi kriiside käitumisjuhiseid. Rakenduse eelis on see, et info püsib kättesaadav ka side katkemise korral.</p>
+<p>**Sireenid**</p>
+<p>Sireenivõrgustik asub 22 asulas ja katab hinnanguliselt 65% Eesti inimestest – sealhulgas Tallinna ja lähiümbruse tiheasustusalad, Tartu, Narva, Kohtla-Järve ja Ahtme, Jõhvi, Pärnu, Viljandi, Rakvere, Võru, Valga, Kuressaare, Haapsalu, Kärdla, Paide, Põlva, Rapla, Sillamäe, Keila, Maardu, Paldiski, Tapa ja Jõgeva.</p>
+<p>Sireenid käivitatakse ainult äärmuslikul juhul, kui on kiire ja vahetu oht elule. Sireeniheli kannab ainult ühte sõnumit: varju kohe siseruumi, eemale akendest ning nii, et sinu ja välisõhu vahele jääks vähemalt kaks seina. Sireenid on mõeldud peamiselt tänaval liikuva inimese hoiatamiseks; siseruumides ei pruugi sa neid üldse kuulda.</p>
+<p>Signaal ise koosneb üheminutilisest tõusva ja langeva tooniga helist, mida korratakse vähemalt kolm korda 30-sekundiliste pausidega. Kokku kestab see umbes neli minutit. Ühe sireeniposti heli kostab umbes 1,5–2 kilomeetri kaugusele sireeni paigaldussuuna sektoris, sõltuvalt hoonestusest, üldisest mürafoonist ja ilmast.</p>
+<p>**Ribatekst ja info kontrollimine**</p>
+<p>Ribatekst ETV ja ETV+ telekanalitel ning ERR-i portaalis jõuab sinuni siis, kui parasjagu telekat vaatad või uudiseid sirvid. EE-ALARM ohuteavituse puhul on saatja alati EE-ALARM ja ka ribatekstil on kuvatud „EE-ALARM“.</p>
+<p>Saabunud ohuteate ja käitumisjuhiste õigsust saad vajadusel kontrollida veebilehtedelt kriis.ee ja olevalmis.ee, helistades Riigiinfo telefonile 1247 (välisriigist helistades +372 600 1247) ning riigi ametlikelt veebilehtedelt ja sotsiaalmeediakanalitest.</p>
+<p>**Võta igat ohuteavitust äärmiselt tõsiselt**</p>
+<p>Kui kuuled sireene, varju esmalt ja otsi lisainfot alles siis. Sireenide käivitamisega kaasneb info alati ka teiste EE-ALARM kanalite kaudu.</p>
+<p>**Üleriigilised testid**</p>
+<p>EE-ALARMi testitakse üle riigi mitu korda aastas, et süsteem toimiks siis, kui seda kõige rohkem vaja on. Järgmine test toimub 14. oktoobril 2026 kell 15.00–15.10; edasised testid on kavas 10. veebruaril 2027, 9. juunil 2027 ja 13. oktoobril 2027. Lõuna paiku saadetakse mobiiltelefonidesse tekstsõnum testi toimumise kohta. Kell 15.00–15.10 käivitatakse kõik kanalid, sealhulgas sireenid suuremates asulates.</p>
+<p>Suhtu testidesse kui harjutustesse. Harjutuse mõte on selles, et päris ohuolukorras ei pea sa enam otsustama, mida teha – sa juba tead.</p>
+<p>Järgmine arendus, cell broadcast, on kavas kasutusele võtta 2027. aastaks. See võimaldab ohuteavituse saata hetkega ning sõltuvalt ohutasemest panna telefoni heli ja valgusega ohust teada andma ka siis, kui telefon on hääletu režiimi peal.</p>
+<p>Varjumine laste, eakate lähedaste ja lemmikloomadega: plaan, mida suudab päriselt järgida</p>
