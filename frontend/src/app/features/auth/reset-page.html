@@ -66,7 +66,14 @@
             autocomplete="new-password"
           />
           @if (confirmForm.controls.password.touched && confirmForm.controls.password.invalid) {
-            <p class="field-error">{{ 'authPage.reset.newPasswordRequired' | t }}</p>
+            @if (confirmForm.controls.password.hasError('required')) {
+              <p class="field-error">{{ 'authPage.reset.newPasswordRequired' | t }}</p>
+            } @else {
+              <!-- Copy for the length rule; 'authPage.reset.newPasswordTooShort'
+                   lands in the catalog via the i18n lane this wave (M7
+                   report) — see newPasswordTooShortKey. -->
+              <p class="field-error">{{ newPasswordTooShortKey | t }}</p>
+            }
           }
         </div>
 

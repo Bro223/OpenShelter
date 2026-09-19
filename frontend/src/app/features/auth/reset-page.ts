@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
+import type { MessageKey } from '../../core/i18n/messages';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { BannerComponent } from '../../shared/banner.component';
@@ -20,9 +21,15 @@ export type ResetMode = 'request' | 'sent';
  *    was known.
  *  - sent: the same anti-enumeration copy + code + new password + repeat in
  *    ONE view -> POST /auth/password-reset/confirm {email, code, newPassword}
- *    -> success -> /login?reset=ok. A 400 (wrong/expired/used/over-limit —
- *    indistinguishable by design) is ONE generic inline banner; the form
- *    stays usable.
+ *    -> success -> /login?reset=ok. A 400 for the CODE itself
+ *    (wrong/expired/used/over-limit — indistinguishable by design) is ONE
+ *    generic inline banner; a 400 that is a field-level VALIDATION failure
+ *    (e.g. a short password) is echoed honestly, since it names a field and
+ *    reveals nothing about the code. The password control mirrors the
+ *    server's @Size(min = 8) so a short password is a client-side field
+ *    error, not a 400 at all. A 429 (the per-(IP, email) anti-guess bucket)
+ *    runs the live resend countdown from Retry-After, like the send/resend
+ *    paths. The form stays usable in every case.
  *  - resend cooldown: a successful send's ack body carries the server's
  *    cooldown in seconds; the send/resend buttons run a live countdown from
  *    it and stay disabled until it expires. The request ALWAYS answers 200
@@ -48,6 +55,16 @@ export class ResetPage implements OnDestroy {
   /** The one send/resend cooldown for this page (server-enforced). */
   protected readonly countdown = new ResendCountdown();
 
+  /**
+   * The password-length field-error copy key. The i18n lane adds it to the
+   * `Messages` catalog this wave (M7 report: EN/ET/RU values); the cast
+   * keeps the template compiling until then — at runtime the lookup goes
+   * through the I18nService seam (the spec installs the value via
+   * site-texts), and it resolves from the catalog directly once the key
+   * lands.
+   */
+  readonly newPasswordTooShortKey = 'authPage.reset.newPasswordTooShort' as MessageKey;
+
   ngOnDestroy(): void {
     this.countdown.stop();
   }
@@ -64,7 +81,16 @@ export class ResetPage implements OnDestroy {
       nonNullable: true,
       validators: [Validators.required, Validators.pattern(CODE_SIX_DIGITS)],
     }),
-    password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    // minLength mirrors the server's @Size(min = 8) on
+    // PasswordResetConfirmRequest.newPassword — a short password is a
+    // client-side field error, never a 400 the banner could read as a bad
+    // code. passwordAgain needs no own length rule: a repeat value under
+    // 8 either mismatches the (valid) password, or equals a short password
+    // that the password control's rule already flags.
+    password: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(8)],
+    }),
     passwordAgain: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
   });
 
@@ -142,6 +168,10 @@ export class ResetPage implements OnDestroy {
       await this.gateway.resetPassword(this.email, code, password);
       await this.router.navigate(['/login'], { queryParams: { reset: 'ok' } });
     } catch (error) {
+      // A 429 (the per-(IP, email) anti-guess bucket) is a rate limit, not
+      // a bad code: run the live resend countdown, exactly like the
+      // send/resend paths do.
+      this.startCountdownFromThrottle(error);
       this.error.set(bannerMessage(error, 'reset'));
     } finally {
       this.pending.set(false);

@@ -28,6 +28,8 @@ export const COPY = {
   // Generic 400 fallback for the profile + shelter branches when the backend
   // sent no validation message (named once — every branch reuses it).
   checkInput: 'Please check your input and try again.',
+  // The 409 fallback when the backend sent no message.
+  valueInUse: 'That value is already in use.',
   // 5xx + other unhandled server statuses: fixed generic copy. A non-JSON
   // body (e.g. a reverse-proxy HTML error page) must never be echoed into
   // the banner verbatim.
@@ -37,7 +39,85 @@ export const COPY = {
 export type ErrorKind =
   'login' | 'register' | 'reset' | 'verify' | 'account' | 'profile' | 'shelter';
 
-export function bannerMessage(error: unknown, kind: ErrorKind): string {
+/**
+ * The field-qualified 400 of a bean-validation failure — the only 400 in
+ * the code-confirm flows that is NOT a code failure.
+ *
+ * The backend's global handler maps a @Valid payload failure to
+ * `400 + "<field> <defaultMessage>"` (ApiErrorHandler.validation joins
+ * `FieldError.getField() + " " + FieldError.getDefaultMessage()`, e.g.
+ * "newPassword Password must be at least 8 characters long"). The field
+ * set of a request payload is a CLOSED set — exactly the fields of the
+ * endpoint's request record — so a 400 message starting with one of the
+ * listed prefixes IS a field-level validation failure by construction.
+ *
+ * Why this cannot misfire (the anti-enumeration contract it must not
+ * weaken):
+ *  - the only other 400 these endpoints send for a failed code check is a
+ *    FIXED generic string — "Invalid or expired reset code" /
+ *    "Invalid or expired verification code" (wrong / expired / used /
+ *    over-limit are deliberately indistinguishable) — and neither starts
+ *    with a listed field name, so a genuine bad code ALWAYS keeps the
+ *    generic copy;
+ *  - the malformed-body 400s say "Malformed request" (no field prefix);
+ *  - if a future DTO field is ever added without updating this table, the
+ *    message falls back to the GENERIC copy — the failure direction is
+ *    safe: a validation failure can read as "bad code", never the reverse
+ *    (a code failure can never be misread as validation, its message is
+ *    the fixed string).
+ */
+const FIELD_VALIDATION_PREFIXES: Partial<Record<ErrorKind, readonly string[]>> = {
+  // Password-reset payloads: PasswordResetRequest.email, and
+  // PasswordResetConfirmRequest.email / .code / .newPassword.
+  reset: ['email ', 'code ', 'newPassword '],
+  // Verify-confirm payload: VerifyConfirmRequest.level / .code.
+  verify: ['level ', 'code '],
+};
+
+function isFieldValidation400(kind: ErrorKind, message: string): boolean {
+  return (FIELD_VALIDATION_PREFIXES[kind] ?? []).some((prefix) => message.startsWith(prefix));
+}
+
+/**
+ * The CLIENT-authored banner copy keys (the `error.*` Messages namespace):
+ * the i18n-aware seam for bannerMessage(). When a translate callback is
+ * passed, the client copy is served through it (the active locale); server-
+ * provided messages (ApiError.message) are still echoed as-is — they are
+ * backend copy and not catalog keys. Callers that pass no callback get the
+ * legacy English constants (behavior unchanged — the auth pages, map, etc.
+ * keep their current banner copy).
+ */
+export type ErrorCopyKey =
+  | 'error.rateLimited'
+  | 'error.unauthorized'
+  | 'error.checkInput'
+  | 'error.serverError'
+  | 'error.valueInUse'
+  | 'error.verifyRateLimited'
+  | 'error.verifyBadCode'
+  | 'error.accountRateLimited'
+  | 'error.accountBadCode';
+
+/** The legacy English copy behind each key (the default when no callback). */
+const CLIENT_COPY: Record<ErrorCopyKey, string> = {
+  'error.rateLimited': COPY.rateLimited,
+  'error.unauthorized': COPY.unauthorized,
+  'error.checkInput': COPY.checkInput,
+  'error.serverError': COPY.serverError,
+  'error.valueInUse': COPY.valueInUse,
+  'error.verifyRateLimited': COPY.verifyRateLimited,
+  'error.verifyBadCode': COPY.verifyBadCode,
+  'error.accountRateLimited': COPY.accountRateLimited,
+  'error.accountBadCode': COPY.accountBadCode,
+};
+
+export function bannerMessage(
+  error: unknown,
+  kind: ErrorKind,
+  translate?: (key: ErrorCopyKey) => string,
+): string {
+  const tr = (key: ErrorCopyKey): string =>
+    translate === undefined ? CLIENT_COPY[key] : translate(key);
   const api = error instanceof ApiError ? error : toApiError(error);
   if (api.isNetworkError) {
     return api.message;
@@ -45,52 +125,61 @@ export function bannerMessage(error: unknown, kind: ErrorKind): string {
   switch (api.status) {
     case 429:
       if (kind === 'verify') {
-        return COPY.verifyRateLimited;
+        return tr('error.verifyRateLimited');
       }
       if (kind === 'account') {
-        return COPY.accountRateLimited;
+        return tr('error.accountRateLimited');
       }
-      return COPY.rateLimited;
+      return tr('error.rateLimited');
     case 401:
       // Profile edit: the backend's "current password is incorrect" IS the
       // user-facing text (it is never the "wrong password" wording).
       if (kind === 'profile') {
-        return api.message || COPY.unauthorized;
+        return api.message || tr('error.unauthorized');
       }
-      return kind === 'login' ? COPY.invalidCredentials : api.message || COPY.unauthorized;
+      return kind === 'login' ? COPY.invalidCredentials : api.message || tr('error.unauthorized');
     case 400:
-      // Password-reset confirm failures are always "bad code" — no reason to
-      // echo backend internals (wrong/expired/used/over-limit are all one
-      // generic 400, and the e-mail carries a code, not a link).
+      // Password-reset confirm: a FIELD-LEVEL VALIDATION failure (short
+      // password, blank field — the form now blocks these client-side, the
+      // server is the backstop) is echoed honestly: the message names a
+      // field, never the code. EVERYTHING else (wrong/expired/used/
+      // over-limit — ONE generic 400 by design, plus the malformed-body
+      // 400s) keeps the generic bad-code copy: the UI must never reveal
+      // which check failed (anti-enumeration).
       if (kind === 'reset') {
-        return COPY.resetBadCode;
+        return isFieldValidation400(kind, api.message) ? api.message : COPY.resetBadCode;
       }
       // Profile edit: echo the validation message (blank field, etc.).
       if (kind === 'profile') {
-        return api.message || COPY.checkInput;
+        return api.message || tr('error.checkInput');
       }
-      // Verification confirm: wrong/expired code (or SMART_ID stub request).
+      // Verification confirm: same contract as reset — field-qualified
+      // validation echoes (it reveals nothing about the code); the fixed
+      // wrong/expired/lockout string stays generic (five wrong codes lock
+      // the code out; the lockout must be indistinguishable from a bad
+      // code, so it keeps the same copy). A rate limit never reaches this
+      // endpoint (JWT-guarded, no IP bucket — 429s are request-phase only).
       if (kind === 'verify') {
-        return COPY.verifyBadCode;
+        return isFieldValidation400(kind, api.message) ? api.message : tr('error.verifyBadCode');
       }
       // Contact-change confirm: wrong/expired/no-pending code. Request-phase
       // 400s ("same as current") are handled by the page with dedicated copy.
       if (kind === 'account') {
-        return COPY.accountBadCode;
+        return tr('error.accountBadCode');
       }
       // Shelter detail/reviews/submit: echo the backend message (it is the
       // honest user-facing text for 400/403/409 there).
-      return api.message || COPY.checkInput;
+      return api.message || tr('error.checkInput');
     case 409:
-      return api.message || 'That value is already in use.';
+      return api.message || tr('error.valueInUse');
     default:
       // 5xx (and any other status >= 500): always the fixed generic copy —
       // never echo the body. A non-JSON body (reverse-proxy HTML such as
       // "<html>...502 Bad Gateway...</html>") must not surface verbatim
       // Lower unhandled statuses keep the echo fallback.
       if (api.status >= 500) {
-        return COPY.serverError;
+        return tr('error.serverError');
       }
-      return api.message || COPY.serverError;
+      return api.message || tr('error.serverError');
   }
 }

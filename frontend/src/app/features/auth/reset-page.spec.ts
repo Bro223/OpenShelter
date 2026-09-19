@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AuthGateway } from '../../gateways/auth-gateway';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { ApiError, toApiError } from '../../core/api-error';
 import { ResetPage } from './reset-page';
 
@@ -197,6 +198,46 @@ describe('ResetPage', () => {
       );
     });
 
+    it('blocks a password shorter than 8 characters (mirrors the server @Size(min = 8))', async () => {
+      const { page, fixture } = await open('/reset');
+      // The field-error copy for the length rule lives behind the
+      // 'authPage.reset.newPasswordTooShort' key, which the i18n lane adds
+      // to the catalog this wave (see M7 report). The site-texts seam
+      // installs that exact copy here, so the assertion holds both before
+      // and after the key lands (override value === catalog value).
+      TestBed.inject(I18nService).setSiteTexts({
+        en: {
+          'authPage.reset.newPasswordTooShort': {
+            value: 'Password must be at least 8 characters long.',
+          },
+        },
+        et: {},
+        ru: {},
+      });
+      await request(page, fixture);
+      page.confirmForm.setValue({
+        code: '123456',
+        password: 'short',
+        passwordAgain: 'short',
+      });
+      page.confirmForm.markAllAsTouched();
+
+      await page.confirmReset();
+      fixture.detectChanges();
+
+      expect(gateway.resetPassword).not.toHaveBeenCalled();
+      expect(page.confirmForm.controls.password.hasError('minlength')).toBe(true);
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      // The length line — not the "required" line — is what shows for a
+      // short (non-blank) password.
+      expect(text).toContain('Password must be at least 8 characters long.');
+      expect(text).not.toContain('Password is required.');
+      // Boundary: exactly 8 characters is valid again.
+      page.confirmForm.controls.password.setValue('12345678');
+      expect(page.confirmForm.controls.password.hasError('minlength')).toBe(false);
+      expect(page.confirmForm.invalid).toBe(false);
+    });
+
     it('resends the code with the same email', async () => {
       const { page, fixture } = await open('/reset');
       await request(page, fixture);
@@ -307,6 +348,49 @@ describe('ResetPage', () => {
       await vi.advanceTimersByTimeAsync(45_000);
       fixture.detectChanges();
       expect(buttonByText(fixture, 'Email me a reset code')?.disabled).toBe(false);
+    });
+
+    it('a 429 on CONFIRM runs the resend countdown from Retry-After and shows the rate-limit copy', async () => {
+      vi.useFakeTimers();
+      const { page, fixture } = await openInstant();
+      await request(page, fixture);
+      page.confirmForm.setValue({
+        code: '123456',
+        password: 'new-secret',
+        passwordAgain: 'new-secret',
+      });
+
+      gateway.resetPassword.mockRejectedValue(
+        toApiError(
+          new HttpErrorResponse({
+            error: {
+              timestamp: 't',
+              status: 429,
+              error: 'Too Many Requests',
+              message: 'slow down',
+              path: '/auth/password-reset/confirm',
+            },
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: new HttpHeaders({ 'Retry-After': '45' }),
+          }),
+        ),
+      );
+
+      await page.confirmReset();
+      fixture.detectChanges();
+
+      // The rate-limit copy (not the bad-code copy)...
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('Too many attempts');
+      expect(text).not.toContain('invalid or has expired');
+      // ...and the resend button runs the 45 s cooldown instead of a bare
+      // retry.
+      expect(buttonByText(fixture, 'Resend in 45s')?.disabled).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(45_000);
+      fixture.detectChanges();
+      expect(buttonByText(fixture, 'Resend code')?.disabled).toBe(false);
     });
 
     it('a 429 on resend restarts the countdown from Retry-After', async () => {

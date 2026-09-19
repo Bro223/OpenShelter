@@ -169,12 +169,18 @@ app:
     reset-capacity: 3
     reset-refill-per-second: 0.05
     # /auth/password-reset/confirm is rate-limited per (IP, email):
-    # a 6-digit code is guessable, so the confirm
-    # path gets its own anti-guess bucket — 5 attempts, refill ~1/min
-    # (a legitimate user retries a mistyped code a few times inside the
-    # 15-minute code window).
-    reset-confirm-capacity: 5
-    reset-confirm-refill-per-second: 0.084
+    # a 6-digit code is guessable, so the confirm path gets its own
+    # anti-guess bucket. The bucket is the FAT-FINGER valve, not the
+    # primary protection — a legitimate user who mistypes the code a few
+    # times inside the 15-minute window must not be walled off: capacity
+    # 10, refill 0.2/s ≈ 12/min. Brute-force arithmetic at that steady
+    # rate: sweeping all 1e6 6-digit codes takes 1e6/12 min ≈ 58 days per
+    # (IP, email) pair. The REAL protection is the per-code 5-attempt
+    # lockout in PasswordResetService (five wrong codes kill the code
+    # regardless of the bucket), plus the per-user 60 s reissue cooldown
+    # and 5/UTC-day reissue cap on the request endpoint.
+    reset-confirm-capacity: 10
+    reset-confirm-refill-per-second: 0.2
     # Registration is rate-limited per client IP (account-spam vector).
     register-capacity: 10
     register-refill-per-second: 0.01

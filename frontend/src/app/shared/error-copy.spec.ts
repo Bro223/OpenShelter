@@ -88,6 +88,12 @@ const rows: Row[] = [
 
   // ---- 400: reset/verify/account are fixed copy (no backend internals);
   // profile/login/register/shelter echo the validation message with fallback.
+  // EXCEPTION — the two code-confirm flows (reset, verify): a FIELD-LEVEL
+  // VALIDATION 400 carries a field-qualified message ("<field> <message>")
+  // and is echoed honestly (it reveals nothing about the code); the genuine
+  // code-failure 400 is a FIXED generic string and keeps the ONE generic
+  // copy (wrong/expired/used/over-limit stay indistinguishable —
+  // anti-enumeration).
   {
     status: 400,
     kind: 'login',
@@ -106,11 +112,61 @@ const rows: Row[] = [
     message: 'wrong/expired/used/over-limit — indistinguishable',
     expected: COPY.resetBadCode,
   },
+  // The backend's EXACT fixed string for a failed code check (all failure
+  // modes) — must stay generic.
+  {
+    status: 400,
+    kind: 'reset',
+    message: 'Invalid or expired reset code',
+    expected: COPY.resetBadCode,
+  },
+  // Field-qualified validation 400s (ApiErrorHandler: field + " " + message),
+  // one row per field of the two reset request payloads.
+  {
+    status: 400,
+    kind: 'reset',
+    message: 'newPassword Password must be at least 8 characters long',
+    expected: 'newPassword Password must be at least 8 characters long',
+  },
+  {
+    status: 400,
+    kind: 'reset',
+    message: 'email Email must not be blank',
+    expected: 'email Email must not be blank',
+  },
+  {
+    status: 400,
+    kind: 'reset',
+    message: 'code Code must not be blank',
+    expected: 'code Code must not be blank',
+  },
   {
     status: 400,
     kind: 'verify',
     message: 'whatever the backend says',
     expected: COPY.verifyBadCode,
+  },
+  // The backend's EXACT fixed string for a failed verify code check — must
+  // stay generic (wrong/expired/lockout are ONE 400 by design).
+  {
+    status: 400,
+    kind: 'verify',
+    message: 'Invalid or expired verification code',
+    expected: COPY.verifyBadCode,
+  },
+  // Field-qualified validation 400s on the /verify/confirm payload
+  // (level, code).
+  {
+    status: 400,
+    kind: 'verify',
+    message: 'code size must be between 0 and 16',
+    expected: 'code size must be between 0 and 16',
+  },
+  {
+    status: 400,
+    kind: 'verify',
+    message: 'level must not be null',
+    expected: 'level must not be null',
   },
   {
     status: 400,
