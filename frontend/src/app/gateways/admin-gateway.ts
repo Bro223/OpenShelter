@@ -225,22 +225,30 @@ export class AdminGateway {
   // ------------------------------------------------------------------
 
   /**
-   * GET /admin/guidance -> AdminGuidancePostDto[] — every post, drafts
-   * included, newest-updated first (the list renders in the server's
-   * order — no client sort). The stored (sanitized) bodyHtml is returned
-   * — the editor round-trips what is stored.
+   * GET /admin/guidance -> AdminGuidancePostDto[] — unscoped (no `locale`): every
+   * post, drafts included, in the stored manual order (the list renders in the
+   * server's order — no client sort). Scoped (admin-locale-scope, `locale` given):
+   * only the posts that HAVE content in that locale — a translation row there or
+   * the post's home being it — each carrying that locale's title/slug/body/alt
+   * (the DTO's `locale` names the content locale, `homeLocale` the post's own).
+   * The stored (sanitized) bodyHtml is returned — the editor round-trips what is
+   * stored.
    */
-  listGuidancePosts(): Promise<AdminGuidancePostDto[]> {
-    return lastValueFrom(this.api.get<AdminGuidancePostDto[]>('/admin/guidance'));
+  listGuidancePosts(locale?: string): Promise<AdminGuidancePostDto[]> {
+    return lastValueFrom(this.api.get<AdminGuidancePostDto[]>(guidanceListPath(locale)));
   }
 
   /**
    * GET /admin/guidance/{id} -> AdminGuidancePostDto — the id-keyed detail
    * (the admin form edits by id — a draft has a slug, but the form never
-   * navigates by it). 404 unknown id.
+   * navigates by it). 404 unknown id. Scoped (admin-locale-scope, `locale`
+   * given): the DTO carries that locale's content; a post without content in
+   * the locale answers the same 404 as an unknown id.
    */
-  getGuidancePost(id: number): Promise<AdminGuidancePostDto> {
-    return lastValueFrom(this.api.get<AdminGuidancePostDto>(`/admin/guidance/${id}`));
+  getGuidancePost(id: number, locale?: string): Promise<AdminGuidancePostDto> {
+    return lastValueFrom(
+      this.api.get<AdminGuidancePostDto>(`/admin/guidance/${id}` + localeQuery(locale)),
+    );
   }
 
   /**
@@ -268,12 +276,25 @@ export class AdminGateway {
    * (guidance-hero-import): a blank/absent value CLEARS a pending import
    * (full replace); a non-null URL on an already-published post is a 400
    * (unpublish first).
+   *
+   * <p>Scoped (admin-locale-scope, `locale` given): the content fields
+   * (title/slug/body/hero alt) are written to THAT locale's translation row
+   * while the post-level fields (pinned, the hero reference, the pending
+   * import) stay shared on the post. `request.locale` is the post's HOME
+   * (a foreign-locale edit never moves it — a different declaration is a
+   * 400); a post without a translation in the locale 404s.
    */
   updateGuidancePost(
     id: number,
     request: UpdateGuidancePostRequest,
+    locale?: string,
   ): Promise<AdminGuidancePostDto> {
-    return lastValueFrom(this.api.put<AdminGuidancePostDto>(`/admin/guidance/${id}`, request));
+    return lastValueFrom(
+      this.api.put<AdminGuidancePostDto>(
+        `/admin/guidance/${id}` + localeQuery(locale),
+        request,
+      ),
+    );
   }
 
   /**
@@ -312,18 +333,24 @@ export class AdminGateway {
 
   /**
    * PUT /admin/guidance/order -> 204 (no body) — the MANUAL ordering
-   * (guidance-manual-order D5): the FULL ordered id list of every guidance
-   * post, exactly the order the admin table shows it (pinned block first,
-   * then the rest). The server validates the list as a permutation of all
-   * post ids BEFORE writing — an unknown id, a duplicate, or a stale
-   * (short) list 400s with nothing written — then renumbers the positions
-   * 1..N in one transaction (all-or-nothing). Resubmitting the confirmed
+   * (guidance-manual-order D5): UNSCOPED (no `locale`): the FULL ordered id
+   * list of every guidance post, exactly the order the admin table shows it
+   * (pinned block first, then the rest) — the server validates the list as a
+   * permutation of all post ids BEFORE writing — an unknown id, a duplicate,
+   * or a stale (short) list 400s with nothing written — then renumbers the
+   * positions 1..N in one transaction (all-or-nothing). SCOPED (admin-locale-
+   * scope, `locale` given): the FULL ordered id list of the posts VISIBLE IN
+   * that locale — the slot-preserving algorithm: the visible posts are
+   * rewritten into their slots of the GLOBAL order (sort_order asc, then the
+   * published_at / id tie-breakers) in the submitted order; posts not visible
+   * in the locale keep their values (the other languages are not disturbed),
+   * and the values stop being a contiguous 1..N. Resubmitting the confirmed
    * order is a 204 no-op with no audit row; a changing reorder writes one
-   * GUIDANCE_REORDER row.
+   * GUIDANCE_REORDER row (named with the locale when scoped).
    */
-  reorderGuidanceOrder(postIds: number[]): Promise<void> {
+  reorderGuidanceOrder(postIds: number[], locale?: string): Promise<void> {
     const body: ReorderGuidanceRequest = { postIds };
-    return lastValueFrom(this.api.put<void>('/admin/guidance/order', body));
+    return lastValueFrom(this.api.put<void>(`/admin/guidance/order${localeQuery(locale)}`, body));
   }
 
   // ------------------------------------------------------------------
@@ -385,6 +412,19 @@ export class AdminGateway {
  * actually set appear (no trailing `&`, no empty values). `q` is a free
  * name/address substring — URL-encoded.
  */
+/**
+ * The optional `?locale=` scope (admin-locale-scope) — empty string when
+ * absent (the unscoped, legacy read).
+ */
+function localeQuery(locale?: string): string {
+  return locale ? `?locale=${encodeURIComponent(locale)}` : '';
+}
+
+/** GET /admin/guidance[?locale=] — the optional locale scope. */
+function guidanceListPath(locale?: string): string {
+  return `/admin/guidance${localeQuery(locale)}`;
+}
+
 function adminSheltersPath(filters?: AdminShelterFilters): string {
   const params: string[] = [];
   if (filters?.status !== undefined) {

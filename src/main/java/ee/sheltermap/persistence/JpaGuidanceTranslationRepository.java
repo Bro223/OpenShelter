@@ -82,6 +82,14 @@ public class JpaGuidanceTranslationRepository implements GuidanceTranslationRepo
 
     @Override
     @Transactional(readOnly = true)
+    public List<GuidanceTranslation> findAllByLocale(String locale) {
+        return translations.findAllByLocaleOrderByPostIdAscIdAsc(locale).stream()
+                .map(GuidanceTranslationMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<GuidanceTranslation> findBySlug(String slug) {
         return translations.findBySlugOrderByLocaleAscIdAsc(slug).stream()
                 .map(GuidanceTranslationMapper::toDomain)

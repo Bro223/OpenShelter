@@ -91,6 +91,14 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<GuidancePost> findAllInStoredGlobalOrder() {
+        return posts.findAllInStoredGlobalOrder().stream()
+                .map(GuidancePostMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<GuidancePost> findPublished(String locale) {
         return posts.findByStatusAndLocaleOrderByPinnedDescSortOrderAscPublishedAtDescIdDesc(
                         GuidanceStatus.PUBLISHED, locale)

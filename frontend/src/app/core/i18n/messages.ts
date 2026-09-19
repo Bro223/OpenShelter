@@ -353,8 +353,15 @@ export interface Messages {
   'admin.guidance.tab': string;
   'admin.guidance.loading': string;
   'admin.guidance.empty': string;
+  /** The scoped empty state (admin-locale-scope): no posts have content in
+   *  the active UI language. `{locale}` is the language code. */
+  'admin.guidance.emptyLocale': string;
+  /** The scoped list's language line (admin-locale-scope): the posts shown
+   *  are the active UI language's. `{locale}` is the language code. */
+  'admin.guidance.shownIn': string;
   'admin.guidance.create': string;
   'admin.guidance.col.title': string;
+  'admin.guidance.col.position': string;
   'admin.guidance.col.status': string;
   'admin.guidance.col.locale': string;
   'admin.guidance.col.pinned': string;
@@ -452,6 +459,17 @@ export interface Messages {
   'admin.guidance.editor.localeLabel': string;
   'admin.guidance.editor.localeHint': string;
   'admin.guidance.editor.localeTooLong': string;
+  /** The editor's language line, edit mode (admin-locale-scope): which
+   *  language's content the form edits. `{locale}` is the content locale. */
+  'admin.guidance.editor.editingIn': string;
+  /** The editor's language line, create mode (admin-locale-scope): the
+   *  language the post will be created in. `{locale}` is the active UI
+   *  language code. */
+  'admin.guidance.editor.creatingIn': string;
+  /** Shown only when the form edits a FOREIGN-locale row (admin-locale-
+   *  scope): the post's home language and the single-language effect of a
+   *  save. `{home}` the home locale, `{locale}` the content locale. */
+  'admin.guidance.editor.homeLocaleNote': string;
   'admin.guidance.editor.pinnedLabel': string;
   /** Create mode only: the one-shot write-and-publish choice. */
   'admin.guidance.editor.statusLabel': string;

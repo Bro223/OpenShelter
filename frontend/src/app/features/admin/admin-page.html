@@ -847,8 +847,14 @@
         {{ 'admin.retry' | t }}
       </button>
     } @else if ((guidanceRows() ?? []).length === 0) {
-      <p class="admin-state">{{ 'admin.guidance.empty' | t }}</p>
+      <p class="admin-state">
+        {{ 'admin.guidance.emptyLocale' | t: { locale: uiLocale() } }}
+      </p>
     } @else {
+      <!-- admin-locale-scope: the list is the ACTIVE UI language's — the
+           line names the language being managed (the other languages' posts
+           are edited from their own lists). -->
+      <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: uiLocale() } }}</p>
       <!-- guidance-manual-order D6: the list order IS the public order —
            the hint names the two mechanisms (PRIMARY: the keyboard-
            reachable move buttons; SECONDARY: drag & drop). -->
@@ -858,6 +864,7 @@
           <thead>
             <tr>
               <th scope="col">{{ 'admin.guidance.col.title' | t }}</th>
+              <th scope="col">{{ 'admin.guidance.col.position' | t }}</th>
               <th scope="col">{{ 'admin.guidance.col.status' | t }}</th>
               <th scope="col">{{ 'admin.guidance.col.locale' | t }}</th>
               <th scope="col">{{ 'admin.guidance.col.pinned' | t }}</th>
@@ -900,6 +907,7 @@
                     </div>
                   </div>
                 </td>
+                <td class="admin-cell--nowrap">{{ row.sortOrder }}</td>
                 <td>
                   @if (row.status === 'PUBLISHED') {
                     <span class="badge badge--published">{{

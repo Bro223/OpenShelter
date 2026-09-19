@@ -676,8 +676,12 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     loadSnowTheme();
     const post = this.post();
     if (post === null) {
-      // create mode — the form starts blank; the "no image" tick starts
-      // checked, so the URL field starts off (see syncHeroImportDisabled).
+      // create mode — the form starts blank; the post is created in the
+      // ACTIVE UI language (admin-locale-scope — the language line names
+      // it), so the locale control is prefilled with it.
+      this.form.get('locale')?.setValue(this.i18n.locale());
+      // the "no image" tick starts checked, so the URL field starts off
+      // (see syncHeroImportDisabled).
       this.syncHeroImportDisabled();
       return;
     }
@@ -686,7 +690,12 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     // The editor round-trips what is stored (the sanitizer output) —
     // ngAfterViewInit loads it into Quill from this control.
     this.form.get('body')?.setValue(post.bodyHtml);
-    this.form.get('locale')?.setValue(post.locale);
+    // The locale control declares the post's HOME language — NOT the
+    // content locale being edited (admin-locale-scope: a scoped read serves
+    // the active locale's row, whose `locale` may differ from the home).
+    // A foreign-locale edit never moves the home (server 400), so the
+    // prefill is the home and the control stays a home declaration.
+    this.form.get('locale')?.setValue(post.homeLocale);
     this.form.get('pinned')?.setValue(post.pinned);
     this.form.get('heroImageId')?.setValue(post.heroImageId);
     this.form.get('heroImageAlt')?.setValue(post.heroImageAlt ?? '');
@@ -1001,6 +1010,39 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  post's complementary note. */
   protected isDraftPost(): boolean {
     return this.post()?.status === 'DRAFT';
+  }
+
+  /**
+   * The LANGUAGE LINE (admin-locale-scope): the UI must state which
+   * language is being edited. Edit mode: the post's CONTENT locale of the
+   * scoped read (the row the form round-trips); create mode: the active UI
+   * language the post will be created in. A plain method (re-evaluated on
+   * each CD pass — the post input and the locale signal both change only
+   * when the page recreates/switches the editor).
+   */
+  protected localeLine(): string {
+    const post = this.post();
+    if (post === null) {
+      return this.i18n.t('admin.guidance.editor.creatingIn', { locale: this.i18n.locale() });
+    }
+    return this.i18n.t('admin.guidance.editor.editingIn', { locale: post.locale });
+  }
+
+  /**
+   * The HOME-LOCALE NOTE: shown only when the form edits a FOREIGN row
+   * (the content locale differs from the post's home) — saving changes
+   * only this language's text, the other languages keep their own. Null
+   * hides the line (the home-locale edit is the unscoped semantics).
+   */
+  protected homeLocaleNote(): string | null {
+    const post = this.post();
+    if (post === null || post.locale === post.homeLocale) {
+      return null;
+    }
+    return this.i18n.t('admin.guidance.editor.homeLocaleNote', {
+      home: post.homeLocale,
+      locale: post.locale,
+    });
   }
 
   /**

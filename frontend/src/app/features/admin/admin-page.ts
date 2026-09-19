@@ -4,9 +4,12 @@ import {
   ElementRef,
   inject,
   OnInit,
+  OnDestroy,
   computed,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { skip } from 'rxjs';
 import { NgClass } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe, registerLocaleData } from '@angular/common';
@@ -205,7 +208,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
   styleUrl: './admin-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AdminPage implements OnInit {
+export class AdminPage implements OnInit, OnDestroy {
   private readonly admin = inject(AdminGateway);
   private readonly publicGuidance = inject(GuidanceGateway);
   private readonly i18n = inject(I18nService);
@@ -298,8 +301,14 @@ export class AdminPage implements OnInit {
   );
 
   // ---- guidance tab (crisis-guidance D8) -------------------------------------
+  /** The active UI language (admin-locale-scope): the guidance list, detail
+   *  fetches, saves and reorders all scope to it — the template renders it
+   *  in the "posts in {locale}" line. */
+  protected readonly uiLocale = this.i18n.locale;
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
-   *  Every post, drafts included, in the server's order. */
+   *  SCOPEd to the active UI language (admin-locale-scope): only the posts
+   *  that have content in it (a translation row there or the home being it),
+   *  each carrying that locale's content, in the stored global manual order. */
   protected readonly guidanceRows = signal<AdminGuidancePostDto[] | null>(null);
   protected readonly guidanceLoadError = signal<string | null>(null);
   /** The drag-&-drop target row (guidance-manual-order D6, SECONDARY
@@ -329,6 +338,23 @@ export class AdminPage implements OnInit {
   private guidanceFetchSeq = 0;
   /** The monotonic editor-detail fetch sequence (same guard). */
   private editorFetchSeq = 0;
+  /** The language switcher sets I18nService.locale: the guidance list is
+   *  locale-scoped, so a switch re-fetches it (the guidance-list-page's
+   *  idiom). A field initializer (an injection context — toObservable's
+   *  requirement) builds the subscription; toObservable emits the CURRENT
+   *  value on subscribe, so skip(1) — only a real switch triggers it.
+   *  Unsubscribed in ngOnDestroy. An open editor is CLOSED by the switch
+   *  — its unsaved edits are DISCARDED (they belong to the previous
+   *  language's rows; re-open after the switch re-fetches the new
+   *  locale's content). */
+  private readonly guidanceLocaleSub = toObservable(this.i18n.locale)
+    .pipe(skip(1))
+    .subscribe(() => {
+      this.closeGuidanceEditor();
+      if (this.tab() === 'guidance' && this.guidanceRows() !== null) {
+        this.loadGuidance();
+      }
+    });
 
   // ---- media library tab (crisis-guidance D8) ---------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
@@ -423,6 +449,10 @@ export class AdminPage implements OnInit {
       return (previous ?? next) as string;
     }
     return `${previous} → ${next}`;
+  }
+
+  ngOnDestroy(): void {
+    this.guidanceLocaleSub.unsubscribe();
   }
 
   ngOnInit(): void {
@@ -966,17 +996,20 @@ export class AdminPage implements OnInit {
   // -------------------------------------------------------------------------
 
   /**
-   * Load every post (drafts included, newest-updated first — the list
-   * renders in the server's order). The monotonic fetch sequence drops a
-   * stale (out-of-order) response: a superseded load must not overwrite a
-   * newer one (the detail page's pattern).
+   * Load the posts visible in the ACTIVE UI language (admin-locale-scope):
+   * only the posts that have content in it (a translation row there, or the
+   * post's home being it), each carrying that locale's content, in the
+   * stored global manual order (the list renders in the server's order —
+   * no client sort). The monotonic fetch sequence drops a stale
+   * (out-of-order) response: a superseded load must not overwrite a newer
+   * one (a language switch's pattern).
    */
   loadGuidance(): void {
     this.guidanceRows.set(null);
     this.guidanceLoadError.set(null);
     const seq = ++this.guidanceFetchSeq;
     this.admin
-      .listGuidancePosts()
+      .listGuidancePosts(this.i18n.locale())
       .then((rows) => {
         if (seq !== this.guidanceFetchSeq) {
           return; // a newer load superseded this response
@@ -1021,11 +1054,14 @@ export class AdminPage implements OnInit {
   }
 
   /**
-   * Open the editor. Create mode opens directly; edit mode fetches the
-   * id-keyed detail FIRST (the stored (sanitized) bodyHtml is what the
-   * editor round-trips — the row's copy may be stale after a save from
-   * elsewhere). The media library loads for the hero picker when the media
-   * tab hasn't loaded it yet.
+   * Open the editor. Create mode opens directly (the form is prefilled
+   * with the ACTIVE UI language — the post is created in it); edit mode
+   * fetches the id-keyed detail FIRST, SCOPED to the active UI language
+   * (the stored (sanitized) bodyHtml is what the editor round-trips — the
+   * row's copy may be stale after a save from elsewhere; a post without
+   * content in the locale 404s — unreachable from a scoped row). The media
+   * library loads for the hero picker when the media tab hasn't loaded it
+   * yet.
    */
   openGuidanceEditor(post: AdminGuidancePostDto | null): void {
     this.clearFeedback();
@@ -1040,7 +1076,7 @@ export class AdminPage implements OnInit {
     this.guidanceEditor.set('new'); // the editor section renders (loading…)
     this.guidanceEditorLoading.set(true);
     this.admin
-      .getGuidancePost(post.id)
+      .getGuidancePost(post.id, this.i18n.locale())
       .then((fetched) => {
         if (seq !== this.editorFetchSeq) {
           return; // superseded (a newer open/cancel) — drop the stale post
@@ -1105,10 +1141,15 @@ export class AdminPage implements OnInit {
       let result: AdminGuidancePostDto;
       if (save.id === null) {
         result = await this.admin.createGuidancePost(save.create!);
-        this.guidanceRows.update((rows) => [result, ...(rows ?? [])]);
+        // The new post APPENDS at the END of the stored manual order (the
+        // server does — it is not newest-first anymore), so the row is
+        // appended, not prepended.
+        this.guidanceRows.update((rows) => [...(rows ?? []), result]);
         this.success.set(this.i18n.t('admin.guidance.success.created'));
       } else {
-        result = await this.admin.updateGuidancePost(save.id, save.update!);
+        // SCOPED to the active UI language: the content fields land on that
+        // locale's translation row (the post-level fields stay shared).
+        result = await this.admin.updateGuidancePost(save.id, save.update!, this.i18n.locale());
         this.guidanceRows.update((rows) =>
           (rows ?? []).map((r) => (r.id === result.id ? result : r)),
         );
@@ -1163,7 +1204,7 @@ export class AdminPage implements OnInit {
         // publish itself succeeded, the next list load fixes the row.
         if (row.heroImportUrl !== null) {
           try {
-            const fresh = await this.admin.getGuidancePost(row.id);
+            const fresh = await this.admin.getGuidancePost(row.id, this.i18n.locale());
             this.patchGuidance(row.id, fresh);
           } catch {
             // Stale row: the publish succeeded, the list load heals it.
@@ -1337,10 +1378,13 @@ export class AdminPage implements OnInit {
   }
 
   /** The shared submission: PUT /admin/guidance/order with the FULL
-   *  submitted order. Success reorders the table in place (the server
-   *  confirmed it — its 204 is the confirmation); a failure (400 stale /
-   *  unknown / duplicate list, or the network) KEEPS the last confirmed
-   *  order and shows the error banner. */
+   *  submitted order — SCOPEd to the active UI language (admin-locale-
+   *  scope): the list is exactly the posts visible in it, and the server
+   *  rewrites them into their slots of the GLOBAL order (slot-preserving —
+   *  the other languages' posts are untouched). Success reorders the table
+   *  in place (the server confirmed it — its 204 is the confirmation); a
+   *  failure (400 stale / unknown / not-visible-in-the-locale list, or the
+   *  network) KEEPS the last confirmed order and shows the error banner. */
   private async submitGuidanceOrder(nextRows: AdminGuidancePostDto[]): Promise<void> {
     if (this.busy()) {
       return;
@@ -1348,7 +1392,7 @@ export class AdminPage implements OnInit {
     this.clearFeedback();
     this.busy.set(true);
     try {
-      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id));
+      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id), this.i18n.locale());
       this.guidanceRows.set(nextRows);
       this.success.set(this.i18n.t('admin.guidance.success.reordered'));
     } catch (error) {

@@ -38,7 +38,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *       a changing reorder writes exactly one {@code GUIDANCE_REORDER} row;
  *       an unknown id / a duplicate id / a stale list / an empty list while
  *       posts exist each 400 and change nothing; a forced mid-transaction
- *       failure renumbers NOTHING (all-or-nothing);</li>
+ *       failure renumbers NOTHING (all-or-nothing);
+ *   <li>the locale-scoped endpoints (the admin's language view): the scoped
+ *       list shows only the posts with content in that locale (serving the
+ *       locale's content, exposing {@code homeLocale} + {@code sortOrder});
+ *       the scoped detail is a 404 for a post without a translation in the
+ *       locale; the scoped update edits the locale's row (home columns stay);
+ *       the scoped reorder is SLOT-PRESERVING — the visible posts take the
+ *       submitted order in their GLOBAL slots, the invisible posts keep
+ *       their values (the values stop being 1..N); an id invisible in the
+ *       locale / a stale scoped list / an overlong locale each 400;</li>
  *   <li>the public index order contract — pinned first (even a pinned post
  *       with the LARGEST sort_order leads), then sort_order ascending, then
  *       the published_at / id tie-breakers (forced equal values); repeated
@@ -313,6 +322,225 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
             jdbc.execute("DROP TRIGGER v28_order_failure_guard ON guidance_posts");
             jdbc.execute("DROP FUNCTION v28_order_failure_guard()");
         }
+    }
+
+    // ------------------------------------------------------------- the locale-scoped endpoints
+
+    /** The admin list order (ids) for ONE locale scope. */
+    private List<Long> scopedAdminOrder(String locale) throws Exception {
+        MvcResult result = mvc.perform(get("/admin/guidance")
+                        .param("locale", locale)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        List<?> ids = JsonPath.read(result.getResponse().getContentAsString(StandardCharsets.UTF_8),
+                "$[*].id");
+        return ids.stream().map(n -> ((Number) n).longValue()).toList();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions putScopedOrder(String token, String locale, long... ids) throws Exception {
+        StringBuilder body = new StringBuilder("{\"postIds\":[");
+        for (int i = 0; i < ids.length; i++) {
+            if (i > 0) {
+                body.append(',');
+            }
+            body.append(ids[i]);
+        }
+        body.append("]}");
+        return mvc.perform(put("/admin/guidance/order")
+                        .param("locale", locale)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body.toString().getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private long createPost(String title, String locale, boolean published) {
+        GuidancePost post = guidance.create(adminId, title, null, "<p>body-" + title + "</p>",
+                locale, false, null, null, null,
+                published ? GuidanceStatus.PUBLISHED : null);
+        return post.getId();
+    }
+
+    @Test
+    void aScopedListShowsOnlyPostsThatHaveContentInTheLocaleInItsContent() throws Exception {
+        long en1 = createPost("EN one", "en", true);
+        long en2 = createPost("EN two", "en", true);
+        long et1 = createPost("Eesti post", "et", true);
+        // en1 also exists in et (the same post in both languages).
+        guidance.createTranslation(en1, "et", null, "Eesti üks", "<p>et keha</p>", null);
+
+        assertThat(scopedAdminOrder("en")).containsExactly(en1, en2);
+        assertThat(scopedAdminOrder("et")).containsExactly(en1, et1);
+
+        // The paired post serves its ET ROW in the et scope (and the DTO
+        // carries the homeLocale + the global sortOrder now).
+        MvcResult et = mvc.perform(get("/admin/guidance")
+                        .param("locale", "et")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andReturn();
+        String json = et.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        // (No [0] index after a filter — jayway's filter results don't take
+        // a trailing index in this version; the property returns the match's list.)
+        List<Object> etTitles = JsonPath.read(json, "$[?(@.id==" + en1 + ")].title");
+        assertThat(etTitles).containsExactly("Eesti üks");
+        List<Object> homeLocales = JsonPath.read(json, "$[?(@.id==" + en1 + ")].homeLocale");
+        assertThat(homeLocales).containsExactly("en");
+        List<Object> sortOrders = JsonPath.read(json, "$[?(@.id==" + en1 + ")].sortOrder");
+        assertThat(sortOrders).containsExactly(1);
+        // The unscoped list is unchanged: every post, in the stored order.
+        assertThat(adminOrder()).containsExactly(en1, en2, et1);
+    }
+
+    @Test
+    void aScopedGetWithoutATranslationInThatLocaleIs404() throws Exception {
+        long en = createPost("EN only", "en", true);
+
+        mvc.perform(get("/admin/guidance/" + en)
+                        .param("locale", "ru")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound());
+
+        // With an et row, the scoped detail serves the row's content.
+        guidance.createTranslation(en, "et", null, "Eesti", "<p>b</p>", null);
+        mvc.perform(get("/admin/guidance/" + en)
+                        .param("locale", "et")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Eesti"))
+                .andExpect(jsonPath("$.homeLocale").value("en"));
+    }
+
+    @Test
+    void aScopedUpdateEditsTheLocaleRowAndKeepsTheHomeColumns() throws Exception {
+        long en = createPost("EN original", "en", true);
+        guidance.createTranslation(en, "et", null, "Eesti originaal", "<p>et keha</p>", null);
+
+        // The body's locale is the post's HOME ("en") — a foreign-locale
+        // edit never moves the home (a different declaration is a 400).
+        mvc.perform(put("/admin/guidance/" + en)
+                        .param("locale", "et")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Eesti uus\",\"body\":\"<p>uus keha</p>\",\"locale\":\"en\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("Eesti uus"))
+                // The DTO's locale is the CONTENT locale (the row being
+                // edited — et); homeLocale is the post's own (en).
+                .andExpect(jsonPath("$.locale").value("et"))
+                .andExpect(jsonPath("$.homeLocale").value("en"));
+
+        // The home columns are untouched; the et row carries the edit.
+        assertThat(jdbc.queryForObject(
+                        "SELECT title FROM guidance_posts WHERE id = ?", String.class, en))
+                .isEqualTo("EN original");
+        assertThat(jdbc.queryForObject(
+                        "SELECT title FROM guidance_post_translations WHERE post_id = ? AND locale = 'et'",
+                        String.class, en))
+                .isEqualTo("Eesti uus");
+
+        // A declaration that moves the home while editing the et row: 400.
+        mvc.perform(put("/admin/guidance/" + en)
+                        .param("locale", "et")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Eesti uuem\",\"body\":\"<p>uuem keha</p>\",\"locale\":\"ru\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void aScopedUpdateToALocaleWithoutATranslationIs404() throws Exception {
+        long en = createPost("EN only", "en", true);
+        mvc.perform(put("/admin/guidance/" + en)
+                        .param("locale", "et")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"Eesti\",\"body\":\"<p>b</p>\",\"locale\":\"en\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aScopedReorderWritesTheSubmittedOrderIntoTheGlobalSlotsAndKeepsInvisiblePosts() throws Exception {
+        long a = createPost("Slot A", "en", true);   // global slot 1
+        long b = createPost("Eesti slot B", "et", true); // slot 2 — invisible in en
+        long c = createPost("Slot C", "en", true);   // slot 3
+        // a is visible in et too (its shared slot travels with it).
+        guidance.createTranslation(a, "et", null, "A et", "<p>b</p>", null);
+
+        // The en scope sees [a, c]; submit [c, a].
+        putScopedOrder(adminToken, "en", c, a).andExpect(status().isNoContent());
+
+        // c and a took each other's SLOTS (1 and 3) — the values did NOT
+        // become 1..2, and the invisible post b is untouched (2).
+        assertThat(sortOrderOf(c)).isEqualTo(1);
+        assertThat(sortOrderOf(a)).isEqualTo(3);
+        assertThat(sortOrderOf(b)).isEqualTo(2);
+        // The en view renders the submission; the et view stays consistent
+        // (b=2, then a=3 — a's shared slot travels with it).
+        assertThat(scopedAdminOrder("en")).containsExactly(c, a);
+        assertThat(scopedAdminOrder("et")).containsExactly(b, a);
+
+        // Resubmitting the same visible order: 204 no-op, one audit row total
+        // (labelled with the locale).
+        long before = reorderRowCount();
+        putScopedOrder(adminToken, "en", c, a).andExpect(status().isNoContent());
+        assertThat(reorderRowCount()).isEqualTo(before);
+        assertThat(jdbc.queryForObject(
+                        "SELECT subject_label FROM moderation_actions "
+                                + "WHERE action = 'GUIDANCE_REORDER' ORDER BY id DESC LIMIT 1",
+                        String.class))
+                .isEqualTo("Guidance post order (en)");
+    }
+
+    @Test
+    void aScopedReorderRefusesAnInvisibleIdAndAStaleListAndChangesNothing() throws Exception {
+        long a = createPost("A", "en", false);
+        long b = createPost("Eesti B", "et", false); // no en content
+        long c = createPost("C", "en", false);
+
+        // An id without content in en cannot ride along in the en list.
+        putScopedOrder(adminToken, "en", a, b)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(String.valueOf(b))));
+        // A stale en list (missing c) — e.g. created after the table load.
+        putScopedOrder(adminToken, "en", a)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("stale")));
+
+        assertThat(sortOrderOf(a)).isEqualTo(1);
+        assertThat(sortOrderOf(b)).isEqualTo(2);
+        assertThat(sortOrderOf(c)).isEqualTo(3);
+        assertThat(reorderRowCount()).isZero();
+    }
+
+    @Test
+    void aScopedEmptyListIs204WithNothingVisibleAnd400WithSome() throws Exception {
+        // Nothing in ru: the empty list IS the order — a 204 no-op.
+        putScopedOrder(adminToken, "ru").andExpect(status().isNoContent());
+
+        long a = createPost("A", "en", false);
+        putScopedOrder(adminToken, "en")
+                .andExpect(status().isBadRequest());
+        assertThat(sortOrderOf(a)).isEqualTo(1);
+        assertThat(reorderRowCount()).isZero();
+    }
+
+    @Test
+    void anOverlongLocaleParamIs400OnEveryScopedEndpoint() throws Exception {
+        long a = createPost("A", "en", false);
+
+        mvc.perform(get("/admin/guidance")
+                        .param("locale", "toolong")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/admin/guidance/" + a)
+                        .param("locale", "toolong")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isBadRequest());
+        putScopedOrder(adminToken, "toolong", a).andExpect(status().isBadRequest());
+
+        assertThat(sortOrderOf(a)).isEqualTo(1);
+        assertThat(reorderRowCount()).isZero();
     }
 
     // ------------------------------------------------------------- the order contract

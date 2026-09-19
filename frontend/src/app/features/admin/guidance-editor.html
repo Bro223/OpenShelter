@@ -6,6 +6,15 @@
     }}
   </h2>
 
+  <!-- admin-locale-scope: the language line — the UI states which
+       language is being edited (the content locale in edit mode, the
+       active UI language in create mode). A foreign-locale edit adds the
+       home-locale note (saving changes only this language's text). -->
+  <p class="guidance-editor__locale-line">{{ localeLine() }}</p>
+  @if (homeLocaleNote(); as note) {
+    <p class="guidance-editor__locale-line guidance-editor__locale-line--home">{{ note }}</p>
+  }
+
   <!-- The failed save's server message (400 validation / 409 slug
        collision / 404 unknown hero): the editor STAYS open — the admin
        keeps the draft, the message is echoed verbatim. -->

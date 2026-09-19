@@ -17,6 +17,12 @@ import java.util.Optional;
  *       {@code id} descending (guidance-manual-order D2: the admin list
  *       is the live preview of the public order — the stored manual
  *       order, not the newest-updated order);</li>
+ *   <li>{@link #findAllInStoredGlobalOrder()} — the GLOBAL manual order
+ *       across every locale: {@code sortOrder} ascending, then
+ *       {@code publishedAt} descending (nulls last — a draft's NULL
+ *       stamp ranks after any stamped instant), {@code id} descending.
+ *       The locale-scoped admin list and the locale-scoped reorder walk
+ *       this order: the visible posts' SLOTS are their positions here;
  *   <li>{@link #findPublished(String)} — pinned first, then
  *       {@code sortOrder} ascending, then {@code publishedAt} descending
  *       (a tie-breaker — {@code sortOrder} is not uniqueness-constrained),
@@ -46,6 +52,16 @@ public interface GuidancePostRepository {
 
     /** Every post, drafts included, in the stored manual order (sortOrder asc, id desc tie-break). */
     List<GuidancePost> findAllForAdmin();
+
+    /**
+     * Every post, drafts included, in the GLOBAL stored manual order:
+     * {@code sortOrder} ascending, {@code publishedAt} descending
+     * (nulls last — drafts after stamped rows), {@code id} descending.
+     * The locale-scoped admin list and the locale-scoped reorder both
+     * walk this order, so the visible posts' slots are stable and the
+     * two agree (admin-locale-scope).
+     */
+    List<GuidancePost> findAllInStoredGlobalOrder();
 
     /**
      * The public index order in ONE locale: pinned first, then

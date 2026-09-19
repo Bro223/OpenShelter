@@ -7,6 +7,7 @@ import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
+import ee.sheltermap.guidance.GuidanceNotFoundException;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
@@ -50,15 +51,22 @@ import java.util.Map;
  * first; the guard's own 401 branch is the same fallback convention.
  *
  * <p>Surface: the list (every post, drafts included, in the stored
- * manual order — the live preview of the public order), the id-keyed
- * detail (the admin form edits by id), create (DRAFT by default — an
- * explicit status publishes in one call; the new post appends at the END
- * of the manual order), full replace (slug kept when omitted), the
- * idempotent publish/unpublish (no-op → 204, NO audit row; never move a
- * post's stored order), the atomic full-list reorder
+ * manual order — the live preview of the public order; scoped to ONE
+ * locale via {@code ?locale=} — admin-locale-scope — only the posts that
+ * have content in it are returned, in the active UI language's content),
+ * the id-keyed detail (the admin form edits by id; the same optional
+ * {@code ?locale=} serves that locale's content), create (DRAFT by
+ * default — an explicit status publishes in one call; the new post
+ * appends at the END of the manual order), full replace (slug kept when
+ * omitted; {@code ?locale=} writes the content to that locale's
+ * translation — the post-level fields stay shared), the idempotent
+ * publish/unpublish (no-op → 204, NO audit row; never move a post's
+ * stored order), the atomic full-list reorder
  * ({@code PUT /admin/guidance/order} → 204; 400 unknown / duplicate /
- * stale), and the hard delete that requires {@code confirm=true} (400
- * without it).
+ * stale) — unscoped it renumbers every post 1..N, scoped
+ * ({@code ?locale=}) it rewrites the visible posts into their slots of
+ * the GLOBAL order (the other languages' rows are untouched) — and the
+ * hard delete that requires {@code confirm=true} (400 without it).
  */
 @Tag(name = "Admin guidance",
         description = "Every operation requires a valid Bearer JWT AND an "
@@ -85,48 +93,90 @@ public class AdminGuidanceController {
     }
 
     /**
-     * The admin guidance list (D3): every post, drafts included,
-     * newest-updated first (id descending tie-break).
+     * The admin guidance list (D3): every post, drafts included, in the
+     * stored manual order. With {@code ?locale=} (admin-locale-scope) only
+     * the posts that HAVE content in that locale — a translation row there,
+     * or the post's home locale being it — are returned, carrying that
+     * locale's title/slug/body/alt (the DTO's {@code locale} names it, and
+     * {@code homeLocale} the post's own): a post that exists in another
+     * language only does not appear — that is the filter, not an error.
+     * An empty scope is an empty list. A PRESENT but blank or over-long
+     * locale is a 400 (the uniform vocabulary).
      */
     @GetMapping
     @Operation(summary = "The admin guidance list",
-            description = "Every post, drafts included, newest-updated first. "
-                    + "The stored (sanitized) bodyHtml is returned — the editor "
-                    + "round-trips what is stored.")
+            description = "Every post, drafts included, in the stored manual order. "
+                    + "With ?locale= (admin-locale-scope) only the posts that have content in "
+                    + "that locale are returned — a translation row there, or the post's home "
+                    + "locale being it — carrying that locale's title/slug/body/alt (the DTO's "
+                    + "`locale` names the content locale, `homeLocale` the post's own). The "
+                    + "stored (sanitized) bodyHtml is returned — the editor round-trips what "
+                    + "is stored. An empty scope is an empty list; a present but blank or "
+                    + "over-long locale is 400.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "All posts (drafts "
-                    + "included, newest-updated first)", content = @Content(array =
+            @ApiResponse(responseCode = "200", description = "All posts (unscoped) or the "
+                    + "locale's posts (scoped), drafts included, in the stored manual order",
+                    content = @Content(array =
                     @ArraySchema(schema = @Schema(implementation = AdminGuidancePostDto.class)))),
+            @ApiResponse(responseCode = "400", description = "A present but blank or over-long locale"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
-    public List<AdminGuidancePostDto> list() {
+    public List<AdminGuidancePostDto> list(
+            @Parameter(description = "Optional: the active UI language (admin-locale-scope) — "
+                    + "only the posts that have content in it are returned. Absent = every "
+                    + "post (the legacy locale-blind list).")
+            @RequestParam(required = false) String locale) {
         requireAdmin();
-        List<GuidancePost> all = guidance.listForAdmin();
+        String resolved = guidance.optionalAdminLocale(locale);
+        List<GuidancePost> all = resolved == null
+                ? guidance.listForAdmin()
+                : guidance.listForAdmin(resolved);
+        Map<Long, GuidanceTranslation> content = resolved == null
+                ? Map.of()
+                : guidance.translationsInLocale(resolved);
         Map<Long, MediaAsset> heroes = heroIndex(all);
         return all.stream()
-                .map(post -> toAdminDto(post, heroes))
+                .map(post -> toAdminDto(post, heroes, content.get(post.getId())))
                 .toList();
     }
 
-    /** The id-keyed admin detail (the admin form edits by id). 404 unknown. */
+    /**
+     * The id-keyed admin detail (the admin form edits by id). 404 unknown.
+     * With {@code ?locale=} the DTO carries that locale's content (a
+     * translation row when the post has one, the home columns when the
+     * post's home IS the locale); a post without content in the locale
+     * answers the same 404 as an unknown id.
+     */
     @GetMapping("/{id}")
     @Operation(summary = "The admin guidance detail",
             description = "Id-keyed (a draft has a slug, but the admin form edits "
-                    + "by id). 404 unknown id.")
+                    + "by id). 404 unknown id. With ?locale= the DTO carries that locale's "
+                    + "content (a translation row when the post has one, the home columns "
+                    + "when the post's home IS the locale); a post without content in the "
+                    + "locale answers the same 404 as an unknown id.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The post", content =
                     @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
-            @ApiResponse(responseCode = "404", description = "Unknown post id"),
+            @ApiResponse(responseCode = "404", description = "Unknown post id (or no content in the requested locale)"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
-    public AdminGuidancePostDto get(@PathVariable long id) {
+    public AdminGuidancePostDto get(@PathVariable long id,
+                                    @Parameter(description = "Optional: the active UI "
+                                            + "language — the DTO carries that locale's content.")
+                                    @RequestParam(required = false) String locale) {
         requireAdmin();
+        String resolved = guidance.optionalAdminLocale(locale);
         GuidancePost post = guidance.getById(id);
-        Map<Long, MediaAsset> heroes = post.getHeroImageId() == null
-                ? Map.of()
-                : Map.of(post.getHeroImageId(),
-                        mediaAssets.findById(post.getHeroImageId()).orElse(null));
-        return toAdminDto(post, heroes);
+        GuidanceTranslation content = null;
+        if (resolved != null) {
+            content = guidance.translationInLocale(id, resolved).orElse(null);
+            if (content == null && !post.getLocale().equals(resolved)) {
+                // No content in the requested locale — the same 404 as an
+                // unknown id (never reveal which locale the post is in).
+                throw new GuidanceNotFoundException(GuidanceService.POST_NOT_FOUND_MESSAGE);
+            }
+        }
+        return toAdminDto(post, heroIndexFor(post), content);
     }
 
     /**
@@ -175,6 +225,14 @@ public class AdminGuidanceController {
      * omitted; the body is re-sanitized (D2); the publication state is
      * NOT editable here (publish/unpublish own it). 200 with the updated
      * post; 400/404/409 the same vocabulary as create.
+     *
+     * <p>With {@code ?locale=} (admin-locale-scope) the content fields
+     * (title, slug, body, hero alt) are written to THAT locale's
+     * translation row while the post-level fields (pinned, the hero
+     * reference, the pending import) stay shared on the post. Editing in
+     * the post's own locale is exactly the unscoped semantics (including
+     * the home-locale move); a foreign-locale edit never moves the home
+     * (400) and 404s when the post has no row in the locale.
      */
     @PutMapping("/{id}")
     @Operation(summary = "Full replace of a guidance post",
@@ -182,60 +240,101 @@ public class AdminGuidanceController {
                     + "when omitted (a given slug that another post holds → 409 "
                     + "naming it). The body is re-sanitized — the stored value is "
                     + "the sanitizer output. 200 with the updated post; 404 "
-                    + "unknown id.")
+                    + "unknown id. With ?locale= the content fields are written to "
+                    + "that locale's translation (the post-level fields stay shared); "
+                    + "editing in the post's own locale is the unscoped semantics, a "
+                    + "foreign-locale edit never moves the home locale (400) and 404s "
+                    + "when the post has no translation in the locale.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The updated post",
                     content = @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
             @ApiResponse(responseCode = "400", description = "Validation failure (incl. a "
-                    + "pending import URL on a published post)"),
+                    + "pending import URL on a published post, a home-locale move through "
+                    + "a foreign-locale edit)"),
             @ApiResponse(responseCode = "409", description = "Slug collision (naming the slug)"),
-            @ApiResponse(responseCode = "404", description = "Unknown post id (or "
-                    + "heroImageId with no such asset)"),
+            @ApiResponse(responseCode = "404", description = "Unknown post id (or a "
+                    + "heroImageId with no such asset; scoped: no translation in the locale)"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public AdminGuidancePostDto update(@PathVariable long id,
+                                       @Parameter(description = "Optional: the locale "
+                                               + "being edited — the content fields "
+                                               + "land on its translation row.")
+                                       @RequestParam(required = false) String locale,
                                        @Valid @RequestBody UpdateGuidancePostRequest request) {
         requireAdmin();
-        GuidancePost post = guidance.update(id, request.title(), request.slug(),
-                request.body(), request.locale(), request.pinned(), request.heroImageId(),
-                request.heroImageAlt(), request.heroImportUrl());
-        return toAdminDto(post, heroIndexFor(post));
+        String resolved = guidance.optionalAdminLocale(locale);
+        GuidancePost post;
+        if (resolved == null) {
+            post = guidance.update(id, request.title(), request.slug(),
+                    request.body(), request.locale(), request.pinned(), request.heroImageId(),
+                    request.heroImageAlt(), request.heroImportUrl());
+        } else {
+            post = guidance.updateInLocale(id, resolved, request.title(), request.slug(),
+                    request.body(), request.locale(), request.pinned(), request.heroImageId(),
+                    request.heroImageAlt(), request.heroImportUrl());
+        }
+        GuidanceTranslation content = null;
+        if (resolved != null) {
+            content = guidance.translationInLocale(id, resolved).orElse(null);
+        }
+        return toAdminDto(post, heroIndexFor(post), content);
     }
 
     /**
-     * Publish (D4): stamps publishedAt from the server clock. Idempotent
-     * — an already-published post is a 204 no-op that writes NO audit
-     * row and keeps its earlier stamp. A pending hero import (the
-     * post's {@code heroImportUrl}) is consumed here: the server fetches,
-     * validates and stores the image inside this call, and a failed
-     * import fails the publish (400 policy/non-image, 413 over cap,
-     * 502 unfetchable) leaving the post a DRAFT. 204; 404 unknown id.
-     *
-     * <p>The literal {@code order} segment outranks the {@code /{id}}
-     * template in Spring's mapping — there is no ambiguity with the
-     * update route (guidance-manual-order D3).
+     * Reorder (guidance-manual-order D3 + admin-locale-scope). UNSCOPED: the
+     * FULL ordered list of every post id (drafts and published alike) — a
+     * strict permutation of every current post — renumbered 1..N in ONE
+     * transaction. SCOPED ({@code ?locale=}): the FULL ordered list of the
+     * posts VISIBLE IN that locale (a subset — the filtered list cannot be
+     * a permutation of every post) — the slot-preserving algorithm: the
+     * visible posts are rewritten into their slots of the GLOBAL order
+     * (sort_order asc, published_at desc nulls last, id desc), in the
+     * submitted order; posts not visible in the locale keep their values
+     * (their languages are not disturbed) and the values stop being a
+     * contiguous 1..N (no unique constraint; the tie-breakers stay
+     * deterministic). Both: 204; resubmitting the current order is a no-op
+     * that writes no audit row, a changing reorder writes one
+     * GUIDANCE_REORDER row (named with the locale when scoped); 400 an
+     * unknown id, a duplicate id, or a stale list missing a current post
+     * (nothing changed); 404 never — 403 non-admin.
      */
     @PutMapping("/order")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Reorder the guidance posts",
-            description = "The FULL ordered list of post ids (drafts and published "
-                    + "alike) — a strict permutation of every current post. A valid "
-                    + "reorder renumbers every post's stored order to 1..N in ONE "
-                    + "transaction (all-or-nothing) and answers 204; resubmitting the "
-                    + "current order is a no-op that writes no audit row, a changing "
-                    + "reorder writes one GUIDANCE_REORDER row. 400 an unknown id, a "
-                    + "duplicate id, or a stale list missing a concurrently created "
-                    + "post (nothing changed); 404 never — 403 non-admin.")
+            description = "Unscoped: the FULL ordered list of post ids — a strict "
+                    + "permutation of every current post — renumbered 1..N in ONE transaction "
+                    + "(all-or-nothing) and answered with 204. Scoped (?locale=): the FULL "
+                    + "ordered list of the posts visible in that locale — the visible posts "
+                    + "are rewritten into their slots of the GLOBAL order (sort_order asc, "
+                    + "published_at desc nulls last, id desc), in the submitted order; posts "
+                    + "not visible in the locale keep their values (their languages are not "
+                    + "disturbed), and the values stop being a contiguous 1..N (no unique "
+                    + "constraint; the tie-breakers stay deterministic). Resubmitting the "
+                    + "current order is a no-op that writes no audit row; a changing reorder "
+                    + "writes one GUIDANCE_REORDER row (named with the locale when scoped). "
+                    + "400 an unknown id, a duplicate id, or a stale list — nothing changed; "
+                    + "403 non-admin.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "204", description = "Renumbered 1..N (or the "
-                    + "same order resubmitted — no-op)"),
-            @ApiResponse(responseCode = "400", description = "An unknown id, a "
-                    + "duplicate id, a missing (stale) list, or an empty list while "
-                    + "posts exist — nothing changed"),
+            @ApiResponse(responseCode = "204", description = "Reordered (or the "
+                    + "current order resubmitted — no-op)"),
+            @ApiResponse(responseCode = "400", description = "A blank or over-long locale, "
+                    + "an id not visible in the locale, a duplicate id, a missing (stale) "
+                    + "list, or an empty list while visible posts exist — nothing changed"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
-    public void reorder(@Valid @RequestBody ReorderGuidanceRequest request) {
-        guidance.reorder(requireAdmin(), request.postIds());
+    public void reorder(@Parameter(description = "Optional: the locale of the filtered "
+            + "list — the list must be exactly the posts visible in it. Absent = every "
+            + "post (the legacy 1..N renumber).")
+            @RequestParam(required = false) String locale,
+                        @Valid @RequestBody ReorderGuidanceRequest request) {
+        long adminId = requireAdmin();
+        String resolved = guidance.optionalAdminLocale(locale);
+        if (resolved == null) {
+            guidance.reorder(adminId, request.postIds());
+        } else {
+            guidance.reorderInLocale(adminId, resolved, request.postIds());
+        }
     }
 
     /**
@@ -469,18 +568,39 @@ public class AdminGuidanceController {
     }
 
     private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes) {
+        return toAdminDto(post, heroes, null);
+    }
+
+    /**
+     * The admin DTO with an OPTIONAL content source (admin-locale-scope):
+     * the translation row the read is scoped to. When present, the content
+     * fields (title/slug/body/alt) and the DTO's {@code locale} come from
+     * the row (the locale being shown/edited); when absent, from the
+     * post's home columns (the legacy read — the DTO's {@code locale} is
+     * then the home locale, as before). {@code homeLocale} is always the
+     * post's own, and {@code sortOrder} the shared stored manual position.
+     */
+    private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes,
+                                            GuidanceTranslation content) {
         MediaAsset hero = post.getHeroImageId() == null ? null : heroes.get(post.getHeroImageId());
+        String title = content != null ? content.getTitle() : post.getTitle();
+        String slug = content != null ? content.getSlug() : post.getSlug();
+        String bodyHtml = content != null ? content.getBodyHtml() : post.getBodyHtml();
+        String heroAlt = content != null ? content.getHeroImageAlt() : post.getHeroImageAlt();
+        String contentLocale = content != null ? content.getLocale() : post.getLocale();
         return new AdminGuidancePostDto(
                 post.getId() == null ? 0 : post.getId(),
-                post.getSlug(),
-                post.getTitle(),
-                post.getBodyHtml(),
+                slug,
+                title,
+                bodyHtml,
+                contentLocale,
                 post.getLocale(),
                 post.getStatus(),
                 post.isPinned(),
+                post.getSortOrder(),
                 post.getHeroImageId(),
                 hero == null ? null : MediaService.MEDIA_URL_PREFIX + hero.getStoredFilename(),
-                post.getHeroImageAlt(),
+                heroAlt,
                 post.getHeroImportUrl(),
                 post.getCreatedBy(),
                 post.getCreatedAt(),

@@ -20,6 +20,9 @@ public interface SpringDataGuidanceTranslationRepository
     /** Every translation of a post, in locale order (the admin detail / alternates). */
     List<GuidanceTranslationEntity> findAllByPostIdOrderByLocaleAsc(Long postId);
 
+    /** Every translation row in one locale (the admin locale-scope read). */
+    List<GuidanceTranslationEntity> findAllByLocaleOrderByPostIdAscIdAsc(String locale);
+
     /**
      * Every translation row holding a slug, in ANY locale, deterministic
      * (locale, id) order. The public detail resolves a URL slug through this.

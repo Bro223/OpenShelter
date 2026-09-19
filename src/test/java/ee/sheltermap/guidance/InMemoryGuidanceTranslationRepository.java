@@ -82,6 +82,15 @@ public class InMemoryGuidanceTranslationRepository implements GuidanceTranslatio
     }
 
     @Override
+    public List<GuidanceTranslation> findAllByLocale(String locale) {
+        return store.values().stream()
+                .filter(t -> t.getLocale().equals(locale))
+                .sorted(Comparator.comparingLong(GuidanceTranslation::getPostId)
+                        .thenComparingLong(GuidanceTranslation::getId))
+                .toList();
+    }
+
+    @Override
     public List<GuidanceTranslation> findBySlug(String slug) {
         return store.values().stream()
                 .filter(t -> t.getSlug().equals(slug))

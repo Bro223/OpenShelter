@@ -60,6 +60,26 @@ import java.util.Set;
  * Publishing or unpublishing NEVER moves a post: its slot IS its
  * {@code sortOrder} (D4).
  *
+ * <p>Locale scope (admin-locale-scope): the admin UI edits ONE language
+ * at a time (its active UI language), so the admin list can be scoped
+ * to a locale — only the posts that HAVE content in it are returned.
+ * A post "has content in" a locale when it carries a translation row
+ * there, or when its HOME locale is the one requested (the post row's
+ * own columns are that locale's content — the V26 invariant says every
+ * post owns its own-locale row, so a post visible only through its home
+ * columns is a missing-row anomaly the scoped read still surfaces,
+ * never a 500). {@code sort_order} is per POST, shared by every
+ * translation: the unscoped reorder renumbers every post 1..N, while
+ * the LOCALE-scoped reorder (the filtered list is not a permutation of
+ * every post) PRESERVES THE GLOBAL ORDER — the visible posts occupy
+ * slots in the global order (sortOrder asc, publishedAt desc nulls
+ * last, id desc), and the submitted order is written into exactly those
+ * slots. The invisible posts keep their values untouched, so reordering
+ * one language cannot disturb the others and no post is ever lost.
+ * The values stop being a contiguous 1..N after a scoped reorder — by
+ * design (no unique constraint; the tie-breakers keep every read
+ * deterministic).
+ *
  * <p>Hero import (guidance-hero-import): a post may carry a PENDING hero
  * import — an admin-supplied http(s) URL in {@code heroImportUrl} instead
  * of a library reference. The URL is consumed at the moment the post
@@ -182,6 +202,69 @@ public class GuidanceService {
     @Transactional(readOnly = true)
     public List<GuidancePost> listForAdmin() {
         return posts.findAllForAdmin();
+    }
+
+    /**
+     * The admin list scoped to ONE locale (admin-locale-scope): only the
+     * posts that HAVE content in it — a translation row in the locale, or
+     * the post's home locale being the one requested (the home columns
+     * are that locale's content). A post that exists in another locale
+     * only does NOT appear — that is the filter, not an error. An empty
+     * scope (nothing in the locale) is an empty list, never an error.
+     * The order is the GLOBAL stored manual order (sortOrder asc,
+     * publishedAt desc nulls last, id desc) — the same order the
+     * locale-scoped reorder walks, so the rendered rows ARE the slots.
+     *
+     * @param locale the requested locale, resolved by the caller through
+     *               {@link #optionalAdminLocale(String)} (400 on a present
+     *               but blank / over-long value)
+     * @throws GuidanceValidationException 400 — a blank or over-long locale
+     */
+    @Transactional(readOnly = true)
+    public List<GuidancePost> listForAdmin(String locale) {
+        String requested = requireLocale(locale);
+        Set<Long> rowPosts = new LinkedHashSet<>();
+        for (GuidanceTranslation row : translations.findAllByLocale(requested)) {
+            rowPosts.add(row.getPostId());
+        }
+        List<GuidancePost> visible = new ArrayList<>();
+        for (GuidancePost post : posts.findAllInStoredGlobalOrder()) {
+            if (rowPosts.contains(post.getId()) || post.getLocale().equals(requested)) {
+                visible.add(post);
+            }
+        }
+        return visible;
+    }
+
+    /**
+     * The translations in ONE locale, keyed by the owning post id — the
+     * content source for the locale-scoped admin reads (the list's
+     * per-row title/slug/body/alt and the scoped detail). One query,
+     * no per-post loop. Posts whose HOME locale is the requested one but
+     * which carry no translation row are ABSENT from the map: the caller
+     * serves their home columns instead (the V26 invariant's missing-row
+     * anomaly, handled without failing).
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, GuidanceTranslation> translationsInLocale(String locale) {
+        String requested = requireLocale(locale);
+        Map<Long, GuidanceTranslation> byPost = new LinkedHashMap<>();
+        for (GuidanceTranslation row : translations.findAllByLocale(requested)) {
+            byPost.put(row.getPostId(), row);
+        }
+        return byPost;
+    }
+
+    /**
+     * The post's one translation in a locale (the scoped admin detail / update
+     * target). Empty when the post has no row in the locale — the caller then
+     * falls back to the home columns (when the post's home IS the locale) or
+     * answers 404 (an unknown post or locale, the translations vocabulary).
+     */
+    @Transactional(readOnly = true)
+    public Optional<GuidanceTranslation> translationInLocale(long postId, String locale) {
+        requirePost(postId);
+        return translations.findByPostIdAndLocale(postId, requireLocale(locale));
     }
 
     /**
@@ -376,6 +459,111 @@ public class GuidanceService {
     }
 
     /**
+     * Full replace of a post's editable fields SCOPED TO THE LOCALE BEING
+     * EDITED (admin-locale-scope): the admin UI always edits one language
+     * (its active UI language), so the content fields (title, slug, body,
+     * hero alt) land on THAT locale's translation row — while the post-level
+     * fields (pinned, the hero reference, the pending import URL) are shared
+     * by every translation and land on the post.
+     *
+     * <p>When the edit locale IS the post's home locale this is exactly the
+     * unscoped {@link #update} semantics (the home columns take the content
+     * and the home-locale move stays available), so an admin editing in the
+     * post's own language behaves exactly as before. When it is NOT, the
+     * home content columns are untouched (they belong to the home edit) and
+     * the post's home locale may NOT move — a blank {@code homeLocale} keeps
+     * the current one, a different one is a 400 (moving the home is the
+     * home-locale edit's job). A missing translation row in the edit locale
+     * is a 404 (the unknown-post-or-locale vocabulary — the admin list only
+     * ever surfaces posts that have content in the locale, so the editor
+     * cannot reach this state).
+     *
+     * <p>Hero pairing (the V23 CHECK rides on the post row): the REQUEST's
+     * alt (the edit locale's alt) validates against the request's hero
+     * exactly as before; the post row's OWN alt keeps its home value — with
+     * one exception each way, forced by the CHECK and the pairing rule:
+     * setting a hero on a hero-less post takes the request's alt as the new
+     * home alt (the home edit can refine it later), and clearing the hero
+     * nulls it. The home-locale translation row is re-synced from the post
+     * columns in that case (the V26 invariant).
+     *
+     * @throws GuidanceNotFoundException   404 — unknown post, a heroImageId
+     *                                     with no such asset, or no
+     *                                     translation in the edit locale
+     * @throws GuidanceValidationException 400 — same vocabulary as {@link #update},
+     *                                     plus a home-locale move through a
+     *                                     foreign-locale edit
+     * @throws SlugAlreadyUsedException    409 — the given (locale, slug) is
+     *                                     held by another translation
+     */
+    @Transactional
+    public GuidancePost updateInLocale(long id, String editLocale, String title, String slug,
+                                       String body, String homeLocale, boolean pinned,
+                                       Long heroImageId, String heroImageAlt,
+                                       String heroImportUrl) {
+        GuidancePost post = requirePost(id);
+        String editL = requireLocale(editLocale);
+        if (editL.equals(post.getLocale())) {
+            // Editing in the post's own language: the unscoped full replace
+            // (home columns + home-locale move + home row sync — unchanged).
+            return update(id, title, slug, body, homeLocale, pinned, heroImageId,
+                    heroImageAlt, heroImportUrl);
+        }
+        // A foreign-locale edit never moves the home: a blank declaration
+        // keeps the current home, a different one is a 400.
+        String declaredHome = homeLocale == null || homeLocale.isBlank()
+                ? post.getLocale()
+                : homeLocale.trim();
+        if (!declaredHome.equals(post.getLocale())) {
+            throw new GuidanceValidationException(
+                    "the post's home locale (" + post.getLocale() + ") cannot change while "
+                            + "editing a " + editL + " translation — the home locale moves "
+                            + "only through the post's own-locale edit");
+        }
+        // The content target, resolved BEFORE anything is written (fail
+        // first): a 404 when the post has no row in the edit locale.
+        GuidanceTranslation translation = translations.findByPostIdAndLocale(id, editL)
+                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
+        Instant now = clock.instant();
+        String cleanTitle = requireTitle(title);
+        String cleanBody = sanitize(body);
+        String cleanImportUrl = normalizeImportUrl(heroImportUrl);
+        if (post.isPublished() && cleanImportUrl != null) {
+            // A published post cannot take a pending import (the V25 CHECK
+            // makes this structural): unpublishing first is the workflow.
+            throw new GuidanceValidationException(
+                    "A published post cannot take a pending hero import — unpublish it "
+                            + "first, or pick a hero from the media library");
+        }
+        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
+        String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
+        boolean hasHero = heroImageId != null || cleanImportUrl != null;
+        // The post row's OWN alt (the home alt): the CHECK forces a
+        // non-blank value whenever a hero is set — a hero-less post has a
+        // null home alt, so a hero set here takes the request's alt as the
+        // new home alt (the home edit refines it later); a cleared hero
+        // nulls it. Otherwise the home value is untouched.
+        String oldHomeAlt = post.getHeroImageAlt();
+        String postAlt = hasHero
+                ? (oldHomeAlt == null || oldHomeAlt.isBlank() ? heroAlt : oldHomeAlt)
+                : null;
+        post.update(post.getSlug(), post.getTitle(), post.getBodyHtml(), post.getLocale(),
+                pinned, heroImageId, postAlt, cleanImportUrl, now);
+        GuidancePost saved = posts.save(post);
+        if (!Objects.equals(oldHomeAlt, postAlt)) {
+            // The home alt moved with the hero: re-sync the home row (the
+            // V26 invariant — the home translation mirrors the columns).
+            saveOwnTranslation(saved, now);
+        }
+        // The content lands on the edit locale's translation row (the row
+        // was resolved above, before any write).
+        String finalSlug = resolveTranslationSlug(editL, slug, translation.getSlug());
+        translation.update(finalSlug, cleanTitle, cleanBody, heroAlt, now);
+        translations.save(translation);
+        return saved;
+    }
+
+    /**
      * Publish (D4): stamps {@code publishedAt} from the injected Clock
      * and records GUIDANCE_PUBLISH in this transaction. Idempotent — an
      * already-published post is a no-op that writes NO audit row and
@@ -547,6 +735,119 @@ public class GuidanceService {
                 "Guidance post order", null);
     }
 
+    /**
+     * The atomic LOCALE-SCOPED reorder (admin-locale-scope): the admin UI
+     * reorders the FILTERED list (the posts visible in ONE locale — a
+     * subset of every post, so a permutation-of-all validation cannot
+     * apply). The {@code postIds} list must be exactly the posts visible
+     * in {@code locale}, in the submitted order.
+     *
+     * <p>The SHARED-slot algorithm ({@code sort_order} is per post, shared
+     * by its translations): walk the GLOBAL stored order (sortOrder asc,
+     * publishedAt desc nulls last, id desc) once — the visible posts occupy
+     * SLOTS in that order — and rewrite the visible posts into exactly
+     * those slots, in the submitted order. Posts not visible in the locale
+     * are not touched: their {@code sort_order} keeps its value, so the
+     * other languages' orders stay consistent (a post's position is
+     * shared) and reordering one language cannot disturb the others' drafts
+     * or published rows. No post is ever lost, and the visible language's
+     * order then equals the submission.
+     *
+     * <p>The values stop being a contiguous 1..N after a scoped reorder —
+     * by design (no unique constraint; the published_at / id tie-breakers
+     * keep every read total and deterministic, and the next unscoped
+     * reorder re-densifies if wanted).
+     *
+     * <p>Validation runs FIRST, before anything is written: an id without a
+     * {@code locale} translation (or home locale) — an unknown post, a
+     * post of another language — a duplicate id, or a visible post missing
+     * from the list (stale) is a 400 that changes nothing; an empty list
+     * is a 400 whenever any visible post exists (with none, it is a no-op).
+     * Idempotence: resubmitting the current visible order changes no value
+     * and writes NO audit row; a changing reorder writes exactly ONE
+     * {@code GUIDANCE_REORDER} row named with the locale, in this
+     * transaction.
+     *
+     * @throws GuidanceValidationException 400 — a blank or over-long locale,
+     *                                     an id not visible in the locale,
+     *                                     a duplicate id, a missing (stale)
+     *                                     list or an empty list while visible
+     *                                     posts exist
+     */
+    @Transactional
+    public void reorderInLocale(long adminId, String locale, List<Long> postIds) {
+        String resolved = requireLocale(locale);
+        List<Long> requested = Objects.requireNonNull(postIds, "postIds");
+        Set<Long> submitted = new LinkedHashSet<>();
+        for (Long id : requested) {
+            if (id == null) {
+                throw new GuidanceValidationException("postIds must not contain null ids");
+            }
+            if (!submitted.add(id)) {
+                throw new GuidanceValidationException("postIds lists post " + id + " more than once");
+            }
+        }
+        // The GLOBAL order (sortOrder asc, publishedAt desc nulls last,
+        // id desc): the visible posts' slots are their positions in it.
+        List<GuidancePost> current = posts.findAllInStoredGlobalOrder();
+        Set<Long> visibleIds = new LinkedHashSet<>();
+        for (GuidanceTranslation row : translations.findAllByLocale(resolved)) {
+            visibleIds.add(row.getPostId());
+        }
+        for (GuidancePost post : current) {
+            // A post whose HOME locale is the requested one has content in
+            // it through its own columns (the home rows the V26 invariant
+            // keeps — or lacks, on the legacy rows).
+            if (post.getLocale().equals(resolved)) {
+                visibleIds.add(post.getId());
+            }
+        }
+        List<GuidancePost> visible = new ArrayList<>();
+        for (GuidancePost post : current) {
+            if (visibleIds.contains(post.getId())) {
+                visible.add(post);
+            }
+        }
+        if (!submitted.equals(visibleIds)) {
+            List<Long> notVisible = new ArrayList<>(submitted);
+            notVisible.removeAll(visibleIds);
+            if (!notVisible.isEmpty()) {
+                throw new GuidanceValidationException("postIds contains posts without a "
+                        + resolved + " translation: " + notVisible + " — refresh the list");
+            }
+            throw new GuidanceValidationException("postIds is missing current " + resolved
+                    + " posts (the list is stale — a post was created or deleted since the "
+                    + "table was loaded): refresh the list and retry");
+        }
+        // The current visible order (the global order, visible only):
+        // resubmitting it is a no-op that writes NO audit row.
+        List<Long> currentVisibleOrder = visible.stream().map(GuidancePost::getId).toList();
+        if (requested.equals(currentVisibleOrder)) {
+            return;
+        }
+        // Rewrite the visible posts into the SAME slots (the slot values in
+        // global order), in the submitted order. The slot VALUES are captured
+        // first — the walk mutates the very posts it reads from (a post taking
+        // another visible post's slot would otherwise hand out the NEW value
+        // on the next step). One save per post, all in this ONE transaction
+        // (a failure rolls the whole rewrite back).
+        Map<Long, GuidancePost> byId = new HashMap<>();
+        for (GuidancePost post : visible) {
+            byId.put(post.getId(), post);
+        }
+        List<Integer> slots = new ArrayList<>(visible.size());
+        for (GuidancePost post : visible) {
+            slots.add(post.getSortOrder());
+        }
+        for (int i = 0; i < requested.size(); i++) {
+            GuidancePost post = byId.get(requested.get(i));
+            post.setSortOrder(slots.get(i));
+            posts.save(post);
+        }
+        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_REORDER,
+                "Guidance post order (" + resolved + ")", null);
+    }
+
     // ------------------------------------------------------------- guards
 
     /**
@@ -570,6 +871,18 @@ public class GuidanceService {
             throw new GuidanceValidationException("locale must be at most " + MAX_LOCALE_LENGTH + " characters");
         }
         return trimmed;
+    }
+
+    /**
+     * The OPTIONAL admin locale (admin-locale-scope): {@code null} when the
+     * parameter is ABSENT (the admin read stays locale-blind — the legacy
+     * all-languages behaviour), a 400 ({@link #resolveLocale}) when present
+     * but blank or over-long. The admin UI always sends the active UI
+     * language; the absent parameter exists for the API's backwards
+     * compatibility, not as a "default language" (unlike the public reads).
+     */
+    public String optionalAdminLocale(String locale) {
+        return locale == null ? null : resolveLocale(locale);
     }
 
     /**

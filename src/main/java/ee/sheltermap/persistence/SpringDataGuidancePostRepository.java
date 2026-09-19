@@ -22,6 +22,16 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
     /** Every post, drafts included, in the stored manual order (the admin list, D2). */
     List<GuidancePostEntity> findAllByOrderBySortOrderAscIdDesc();
 
+    /**
+     * Every post, drafts included, in the GLOBAL stored manual order
+     * (admin-locale-scope): sort_order asc, published_at desc with
+     * NULLS LAST (a draft's NULL stamp ranks after any stamped instant —
+     * the V28 backfill's tie-break rule), id desc.
+     */
+    @Query(value = "SELECT * FROM guidance_posts "
+            + "ORDER BY sort_order ASC, published_at DESC NULLS LAST, id DESC", nativeQuery = true)
+    List<GuidancePostEntity> findAllInStoredGlobalOrder();
+
     /** The public index order (guidance-manual-order D2) in ONE locale — the
      *  locale filter rides in the same query as the status and ordering (no
      *  in-memory filter): pinned first, then sort_order asc, published_at desc

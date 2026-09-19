@@ -20,6 +20,7 @@ import type {
   TokenResponse,
 } from '../../core/models';
 import { AdminPage } from './admin-page';
+import { I18nService } from '../../core/i18n/i18n.service';
 
 const PAIR: TokenResponse = { accessToken: 'access-1', refreshToken: 'refresh-1', expiresIn: 900 };
 
@@ -151,8 +152,10 @@ const GUIDANCE_DRAFT: AdminGuidancePostDto = {
   title: 'Uus juhis (mustand)',
   bodyHtml: '<p>Keha</p>',
   locale: 'et',
+  homeLocale: 'et',
   status: 'DRAFT',
   pinned: false,
+  sortOrder: 2,
   heroImageId: null,
   heroImageUrl: null,
   heroImageAlt: null,
@@ -187,8 +190,10 @@ const GUIDANCE_PUBLISHED: AdminGuidancePostDto = {
   title: 'Varjumine droonirünnaku ajal',
   bodyHtml: '<p>Pöördu peavarjendisse.</p>',
   locale: 'et',
+  homeLocale: 'et',
   status: 'PUBLISHED',
   pinned: true,
+  sortOrder: 1,
   heroImageId: 5,
   heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
   heroImageAlt: 'Kelder, vaade sissepääsust',
@@ -1460,7 +1465,7 @@ describe('AdminPage', () => {
     await fixture.whenStable();
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     fixture.detectChanges();
-    expect(element.textContent).toContain('No guidance posts yet.');
+    expect(element.textContent).toContain('No guidance posts in en yet.');
 
     buttonByText(element, 'Media library')!.click();
     await fixture.whenStable();
@@ -1486,7 +1491,9 @@ describe('AdminPage', () => {
 
     await switchTab('Guidance', element, fixture);
 
+    // admin-locale-scope: the list is fetched for the active UI language.
     expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenCalledWith('en');
     const rows = element.querySelectorAll('tbody tr');
     expect(rows.length).toBe(2);
     // The published row: status badge, locale, pin, hero thumbnail.
@@ -1494,14 +1501,16 @@ describe('AdminPage', () => {
     expect(rows[1]!.textContent).toContain('varjumine-droonirunnaku-ajal');
     expect(rows[1]!.textContent).toContain('Published');
     expect(rows[1]!.textContent).toContain('et');
-    expect(rows[1]!.querySelectorAll('td')[3]!.textContent!.trim()).toBe('Yes');
+    // The Position column shows the shared sortOrder (admin-locale-scope).
+    expect(rows[1]!.querySelectorAll('td')[1]!.textContent!.trim()).toBe('1');
+    expect(rows[1]!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('Yes');
     // The Published column is merged from the public index by slug (not '—').
-    expect(rows[1]!.querySelectorAll('td')[4]!.textContent!.trim()).not.toBe('—');
+    expect(rows[1]!.querySelectorAll('td')[5]!.textContent!.trim()).not.toBe('—');
     // The draft row: no publication instant (—), no pin.
     expect(rows[0]!.textContent).toContain('Uus juhis (mustand)');
     expect(rows[0]!.textContent).toContain('Draft');
-    expect(rows[0]!.querySelectorAll('td')[3]!.textContent!.trim()).toBe('No');
-    expect(rows[0]!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('—');
+    expect(rows[0]!.querySelectorAll('td')[4]!.textContent!.trim()).toBe('No');
+    expect(rows[0]!.querySelectorAll('td')[5]!.textContent!.trim()).toBe('—');
     const thumb = rows[1]!.querySelector<HTMLImageElement>('img.admin-guidance-thumb');
     expect(thumb?.getAttribute('src')).toBe(GUIDANCE_PUBLISHED.heroImageUrl);
   });
@@ -1530,8 +1539,27 @@ describe('AdminPage', () => {
 
     await switchTab('Guidance', element, fixture);
 
-    expect(element.textContent).toContain('No guidance posts yet.');
+    expect(element.textContent).toContain('No guidance posts in en yet.');
     expect(buttonByText(element, 'New post')).not.toBeNull();
+  });
+
+  it('a UI language switch re-fetches the scoped list (admin-locale-scope)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+
+    // The switcher sets the service's locale: the list is scoped to it, so
+    // a switch re-fetches (the rows are the NEW language's content).
+    i18nService.setLocale('et');
+    await settle(fixture);
+
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('et');
   });
 
   it('the guidance list error state shows the banner with Retry; Retry re-loads', async () => {
@@ -1554,7 +1582,7 @@ describe('AdminPage', () => {
     expect(element.querySelectorAll('tbody tr').length).toBe(1);
   });
 
-  it('create: the editor saves a draft (DRAFT status, null hero), the row is prepended', async () => {
+  it('create: the editor saves a draft (DRAFT status, null hero), the row is appended (the server appends new posts to the manual order)', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
     admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
@@ -1577,12 +1605,14 @@ describe('AdminPage', () => {
     expect(payload.status).toBe('DRAFT');
     expect(payload.heroImageId).toBeNull();
     expect(payload.heroImageAlt).toBeNull();
-    // The editor is closed; the created row is at the top; the success copy.
+    // The editor is closed; the created row is APPENDED (the server adds it
+    // at the END of the stored manual order — not newest-first anymore);
+    // the success copy.
     expect(element.querySelector('app-guidance-editor')).toBeNull();
     expect(element.textContent).toContain('Post created.');
     const rows = element.querySelectorAll('tbody tr');
     expect(rows.length).toBe(2);
-    expect(rows[0]!.textContent).toContain('Uus juhis (mustand)');
+    expect(rows[1]!.textContent).toContain('Uus juhis (mustand)');
   });
 
   it('create: a 409 slug collision keeps the editor open with the server message', async () => {
@@ -1618,7 +1648,9 @@ describe('AdminPage', () => {
     const rows = element.querySelectorAll('tbody tr');
     buttonByText(rows[1]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
     await settle(fixture);
-    expect(admin.getGuidancePost).toHaveBeenCalledWith(11);
+    // admin-locale-scope: the detail fetch is scoped to the active UI
+    // language (the editor round-trips that locale's content).
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'en');
     expect(element.querySelector('app-guidance-editor')).not.toBeNull();
 
     // The prefill is valid (hero + alt paired) — save as-is.
@@ -1680,7 +1712,7 @@ describe('AdminPage', () => {
     expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
     // The import ran inside the publish; the row's hero reference is the
     // re-fetched post (the 204 body carries nothing).
-    expect(admin.getGuidancePost).toHaveBeenCalledWith(12);
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(12, 'en');
     expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Published');
     expect(element.textContent).toContain('Post published.');
     // The result is shown: the stored image's thumbnail is in the row now.
@@ -1870,7 +1902,7 @@ describe('AdminPage', () => {
 
     // The full ordered id list (13 moved ahead of 11; 12 untouched).
     expect(admin.reorderGuidanceOrder).toHaveBeenCalledTimes(1);
-    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12]);
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12], 'en');
     // No list reload — the table reordered in place from the submitted list.
     expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
     const after = element.querySelectorAll('tbody tr');
@@ -1892,7 +1924,7 @@ describe('AdminPage', () => {
     toTop!.click();
     await settle(fixture);
 
-    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([12, 11, 13]);
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([12, 11, 13], 'en');
     const after = element.querySelectorAll('tbody tr');
     expect(after[0]!.textContent).toContain('Uus juhis (mustand)');
   });
@@ -1929,7 +1961,7 @@ describe('AdminPage', () => {
     component.onGuidanceDrop(dragEvent(), GUIDANCE_DRAFT);
     await settle(fixture);
     // 11 moved to the last position: [13, 12, 11].
-    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 12, 11]);
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 12, 11], 'en');
 
     component.onGuidanceDragEnd();
     fixture.detectChanges();

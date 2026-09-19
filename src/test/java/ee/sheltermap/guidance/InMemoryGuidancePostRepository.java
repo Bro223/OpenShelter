@@ -44,6 +44,18 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
                     .thenComparing(Comparator.comparing(GuidancePost::getPublishedAt).reversed())
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
 
+    /** The GLOBAL stored manual order (admin-locale-scope): sortOrder asc,
+     *  publishedAt desc with nulls LAST (a draft's NULL stamp ranks after
+     *  any stamped instant — the V28 backfill's tie-break rule), id desc.
+     *  The locale-scoped admin list and the locale-scoped reorder both
+     *  walk this order. */
+    private static final Comparator<GuidancePost> GLOBAL_ORDER =
+            Comparator.comparingInt(GuidancePost::getSortOrder)
+                    .thenComparing(
+                            GuidancePost::getPublishedAt,
+                            Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
+
     private final Clock clock;
     private final Map<Long, GuidancePost> store = new LinkedHashMap<>();
     private long nextId = 1;
@@ -84,6 +96,11 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
     @Override
     public List<GuidancePost> findAllForAdmin() {
         return sorted(new ArrayList<>(store.values()), ADMIN_ORDER);
+    }
+
+    @Override
+    public List<GuidancePost> findAllInStoredGlobalOrder() {
+        return sorted(new ArrayList<>(store.values()), GLOBAL_ORDER);
     }
 
     @Override

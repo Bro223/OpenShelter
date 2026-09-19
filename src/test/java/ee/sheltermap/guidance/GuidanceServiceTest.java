@@ -5,6 +5,7 @@ import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.auth.MutableClock;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
+import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.domain.PublicGuidanceView;
 import org.junit.jupiter.api.BeforeEach;
@@ -855,6 +856,298 @@ class GuidanceServiceTest {
         // administrator has to manage both.
         assertThat(service.listForAdmin()).extracting(GuidancePost::getLocale)
                 .containsExactlyInAnyOrder("en", "et", "et");
+    }
+
+    // ------------------------------------------------------------- admin locale scope
+
+    @Test
+    void theAdminListScopedToALocaleShowsOnlyPostsThatHaveContentInIt() {
+        GuidancePost en1 = createAndPublish("English one", "en");
+        GuidancePost en2 = createAndPublish("English two", "en");
+        GuidancePost et1 = createAndPublish("Eesti uus", "et");
+        GuidancePost ru1 = createAndPublish("Russkiy post", "ru");
+        // en1 gains an et translation (the same post in both languages).
+        service.createTranslation(en1.getId(), "et", null, "Eesti üks", "<p>et keha</p>", null);
+
+        // The en scope: en1 + en2 (their home rows). et1 and ru1 are absent.
+        assertThat(service.listForAdmin("en")).extracting(GuidancePost::getId)
+                .containsExactlyInAnyOrder(en1.getId(), en2.getId());
+        // The et scope: en1 (its et row) + et1 (home et). en2, ru1 absent.
+        assertThat(service.listForAdmin("et")).extracting(GuidancePost::getId)
+                .containsExactlyInAnyOrder(en1.getId(), et1.getId());
+        // The ru scope: ru1 only.
+        assertThat(service.listForAdmin("ru")).extracting(GuidancePost::getId)
+                .containsExactly(ru1.getId());
+        // The unscoped list is untouched: every post, in the stored order.
+        assertThat(service.listForAdmin()).hasSize(4);
+    }
+
+    @Test
+    void aScopedAdminListKeepsTheStoredGlobalOrder() {
+        GuidancePost a = createAndPublish("A", "en");
+        GuidancePost b = createAndPublish("B", "et");
+        GuidancePost c = createAndPublish("C", "en");
+
+        service.reorder(ADMIN_ID, List.of(c.getId(), a.getId(), b.getId()));
+
+        // The en scope renders the visible posts in the GLOBAL order
+        // (c=1, a=2, b=3 → c, a), not in some locale-local renumber.
+        assertThat(service.listForAdmin("en")).extracting(GuidancePost::getId)
+                .containsExactly(c.getId(), a.getId());
+    }
+
+    @Test
+    void anAdminListScopedToALocaleWithoutPostsIsAnEmptyListNotAnError() {
+        createAndPublish("English", "en");
+        // A locale that fits the column but matches nothing: empty, not a 400.
+        assertThat(service.listForAdmin("fi")).isEmpty();
+    }
+
+    @Test
+    void aBlankOrOverlongAdminLocaleIs400AndAnAbsentOneStaysUnscoped() {
+        createAndPublish("English", "en");
+        for (String bad : List.of("", "   ", "abcdef",
+                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+            assertThatThrownBy(() -> service.listForAdmin(bad))
+                    .isInstanceOf(GuidanceValidationException.class)
+                    .as("list locale %s", bad);
+            assertThatThrownBy(() -> service.optionalAdminLocale(bad))
+                    .isInstanceOf(GuidanceValidationException.class);
+        }
+        // The absent parameter (null) means "no scope" — not the default
+        // locale (the public reads' fallback does not apply to the admin).
+        assertThat(service.optionalAdminLocale(null)).isNull();
+        assertThat(service.optionalAdminLocale("  et ")).isEqualTo("et");
+    }
+
+    @Test
+    void aPostWithNoTranslationRowInAnyLocaleShowsInItsHomeLocaleView() {
+        GuidancePost ru = createDraft("Russkiy bez stroki", "ru");
+        // The V26-invariant anomaly (legacy rows): the home row is missing.
+        GuidanceTranslation own = translations.findByPostIdAndLocale(ru.getId(), "ru").orElseThrow();
+        translations.delete(own);
+
+        // The home COLUMNS are the locale's content: the RU view still
+        // surfaces the post (editable), never a 500, never silently hidden.
+        assertThat(service.listForAdmin("ru")).extracting(GuidancePost::getId)
+                .containsExactly(ru.getId());
+        assertThat(service.translationInLocale(ru.getId(), "ru")).isEmpty();
+        // The other views do not show it.
+        assertThat(service.listForAdmin("en")).extracting(GuidancePost::getId)
+                .doesNotContain(ru.getId());
+        assertThat(service.listForAdmin("et")).extracting(GuidancePost::getId)
+                .doesNotContain(ru.getId());
+    }
+
+    @Test
+    void aScopedDetailServesTheLocaleRowWhenPresentAndTheHomeColumnsOtherwise() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
+
+        // A row in the locale: the row's content.
+        GuidanceTranslation et = service.translationInLocale(en.getId(), "et").orElseThrow();
+        assertThat(et.getTitle()).isEqualTo("Eesti originaal");
+        // The home locale: the own row (in sync with the columns).
+        assertThat(service.translationInLocale(en.getId(), "en").orElseThrow().getTitle())
+                .isEqualTo("English original");
+        // A locale the post has no content in: empty (the controller 404s).
+        assertThat(service.translationInLocale(en.getId(), "ru")).isEmpty();
+    }
+
+    @Test
+    void anUpdateInAForeignLocaleEditsOnlyTheTranslationRow() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
+
+        GuidancePost saved = service.updateInLocale(en.getId(), "et", "Eesti uus tiitel", null,
+                "<p>uus et keha</p>", "en", true, null, null, null);
+
+        // The et row carries the new content.
+        GuidanceTranslation et = translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow();
+        assertThat(et.getTitle()).isEqualTo("Eesti uus tiitel");
+        assertThat(et.getBodyHtml()).isEqualTo("<p>uus et keha</p>");
+        // The post's home columns are untouched.
+        assertThat(saved.getTitle()).isEqualTo("English original");
+        assertThat(saved.getSlug()).isEqualTo(en.getSlug());
+        assertThat(saved.getBodyHtml()).isEqualTo("<p>body</p>");
+        // The post-level field (pinned — shared by every translation) moved.
+        assertThat(saved.isPinned()).isTrue();
+    }
+
+    @Test
+    void anUpdateInTheHomeLocaleKeepsTheUnscopedSemantics() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
+
+        GuidancePost saved = service.updateInLocale(en.getId(), "en", "English changed", null,
+                "<p>new en body</p>", "en", false, null, null, null);
+        assertThat(saved.getTitle()).isEqualTo("English changed");
+        // The home row stays in sync with the columns (the V26 invariant).
+        assertThat(translations.findByPostIdAndLocale(en.getId(), "en").orElseThrow().getTitle())
+                .isEqualTo("English changed");
+        // The et row is untouched.
+        assertThat(translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow().getTitle())
+                .isEqualTo("Eesti originaal");
+    }
+
+    @Test
+    void aScopedUpdateToALocaleWithoutATranslationIs404AndWritesNothing() {
+        GuidancePost en = createAndPublish("English original", "en");
+
+        assertThatThrownBy(() -> service.updateInLocale(en.getId(), "et", "Eesti", null,
+                "<p>b</p>", "en", true, null, null, null))
+                .isInstanceOf(GuidanceNotFoundException.class);
+
+        // Nothing moved (fail first — the home columns, the home row, the pin).
+        assertThat(service.getById(en.getId()).getTitle()).isEqualTo("English original");
+        assertThat(service.getById(en.getId()).isPinned()).isFalse();
+    }
+
+    @Test
+    void aScopedForeignLocaleUpdateRefusesToMoveTheHomeLocale() {
+        GuidancePost en = createAndPublish("English original", "en");
+        service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
+
+        assertThatThrownBy(() -> service.updateInLocale(en.getId(), "et", "Eesti uus", null,
+                "<p>uus keha</p>", "ru", false, null, null, null))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("home locale");
+
+        // The home is still en, the et row untouched.
+        assertThat(service.getById(en.getId()).getLocale()).isEqualTo("en");
+        assertThat(translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow().getTitle())
+                .isEqualTo("Eesti originaal");
+    }
+
+    @Test
+    void aScopedReorderWritesTheSubmittedOrderIntoTheGlobalSlotsAndLeavesInvisiblePostsAlone() {
+        GuidancePost a = createAndPublish("A", "en"); // global slot 1
+        GuidancePost b = createAndPublish("B", "et"); // slot 2 — invisible in en
+        GuidancePost c = createAndPublish("C", "en"); // slot 3
+        GuidancePost d = createAndPublish("D", "et"); // slot 4 — invisible in en
+        // a is visible in et too (its shared slot travels with it).
+        service.createTranslation(a.getId(), "et", null, "A et", "<p>b</p>", null);
+
+        // The en scope sees [a, c]; submit [c, a].
+        service.reorderInLocale(ADMIN_ID, "en", List.of(c.getId(), a.getId()));
+
+        // a and c swapped SLOTS (the values 1 and 3), they did not take
+        // 1..N — the invisible posts' values are untouched.
+        assertThat(service.getById(a.getId()).getSortOrder()).isEqualTo(3);
+        assertThat(service.getById(c.getId()).getSortOrder()).isEqualTo(1);
+        assertThat(service.getById(b.getId()).getSortOrder()).isEqualTo(2);
+        assertThat(service.getById(d.getId()).getSortOrder()).isEqualTo(4);
+        // The en view renders the submission; the et view stays consistent
+        // (b=2, then a=3, then d=4 — a's position is SHARED).
+        assertThat(service.listForAdmin("en")).extracting(GuidancePost::getId)
+                .containsExactly(c.getId(), a.getId());
+        assertThat(service.listForAdmin("et")).extracting(GuidancePost::getId)
+                .containsExactly(b.getId(), a.getId(), d.getId());
+    }
+
+    @Test
+    void aScopedReorderResubmittingTheCurrentVisibleOrderIsANoopWithoutAnAuditRow() {
+        GuidancePost a = createDraft("A", "en");
+        GuidancePost b = createDraft("B", "et");
+        GuidancePost c = createDraft("C", "en");
+
+        // A changing reorder first: the en scope [c, a] (global [a, b, c]).
+        service.reorderInLocale(ADMIN_ID, "en", List.of(c.getId(), a.getId()));
+        int rowsAfterFirst = audit.rows().size();
+        assertThat(audit.rows())
+                .extracting(ModerationAuditLog.Row::action)
+                .containsExactly(ModerationAuditLog.Action.GUIDANCE_REORDER);
+        // The audit row names the locale (the unscoped one says "order").
+        assertThat(audit.rows().get(0).subjectLabel()).contains("en");
+
+        // The identical visible order again: no value changes, NO second row.
+        int beforeA = service.getById(a.getId()).getSortOrder();
+        int beforeC = service.getById(c.getId()).getSortOrder();
+        service.reorderInLocale(ADMIN_ID, "en", List.of(c.getId(), a.getId()));
+        assertThat(service.getById(a.getId()).getSortOrder()).isEqualTo(beforeA);
+        assertThat(service.getById(c.getId()).getSortOrder()).isEqualTo(beforeC);
+        assertThat(audit.rows()).hasSize(rowsAfterFirst);
+    }
+
+    @Test
+    void aScopedReorderRejectsAnIdNotVisibleInTheLocaleAndChangesNothing() {
+        GuidancePost a = createDraft("A", "en");
+        GuidancePost b = createDraft("B", "et");
+        int beforeA = a.getSortOrder();
+        int beforeB = b.getSortOrder();
+
+        // b has no content in en — it cannot ride along in the en list.
+        assertThatThrownBy(() -> service.reorderInLocale(ADMIN_ID, "en",
+                List.of(a.getId(), b.getId())))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining(String.valueOf(b.getId()));
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(b.getSortOrder()).isEqualTo(beforeB);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aScopedReorderRejectsAStaleListMissingAVisiblePostAndChangesNothing() {
+        GuidancePost a = createDraft("A", "en");
+        GuidancePost c = createDraft("C", "en");
+        // A post is created while the admin's table is open — the stale en
+        // list (missing 'c') is refused, forcing a refresh.
+        int beforeA = a.getSortOrder();
+        int beforeC = c.getSortOrder();
+
+        assertThatThrownBy(() -> service.reorderInLocale(ADMIN_ID, "en", List.of(a.getId())))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("stale");
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(c.getSortOrder()).isEqualTo(beforeC);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aScopedReorderWithAnEmptyListIsRefusedWhileVisiblePostsExist() {
+        createDraft("A", "en");
+        createDraft("B", "et");
+        assertThatThrownBy(() -> service.reorderInLocale(ADMIN_ID, "en", List.of()))
+                .isInstanceOf(GuidanceValidationException.class);
+        // With nothing visible in the locale, the empty list IS the order.
+        service.reorderInLocale(ADMIN_ID, "ru", List.of());
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aScopedReorderRefusesABlankOrOverlongLocale() {
+        createAndPublish("A", "en");
+        for (String bad : List.of("", "   ", "abcdef",
+                "a".repeat(GuidanceService.MAX_LOCALE_LENGTH + 1))) {
+            assertThatThrownBy(() -> service.reorderInLocale(ADMIN_ID, bad, List.of()))
+                    .isInstanceOf(GuidanceValidationException.class);
+        }
+    }
+
+    @Test
+    void aScopedReorderDoesNotDisturbAnotherLanguagesDraftsOrPublishedRows() {
+        // The owner's case: reordering the EN view must not disturb the RU
+        // drafts (separate posts, invisible in en).
+        GuidancePost en1 = createAndPublish("EN one", "en");
+        GuidancePost en2 = createAndPublish("EN two", "en");
+        GuidancePost ruDraft1 = createDraft("RU ochen' pervyi", "ru");
+        GuidancePost ruDraft2 = createDraft("RU vtoroy", "ru");
+        int ruBefore1 = ruDraft1.getSortOrder();
+        int ruBefore2 = ruDraft2.getSortOrder();
+
+        // Global: en1=1, en2=2, ruDraft1=3, ruDraft2=4. Reorder en to [en2, en1].
+        service.reorderInLocale(ADMIN_ID, "en", List.of(en2.getId(), en1.getId()));
+
+        // The RU drafts' values (and therefore their ru order) are untouched.
+        assertThat(service.getById(ruDraft1.getId()).getSortOrder()).isEqualTo(ruBefore1);
+        assertThat(service.getById(ruDraft2.getId()).getSortOrder()).isEqualTo(ruBefore2);
+        assertThat(service.listForAdmin("ru")).extracting(GuidancePost::getId)
+                .containsExactly(ruDraft1.getId(), ruDraft2.getId());
+        // The en view shows the submission.
+        assertThat(service.listForAdmin("en")).extracting(GuidancePost::getId)
+                .containsExactly(en2.getId(), en1.getId());
     }
 
     // ------------------------------------------------------------- hero import (guidance-hero-import)

@@ -372,8 +372,11 @@ export const RU: Messages = {
   'admin.guidance.tab': 'Рекомендации',
   'admin.guidance.loading': 'Загружаем материалы…',
   'admin.guidance.empty': 'Материалов пока нет.',
+  'admin.guidance.emptyLocale': 'Статей на языке {locale} пока нет.',
+  'admin.guidance.shownIn': 'Материалы на языке {locale} — остальные языки редактируются из своих списков.',
   'admin.guidance.create': 'Новый материал',
   'admin.guidance.col.title': 'Название',
+  'admin.guidance.col.position': 'Позиция',
   'admin.guidance.col.status': 'Статус',
   'admin.guidance.col.locale': 'Язык',
   'admin.guidance.col.pinned': 'Закреплён',
@@ -478,10 +481,14 @@ export const RU: Messages = {
   'admin.guidance.editor.altForbidden':
     'Уберите альтернативный текст или выберите главное изображение.',
   'admin.guidance.editor.altTooLong': 'Альтернативный текст — не более 300 символов.',
-  'admin.guidance.editor.localeLabel': 'Язык (необязательно)',
+  'admin.guidance.editor.localeLabel': 'Язык поста',
   'admin.guidance.editor.localeHint':
-    'Язык материала, например en, et или ru. Пустое значение — язык по умолчанию на сервере.',
+    'Домашний язык поста, например en. Заполняется автоматически: при создании — активный язык интерфейса, при редактировании — язык поста.',
   'admin.guidance.editor.localeTooLong': 'Язык — не более 5 символов.',
+  'admin.guidance.editor.editingIn': 'Вы редактируете контент поста на языке {locale}.',
+  'admin.guidance.editor.creatingIn': 'Пост будет создан на языке {locale}.',
+  'admin.guidance.editor.homeLocaleNote':
+    'Домашний язык поста — {home}. Сохранение меняет только контент {locale} — у остальных языков свой текст.',
   'admin.guidance.editor.pinnedLabel': 'Закрепить материал в начале списка рекомендаций',
   /** Только режим создания: одноразовый выбор «записать и опубликовать». */
   'admin.guidance.editor.statusLabel': 'Публикация',

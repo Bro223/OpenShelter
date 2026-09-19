@@ -133,6 +133,15 @@
   color: var(--color-muted);
 }
 
+/* admin-locale-scope: the language line above the table — the posts shown
+   are the active UI language's (the other languages have their own lists). */
+.admin-guidance-scope {
+  margin: 0 0 var(--space-4, 0.5rem);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text, inherit);
+}
+
 /* The per-row move buttons (PRIMARY ordering mechanism). The buttons are
    plain .btn — the 48px minimum-height global rule applies, so each is a
    keyboard-reachable ≥48px target; they wrap on narrow screens (the

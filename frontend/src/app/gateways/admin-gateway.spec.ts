@@ -396,8 +396,10 @@ describe('AdminGateway', () => {
     title: 'Varjumine droonirünnaku ajal',
     bodyHtml: '<p>Pöördu peavarjendisse.</p>',
     locale: 'et',
+    homeLocale: 'et',
     status: 'PUBLISHED',
     pinned: true,
+    sortOrder: 1,
     heroImageId: 5,
     heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
     heroImageAlt: 'Kelder, vaade sissepääsust',
@@ -415,6 +417,26 @@ describe('AdminGateway', () => {
     expect(api.get).toHaveBeenCalledTimes(1);
     expect(api.get).toHaveBeenCalledWith('/admin/guidance');
     expect(rows).toEqual([GUIDANCE_ROW]);
+  });
+
+  it('listGuidancePosts with a locale GETs /admin/guidance?locale= (admin-locale-scope)', async () => {
+    api.get.mockReturnValue(of([GUIDANCE_ROW]));
+
+    const rows = await gateway.listGuidancePosts('et');
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/guidance?locale=et');
+    expect(rows).toEqual([GUIDANCE_ROW]);
+  });
+
+  it('getGuidancePost with a locale GETs /admin/guidance/{id}?locale= (the locale-scoped detail)', async () => {
+    api.get.mockReturnValue(of(GUIDANCE_ROW));
+
+    const row = await gateway.getGuidancePost(11, 'ru');
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/guidance/11?locale=ru');
+    expect(row).toEqual(GUIDANCE_ROW);
   });
 
   it('getGuidancePost GETs /admin/guidance/{id} (the id-keyed detail)', async () => {

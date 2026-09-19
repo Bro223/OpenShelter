@@ -749,15 +749,19 @@ export interface GuidancePostDto {
 export type GuidanceStatus = 'DRAFT' | 'PUBLISHED';
 
 /**
- * The admin's view of one guidance post (GET /admin/guidance — every post,
- * drafts included, newest-updated first — and GET /admin/guidance/{id},
- * the id-keyed detail the admin form edits by). `bodyHtml` is the STORED
- * (server-sanitized) HTML — the editor round-trips exactly what is stored.
- * The hero fields are the full reference: `heroImageId` (the media-library
- * picker's key), the serving `heroImageUrl` and the stored alt — all three
- * null when the post has no hero. NOTE: the admin projection carries NO
- * `publishedAt` (the publication instant is public state — the /api/guidance
- * index is where it lives).
+ * The admin's view of one guidance post (GET /admin/guidance — unscoped:
+ * every post, drafts included, in the stored manual order; scoped via
+ * `?locale=` (admin-locale-scope): only the posts that HAVE content in that
+ * locale — a translation row there or the post's home being it — carrying
+ * that locale's content — and GET /admin/guidance/{id}, the id-keyed detail
+ * the admin form edits by, the same optional `?locale=` serving that
+ * locale's content). `bodyHtml` is the STORED (server-sanitized) HTML —
+ * the editor round-trips exactly what is stored. The hero fields are the
+ * full reference: `heroImageId` (the media-library picker's key), the
+ * serving `heroImageUrl` and the stored alt — all three null when the post
+ * has no hero. NOTE: the admin projection carries NO `publishedAt` (the
+ * publication instant is public state — the /api/guidance index is where
+ * it lives).
  */
 export interface AdminGuidancePostDto {
   id: number;
@@ -765,11 +769,30 @@ export interface AdminGuidancePostDto {
   title: string;
   /** The stored (sanitized) HTML body. */
   bodyHtml: string;
-  /** The post's own locale, returned verbatim (v1: no translation workflow). */
+  /**
+   * The CONTENT locale of this row: the locale being shown/edited. In an
+   * unscoped (or home-scoped) read it equals {@link homeLocale}; in a
+   * foreign-locale-scoped read it is that locale (the row's).
+   */
   locale: string;
+  /**
+   * The post's OWN (home) locale — never the content locale of a scoped
+   * read (admin-locale-scope). A foreign-locale edit never moves the home
+   * (400); only the post's own-locale edit can.
+   */
+  homeLocale: string;
   status: GuidanceStatus;
   /** Pinned posts sort first in the public index. */
   pinned: boolean;
+  /**
+   * The shared stored manual position (guidance-manual-order). UNSCOPED
+   * renumber writes keep this a dense 1..N; a LOCALE-SCOPED reorder is
+   * slot-preserving (the visible posts take the submitted order in their
+   * slots of the global order, the other languages' posts keep their
+   * values) — after one, the values are no longer a contiguous 1..N. The
+   * admin table shows it as the post's position (admin-locale-scope).
+   */
+  sortOrder: number;
   /** The media-library key of the hero image; null = no hero. */
   heroImageId: number | null;
   heroImageUrl: string | null;
@@ -792,13 +815,17 @@ export interface AdminGuidancePostDto {
 }
 
 /**
- * PUT /admin/guidance/order body (guidance-manual-order D5) — the FULL
- * ordered id list of every guidance post, in exactly the order the admin
- * table shows it (pinned block first, then the rest). The server validates
- * it as a permutation of all post ids before writing (an unknown, duplicate
- * or stale list 400s and changes nothing), then renumbers 1..N in one
- * transaction; resubmitting the confirmed order is a no-op (204, no audit
- * row).
+ * PUT /admin/guidance/order body (guidance-manual-order D5; admin-locale-scope
+ * extends it with the optional `?locale=`). UNSCOPED: the FULL ordered id
+ * list of every guidance post, in exactly the order the admin table shows
+ * it (pinned block first, then the rest) — the server validates it as a
+ * permutation of all post ids before writing (an unknown, duplicate or
+ * stale list 400s and changes nothing), then renumbers 1..N in one
+ * transaction. SCOPED: the FULL ordered id list of the posts VISIBLE IN the
+ * locale (a subset, not a permutation of every post) — the visible posts are
+ * rewritten into their slots of the GLOBAL order (slot-preserving; the other
+ * languages' posts are untouched). Resubmitting the confirmed order is a
+ * no-op (204, no audit row).
  */
 export interface ReorderGuidanceRequest {
   postIds: number[];
