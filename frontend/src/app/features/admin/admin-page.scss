@@ -125,6 +125,32 @@
   align-items: center;
 }
 
+/* guidance-manual-order D6: the hint above the guidance table (muted
+   secondary text, same tokens as .admin-muted). */
+.admin-guidance-hint {
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* The per-row move buttons (PRIMARY ordering mechanism). The buttons are
+   plain .btn — the 48px minimum-height global rule applies, so each is a
+   keyboard-reachable ≥48px target; they wrap on narrow screens (the
+   table already scrolls horizontally inside .admin-table-wrap). */
+.admin-guidance-move {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* The drag & drop target highlight (SECONDARY mechanism — a visual cue
+   only; the drop itself submits the same full list as the buttons). */
+.admin-row--drag-over {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
 /* Hidden (INACTIVE) rows: dimmed — the badge says WHY, the row shows it's
    not on the public list. (Reported/closed flag badges keep their colour.) */
 .admin-row--hidden td {

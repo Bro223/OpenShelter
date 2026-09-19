@@ -60,7 +60,15 @@ registerLocaleData(localeEnGB, 'en-GB');
  *  the guidance (crisis-guidance D8) and media-library tabs sit before the
  *  audit. */
 export type AdminTab =
-  'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'guidance' | 'media' | 'settings' | 'audit';
+  | 'unconfirmed'
+  | 'shelters'
+  | 'reports'
+  | 'alerts'
+  | 'users'
+  | 'guidance'
+  | 'media'
+  | 'settings'
+  | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -102,6 +110,7 @@ export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
   GUIDANCE_PUBLISH: 'Guidance published',
   GUIDANCE_UNPUBLISH: 'Guidance unpublished',
   GUIDANCE_DELETE: 'Guidance post deleted',
+  GUIDANCE_REORDER: 'Guidance order changed',
   MEDIA_DELETE: 'Media asset deleted',
 };
 
@@ -293,6 +302,13 @@ export class AdminPage implements OnInit {
    *  Every post, drafts included, in the server's order. */
   protected readonly guidanceRows = signal<AdminGuidancePostDto[] | null>(null);
   protected readonly guidanceLoadError = signal<string | null>(null);
+  /** The drag-&-drop target row (guidance-manual-order D6, SECONDARY
+   *  mechanism — the PRIMARY is the always-available move buttons); null
+   *  while nothing is being dragged. */
+  protected readonly guidanceDropTarget = signal<number | null>(null);
+  /** The row being dragged (null otherwise). A field, not a signal: it
+   *  only feeds the drop computation, nothing is rendered from it. */
+  guidanceDragId: number | null = null;
   /** The Published column's instants (slug -> publishedAt). The admin DTO
    *  carries NO publishedAt — the instants live in the permit-all public
    *  index, which this map merges (a failed merge degrades the column to
@@ -1232,6 +1248,114 @@ export class AdminPage implements OnInit {
     this.guidanceRows.update((rows) =>
       (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
+  }
+
+  // ---- Manual ordering (guidance-manual-order D6) ------------------------------
+  //
+  // PRIMARY: the keyboard-reachable move buttons (top/up/down — 48px, the
+  // global .btn); SECONDARY: native HTML5 drag & drop on the rows. BOTH
+  // submit the same FULL ordered id list via PUT /admin/guidance/order;
+  // the server renumbers 1..N and the table reorders in place from the
+  // submitted list (no reload). A rejected (400) submission leaves the
+  // last confirmed order untouched and shows the error banner.
+
+  /** The row index for a move-button disable-state (boundary). */
+  protected guidanceIndex(row: AdminGuidancePostDto): number {
+    return (this.guidanceRows() ?? []).findIndex((r) => r.id === row.id);
+  }
+
+  /** Move one post to the top / one step up / one step down (PRIMARY
+   *  mechanism). The boundary buttons are disabled in the template; the
+   *  guards here are the same bounds as a safety net. */
+  moveGuidancePost(id: number, direction: 'top' | 'up' | 'down'): void {
+    const rows = this.guidanceRows() ?? [];
+    const index = rows.findIndex((r) => r.id === id);
+    if (index < 0 || this.busy()) {
+      return;
+    }
+    const target = direction === 'top' ? 0 : direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= rows.length) {
+      return;
+    }
+    const next = [...rows];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    void this.submitGuidanceOrder(next);
+  }
+
+  /** dragstart: remember which row the drag started on. */
+  onGuidanceDragStart(event: DragEvent, row: AdminGuidancePostDto): void {
+    this.guidanceDragId = row.id;
+    // Without a dataTransfer payload some browsers do not start the drag.
+    // (jsdom leaves dataTransfer UNDEFINED — the truthy guard covers both
+    // null and undefined.)
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', String(row.id));
+    }
+  }
+
+  /** dragover: allow the drop (prevents the browser's default navigation)
+   *  and mark the row the cursor is over as the drop target. */
+  onGuidanceDragOver(event: DragEvent, row: AdminGuidancePostDto): void {
+    if (this.guidanceDragId === null) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'move';
+    }
+    this.guidanceDropTarget.set(row.id);
+  }
+
+  /** drop: the dragged row takes the target's position; submit the new
+   *  full list (SECONDARY mechanism — the same endpoint as the buttons). */
+  onGuidanceDrop(event: DragEvent, targetRow: AdminGuidancePostDto): void {
+    event.preventDefault();
+    const draggedId = this.guidanceDragId;
+    this.guidanceDragId = null;
+    this.guidanceDropTarget.set(null);
+    if (draggedId === null || draggedId === targetRow.id || this.busy()) {
+      return;
+    }
+    const rows = this.guidanceRows() ?? [];
+    const from = rows.findIndex((r) => r.id === draggedId);
+    const to = rows.findIndex((r) => r.id === targetRow.id);
+    if (from < 0 || to < 0) {
+      return; // stale list (a concurrent change) — nothing to submit
+    }
+    const next = [...rows];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    void this.submitGuidanceOrder(next);
+  }
+
+  /** dragend: the drag finished (anywhere) — clear the highlight. */
+  onGuidanceDragEnd(): void {
+    this.guidanceDragId = null;
+    this.guidanceDropTarget.set(null);
+  }
+
+  /** The shared submission: PUT /admin/guidance/order with the FULL
+   *  submitted order. Success reorders the table in place (the server
+   *  confirmed it — its 204 is the confirmation); a failure (400 stale /
+   *  unknown / duplicate list, or the network) KEEPS the last confirmed
+   *  order and shows the error banner. */
+  private async submitGuidanceOrder(nextRows: AdminGuidancePostDto[]): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+    this.clearFeedback();
+    this.busy.set(true);
+    try {
+      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id));
+      this.guidanceRows.set(nextRows);
+      this.success.set(this.i18n.t('admin.guidance.success.reordered'));
+    } catch (error) {
+      this.error.set(bannerMessage(error, 'shelter'));
+    } finally {
+      this.busy.set(false);
+    }
   }
 
   // -------------------------------------------------------------------------

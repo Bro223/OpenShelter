@@ -248,12 +248,16 @@ open status) → the server-derived trust state is served with every shelter lis
 ### 5.6 Crisis guidance and the media library
 
 - **Public pages** (no login): the `/blog` index lists the published posts pinned-first,
-  then by publication date; `/blog/:slug` renders one published post — its title is the
+  then in the admin's manual order (a stored position, `V28`; posts with an equal
+  publication stamp still fall back newest-first), and `/blog/:slug` renders one published post — its title is the
   page's single `h1` and the body is the stored, sanitized HTML. A draft slug and an
   unknown slug answer the SAME 404 — a draft's existence is never revealed.
 - **Admin authoring**: the env-provisioned admin works the **Guidance** tab (every post,
   drafts included; create/edit with the hero image chosen from the media library and the
-  mandatory-alt rule; publish/unpublish; pin; delete with confirmation) and the **Media
+  mandatory-alt rule; publish/unpublish; pin; manual ordering — drag & drop or the
+  per-row move buttons submit the FULL ordered list to one endpoint (`PUT
+  /admin/guidance/order`), which renumbers the positions and writes one audit row when
+  the order actually changed; delete with confirmation) and the **Media
   library** tab (upload JPEG/PNG/WebP; delete — a still-referenced asset answers 409
   naming the affected posts, and the confirmed delete clears the hero from them in the
   same transaction). Every guidance/media mutation is audited with a human-readable

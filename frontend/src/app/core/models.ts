@@ -555,6 +555,9 @@ export type AdminAuditAction =
   | 'GUIDANCE_PUBLISH'
   | 'GUIDANCE_UNPUBLISH'
   | 'GUIDANCE_DELETE'
+  // Manual ordering (guidance-manual-order D6): one row per changing
+  // reorder, the subject is the fixed label "Guidance post order".
+  | 'GUIDANCE_REORDER'
   | 'MEDIA_DELETE';
 
 /**
@@ -786,6 +789,19 @@ export interface AdminGuidancePostDto {
   createdAt: string;
   /** ISO-8601 instant. */
   updatedAt: string;
+}
+
+/**
+ * PUT /admin/guidance/order body (guidance-manual-order D5) — the FULL
+ * ordered id list of every guidance post, in exactly the order the admin
+ * table shows it (pinned block first, then the rest). The server validates
+ * it as a permutation of all post ids before writing (an unknown, duplicate
+ * or stale list 400s and changes nothing), then renumbers 1..N in one
+ * transaction; resubmitting the confirmed order is a no-op (204, no audit
+ * row).
+ */
+export interface ReorderGuidanceRequest {
+  postIds: number[];
 }
 
 /**

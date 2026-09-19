@@ -104,8 +104,10 @@ public class InMemoryGuidanceTranslationRepository implements GuidanceTranslatio
 
     @Override
     public List<GuidanceTranslation> findPublishedInLocale(String locale) {
-        // The public index order: the post's pinned first, then publishedAt
-        // descending, then the post id descending — read off the owning post.
+        // The public index order (guidance-manual-order D2): the post's
+        // pinned first, then the post's stored manual order (sortOrder
+        // asc), then the publishedAt / post-id tie-breakers — read off
+        // the owning post.
         List<GuidanceTranslation> rows = new ArrayList<>();
         for (GuidanceTranslation t : store.values()) {
             if (!t.getLocale().equals(locale)) {
@@ -120,6 +122,7 @@ public class InMemoryGuidanceTranslationRepository implements GuidanceTranslatio
         rows.sort(Comparator
                 .comparing((GuidanceTranslation t) -> posts.findById(t.getPostId()).orElseThrow().isPinned())
                         .reversed()
+                .thenComparingInt(t -> posts.findById(t.getPostId()).orElseThrow().getSortOrder())
                 .thenComparing(t -> posts.findById(t.getPostId()).orElseThrow().getPublishedAt(),
                         Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(GuidanceTranslation::getPostId, Comparator.reverseOrder()));

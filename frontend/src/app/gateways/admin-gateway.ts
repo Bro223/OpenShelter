@@ -14,6 +14,7 @@ import type {
   MediaAssetDto,
   ReviewShelterRequest,
   ReviewShelterResponse,
+  ReorderGuidanceRequest,
   ShelterStatus,
   SiteTextEntryDto,
   UpdateGuidancePostRequest,
@@ -51,6 +52,7 @@ import type {
  *   POST   /admin/guidance/{id}/publish        -> 204 (idempotent)
  *   POST   /admin/guidance/{id}/unpublish      -> 204 (idempotent)
  *   DELETE /admin/guidance/{id}?confirm=true   -> 204 (confirm REQUIRED)
+ *   PUT    /admin/guidance/order               -> 204 (manual order, full list)
  *   GET    /admin/media                        -> MediaAssetDto[] (newest first)
  *   POST   /admin/media (multipart: file)      -> MediaAssetDto (201)
  *   DELETE /admin/media/{id}[?confirm=true]    -> MediaAssetDto (200; 409 in-use)
@@ -308,6 +310,22 @@ export class AdminGateway {
     return lastValueFrom(this.api.delete<void>(`/admin/guidance/${id}?confirm=true`));
   }
 
+  /**
+   * PUT /admin/guidance/order -> 204 (no body) — the MANUAL ordering
+   * (guidance-manual-order D5): the FULL ordered id list of every guidance
+   * post, exactly the order the admin table shows it (pinned block first,
+   * then the rest). The server validates the list as a permutation of all
+   * post ids BEFORE writing — an unknown id, a duplicate, or a stale
+   * (short) list 400s with nothing written — then renumbers the positions
+   * 1..N in one transaction (all-or-nothing). Resubmitting the confirmed
+   * order is a 204 no-op with no audit row; a changing reorder writes one
+   * GUIDANCE_REORDER row.
+   */
+  reorderGuidanceOrder(postIds: number[]): Promise<void> {
+    const body: ReorderGuidanceRequest = { postIds };
+    return lastValueFrom(this.api.put<void>('/admin/guidance/order', body));
+  }
+
   // ------------------------------------------------------------------
   // Media library (crisis-guidance D7/D8): the asset inventory
   // ------------------------------------------------------------------
@@ -358,9 +376,7 @@ export class AdminGateway {
    * keys and oversized values — the admin page surfaces the message.
    */
   putSiteTexts(entries: SiteTextEntryDto[]): Promise<void> {
-    return lastValueFrom(
-      this.api.put<void>('/admin/site-texts', { texts: entries }),
-    );
+    return lastValueFrom(this.api.put<void>('/admin/site-texts', { texts: entries }));
   }
 }
 

@@ -263,6 +263,7 @@ class FakeAdminGateway {
   publishGuidancePost = vi.fn();
   unpublishGuidancePost = vi.fn();
   deleteGuidancePost = vi.fn();
+  reorderGuidanceOrder = vi.fn();
   listMediaAssets = vi.fn();
   uploadMediaAsset = vi.fn();
   deleteMediaAsset = vi.fn();
@@ -1783,6 +1784,184 @@ describe('AdminPage', () => {
     expect(admin.deleteGuidancePost).toHaveBeenCalledWith(12);
     expect(element.querySelectorAll('tbody tr').length).toBe(1);
     expect(element.textContent).toContain('Post deleted.');
+  });
+
+  // ---- guidance manual ordering (guidance-manual-order D6) ------------------
+
+  /** A third guidance row so the order has three distinct positions. */
+  const GUIDANCE_THIRD: AdminGuidancePostDto = {
+    ...GUIDANCE_PUBLISHED,
+    id: 13,
+    slug: 'kolmas-juhis',
+    title: 'Kolmas juhis',
+    pinned: false,
+  };
+
+  /** The server-confirmed order used by the ordering tests. */
+  const ORDERED_ROWS: AdminGuidancePostDto[] = [
+    GUIDANCE_PUBLISHED, // id 11
+    GUIDANCE_THIRD, // id 13
+    GUIDANCE_DRAFT, // id 12
+  ];
+
+  /** The row's three move buttons, in template order (top, up, down). */
+  function moveButtons(row: Element): HTMLButtonElement[] {
+    return Array.from(row.querySelectorAll<HTMLButtonElement>('.admin-guidance-move button'));
+  }
+
+  it('each row has three keyboard-reachable 48px move buttons, disabled at the boundaries', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    // Native <button>s (keyboard-reachable), each carrying the global .btn
+    // 48px minimum-height class.
+    for (const row of Array.from(rows)) {
+      const buttons = moveButtons(row);
+      expect(buttons.length).toBe(3);
+      for (const b of buttons) {
+        expect(b).toBeInstanceOf(HTMLButtonElement);
+        expect(b.classList.contains('btn')).toBe(true);
+      }
+    }
+    // First row: top AND up are disabled (nothing above it).
+    const first = moveButtons(rows[0]!);
+    expect(first[0]!.disabled).toBe(true);
+    expect(first[1]!.disabled).toBe(true);
+    expect(first[2]!.disabled).toBe(false);
+    // Last row: down is disabled (nothing below it).
+    const last = moveButtons(rows[2]!);
+    expect(last[0]!.disabled).toBe(false);
+    expect(last[1]!.disabled).toBe(false);
+    expect(last[2]!.disabled).toBe(true);
+  });
+
+  it('the move buttons announce the post and the direction (accessible names)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    const [top, up, down] = moveButtons(rows[1]!);
+    // Row 2 is 'Kolmas juhis' (id 13).
+    expect(top!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" to the top');
+    expect(up!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" up');
+    expect(down!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" down');
+  });
+
+  it('"Up" moves the row one step up, submits the FULL list, reorders in place — no reload', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.reorderGuidanceOrder.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    // Click the 'Up' button of the middle row (id 13, 'Kolmas juhis').
+    const [, up] = moveButtons(rows[1]!);
+    up!.click();
+    await settle(fixture);
+
+    // The full ordered id list (13 moved ahead of 11; 12 untouched).
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledTimes(1);
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12]);
+    // No list reload — the table reordered in place from the submitted list.
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    const after = element.querySelectorAll('tbody tr');
+    expect(after[0]!.textContent).toContain('Kolmas juhis');
+    expect(after[1]!.textContent).toContain('Varjumine droonirünnaku ajal');
+    expect(element.textContent).toContain('Order saved.');
+  });
+
+  it('"To top" from the bottom row submits the list with that id first', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.reorderGuidanceOrder.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    const [toTop] = moveButtons(rows[2]!);
+    toTop!.click();
+    await settle(fixture);
+
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([12, 11, 13]);
+    const after = element.querySelectorAll('tbody tr');
+    expect(after[0]!.textContent).toContain('Uus juhis (mustand)');
+  });
+
+  it('drag & drop: dragstart/dragover/drop submit the full list with the dragged row at the target position; dragend clears the highlight', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.reorderGuidanceOrder.mockResolvedValue(undefined);
+    const { element, fixture, page: component } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    // jsdom cannot fully simulate a native drag, so the component handlers
+    // are driven directly with plain DragEvents carrying a fake dataTransfer
+    // (the row handlers wrap them one-to-one in the template).
+    const dragEvent = (): DragEvent => {
+      const e = new Event('dragstart', { bubbles: true, cancelable: true }) as DragEvent;
+      Object.defineProperty(e, 'dataTransfer', {
+        value: { effectAllowed: '', dropEffect: '', setData: vi.fn() },
+      });
+      return e;
+    };
+
+    // Drag row 1 (id 11) onto row 3 (id 12).
+    component.onGuidanceDragStart(dragEvent(), GUIDANCE_PUBLISHED);
+    expect(component.guidanceDragId).toBe(11);
+    component.onGuidanceDragOver(dragEvent(), GUIDANCE_DRAFT);
+    fixture.detectChanges();
+    // The drop target is highlighted.
+    expect(
+      element.querySelectorAll('tbody tr')[2]!.classList.contains('admin-row--drag-over'),
+    ).toBe(true);
+
+    component.onGuidanceDrop(dragEvent(), GUIDANCE_DRAFT);
+    await settle(fixture);
+    // 11 moved to the last position: [13, 12, 11].
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 12, 11]);
+
+    component.onGuidanceDragEnd();
+    fixture.detectChanges();
+    expect(component.guidanceDragId).toBeNull();
+    // The highlight is gone again (the signal is protected — the class is
+    // the observable state).
+    expect(
+      element.querySelectorAll('tbody tr')[2]!.classList.contains('admin-row--drag-over'),
+    ).toBe(false);
+  });
+
+  it('a rejected reorder (400) keeps the last confirmed order and shows the error', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.reorderGuidanceOrder.mockRejectedValueOnce(
+      apiError(400, 'postIds contains unknown post ids: [77]', '/admin/guidance/order'),
+    );
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    const [, up] = moveButtons(rows[1]!);
+    up!.click();
+    await settle(fixture);
+
+    // The order is UNCHANGED (the server wrote nothing) …
+    const after = element.querySelectorAll('tbody tr');
+    expect(after[0]!.textContent).toContain('Varjumine droonirünnaku ajal');
+    expect(after[1]!.textContent).toContain('Kolmas juhis');
+    // … and the error is visible.
+    expect(element.textContent).toContain('postIds contains unknown post ids: [77]');
   });
 
   // ---- media library tab (crisis-guidance D8) --------------------------------

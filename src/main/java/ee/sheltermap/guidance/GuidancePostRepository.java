@@ -11,13 +11,16 @@ import java.util.Optional;
  * the in-memory fake in the test tree.
  *
  * <p>Ordering is part of the contract (the stable-order discipline —
- * same-timestamp rows must not reorder between calls):
+ * same-value rows must not reorder between calls):
  * <ul>
- *   <li>{@link #findAllForAdmin()} — {@code updatedAt} descending,
- *       {@code id} descending;</li>
+ *   <li>{@link #findAllForAdmin()} — {@code sortOrder} ascending,
+ *       {@code id} descending (guidance-manual-order D2: the admin list
+ *       is the live preview of the public order — the stored manual
+ *       order, not the newest-updated order);</li>
  *   <li>{@link #findPublished(String)} — pinned first, then
- *       {@code publishedAt} descending, {@code id} descending (backed by
- *       the V23 partial index).</li>
+ *       {@code sortOrder} ascending, then {@code publishedAt} descending
+ *       (a tie-breaker — {@code sortOrder} is not uniqueness-constrained),
+ *       {@code id} descending (backed by the V28 partial index).</li>
  * </ul>
  *
  * <p>The PUBLISHED filter lives in the query itself (D4): no code path
@@ -41,16 +44,26 @@ public interface GuidancePostRepository {
 
     boolean existsBySlug(String slug);
 
-    /** Every post, drafts included, newest-updated first (the admin list). */
+    /** Every post, drafts included, in the stored manual order (sortOrder asc, id desc tie-break). */
     List<GuidancePost> findAllForAdmin();
 
     /**
      * The public index order in ONE locale: pinned first, then
-     * publishedAt descending, id descending. The locale is an exact
+     * {@code sortOrder} ascending, {@code publishedAt} descending
+     * (tie-breaker — {@code sortOrder} is not uniqueness-constrained),
+     * {@code id} descending. The locale is an exact
      * column match — the value is validated upstream (the column is
      * VARCHAR(5)).
      */
     List<GuidancePost> findPublished(String locale);
+
+    /**
+     * The highest stored {@code sortOrder}, or 0 when there are no posts
+     * (guidance-manual-order D4: create appends {@code max + 1} — a new
+     * draft sits at the bottom of the admin list, a created-and-published
+     * post at the end of the non-pinned block).
+     */
+    int maxSortOrder();
 
     /**
      * The public detail read in ONE locale — a DRAFT slug, a slug whose

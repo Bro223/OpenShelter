@@ -361,6 +361,17 @@ export interface Messages {
   'admin.guidance.col.published': string;
   'admin.guidance.col.updated': string;
   'admin.guidance.col.actions': string;
+  // Manual ordering (guidance-manual-order D6): the hint above the list
+  // and the per-row move buttons (visible labels + the accessible names
+  // that name the post and the direction — a screen reader announces
+  // "Move {post} to the top").
+  'admin.guidance.order.hint': string;
+  'admin.guidance.move.top': string;
+  'admin.guidance.move.up': string;
+  'admin.guidance.move.down': string;
+  'admin.guidance.move.top.aria': string;
+  'admin.guidance.move.up.aria': string;
+  'admin.guidance.move.down.aria': string;
   /** The list badge: the draft's consequence, not just the state name
    *  (a draft is not public until published). */
   'admin.guidance.status.draft': string;
@@ -383,6 +394,7 @@ export interface Messages {
   'admin.guidance.success.published': string;
   'admin.guidance.success.unpublished': string;
   'admin.guidance.success.deleted': string;
+  'admin.guidance.success.reordered': string;
 
   // guidance editor (the create/edit form). The body is a plain textarea
   // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance D9 is

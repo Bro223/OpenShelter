@@ -49,12 +49,16 @@ import java.util.Map;
  * access token (default security rule) and the entry point answers 401
  * first; the guard's own 401 branch is the same fallback convention.
  *
- * <p>Surface: the list (every post, drafts included, newest-updated
- * first), the id-keyed detail (the admin form edits by id), create
- * (DRAFT by default — an explicit status publishes in one call), full
- * replace (slug kept when omitted), the idempotent publish/unpublish
- * (no-op → 204, NO audit row), and the hard delete that requires
- * {@code confirm=true} (400 without it).
+ * <p>Surface: the list (every post, drafts included, in the stored
+ * manual order — the live preview of the public order), the id-keyed
+ * detail (the admin form edits by id), create (DRAFT by default — an
+ * explicit status publishes in one call; the new post appends at the END
+ * of the manual order), full replace (slug kept when omitted), the
+ * idempotent publish/unpublish (no-op → 204, NO audit row; never move a
+ * post's stored order), the atomic full-list reorder
+ * ({@code PUT /admin/guidance/order} → 204; 400 unknown / duplicate /
+ * stale), and the hard delete that requires {@code confirm=true} (400
+ * without it).
  */
 @Tag(name = "Admin guidance",
         description = "Every operation requires a valid Bearer JWT AND an "
@@ -196,6 +200,42 @@ public class AdminGuidanceController {
                 request.body(), request.locale(), request.pinned(), request.heroImageId(),
                 request.heroImageAlt(), request.heroImportUrl());
         return toAdminDto(post, heroIndexFor(post));
+    }
+
+    /**
+     * Publish (D4): stamps publishedAt from the server clock. Idempotent
+     * — an already-published post is a 204 no-op that writes NO audit
+     * row and keeps its earlier stamp. A pending hero import (the
+     * post's {@code heroImportUrl}) is consumed here: the server fetches,
+     * validates and stores the image inside this call, and a failed
+     * import fails the publish (400 policy/non-image, 413 over cap,
+     * 502 unfetchable) leaving the post a DRAFT. 204; 404 unknown id.
+     *
+     * <p>The literal {@code order} segment outranks the {@code /{id}}
+     * template in Spring's mapping — there is no ambiguity with the
+     * update route (guidance-manual-order D3).
+     */
+    @PutMapping("/order")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Reorder the guidance posts",
+            description = "The FULL ordered list of post ids (drafts and published "
+                    + "alike) — a strict permutation of every current post. A valid "
+                    + "reorder renumbers every post's stored order to 1..N in ONE "
+                    + "transaction (all-or-nothing) and answers 204; resubmitting the "
+                    + "current order is a no-op that writes no audit row, a changing "
+                    + "reorder writes one GUIDANCE_REORDER row. 400 an unknown id, a "
+                    + "duplicate id, or a stale list missing a concurrently created "
+                    + "post (nothing changed); 404 never — 403 non-admin.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Renumbered 1..N (or the "
+                    + "same order resubmitted — no-op)"),
+            @ApiResponse(responseCode = "400", description = "An unknown id, a "
+                    + "duplicate id, a missing (stale) list, or an empty list while "
+                    + "posts exist — nothing changed"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public void reorder(@Valid @RequestBody ReorderGuidanceRequest request) {
+        guidance.reorder(requireAdmin(), request.postIds());
     }
 
     /**

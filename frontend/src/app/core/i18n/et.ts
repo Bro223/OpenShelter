@@ -35,7 +35,8 @@ export const ET: Messages = {
   'a11y.option.blackYellow': 'Must-kollane',
   'a11y.option.blackYellow.desc':
     'Kollane kiri mustal taustal — madalale nägemisvõimele ja otsepäikesevalgusele.',
-  'a11y.popup.footer': 'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
+  'a11y.popup.footer':
+    'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
   'a11y.popup.close': 'Sule',
 
   'footer.notice1':
@@ -368,6 +369,14 @@ export const ET: Messages = {
   'admin.guidance.col.published': 'Avaldatud',
   'admin.guidance.col.updated': 'Muudetud',
   'admin.guidance.col.actions': 'Tegevused',
+  'admin.guidance.order.hint':
+    'Postid näivad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
+  'admin.guidance.move.top': 'Üles otsa',
+  'admin.guidance.move.up': 'Üles',
+  'admin.guidance.move.down': 'Alla',
+  'admin.guidance.move.top.aria': 'Liiguta „{title}“ üles otsa',
+  'admin.guidance.move.up.aria': 'Liiguta „{title}“ üles',
+  'admin.guidance.move.down.aria': 'Liiguta „{title}“ alla',
   'admin.guidance.status.draft': 'Mustand — pole avalik',
   'admin.guidance.status.published': 'Avaldatud',
   'admin.guidance.pinned.yes': 'Jah',
@@ -385,6 +394,7 @@ export const ET: Messages = {
   'admin.guidance.success.published': 'Post avaldatud.',
   'admin.guidance.success.unpublished': 'Posti avaldamine tühistatud.',
   'admin.guidance.success.deleted': 'Post kustutatud.',
+  'admin.guidance.success.reordered': 'Järjestus salvestatud.',
 
   'admin.guidance.editor.createTitle': 'Uus juhisepost',
   'admin.guidance.editor.editTitle': 'Juhiseposti muutmine',

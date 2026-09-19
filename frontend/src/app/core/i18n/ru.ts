@@ -44,8 +44,7 @@ export const RU: Messages = {
   'a11y.option.highContrast': 'Высокий контраст',
   'a11y.option.highContrast.desc': 'Тёмный фон и яркий, хорошо читаемый текст.',
   'a11y.option.blackYellow': 'Чёрно-жёлтый',
-  'a11y.option.blackYellow.desc':
-    'Жёлтый текст на чёрном фоне — для слабовидящих и яркого света.',
+  'a11y.option.blackYellow.desc': 'Жёлтый текст на чёрном фоне — для слабовидящих и яркого света.',
   'a11y.popup.footer': 'Выбор хранится только на этом устройстве — он ни с кем не разделяется.',
   'a11y.popup.close': 'Закрыть',
 
@@ -158,8 +157,7 @@ export const RU: Messages = {
   'authPage.register.haveAccount': 'Уже есть аккаунт?',
 
   'authPage.reset.title': 'Сброс пароля',
-  'authPage.reset.subtitle':
-    'Введите e-mail вашего аккаунта — мы отправим 6-значный код на почту.',
+  'authPage.reset.subtitle': 'Введите e-mail вашего аккаунта — мы отправим 6-значный код на почту.',
   'authPage.reset.emailLabel': 'E-mail',
   'authPage.reset.emailPlaceholder': 'you@example.ee',
   'authPage.reset.emailRequired': 'Укажите корректный e-mail.',
@@ -257,8 +255,7 @@ export const RU: Messages = {
   'detail.openStatus.aria': 'Открыто ли это укрытие прямо сейчас?',
   'detail.openState.open': 'Сейчас открыто',
   'detail.openState.closed': 'Сейчас закрыто',
-  'detail.verify.open':
-    'Подтвердите e-mail или телефон, чтобы сообщить, открыто ли это укрытие.',
+  'detail.verify.open': 'Подтвердите e-mail или телефон, чтобы сообщить, открыто ли это укрытие.',
   'detail.login.open': 'Войдите, чтобы сообщить, открыто ли это укрытие.',
   'detail.report': 'Сообщить',
   'detail.reportType.aria': 'Тип сообщения',
@@ -305,8 +302,7 @@ export const RU: Messages = {
   'submit.locationPlaceholder': '59.4370, 24.7535 — или вставьте ссылку Google Maps',
   'submit.location.set': 'Указать место',
   'submit.location.resolving': 'Определяем…',
-  'submit.location.prefillNote':
-    'Адрес из поиска ниже заполнит это поле, только пока оно пустое.',
+  'submit.location.prefillNote': 'Адрес из поиска ниже заполнит это поле, только пока оно пустое.',
   'submit.addressLabel': 'Поиск эстонского адреса',
   'submit.addressPlaceholder': 'напр. Lossi 2, Тарту',
   'submit.search': 'Найти',
@@ -353,8 +349,7 @@ export const RU: Messages = {
   'submit.geocode.noResults':
     'Адрес в Эстонии не найден — попробуйте карту, ссылку или «Моё местоположение».',
   'submit.geocode.rateLimited': 'Поиск адресов перегружен — подождите немного и повторите.',
-  'submit.geocode.network':
-    'Поиск адресов сейчас недоступен. Используйте карту или ссылку.',
+  'submit.geocode.network': 'Поиск адресов сейчас недоступен. Используйте карту или ссылку.',
 
   // --- рекомендации при ЧС (/blog). Заголовок и текст материала —
   // текст администратора (котируется как есть), не ключи словаря.
@@ -385,6 +380,14 @@ export const RU: Messages = {
   'admin.guidance.col.published': 'Опубликован',
   'admin.guidance.col.updated': 'Обновлён',
   'admin.guidance.col.actions': 'Действия',
+  'admin.guidance.order.hint':
+    'Материалы отображаются посетителям в этом порядке — перетащите строку или используйте кнопки.',
+  'admin.guidance.move.top': 'Наверх',
+  'admin.guidance.move.up': 'Выше',
+  'admin.guidance.move.down': 'Ниже',
+  'admin.guidance.move.top.aria': 'Переместить «{title}» наверх',
+  'admin.guidance.move.up.aria': 'Переместить «{title}» выше',
+  'admin.guidance.move.down.aria': 'Переместить «{title}» ниже',
   /** Бейдж списка: последствие черновика, а не просто имя состояния
    *  (черновик не опубликован, пока не опубликован). */
   'admin.guidance.status.draft': 'Черновик — не опубликован',
@@ -408,6 +411,7 @@ export const RU: Messages = {
   'admin.guidance.success.published': 'Материал опубликован.',
   'admin.guidance.success.unpublished': 'Материал снят с публикации.',
   'admin.guidance.success.deleted': 'Материал удалён.',
+  'admin.guidance.success.reordered': 'Порядок сохранён.',
 
   'admin.guidance.editor.createTitle': 'Новый материал',
   'admin.guidance.editor.editTitle': 'Редактирование материала',
@@ -457,8 +461,7 @@ export const RU: Messages = {
    *  ровно эти три типа, проверка по magic-байтам). */
   'admin.guidance.editor.hero.uploadLabel': 'Загрузить изображение',
   /** 413 при загрузке: превышен предел размера сервера. */
-  'admin.guidance.editor.hero.uploadError.tooLarge':
-    'Изображение превышает лимит загрузки 5 МБ.',
+  'admin.guidance.editor.hero.uploadError.tooLarge': 'Изображение превышает лимит загрузки 5 МБ.',
   /** 400 при загрузке: неподдерживаемый тип / не совпадает заявленный
    *  тип. */
   'admin.guidance.editor.hero.uploadError.unsupported':
@@ -479,8 +482,7 @@ export const RU: Messages = {
   'admin.guidance.editor.localeHint':
     'Язык материала, например en, et или ru. Пустое значение — язык по умолчанию на сервере.',
   'admin.guidance.editor.localeTooLong': 'Язык — не более 5 символов.',
-  'admin.guidance.editor.pinnedLabel':
-    'Закрепить материал в начале списка рекомендаций',
+  'admin.guidance.editor.pinnedLabel': 'Закрепить материал в начале списка рекомендаций',
   /** Только режим создания: одноразовый выбор «записать и опубликовать». */
   'admin.guidance.editor.statusLabel': 'Публикация',
   'admin.guidance.editor.status.draft': 'Сохранить как черновик',

@@ -34,13 +34,16 @@ public interface SpringDataGuidanceTranslationRepository
     /**
      * The public index read: the translation rows of PUBLISHED posts that have
      * a translation in {@code locale}, in the public index order (pinned first,
-     * the post's published_at desc, the post id desc tie-break). Native, because
-     * the order keys sit on the joined post row, not the translation row.
+     * the post's sort_order asc — the stored manual order, guidance-manual-order
+     * D2 — then published_at desc as the tie-breaker the non-unique sort_order
+     * requires, then the post id desc). Each row carries the owning post id;
+     * the service batch-loads the posts for the hero image, pinned and published
+     * stamp (one extra read, no per-row N+1).
      */
     @Query(value = "SELECT t.* FROM guidance_post_translations t "
             + "JOIN guidance_posts p ON p.id = t.post_id "
             + "WHERE t.locale = :locale AND p.status = 'PUBLISHED' "
-            + "ORDER BY p.pinned DESC, p.published_at DESC, p.id DESC",
+            + "ORDER BY p.pinned DESC, p.sort_order ASC, p.published_at DESC, p.id DESC",
             nativeQuery = true)
     List<GuidanceTranslationEntity> findPublishedInLocale(@Param("locale") String locale);
 

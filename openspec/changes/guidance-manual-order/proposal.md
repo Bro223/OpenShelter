@@ -20,7 +20,7 @@ backfill so deploying changes nothing visible.
 
 ## What Changes
 
-- **Stored manual order** (`V25__guidance_manual_order.sql`): a
+- **Stored manual order** (`V28__guidance_manual_order.sql`): a
   `sort_order INT NOT NULL` column on `guidance_posts`, backfilled from the
   order the public index uses today (pinned first, then `published_at`
   DESC, id DESC — so the visible index is identical after deploy), with the
@@ -65,8 +65,11 @@ backfill so deploying changes nothing visible.
   considered and rejected because they are runtime dependencies and this
   project deliberately chooses vendoring over dependencies — Quill is
   vendored at `frontend/src/vendor/quill/`.
-- **i18n**: the new control labels and hints go through the en/et catalogs
-  (the key-parity guard makes a one-sided key a failing test).
+**- i18n**: the new control labels and hints go through the message
+  catalogs (written for the en/et pair when designed; the ru catalog
+  landed with the Russian slice afterwards, so all THREE catalogs —
+  en/et/ru — carry the keys, and the key-parity guard makes a
+  one-sided key a failing test).
 
 ## Capabilities
 
@@ -96,7 +99,7 @@ backfill so deploying changes nothing visible.
   `sort_order`, its "Same publication instant" scenario and the republish
   consequence in "Post lifecycle and prominence" predate manual order;
   reconcile when that change archives).
-- Affected code — backend: `db/migration/V25__guidance_manual_order.sql`
+- Affected code — backend: `db/migration/V28__guidance_manual_order.sql`
   (column + backfill + index replacement); `domain/GuidancePost`
   (+`sortOrder`, both factories) and `GuidancePostEntity`/
   `GuidancePostMapper` (the `ddl-auto=validate` pairing); the
@@ -116,8 +119,8 @@ backfill so deploying changes nothing visible.
   member + its label-map entry), `features/admin/admin-page.{ts,html,scss}`
   (list renders in the manual order; per-row move controls; native HTML5
   DnD; refresh-from-response; failed-reorder handling),
-  `core/i18n/{messages,en,et}.ts` (new `admin.guidance.*` keys, BOTH
-  catalogs). `frontend/package.json` is UNCHANGED.
+  `core/i18n/{messages,en,et,ru}.ts` (new `admin.guidance.*` keys in all
+  catalogs — the parity guard covers the three locales). `frontend/package.json` is UNCHANGED.
 - Config: none — no new environment variables.
 - Docs sync: `README.md` (API table row + the "Crisis guidance" section's
   ordering sentence), `docs/whitepaper.md` (one sentence), the backend

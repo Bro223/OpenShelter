@@ -19,23 +19,28 @@ import java.util.Optional;
  *
  * <p>Ordering rules (the ordering tests assert through this fake):
  * <ul>
- *   <li>admin list — {@code updatedAt} descending, {@code id}
- *       descending (locale-blind — the admin sees every language);</li>
+ *   <li>admin list — {@code sortOrder} ascending, {@code id} descending
+ *       (the live preview of the public order, guidance-manual-order D2 —
+ *       locale-blind, the admin sees every language);</li>
  *   <li>public list — the ONE requested locale, pinned first, then
- *       {@code publishedAt} descending, {@code id} descending (same-
- *       instant rows order by id, so repeated calls are stable).</li>
+ *       {@code sortOrder} ascending, then {@code publishedAt} descending
+ *       (tie-breaker — {@code sortOrder} is not uniqueness-constrained),
+ *       {@code id} descending (same-value rows stay put, so repeated
+ *       calls are stable).</li>
  * </ul>
  */
 public class InMemoryGuidancePostRepository implements GuidancePostRepository {
 
-    /** The admin list order: newest-updated first, id desc tie-break (D4). */
+    /** The admin list order: the stored manual order, id desc tie-break (D2). */
     private static final Comparator<GuidancePost> ADMIN_ORDER =
-            Comparator.comparing(GuidancePost::getUpdatedAt).reversed()
+            Comparator.comparingInt(GuidancePost::getSortOrder)
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
 
-    /** The public list order: pinned first, then newest-published, id desc tie-break (D6). */
+    /** The public list order (guidance-manual-order D2): pinned first, then the
+     *  stored manual order, then the publishedAt / id tie-breakers. */
     private static final Comparator<GuidancePost> PUBLIC_ORDER =
             Comparator.comparing(GuidancePost::isPinned).reversed()
+                    .thenComparingInt(GuidancePost::getSortOrder)
                     .thenComparing(Comparator.comparing(GuidancePost::getPublishedAt).reversed())
                     .thenComparing(GuidancePost::getId, Comparator.reverseOrder());
 
@@ -86,6 +91,14 @@ public class InMemoryGuidancePostRepository implements GuidancePostRepository {
         return sorted(store.values().stream()
                 .filter(p -> p.isPublished() && p.getLocale().equals(locale))
                 .toList(), PUBLIC_ORDER);
+    }
+
+    @Override
+    public int maxSortOrder() {
+        return store.values().stream()
+                .mapToInt(GuidancePost::getSortOrder)
+                .max()
+                .orElse(0);
     }
 
     @Override

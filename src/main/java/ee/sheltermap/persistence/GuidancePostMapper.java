@@ -28,6 +28,7 @@ final class GuidancePostMapper {
         entity.setHeroImageId(post.getHeroImageId());
         entity.setHeroImageAlt(post.getHeroImageAlt());
         entity.setHeroImportUrl(post.getHeroImportUrl());
+        entity.setSortOrder(post.getSortOrder());
         entity.setPublishedAt(post.getPublishedAt());
         entity.setCreatedBy(post.getCreatedBy());
         entity.setCreatedAt(post.getCreatedAt());
@@ -39,6 +40,7 @@ final class GuidancePostMapper {
                 entity.getId(), entity.getSlug(), entity.getTitle(), entity.getBodyHtml(),
                 entity.getLocale(), entity.getStatus(), entity.isPinned(),
                 entity.getHeroImageId(), entity.getHeroImageAlt(), entity.getHeroImportUrl(),
+                entity.getSortOrder(),
                 entity.getPublishedAt(), entity.getCreatedBy(), entity.getCreatedAt(),
                 entity.getUpdatedAt());
     }

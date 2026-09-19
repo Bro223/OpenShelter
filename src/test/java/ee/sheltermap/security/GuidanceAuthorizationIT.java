@@ -91,6 +91,7 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
     /** Every /admin/guidance/* and /admin/media/* route, method + path. */
     private static final List<String[]> ADMIN_ROUTES = List.of(
             new String[]{"GET", "/admin/guidance"},
+            new String[]{"PUT", "/admin/guidance/order"},
             new String[]{"GET", "/admin/guidance/1"},
             new String[]{"POST", "/admin/guidance"},
             new String[]{"PUT", "/admin/guidance/1"},
@@ -140,7 +141,12 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
             case "POST" -> post(path);
             default -> put(path);
         };
-        if (method.equals("POST") && path.equals("/admin/guidance")
+        if (method.equals("PUT") && path.equals("/admin/guidance/order")) {
+            // The reorder route: a VALID-SHAPED body, so the 401/403 comes
+            // from the guard (the @NotNull postIds would 400 first).
+            builder = builder.contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"postIds\":[1]}".getBytes(StandardCharsets.UTF_8));
+        } else if (method.equals("POST") && path.equals("/admin/guidance")
                 || method.equals("PUT")) {
             builder = builder.contentType(MediaType.APPLICATION_JSON)
                     .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}".getBytes(StandardCharsets.UTF_8));
@@ -165,7 +171,10 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
             case "POST" -> post(path);
             default -> put(path);
         };
-        if (method.equals("POST") && path.equals("/admin/guidance")
+        if (method.equals("PUT") && path.equals("/admin/guidance/order")) {
+            builder = builder.contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"postIds\":[1]}".getBytes(StandardCharsets.UTF_8));
+        } else if (method.equals("POST") && path.equals("/admin/guidance")
                 || method.equals("PUT")) {
             builder = builder.contentType(MediaType.APPLICATION_JSON)
                     .content("{\"title\":\"T\",\"body\":\"<p>b</p>\"}".getBytes(StandardCharsets.UTF_8));

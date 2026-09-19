@@ -21,9 +21,17 @@ import java.util.Objects;
  *
  * <p>Publication state (D4): publishing stamps {@code publishedAt} from
  * the instant the caller passes (the service's injected Clock);
- * unpublishing clears it, so a re-publish stamps a FRESH instant and the
- * post re-enters the public list at the top of the non-pinned order.
- * {@code updatedAt} moves on every write ({@code createdAt} on create).
+ * unpublishing clears it. {@code updatedAt} moves on every write
+ * ({@code createdAt} on create).
+ *
+ * <p>Manual order (guidance-manual-order): {@code sortOrder} is the post's
+ * STORED position — the public index reads pinned first, then
+ * {@code sortOrder} ascending (with the {@code publishedAt}/{@code id}
+ * tie-breakers), so a post's slot is its {@code sortOrder}: publishing or
+ * unpublishing NEVER moves a post. Create appends {@code max + 1} (last
+ * position); the reorder endpoint renumbers 1..N. The value is
+ * NOT uniqueness-constrained (the D1 decision) — the writers guarantee
+ * uniqueness, the order contract's tie-breakers make a duplicate harmless.
  *
  * <p>Pure Java — no Spring imports in {@code domain/} (a repo invariant).
  */
@@ -40,6 +48,8 @@ public class GuidancePost {
     private String heroImageAlt;
     /** Pending hero import (guidance-hero-import): {@code null} when there is none. */
     private String heroImportUrl;
+    /** The stored manual position (guidance-manual-order D1); 1 = first. */
+    private int sortOrder;
     private Instant publishedAt;
     private Long createdBy;
     private Instant createdAt;
@@ -58,7 +68,7 @@ public class GuidancePost {
      */
     public static GuidancePost draft(String slug, String title, String bodyHtml, String locale,
                                      boolean pinned, Long heroImageId, String heroImageAlt,
-                                     String heroImportUrl, Long createdBy, Instant now) {
+                                     String heroImportUrl, int sortOrder, Long createdBy, Instant now) {
         GuidancePost post = new GuidancePost();
         post.slug = requireText(slug, "slug");
         post.title = requireText(title, "title");
@@ -68,6 +78,7 @@ public class GuidancePost {
         post.heroImageId = heroImageId;
         post.heroImageAlt = heroImageAlt;
         post.heroImportUrl = heroImportUrl;
+        post.sortOrder = requireSortOrder(sortOrder);
         requireHeroAltPairing(heroImageId, heroImageAlt, heroImportUrl);
         post.status = GuidanceStatus.DRAFT;
         post.publishedAt = null;
@@ -88,8 +99,8 @@ public class GuidancePost {
     public static GuidancePost restored(Long id, String slug, String title, String bodyHtml,
                                         String locale, GuidanceStatus status, boolean pinned,
                                         Long heroImageId, String heroImageAlt, String heroImportUrl,
-                                        Instant publishedAt, Long createdBy, Instant createdAt,
-                                        Instant updatedAt) {
+                                        int sortOrder, Instant publishedAt, Long createdBy,
+                                        Instant createdAt, Instant updatedAt) {
         GuidancePost post = new GuidancePost();
         post.id = id;
         post.slug = slug;
@@ -101,6 +112,7 @@ public class GuidancePost {
         post.heroImageId = heroImageId;
         post.heroImageAlt = heroImageAlt;
         post.heroImportUrl = heroImportUrl;
+        post.sortOrder = requireSortOrder(sortOrder);
         post.publishedAt = publishedAt;
         post.createdBy = createdBy;
         post.createdAt = Objects.requireNonNull(createdAt, "createdAt");
@@ -187,6 +199,13 @@ public class GuidancePost {
         this.heroImageAlt = null;
     }
 
+    private static int requireSortOrder(int sortOrder) {
+        if (sortOrder < 1) {
+            throw new IllegalArgumentException("sortOrder must be at least 1");
+        }
+        return sortOrder;
+    }
+
     private static String requireText(String value, String name) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(name + " is required");
@@ -258,6 +277,26 @@ public class GuidancePost {
     /** Pinning floats a published post to the top of the public list (D6). */
     public boolean isPinned() {
         return pinned;
+    }
+
+    /**
+     * The stored manual position (guidance-manual-order D1): the public
+     * index decides the non-pinned order by this value ascending, and the
+     * admin list renders in the same order. Publish/unpublish/delete never
+     * move it — the service's reorder is the only writer after create.
+     */
+    public int getSortOrder() {
+        return sortOrder;
+    }
+
+    /**
+     * Sets the stored manual position: the service's create assigns the
+     * appended {@code max + 1}, and the service's reorder renumbers every
+     * post to 1..N in the submitted order (one writer, the service — the
+     * persistence layer never touches this field itself).
+     */
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = requireSortOrder(sortOrder);
     }
 
     /** The hero image's media-asset id; {@code null} when the post has no hero. */

@@ -363,6 +363,14 @@ export const EN: Messages = {
   'admin.guidance.col.published': 'Published',
   'admin.guidance.col.updated': 'Updated',
   'admin.guidance.col.actions': 'Actions',
+  'admin.guidance.order.hint':
+    'The posts appear to visitors in this order — drag a row or use the move buttons.',
+  'admin.guidance.move.top': 'To top',
+  'admin.guidance.move.up': 'Up',
+  'admin.guidance.move.down': 'Down',
+  'admin.guidance.move.top.aria': 'Move "{title}" to the top',
+  'admin.guidance.move.up.aria': 'Move "{title}" up',
+  'admin.guidance.move.down.aria': 'Move "{title}" down',
   'admin.guidance.status.draft': 'Draft — not public',
   'admin.guidance.status.published': 'Published',
   'admin.guidance.pinned.yes': 'Yes',
@@ -381,6 +389,7 @@ export const EN: Messages = {
   'admin.guidance.success.published': 'Post published.',
   'admin.guidance.success.unpublished': 'Post unpublished.',
   'admin.guidance.success.deleted': 'Post deleted.',
+  'admin.guidance.success.reordered': 'Order saved.',
 
   'admin.guidance.editor.createTitle': 'New guidance post',
   'admin.guidance.editor.editTitle': 'Edit guidance post',

@@ -135,11 +135,13 @@ class GuidanceTranslationIT extends AbstractPersistenceIT {
     @Test
     void theV26BackfillMapsEveryPostColumnIntoItsOwnTranslationRow() {
         // Simulate a pre-migration post (the migration's INSERT...SELECT source)
-        // and run the migration's backfill mapping for that row.
+        // and run the migration's backfill mapping for that row. (sort_order is
+        // set explicitly: the schema is V28, where it is NOT NULL — a pre-V26
+        // post would have held the append position the service assigned it.)
         Long id = jdbc.queryForObject(
                 "INSERT INTO guidance_posts (slug, title, body_html, locale, status, pinned,"
-                        + " published_at, created_at, updated_at)"
-                        + " VALUES (?, ?, ?, 'et', 'PUBLISHED', false, now(), now(), now())"
+                        + " sort_order, published_at, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, 'et', 'PUBLISHED', false, 1, now(), now(), now())"
                         + " RETURNING id",
                 Long.class, "pre-migration-post", "Vanune post", "<p>vanu</p>");
         jdbc.update(

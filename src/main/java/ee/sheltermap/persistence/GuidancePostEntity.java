@@ -61,6 +61,16 @@ public class GuidancePostEntity {
     @Column(name = "hero_import_url", length = 2048)
     private String heroImportUrl;
 
+    /**
+     * The stored manual position (V28, guidance-manual-order D1). NOT
+     * uniqueness-constrained on purpose — the atomic renumber must not
+     * transiently violate a uniqueness check, and the public order
+     * contract's tie-breakers make a duplicate harmless. The V28 partial
+     * index rides on it (pinned DESC, sort_order ASC, ...).
+     */
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
+
     /** Stamped on publish, cleared on unpublish — paired with status by the V23 CHECK. */
     @Column(name = "published_at")
     private Instant publishedAt;
@@ -154,6 +164,14 @@ public class GuidancePostEntity {
 
     public void setHeroImportUrl(String heroImportUrl) {
         this.heroImportUrl = heroImportUrl;
+    }
+
+    public int getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public Instant getPublishedAt() {

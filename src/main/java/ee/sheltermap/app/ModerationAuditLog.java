@@ -48,6 +48,10 @@ public interface ModerationAuditLog {
         GUIDANCE_PUBLISH,
         GUIDANCE_UNPUBLISH,
         GUIDANCE_DELETE,
+        // guidance-manual-order: the atomic full-list reorder (D3) — the
+        // subject is the fixed label "Guidance post order" (a reorder has
+        // no single subject post, and the label stays readable).
+        GUIDANCE_REORDER,
         MEDIA_DELETE
     }
 

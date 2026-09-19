@@ -273,6 +273,7 @@ class OpenApiContractIT extends AbstractPersistenceIT {
                 "GET /api/media/{filename}",
                 // AdminGuidanceController (/admin/guidance)
                 "GET /admin/guidance",
+                "PUT /admin/guidance/order",
                 "GET /admin/guidance/{id}",
                 "POST /admin/guidance",
                 "PUT /admin/guidance/{id}",

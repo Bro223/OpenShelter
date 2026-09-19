@@ -35,7 +35,7 @@
         "description" : "One row of the moderation audit trail — newest first. Every moderation-relevant action (admin AND automatic AUTO_CONFIRM).",
         "properties" : {
           "action" : {
-            "enum" : [ "STATUS_CHANGE", "DELETE", "REPORT_DISMISS", "CONFIRM", "AUTO_CONFIRM", "REJECT", "USER_SUSPEND", "USER_UNSUSPEND", "MARK_INACCURATE", "CLEAR_INACCURATE", "GUIDANCE_PUBLISH", "GUIDANCE_UNPUBLISH", "GUIDANCE_DELETE", "MEDIA_DELETE" ],
+            "enum" : [ "STATUS_CHANGE", "DELETE", "REPORT_DISMISS", "CONFIRM", "AUTO_CONFIRM", "REJECT", "USER_SUSPEND", "USER_UNSUSPEND", "MARK_INACCURATE", "CLEAR_INACCURATE", "GUIDANCE_PUBLISH", "GUIDANCE_UNPUBLISH", "GUIDANCE_DELETE", "GUIDANCE_REORDER", "MEDIA_DELETE" ],
             "type" : "string"
           },
           "createdAt" : {
@@ -1061,6 +1061,19 @@
           }
         },
         "required" : [ "email", "name", "password", "phone" ],
+        "type" : "object"
+      },
+      "ReorderGuidanceRequest" : {
+        "properties" : {
+          "postIds" : {
+            "items" : {
+              "format" : "int64",
+              "type" : "integer"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "postIds" ],
         "type" : "object"
       },
       "ShelterDto" : {
@@ -2572,6 +2585,88 @@
           }
         },
         "summary" : "Create a guidance post",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/guidance/order" : {
+      "put" : {
+        "description" : "The FULL ordered list of post ids (drafts and published alike) — a strict permutation of every current post. A valid reorder renumbers every post's stored order to 1..N in ONE transaction (all-or-nothing) and answers 204; resubmitting the current order is a no-op that writes no audit row, a changing reorder writes one GUIDANCE_REORDER row. 400 an unknown id, a duplicate id, or a stale list missing a concurrently created post (nothing changed); 404 never — 403 non-admin.",
+        "operationId" : "reorder",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReorderGuidanceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Renumbered 1..N (or the same order resubmitted — no-op)"
+          },
+          "400" : {
+            "description" : "An unknown id, a duplicate id, a missing (stale) list, or an empty list while posts exist — nothing changed"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Reorder the guidance posts",
         "tags" : [ "Admin guidance" ],
         "x-admin-only" : {
           "value" : "true"

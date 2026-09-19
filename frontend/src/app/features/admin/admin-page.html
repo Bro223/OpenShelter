@@ -132,12 +132,12 @@
               <tr class="admin-row">
                 <td class="admin-cell--name">
                   <div class="admin-cell__name-body">
-                  <!-- Plain text: NEW rows are public, but the link goes to
+                    <!-- Plain text: NEW rows are public, but the link goes to
                        the Shelters tab's context, not a detail nav. -->
-                  {{ row.name }}
-                  @if (isPrivateLocation(row)) {
-                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
-                  }
+                    {{ row.name }}
+                    @if (isPrivateLocation(row)) {
+                      <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                    }
                   </div>
                 </td>
                 <td>
@@ -156,56 +156,56 @@
                 </td>
                 <td class="admin-cell--actions admin-cell--actions-review">
                   <div class="admin-cell__actions-body admin-cell--actions-review">
-                  <button
-                    type="button"
-                    class="btn btn--ghost"
-                    (click)="confirmRow(row)"
-                    [disabled]="busy()"
-                  >
-                    {{ busy() ? 'Working…' : 'Mark confirmed' }}
-                  </button>
-                  @if (rejectRowFor()?.id === row.id) {
-                    <div class="admin-reason">
-                      <label for="reject-reason">Reason (required)</label>
-                      <textarea
-                        id="reject-reason"
-                        [formControl]="rejectReason"
-                        placeholder="Why is this location rejected?"
-                      ></textarea>
-                      @if (rejectReason.invalid && rejectReason.touched) {
-                        <span class="admin-reason__error">
-                          A reason is required (max {{ 500 }} characters).
-                        </span>
-                      }
-                      <div class="admin-reason__actions">
-                        <button
-                          type="button"
-                          class="btn btn--ghost btn--danger"
-                          (click)="rejectRow(row)"
-                          [disabled]="busy() || rejectReason.invalid"
-                        >
-                          {{ busy() ? 'Working…' : 'Reject' }}
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn--ghost"
-                          (click)="cancelReject()"
-                          [disabled]="busy()"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  } @else {
                     <button
                       type="button"
-                      class="btn btn--ghost btn--danger"
-                      (click)="openRejectEditor(row)"
+                      class="btn btn--ghost"
+                      (click)="confirmRow(row)"
                       [disabled]="busy()"
                     >
-                      Reject
+                      {{ busy() ? 'Working…' : 'Mark confirmed' }}
                     </button>
-                  }
+                    @if (rejectRowFor()?.id === row.id) {
+                      <div class="admin-reason">
+                        <label for="reject-reason">Reason (required)</label>
+                        <textarea
+                          id="reject-reason"
+                          [formControl]="rejectReason"
+                          placeholder="Why is this location rejected?"
+                        ></textarea>
+                        @if (rejectReason.invalid && rejectReason.touched) {
+                          <span class="admin-reason__error">
+                            A reason is required (max {{ 500 }} characters).
+                          </span>
+                        }
+                        <div class="admin-reason__actions">
+                          <button
+                            type="button"
+                            class="btn btn--ghost btn--danger"
+                            (click)="rejectRow(row)"
+                            [disabled]="busy() || rejectReason.invalid"
+                          >
+                            {{ busy() ? 'Working…' : 'Reject' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            (click)="cancelReject()"
+                            [disabled]="busy()"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        (click)="openRejectEditor(row)"
+                        [disabled]="busy()"
+                      >
+                        Reject
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -258,16 +258,16 @@
               <tr class="admin-row" [class.admin-row--hidden]="row.status === 'INACTIVE'">
                 <td class="admin-cell--name">
                   <div class="admin-cell__name-body">
-                  <a [routerLink]="['/shelters', row.id]">{{ row.name }}</a>
-                  @if (row.address) {
-                    <span class="admin-muted">{{ row.address }}</span>
-                  }
-                  <!-- Marked inaccurate: the single-sourced
+                    <a [routerLink]="['/shelters', row.id]">{{ row.name }}</a>
+                    @if (row.address) {
+                      <span class="admin-muted">{{ row.address }}</span>
+                    }
+                    <!-- Marked inaccurate: the single-sourced
                        warning line — the row stays visible, the flag is the
                        treatment. -->
-                  @if (row.inaccurate) {
-                    <span class="admin-inaccurate">{{ inaccurateWarning }}</span>
-                  }
+                    @if (row.inaccurate) {
+                      <span class="admin-inaccurate">{{ inaccurateWarning }}</span>
+                    }
                   </div>
                 </td>
                 <td>
@@ -313,112 +313,112 @@
                 </td>
                 <td class="admin-cell--actions">
                   <div class="admin-cell__actions-body">
-                  @if (row.source === 'USER') {
-                    <!-- Edit-history toggle: USER rows only —
+                    @if (row.source === 'USER') {
+                      <!-- Edit-history toggle: USER rows only —
                          registry import rows keep their own data_imports
                          audit and write no history rows. -->
-                    <button
-                      type="button"
-                      class="btn btn--ghost"
-                      (click)="openHistory(row)"
-                      [disabled]="busy()"
-                    >
-                      {{ historyFor() === row.id ? 'Close history' : 'History' }}
-                    </button>
-                    <!-- Info-request toggle: the moderator→
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="openHistory(row)"
+                        [disabled]="busy()"
+                      >
+                        {{ historyFor() === row.id ? 'Close history' : 'History' }}
+                      </button>
+                      <!-- Info-request toggle: the moderator→
                          submitter exchange — question editor for rows
                          without a request, the exchange (with the answer
                          once given) for rows with one. USER rows only,
                          like the History button. -->
-                    <button
-                      type="button"
-                      class="btn btn--ghost"
-                      (click)="toggleInfo(row)"
-                      [disabled]="busy()"
-                    >
-                      {{ infoFor() === row.id ? 'Close info' : 'Info' }}
-                    </button>
-                    <!-- Mark inaccurate: the Clear action for a
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="toggleInfo(row)"
+                        [disabled]="busy()"
+                      >
+                        {{ infoFor() === row.id ? 'Close info' : 'Info' }}
+                      </button>
+                      <!-- Mark inaccurate: the Clear action for a
                          marked row, the editor toggle for an unmarked one.
                          USER rows only, like History/Info. -->
-                    @if (row.inaccurate) {
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        (click)="clearInaccurateAction(row)"
-                        [disabled]="busy()"
-                      >
-                        Clear inaccurate
-                      </button>
-                    } @else {
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        (click)="toggleInaccurate(row)"
-                        [disabled]="busy()"
-                      >
-                        {{ inaccurateFor() === row.id ? 'Close mark' : 'Mark inaccurate' }}
-                      </button>
-                    }
-                    @if (!shelterDeleteConfirm.isArmed(row.id)) {
-                      @if (row.status === 'ACTIVE') {
+                      @if (row.inaccurate) {
                         <button
                           type="button"
                           class="btn btn--ghost"
-                          (click)="hideShelter(row)"
+                          (click)="clearInaccurateAction(row)"
                           [disabled]="busy()"
                         >
-                          Hide
+                          Clear inaccurate
                         </button>
                       } @else {
                         <button
                           type="button"
                           class="btn btn--ghost"
-                          (click)="activateShelter(row)"
+                          (click)="toggleInaccurate(row)"
                           [disabled]="busy()"
                         >
-                          Activate
+                          {{ inaccurateFor() === row.id ? 'Close mark' : 'Mark inaccurate' }}
                         </button>
                       }
-                      <button
-                        type="button"
-                        class="btn btn--ghost btn--danger"
-                        [attr.data-confirm-trigger]="row.id"
-                        (click)="requestDelete(row.id)"
-                        [disabled]="busy()"
-                      >
-                        Delete
-                      </button>
-                    } @else {
-                      <!-- two-tap confirm (no window.confirm, the app's inline
+                      @if (!shelterDeleteConfirm.isArmed(row.id)) {
+                        @if (row.status === 'ACTIVE') {
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            (click)="hideShelter(row)"
+                            [disabled]="busy()"
+                          >
+                            Hide
+                          </button>
+                        } @else {
+                          <button
+                            type="button"
+                            class="btn btn--ghost"
+                            (click)="activateShelter(row)"
+                            [disabled]="busy()"
+                          >
+                            Activate
+                          </button>
+                        }
+                        <button
+                          type="button"
+                          class="btn btn--ghost btn--danger"
+                          [attr.data-confirm-trigger]="row.id"
+                          (click)="requestDelete(row.id)"
+                          [disabled]="busy()"
+                        >
+                          Delete
+                        </button>
+                      } @else {
+                        <!-- two-tap confirm (no window.confirm, the app's inline
                            style). The shared ConfirmAction owns the state
                            machine, the focus move onto Confirm and the focus
                            restore to Delete on cancel; the prompt
                            is a live region so arming is announced. -->
-                      <span class="admin-confirm" role="status"
-                        >Delete this shelter permanently?</span
-                      >
-                      <button
-                        type="button"
-                        class="btn btn--ghost btn--danger"
-                        [attr.data-confirm-focus]="row.id"
-                        (click)="confirmDelete(row.id)"
-                        [disabled]="busy()"
-                      >
-                        {{ busy() ? 'Deleting…' : 'Confirm delete' }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        (click)="cancelDelete()"
-                        [disabled]="busy()"
-                      >
-                        Cancel
-                      </button>
+                        <span class="admin-confirm" role="status"
+                          >Delete this shelter permanently?</span
+                        >
+                        <button
+                          type="button"
+                          class="btn btn--ghost btn--danger"
+                          [attr.data-confirm-focus]="row.id"
+                          (click)="confirmDelete(row.id)"
+                          [disabled]="busy()"
+                        >
+                          {{ busy() ? 'Deleting…' : 'Confirm delete' }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="cancelDelete()"
+                          [disabled]="busy()"
+                        >
+                          Cancel
+                        </button>
+                      }
+                    } @else {
+                      <span class="admin-hint">read-only</span>
                     }
-                  } @else {
-                    <span class="admin-hint">read-only</span>
-                  }
                   </div>
                 </td>
               </tr>
@@ -717,72 +717,72 @@
                 </td>
                 <td class="admin-cell--actions">
                   <div class="admin-cell__actions-body">
-                  @if (row.kind === 'REGISTERED') {
-                    @if (userActionConfirm.isArmed(row.id)) {
-                      <!-- two-tap confirm (no window.confirm, the app's inline
+                    @if (row.kind === 'REGISTERED') {
+                      @if (userActionConfirm.isArmed(row.id)) {
+                        <!-- two-tap confirm (no window.confirm, the app's inline
                            style). The shared ConfirmAction owns the state
                            machine, the focus move onto Confirm and the focus
                            restore to Suspend/Unsuspend on cancel;
                            the prompt is a live region so arming is announced. -->
-                      <span class="admin-confirm" role="status">
-                        @if (userActionConfirm.armed()!.value === 'suspend') {
-                          Suspend this account? It loses login, refresh and its open session; its
-                          shelters stay on the map.
-                        } @else {
-                          Restore this account's access?
-                        }
-                      </span>
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        [class.btn--danger]="userActionConfirm.armed()!.value === 'suspend'"
-                        [attr.data-confirm-focus]="row.id"
-                        (click)="confirmUserAction(row.id, userActionConfirm.armed()!.value)"
-                        [disabled]="busy()"
-                      >
-                        {{
-                          busy()
-                            ? 'Working…'
-                            : userActionConfirm.armed()!.value === 'suspend'
-                              ? 'Confirm suspend'
-                              : 'Confirm unsuspend'
-                        }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        (click)="cancelUserAction()"
-                        [disabled]="busy()"
-                      >
-                        Cancel
-                      </button>
-                    } @else if (row.suspendedAt === null) {
-                      <button
-                        type="button"
-                        class="btn btn--ghost btn--danger"
-                        [attr.data-confirm-trigger]="row.id"
-                        (click)="requestUserAction(row.id, 'suspend')"
-                        [disabled]="busy()"
-                      >
-                        Suspend
-                      </button>
+                        <span class="admin-confirm" role="status">
+                          @if (userActionConfirm.armed()!.value === 'suspend') {
+                            Suspend this account? It loses login, refresh and its open session; its
+                            shelters stay on the map.
+                          } @else {
+                            Restore this account's access?
+                          }
+                        </span>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          [class.btn--danger]="userActionConfirm.armed()!.value === 'suspend'"
+                          [attr.data-confirm-focus]="row.id"
+                          (click)="confirmUserAction(row.id, userActionConfirm.armed()!.value)"
+                          [disabled]="busy()"
+                        >
+                          {{
+                            busy()
+                              ? 'Working…'
+                              : userActionConfirm.armed()!.value === 'suspend'
+                                ? 'Confirm suspend'
+                                : 'Confirm unsuspend'
+                          }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="cancelUserAction()"
+                          [disabled]="busy()"
+                        >
+                          Cancel
+                        </button>
+                      } @else if (row.suspendedAt === null) {
+                        <button
+                          type="button"
+                          class="btn btn--ghost btn--danger"
+                          [attr.data-confirm-trigger]="row.id"
+                          (click)="requestUserAction(row.id, 'suspend')"
+                          [disabled]="busy()"
+                        >
+                          Suspend
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          [attr.data-confirm-trigger]="row.id"
+                          (click)="requestUserAction(row.id, 'unsuspend')"
+                          [disabled]="busy()"
+                        >
+                          Unsuspend
+                        </button>
+                      }
                     } @else {
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        [attr.data-confirm-trigger]="row.id"
-                        (click)="requestUserAction(row.id, 'unsuspend')"
-                        [disabled]="busy()"
-                      >
-                        Unsuspend
-                      </button>
-                    }
-                  } @else {
-                    <!-- ADMIN kind: listed for visibility, not suspendable
+                      <!-- ADMIN kind: listed for visibility, not suspendable
                          (lockout vector — the backend answers 403: the
                          provisioned admin cannot be disabled at all). -->
-                    <span class="admin-muted">Not suspendable</span>
-                  }
+                      <span class="admin-muted">Not suspendable</span>
+                    }
                   </div>
                 </td>
               </tr>
@@ -849,6 +849,10 @@
     } @else if ((guidanceRows() ?? []).length === 0) {
       <p class="admin-state">{{ 'admin.guidance.empty' | t }}</p>
     } @else {
+      <!-- guidance-manual-order D6: the list order IS the public order —
+           the hint names the two mechanisms (PRIMARY: the keyboard-
+           reachable move buttons; SECONDARY: drag & drop). -->
+      <p class="admin-guidance-hint">{{ 'admin.guidance.order.hint' | t }}</p>
       <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Guidance posts">
         <table class="admin-table">
           <thead>
@@ -866,7 +870,16 @@
           </thead>
           <tbody>
             @for (row of guidanceRows() ?? []; track row.id) {
-              <tr class="admin-row" [class.admin-row--hidden]="row.status === 'DRAFT'">
+              <tr
+                class="admin-row"
+                [class.admin-row--hidden]="row.status === 'DRAFT'"
+                [class.admin-row--drag-over]="guidanceDropTarget() === row.id"
+                draggable="true"
+                (dragstart)="onGuidanceDragStart($event, row)"
+                (dragover)="onGuidanceDragOver($event, row)"
+                (drop)="onGuidanceDrop($event, row)"
+                (dragend)="onGuidanceDragEnd()"
+              >
                 <td>
                   <div class="admin-guidance-title">
                     <!-- The hero thumbnail, only when the post has one. -->
@@ -914,76 +927,116 @@
                 <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
                 <td class="admin-cell--actions">
                   <div class="admin-cell__actions-body">
-                  <button
-                    type="button"
-                    class="btn btn--ghost"
-                    (click)="openGuidanceEditor(row)"
-                    [disabled]="busy()"
-                  >
-                    {{ 'admin.guidance.edit' | t }}
-                  </button>
-                  @if (!guidanceDeleteConfirm.isArmed(row.id)) {
-                    @if (row.status === 'PUBLISHED') {
+                    <!-- guidance-manual-order D6: PRIMARY mechanism — the
+                         keyboard-reachable 48px move buttons. Disabled at
+                         the boundaries (top/up at the first row, down at
+                         the last); the accessible names name the post and
+                         the direction. -->
+                    <div class="admin-guidance-move">
                       <button
                         type="button"
-                        class="btn btn--ghost"
-                        (click)="unpublishGuidancePost(row)"
-                        [disabled]="busy()"
+                        class="btn btn--ghost admin-guidance-move__btn"
+                        [disabled]="busy() || guidanceIndex(row) <= 0"
+                        (click)="moveGuidancePost(row.id, 'top')"
+                        [attr.aria-label]="'admin.guidance.move.top.aria' | t: { title: row.title }"
                       >
-                        {{
-                          busy() ? ('admin.guidance.working' | t) : ('admin.guidance.unpublish' | t)
-                        }}
+                        {{ 'admin.guidance.move.top' | t }}
                       </button>
-                    } @else {
                       <button
                         type="button"
-                        class="btn btn--ghost"
-                        (click)="publishGuidancePost(row)"
-                        [disabled]="busy()"
+                        class="btn btn--ghost admin-guidance-move__btn"
+                        [disabled]="busy() || guidanceIndex(row) <= 0"
+                        (click)="moveGuidancePost(row.id, 'up')"
+                        [attr.aria-label]="'admin.guidance.move.up.aria' | t: { title: row.title }"
                       >
-                        {{
-                          busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
-                        }}
+                        {{ 'admin.guidance.move.up' | t }}
                       </button>
-                    }
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--danger"
-                      [attr.data-confirm-trigger]="row.id"
-                      (click)="requestDeleteGuidance(row.id)"
-                      [disabled]="busy()"
-                    >
-                      {{ 'admin.guidance.delete' | t }}
-                    </button>
-                  } @else {
-                    <!-- two-tap confirm (no window.confirm, the app's inline
-                         style). The gateway sends confirm=true — the server
-                         400s without it. -->
-                    <span class="admin-confirm" role="status">
-                      {{ 'admin.guidance.delete.confirm' | t }}
-                    </span>
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--danger"
-                      [attr.data-confirm-focus]="row.id"
-                      (click)="confirmDeleteGuidance(row.id)"
-                      [disabled]="busy()"
-                    >
-                      {{
-                        busy()
-                          ? ('admin.guidance.working' | t)
-                          : ('admin.guidance.delete.confirmButton' | t)
-                      }}
-                    </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost admin-guidance-move__btn"
+                        [disabled]="
+                          busy() || guidanceIndex(row) >= (guidanceRows() ?? []).length - 1
+                        "
+                        (click)="moveGuidancePost(row.id, 'down')"
+                        [attr.aria-label]="
+                          'admin.guidance.move.down.aria' | t: { title: row.title }
+                        "
+                      >
+                        {{ 'admin.guidance.move.down' | t }}
+                      </button>
+                    </div>
                     <button
                       type="button"
                       class="btn btn--ghost"
-                      (click)="cancelDeleteGuidance()"
+                      (click)="openGuidanceEditor(row)"
                       [disabled]="busy()"
                     >
-                      {{ 'admin.guidance.delete.cancel' | t }}
+                      {{ 'admin.guidance.edit' | t }}
                     </button>
-                  }
+                    @if (!guidanceDeleteConfirm.isArmed(row.id)) {
+                      @if (row.status === 'PUBLISHED') {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="unpublishGuidancePost(row)"
+                          [disabled]="busy()"
+                        >
+                          {{
+                            busy()
+                              ? ('admin.guidance.working' | t)
+                              : ('admin.guidance.unpublish' | t)
+                          }}
+                        </button>
+                      } @else {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="publishGuidancePost(row)"
+                          [disabled]="busy()"
+                        >
+                          {{
+                            busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
+                          }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-trigger]="row.id"
+                        (click)="requestDeleteGuidance(row.id)"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.guidance.delete' | t }}
+                      </button>
+                    } @else {
+                      <!-- two-tap confirm (no window.confirm, the app's inline
+                         style). The gateway sends confirm=true — the server
+                         400s without it. -->
+                      <span class="admin-confirm" role="status">
+                        {{ 'admin.guidance.delete.confirm' | t }}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-focus]="row.id"
+                        (click)="confirmDeleteGuidance(row.id)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy()
+                            ? ('admin.guidance.working' | t)
+                            : ('admin.guidance.delete.confirmButton' | t)
+                        }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="cancelDeleteGuidance()"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.guidance.delete.cancel' | t }}
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
@@ -1057,8 +1110,8 @@
                 </td>
                 <td class="admin-cell--name">
                   <div class="admin-cell__name-body">
-                  <span class="admin-media-name">{{ row.originalFilename }}</span>
-                  <span class="admin-muted">{{ row.contentType }}</span>
+                    <span class="admin-media-name">{{ row.originalFilename }}</span>
+                    <span class="admin-muted">{{ row.contentType }}</span>
                   </div>
                 </td>
                 <td class="admin-cell--nowrap">{{ row.width }} × {{ row.height }}</td>
@@ -1073,49 +1126,51 @@
                 </td>
                 <td class="admin-cell--actions">
                   <div class="admin-cell__actions-body">
-                  @if (mediaDeleteInUse.isArmed(row.id)) {
-                    <!-- The in-use 409 answer, turned into the confirm step:
+                    @if (mediaDeleteInUse.isArmed(row.id)) {
+                      <!-- The in-use 409 answer, turned into the confirm step:
                          the fixed copy + the server message (naming the
                          affected posts); Confirm re-issues with confirm=true. -->
-                    <span class="admin-confirm" role="status">
-                      {{ 'admin.media.delete.inUse' | t }}
-                      <span class="admin-muted">{{ mediaDeleteInUse.armed()!.value }}</span>
-                    </span>
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--danger"
-                      [attr.data-confirm-focus]="row.id"
-                      (click)="confirmMediaDelete(row.id)"
-                      [disabled]="busy()"
-                    >
-                      {{
-                        busy()
-                          ? ('admin.media.delete.working' | t)
-                          : ('admin.media.delete.confirmButton' | t)
-                      }}
-                    </button>
-                    <button
-                      type="button"
-                      class="btn btn--ghost"
-                      (click)="cancelMediaDelete()"
-                      [disabled]="busy()"
-                    >
-                      {{ 'admin.media.delete.cancel' | t }}
-                    </button>
-                  } @else {
-                    <!-- The first tap CALLS the API (the unreferenced asset
+                      <span class="admin-confirm" role="status">
+                        {{ 'admin.media.delete.inUse' | t }}
+                        <span class="admin-muted">{{ mediaDeleteInUse.armed()!.value }}</span>
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-focus]="row.id"
+                        (click)="confirmMediaDelete(row.id)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy()
+                            ? ('admin.media.delete.working' | t)
+                            : ('admin.media.delete.confirmButton' | t)
+                        }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="cancelMediaDelete()"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.media.delete.cancel' | t }}
+                      </button>
+                    } @else {
+                      <!-- The first tap CALLS the API (the unreferenced asset
                          deletes straight; the referenced one answers 409
                          and arms the strip above). -->
-                    <button
-                      type="button"
-                      class="btn btn--ghost btn--danger"
-                      [attr.data-confirm-trigger]="row.id"
-                      (click)="requestMediaDelete(row.id)"
-                      [disabled]="busy()"
-                    >
-                      {{ busy() ? ('admin.media.delete.working' | t) : ('admin.media.delete' | t) }}
-                    </button>
-                  }
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        [attr.data-confirm-trigger]="row.id"
+                        (click)="requestMediaDelete(row.id)"
+                        [disabled]="busy()"
+                      >
+                        {{
+                          busy() ? ('admin.media.delete.working' | t) : ('admin.media.delete' | t)
+                        }}
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>

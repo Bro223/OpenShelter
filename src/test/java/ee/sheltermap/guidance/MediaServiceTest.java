@@ -91,7 +91,7 @@ class MediaServiceTest {
 
     private GuidancePost newPostWithHero(String slug, String title, Long heroId, String alt) {
         GuidancePost post = GuidancePost.draft(slug, title, "<p>body</p>", "en",
-                false, heroId, alt, null, ADMIN_ID, clock.instant());
+                false, heroId, alt, null, 1, ADMIN_ID, clock.instant());
         post.publish(clock.instant());
         return posts.save(post);
     }

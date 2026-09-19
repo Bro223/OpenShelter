@@ -349,7 +349,7 @@ class GuidanceServiceTest {
     // ------------------------------------------------------------- ordering (D6)
 
     @Test
-    void publicListIsPinnedFirstThenPublishedAtDescThenIdDesc() {
+    void publicListIsPinnedFirstThenSortOrderAscThenTieBreakers() {
         GuidancePost a = createDraft("A");
         GuidancePost b = createDraft("B");
         GuidancePost c = createDraft("C");
@@ -357,33 +357,274 @@ class GuidanceServiceTest {
         service.publish(ADMIN_ID, b.getId());
         service.publish(ADMIN_ID, c.getId());
 
-        // Same publication instant → the id descending tie-break.
+        // Same publication instant, distinct sortOrder: the STORED MANUAL
+        // order decides (sortOrder ascending) — the id/publishedAt
+        // tie-breakers only kick in on equal sortOrder values.
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
-                .containsExactly(c.getId(), b.getId(), a.getId());
+                .containsExactly(a.getId(), b.getId(), c.getId());
 
-        // Pinning the oldest floats it to the top.
+        // Pinning the LARGEST sortOrder floats it to the top — the pinned
+        // head block sits above every non-pinned post regardless of value.
+        service.reorder(ADMIN_ID, List.of(b.getId(), c.getId(), a.getId()));
         service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null);
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
-                .containsExactly(a.getId(), c.getId(), b.getId());
+                .containsExactly(a.getId(), b.getId(), c.getId());
 
-        // A newer non-pinned post outranks the older non-pinned ones.
+        // A newer post APPENDS at the end of the manual order (D4): it does
+        // NOT float to the top of the non-pinned block by its timestamp.
         clock.advance(Duration.ofHours(1));
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
                 null, false, null, null, null, GuidanceStatus.PUBLISHED);
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
-                .containsExactly(a.getId(), d.getId(), c.getId(), b.getId());
+                .containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
     }
 
     @Test
-    void adminListIsNewestUpdatedFirst() {
+    void adminListIsInStoredManualOrder() {
         GuidancePost a = createDraft("A");
         GuidancePost b = createDraft("B");
         clock.advance(Duration.ofMinutes(10));
 
-        service.update(a.getId(), "A edited", null, "<p>b</p>", null, false, null, null, null);
+        service.reorder(ADMIN_ID, List.of(b.getId(), a.getId()));
 
+        // The newest-updated post is 'b' after the reorder save — but the
+        // admin list is the LIVE PREVIEW of the public order (sortOrder
+        // ascending), not the newest-updated order.
+        clock.advance(Duration.ofMinutes(10));
+        service.update(a.getId(), "A edited", null, "<p>b</p>", null, false, null, null, null);
         assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
-                .containsExactly(a.getId(), b.getId());
+                .containsExactly(b.getId(), a.getId());
+    }
+
+    // --------------------------------------------- manual order (guidance-manual-order)
+
+    @Test
+    void aNewDraftAppendsAtTheEndOfTheManualOrder() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+        GuidancePost c = createDraft("C");
+
+        // max(sortOrder) + 1 — the new draft sits at the bottom of the
+        // admin list (its starting position, not a lock).
+        assertThat(c.getSortOrder()).isGreaterThan(b.getSortOrder());
+        assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
+                .containsExactly(a.getId(), b.getId(), c.getId());
+    }
+
+    @Test
+    void aCreateAndPublishLandsAtTheEndOfTheNonPinnedBlock() {
+        GuidancePost a = createAndPublish("A", null);
+        GuidancePost b = createAndPublish("B", null);
+        service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null); // pin a
+
+        GuidancePost c = service.create(ADMIN_ID, "C", null, "<p>b</p>",
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+
+        // Below the pinned post, at the END of the non-pinned block.
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(a.getId(), b.getId(), c.getId());
+    }
+
+    @Test
+    void publishingNeverMovesAPost() {
+        GuidancePost a = createAndPublish("A", null);
+        GuidancePost b = createAndPublish("B", null);
+        GuidancePost c = createAndPublish("C", null);
+
+        // Unpublish the middle post and re-publish it with a FRESH stamp —
+        // under the old timestamp-driven order it would re-enter at the top
+        // of the non-pinned block; under the manual order its slot is its
+        // sortOrder.
+        clock.advance(Duration.ofHours(1));
+        service.unpublish(ADMIN_ID, b.getId());
+        service.publish(ADMIN_ID, b.getId());
+
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(a.getId(), b.getId(), c.getId());
+    }
+
+    @Test
+    void aDraftsSlotIsRespectedWhenItIsPublished() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+
+        // Move the draft to the FIRST manual position, then publish it.
+        service.reorder(ADMIN_ID, List.of(b.getId(), a.getId()));
+        service.publish(ADMIN_ID, b.getId());
+
+        // It enters the public index at its manual position — the
+        // publication stamp did not move it.
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(b.getId());
+        service.publish(ADMIN_ID, a.getId());
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(b.getId(), a.getId());
+    }
+
+    @Test
+    void reorderRenamesEveryPostToOneThroughNAndThePublicOrderFollows() {
+        GuidancePost a = createAndPublish("A", null);
+        GuidancePost b = createAndPublish("B", null);
+        GuidancePost c = createAndPublish("C", null);
+        GuidancePost d = createAndPublish("D", null);
+
+        service.reorder(ADMIN_ID, List.of(c.getId(), a.getId(), d.getId(), b.getId()));
+
+        // Dense 1..N in the submitted order.
+        assertThat(service.getById(c.getId()).getSortOrder()).isEqualTo(1);
+        assertThat(service.getById(a.getId()).getSortOrder()).isEqualTo(2);
+        assertThat(service.getById(d.getId()).getSortOrder()).isEqualTo(3);
+        assertThat(service.getById(b.getId()).getSortOrder()).isEqualTo(4);
+        // The public index follows the renumber.
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(c.getId(), a.getId(), d.getId(), b.getId());
+        // And so does the admin list (drafts and published alike).
+        assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
+                .containsExactly(c.getId(), a.getId(), d.getId(), b.getId());
+    }
+
+    @Test
+    void resubmittingTheCurrentOrderIsANoopWithoutAnAuditRow() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+        // A CHANGING reorder first (the current order is [a, b]).
+        List<Long> order = List.of(b.getId(), a.getId());
+
+        service.reorder(ADMIN_ID, order);
+        int rowsAfterFirst = audit.rows().size();
+        assertThat(audit.rows()).extracting(ModerationAuditLog.Row::action)
+                .containsExactly(ModerationAuditLog.Action.GUIDANCE_REORDER);
+
+        // The identical order again: no value changes, NO second audit row.
+        int beforeA = a.getSortOrder();
+        int beforeB = b.getSortOrder();
+        service.reorder(ADMIN_ID, order);
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(b.getSortOrder()).isEqualTo(beforeB);
+        assertThat(audit.rows()).hasSize(rowsAfterFirst);
+    }
+
+    @Test
+    void reorderRejectsAnUnknownIdAndChangesNothing() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+        int beforeA = a.getSortOrder();
+        int beforeB = b.getSortOrder();
+
+        assertThatThrownBy(() -> service.reorder(ADMIN_ID, List.of(a.getId(), b.getId(), 999L)))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("999");
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(b.getSortOrder()).isEqualTo(beforeB);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void reorderRejectsADuplicateIdAndChangesNothing() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+        int beforeA = a.getSortOrder();
+        int beforeB = b.getSortOrder();
+
+        assertThatThrownBy(() -> service.reorder(ADMIN_ID, List.of(a.getId(), b.getId(), a.getId())))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining(String.valueOf(a.getId()));
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(b.getSortOrder()).isEqualTo(beforeB);
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void reorderRejectsAStaleListMissingACurrentPostAndChangesNothing() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+        // A post is created while the admin's table is open — the stale
+        // list (missing 'c') is refused, forcing a refresh.
+        GuidancePost c = createDraft("C");
+        int beforeA = a.getSortOrder();
+        int beforeB = b.getSortOrder();
+        int beforeC = c.getSortOrder();
+
+        assertThatThrownBy(() -> service.reorder(ADMIN_ID, List.of(a.getId(), b.getId())))
+                .isInstanceOf(GuidanceValidationException.class)
+                .hasMessageContaining("stale");
+
+        assertThat(a.getSortOrder()).isEqualTo(beforeA);
+        assertThat(b.getSortOrder()).isEqualTo(beforeB);
+        // The new post keeps its appended position.
+        assertThat(c.getSortOrder()).isEqualTo(beforeC);
+        assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
+                .containsExactly(a.getId(), b.getId(), c.getId());
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void reorderWithAnEmptyListIsRefusedWhilePostsExist() {
+        createDraft("A");
+        assertThatThrownBy(() -> service.reorder(ADMIN_ID, List.of()))
+                .isInstanceOf(GuidanceValidationException.class);
+    }
+
+    @Test
+    void reorderWithAnEmptyListAndNoPostsIsANoop() {
+        service.reorder(ADMIN_ID, List.of()); // no posts: the empty list IS the order
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void aChangingReorderWritesExactlyOneGuidanceReorderRow() {
+        GuidancePost a = createDraft("A");
+        GuidancePost b = createDraft("B");
+
+        service.reorder(ADMIN_ID, List.of(b.getId(), a.getId()));
+
+        assertThat(audit.rows()).hasSize(1);
+        assertLabeledRow(audit.rows().get(0), ModerationAuditLog.Action.GUIDANCE_REORDER,
+                "Guidance post order");
+    }
+
+    @Test
+    void equalSortOrderRowsTieBreakOnPublishedAtThenIdDescending() {
+        GuidancePost a = createAndPublish("A", null);
+        clock.advance(Duration.ofMinutes(5));
+        GuidancePost b = createAndPublish("B", null);
+
+        // Force the prevented-in-practice state the tie-breakers exist for:
+        // two published posts carrying the SAME sortOrder — the newer-
+        // published one leads.
+        a.setSortOrder(1);
+        posts.save(a);
+        b.setSortOrder(1);
+        posts.save(b);
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactly(b.getId(), a.getId());
+
+        // …and rows sharing publishedAt AS WELL order by id descending.
+        // C and D are created at the SAME frozen clock instant (the service
+        // stamps from the injected Clock) and are forced onto one shared
+        // sortOrder; 'b' is pushed off the shared value.
+        GuidancePost c = service.create(ADMIN_ID, "C", null, "<p>b</p>",
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+        GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
+                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+        assertThat(c.getPublishedAt()).isEqualTo(d.getPublishedAt());
+        c.setSortOrder(9);
+        posts.save(c);
+        d.setSortOrder(9);
+        posts.save(d);
+        b.setSortOrder(2);
+        posts.save(b);
+
+        List<Long> order = service.listPublic(null).stream()
+                .map(PublicGuidanceView::getId).toList();
+        // Within the shared sortOrder + shared stamp: id descending (d, then c).
+        assertThat(order).containsSequence(d.getId(), c.getId());
+        // Repeated calls return the same order (the stable-order discipline).
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
+                .containsExactlyElementsOf(order);
     }
 
     // ------------------------------------------------------------- slugs (D5)

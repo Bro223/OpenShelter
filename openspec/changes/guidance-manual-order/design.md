@@ -38,14 +38,17 @@ same shape); domain + entity/mapper/repository per aggregate; the
 stable-order discipline (same-value rows must not reorder between calls);
 Testcontainers-backed backend tests and vitest frontend tests.
 
-Next free Flyway version: **V25** — verified against the repo, not
-assumed: `ls src/main/resources/db/migration | sort -V` ends at
-`V24__retention_last_activity.sql` (`V23.1` is a V23 sub-version). New
-migration name: `V25__guidance_manual_order.sql`.
+Next free Flyway version: **V28** — re-verified against the repo at
+implementation time (2026-09-19), not assumed: this was written as V25
+when `V24__retention_last_activity.sql` was the last migration, but
+`V25__guidance_hero_import.sql`, `V26__guidance_post_translations.sql`
+and `V27__site_texts.sql` were committed by other changes in the
+meantime. New migration name:
+`V28__guidance_manual_order.sql` (every `V25` below means V28).
 
 ## D1 — `sort_order`: an integer, NOT NULL, backfilled, NOT uniqueness-constrained
 
-`V25` adds `sort_order INT NOT NULL` to `guidance_posts` and backfills
+The migration (`V28`) adds `sort_order INT NOT NULL` to `guidance_posts` and backfills
 EVERY existing row in one statement, ranking the rows in the order the
 public index produces today, with the rows that are not visible there
 today (drafts) ranked after them:
@@ -208,7 +211,9 @@ table" requires the table to BE the order.
   `ngx-drag-drop` were considered and rejected because they are runtime
   dependencies and this project deliberately chooses vendoring over
   dependencies — Quill is vendored at `frontend/src/vendor/quill/`, and
-  `frontend/package.json` (8 runtime deps, verified 2026-09-18) carries no
+  `frontend/package.json` (9 runtime deps at implementation time;
+  8 when verified on 2026-09-18 — `leaflet` was added by another change in
+  the meantime) carries no
   drag-and-drop library. The rejection is on the dependency policy, not on
   capability: the two mechanisms above deliver the dependable outcome
   without any of them. Verified capability notes (checked 2026-09-18, so

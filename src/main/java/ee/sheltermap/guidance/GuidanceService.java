@@ -50,9 +50,15 @@ import java.util.Set;
  * rewritten). Uniqueness spans drafts and published posts alike (the V23
  * UNIQUE constraint, {@code existsBySlug}).
  *
- * <p>Ordering (D6) lives in the repository contract: the admin list is
- * newest-updated first, the public list PUBLISHED-only pinned-first —
- * both with the id-descending tie-break.
+ * <p>Ordering (guidance-manual-order D2) lives in the repository
+ * contract: the admin list is the stored manual order ({@code sortOrder}
+ * ascending, id descending tie-break — the live preview of the public
+ * order), the public list PUBLISHED-only, pinned first, then
+ * {@code sortOrder} ascending, with the {@code publishedAt}/{@code id}
+ * tie-breakers (they keep the order total and deterministic for any row
+ * state — {@code sortOrder} is not uniqueness-constrained, D1).
+ * Publishing or unpublishing NEVER moves a post: its slot IS its
+ * {@code sortOrder} (D4).
  *
  * <p>Hero import (guidance-hero-import): a post may carry a PENDING hero
  * import — an admin-supplied http(s) URL in {@code heroImportUrl} instead
@@ -127,10 +133,12 @@ public class GuidanceService {
     // ------------------------------------------------------------- reads
 
     /**
-     * The public index (D6): PUBLISHED-only and ONE locale — both filters
-     * live in the query, so no code path can leak a draft or the other
-     * language's text — pinned first, then {@code publishedAt} descending,
-     * id descending as the stable tie-break. {@code locale} is the
+     * The public index (guidance-manual-order D2): PUBLISHED-only and ONE
+     * locale — both filters live in the query, so no code path can leak a
+     * draft or the other language's text — pinned first, then
+     * {@code sortOrder} ascending (the stored manual order), then
+     * {@code publishedAt} descending and {@code id} descending as the
+     * deterministic tie-breakers. {@code locale} is the
      * reader's requested language or {@code null} for the parameter-absent
      * call, which falls back to the configured default locale (existing
      * callers keep their behaviour). A PRESENT but blank or over-long
@@ -143,7 +151,8 @@ public class GuidanceService {
     public List<PublicGuidanceView> listPublic(String locale) {
         String requested = resolveLocale(locale);
         // The translation rows of PUBLISHED posts in the locale, already in the
-        // public index order (pinned first, publishedAt desc, id desc). The
+        // public index order (pinned first, sortOrder asc, publishedAt desc,
+        // id desc — guidance-manual-order D2). The
         // posts are batch-loaded once for the hero image, pinned and published
         // stamp — one extra read, no per-row N+1.
         List<GuidanceTranslation> rows = translations.findPublishedInLocale(requested);
@@ -166,8 +175,9 @@ public class GuidanceService {
     }
 
     /**
-     * The admin list (D3): every post, drafts included, newest-updated
-     * first (id descending tie-break).
+     * The admin list (D3): every post, drafts included, in the stored
+     * manual order ({@code sortOrder} ascending, id descending tie-break)
+     * — the table is the live preview of the public order.
      */
     @Transactional(readOnly = true)
     public List<GuidancePost> listForAdmin() {
@@ -295,7 +305,7 @@ public class GuidanceService {
                 : resolveSuppliedSlug(slug, null);
 
         GuidancePost post = GuidancePost.draft(finalSlug, cleanTitle, cleanBody, cleanLocale,
-                pinned, heroId, heroAlt, cleanImportUrl, adminId, now);
+                pinned, heroId, heroAlt, cleanImportUrl, posts.maxSortOrder() + 1, adminId, now);
         if (requestedStatus == GuidanceStatus.PUBLISHED) {
             // One-shot "write and publish" (D4) — the same stamp the
             // publish endpoint would write. This is a CREATE, not a
@@ -401,6 +411,9 @@ public class GuidanceService {
         if (!wasPublished) {
             post.publish(clock.instant());
         }
+        // sort_order is NEVER touched here (guidance-manual-order D4): a
+        // re-publish stamps a fresh publishedAt, but the post's slot is its
+        // stored manual position — it does not re-enter the list at the top.
         posts.save(post);
         if (!wasPublished) {
             audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_PUBLISH,
@@ -419,6 +432,8 @@ public class GuidanceService {
     public void unpublish(long adminId, long id) {
         GuidancePost post = requirePost(id);
         if (post.isPublished()) {
+            // sort_order is NEVER touched here (guidance-manual-order D4):
+            // the draft's slot survives its (un)publication.
             post.unpublish();
             posts.save(post);
             audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_UNPUBLISH,
@@ -445,10 +460,91 @@ public class GuidanceService {
         }
         audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_DELETE,
                 auditLabel(post), null);
+        // sort_order is NEVER written by a delete (guidance-manual-order D4):
+        // the remaining posts keep their positions and leave GAPS in the
+        // numbering — order is by value, not adjacency, so the gaps are
+        // invisible until the next reorder re-densifies.
         // The post's translation rows die with it (the V26 FK cascades in the
         // DB; the explicit delete keeps the in-memory twin honest too, D8).
         translations.deleteAllByPostId(post.getId());
         posts.delete(post);
+    }
+
+    /**
+     * The atomic full-list reorder (guidance-manual-order D3): renumbers
+     * every post's {@code sortOrder} to 1..N in the submitted order in ONE
+     * transaction — all-or-nothing, so a failure mid-transaction leaves no
+     * partial renumbering observable.
+     *
+     * <p>Validation runs FIRST, before anything is written: the list must
+     * be a PERMUTATION of every current post id — an unknown id, a
+     * duplicate id, or a current post missing from the list (a stale list:
+     * a post was created or deleted after the admin's table was loaded)
+     * is a 400 that changes nothing. An empty list is a 400 whenever any
+     * post exists; with no posts at all it is a no-op. Concurrency is
+     * last-write-wins (no version check — the environment provisions one
+     * admin); a list that predates a concurrent create/delete is caught by
+     * the set-mismatch 400, which forces a refresh instead of silently
+     * dropping or duplicating a row.
+     *
+     * <p>Idempotence: resubmitting the current order changes no value and
+     * writes NO audit row (the publish/unpublish no-op idiom). A reorder
+     * that actually changes the order writes exactly ONE
+     * {@code GUIDANCE_REORDER} row in the same transaction (D12 — the
+     * label {@code Guidance post order} is a snapshot that stays readable).
+     *
+     * @throws GuidanceValidationException 400 — an unknown id, a duplicate id,
+     *                                     a missing (stale) list or an empty
+     *                                     list while posts exist
+     */
+    @Transactional
+    public void reorder(long adminId, List<Long> postIds) {
+        List<Long> requested = Objects.requireNonNull(postIds, "postIds");
+        Set<Long> submitted = new LinkedHashSet<>();
+        for (Long id : requested) {
+            if (id == null) {
+                throw new GuidanceValidationException("postIds must not contain null ids");
+            }
+            if (!submitted.add(id)) {
+                throw new GuidanceValidationException("postIds lists post " + id + " more than once");
+            }
+        }
+        List<GuidancePost> current = posts.findAllForAdmin();
+        Set<Long> currentIds = new LinkedHashSet<>();
+        for (GuidancePost post : current) {
+            currentIds.add(post.getId());
+        }
+        if (!submitted.equals(currentIds)) {
+            List<Long> unknown = new ArrayList<>(submitted);
+            unknown.removeAll(currentIds);
+            if (!unknown.isEmpty()) {
+                throw new GuidanceValidationException(
+                        "postIds contains unknown post ids: " + unknown + " — refresh the list");
+            }
+            throw new GuidanceValidationException(
+                    "postIds is missing current posts (the list is stale — a post was "
+                            + "created or deleted since the table was loaded): refresh the list and retry");
+        }
+        // The current order (sortOrder asc, id desc — the findAllForAdmin
+        // order): resubmitting it is a no-op that writes NO audit row.
+        List<Long> currentOrder = current.stream().map(GuidancePost::getId).toList();
+        if (requested.equals(currentOrder)) {
+            return;
+        }
+        // Renumber 1..N in the submitted order — one save per post, all in
+        // this ONE transaction (a failure rolls the whole renumber back).
+        Map<Long, GuidancePost> byId = new HashMap<>();
+        for (GuidancePost post : current) {
+            byId.put(post.getId(), post);
+        }
+        int position = 1;
+        for (Long id : requested) {
+            GuidancePost post = byId.get(id);
+            post.setSortOrder(position++);
+            posts.save(post);
+        }
+        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_REORDER,
+                "Guidance post order", null);
     }
 
     // ------------------------------------------------------------- guards

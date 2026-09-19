@@ -395,3 +395,38 @@ Notes:
   map. Auto-hidden (INACTIVE) rows are absent from the public list and the map; `GET
 /api/shelters/mine` and `GET /api/shelters/{id}` still carry them (the contributions panel
   marks the owner's hidden rows; the detail read is public for all statuses).
+
+---
+
+## Addendum (guidance-manual-order, 2026-09-19) — POST-dates this document
+
+This document predates the crisis-guidance wave; the guidance manual ordering
+change extends it. The admin gateway (`src/app/gateways/admin-gateway.ts`)
+carries one more method:
+
+- **`reorderGuidanceOrder(postIds: number[]): Promise<void>`** →
+  `PUT /admin/guidance/order` (204, no body). `postIds` is the FULL ordered
+  id list of every guidance post, exactly the order the admin Guidance table
+  shows it (pinned block first, then the rest). The server renumbers
+  positions 1..N in one transaction after validating the list as a
+  permutation of all ids; a 400 (unknown/duplicate/stale/empty-while-posts
+  list) means NOTHING was written — the UI therefore keeps the last
+  confirmed order and shows the error banner instead of reordering.
+  Resubmitting the confirmed order is a 204 no-op (no audit row); a changing
+  reorder writes one `GUIDANCE_REORDER` row (the audit tab's label map
+  carries it: `'Guidance order changed'`).
+
+The Guidance tab (`src/app/features/admin/admin-page.*`) offers TWO
+mechanisms that submit the same full list:
+
+- **PRIMARY**: per-row keyboard-reachable 48px `btn btn--ghost` move buttons
+  (to top / up / down), disabled at the boundaries, with `aria-label`s that
+  name the post and the direction (`admin.guidance.move.*.aria` with
+  `{title}`).
+- **SECONDARY**: native HTML5 drag & drop on the `<tr>` rows
+  (`dragstart`/`dragover`/`drop`/`dragend` → `onGuidanceDrag*` handlers),
+  the drop target row highlighted via `admin-row--drag-over`.
+
+New i18n keys (en/et/ru + the `Messages` type source):
+`admin.guidance.order.hint`, `admin.guidance.move.{top,up,down}` (+
+`.aria` variants), `admin.guidance.success.reordered`.

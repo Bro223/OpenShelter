@@ -84,7 +84,7 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
     @Override
     @Transactional(readOnly = true)
     public List<GuidancePost> findAllForAdmin() {
-        return posts.findAllByOrderByUpdatedAtDescIdDesc().stream()
+        return posts.findAllByOrderBySortOrderAscIdDesc().stream()
                 .map(GuidancePostMapper::toDomain)
                 .toList();
     }
@@ -92,10 +92,17 @@ public class JpaGuidancePostRepository implements GuidancePostRepository {
     @Override
     @Transactional(readOnly = true)
     public List<GuidancePost> findPublished(String locale) {
-        return posts.findByStatusAndLocaleOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus.PUBLISHED, locale)
+        return posts.findByStatusAndLocaleOrderByPinnedDescSortOrderAscPublishedAtDescIdDesc(
+                        GuidanceStatus.PUBLISHED, locale)
                 .stream()
                 .map(GuidancePostMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int maxSortOrder() {
+        return posts.maxSortOrder() == null ? 0 : posts.maxSortOrder();
     }
 
     @Override

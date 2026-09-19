@@ -19,13 +19,15 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
      *  post lives in another locale both answer empty, like an unknown slug. */
     Optional<GuidancePostEntity> findBySlugAndStatusAndLocale(String slug, GuidanceStatus status, String locale);
 
-    /** Every post, drafts included, newest-updated first (the admin list, D4). */
-    List<GuidancePostEntity> findAllByOrderByUpdatedAtDescIdDesc();
+    /** Every post, drafts included, in the stored manual order (the admin list, D2). */
+    List<GuidancePostEntity> findAllByOrderBySortOrderAscIdDesc();
 
-    /** The public index order (D6) in ONE locale — the locale filter rides
-     *  in the same query as the status and ordering (no in-memory filter):
-     *  pinned first, then published_at desc, id desc. */
-    List<GuidancePostEntity> findByStatusAndLocaleOrderByPinnedDescPublishedAtDescIdDesc(GuidanceStatus status, String locale);
+    /** The public index order (guidance-manual-order D2) in ONE locale — the
+     *  locale filter rides in the same query as the status and ordering (no
+     *  in-memory filter): pinned first, then sort_order asc, published_at desc
+     *  (tie-breaker), id desc. */
+    List<GuidancePostEntity> findByStatusAndLocaleOrderByPinnedDescSortOrderAscPublishedAtDescIdDesc(
+            GuidanceStatus status, String locale);
 
     /** The posts using one asset as their hero (D8); the id tie-break keeps the 409 list stable. */
     List<GuidancePostEntity> findByHeroImageIdOrderByUpdatedAtDescIdDesc(Long heroImageId);
@@ -35,4 +37,9 @@ public interface SpringDataGuidancePostRepository extends JpaRepository<Guidance
     @Query("select p.heroImageId, count(p) from GuidancePostEntity p "
             + "where p.heroImageId is not null group by p.heroImageId")
     List<Object[]> countsByHeroImageId();
+
+    /** The highest stored manual position, or null when there are no posts
+     *  (guidance-manual-order D4: create appends max + 1). */
+    @Query("select max(p.sortOrder) from GuidancePostEntity p")
+    Integer maxSortOrder();
 }
