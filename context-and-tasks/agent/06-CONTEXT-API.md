@@ -322,3 +322,37 @@ location-resolution style):
   carries one row per action (status change, delete, report dismiss, CONFIRM, AUTO_CONFIRM, REJECT)
   with read-time name resolution ("Deleted shelter" after a hard delete); registry rows are untouched by review actions (409); `locationKind` round-
   trips from the submission payload (default PUBLIC, PRIVATE badge surfaces).
+
+---
+
+## Addendum (guidance-manual-order, 2026-09-19) — POST-dates this pack
+
+The 00-README above says this pack does NOT cover the crisis-guidance subsystem.
+That is still true for the wave that shipped later; the MANUAL ORDERING of
+guidance posts (change `guidance-manual-order`) is documented here for
+completeness because it adds a new admin route and a new audit action.
+
+- **`PUT /admin/guidance/order`** (JWT + ADMIN kind) — body `{ "postIds": [ ... ] }`
+  is the FULL ordered id list of every guidance post, exactly the order the
+  admin table shows it (pinned block first, then the rest). The service
+  validates it as a permutation of all post ids BEFORE writing anything: an
+  unknown id, a duplicate id, a stale (short/long) list, or an empty list
+  while posts exist → **400** with NOTHING written (no renumber, no audit
+  row). A valid changing order renumbers positions 1..N in ONE transaction
+  (all-or-nothing) → **204**. An empty list with NO posts is a valid 204
+  no-op. Resubmitting the already-confirmed order is a 204 no-op and writes
+  NO audit row; a changing reorder writes exactly one
+  `ModerationAuditLog.Action.GUIDANCE_REORDER` row (label
+  `"Guidance post order"`, no shelter/user subject).
+- **Ordering semantics**: public `GET /api/guidance` and admin
+  `GET /admin/guidance` both order `pinned DESC, sort_order ASC, published_at
+  DESC, id DESC` (`V28__guidance_manual_order.sql` backfilled `sort_order` to
+  reproduce the pre-change public order exactly — deploying is a visible
+  no-op; the backfill is proven by `GuidanceOrderBackfillIT`). Creating a
+  post appends it at the end of the non-pinned block; publishing/unpublishing
+  never moves a post; pinning only switches blocks.
+- **Tests**: `GuidanceOrderIT` (endpoint + audit + all-or-nothing via a
+  test-only trigger), `GuidanceOrderBackfillIT` (V27 → seed → V28 on a
+  throwaway Postgres), `GuidanceServiceTest` (in-memory unit coverage of the
+  permutation rules), `GuidanceAuthorizationIT` (the new route in
+  ADMIN_ROUTES), `OpenApiContractIT` (the inventory row).
