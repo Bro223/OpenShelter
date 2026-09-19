@@ -1,14 +1,20 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   computed,
   inject,
   OnDestroy,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { skip } from 'rxjs';
 import { ApiError, toApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import type { MessageKey } from '../../core/i18n/messages';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import { safeReturnUrl } from '../../core/guards';
 import { VerifyGateway } from '../../gateways/verify-gateway';
@@ -21,18 +27,31 @@ import { ResendCountdown } from '../../shared/resend-countdown';
  *  the backend rejects it with 400 (stub in v1), see 04-CONTEXT decision 1. */
 type VerifyChannel = 'EMAIL' | 'PHONE';
 
+/**
+ * A channel's UI copy as catalog KEYS (i18n-et-en): the template renders
+ * them through `| t`, so a language switch re-renders the cards in the
+ * new language. The values must be valid Messages keys.
+ */
 interface ChannelMeta {
   level: VerifyChannel;
-  /** Chip + banner noun. */
-  noun: string;
+  /** Chip + banner noun ("email" / "phone"). */
+  nounKey: MessageKey;
   /** Human destination, e.g. "email address". */
-  destination: string;
-  title: string;
-  sendLabel: string;
-  sentHint: string;
-  codeLabel: string;
-  codeHint: string;
-  placeholder: string;
+  destinationKey: MessageKey;
+  titleKey: MessageKey;
+  sendKey: MessageKey;
+  sentHintKey: MessageKey;
+  codeLabelKey: MessageKey;
+  codeHintKey: MessageKey;
+  placeholderKey: MessageKey;
+}
+
+/** A notice banner: the catalog KEY + params (rendered through `| t`, so a
+ *  language switch re-renders it). */
+interface ChannelNotice {
+  severity: 'info' | 'success';
+  key: MessageKey;
+  params: Record<string, string | number>;
 }
 
 /** Codes mirror the backend generators (verified against the Java): the EMAIL
@@ -47,25 +66,25 @@ const EMAIL_CODE_PATTERN = new RegExp(`^[A-Za-z0-9]{${EMAIL_CODE_LENGTH}}$`);
 const CHANNELS: ChannelMeta[] = [
   {
     level: 'EMAIL',
-    noun: 'email',
-    destination: 'email address',
-    title: 'Verify your email',
-    sendLabel: 'Send code to my email',
-    sentHint: 'A verification code has been sent to your email address.',
-    codeLabel: 'Verification code',
-    codeHint: `Enter the ${EMAIL_CODE_LENGTH}-character code from the email.`,
-    placeholder: `${EMAIL_CODE_LENGTH}-character code`,
+    nounKey: 'verify.email.noun',
+    destinationKey: 'verify.email.destination',
+    titleKey: 'verify.email.title',
+    sendKey: 'verify.email.send',
+    sentHintKey: 'verify.email.sentHint',
+    codeLabelKey: 'verify.email.codeLabel',
+    codeHintKey: 'verify.email.codeHint',
+    placeholderKey: 'verify.email.placeholder',
   },
   {
     level: 'PHONE',
-    noun: 'phone',
-    destination: 'phone number',
-    title: 'Verify your phone',
-    sendLabel: 'Text code to my phone',
-    sentHint: 'An SMS code has been sent to your phone number.',
-    codeLabel: 'SMS code',
-    codeHint: 'Enter the 6-digit code from the SMS.',
-    placeholder: '6-digit code',
+    nounKey: 'verify.phone.noun',
+    destinationKey: 'verify.phone.destination',
+    titleKey: 'verify.phone.title',
+    sendKey: 'verify.phone.send',
+    sentHintKey: 'verify.phone.sentHint',
+    codeLabelKey: 'verify.phone.codeLabel',
+    codeHintKey: 'verify.phone.codeHint',
+    placeholderKey: 'verify.phone.placeholder',
   },
 ];
 
@@ -93,7 +112,7 @@ const CODE_PATTERNS: Record<VerifyChannel, RegExp> = {
  */
 @Component({
   selector: 'app-verify-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent],
+  imports: [ReactiveFormsModule, RouterLink, BannerComponent, TranslatePipe],
   templateUrl: './verify-page.html',
   styleUrl: './verify-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,6 +121,19 @@ export class VerifyPage implements OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly verify = inject(VerifyGateway);
   private readonly route = inject(ActivatedRoute);
+  /** i18n-et-en: the page copy is fully catalog-driven; a switcher change
+   *  re-renders the cards (labels + the re-derived banners). The
+   *  verification state itself is NOT locale-scoped — no re-fetch. */
+  readonly i18n = inject(I18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  /** The language switcher sets I18nService.locale: re-derive the stored
+   *  banners and re-render every | t label. toObservable emits the CURRENT
+   *  value on subscribe, so skip(1) — only a real switch triggers it (the
+   *  guidance-page idiom). Unsubscribed in ngOnDestroy. */
+  private readonly localeSub = toObservable(this.i18n.locale)
+    .pipe(skip(1))
+    .subscribe(() => this.cdr.markForCheck());
 
   protected readonly auth = this.store;
 
@@ -148,6 +180,7 @@ export class VerifyPage implements OnDestroy {
   ngOnDestroy(): void {
     this.countdowns.EMAIL.stop();
     this.countdowns.PHONE.stop();
+    this.localeSub.unsubscribe();
   }
 
   /** Per-channel code inputs (public so specs can drive them — page convention). */
@@ -166,8 +199,26 @@ export class VerifyPage implements OnDestroy {
   protected readonly sending = signal<VerifyChannel | null>(null);
   protected readonly confirming = signal<VerifyChannel | null>(null);
 
-  protected readonly error = signal<string | null>(null);
-  protected readonly notice = signal<{ severity: 'info' | 'success'; text: string } | null>(null);
+  /** The RAW error (non-null -> banner; the "verify" copy is in the
+   *  catalog — re-derived through the active locale at render time). */
+  protected readonly error = signal<unknown | null>(null);
+  protected readonly notice = signal<ChannelNotice | null>(null);
+
+  /** The error banner text, re-derived through the active locale. */
+  protected errorMessage(): string | null {
+    const error = this.error();
+    return error === null ? null : bannerMessage(error, 'verify', (key) => this.i18n.t(key));
+  }
+
+  /** The channel's translated noun (for the {noun} params + the chips). */
+  protected nounText(ch: ChannelMeta): string {
+    return this.i18n.t(ch.nounKey);
+  }
+
+  /** The channel's translated destination (for the {destination} param). */
+  protected destinationText(ch: ChannelMeta): string {
+    return this.i18n.t(ch.destinationKey);
+  }
 
   protected channel(level: VerifyChannel): ChannelMeta {
     return CHANNELS.find((c) => c.level === level) as ChannelMeta;
@@ -201,7 +252,8 @@ export class VerifyPage implements OnDestroy {
         await this.store.refreshProfile();
         this.notice.set({
           severity: 'info',
-          text: `Your ${this.channel(level).noun} is already verified.`,
+          key: 'verify.alreadyVerified',
+          params: { noun: this.nounText(this.channel(level)) },
         });
       } else {
         // A cooldown 429 carries Retry-After — run the per-channel
@@ -209,7 +261,7 @@ export class VerifyPage implements OnDestroy {
         if (api.status === 429) {
           this.countdowns[level].start(api.retryAfterSeconds ?? 60);
         }
-        this.error.set(bannerMessage(error, 'verify'));
+        this.error.set(error);
       }
     } finally {
       this.sending.set(null);
@@ -236,11 +288,12 @@ export class VerifyPage implements OnDestroy {
       await this.store.refreshProfile();
       this.notice.set({
         severity: 'success',
-        text: `Your ${this.channel(level).noun} is verified.`,
+        key: 'verify.verifiedNotice',
+        params: { noun: this.nounText(this.channel(level)) },
       });
       code.reset();
     } catch (error) {
-      this.error.set(bannerMessage(error, 'verify'));
+      this.error.set(error);
     } finally {
       this.confirming.set(null);
     }

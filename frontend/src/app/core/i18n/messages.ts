@@ -178,10 +178,9 @@ export interface Messages {
   'authPage.privacyPolicy': string;
   'authPage.termsOfUse': string;
 
-  // --- map page (i18n-et-en: the browse surface). The around-you CTA
-  // ("Show shelters around you") is intentionally NOT keyed here: the
-  // how.nearest copy quotes that exact English label, so the button stays
-  // English to keep the quote true.
+  // --- map page (i18n-et-en: the browse surface). The around-you CTA IS
+  // keyed (map.aroundYou) — the how.nearest / map.geocode copy quotes the
+  // ACTIVE LOCALE'S label, so the quote stays true in every language.
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
@@ -189,6 +188,11 @@ export interface Messages {
   'map.legend.confirmed': string;
   'map.legend.reported': string;
   'map.geoNote': string;
+  /** The around-you CTA label (the map's only geolocation trigger); the
+   *  how.nearest + map.geocode copy quote this label, locale for locale. */
+  'map.aroundYou': string;
+  /** The CTA's in-flight state while geolocation is resolving. */
+  'map.locating': string;
   'map.anchorLabel': string;
   'map.anchorPlaceholder': string;
   'map.search': string;
@@ -275,7 +279,11 @@ export interface Messages {
   'submit.descriptionLabel': string;
   'submit.descriptionPlaceholder': string;
   'submit.description.tooLong': string;
+  /** The label WITHOUT the range — the range lives in submit.capacityHint
+   *  (a separate line) so a narrow column cannot break it mid-range. */
   'submit.capacityLabel': string;
+  /** The capacity range, its own hint line under the label. */
+  'submit.capacityHint': string;
   'submit.capacityPlaceholder': string;
   'submit.capacity.invalid': string;
   'submit.privateLabel': string;
@@ -322,6 +330,186 @@ export interface Messages {
   'submit.geocode.noResults': string;
   'submit.geocode.rateLimited': string;
   'submit.geocode.network': string;
+
+  // --- error banners (shared error mapping, i18n-aware seam): the
+  // client-authored banner copy that bannerMessage() serves through the
+  // optional translate callback. Server-provided messages (ApiError.message)
+  // are echoed as-is and are NOT catalog keys.
+  'error.rateLimited': string;
+  'error.unauthorized': string;
+  'error.checkInput': string;
+  'error.serverError': string;
+  'error.valueInUse': string;
+  'error.verifyRateLimited': string;
+  'error.verifyBadCode': string;
+  'error.accountRateLimited': string;
+  'error.accountBadCode': string;
+
+  // --- account page (/account, AuthGuard): identity, contacts, the
+  // cross-channel change flows, your data, delete + legal links.
+  'account.subtitle': string;
+  'account.profileLoadError': string;
+  'account.retrying': string;
+  'account.retry': string;
+  'account.identity': string;
+  'account.name': string;
+  'account.adminBadge': string;
+  'account.identityCopy': string;
+  'account.edit': string;
+  'account.currentPassword': string;
+  'account.nameRequired': string;
+  'account.passwordRequired': string;
+  'account.saving': string;
+  'account.save': string;
+  'account.cancel': string;
+  'account.contacts': string;
+  'account.emailLabel': string;
+  'account.phoneLabel': string;
+  'account.verified': string;
+  'account.completeVerification': string;
+  'account.changeEmail': string;
+  /** Spliced around the <strong>{{ email }}</strong> segment. */
+  'account.emailDone.before': string;
+  'account.emailDone.after': string;
+  'account.changeAgain': string;
+  'account.newEmail': string;
+  /** An email example — ASCII, locale-invariant (identity allow-list). */
+  'account.newEmailPlaceholder': string;
+  'account.emailTooLong': string;
+  'account.emailRequired': string;
+  'account.emailProof': string;
+  'account.smsCode': string;
+  'account.codePlaceholder': string;
+  'account.smsCodeRequired': string;
+  'account.smsSentHint': string;
+  'account.working': string;
+  'account.confirmNewEmail': string;
+  /** {time} is the resend-countdown label ("45s", "1m 00s"). */
+  'account.resendIn': string;
+  'account.resendCode': string;
+  'account.sending': string;
+  /** {time} is the resend-countdown label ("45s", "1m 00s"). */
+  'account.sendIn': string;
+  'account.sendSmsToPhone': string;
+  'account.changePhone': string;
+  /** Spliced around the <strong>{{ phone }}</strong> segment. */
+  'account.phoneDone.before': string;
+  'account.phoneDone.after': string;
+  'account.newPhone': string;
+  'account.newPhonePlaceholder': string;
+  'account.phoneTooLong': string;
+  'account.phoneRequired': string;
+  'account.phoneProof': string;
+  'account.emailCode': string;
+  'account.emailCodeRequired': string;
+  'account.emailCodeSentHint': string;
+  'account.confirmNewPhone': string;
+  'account.sendEmailCode': string;
+  'account.contributions': string;
+  'account.contributionsCopy': string;
+  'account.yourData': string;
+  'account.dataCopy': string;
+  'account.preparing': string;
+  'account.downloadData': string;
+  'account.deleting': string;
+  'account.delete': string;
+  /** The admin (env-provisioned) variant: why the delete controls are absent. */
+  'account.delete.adminCopy': string;
+  'account.delete.copy': string;
+  /** Names the literal word the user must type to arm the delete. */
+  'account.delete.typeHint': string;
+  'account.delete.armed': string;
+  'account.delete.button': string;
+  'account.legal': string;
+  /** Spliced around the two legal links (the authPage.privacyPolicy /
+   *  termsOfUse labels are reused for the link text). */
+  'account.legal.lead': string;
+  'account.legal.and': string;
+  /** Punctuation-only splice segment (identity allow-list). */
+  'account.legal.tail': string;
+  'account.success.profileUpdated': string;
+  'account.success.emailChanged': string;
+  'account.success.phoneChanged': string;
+  'account.success.exportDownloaded': string;
+  /** Request-phase 400 ("same as current value") — the page's dedicated copy. */
+  'account.error.sameValue': string;
+
+  // --- account: contributions panel (the caller's own shelters).
+  'account.contrib.shelters': string;
+  'account.contrib.loading': string;
+  'account.contrib.empty': string;
+  'account.contrib.emptyCta': string;
+  'account.contrib.submit': string;
+  /** Panel-local badge labels (the shared shelter-copy labels are NOT
+   *  catalog keys — this panel renders its own translated set). */
+  'account.contrib.source.paasteamet': string;
+  'account.contrib.source.municipality': string;
+  'account.contrib.badge.new': string;
+  'account.contrib.badge.confirmed': string;
+  'account.contrib.badge.rejected': string;
+  'account.contrib.infoRequest': string;
+  /** {note} is the moderator's stored note. */
+  'account.contrib.adminNote': string;
+  'account.contrib.inaccurate': string;
+  /** {count} is the localized report-count phrase ("1 report", "5 reports"). */
+  'account.contrib.hidden': string;
+  'account.contrib.view': string;
+  'account.contrib.info': string;
+  'account.contrib.infoClose': string;
+  'account.contrib.delete': string;
+  'account.contrib.deleteConfirm': string;
+  'account.contrib.deleteConfirmButton': string;
+  'account.contrib.nameLabel': string;
+  'account.contrib.nameRequired': string;
+  'account.contrib.descriptionLabel': string;
+  'account.contrib.descriptionTooLong': string;
+  'account.contrib.latitudeLabel': string;
+  'account.contrib.latitudeError': string;
+  'account.contrib.longitudeLabel': string;
+  'account.contrib.longitudeError': string;
+  'account.contrib.estoniaNote': string;
+  'account.contrib.infoQuestion': string;
+  'account.contrib.replyLabel': string;
+  'account.contrib.replyRequired': string;
+  'account.contrib.sendReply': string;
+  'account.contrib.reply': string;
+
+  // --- verify page (/verify, AuthGuard): the per-channel proof flows.
+  'verify.title': string;
+  'verify.subtitle': string;
+  /** Accessible name of the level-chip list. */
+  'verify.aria': string;
+  'verify.verified': string;
+  'verify.notVerified': string;
+  /** {destination} is the case-fitted channel destination (per-channel key). */
+  'verify.intro': string;
+  'verify.email.title': string;
+  'verify.email.destination': string;
+  'verify.email.noun': string;
+  'verify.email.send': string;
+  'verify.email.sentHint': string;
+  'verify.email.codeLabel': string;
+  'verify.email.codeHint': string;
+  'verify.email.placeholder': string;
+  'verify.phone.title': string;
+  'verify.phone.destination': string;
+  'verify.phone.noun': string;
+  'verify.phone.send': string;
+  'verify.phone.sentHint': string;
+  'verify.phone.codeLabel': string;
+  'verify.phone.codeHint': string;
+  'verify.phone.placeholder': string;
+  'verify.verifying': string;
+  'verify.verify': string;
+  'verify.fullyVerified': string;
+  'verify.fullyVerifiedCopy': string;
+  'verify.verifiedCopy': string;
+  'verify.continue': string;
+  'verify.manageAccount': string;
+  'verify.backToMap': string;
+  /** {noun} is the channel's localized noun (per-channel key). */
+  'verify.alreadyVerified': string;
+  'verify.verifiedNotice': string;
 
   // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.

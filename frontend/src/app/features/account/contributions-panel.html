@@ -1,22 +1,24 @@
 <div class="contributions">
   <!-- ============================== Shelters ============================== -->
-  <h3 class="contributions-subtitle">Shelters</h3>
+  <h3 class="contributions-subtitle">{{ 'account.contrib.shelters' | t }}</h3>
 
   @if (shelterRows() === null && shelterLoadError() === null) {
-    <app-loading-indicator class="contributions-state" message="Loading your shelters…" />
-  } @else if (shelterLoadError(); as shelterErr) {
-    <p class="contributions-state contributions-state--error">{{ shelterErr }}</p>
+    <app-loading-indicator class="contributions-state" [message]="'account.contrib.loading' | t" />
+  } @else if (shelterLoadError() !== null) {
+    <p class="contributions-state contributions-state--error">{{ shelterLoadErrorMessage() }}</p>
     <div class="contrib-actions">
-      <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadShelters()">
+        {{ 'account.retry' | t }}
+      </button>
     </div>
   } @else if ((shelterRows() ?? []).length === 0) {
     <!-- Self-contained symmetric empty state: the wrapper carries the
          vertical rhythm (equal whitespace above the line and below the
          button), so the panel's flex gap applies once, to the block. -->
     <div class="contributions-empty">
-      <p class="contributions-state">You haven't submitted any shelters yet.</p>
+      <p class="contributions-state">{{ 'account.contrib.empty' | t }}</p>
       <div class="contrib-actions">
-        <a routerLink="/submit" class="btn btn--ghost">Submit your first shelter</a>
+        <a routerLink="/submit" class="btn btn--ghost">{{ 'account.contrib.emptyCta' | t }}</a>
       </div>
     </div>
   } @else {
@@ -25,7 +27,7 @@
          auth-gated by the /account route — the guards stay the single
          enforcement point). -->
     <div class="contrib-actions">
-      <a routerLink="/submit" class="btn btn--ghost">Submit a shelter</a>
+      <a routerLink="/submit" class="btn btn--ghost">{{ 'account.contrib.submit' | t }}</a>
     </div>
     <ul class="contrib-list">
       @for (row of shelterRows() ?? []; track row.id) {
@@ -33,16 +35,18 @@
           <div class="contrib-row__info">
             <span class="contrib-row__title">
               {{ row.name }}
-              <!-- Trust state (community-review-queue D5): "Newly added" /
-                   "Community-checked" / "Rejected" — the /mine badge. -->
+              <!-- Trust state (community-review-queue D5): the /mine badge
+                   (panel-local translated set — trustBadgeLabel). -->
               <span class="contrib-badge" [ngClass]="communityBadgeClass(row)">
-                {{ sourceTrustLabel(row) }}
+                {{ trustBadgeLabel(row) }}
               </span>
               <!-- Info request: an OPEN moderator question —
                    the amber action chip; answered requests carry no chip
                    (the exchange stays viewable via the Info button). -->
               @if (row.infoRequest && row.infoRequest.replyMessage === null) {
-                <span class="contrib-badge contrib-badge--info">Info request</span>
+                <span class="contrib-badge contrib-badge--info">
+                  {{ 'account.contrib.infoRequest' | t }}
+                </span>
               }
             </span>
             <!-- Auto-hidden by five non-existence reports (user-
@@ -57,17 +61,21 @@
             <!-- The admin's review note (community-review-queue): set by a
                  moderator when rejecting (or on a status change). -->
             @if (row.reviewNote) {
-              <span class="contrib-row__note">Admin note: {{ row.reviewNote }}</span>
+              <span class="contrib-row__note">
+                {{ 'account.contrib.adminNote' | t: { note: row.reviewNote } }}
+              </span>
             }
             <!-- Marked inaccurate: the single-sourced warning
                  line — the row stays visible, the flag is the treatment. -->
             @if (row.inaccurate) {
-              <span class="contrib-row__note">{{ inaccurateWarning }}</span>
+              <span class="contrib-row__note">{{ 'account.contrib.inaccurate' | t }}</span>
             }
-            <span class="contrib-row__meta">{{ row.createdAt | date: 'medium' }}</span>
+            <span class="contrib-row__meta">{{ row.createdAt | date: 'medium': undefined: i18n.locale() }}</span>
           </div>
           <div class="contrib-row__actions">
-            <a [routerLink]="['/shelters', row.id]" class="btn btn--ghost">View</a>
+            <a [routerLink]="['/shelters', row.id]" class="btn btn--ghost">
+              {{ 'account.contrib.view' | t }}
+            </a>
             @if (row.infoRequest) {
               <button
                 type="button"
@@ -75,7 +83,7 @@
                 (click)="toggleInfo(row)"
                 [disabled]="busy()"
               >
-                {{ infoFor() === row.id ? 'Close info' : 'Info' }}
+                {{ infoFor() === row.id ? ('account.contrib.infoClose' | t) : ('account.contrib.info' | t) }}
               </button>
             }
             @if (editingShelterId() !== row.id) {
@@ -85,7 +93,7 @@
                 (click)="startEditShelter(row)"
                 [disabled]="busy()"
               >
-                Edit
+                {{ 'account.edit' | t }}
               </button>
             }
             @if (!shelterDeleteConfirm.isArmed(row.id)) {
@@ -96,13 +104,13 @@
                 (click)="requestDeleteShelter(row.id)"
                 [disabled]="busy()"
               >
-                Delete
+                {{ 'account.contrib.delete' | t }}
               </button>
             }
           </div>
 
           @if (shelterRowError()?.id === row.id) {
-            <p class="row-error" role="alert">{{ shelterRowError()?.message }}</p>
+            <p class="row-error" role="alert">{{ shelterRowErrorMessage() }}</p>
           }
 
           <!-- two-step delete confirm (no window.confirm). The shared
@@ -111,7 +119,7 @@
                is a live region so arming is announced. -->
           @if (shelterDeleteConfirm.isArmed(row.id)) {
             <div class="confirm-strip">
-              <span role="status"> Delete this shelter permanently? </span>
+              <span role="status">{{ 'account.contrib.deleteConfirm' | t }}</span>
               <div class="contrib-actions">
                 <button
                   type="button"
@@ -120,7 +128,7 @@
                   (click)="confirmDeleteShelter(row.id)"
                   [disabled]="busy()"
                 >
-                  {{ busy() ? 'Deleting…' : 'Confirm delete' }}
+                  {{ busy() ? ('account.deleting' | t) : ('account.contrib.deleteConfirmButton' | t) }}
                 </button>
                 <button
                   type="button"
@@ -128,7 +136,7 @@
                   (click)="cancelDeleteShelter()"
                   [disabled]="busy()"
                 >
-                  Cancel
+                  {{ 'account.cancel' | t }}
                 </button>
               </div>
             </div>
@@ -138,15 +146,15 @@
           @if (editingShelterId() === row.id) {
             <div class="contrib-edit">
               <div class="field">
-                <label for="contrib-name">Name</label>
+                <label for="contrib-name">{{ 'account.contrib.nameLabel' | t }}</label>
                 <input id="contrib-name" type="text" [formControl]="editName" autocomplete="off" />
                 @if (editName.touched && editName.invalid) {
-                  <p class="field-error">A name (up to 200 characters) is required.</p>
+                  <p class="field-error">{{ 'account.contrib.nameRequired' | t }}</p>
                 }
               </div>
 
               <div class="field">
-                <label for="contrib-description">Description (optional)</label>
+                <label for="contrib-description">{{ 'account.contrib.descriptionLabel' | t }}</label>
                 <textarea
                   id="contrib-description"
                   rows="2"
@@ -154,22 +162,24 @@
                   [formControl]="editDescription"
                 ></textarea>
                 @if (editDescription.touched && editDescription.invalid) {
-                  <p class="field-error">Description must be 2000 characters or fewer.</p>
+                  <p class="field-error">{{ 'account.contrib.descriptionTooLong' | t }}</p>
                 }
               </div>
 
               <div class="contrib-edit__coords">
                 <div class="field">
-                  <label for="contrib-capacity">Capacity (optional, 1–100 000)</label>
+                  <label for="contrib-capacity">{{ 'submit.capacityLabel' | t }}</label>
+                  <!-- The range is its OWN hint line (submit.capacityHint) so a
+                       narrow column can never break it mid-range. The label and
+                       hint are shared with the /submit form (same field). -->
+                  <p class="field-note">{{ 'submit.capacityHint' | t }}</p>
                   <input id="contrib-capacity" type="number" [formControl]="editCapacity" />
                   @if (editCapacity.touched && editCapacity.invalid) {
-                    <p class="field-error">
-                      Capacity must be a whole number between 1 and 100 000.
-                    </p>
+                    <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
                   }
                 </div>
                 <div class="field">
-                  <label for="contrib-latitude">Latitude (−90…90)</label>
+                  <label for="contrib-latitude">{{ 'account.contrib.latitudeLabel' | t }}</label>
                   <input
                     id="contrib-latitude"
                     type="number"
@@ -177,11 +187,11 @@
                     [formControl]="editLatitude"
                   />
                   @if (editLatitude.touched && editLatitude.invalid) {
-                    <p class="field-error">A latitude between −90 and 90 is required.</p>
+                    <p class="field-error">{{ 'account.contrib.latitudeError' | t }}</p>
                   }
                 </div>
                 <div class="field">
-                  <label for="contrib-longitude">Longitude (−180…180)</label>
+                  <label for="contrib-longitude">{{ 'account.contrib.longitudeLabel' | t }}</label>
                   <input
                     id="contrib-longitude"
                     type="number"
@@ -189,13 +199,11 @@
                     [formControl]="editLongitude"
                   />
                   @if (editLongitude.touched && editLongitude.invalid) {
-                    <p class="field-error">A longitude between −180 and 180 is required.</p>
+                    <p class="field-error">{{ 'account.contrib.longitudeError' | t }}</p>
                   }
                 </div>
               </div>
-              <p class="field-note">
-                The location must be inside Estonia. That check happens on the server.
-              </p>
+              <p class="field-note">{{ 'account.contrib.estoniaNote' | t }}</p>
 
               <div class="contrib-actions">
                 <button
@@ -204,7 +212,7 @@
                   (click)="saveShelterEdit()"
                   [disabled]="busy() || !shelterFormValid()"
                 >
-                  {{ busy() ? 'Saving…' : 'Save changes' }}
+                  {{ busy() ? ('account.saving' | t) : ('account.save' | t) }}
                 </button>
                 <button
                   type="button"
@@ -212,7 +220,7 @@
                   (click)="cancelEditShelter()"
                   [disabled]="busy()"
                 >
-                  Cancel
+                  {{ 'account.cancel' | t }}
                 </button>
               </div>
             </div>
@@ -225,13 +233,13 @@
             @if (row.infoRequest; as req) {
               <div class="contrib-info">
                 <p class="contrib-info__q">
-                  <span class="contrib-info__label">A moderator is asking:</span>
+                  <span class="contrib-info__label">{{ 'account.contrib.infoQuestion' | t }}</span>
                   {{ req.message }}
                 </p>
-                <span class="contrib-row__meta">{{ req.requestedAt | date: 'medium' }}</span>
+                <span class="contrib-row__meta">{{ req.requestedAt | date: 'medium': undefined: i18n.locale() }}</span>
                 @if (req.replyMessage === null) {
                   <div class="field">
-                    <label for="contrib-info-reply">Your reply (required, one-time)</label>
+                    <label for="contrib-info-reply">{{ 'account.contrib.replyLabel' | t }}</label>
                     <textarea
                       id="contrib-info-reply"
                       rows="2"
@@ -239,7 +247,7 @@
                       [formControl]="replyMessage"
                     ></textarea>
                     @if (replyMessage.touched && replyMessage.invalid) {
-                      <p class="field-error">A reply (up to 2000 characters) is required.</p>
+                      <p class="field-error">{{ 'account.contrib.replyRequired' | t }}</p>
                     }
                   </div>
                   <div class="contrib-actions">
@@ -249,7 +257,7 @@
                       (click)="sendInfoReply(row)"
                       [disabled]="busy() || replyMessage.invalid"
                     >
-                      {{ busy() ? 'Sending…' : 'Send reply' }}
+                      {{ busy() ? ('account.sending' | t) : ('account.contrib.sendReply' | t) }}
                     </button>
                     <button
                       type="button"
@@ -257,15 +265,15 @@
                       (click)="closeInfo()"
                       [disabled]="busy()"
                     >
-                      Cancel
+                      {{ 'account.cancel' | t }}
                     </button>
                   </div>
                 } @else {
                   <p class="contrib-info__a">
-                    <span class="contrib-info__label">Your reply</span>
+                    <span class="contrib-info__label">{{ 'account.contrib.reply' | t }}</span>
                     {{ req.replyMessage }}
                   </p>
-                  <span class="contrib-row__meta">{{ req.repliedAt | date: 'medium' }}</span>
+                  <span class="contrib-row__meta">{{ req.repliedAt | date: 'medium': undefined: i18n.locale() }}</span>
                 }
               </div>
             }

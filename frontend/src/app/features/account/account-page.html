@@ -1,21 +1,15 @@
 <section class="account-card">
-  <h1 class="page-title">Account</h1>
-  <p class="page-subtitle">
-    Your profile and verification. The name can be corrected with a password confirmation; email and
-    phone changes are proven cross-channel.
-  </p>
+  <h1 class="page-title">{{ 'title.account' | t }}</h1>
+  <p class="page-subtitle">{{ 'account.subtitle' | t }}</p>
 
   @if (success(); as text) {
-    <app-banner severity="success" [message]="text" />
+    <app-banner severity="success" [message]="text.key | t: text.params" />
   }
-  <app-banner severity="error" [message]="error()" />
+  <app-banner severity="error" [message]="errorMessage()" />
 
   @if (auth.name() === null) {
     <div class="profile-error">
-      <app-banner
-        severity="error"
-        message="We could not load your profile. The session is still active."
-      />
+      <app-banner severity="error" [message]="'account.profileLoadError' | t" />
       <div class="panel-actions">
         <button
           type="button"
@@ -23,50 +17,47 @@
           (click)="retryProfile()"
           [disabled]="retrying()"
         >
-          {{ retrying() ? 'Retrying…' : 'Retry' }}
+          {{ retrying() ? ('account.retrying' | t) : ('account.retry' | t) }}
         </button>
       </div>
     </div>
   } @else {
     <!-- ============================== Identity ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">Identity</h2>
+      <h2 class="panel-title">{{ 'account.identity' | t }}</h2>
 
       @if (!editing()) {
         <dl class="identity-values">
           <div class="identity-row">
-            <dt>Name</dt>
+            <dt>{{ 'account.name' | t }}</dt>
             <dd>
               {{ auth.name() }}
               <!-- Kind badge (admin-moderation D5): the admin kind
                    is the truth server-side; the store's isAdmin comes from
                    the fetched profile (always present, false for regulars). -->
               @if (auth.isAdmin()) {
-                <span class="badge badge--admin">Admin</span>
+                <span class="badge badge--admin">{{ 'account.adminBadge' | t }}</span>
               }
             </dd>
           </div>
         </dl>
-        <p class="panel-copy">
-          A typo at registration never forces a new account — the edit is confirmed with your
-          current password.
-        </p>
+        <p class="panel-copy">{{ 'account.identityCopy' | t }}</p>
         <div class="panel-actions">
           <button type="button" class="btn btn--ghost" (click)="startEdit()" [disabled]="busy()">
-            Edit
+            {{ 'account.edit' | t }}
           </button>
         </div>
       } @else {
         <div class="field">
-          <label for="profile-name">Name</label>
+          <label for="profile-name">{{ 'account.name' | t }}</label>
           <input id="profile-name" type="text" [formControl]="editName" autocomplete="name" />
           @if (editName.touched && editName.invalid) {
-            <p class="field-error">A name is required.</p>
+            <p class="field-error">{{ 'account.nameRequired' | t }}</p>
           }
         </div>
 
         <div class="field">
-          <label for="profile-password">Current password</label>
+          <label for="profile-password">{{ 'account.currentPassword' | t }}</label>
           <input
             id="profile-password"
             type="password"
@@ -74,7 +65,7 @@
             autocomplete="current-password"
           />
           @if (editPassword.touched && editPassword.invalid) {
-            <p class="field-error">Your current password is required.</p>
+            <p class="field-error">{{ 'account.passwordRequired' | t }}</p>
           }
         </div>
 
@@ -85,10 +76,10 @@
             (click)="saveProfile()"
             [disabled]="busy()"
           >
-            {{ busy() ? 'Saving…' : 'Save changes' }}
+            {{ busy() ? ('account.saving' | t) : ('account.save' | t) }}
           </button>
           <button type="button" class="btn btn--ghost" (click)="cancelEdit()" [disabled]="busy()">
-            Cancel
+            {{ 'account.cancel' | t }}
           </button>
         </div>
       }
@@ -96,32 +87,32 @@
 
     <!-- ============================== Contacts ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">Contacts</h2>
+      <h2 class="panel-title">{{ 'account.contacts' | t }}</h2>
 
       <div class="contact-row">
         <div class="contact-row__info">
-          <span class="contact-row__label">Email address</span>
+          <span class="contact-row__label">{{ 'account.emailLabel' | t }}</span>
           <span class="contact-row__value">{{ auth.email() }}</span>
         </div>
         @if (verified('EMAIL')) {
-          <span class="contact-chip contact-chip--verified">Verified</span>
+          <span class="contact-chip contact-chip--verified">{{ 'account.verified' | t }}</span>
         } @else {
           <a routerLink="/verify" class="btn btn--ghost contact-chip contact-chip--cta">
-            Complete verification
+            {{ 'account.completeVerification' | t }}
           </a>
         }
       </div>
 
       <div class="contact-row">
         <div class="contact-row__info">
-          <span class="contact-row__label">Phone number</span>
+          <span class="contact-row__label">{{ 'account.phoneLabel' | t }}</span>
           <span class="contact-row__value">{{ auth.phone() }}</span>
         </div>
         @if (verified('PHONE')) {
-          <span class="contact-chip contact-chip--verified">Verified</span>
+          <span class="contact-chip contact-chip--verified">{{ 'account.verified' | t }}</span>
         } @else {
           <a routerLink="/verify" class="btn btn--ghost contact-chip contact-chip--cta">
-            Complete verification
+            {{ 'account.completeVerification' | t }}
           </a>
         }
       </div>
@@ -129,19 +120,19 @@
 
     <!-- ============================== Email change ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">Change email address</h2>
+      <h2 class="panel-title">{{ 'account.changeEmail' | t }}</h2>
 
       @if (emailPhase() === 'done') {
         <p class="panel-copy">
-          Your email is now <strong>{{ auth.email() }}</strong
-          >. The next time you sign in, use the new address.
+          {{ 'account.emailDone.before' | t }} <strong>{{ auth.email() }}</strong
+          >{{ 'account.emailDone.after' | t }}
         </p>
         <button type="button" class="btn btn--ghost" (click)="emailStartOver()">
-          Change it again
+          {{ 'account.changeAgain' | t }}
         </button>
       } @else {
         <div class="field">
-          <label for="change-email-new">New email</label>
+          <label for="change-email-new">{{ 'account.newEmail' | t }}</label>
           <!-- The target locks in the code phase via the control's own
                disabled state (emailSend) — FormControlDirective swallows a
                [disabled] property binding, so the control state IS the DOM. -->
@@ -151,40 +142,36 @@
             [formControl]="newEmail"
             maxlength="255"
             autocomplete="email"
-            placeholder="new@example.ee"
+            [placeholder]="'account.newEmailPlaceholder' | t"
           />
           @if (newEmail.touched && newEmail.invalid) {
             <p class="field-error">
               {{
                 newEmail.errors?.['maxlength']
-                  ? 'Email must be 255 characters or fewer.'
-                  : 'A valid email is required.'
+                  ? ('account.emailTooLong' | t)
+                  : ('account.emailRequired' | t)
               }}
             </p>
           }
         </div>
 
-        <p class="proof-note">
-          For security, changing the email is confirmed by an
-          <strong>SMS code sent to the phone number on your account</strong> — never to the new
-          address.
-        </p>
+        <p class="proof-note">{{ 'account.emailProof' | t }}</p>
 
         @if (emailPhase() === 'code') {
           <div class="field">
-            <label for="change-email-code">SMS code</label>
+            <label for="change-email-code">{{ 'account.smsCode' | t }}</label>
             <input
               id="change-email-code"
               type="text"
               [formControl]="emailCode"
               autocomplete="one-time-code"
               inputmode="numeric"
-              placeholder="6-digit code"
+              [placeholder]="'account.codePlaceholder' | t"
             />
             @if (emailCode.touched && emailCode.invalid) {
-              <p class="field-error">Enter the 6-digit code from the SMS.</p>
+              <p class="field-error">{{ 'account.smsCodeRequired' | t }}</p>
             }
-            <p class="field-note">We sent an SMS code to the phone number on your account.</p>
+            <p class="field-note">{{ 'account.smsSentHint' | t }}</p>
           </div>
 
           <div class="panel-actions">
@@ -194,7 +181,7 @@
               (click)="emailConfirm()"
               [disabled]="busy()"
             >
-              {{ busy() ? 'Working…' : 'Confirm new email' }}
+              {{ busy() ? ('account.working' | t) : ('account.confirmNewEmail' | t) }}
             </button>
             <button
               type="button"
@@ -202,7 +189,11 @@
               (click)="emailResend()"
               [disabled]="busy() || emailCountdown.active"
             >
-              {{ emailCountdown.active ? `Resend in ${emailCountdown.label()}` : 'Resend code' }}
+              {{
+                emailCountdown.active
+                  ? ('account.resendIn' | t: { time: emailCountdown.label() })
+                  : ('account.resendCode' | t)
+              }}
             </button>
             <button
               type="button"
@@ -210,7 +201,7 @@
               (click)="emailStartOver()"
               [disabled]="busy()"
             >
-              Cancel
+              {{ 'account.cancel' | t }}
             </button>
           </div>
         } @else {
@@ -222,10 +213,10 @@
           >
             {{
               busy()
-                ? 'Sending…'
+                ? ('account.sending' | t)
                 : emailCountdown.active
-                  ? `Send in ${emailCountdown.label()}`
-                  : 'Send SMS code to my phone'
+                  ? ('account.sendIn' | t: { time: emailCountdown.label() })
+                  : ('account.sendSmsToPhone' | t)
             }}
           </button>
         }
@@ -234,19 +225,19 @@
 
     <!-- ============================== Phone change ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">Change phone number</h2>
+      <h2 class="panel-title">{{ 'account.changePhone' | t }}</h2>
 
       @if (phonePhase() === 'done') {
         <p class="panel-copy">
-          Your phone is now <strong>{{ auth.phone() }}</strong
-          >.
+          {{ 'account.phoneDone.before' | t }} <strong>{{ auth.phone() }}</strong
+          >{{ 'account.phoneDone.after' | t }}
         </p>
         <button type="button" class="btn btn--ghost" (click)="phoneStartOver()">
-          Change it again
+          {{ 'account.changeAgain' | t }}
         </button>
       } @else {
         <div class="field">
-          <label for="change-phone-new">New phone</label>
+          <label for="change-phone-new">{{ 'account.newPhone' | t }}</label>
           <!-- Locked in the code phase via the control's disabled state (phoneSend). -->
           <input
             id="change-phone-new"
@@ -254,40 +245,36 @@
             [formControl]="newPhone"
             maxlength="64"
             autocomplete="tel"
-            placeholder="+3725… or 5xxxxxxx"
+            [placeholder]="'account.newPhonePlaceholder' | t"
           />
           @if (newPhone.touched && newPhone.invalid) {
             <p class="field-error">
               {{
                 newPhone.errors?.['maxlength']
-                  ? 'Phone must be 64 characters or fewer.'
-                  : 'A phone number is required.'
+                  ? ('account.phoneTooLong' | t)
+                  : ('account.phoneRequired' | t)
               }}
             </p>
           }
         </div>
 
-        <p class="proof-note">
-          For security, changing the phone is confirmed by an
-          <strong>email code sent to the email address on your account</strong> — losing your SIM
-          alone cannot re-route verification.
-        </p>
+        <p class="proof-note">{{ 'account.phoneProof' | t }}</p>
 
         @if (phonePhase() === 'code') {
           <div class="field">
-            <label for="change-phone-code">Email code</label>
+            <label for="change-phone-code">{{ 'account.emailCode' | t }}</label>
             <input
               id="change-phone-code"
               type="text"
               [formControl]="phoneCode"
               autocomplete="one-time-code"
               inputmode="numeric"
-              placeholder="6-digit code"
+              [placeholder]="'account.codePlaceholder' | t"
             />
             @if (phoneCode.touched && phoneCode.invalid) {
-              <p class="field-error">Enter the 6-digit code from the email.</p>
+              <p class="field-error">{{ 'account.emailCodeRequired' | t }}</p>
             }
-            <p class="field-note">We sent an email code to the email address on your account.</p>
+            <p class="field-note">{{ 'account.emailCodeSentHint' | t }}</p>
           </div>
 
           <div class="panel-actions">
@@ -297,7 +284,7 @@
               (click)="phoneConfirm()"
               [disabled]="busy()"
             >
-              {{ busy() ? 'Working…' : 'Confirm new phone' }}
+              {{ busy() ? ('account.working' | t) : ('account.confirmNewPhone' | t) }}
             </button>
             <button
               type="button"
@@ -305,7 +292,11 @@
               (click)="phoneResend()"
               [disabled]="busy() || phoneCountdown.active"
             >
-              {{ phoneCountdown.active ? `Resend in ${phoneCountdown.label()}` : 'Resend code' }}
+              {{
+                phoneCountdown.active
+                  ? ('account.resendIn' | t: { time: phoneCountdown.label() })
+                  : ('account.resendCode' | t)
+              }}
             </button>
             <button
               type="button"
@@ -313,7 +304,7 @@
               (click)="phoneStartOver()"
               [disabled]="busy()"
             >
-              Cancel
+              {{ 'account.cancel' | t }}
             </button>
           </div>
         } @else {
@@ -325,10 +316,10 @@
           >
             {{
               busy()
-                ? 'Sending…'
+                ? ('account.sending' | t)
                 : phoneCountdown.active
-                  ? `Send in ${phoneCountdown.label()}`
-                  : 'Send email code to my email'
+                  ? ('account.sendIn' | t: { time: phoneCountdown.label() })
+                  : ('account.sendEmailCode' | t)
             }}
           </button>
         }
@@ -337,18 +328,15 @@
 
     <!-- ============================== My contributions ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">My contributions</h2>
-      <p class="panel-copy">The shelters you submitted — edit or remove them here.</p>
+      <h2 class="panel-title">{{ 'account.contributions' | t }}</h2>
+      <p class="panel-copy">{{ 'account.contributionsCopy' | t }}</p>
       <app-contributions-panel />
     </section>
 
     <!-- ================================= Your data ================================ -->
     <section class="change-panel">
-      <h2 class="panel-title">Your data</h2>
-      <p class="panel-copy">
-        Download a JSON file with everything tied to your account — your profile (name, email,
-        phone) and the shelters you submitted.
-      </p>
+      <h2 class="panel-title">{{ 'account.yourData' | t }}</h2>
+      <p class="panel-copy">{{ 'account.dataCopy' | t }}</p>
       <button
         type="button"
         id="download-data"
@@ -356,13 +344,13 @@
         (click)="downloadData()"
         [disabled]="busy()"
       >
-        {{ busy() ? 'Preparing…' : 'Download my data (JSON)' }}
+        {{ busy() ? ('account.preparing' | t) : ('account.downloadData' | t) }}
       </button>
     </section>
 
     <!-- ================================= Delete account ================================ -->
     <section class="change-panel">
-      <h2 class="panel-title">Delete account</h2>
+      <h2 class="panel-title">{{ 'account.delete' | t }}</h2>
       @if (auth.isAdmin()) {
         <!-- The env-provisioned administrator (kind ADMIN — the store's
              isAdmin comes from the fetched profile): this account is the
@@ -370,19 +358,11 @@
              purpose. The server enforces it (DELETE /account answers 403
              with the same reason) — this explanation tells the operator
              why the controls are missing and what to do instead. -->
-        <p class="panel-copy">
-          This account was provisioned by the deployment environment, so it cannot be deleted
-          from the app. De-provisioning is an operator action — removing the ADMIN_EMAIL and
-          ADMIN_PASSWORD environment variables — and the server refuses the deletion either way.
-        </p>
+        <p class="panel-copy">{{ 'account.delete.adminCopy' | t }}</p>
       } @else {
-        <p class="panel-copy">
-          Erases your account and everything tied to it. Shelters you declared as a private home are
-          removed; public shelters you submitted stay on the map without a submitter. This cannot be
-          undone.
-        </p>
+        <p class="panel-copy">{{ 'account.delete.copy' | t }}</p>
         <div class="field">
-          <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>
+          <label for="delete-confirm">{{ 'account.delete.typeHint' | t }}</label>
           <input
             id="delete-confirm"
             type="text"
@@ -395,9 +375,7 @@
              merely enables is not reliably announced, and the shared
              ConfirmAction keeps focus in the input (the typed word IS the step). -->
         @if (accountDeleteConfirm.isArmed(accountDeleteKey)) {
-          <p class="field-note" role="status">
-            Erasure armed — select “Delete my account” to confirm.
-          </p>
+          <p class="field-note" role="status">{{ 'account.delete.armed' | t }}</p>
         }
         <div class="panel-actions">
           <button
@@ -407,7 +385,7 @@
             (click)="deleteAccount()"
             [disabled]="busy() || !accountDeleteConfirm.isArmed(accountDeleteKey)"
           >
-            {{ busy() ? 'Deleting…' : 'Delete my account' }}
+            {{ busy() ? ('account.deleting' | t) : ('account.delete.button' | t) }}
           </button>
         </div>
       }
@@ -415,10 +393,13 @@
 
     <!-- ============================== Legal (Workstream A) ============================== -->
     <section class="change-panel">
-      <h2 class="panel-title">Legal</h2>
+      <h2 class="panel-title">{{ 'account.legal' | t }}</h2>
       <p class="panel-copy">
-        Read the <a routerLink="/privacy">Privacy Policy</a> and the
-        <a routerLink="/terms">Terms of Use</a>.
+        {{ 'account.legal.lead' | t }}
+        <a routerLink="/privacy">{{ 'authPage.privacyPolicy' | t }}</a>
+        {{ 'account.legal.and' | t }}
+        <a routerLink="/terms">{{ 'authPage.termsOfUse' | t }}</a
+        >{{ 'account.legal.tail' | t }}
       </p>
     </section>
   }

@@ -51,7 +51,7 @@
           [disabled]="locating() || loading() || error() !== null"
           [attr.aria-busy]="locating()"
         >
-          {{ locating() ? 'Finding your location…' : 'Show shelters around you' }}
+          {{ locating() ? ('map.locating' | t) : ('map.aroundYou' | t) }}
         </button>
         <!-- legal-recovery: the explicit consent line —
              the CTA is the only geolocation trigger and the browser prompt
@@ -133,7 +133,7 @@
 
       @if (nearest(); as n) {
         <p class="nearest-line" role="status">
-          Show shelters around you: {{ n.name }}
+          {{ 'map.aroundYou' | t }}: {{ n.name }}
           @if (n.address) {
             <span class="nearest-line__address"> · {{ n.address }}</span>
           }

@@ -86,9 +86,8 @@ export const RU: Messages = {
   'consent.acknowledge': 'Понятно',
   'consent.privacyLink': 'Прочитать политику конфиденциальности',
 
-  // --- блок «Как работает OpenShelter» (карта). Подписи интерфейса
-  // цитируются как они отображаются в русской локали, а кнопка
-  // «Show shelters around you» остаётся английской — так честна цитата.
+  // --- блок «Как работает OpenShelter» (карта). Подписи кнопки
+  // цитируются в русской локали (кнопка переведена), поэтому цитата честна.
   'how.title': 'Как работает OpenShelter',
   'how.what':
     'OpenShelter — независимая карта укрытий в Эстонии, которую ведёт сообщество. Это не экстренная служба и не официальный государственный сервис. В случае чрезвычайной ситуации звоните 112 и следуйте официальным указаниям.',
@@ -97,7 +96,7 @@ export const RU: Messages = {
   'how.report':
     'Подтверждённые пользователи могут добавить укрытие или сообщить, что указанное место закрыто, указано неточно или больше не существует. Сообщения поступают администраторам, которые рассматривают их и могут скрыть место или исправить данные.',
   'how.nearest':
-    'Кнопка "Show shelters around you" просит браузер дать разрешение на использование вашего местоположения. Координаты используются только внутри браузера и никогда не отправляются на наши серверы. Вместо этого можно искать по адресу.',
+    'Кнопка «Показать укрытия рядом с вами» просит браузер дать разрешение на использование вашего местоположения. Координаты используются только внутри браузера и никогда не отправляются на наши серверы. Вместо этого можно искать по адресу.',
   'how.guarantee':
     'OpenShelter не может гарантировать, что указанное место открыто, безопасно, доступно, свободно и ещё работает. Прежде всего следуйте официальным указаниям в чрезвычайной ситуации.',
   'how.exampleTitle': 'Пример',
@@ -186,8 +185,8 @@ export const RU: Messages = {
   'authPage.termsOfUse': 'Условия использования',
 
   // --- страница карты (поверхность просмотра). Кнопка «Show shelters
-  // around you» остаётся английской (см. messages.ts), поэтому тексты
-  // гекодера цитируют именно эту английскую подпись.
+  // around you» переведена (map.aroundYou), поэтому тексты гекодера
+  // цитируют именно её русскую подпись.
   'map.title': 'Карта укрытий',
   'map.subtitle':
     'Найдите зарегистрированные укрытия и укрытия, добавленные сообществом, в Эстонии.',
@@ -197,6 +196,8 @@ export const RU: Messages = {
   'map.legend.reported': 'Сообщено',
   'map.geoNote':
     'Сначала браузер спросит разрешение. Местоположение никогда не отправляется на наши серверы и используется только для поиска ближайшего укрытия.',
+  'map.aroundYou': 'Показать укрытия рядом с вами',
+  'map.locating': 'Определяем ваше местоположение…',
   'map.anchorLabel': 'Найти укрытия рядом с адресом',
   'map.anchorPlaceholder': 'Улица или место в Эстонии',
   'map.search': 'Найти',
@@ -227,10 +228,10 @@ export const RU: Messages = {
     'Сейчас определить ваше местоположение не удалось. Попробуйте через минуту.',
   'map.nearest.insecure': 'Для доступа к геолокации нужно защищённое (https) соединение.',
   'map.geocode.noResults':
-    'Адрес в Эстонии не найден — попробуйте другой адрес или «Show shelters around you».',
+    'Адрес в Эстонии не найден — попробуйте другой адрес или «Показать укрытия рядом с вами».',
   'map.geocode.rateLimited': 'Поиск адресов перегружен — подождите немного и повторите.',
   'map.geocode.network':
-    'Поиск адресов сейчас недоступен. Вместо этого используйте «Show shelters around you».',
+    'Поиск адресов сейчас недоступен. Вместо этого используйте «Показать укрытия рядом с вами».',
 
   // --- страница укрытия. Кнопка расстояния и метки Статус/Вместимость
   // остаются английскими, как и в исходном интерфейсе.
@@ -290,7 +291,8 @@ export const RU: Messages = {
   'submit.descriptionLabel': 'Описание (необязательно)',
   'submit.descriptionPlaceholder': 'Как попасть, условия, кто управляет…',
   'submit.description.tooLong': 'Описание — не более 2000 символов.',
-  'submit.capacityLabel': 'Вместимость (необязательно, 1–100 000 человек)',
+  'submit.capacityLabel': 'Вместимость (необязательно)',
+  'submit.capacityHint': '1–100 000 человек',
   'submit.capacityPlaceholder': 'напр. 40',
   'submit.capacity.invalid': 'Вместимость — целое число от 1 до 100 000.',
   'submit.privateLabel':
@@ -321,7 +323,7 @@ export const RU: Messages = {
   'submit.hint.source.map': 'карта',
   'submit.hint.source.address': 'поиск адреса',
   'submit.hint.swapped':
-    ' — порядок (долгота, широта), поэтому значения поменяны местами, чтобы точка оказалась в Эстонии',
+    ' — распознан как долгота и широта, поэтому значения поменяны местами, чтобы точка оказалась в Эстонии',
   'submit.hint.accuracy': ' (точность около {m} м — перетащите метку, если нужно)',
   'submit.loc.missing':
     'Отметьте точку на карте, вставьте координаты или ссылку или используйте «Моё местоположение».',
@@ -331,7 +333,7 @@ export const RU: Messages = {
   'submit.loc.invalid':
     'Это не похоже на координаты. Используйте пару вида 59.4370, 24.7535, строку в градусах-минутах-секундах (DMS) или ссылку на карту.',
   'submit.loc.decimalComma':
-    'Используйте десятичную точку: 59.4370, 24.7535 (обнаружен десятичный разделитель — запятая, как в эстонском).',
+    'Используйте десятичную точку: 59.4370, 24.7535 (обнаружен десятичный разделитель — запятая).',
   'submit.loc.geoDenied':
     'Доступ к геолокации отключён. Разрешите браузеру доступ к геолокации — либо отметьте точку на карте / вставьте ссылку.',
   'submit.loc.geoUnavailable':
@@ -350,6 +352,178 @@ export const RU: Messages = {
     'Адрес в Эстонии не найден — попробуйте карту, ссылку или «Моё местоположение».',
   'submit.geocode.rateLimited': 'Поиск адресов перегружен — подождите немного и повторите.',
   'submit.geocode.network': 'Поиск адресов сейчас недоступен. Используйте карту или ссылку.',
+
+  // --- баннеры ошибок (shared error mapping, i18n-aware seam): клиентская
+  // копия, которую bannerMessage() отдаёт через i18n-зацепку. Сообщения,
+  // присланные сервером (ApiError.message), ключами словаря не являются.
+  'error.rateLimited': 'Слишком много попыток — подождите немного и повторите.',
+  'error.unauthorized': 'Нет доступа. Пожалуйста, войдите снова.',
+  'error.checkInput': 'Проверьте введённые данные и повторите.',
+  'error.serverError': 'Что-то пошло не так. Попробуйте ещё раз.',
+  'error.valueInUse': 'Это значение уже используется.',
+  'error.verifyRateLimited':
+    'Запрошено слишком много кодов. Подождите, прежде чем запрашивать новый (число кодов в сутки ограничено).',
+  'error.verifyBadCode': 'Код недействителен или истёк. Проверьте и повторите.',
+  'error.accountRateLimited': 'Слишком много запросов. Подождите немного и повторите.',
+  'error.accountBadCode': 'Код недействителен или истёк. Запросите новый.',
+
+  // --- страница аккаунта (/account). EN — верbatim-копия текущего
+  // интерфейса; RU — спокойные гражданские формулировки.
+  'account.subtitle':
+    'Ваш профиль и подтверждения. Имя можно исправить с подтверждением паролем; смена e-mail и телефона подтверждается через другой канал.',
+  'account.profileLoadError': 'Не удалось загрузить ваш профиль. Сессия всё ещё активна.',
+  'account.retrying': 'Повторяем…',
+  'account.retry': 'Повторить',
+  'account.identity': 'Личные данные',
+  'account.name': 'Имя',
+  'account.adminBadge': 'Администратор',
+  'account.identityCopy':
+    'Опечатка при регистрации не требует нового аккаунта — исправление подтверждается вашим текущим паролем.',
+  'account.edit': 'Изменить',
+  'account.currentPassword': 'Текущий пароль',
+  'account.nameRequired': 'Укажите имя.',
+  'account.passwordRequired': 'Введите текущий пароль.',
+  'account.saving': 'Сохраняем…',
+  'account.save': 'Сохранить изменения',
+  'account.cancel': 'Отмена',
+  'account.contacts': 'Контакты',
+  'account.emailLabel': 'Адрес e-mail',
+  'account.phoneLabel': 'Номер телефона',
+  'account.verified': 'Подтверждено',
+  'account.completeVerification': 'Завершить подтверждение',
+  'account.changeEmail': 'Сменить адрес e-mail',
+  'account.emailDone.before': 'Ваш e-mail теперь',
+  'account.emailDone.after': '. При следующем входе используйте новый адрес.',
+  'account.changeAgain': 'Изменить ещё раз',
+  'account.newEmail': 'Новый e-mail',
+  'account.newEmailPlaceholder': 'new@example.ee',
+  'account.emailTooLong': 'Адрес e-mail — не более 255 символов.',
+  'account.emailRequired': 'Укажите корректный e-mail.',
+  'account.emailProof':
+    'В целях безопасности смена e-mail подтверждается SMS-кодом, отправленным на номер телефона вашего аккаунта — никогда не на новый адрес.',
+  'account.smsCode': 'SMS-код',
+  'account.codePlaceholder': '6-значный код',
+  'account.smsCodeRequired': 'Введите 6-значный код из SMS.',
+  'account.smsSentHint': 'Мы отправили SMS-код на номер телефона вашего аккаунта.',
+  'account.working': 'Выполняем…',
+  'account.confirmNewEmail': 'Подтвердить новый e-mail',
+  'account.resendIn': 'Повторная отправка через {time}',
+  'account.resendCode': 'Отправить код ещё раз',
+  'account.sending': 'Отправляем…',
+  'account.sendIn': 'Отправить можно через {time}',
+  'account.sendSmsToPhone': 'Отправить SMS-код на мой телефон',
+  'account.changePhone': 'Сменить номер телефона',
+  'account.phoneDone.before': 'Ваш телефон теперь',
+  'account.phoneDone.after': '.',
+  'account.newPhone': 'Новый телефон',
+  'account.newPhonePlaceholder': '+3725… или 5xxxxxxx',
+  'account.phoneTooLong': 'Номер телефона — не более 64 символов.',
+  'account.phoneRequired': 'Укажите номер телефона.',
+  'account.phoneProof':
+    'В целях безопасности смена телефона подтверждается кодом, отправленным на адрес e-mail вашего аккаунта — одной лишь потери SIM-карты недостаточно, чтобы перенаправить подтверждение.',
+  'account.emailCode': 'Код из письма',
+  'account.emailCodeRequired': 'Введите 6-значный код из письма.',
+  'account.emailCodeSentHint': 'Мы отправили код на адрес e-mail вашего аккаунта.',
+  'account.confirmNewPhone': 'Подтвердить новый телефон',
+  'account.sendEmailCode': 'Отправить код на мой e-mail',
+  'account.contributions': 'Мои добавления',
+  'account.contributionsCopy': 'Укрытия, которые вы добавили — измените или удалите их здесь.',
+  'account.yourData': 'Ваши данные',
+  'account.dataCopy':
+    'Скачайте JSON-файл со всем, что связано с вашим аккаунтом — ваш профиль (имя, e-mail, телефон) и добавленные вами укрытия.',
+  'account.preparing': 'Готовим…',
+  'account.downloadData': 'Скачать мои данные (JSON)',
+  'account.deleting': 'Удаляем…',
+  'account.delete': 'Удаление аккаунта',
+  'account.delete.adminCopy':
+    'Этот аккаунт создан окружением развёртывания, поэтому его нельзя удалить из приложения. Удаление из окружения — действие оператора (убрать переменные окружения ADMIN_EMAIL и ADMIN_PASSWORD) — и сервер отказывает в удалении в любом случае.',
+  'account.delete.copy':
+    'Удаляет ваш аккаунт и всё, что связано с ним. Укрытия, которые вы объявили частным домом, будут удалены; добавленные вами публичные укрытия останутся на карте без автора. Это действие нельзя отменить.',
+  'account.delete.typeHint': 'Введите DELETE для подтверждения',
+  'account.delete.armed': 'Удаление готово — выберите «Удалить мой аккаунт», чтобы подтвердить.',
+  'account.delete.button': 'Удалить мой аккаунт',
+  'account.legal': 'Юридическое',
+  'account.legal.lead': 'Прочтите',
+  'account.legal.and': 'и',
+  'account.legal.tail': '.',
+  'account.success.profileUpdated': 'Ваш профиль обновлён.',
+  'account.success.emailChanged': 'Ваш адрес e-mail изменён.',
+  'account.success.phoneChanged': 'Ваш номер телефона изменён.',
+  'account.success.exportDownloaded': 'Экспорт ваших данных загружен.',
+  'account.error.sameValue': 'Это уже значение вашего аккаунта — новое должно отличаться.',
+
+  // --- аккаунт: панель вкладок (собственные укрытия пользователя).
+  'account.contrib.shelters': 'Укрытия',
+  'account.contrib.loading': 'Загружаем ваши укрытия…',
+  'account.contrib.empty': 'Вы пока не добавили ни одного укрытия.',
+  'account.contrib.emptyCta': 'Добавить первое укрытие',
+  'account.contrib.submit': 'Добавить укрытие',
+  'account.contrib.source.paasteamet': 'Реестр Спасательного департамента',
+  'account.contrib.source.municipality': 'Муниципальный реестр',
+  'account.contrib.badge.new': 'Новое от сообщества',
+  'account.contrib.badge.confirmed': 'Подтверждено сообществом',
+  'account.contrib.badge.rejected': 'Отклонено',
+  'account.contrib.infoRequest': 'Запрос информации',
+  'account.contrib.adminNote': 'Заметка администратора: {note}',
+  'account.contrib.inaccurate': 'Сообщено, что данные неточны — детали могут быть ошибочными',
+  'account.contrib.hidden': 'Скрыто — об этом сообщили из сообщества ({count})',
+  'account.contrib.view': 'Просмотр',
+  'account.contrib.info': 'Инфо',
+  'account.contrib.infoClose': 'Закрыть инфо',
+  'account.contrib.delete': 'Удалить',
+  'account.contrib.deleteConfirm': 'Удалить это укрытие безвозвратно?',
+  'account.contrib.deleteConfirmButton': 'Подтвердить удаление',
+  'account.contrib.nameLabel': 'Название',
+  'account.contrib.nameRequired': 'Укажите название (не более 200 символов).',
+  'account.contrib.descriptionLabel': 'Описание (необязательно)',
+  'account.contrib.descriptionTooLong': 'Описание — не более 2000 символов.',
+  'account.contrib.latitudeLabel': 'Широта (−90…90)',
+  'account.contrib.latitudeError': 'Укажите широту от −90 до 90.',
+  'account.contrib.longitudeLabel': 'Долгота (−180…180)',
+  'account.contrib.longitudeError': 'Укажите долготу от −180 до 180.',
+  'account.contrib.estoniaNote': 'Местоположение должно находиться в Эстонии. Проверка выполняется на сервере.',
+  'account.contrib.infoQuestion': 'Модератор спрашивает:',
+  'account.contrib.replyLabel': 'Ваш ответ (обязательно, только один раз)',
+  'account.contrib.replyRequired': 'Укажите ответ (не более 2000 символов).',
+  'account.contrib.sendReply': 'Отправить ответ',
+  'account.contrib.reply': 'Ваш ответ',
+
+  // --- страница подтверждения (/verify): потоки по каналам.
+  'verify.title': 'Подтвердите аккаунт',
+  'verify.subtitle':
+    'Подтверждённые аккаунты могут добавлять укрытия и сообщать о указанных местах. Подтвердите, что e-mail и телефон принадлежат вам — коды приходят вне приложения, по одному на каждый канал.',
+  'verify.aria': 'Статус подтверждения',
+  'verify.verified': 'Подтверждено',
+  'verify.notVerified': 'Не подтверждено',
+  'verify.intro': 'Мы отправим код {destination}. Введите его здесь, чтобы подтвердить, что он ваш.',
+  'verify.email.title': 'Подтвердите e-mail',
+  'verify.email.destination': 'на адрес e-mail',
+  'verify.email.noun': 'e-mail',
+  'verify.email.send': 'Отправить код на почту',
+  'verify.email.sentHint': 'Код подтверждения отправлен на ваш адрес e-mail.',
+  'verify.email.codeLabel': 'Код подтверждения',
+  'verify.email.codeHint': 'Введите 8-символьный код из письма.',
+  'verify.email.placeholder': '8-символьный код',
+  'verify.phone.title': 'Подтвердите телефон',
+  'verify.phone.destination': 'на номер телефона',
+  'verify.phone.noun': 'телефон',
+  'verify.phone.send': 'Отправить SMS-код на телефон',
+  'verify.phone.sentHint': 'SMS-код отправлен на ваш номер телефона.',
+  'verify.phone.codeLabel': 'SMS-код',
+  'verify.phone.codeHint': 'Введите 6-значный код из SMS.',
+  'verify.phone.placeholder': '6-значный код',
+  'verify.verifying': 'Подтверждаем…',
+  'verify.verify': 'Подтвердить',
+  'verify.fullyVerified': 'Ваш аккаунт полностью подтверждён',
+  'verify.fullyVerifiedCopy':
+    'Ваш e-mail и телефон подтверждены — теперь вы можете добавлять укрытия и сообщать о указанных местах.',
+  'verify.verifiedCopy':
+    'Ваш аккаунт подтверждён. Вы можете добавлять укрытия и сообщать о указанных местах.',
+  'verify.continue': 'Продолжить',
+  'verify.manageAccount': 'Управлять аккаунтом',
+  'verify.backToMap': 'Назад к карте',
+  'verify.alreadyVerified': 'Ваш {noun} уже подтверждён.',
+  'verify.verifiedNotice': 'Ваш {noun} подтверждён.',
 
   // --- рекомендации при ЧС (/blog). Заголовок и текст материала —
   // текст администратора (котируется как есть), не ключи словаря.
@@ -528,7 +702,7 @@ export const RU: Messages = {
   'admin.media.col.image': 'Изображение',
   'admin.media.col.file': 'Файл',
   'admin.media.col.dimensions': 'Размеры',
-  'admin.media.col.size': 'Объём',
+  'admin.media.col.size': 'Размер',
   'admin.media.col.uploaded': 'Загружено',
   'admin.media.col.usedBy': 'Используется в',
   'admin.media.col.actions': 'Действия',

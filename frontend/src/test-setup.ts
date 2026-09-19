@@ -9,14 +9,16 @@
  * This file is NEVER bundled into the app — it only runs for `ng test`.
  */
 
-// i18n-et-en: MIRROR of main.ts — the specs that exercise the Estonian UI
-// render the `date` pipe with locale 'et', but the test bootstrap never runs
-// main.ts, so the 'et' locale data (which DatePipe requires) is registered
-// here instead.
+// i18n-et-en: MIRROR of main.ts — the specs that exercise the Estonian and
+// Russian UI render the `date` pipe with locale 'et'/'ru', but the test
+// bootstrap never runs main.ts, so the locale data (which DatePipe requires)
+// is registered here instead.
 import { registerLocaleData } from '@angular/common';
 import etLocale from '@angular/common/locales/et';
+import ruLocale from '@angular/common/locales/ru';
 
 registerLocaleData(etLocale);
+registerLocaleData(ruLocale);
 
 
 function createMemoryStorage(): Storage {

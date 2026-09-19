@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   inject,
   OnInit,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { DatePipe, NgClass } from '@angular/common';
 import {
   type AbstractControl,
@@ -15,17 +17,16 @@ import {
   Validators,
 } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { skip } from 'rxjs';
 import type { MineShelterDto, UpdateShelterRequest } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { bannerMessage } from '../../shared/error-copy';
 import { capacityValidator, nameBlankValidator, readCoordinate } from '../../shared/form-helpers';
 import { LoadingIndicator } from '../../shared/loading-indicator';
-import {
-  sourceTrustLabel as sourceTrustLabelShared,
-  communityBadgeClass as communityBadgeClassShared,
-  INACCURATE_WARNING,
-} from '../../shared/shelter-copy';
+import { communityBadgeClass as communityBadgeClassShared } from '../../shared/shelter-copy';
 
 /** Coordinate controls are required and within the geographic bounds (backend
  *  re-checks the same @DecimalMin/@DecimalMax). Estonia-ness is NOT checked
@@ -59,7 +60,7 @@ function coordinateValidator(min: number, max: number) {
  */
 @Component({
   selector: 'app-contributions-panel',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, LoadingIndicator],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, NgClass, LoadingIndicator, TranslatePipe],
   templateUrl: './contributions-panel.html',
   styleUrl: './contributions-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -67,13 +68,26 @@ function coordinateValidator(min: number, max: number) {
 export class ContributionsPanel implements OnInit {
   private readonly shelters = inject(ShelterGateway);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** i18n-et-en: the panel copy is fully catalog-driven; a switcher change
+   *  re-renders the panel (labels + the re-derived error banners). The /mine
+   *  data is NOT locale-scoped — no re-fetch. */
+  readonly i18n = inject(I18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  /** The language switcher sets I18nService.locale: re-derive the stored
+   *  error banners (raw errors) and re-render every | t label. skip(1) —
+   *  only a real switch triggers it (the guidance-page idiom). */
+  private readonly localeSub = toObservable(this.i18n.locale)
+    .pipe(skip(1))
+    .subscribe(() => this.cdr.markForCheck());
 
   // ---- shelters list -------------------------------------------------------
   /** null = loading; [] = loaded and empty. The /mine projection carries the
    *  review state (community-review-queue) — badges + the admin note. */
   protected readonly shelterRows = signal<MineShelterDto[] | null>(null);
-  /** Load failure (non-null -> error state with Retry). */
-  protected readonly shelterLoadError = signal<string | null>(null);
+  /** Load failure: the RAW error (non-null -> error state with Retry) —
+   *  the banner text is re-derived through the active locale. */
+  protected readonly shelterLoadError = signal<unknown | null>(null);
 
   // ---- inline edit state (one open at a time) ------------------------------
   protected readonly editingShelterId = signal<number | null>(null);
@@ -96,20 +110,53 @@ export class ContributionsPanel implements OnInit {
   });
 
   // ---- row-level mutation errors (backend rejected an edit/delete) ---------
-  protected readonly shelterRowError = signal<{ id: number; message: string } | null>(null);
+  /** The RAW error per row — the banner text is re-derived through the
+   *  active locale at render time (shelterRowErrorMessage). */
+  protected readonly shelterRowError = signal<{ id: number; error: unknown } | null>(null);
 
   protected readonly busy = signal(false);
 
-  /** The single-sourced "reported inaccurate" warning:
-   *  the note line on a moderator-marked own row — the row stays visible,
-   *  the flag is the treatment. */
-  protected readonly inaccurateWarning = INACCURATE_WARNING;
-  /** Source/trust badge copy (community-review-queue D5): the trust-state
-   *  label — the hidden rows (REJECTED) say what happened to them on the
-   *  owner's list. */
-  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+  /** Panel-local badge label (i18n-et-en): registry rows carry their
+   *  registry label, USER rows the trust-state label. The shared
+   *  shelter-copy labels are not catalog keys (map/detail/admin still use
+   *  them), so this panel renders its own translated set. */
+  protected trustBadgeLabel(row: MineShelterDto): string {
+    if (row.source === 'PAASETEAMET') {
+      return this.i18n.t('account.contrib.source.paasteamet');
+    }
+    if (row.source === 'MUNICIPALITY') {
+      return this.i18n.t('account.contrib.source.municipality');
+    }
+    switch (row.reviewStatus) {
+      case 'NEW':
+        return this.i18n.t('account.contrib.badge.new');
+      case 'CONFIRMED':
+        return this.i18n.t('account.contrib.badge.confirmed');
+      case 'REJECTED':
+        return this.i18n.t('account.contrib.badge.rejected');
+    }
+  }
+
   /** The trust badge tone: NEW amber, REJECTED danger, CONFIRMED green. */
   protected readonly communityBadgeClass = communityBadgeClassShared;
+
+  /** The localized report-count phrase for the hidden-row mark
+   *  ("1 report" / "5 reports"; EN/ET/RU plural rules). */
+  private reportCountPhrase(n: number): string {
+    switch (this.i18n.locale()) {
+      case 'et':
+        return n === 1 ? '1 teatamine' : `${n} teatamist`;
+      case 'ru': {
+        const tens = n % 100;
+        const ones = n % 10;
+        const word =
+          tens >= 11 && tens <= 14 ? 'отчётов' : ones === 1 ? 'отчёт' : ones >= 2 && ones <= 4 ? 'отчёта' : 'отчётов';
+        return `${n} ${word}`;
+      }
+      default:
+        return `${n} report${n === 1 ? '' : 's'}`;
+    }
+  }
 
   /**
    * Auto-hidden row copy (user-contributions, shelter-trust-and-reports):
@@ -124,8 +171,9 @@ export class ContributionsPanel implements OnInit {
     if (row.status !== 'INACTIVE' || row.reviewStatus === 'REJECTED') {
       return null;
     }
-    const n = row.nonexistentReports;
-    return `Hidden — reported by the community (${n} report${n === 1 ? '' : 's'})`;
+    return this.i18n.t('account.contrib.hidden', {
+      count: this.reportCountPhrase(row.nonexistentReports),
+    });
   }
 
   // ---- shelter edit form (pre-filled on Edit; public so specs can drive it)
@@ -155,6 +203,10 @@ export class ContributionsPanel implements OnInit {
     this.loadShelters();
   }
 
+  ngOnDestroy(): void {
+    this.localeSub.unsubscribe();
+  }
+
   // -------------------------------------------------------------------------
   // Loading (per list, independent)
   // -------------------------------------------------------------------------
@@ -164,7 +216,19 @@ export class ContributionsPanel implements OnInit {
     this.shelters
       .mine()
       .then((rows) => this.shelterRows.set(rows))
-      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.shelterLoadError.set(error));
+  }
+
+  /** The list-load error banner, re-derived through the active locale. */
+  protected shelterLoadErrorMessage(): string | null {
+    const error = this.shelterLoadError();
+    return error === null ? null : bannerMessage(error, 'shelter', (key) => this.i18n.t(key));
+  }
+
+  /** The row-level error banner text, re-derived through the active locale. */
+  protected shelterRowErrorMessage(): string | null {
+    const state = this.shelterRowError();
+    return state === null ? null : bannerMessage(state.error, 'shelter', (key) => this.i18n.t(key));
   }
 
   // -------------------------------------------------------------------------
@@ -244,7 +308,7 @@ export class ContributionsPanel implements OnInit {
       this.editingShelterId.set(null);
       this.shelterRowError.update((e) => (e && e.id === id ? null : e));
     } catch (error: unknown) {
-      this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
+      this.shelterRowError.set({ id, error });
     } finally {
       this.busy.set(false);
     }
@@ -271,7 +335,7 @@ export class ContributionsPanel implements OnInit {
       this.shelterRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
       this.shelterRowError.update((e) => (e && e.id === id ? null : e));
     } catch (error: unknown) {
-      this.shelterRowError.set({ id, message: bannerMessage(error, 'shelter') });
+      this.shelterRowError.set({ id, error });
     } finally {
       if (this.infoFor() === id) {
         this.closeInfo();
@@ -348,7 +412,7 @@ export class ContributionsPanel implements OnInit {
       this.shelterRowError.update((e) => (e && e.id === row.id ? null : e));
       this.closeInfo();
     } catch (error: unknown) {
-      this.shelterRowError.set({ id: row.id, message: bannerMessage(error, 'shelter') });
+      this.shelterRowError.set({ id: row.id, error });
     } finally {
       this.busy.set(false);
     }

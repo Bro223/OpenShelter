@@ -1,37 +1,35 @@
 <section class="account-card">
-  <h1 class="page-title">Verify your account</h1>
-  <p class="page-subtitle">
-    Verified accounts can submit shelters and report listed locations. Prove you own your email and
-    phone — the codes arrive out-of-band, one per channel.
-  </p>
+  <h1 class="page-title">{{ 'verify.title' | t }}</h1>
+  <p class="page-subtitle">{{ 'verify.subtitle' | t }}</p>
 
-  <ul class="level-chips" aria-label="Verification status">
+  <ul class="level-chips" [attr.aria-label]="'verify.aria' | t">
     @for (c of [channel('EMAIL'), channel('PHONE')]; track c.level) {
       <li class="level-chip" [class.level-chip--done]="auth.levels().includes(c.level)">
         @if (auth.levels().includes(c.level)) {
           <span class="level-chip__mark" aria-hidden="true">✓</span>
         }
-        {{ auth.levels().includes(c.level) ? 'Verified' : 'Not verified' }} · {{ c.noun }}
+        {{
+          auth.levels().includes(c.level) ? ('verify.verified' | t) : ('verify.notVerified' | t)
+        }}
+        · {{ nounText(c) }}
       </li>
     }
   </ul>
 
   @if (notice(); as n) {
-    <app-banner [severity]="n.severity" [message]="n.text" />
+    <app-banner [severity]="n.severity" [message]="n.key | t: n.params" />
   }
-  <app-banner severity="error" [message]="error()" />
+  <app-banner severity="error" [message]="errorMessage()" />
 
   @for (level of offered(); track level) {
     @let ch = channel(level);
     <section class="verify-panel">
-      <h2 class="panel-title">{{ ch.title }}</h2>
-      <p class="panel-copy">
-        We'll send a code to your {{ ch.destination }}. You enter it here to prove it's yours.
-      </p>
+      <h2 class="panel-title">{{ ch.titleKey | t }}</h2>
+      <p class="panel-copy">{{ 'verify.intro' | t: { destination: destinationText(ch) } }}</p>
 
       @if (phases[level]() === 'code') {
         <div class="field">
-          <label [for]="codeId(level)">{{ ch.codeLabel }}</label>
+          <label [for]="codeId(level)">{{ ch.codeLabelKey | t }}</label>
           <input
             [id]="codeId(level)"
             type="text"
@@ -39,12 +37,12 @@
             autocomplete="one-time-code"
             [attr.inputmode]="level === 'PHONE' ? 'numeric' : 'text'"
             [attr.autocapitalize]="level === 'EMAIL' ? 'characters' : 'none'"
-            [placeholder]="ch.placeholder"
+            [placeholder]="ch.placeholderKey | t"
           />
           @if (codes[level].touched && codes[level].invalid) {
-            <p class="field-error">{{ ch.codeHint }}</p>
+            <p class="field-error">{{ ch.codeHintKey | t }}</p>
           }
-          <p class="field-note">{{ ch.sentHint }}</p>
+          <p class="field-note">{{ ch.sentHintKey | t }}</p>
         </div>
 
         <div class="panel-actions">
@@ -54,7 +52,7 @@
             (click)="confirm(level)"
             [disabled]="confirming() !== null || sending() !== null"
           >
-            {{ confirming() === level ? 'Verifying…' : 'Verify' }}
+            {{ confirming() === level ? ('verify.verifying' | t) : ('verify.verify' | t) }}
           </button>
           <button
             type="button"
@@ -64,10 +62,10 @@
           >
             {{
               sending() === level
-                ? 'Sending…'
+                ? ('account.sending' | t)
                 : countdowns[level].active
-                  ? `Resend in ${countdowns[level].label()}`
-                  : 'Resend code'
+                  ? ('account.resendIn' | t: { time: countdowns[level].label() })
+                  : ('account.resendCode' | t)
             }}
           </button>
         </div>
@@ -80,10 +78,10 @@
         >
           {{
             sending() === level
-              ? 'Sending…'
+              ? ('account.sending' | t)
               : countdowns[level].active
-                ? `Send in ${countdowns[level].label()}`
-                : ch.sendLabel
+                ? ('account.sendIn' | t: { time: countdowns[level].label() })
+                : (ch.sendKey | t)
           }}
         </button>
       }
@@ -92,17 +90,15 @@
 
   @if (allVerified()) {
     <section class="verify-panel verify-panel--done">
-      <h2 class="panel-title">You're fully verified</h2>
-      <p class="panel-copy">
-        Your email and phone are verified — you can now submit shelters and report listed locations.
-      </p>
+      <h2 class="panel-title">{{ 'verify.fullyVerified' | t }}</h2>
+      <p class="panel-copy">{{ 'verify.fullyVerifiedCopy' | t }}</p>
       <div class="panel-actions">
         @if (returnUrl) {
-          <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
+          <a [routerLink]="returnUrl" class="btn btn--primary">{{ 'verify.continue' | t }}</a>
         } @else {
-          <a routerLink="/account" class="btn btn--primary">Manage account</a>
+          <a routerLink="/account" class="btn btn--primary">{{ 'verify.manageAccount' | t }}</a>
         }
-        <a routerLink="/map" class="btn btn--ghost">Back to the map</a>
+        <a routerLink="/map" class="btn btn--ghost">{{ 'verify.backToMap' | t }}</a>
       </div>
     </section>
   } @else if (auth.isVerified() && returnUrl) {
@@ -110,11 +106,9 @@
          redirected here by verifiedGuard (e.g. from /submit) can continue
          once any channel is verified instead of being forced to do both. -->
     <section class="verify-panel verify-panel--done">
-      <p class="panel-copy">
-        You're verified. You can submit shelters and report listed locations.
-      </p>
+      <p class="panel-copy">{{ 'verify.verifiedCopy' | t }}</p>
       <div class="panel-actions">
-        <a [routerLink]="returnUrl" class="btn btn--primary">Continue</a>
+        <a [routerLink]="returnUrl" class="btn btn--primary">{{ 'verify.continue' | t }}</a>
       </div>
     </section>
   }

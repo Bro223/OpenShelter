@@ -12,7 +12,7 @@ export const ET: Messages = {
   'nav.map': 'Varjupaikade kaart',
   'nav.guidance': 'Juhised',
   'nav.account': 'Konto',
-  'nav.admin': 'Admin',
+  'nav.admin': 'Haldus',
   'nav.skip': 'Liigu põhisisu juurde',
 
   'a11y.button': 'Kättesaadavus',
@@ -37,7 +37,7 @@ export const ET: Messages = {
     'Kollane kiri mustal taustal — madalale nägemisvõimele ja otsepäikesevalgusele.',
   'a11y.popup.footer':
     'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
-  'a11y.popup.close': 'Sule',
+  'a11y.popup.close': 'Sulge',
 
   'footer.notice1':
     'OpenShelter on kogukonna poolt hooldatud nimekiri, mitte ametlik hädaabiteenus.',
@@ -63,7 +63,7 @@ export const ET: Messages = {
   'title.terms': 'Kasutustingimused',
   'title.shelterDetail': 'Varjupaiga detailid',
   'title.submit': 'Varjupaiga lisamine',
-  'title.admin': 'Admin',
+  'title.admin': 'Haldus',
   'title.guidance': 'Kriisijuhtimine',
   'title.guidanceDetail': 'Juhise artikkel',
 
@@ -77,8 +77,10 @@ export const ET: Messages = {
   'consent.acknowledge': 'Sain aru',
   'consent.privacyLink': 'Loe privaatsuspoliitikat',
 
-  // --- "Kuidas OpenShelter töötab" block (map page). UI labels stay in
-  // English because the map badges are not translated yet.
+  // --- "Kuidas OpenShelter töötab" block (map page). The button quotes
+  // follow the active-locale labels (the around-you CTA is translated);
+  // the map BADGES (shared shelter-copy) are still English, so the
+  // badge-word quotes keep the English word + the Estonian gloss.
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
@@ -87,7 +89,7 @@ export const ET: Messages = {
   'how.report':
     'Kinnitatud kontoga kasutajad saavad lisada varjupaiga või teatada, et loetletud asukoht on suletud, ebatäpne või kadunud. Teated lähevad administraatoritele, kes need üle vaatavad ning võivad asukoha peita või parandada.',
   'how.nearest':
-    'Nupp "Show shelters around you" küsib brauserilt luba sinu asukoha kasutamiseks. Sinu asukohta kasutatakse ainult brauseri sees ega saadeta kunagi meie serveritesse. Võid selle asemel otsida ka aadressi järgi.',
+    'Nupp "Näita varjupaiku minu ümbruses" küsib brauserilt luba sinu asukoha kasutamiseks. Sinu asukohta kasutatakse ainult brauseri sees ega saadeta kunagi meie serveritesse. Võid selle asemel otsida ka aadressi järgi.',
   'how.guarantee':
     'OpenShelter ei saa tagada, et loetletud asukoht on avatud, turvaline, ligipääsetav, vaba või endiselt töökorras. Hädaolukorras järgi alati esmalt ametlikke juhiseid.',
   'how.exampleTitle': 'Näide',
@@ -155,7 +157,7 @@ export const ET: Messages = {
   'authPage.reset.sending': 'Saadetakse…',
   'authPage.reset.sendIn': 'Saada saad {time} pärast',
   'authPage.reset.send': 'Saada mulle lähtestuskood',
-  'authPage.reset.sentTitle': 'Kontrolli oma sisseliikumist',
+  'authPage.reset.sentTitle': 'Kontrolli oma sissetulekut',
   'authPage.reset.sentBody':
     'Kui selle e-posti aadressiga konto on olemas, on sinna 6-kohaline kood saadetud.',
   'authPage.reset.codeLabel': 'Lähtestuskood',
@@ -176,9 +178,8 @@ export const ET: Messages = {
   'authPage.privacyPolicy': 'Privaatsuspoliitika',
   'authPage.termsOfUse': 'Kasutustingimused',
 
-  // --- map page. The around-you CTA stays English (see
-  // messages.ts), so the geocode copy quotes that English label, as the how
-  // block already does.
+  // --- map page. The around-you CTA is translated (map.aroundYou); the
+  // geocode copy quotes that Estonian label, as the how block does.
   'map.title': 'Varjupaikade kaart',
   'map.subtitle': 'Leia registreeritud ja kogukonna poolt lisatud varjupaiku Eestis.',
   'map.legend.registry': 'Register',
@@ -187,12 +188,14 @@ export const ET: Messages = {
   'map.legend.reported': 'Teatatud',
   'map.geoNote':
     'Sinu brauser küsib esmalt luba. Asukohta ei saadeta kunagi meie serveritesse ja seda kasutatakse ainult lähima varjupaiga leidmiseks.',
+  'map.aroundYou': 'Näita varjupaiku minu ümbruses',
+  'map.locating': 'Sinu asukohta määratakse…',
   'map.anchorLabel': 'Leia varjupaikad aadressi lähedal',
   'map.anchorPlaceholder': 'Tänav või koht Eestis',
   'map.search': 'Otsi',
   'map.searching': 'Otsitakse…',
   'map.attributionLead': 'Aadressid:',
-  'map.osmAttribution': '© OpenStreetMap kaasaajad',
+  'map.osmAttribution': '© OpenStreetMap kaasajajad',
   'map.addShelter': 'Lisa varjupaik',
   'map.nearestEmpty': 'Sinu ümbruses pole veel ühtegi loetletud asukohta.',
   'map.nearestEmpty.addFirst': 'Saad lisada esimese.',
@@ -215,10 +218,10 @@ export const ET: Messages = {
   'map.nearest.unavailable': 'Sinu asukohta ei saadud praegu määrata. Proovi hetke pärast uuesti.',
   'map.nearest.insecure': 'Asukoha kasutamine nõuab turvalist (https) ühendust.',
   'map.geocode.noResults':
-    'Eesti aadressi ei leitud. Proovi teist aadressi või kasuta "Show shelters around you".',
+    'Eesti aadressi ei leitud. Proovi teist aadressi või kasuta "Näita varjupaiku minu ümbruses".',
   'map.geocode.rateLimited': 'Aadressiotsing on koormatud. Palun oota hetke ja proovi uuesti.',
   'map.geocode.network':
-    'Aadressiotsingule ei pääse praegu ligi. Proovi selle asemel "Show shelters around you".',
+    'Aadressiotsingule ei pääse praegu ligi. Proovi selle asemel "Näita varjupaiku minu ümbruses".',
 
   // --- shelter detail page.
   'detail.backToMap': 'Tagasi kaardile',
@@ -266,7 +269,7 @@ export const ET: Messages = {
   'submit.title': 'Lisa varjupaik',
   'submit.subtitle': 'Lisa kaardile kogukonna varjupaik.',
   'submit.successBody':
-    'Sinu asukoht on nüüd loetletud ja märgitud uuelisandina. Kogukonna teated kinnitavad seda.',
+    'Sinu asukoht on nüüd loetletud ja märgitud uue lisandina. Kogukonna teated kinnitavad seda.',
   'submit.success.viewLocation': 'Vaata oma asukohta',
   'submit.success.viewContributions': 'Vaata oma panuseid',
   'submit.verifyHint': 'Sellel kontol pole enam kinnitatud omanikku.',
@@ -278,7 +281,8 @@ export const ET: Messages = {
   'submit.descriptionLabel': 'Kirjeldus (valikuga)',
   'submit.descriptionPlaceholder': 'Ligipääs, tingimused, kes haldab…',
   'submit.description.tooLong': 'Kirjeldus võib olla maksimaalselt 2000 tähemärki.',
-  'submit.capacityLabel': 'Mahutavus (valikuga, 1–100 000 inimest)',
+  'submit.capacityLabel': 'Mahutavus (valikuga)',
+  'submit.capacityHint': '1–100 000 inimest',
   'submit.capacityPlaceholder': 'nt 40',
   'submit.capacity.invalid': 'Mahutavus peab olema täisarv vahemikus 1 kuni 100 000.',
   'submit.privateLabel':
@@ -297,7 +301,7 @@ export const ET: Messages = {
   'submit.search': 'Otsi',
   'submit.searching': 'Otsitakse…',
   'submit.attributionLead': 'Aadressiandmed',
-  'submit.osmAttribution': '© OpenStreetMap kaasaajad',
+  'submit.osmAttribution': '© OpenStreetMap kaasajajad',
   'submit.useMyLocation': 'Kasuta mu asukohta',
   'submit.locating': 'Asukohta määratakse…',
   'submit.location.empty': 'Asukohta pole veel',
@@ -329,7 +333,7 @@ export const ET: Messages = {
   'submit.loc.geoInsecure':
     'Asukoha kasutamine nõuab turvalist (https) ühendust. Vali koht kaardilt või liimi link.',
   'submit.loc.shortLinkFailed':
-    'Sest linki ei leidnud koordinaate. Kasuta täielikku Google Mapsi linki või vali koht kaardilt.',
+    'Sellest lingist koordinaate ei leitud. Kasuta täielikku Google Mapsi linki või vali koht kaardilt.',
   'submit.loc.shortLinkRateLimited':
     'Liiga palju linkide otsinguid. Palun oota minut ja proovi uuesti.',
   'submit.loc.shortLinkUnavailable':
@@ -339,6 +343,178 @@ export const ET: Messages = {
   'submit.geocode.rateLimited': 'Aadressiotsing on koormatud. Palun oota hetke ja proovi uuesti.',
   'submit.geocode.network':
     'Aadressiotsingule ei pääse praegu ligi. Kasuta selle asemel kaart või link.',
+
+  // --- veateated (shared error mapping, i18n-aware seam): kliendi poolt
+  // kirjutatud bänneritekst, mille bannerMessage() i18n-kaabli kaudu annab.
+  // Serveri poolt antud sõnumid (ApiError.message) ei ole sõnastiku võtmed.
+  'error.rateLimited': 'Liiga palju katseid — oota hetke ja proovi uuesti.',
+  'error.unauthorized': 'Pole volitust. Palun logi uuesti sisse.',
+  'error.checkInput': 'Kontrolli sisestatud andmed ja proovi uuesti.',
+  'error.serverError': 'Midagi läks valesti. Palun proovi uuesti.',
+  'error.valueInUse': 'See väärtus on juba kasutusel.',
+  'error.verifyRateLimited':
+    'Taotletud liiga palju koodisid. Palun oota aega enne uue koodi taotlemist (koodide arv päevas on piiratud).',
+  'error.verifyBadCode': 'See kood on kehtetu või aegunud. Kontrolli ja proovi uuesti.',
+  'error.accountRateLimited': 'Liiga palju taotlusi. Palun oota hetke ja proovi uuesti.',
+  'error.accountBadCode': 'See kood on kehtetu või aegunud. Palun taotle uus.',
+
+  // --- konto leht (/account). Brand name ja ametlikud asutused jäävad
+  // niisama nagu kogu sõnastikus.
+  'account.subtitle':
+    'Sinu profiil ja kinnitused. Nime parandamine kinnitatakse praeguse parooliga; e-posti ja telefoni muutmine kinnitatakse teise kanali kaudu.',
+  'account.profileLoadError': 'Sinu profiili ei õnnestunud laadida. Seanss on endiselt aktiivne.',
+  'account.retrying': 'Proovime uuesti…',
+  'account.retry': 'Proovi uuesti',
+  'account.identity': 'Identiteet',
+  'account.name': 'Nimi',
+  'account.adminBadge': 'Haldaja',
+  'account.identityCopy':
+    'Trükiviga registreerumisel ei sunni kunagi uut kontot looma — paranduse kinnitab sinu praegune parool.',
+  'account.edit': 'Muuda',
+  'account.currentPassword': 'Praegune parool',
+  'account.nameRequired': 'Nimi on kohustuslik.',
+  'account.passwordRequired': 'Sinu praegune parool on kohustuslik.',
+  'account.saving': 'Salvestatakse…',
+  'account.save': 'Salvesta muudatused',
+  'account.cancel': 'Tühista',
+  'account.contacts': 'Kontaktid',
+  'account.emailLabel': 'E-posti aadress',
+  'account.phoneLabel': 'Telefoninumber',
+  'account.verified': 'Kinnitatud',
+  'account.completeVerification': 'Lõpeta kinnitamine',
+  'account.changeEmail': 'Muuda e-posti aadressi',
+  'account.emailDone.before': 'Sinu e-posti aadress on nüüd',
+  'account.emailDone.after': '. Järgmisel sisselogimisel kasuta uut aadressi.',
+  'account.changeAgain': 'Muuda uuesti',
+  'account.newEmail': 'Uus e-post',
+  'account.newEmailPlaceholder': 'new@example.ee',
+  'account.emailTooLong': 'E-posti aadress võib olla maksimaalselt 255 tähemärki.',
+  'account.emailRequired': 'Kehtiv e-posti aadress on kohustuslik.',
+  'account.emailProof':
+    'Turbe tõttu e-posti muutmine kinnitatakse SMS-koodiga, mis saadetakse sinu kontol olevale telefoninumbrule — mitte kunagi uuele aadressile.',
+  'account.smsCode': 'SMS-kood',
+  'account.codePlaceholder': '6-kohaline kood',
+  'account.smsCodeRequired': 'Sisesta SMSis olev 6-kohaline kood.',
+  'account.smsSentHint': 'Saatsime SMS-koodi sinu kontol olevale telefoninumbrule.',
+  'account.working': 'Töötlen…',
+  'account.confirmNewEmail': 'Kinnita uus e-post',
+  'account.resendIn': 'Uuesti saada saad {time} pärast',
+  'account.resendCode': 'Saada kood uuesti',
+  'account.sending': 'Saadetakse…',
+  'account.sendIn': 'Saada saad {time} pärast',
+  'account.sendSmsToPhone': 'Saada SMS-kood muule telefonile',
+  'account.changePhone': 'Muuda telefoninumbrit',
+  'account.phoneDone.before': 'Sinu telefon on nüüd',
+  'account.phoneDone.after': '.',
+  'account.newPhone': 'Uus telefon',
+  'account.newPhonePlaceholder': '+3725… või 5xxxxxxx',
+  'account.phoneTooLong': 'Telefoninumber võib olla maksimaalselt 64 tähemärki.',
+  'account.phoneRequired': 'Telefoninumber on kohustuslik.',
+  'account.phoneProof':
+    'Turbe tõttu telefoni muutmine kinnitatakse e-posti koodiga, mis saadetakse sinu kontol olevale e-posti aadressile — ainult SIM-kaardi kaotamine ei suuda kinnitust ümber suunata.',
+  'account.emailCode': 'E-posti kood',
+  'account.emailCodeRequired': 'Sisesta e-kirjas olev 6-kohaline kood.',
+  'account.emailCodeSentHint': 'Saatsime e-posti koodi sinu kontol olevale e-posti aadressile.',
+  'account.confirmNewPhone': 'Kinnita uus telefon',
+  'account.sendEmailCode': 'Saada e-posti kood muule e-postile',
+  'account.contributions': 'Minu esitused',
+  'account.contributionsCopy': 'Varjupaikad, mille sa esitasid — muuda või eemalda need siin.',
+  'account.yourData': 'Sinu andmed',
+  'account.dataCopy':
+    'Laadi alla JSON-fail, mis sisaldab kõik sinu kontoga seotut — sinu profiili (nimi, e-post, telefon) ja sinu esitatud varjupaikad.',
+  'account.preparing': 'Valmistatakse…',
+  'account.downloadData': 'Laadi alla minu andmed (JSON)',
+  'account.deleting': 'Kustutatakse…',
+  'account.delete': 'Konta kustutamine',
+  'account.delete.adminCopy':
+    'See konto loodi deploy-keskkonna poolt, seega ei saa seda rakendusest kustutada. Keskkonnast eemaldamine on operaatori toime (keskkonnamuutujate ADMIN_EMAIL ja ADMIN_PASSWORD eemaldamine) — server keeldub kustutamisel igal juhul.',
+  'account.delete.copy':
+    'Kustutab sinu konto ja kogu sellega seotud. Varjupaikad, mille sa deklareerisid privaatseks koduks, eemaldatakse; sinu esitatud avalikud varjupaikad jäävad kaardile ilma esitajata. Seda ei ole võimalik tagasi pöörata.',
+  'account.delete.typeHint': 'Kinnitamiseks kirjuta DELETE',
+  'account.delete.armed': 'Kustutamine on valmis — kinnitamiseks vali „Kustuta minu konto".',
+  'account.delete.button': 'Kustuta minu konto',
+  'account.legal': 'Juriidiline',
+  'account.legal.lead': 'Loe',
+  'account.legal.and': 'ja',
+  'account.legal.tail': '.',
+  'account.success.profileUpdated': 'Sinu profiil on uuendatud.',
+  'account.success.emailChanged': 'Sinu e-posti aadress on muudetud.',
+  'account.success.phoneChanged': 'Sinu telefoninumber on muudetud.',
+  'account.success.exportDownloaded': 'Sinu andmete eksport on alla laaditud.',
+  'account.error.sameValue': 'See on juba sinu kontol olev väärtus — uus peab olema erinev.',
+
+  // --- konto: minu panused panel (kasutaja enda varjupaikad).
+  'account.contrib.shelters': 'Varjupaikad',
+  'account.contrib.loading': 'Sinu varjupaiku laetakse…',
+  'account.contrib.empty': 'Sa pole veel ühtegi varjupaika esitanud.',
+  'account.contrib.emptyCta': 'Lisa esimene varjupaik',
+  'account.contrib.submit': 'Lisa varjupaik',
+  'account.contrib.source.paasteamet': 'Päästeameti register',
+  'account.contrib.source.municipality': 'Kohaliku omavalitsuse register',
+  'account.contrib.badge.new': 'Uus kogukonnalt',
+  'account.contrib.badge.confirmed': 'Kogukonna poolt kinnitatud',
+  'account.contrib.badge.rejected': 'Tagasi lükatud',
+  'account.contrib.infoRequest': 'Teabe taotlus',
+  'account.contrib.adminNote': 'Administraatori märkus: {note}',
+  'account.contrib.inaccurate': 'Teatatud ebatäpseks — detailid võivad olla valed',
+  'account.contrib.hidden': 'Peidetud — kogukond on sellest teatanud ({count})',
+  'account.contrib.view': 'Vaata',
+  'account.contrib.info': 'Teave',
+  'account.contrib.infoClose': 'Sulge info',
+  'account.contrib.delete': 'Kusta',
+  'account.contrib.deleteConfirm': 'Kustuta see varjupaik jäädavalt?',
+  'account.contrib.deleteConfirmButton': 'Kinnita kustutamine',
+  'account.contrib.nameLabel': 'Nimi',
+  'account.contrib.nameRequired': 'Nimi on kohustuslik (kuni 200 tähemärki).',
+  'account.contrib.descriptionLabel': 'Kirjeldus (valikuga)',
+  'account.contrib.descriptionTooLong': 'Kirjeldus võib olla maksimaalselt 2000 tähemärki.',
+  'account.contrib.latitudeLabel': 'Laiuskraad (−90…90)',
+  'account.contrib.latitudeError': 'Vajalik on laiuskraad vahemikus −90 kuni 90.',
+  'account.contrib.longitudeLabel': 'Pikkuskraad (−180…180)',
+  'account.contrib.longitudeError': 'Vajalik on pikkuskraad vahemikus −180 kuni 180.',
+  'account.contrib.estoniaNote': 'Asukoht peab jääma Eestisse. See kontroll toimub serveris.',
+  'account.contrib.infoQuestion': 'Mooder küsib:',
+  'account.contrib.replyLabel': 'Sinu vastus (kohustuslik, ühekordne)',
+  'account.contrib.replyRequired': 'Vastus (kuni 2000 tähemärki) on kohustuslik.',
+  'account.contrib.sendReply': 'Saada vastus',
+  'account.contrib.reply': 'Sinu vastus',
+
+  // --- kinnitus leht (/verify): kanalipõhised tõestusvoogud.
+  'verify.title': 'Kinnita oma konto',
+  'verify.subtitle':
+    'Kinnitatud konto saab esitada varjupaiku ja teatada loetletud asukohtade kohta. Tõesta, et e-post ja telefon on sinu omad — koodid saadetakse väljaspool rakendust, üks iga kanali kohta.',
+  'verify.aria': 'Kinnituse olek',
+  'verify.verified': 'Kinnitatud',
+  'verify.notVerified': 'Kinnitamata',
+  'verify.intro': 'Saadame koodi sinu {destination}. Sisesta see siin, et tõestada, et see on sinu omad.',
+  'verify.email.title': 'Kinnita oma e-post',
+  'verify.email.destination': 'e-posti aadressile',
+  'verify.email.noun': 'e-post',
+  'verify.email.send': 'Saada kood muule e-postile',
+  'verify.email.sentHint': 'Kinnituskood on saadetud sinu e-posti aadressile.',
+  'verify.email.codeLabel': 'Kinnituskood',
+  'verify.email.codeHint': 'Sisesta e-kirjas olev 8-märgiline kood.',
+  'verify.email.placeholder': '8-märgiline kood',
+  'verify.phone.title': 'Kinnita oma telefon',
+  'verify.phone.destination': 'telefoninumbrile',
+  'verify.phone.noun': 'telefon',
+  'verify.phone.send': 'Saada SMS-kood muule telefonile',
+  'verify.phone.sentHint': 'SMS-kood on saadetud sinu telefoninumbrile.',
+  'verify.phone.codeLabel': 'SMS-kood',
+  'verify.phone.codeHint': 'Sisesta SMSis olev 6-kohaline kood.',
+  'verify.phone.placeholder': '6-kohaline kood',
+  'verify.verifying': 'Kinnitatakse…',
+  'verify.verify': 'Kinnita',
+  'verify.fullyVerified': 'Sinu konto on täielikult kinnitatud',
+  'verify.fullyVerifiedCopy':
+    'Sinu e-post ja telefon on kinnitatud — saad nüüd esitada varjupaiku ja teatada loetletud asukohtade kohta.',
+  'verify.verifiedCopy':
+    'Sinu konto on kinnitatud. Saad esitada varjupaiku ja teatada loetletud asukohtade kohta.',
+  'verify.continue': 'Jätka',
+  'verify.manageAccount': 'Halda kontot',
+  'verify.backToMap': 'Tagasi kaardile',
+  'verify.alreadyVerified': 'Sinu {noun} on juba kinnitatud.',
+  'verify.verifiedNotice': 'Sinu {noun} on kinnitatud.',
 
   // --- kriisijuhtimine (/blog — crisis-guidance D4/D6). Artikli pealkiri ja
   // keha on administraatori tekst (kuvatakse muutmatuna), mitte sõnastiku võtmed.
@@ -362,7 +538,7 @@ export const ET: Messages = {
   'admin.guidance.loading': 'Juhiseposte laetakse…',
   'admin.guidance.empty': 'Juhiseposte pole veel.',
   'admin.guidance.emptyLocale': 'Keeles {locale} juhiseid pole veel.',
-  'admin.guidance.shownIn': 'Postitused keeles {locale} — teisi keeli muudetakse nende enda nendest loenditest.',
+  'admin.guidance.shownIn': 'Postitused keeles {locale} — teisi keeli muudetakse nende enda loenditest.',
   'admin.guidance.create': 'Uus post',
   'admin.guidance.col.title': 'Pealkiri',
   'admin.guidance.col.position': 'Asukoht',
@@ -373,7 +549,7 @@ export const ET: Messages = {
   'admin.guidance.col.updated': 'Muudetud',
   'admin.guidance.col.actions': 'Tegevused',
   'admin.guidance.order.hint':
-    'Postid näivad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
+    'Postid näevad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
   'admin.guidance.move.top': 'Üles otsa',
   'admin.guidance.move.up': 'Üles',
   'admin.guidance.move.down': 'Alla',
@@ -407,14 +583,14 @@ export const ET: Messages = {
   'admin.guidance.editor.titleTooLong': 'Pealkiri võib olla maksimaalselt 255 tähemärki.',
   'admin.guidance.editor.slugLabel': 'Sluug (valikuga)',
   'admin.guidance.editor.slugHint.create':
-    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jättes genereeritakse sluuug pealkirjast.',
+    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jätmisel genereeritakse sluug pealkirjast.',
   'admin.guidance.editor.slugHint.edit':
-    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jättes jääb praegune sluuug säilima.',
+    'Väiketähed, numbrid ja sidekriipsud. Tühjaks jätmisel jääb praegune sluug säilma.',
   'admin.guidance.editor.slugInvalid':
     'Kasuta väiketähti, numbreid ja sidekriipsusid (ilma alg- või lõpusidekriipsuta).',
   'admin.guidance.editor.bodyLabel': 'Sisukeha *',
   'admin.guidance.editor.bodyHint':
-    'Salvestamisel säilivad ainult tööriistapaneeli tähised — H1 ega sisetekstipilte ei ole tahtlikult (leht ise omab pealkirja ja pealtpildi). Liitudud sisu sisestatakse ainult tööriistapaneeli pakutava vorminguga.',
+    'Salvestamisel säilib ainult tööriistapaneeli vorming — H1 ega sisetekstipilte ei ole tahtlikult (leht ise omab pealkirja ja pealtpilti). Liidetud sisu hoiab ainult selle vormingu, mille tööriistapaneel pakub.',
   'admin.guidance.editor.bodyRequired': 'Sisukeha on kohustuslik.',
   'admin.guidance.editor.link.prompt': 'Viite URL (http, https või mailto):',
   'admin.guidance.editor.link.invalid':
@@ -446,7 +622,7 @@ export const ET: Messages = {
   'admin.guidance.editor.altTooLong': 'Alt-tekst võib olla maksimaalselt 300 tähemärki.',
   'admin.guidance.editor.localeLabel': 'Posti keel',
   'admin.guidance.editor.localeHint':
-    'Posti kodukeel, nt en. Täitub eeltäpselt: loomisel kehtiv keel, muutmisel post ise oma keel.',
+    'Posti kodukeel, nt en. Täitub automaatselt: loomisel kehtiv keel, muutmisel posti oma keel.',
   'admin.guidance.editor.localeTooLong': 'Keel võib olla maksimaalselt 5 tähemärki.',
   'admin.guidance.editor.editingIn': 'Sa muudad postituse {locale} sisu.',
   'admin.guidance.editor.creatingIn': 'Post luuakse keeles {locale}.',

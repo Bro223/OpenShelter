@@ -75,6 +75,10 @@
         formControlName="capacity"
         [placeholder]="'submit.capacityPlaceholder' | t"
       />
+      <!-- The range is its OWN hint line (submit.capacityHint) so a narrow
+           column can't break it mid-range (i18n-et-en); the label above is
+           just "Capacity (optional)". Shared with the /account panel. -->
+      <p class="field-note">{{ 'submit.capacityHint' | t }}</p>
       @if (capacity().invalid && capacity().touched) {
         <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
       }

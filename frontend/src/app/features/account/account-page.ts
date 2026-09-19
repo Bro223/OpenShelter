@@ -1,25 +1,48 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   inject,
   OnDestroy,
   signal,
 } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { skip } from 'rxjs';
 import { ApiError, toApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import type { MessageKey } from '../../core/i18n/messages';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { ContributionsPanel } from './contributions-panel';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
-import { bannerMessage, COPY } from '../../shared/error-copy';
+import { bannerMessage, type ErrorKind } from '../../shared/error-copy';
 import { CODE_SIX_DIGITS } from '../../shared/form-helpers';
 import { ResendCountdown } from '../../shared/resend-countdown';
 import type { VerificationLevel } from '../../core/models';
 
 type ChangePhase = 'form' | 'code' | 'done';
+
+/** A success banner: the catalog KEY (not a captured string) so a language
+ *  switch re-renders it in the new language (the template applies `| t`). */
+interface SuccessNote {
+  key: MessageKey;
+  params?: Record<string, string | number>;
+}
+
+/** A pending error banner: the RAW error + its kind, re-derived through
+ *  bannerMessage() at render time — the client-authored copy is served
+ *  through the active locale (server-provided messages are echoed as-is). */
+interface PendingError {
+  error: unknown;
+  kind: ErrorKind;
+  /** A forced client key for the page's special case (400 "same value"). */
+  copy?: MessageKey;
+}
 
 /**
  * /account (AuthGuard) — the full profile page (04-CONTEXT-ACCOUNT-VERIFY.md,
@@ -54,7 +77,13 @@ type ChangePhase = 'form' | 'code' | 'done';
  */
 @Component({
   selector: 'app-account-page',
-  imports: [ReactiveFormsModule, RouterLink, BannerComponent, ContributionsPanel],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    BannerComponent,
+    ContributionsPanel,
+    TranslatePipe,
+  ],
   templateUrl: './account-page.html',
   styleUrl: './account-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -64,6 +93,19 @@ export class AccountPage implements OnDestroy {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly auth = inject(AuthStore);
   private readonly router = inject(Router);
+  /** i18n-et-en: the account surface is fully catalog-driven (| t pipes +
+   *  key-based banners), so a switcher change must re-render the whole page.
+   *  The profile data itself is NOT locale-scoped (no re-fetch needed). */
+  readonly i18n = inject(I18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+
+  /** The language switcher sets I18nService.locale: re-derive the stored
+   *  banners (key + raw error) and re-render every | t label. toObservable
+   *  emits the CURRENT value on subscribe, so skip(1) — only a real switch
+   *  triggers it (the guidance-page idiom). Unsubscribed in ngOnDestroy. */
+  private readonly localeSub = toObservable(this.i18n.locale)
+    .pipe(skip(1))
+    .subscribe(() => this.cdr.markForCheck());
 
   // ---- identity section ----------------------------------------------------
   /** True while the password-confirmed edit form is open. */
@@ -108,8 +150,23 @@ export class AccountPage implements OnDestroy {
 
   // ---- shared UI state ----------------------------------------------------
   protected readonly busy = signal(false);
-  protected readonly error = signal<string | null>(null);
-  protected readonly success = signal<string | null>(null);
+  protected readonly error = signal<PendingError | null>(null);
+  protected readonly success = signal<SuccessNote | null>(null);
+
+  /** The error banner text, re-derived at render time: the forced client
+   *  key (the request-phase 400 "same value" case) or the i18n-aware
+   *  banner mapping. Reading i18n.t() here tracks the locale, so a switch
+   *  re-renders the banner in the new language. */
+  protected errorMessage(): string | null {
+    const state = this.error();
+    if (state === null) {
+      return null;
+    }
+    if (state.copy !== undefined) {
+      return this.i18n.t(state.copy);
+    }
+    return bannerMessage(state.error, state.kind, (key) => this.i18n.t(key));
+  }
 
   /** One countdown per change type — the e-mail and phone cooldowns are independent. */
   protected readonly emailCountdown = new ResendCountdown();
@@ -118,6 +175,7 @@ export class AccountPage implements OnDestroy {
   ngOnDestroy(): void {
     this.emailCountdown.stop();
     this.phoneCountdown.stop();
+    this.localeSub.unsubscribe();
   }
 
   /** Verified for the level? Reads the REAL claim set from the fetched profile. */
@@ -184,9 +242,9 @@ export class AccountPage implements OnDestroy {
       await this.auth.refreshProfile();
       this.editing.set(false);
       this.editPassword.setValue('');
-      this.success.set('Your profile has been updated.');
+      this.success.set({ key: 'account.success.profileUpdated' });
     } catch (error) {
-      this.error.set(bannerMessage(error, 'profile'));
+      this.error.set({ error, kind: 'profile' });
     } finally {
       this.busy.set(false);
     }
@@ -242,9 +300,9 @@ export class AccountPage implements OnDestroy {
       // The contact changed -> re-fetch the real profile (value + labels).
       await this.auth.refreshProfile();
       this.emailPhase.set('done');
-      this.success.set('Your email address has been changed.');
+      this.success.set({ key: 'account.success.emailChanged' });
     } catch (error) {
-      this.error.set(bannerMessage(error, 'account'));
+      this.error.set({ error, kind: 'account' });
     } finally {
       this.busy.set(false);
     }
@@ -315,9 +373,9 @@ export class AccountPage implements OnDestroy {
       // The contact changed -> re-fetch the real profile (value + labels).
       await this.auth.refreshProfile();
       this.phonePhase.set('done');
-      this.success.set('Your phone number has been changed.');
+      this.success.set({ key: 'account.success.phoneChanged' });
     } catch (error) {
-      this.error.set(bannerMessage(error, 'account'));
+      this.error.set({ error, kind: 'account' });
     } finally {
       this.busy.set(false);
     }
@@ -346,7 +404,11 @@ export class AccountPage implements OnDestroy {
    */
   private setChangeError(error: unknown): void {
     const api = error instanceof ApiError ? error : toApiError(error);
-    this.error.set(api.status === 400 ? COPY.accountSameValue : bannerMessage(error, 'account'));
+    this.error.set({
+      error,
+      kind: 'account',
+      copy: api.status === 400 ? 'account.error.sameValue' : undefined,
+    });
   }
 
   /**
@@ -411,7 +473,7 @@ export class AccountPage implements OnDestroy {
       await this.auth.logout();
       this.router.navigateByUrl('/map');
     } catch (error) {
-      this.error.set(bannerMessage(error, 'account'));
+      this.error.set({ error, kind: 'account' });
     } finally {
       this.busy.set(false);
     }
@@ -445,9 +507,9 @@ export class AccountPage implements OnDestroy {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-      this.success.set('Your data export has been downloaded.');
+      this.success.set({ key: 'account.success.exportDownloaded' });
     } catch (error) {
-      this.error.set(bannerMessage(error, 'account'));
+      this.error.set({ error, kind: 'account' });
     } finally {
       this.busy.set(false);
     }
