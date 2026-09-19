@@ -6,6 +6,7 @@ import {
   inject,
   OnDestroy,
   signal,
+  viewChild,
 } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet, RouterLink } from '@angular/router';
 import { ThemeStore } from '../core/theme-store';
@@ -14,7 +15,9 @@ import { LOCALES, type Locale } from '../core/i18n/locale';
 import { TranslatePipe } from '../core/i18n/translate-pipe';
 import { type DataSourceDto } from '../core/models';
 import { DataSourceGateway } from '../gateways/data-source-gateway';
+import { SiteTextsGateway } from '../gateways/site-texts-gateway';
 import { AuthStore } from '../session/auth-store';
+import { AccessibilityDialog } from './accessibility-dialog.component';
 
 /**
  * The app frame (01 puml, shared/): brand + nav header on top of the routed
@@ -29,7 +32,7 @@ import { AuthStore } from '../session/auth-store';
  */
 @Component({
   selector: 'app-page-shell',
-  imports: [RouterOutlet, RouterLink, DatePipe, UpperCasePipe, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, DatePipe, UpperCasePipe, TranslatePipe, AccessibilityDialog],
   templateUrl: './page-shell.html',
   styleUrl: './page-shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -50,14 +53,40 @@ export class PageShell implements OnDestroy {
       when the API fails — the line is non-critical and hides itself. */
   readonly dataSource = signal<DataSourceDto | null>(null);
 
+  /** The accessibility dialog (accessibility-dialog): the header's
+      Accessibility button opens it; the overlay renders inside the host.
+      Its `open` signal IS the trigger's aria-expanded source — the shell
+      has no second copy of the state (close paths — Escape, the Close
+      button, the backdrop — all live in the dialog). */
+  protected readonly a11yDialog = viewChild(AccessibilityDialog);
+
   constructor() {
     // Escape closes the menu: host-level keydown listener (fires wherever
-    // in the page focus is), removed in ngOnDestroy.
+    // in the page focus is), removed in ngOnDestroy. (The dialog stops
+    // propagation while it is open, so the two never fight.)
     this.host.nativeElement.addEventListener('keydown', this.onKeydown);
     // One fire-and-forget fetch per app boot (the shell is never destroyed).
     inject(DataSourceGateway)
       .fetch()
       .then((ds) => this.dataSource.set(ds));
+    // The admin site-text overrides (site_texts): one fire-and-forget
+    // fetch per boot. Non-critical — a failure (or the not-yet-loaded
+    // state) keeps the shipped i18n catalog as the copy (the overlay's
+    // default), so a down API never blanks the chrome.
+    inject(SiteTextsGateway)
+      .fetch()
+      .then((texts) => this.i18nService.setSiteTexts(texts))
+      .catch(() => {
+        /* defaults stand — the overlay is progressive enhancement */
+      });
+  }
+
+  /** The header's Accessibility button: opens the dialog (focus moves
+      in; the mobile menu closes with the same click, like any other
+      menu item — the dialog is fixed-positioned, not a menu child). */
+  openAccessibilityDialog(): void {
+    this.menuOpen.set(false);
+    this.a11yDialog()?.openDialog();
   }
 
   /** True until the first NavigationEnd: that one is the initial document

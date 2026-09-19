@@ -56,7 +56,12 @@ is `ON DELETE SET NULL` (V14) — audit rows survive with dangling ids and
 render "Unknown" for an erased moderator. The M2 blind-index columns
 (email_hash/phone_hash) die with the user row, so the erased contacts
 can be re-registered. A second `DELETE /account` with the still-valid
-JWT SHALL be an idempotent 204 no-op.
+JWT SHALL be an idempotent 204 no-op. The environment-provisioned
+administrator (kind `ADMIN`) is the exception: `DELETE /account` for an
+ADMIN-kind account SHALL be refused with 403 naming the environment
+provisioning, and nothing SHALL be erased — the account is the
+deployment's access path, and de-provisioning is an operator action on
+the environment (remove the env vars), not an in-app erasure.
 
 #### Scenario: Anonymous deletion
 
@@ -68,6 +73,14 @@ JWT SHALL be an idempotent 204 no-op.
 - **WHEN** a registered user without any verification claim calls the
   endpoint
 - **THEN** the API answers 403 and the account still exists
+
+#### Scenario: The provisioned admin cannot delete the account
+
+- **WHEN** the ADMIN-kind account (the env-provisioned administrator)
+  calls the endpoint
+- **THEN** the API answers 403 naming the environment provisioning, and
+  the account still exists — its credentials, claims and shelters are
+  untouched, and it can still log in
 
 #### Scenario: Private rows purged, public rows orphaned
 
@@ -123,8 +136,9 @@ browser (live position never sent to the servers), and that IP
 geolocation is never performed; who sees the data (no sale or
 advertising; e-mail/SMS delivery providers see the destination contact);
 the self-service rights (JSON export, account deletion with its
-private-purged/public-orphaned consequence, code-verified contact change,
-password reset); and that retention follows fixed horizons: an account with
+private-purged/public-orphaned consequence — for ordinary accounts; the
+environment-provisioned administrator cannot be deleted from the app —,
+code-verified contact change, password reset); and that retention follows fixed horizons: an account with
 no sign-in activity for 24 months is deleted under the same erasure rule as
 account deletion, and moderation and audit records older than 24 months are
 removed. Those horizons are the app's rule (owner decision 2026-09-16); the

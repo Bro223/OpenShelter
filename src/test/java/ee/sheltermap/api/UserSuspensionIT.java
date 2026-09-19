@@ -177,10 +177,21 @@ class UserSuspensionIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + admin))
                 .andExpect(status().isNoContent());
 
-        // the provisioned admin is a lockout vector — 409
+        // the provisioned admin is a lockout vector — 403 (the env-admin
+        // protection: it cannot be disabled at all; a GUEST would still be
+        // a 409, no credentials)
         mvc.perform(post("/admin/users/" + adminUserId() + "/suspend")
                         .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE));
+        // unsuspend of the provisioned admin: refused the same way (it is
+        // never suspended — but a direct call is not a silent no-op either)
+        mvc.perform(post("/admin/users/" + adminUserId() + "/unsuspend")
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE));
         // unknown id — 404
         mvc.perform(post("/admin/users/999999/suspend").header("Authorization", "Bearer " + admin))
                 .andExpect(status().isNotFound());

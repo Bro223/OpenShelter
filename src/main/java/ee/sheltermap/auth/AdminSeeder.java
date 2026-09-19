@@ -28,9 +28,10 @@ import java.util.Objects;
  *       → fail fast at startup (refuse to seed a weak admin password —
  *       the same minimum the registration boundary enforces).</li>
  *   <li>A user with that email ALREADY exists (any kind) → no-op. The seeder
- *       NEVER re-hashes, flips kind or touches claims, so an in-app password
- *       change survives restarts and deployments, and a normal account that
- *       happens to hold the email string stays a normal account.</li>
+ *       NEVER re-hashes, flips kind or touches claims, so whatever password
+ *       the row holds survives restarts and deployments, and a normal
+ *       account that happens to hold the email string stays a normal
+ *       account.</li>
  *   <li>Otherwise → create: kind ADMIN, name "Admin", the configured email
  *       (no phone — the account has none, and login is by email), every
  *       verification claim pre-set (the mailbox does not exist by design,
@@ -41,9 +42,12 @@ import java.util.Objects;
  *
  * <p>Login is the normal {@code POST /auth/login} (emailOrPhone + password)
  * — no dedicated endpoint, no backdoor path, same JWT shape as every other
- * user (principal = userId, NO role claim — D2). De-provisioning = remove
- * the env vars (and delete the row if desired); the seeder will not
- * resurrect credentials for a deleted account on the same email.
+ * user (principal = userId, NO role claim — D2). The in-app account surface
+ * REFUSES to mutate this account — deletion, suspension, password reset
+ * and contact-detail change all answer 403 (it is the deployment's access
+ * path; the env vars own its identity). De-provisioning = remove the env
+ * vars (and delete the row if desired); with the vars unset the seeder will
+ * not resurrect the account.
  */
 @Component
 public class AdminSeeder implements ApplicationRunner {

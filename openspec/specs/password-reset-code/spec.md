@@ -13,7 +13,10 @@ and single-use enforcement, and full session revocation on success.
 The application SHALL let a signed-out user request a password reset by entering their email. The
 backend SHALL send a 6-digit numeric code to that address (no URL link) when an account exists, and
 SHALL answer identically (always 200) whether or not the email is registered so the endpoint never
-reveals account existence. Only one active, unexpired code may exist per user at a time — a new
+reveals account existence — with ONE exception: the environment-provisioned administrator's email
+SHALL be refused with 403 naming the environment provisioning (its password is set by the
+deployment environment, not an in-app credential), and a confirm for that email is refused the
+same way. Only one active, unexpired code may exist per user at a time — a new
 request invalidates the previous one. Re-issues are additionally throttled per user: at most one
 code per 60 seconds and at most five per UTC day; a request inside the cooldown or beyond the
 daily cap is a silent no-op (still 200 — anti-enumeration preserved) that leaves the current
@@ -30,6 +33,12 @@ active code in place.
 - **WHEN** a user requests a reset for an email that is not registered
 - **THEN** the backend answers 200 with the same response as a known email and no code is sent —
   the UI cannot tell the two apart
+
+#### Scenario: The provisioned admin's email is refused
+
+- **WHEN** a reset is requested for the environment-provisioned administrator's email
+- **THEN** the backend answers 403 naming the environment provisioning, sends nothing and stores
+  no code, and a confirm for that email is refused with the same 403
 
 #### Scenario: Second request invalidates the first
 

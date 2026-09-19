@@ -15,11 +15,27 @@ export const EN: Messages = {
   'nav.admin': 'Admin',
   'nav.skip': 'Skip to content',
 
-  'theme.toggle': 'High contrast',
+  'a11y.button': 'Accessibility',
   'lang.label': 'Language',
   'auth.logout': 'Log out',
   'auth.login': 'Log in',
   'auth.register': 'Create account',
+
+  // --- accessibility dialog (the three contrast options). Shipped defaults
+  // — every string below is admin-editable via site_texts (the overlay in
+  // I18nService falls back to these values when no override row exists).
+  'a11y.popup.title': 'Accessibility',
+  'a11y.popup.body':
+    'Choose how OpenShelter looks to you. Your choice applies immediately and is saved on this device.',
+  'a11y.option.default': 'Default',
+  'a11y.option.default.desc': 'The standard light appearance.',
+  'a11y.option.highContrast': 'High contrast',
+  'a11y.option.highContrast.desc': 'A dark background with bright, highly readable text.',
+  'a11y.option.blackYellow': 'Black and yellow',
+  'a11y.option.blackYellow.desc':
+    'Yellow text on a black background, for low vision and direct sunlight.',
+  'a11y.popup.footer': 'Your choice is stored on this device only — it is not shared with anyone.',
+  'a11y.popup.close': 'Close',
 
   'footer.notice1':
     'OpenShelter is a community-maintained list, not an official emergency service.',
@@ -333,6 +349,8 @@ export const EN: Messages = {
 
   // --- admin: guidance tab + editor + media library (crisis-guidance D8).
   'admin.retry': 'Retry',
+
+  'admin.settings.tab': 'Settings',
 
   'admin.guidance.tab': 'Guidance',
   'admin.guidance.loading': 'Loading guidance posts…',

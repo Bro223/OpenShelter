@@ -1,9 +1,18 @@
 # Tasks: guidance-manual-order
 
-Next free Flyway version: **V25** — verified against the repo, not
-assumed: `ls src/main/resources/db/migration | sort -V` ends at
-`V24__retention_last_activity.sql` (`V23.1` is a V23 sub-version). New
-migration name: `V25__guidance_manual_order.sql`.
+Next free Flyway version: **V28** — this line previously said V25, which
+was correct when written (`V24__retention_last_activity.sql` was then the
+last migration) but is now FALSE: `V25__guidance_hero_import.sql` was
+committed by the guidance-hero-import change afterwards, and V26
+(guidance post translations) and V27 (site_texts) are reserved by changes
+in flight. RE-VERIFY before writing the file — never trust this number
+from memory:
+
+    ls src/main/resources/db/migration | sort -V | tail -3
+
+New migration name: `V28__guidance_manual_order.sql`. Every `V25`
+reference in the phases below means "the version number you just
+verified", and must be read as V28 unless the verification says otherwise.
 
 ## Phase 1 — Migration + domain (D1)
 

@@ -156,9 +156,29 @@ const GUIDANCE_DRAFT: AdminGuidancePostDto = {
   heroImageId: null,
   heroImageUrl: null,
   heroImageAlt: null,
+  heroImportUrl: null,
   createdBy: 1,
   createdAt: '2026-09-01T09:00:00Z',
   updatedAt: '2026-09-01T10:00:00Z',
+};
+
+/** A DRAFT carrying a PENDING hero import (guidance-hero-import): the
+ *  publish that consumes it is the one that fetches/validates/stores
+ *  the image — this fixture is that draft. */
+const GUIDANCE_PENDING_IMPORT: AdminGuidancePostDto = {
+  ...GUIDANCE_DRAFT,
+  heroImageAlt: 'Kelder, vaade sissepääsust',
+  heroImportUrl: 'https://cdn.example.com/kelder.jpg',
+};
+
+/** The same draft AFTER a successful publish: the import was consumed
+ *  (stored asset linked, URL cleared, status PUBLISHED). */
+const GUIDANCE_IMPORTED_PUBLISHED: AdminGuidancePostDto = {
+  ...GUIDANCE_PENDING_IMPORT,
+  status: 'PUBLISHED',
+  heroImageId: 9,
+  heroImageUrl: '/api/media/deadbeefdeadbeefdeadbeefdeadbeef.jpg',
+  heroImportUrl: null,
 };
 
 const GUIDANCE_PUBLISHED: AdminGuidancePostDto = {
@@ -172,6 +192,7 @@ const GUIDANCE_PUBLISHED: AdminGuidancePostDto = {
   heroImageId: 5,
   heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
   heroImageAlt: 'Kelder, vaade sissepääsust',
+  heroImportUrl: null,
   createdBy: 1,
   createdAt: '2026-09-01T09:00:00Z',
   updatedAt: '2026-09-02T09:00:00Z',
@@ -1631,6 +1652,98 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Post published.');
     // loadGuidance's refresh + publish's refresh.
     expect(publicGuidance.list).toHaveBeenCalledTimes(2);
+  });
+
+  // ---- the pending hero import (guidance-hero-import) --------------------------
+  // The publish call IS the import: the server fetches, validates and
+  // stores the draft's heroImportUrl inside it. The 204 carries no body,
+  // so the row's (changed) hero reference is re-fetched to keep the list
+  // thumbnail honest; a failed import fails the publish (server message
+  // echoed, the row stays a draft with the URL intact).
+
+  it('publish with a pending hero import: the row adopts the stored image (the detail re-fetch after the 204)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]);
+    admin.publishGuidancePost.mockResolvedValue(undefined);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_IMPORTED_PUBLISHED);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    // No stored asset yet: no thumbnail before the publish.
+    expect(draftRow.querySelector('img.admin-guidance-thumb')).toBeNull();
+
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
+    await settle(fixture);
+
+    expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
+    // The import ran inside the publish; the row's hero reference is the
+    // re-fetched post (the 204 body carries nothing).
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(12);
+    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Published');
+    expect(element.textContent).toContain('Post published.');
+    // The result is shown: the stored image's thumbnail is in the row now.
+    const row = element.querySelectorAll('tbody tr')[0]!;
+    const thumb = row.querySelector('img.admin-guidance-thumb');
+    expect(thumb?.getAttribute('src')).toBe('/api/media/deadbeefdeadbeefdeadbeefdeadbeef.jpg');
+    expect(thumb?.getAttribute('alt')).toBe('Kelder, vaade sissepääsust');
+  });
+
+  it('publish WITHOUT a pending import does not re-fetch the detail (the status patch is enough)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.publishGuidancePost.mockResolvedValue(undefined);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
+    await settle(fixture);
+
+    expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
+    expect(admin.getGuidancePost).not.toHaveBeenCalled();
+  });
+
+  it('a refused import fails the publish: the server message is echoed, the row stays a draft with the URL intact', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]);
+    admin.publishGuidancePost.mockRejectedValue(
+      apiError(400, 'heroImportUrl names a refused address', '/admin/guidance/12/publish'),
+    );
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
+    await settle(fixture);
+
+    expect(admin.publishGuidancePost).toHaveBeenCalledWith(12);
+    // The server's error message is shown (400s are echoed, the
+    // error-copy convention) — and the row is still a draft (no patch,
+    // no re-fetch: the import left the URL on the draft).
+    expect(element.textContent).toContain('heroImportUrl names a refused address');
+    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Draft');
+    expect(admin.getGuidancePost).not.toHaveBeenCalled();
+    expect(element.textContent).not.toContain('Post published.');
+  });
+
+  it('an unreachable import (502) fails the publish with the generic 5xx copy (the error-copy convention)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]);
+    admin.publishGuidancePost.mockRejectedValue(
+      apiError(502, 'could not be fetched', '/admin/guidance/12/publish'),
+    );
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    const draftRow = element.querySelectorAll('tbody tr')[0]!;
+    buttonByText(draftRow.querySelector('td.admin-cell--actions')!, 'Publish')!.click();
+    await settle(fixture);
+
+    expect(element.textContent).toContain('Something went wrong. Please try again.');
+    expect(element.textContent).not.toContain('could not be fetched'); // 5xx bodies are never echoed
+    expect(element.querySelectorAll('tbody tr')[0]!.textContent).toContain('Draft');
+    expect(admin.getGuidancePost).not.toHaveBeenCalled();
   });
 
   it('unpublish: the 204 flips the row in place to Draft', async () => {

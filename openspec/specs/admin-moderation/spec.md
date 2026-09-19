@@ -28,10 +28,12 @@ capability were absent. The admin SHALL authenticate through the normal
 
 #### Scenario: Restart never touches the existing admin
 
-- **WHEN** the admin has changed their password in the app and the app
-  restarts with the same env vars
-- **THEN** the seeder changes nothing and the admin logs in with the new
-  password
+- **WHEN** the app restarts with the same env vars and the admin row
+  already exists
+- **THEN** the seeder changes nothing (no re-hash, no kind or claim
+  changes) and the admin logs in with the password the row holds —
+  set from ADMIN_PASSWORD at creation; the account's password is
+  env-managed (the in-app reset flow is refused for it with 403)
 
 #### Scenario: Vars unset means no admin
 
@@ -136,7 +138,10 @@ batched form, `POST /admin/users/{id}/suspend` and `POST
 /admin/users/{id}/unsuspend` (204, idempotent — re-acting on an
 already-suspended / already-active user is a no-op that records no
 audit row). Only `kind = REGISTERED` accounts may be suspended;
-ADMIN and GUEST targets answer 409, unknown ids 404. A suspension
+ADMIN targets answer 403 (the environment-provisioned administrator
+is the deployment's access path — disabling it is a lockout vector, so
+it cannot be disabled at all), GUEST targets answer 409 (no
+credentials to stop), unknown ids 404. A suspension
 SHALL set `users.suspended_at` and record a `USER_SUSPEND` row in the
 moderation audit trail (subject = the suspended account); the
 unsuspend records `USER_UNSUSPEND` and clears the timestamp. A
@@ -153,9 +158,14 @@ suspension stops the account, not its content.
 - **WHEN** an admin suspends an already-suspended user
 - **THEN** the response is 204, the timestamp is unchanged, and no audit row is written
 
-#### Scenario: Admin and guest accounts cannot be suspended
+#### Scenario: The provisioned admin cannot be suspended
 
-- **WHEN** an admin posts suspend for an ADMIN or GUEST row
+- **WHEN** an admin posts suspend (or unsuspend) for the ADMIN row
+- **THEN** the response is 403 naming the environment provisioning and nothing changes — no suspension stamp, no audit row
+
+#### Scenario: Guest accounts cannot be suspended
+
+- **WHEN** an admin posts suspend for a GUEST row
 - **THEN** the response is 409 with a plain-spoken message and nothing changes
 
 ### Requirement: Suspension enforcement at the credential doors

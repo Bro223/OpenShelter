@@ -401,6 +401,7 @@ describe('AdminGateway', () => {
     heroImageId: 5,
     heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
     heroImageAlt: 'Kelder, vaade sissepääsust',
+    heroImportUrl: null,
     createdBy: 1,
     createdAt: '2026-09-01T09:00:00Z',
     updatedAt: '2026-09-02T09:00:00Z',

@@ -5,6 +5,11 @@ import type { Messages, MessageKey } from './messages';
 import { EN } from './en';
 import { ET } from './et';
 import { RU } from './ru';
+import {
+  DEFAULT_SITE_TEXT_URLS,
+  type SiteTextOverride,
+  type SiteTextsByLocale,
+} from './site-texts';
 
 /**
  * Where the UI language preference lives in localStorage (i18n-et-en).
@@ -41,11 +46,24 @@ const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET, ru: RU };
  * (`{{ 'nav.map' | t }}`), non-template code (titleGuard, the
  * shelter-copy/error-copy helpers) calls it directly with an optional
  * `{param}` interpolation map.
+ *
+ * Site-text overlay (site_texts): the admin can override a DECLARED set
+ * of keys (see site-texts.ts) per locale. `setSiteTexts()` installs the
+ * fetched overrides (null = none / not loaded yet); `t()` reads the
+ * active locale's override for the key FIRST and falls back to the
+ * shipped catalog — the catalog is the default, never a duplicate of
+ * the stored row. Override values are plain text rendered through
+ * Angular interpolation (auto-escaped, never innerHTML).
  */
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   /** The active locale. */
   readonly locale = signal<Locale>(storedLocale());
+
+  /** The admin overrides (site_texts), fetched once at boot by the shell.
+      null = not loaded yet (or the fetch failed) — t() serves the
+      shipped catalog, so a down API degrades to the default copy. */
+  readonly siteTexts = signal<SiteTextsByLocale | null>(null);
 
   constructor() {
     document.documentElement.lang = this.locale();
@@ -55,8 +73,48 @@ export class I18nService {
       placeholders when `params` is given (unknown placeholders stay
       literal — a typo'd placeholder is visible, not silently dropped). */
   t(key: MessageKey, params?: Record<string, string | number>): string {
-    const template = CATALOGS[this.locale()][key] ?? CATALOGS[DEFAULT_LOCALE][key];
+    const template = this.lookup(key);
     return params ? interpolate(template, params) : template;
+  }
+
+  /** The link URL for a key (the label + https-validated URL pairs):
+      the active locale's override when present, else the shipped
+      default (DEFAULT_SITE_TEXT_URLS), else '' (a non-link key). */
+  url(key: MessageKey): string {
+    const override = this.overrideFor(key);
+    return override?.url ?? DEFAULT_SITE_TEXT_URLS[key] ?? '';
+  }
+
+  /** The shipped CATALOG value for an explicit locale — the admin
+      Settings panel's placeholder (the default, override-independent). */
+  defaultText(key: MessageKey, locale: Locale): string {
+    return CATALOGS[locale][key] ?? CATALOGS[DEFAULT_LOCALE][key];
+  }
+
+  /** Install (or clear, with null) the fetched admin overrides. */
+  setSiteTexts(texts: SiteTextsByLocale | null): void {
+    this.siteTexts.set(texts);
+  }
+
+  /** The active locale's override for the key, when one exists and
+      carries a non-blank value (a blank override is treated as absent —
+      the catalog default wins; the server also refuses to store one). */
+  private overrideFor(key: MessageKey): SiteTextOverride | null {
+    const entry = this.siteTexts()?.[this.locale()]?.[key];
+    if (entry === undefined || entry === null || entry.value.trim() === '') {
+      return null;
+    }
+    return entry;
+  }
+
+  /** The single override seam: active-locale override FIRST, shipped
+      catalog as the default (the old lookup, unchanged as a fallback). */
+  private lookup(key: MessageKey): string {
+    const override = this.overrideFor(key);
+    if (override !== null) {
+      return override.value;
+    }
+    return CATALOGS[this.locale()][key] ?? CATALOGS[DEFAULT_LOCALE][key];
   }
 
   /** Switch + persist the locale (the header language switcher). */

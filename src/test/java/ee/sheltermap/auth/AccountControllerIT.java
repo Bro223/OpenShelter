@@ -48,7 +48,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.change-capacity=1000",
         "app.ratelimit.change-refill-per-second=0",
         "app.mail.provider=dev",
-        "app.sms.provider=dev"
+        "app.sms.provider=dev",
+        // The env-provisioned admin (the refused contact-change case):
+        // explicit per class — a plain test context must never seed.
+        "app.admin.email=admin@example.ee",
+        "app.admin.password=admin-pass-1"
 })
 @Transactional
 class AccountControllerIT extends AbstractPersistenceIT {
@@ -68,6 +72,16 @@ class AccountControllerIT extends AbstractPersistenceIT {
 
     @Autowired
     PendingContactChangeRepository changes;
+
+    @Autowired
+    AdminSeeder seeder;
+
+    @BeforeEach
+    void seedAdmin() {
+        // Create-if-absent (idempotent): guarantees the provisioned admin
+        // exists even if a sibling IT deliberately wiped the shared tables.
+        seeder.run(null);
+    }
 
     @Autowired
     RecordingSmsSender sms;
@@ -111,6 +125,62 @@ class AccountControllerIT extends AbstractPersistenceIT {
         Matcher m = CODE.matcher(message);
         assertThat(m.find()).as("message contains a 6-digit code: %s", message).isTrue();
         return m.group(1);
+    }
+
+    private String adminToken() throws Exception {
+        // The env-provisioned admin logs in through the normal /auth/login —
+        // the very path the protection must not break.
+        MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
+    }
+
+    @Test
+    void theProvisionedAdminCannotChangeContacts() throws Exception {
+        // The admin's contacts are the environment's: the e-mail is the
+        // provisioning anchor the seeder keys on (re-pointing it would fork
+        // the env identity into a second admin row), and the account has no
+        // phone route. Every entry point is refused with 403 naming the env
+        // provisioning — a DIRECT API call must fail, not just the hidden
+        // button — and nothing is sent or persisted.
+        String admin = adminToken();
+
+        mvc.perform(post("/account/email-change/request")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newEmail\":\"usurper@example.ee\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE));
+        mvc.perform(post("/account/email-change/confirm")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE));
+        mvc.perform(post("/account/phone-change/request")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPhone\":\"+37251111111\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE));
+        mvc.perform(post("/account/phone-change/confirm")
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"123456\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE));
+
+        assertThat(sms.sent()).as("no SMS left the app").isEmpty();
+        assertThat(smtp.sent()).as("no e-mail left the app").isEmpty();
+        // the admin's identity is exactly what the environment gave it
+        assertThat(users.findByEmail("admin@example.ee")).isNotNull();
+        assertThat(users.findByPhone("+37251111111")).isNull();
     }
 
     @Test

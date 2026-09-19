@@ -168,20 +168,27 @@ class GuidanceLocaleFilterIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void theDetailIs200ForTheMatchingLocaleAnd404ForTheMismatchingOne() throws Exception {
+    void theDetailServesTheRequestedLocaleAndFallsBackToTheDefaultWhenAbsent() throws Exception {
         mvc.perform(get("/api/guidance/" + enSlug1).param("locale", "en"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.locale").value("en"))
+                .andExpect(jsonPath("$.localeFallback").value(false))
                 .andExpect(jsonPath("$.bodyHtml").value("<p>body</p>"));
         mvc.perform(get("/api/guidance/" + etSlug1).param("locale", "et"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.locale").value("et"));
 
-        // The mismatch answers the SAME 404 as an unknown slug — the
-        // reader must not learn the post exists in another language.
+        // A mismatch where the post HAS a default-locale translation (en is
+        // the default here) serves the default-locale translation with the
+        // fallback flag — a 200, never a 404 (the language switch must not
+        // dead-end). The alternates map names the en slug for the switcher.
         mvc.perform(get("/api/guidance/" + enSlug1).param("locale", "et"))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.locale").value("en"))
+                .andExpect(jsonPath("$.localeFallback").value(true))
+                .andExpect(jsonPath("$.alternates.en").value(enSlug1));
+        // The et-only post asked for en has no en translation AND the default
+        // (en) is absent, so it stays a 404 (nothing to serve in that language).
         mvc.perform(get("/api/guidance/" + etSlug1).param("locale", "en"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));

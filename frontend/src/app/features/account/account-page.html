@@ -363,40 +363,54 @@
     <!-- ================================= Delete account ================================ -->
     <section class="change-panel">
       <h2 class="panel-title">Delete account</h2>
-      <p class="panel-copy">
-        Erases your account and everything tied to it. Shelters you declared as a private home are
-        removed; public shelters you submitted stay on the map without a submitter. This cannot be
-        undone.
-      </p>
-      <div class="field">
-        <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>
-        <input
-          id="delete-confirm"
-          type="text"
-          [formControl]="deleteConfirm"
-          autocomplete="off"
-          placeholder="DELETE"
-        />
-      </div>
-      <!-- The armed state is a live region: a button that
-           merely enables is not reliably announced, and the shared
-           ConfirmAction keeps focus in the input (the typed word IS the step). -->
-      @if (accountDeleteConfirm.isArmed(accountDeleteKey)) {
-        <p class="field-note" role="status">
-          Erasure armed — select “Delete my account” to confirm.
+      @if (auth.isAdmin()) {
+        <!-- The env-provisioned administrator (kind ADMIN — the store's
+             isAdmin comes from the fetched profile): this account is the
+             deployment's access path, so the delete controls are ABSENT on
+             purpose. The server enforces it (DELETE /account answers 403
+             with the same reason) — this explanation tells the operator
+             why the controls are missing and what to do instead. -->
+        <p class="panel-copy">
+          This account was provisioned by the deployment environment, so it cannot be deleted
+          from the app. De-provisioning is an operator action — removing the ADMIN_EMAIL and
+          ADMIN_PASSWORD environment variables — and the server refuses the deletion either way.
         </p>
+      } @else {
+        <p class="panel-copy">
+          Erases your account and everything tied to it. Shelters you declared as a private home are
+          removed; public shelters you submitted stay on the map without a submitter. This cannot be
+          undone.
+        </p>
+        <div class="field">
+          <label for="delete-confirm">Type <strong>DELETE</strong> to confirm</label>
+          <input
+            id="delete-confirm"
+            type="text"
+            [formControl]="deleteConfirm"
+            autocomplete="off"
+            placeholder="DELETE"
+          />
+        </div>
+        <!-- The armed state is a live region: a button that
+             merely enables is not reliably announced, and the shared
+             ConfirmAction keeps focus in the input (the typed word IS the step). -->
+        @if (accountDeleteConfirm.isArmed(accountDeleteKey)) {
+          <p class="field-note" role="status">
+            Erasure armed — select “Delete my account” to confirm.
+          </p>
+        }
+        <div class="panel-actions">
+          <button
+            type="button"
+            id="delete-account"
+            class="btn btn--ghost btn--danger"
+            (click)="deleteAccount()"
+            [disabled]="busy() || !accountDeleteConfirm.isArmed(accountDeleteKey)"
+          >
+            {{ busy() ? 'Deleting…' : 'Delete my account' }}
+          </button>
+        </div>
       }
-      <div class="panel-actions">
-        <button
-          type="button"
-          id="delete-account"
-          class="btn btn--ghost btn--danger"
-          (click)="deleteAccount()"
-          [disabled]="busy() || !accountDeleteConfirm.isArmed(accountDeleteKey)"
-        >
-          {{ busy() ? 'Deleting…' : 'Delete my account' }}
-        </button>
-      </div>
     </section>
 
     <!-- ============================== Legal (Workstream A) ============================== -->

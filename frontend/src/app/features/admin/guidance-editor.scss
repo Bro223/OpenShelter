@@ -168,6 +168,35 @@
   }
 }
 
+/* The hero-import URL field (guidance-hero-import): the upload block's
+   labelled-input shape — label, full-width text input, the muted hint
+   below. The pending-state note reuses the field-note treatment (it is
+   a normal state, never an error). */
+.guidance-editor__hero-import {
+  margin-top: var(--space-8);
+
+  label {
+    display: block;
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--space-4);
+  }
+
+  input[type='text'] {
+    width: 100%;
+    font-size: var(--text-sm);
+  }
+}
+
+/* The hero's choice region (picker button + panel, upload, import URL):
+   while the "no image" tick is checked the whole region dims — the
+   state is visible at a glance (the controls stay in the DOM, the layout
+   does not shift; the picker panel itself is closed by onNoHeroChange). */
+.guidance-editor__hero-choices--disabled {
+  opacity: 0.55;
+  /* The same opacity the picker's disabled items use. */
+}
+
 /* Checkbox / radio rows (pinned + the create-mode publish choice). */
 .guidance-editor__check-label {
   display: flex;
@@ -222,10 +251,23 @@
     align-items: center;
     justify-content: center;
     min-height: var(--space-48);
+  }
 
-    svg {
-      height: 24px; /* the upstream icon size — the target grows, the glyph does not */
-    }
+  /* The extra `.ql-snow` class is load-bearing, not decoration: the theme is a
+     <link> appended to <head> AFTER these component styles, so its own
+     `.ql-snow .ql-toolbar button svg { height: 100% }` — the same specificity as
+     a two-class selector — wins on source order and sizes every glyph to the
+     whole 48px target, which is what makes the icons look huge. Upstream's icons
+     are 18px (the theme's 24px button less its 3px vertical padding, matching
+     the icons' own `viewBox="0 0 18 18"`). Three classes beat the theme's two,
+     so our size wins whatever the load order, with no !important; `float: none`
+     is required because the theme floats the glyph and that defeats the flex
+     centring above. */
+  .ql-snow.ql-toolbar button svg,
+  .ql-snow .ql-toolbar button svg {
+    width: 18px;
+    height: 18px;
+    float: none;
   }
 
   .ql-picker {

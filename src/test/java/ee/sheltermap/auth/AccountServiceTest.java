@@ -4,6 +4,8 @@ import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.RegisteredUser;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Unit test for the account export + erasure orchestration:
@@ -144,6 +147,43 @@ class AccountServiceTest {
     }
 
     // ---------- helpers ----------
+
+    @Test
+    void deleteAccountForTheProvisionedAdminIsRefusedAndErasesNothing() {
+        // The env-provisioned admin (kind ADMIN) is the deployment's access
+        // path: a direct service call must be refused (403) and erase
+        // nothing — shelters, claims and the row all survive.
+        AdminUser admin = new AdminUser("Admin", "admin@example.ee", null);
+        admin.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "system",
+                "admin@example.ee", NOW));
+        users.save(admin);
+        Shelter publicShelter = saveShelter("Varjupaik", admin.getId(), LocationKind.PUBLIC);
+
+        assertThatThrownBy(() -> service.deleteAccount(admin))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(AccountService.PROVISIONED_ADMIN_DELETE_MESSAGE);
+
+        assertThat(users.findById(admin.getId()))
+                .as("the account row survives the refused erasure")
+                .isNotNull();
+        assertThat(shelters.findById(publicShelter.getId()))
+                .as("the admin's shelters are untouched")
+                .isPresent();
+        assertThat(admin.claims())
+                .as("the verification claims survive")
+                .hasSize(1);
+    }
+
+    @Test
+    void deleteAccountStillWorksForAnOrdinaryAccount() {
+        // The refusal is scoped to the ADMIN kind — a REGISTERED account
+        // keeps the full legal-recovery erasure.
+        RegisteredUser user = saveVerifiedUser("Mari", "mari@example.ee");
+
+        service.deleteAccount(user);
+
+        assertThat(users.findById(user.getId())).isNull();
+    }
 
     private RegisteredUser saveVerifiedUser(String name, String email) {
         RegisteredUser user = new RegisteredUser(name, email, "+37250000000");

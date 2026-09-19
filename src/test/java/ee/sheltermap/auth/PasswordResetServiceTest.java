@@ -2,6 +2,8 @@ package ee.sheltermap.auth;
 
 import ee.sheltermap.app.AppInfo;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import org.junit.jupiter.api.Test;
 
@@ -9,10 +11,12 @@ import java.time.Duration;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PasswordResetServiceTest {
 
     private static final String EMAIL = "mari@example.ee";
+    private static final String ADMIN_EMAIL = "admin@example.ee";
 
     private final MutableClock clock = new MutableClock(Instant.parse("2026-08-23T12:00:00Z"));
     private final InMemoryUserRepository users = new InMemoryUserRepository();
@@ -49,6 +53,52 @@ class PasswordResetServiceTest {
         service.requestReset("nobody@example.ee");
         assertThat(tokens.all()).isEmpty();
         assertThat(smtp.sent()).isEmpty();
+    }
+
+    @Test
+    void requestForTheProvisionedAdminIsRefusedAndSendsNothing() {
+        // The env-provisioned admin's password is the deployment's
+        // (ADMIN_PASSWORD): a code e-mailed to its address must never be
+        // issuable — the ONE non-uniform answer to the anti-enumeration
+        // rule, a 403 naming the environment provisioning.
+        AdminUser admin = new AdminUser("Admin", ADMIN_EMAIL, null);
+        users.save(admin);
+        credentials.save(new UserCredentials(admin.getId(), "h(oldpass)", clock.instant()));
+
+        assertThatThrownBy(() -> service.requestReset(ADMIN_EMAIL))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(PasswordResetService.PROVISIONED_ADMIN_RESET_MESSAGE);
+
+        assertThat(tokens.all()).as("no reset code row is created").isEmpty();
+        assertThat(smtp.sent()).as("nothing is e-mailed").isEmpty();
+    }
+
+    @Test
+    void resetForTheProvisionedAdminIsRefusedAndChangesNothing() {
+        // Defense in depth: a DIRECT confirm call (no code was ever
+        // issued) must still be refused — the env's credentials are never
+        // rewritten through the reset flow.
+        AdminUser admin = new AdminUser("Admin", ADMIN_EMAIL, null);
+        users.save(admin);
+        credentials.save(new UserCredentials(admin.getId(), "h(oldpass)", clock.instant()));
+
+        assertThatThrownBy(() -> service.reset(ADMIN_EMAIL, "123456", "newpass"))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(PasswordResetService.PROVISIONED_ADMIN_RESET_MESSAGE);
+
+        assertThat(credentials.findByUserId(admin.getId()).getPasswordHash())
+                .isEqualTo("h(oldpass)");
+    }
+
+    @Test
+    void resetStillWorksForAnOrdinaryAccount() {
+        // The refusal is scoped to the ADMIN kind — a REGISTERED account
+        // keeps the full recovery flow.
+        RegisteredUser user = savedUser();
+        String code = requestCode();
+
+        assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
+        assertThat(credentials.findByUserId(user.getId()).getPasswordHash()).isEqualTo("h(newpass)");
     }
 
     @Test

@@ -22,6 +22,7 @@ import {
   Validators,
 } from '@angular/forms';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
+import type { MessageKey } from '../../core/i18n/messages';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ApiError, toApiError } from '../../core/api-error';
 import { AdminGateway } from '../../gateways/admin-gateway';
@@ -147,6 +148,38 @@ export function bodyHtmlBlankValidator(control: AbstractControl): ValidationErro
  *  at the one place a URL is ever typed (the link prompt), so a link that
  *  is ever stored is one the server will keep. */
 export const ALLOWED_LINK_PROTOCOL = /^(https?|mailto):/i;
+
+/**
+ * The pending hero-import URL's shape (guidance-hero-import), mirroring
+ * the backend's write-time checks (GuidanceService.normalizeImportUrl) so
+ * a malformed URL never spends a round trip on the 400: a parseable
+ * absolute http(s) URL that names a host and carries no embedded
+ * credentials. BLANK is always allowed — blank means "no pending import"
+ * (the server stores null, like a cleared hero id). The length bound
+ * (2048) is the control's own maxLength validator, as here for the slug.
+ */
+export function heroImportUrlValidator(control: AbstractControl): ValidationErrors | null {
+  const value = String(control.value ?? '').trim();
+  if (value === '') {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return { importUrl: true };
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { importUrl: true };
+  }
+  if (url.hostname === '') {
+    return { importUrl: true };
+  }
+  if (url.username !== '' || url.password !== '') {
+    return { importUrl: true };
+  }
+  return null;
+}
 
 /**
  * The formats the editor recognises — the BodySanitizer allowlist as
@@ -500,6 +533,21 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   readonly save = output<GuidanceEditorSave>();
   readonly cancel = output<void>();
 
+  /**
+   * The hero-import copy keys (guidance-hero-import's admin surface).
+   * The i18n lane owns the catalogs (en/et/ru + the Messages contract)
+   * and lands these entries in the same wave — until they do, `t()`
+   * renders nothing for them and the `MessageKey` casts keep this file
+   * compiling against the contract without touching the catalog files.
+   */
+  protected readonly i18nKeys = {
+    heroImportLabel: 'admin.guidance.editor.hero.importLabel' as MessageKey,
+    heroImportHint: 'admin.guidance.editor.hero.importHint' as MessageKey,
+    heroImportInvalid: 'admin.guidance.editor.hero.importInvalid' as MessageKey,
+    heroNone: 'admin.guidance.editor.hero.none' as MessageKey,
+    heroImportNote: 'admin.guidance.editor.hero.importNote' as MessageKey,
+  } as const;
+
   private readonly admin = inject(AdminGateway);
   private readonly i18n = inject(I18nService);
   private readonly destroyRef = inject(DestroyRef);
@@ -562,6 +610,29 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       nonNullable: true,
       validators: [Validators.maxLength(300)],
     }),
+    /** The pending hero import (guidance-hero-import): blank = no pending
+     *  import. Stored with the draft, fetched/validated/stored by the
+     *  server at the next publish (a one-shot PUBLISHED create imports it
+     *  in the create call). The shape validator mirrors the backend's
+     *  write-time 400s; the length bound is the backend's 2048.
+     *  Starts DISABLED: a new post is hero-less (the "no image" tick is
+     *  checked by default) and the field re-enables when the tick is
+     *  unchecked or a prefill shows a pending URL. Control-level disable
+     *  on purpose — a [disabled] property binding does not stick next to
+     *  a reactive form directive (Angular manages the element's disabled
+     *  state from the control). */
+    heroImportUrl: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.maxLength(2048), heroImportUrlValidator],
+    }),
+    /** The explicit "no hero" tick: checked = this post has NO hero (no
+     *  library asset AND no pending import URL). Checked by default (a
+     *  new post starts hero-less) and prefilled from the SAVED state in
+     *  edit mode — it is the visible, unambiguous way to say "no image":
+     *  while checked, the picker / upload / URL controls are disabled and
+     *  the check itself clears the hero choices (id + URL + alt, the last
+     *  by the pairing rule). */
+    noHero: new FormControl(true, { nonNullable: true }),
     /** Create mode only: DRAFT by default, PUBLISHED = one-shot
      *  write-and-publish. The edit form never sends it. */
     status: new FormControl<GuidanceStatus>('DRAFT', { nonNullable: true }),
@@ -605,7 +676,10 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     loadSnowTheme();
     const post = this.post();
     if (post === null) {
-      return; // create mode — the form starts blank
+      // create mode — the form starts blank; the "no image" tick starts
+      // checked, so the URL field starts off (see syncHeroImportDisabled).
+      this.syncHeroImportDisabled();
+      return;
     }
     this.form.get('title')?.setValue(post.title);
     this.form.get('slug')?.setValue(post.slug);
@@ -616,6 +690,36 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     this.form.get('pinned')?.setValue(post.pinned);
     this.form.get('heroImageId')?.setValue(post.heroImageId);
     this.form.get('heroImageAlt')?.setValue(post.heroImageAlt ?? '');
+    this.form.get('heroImportUrl')?.setValue(post.heroImportUrl ?? '');
+    // The "no image" tick reflects the SAVED state: no library asset AND
+    // no pending import URL. A post whose hero is a pending import (a
+    // draft carrying heroImportUrl) counts as a hero — the tick stays
+    // unchecked so the URL field below shows what is coming at publish.
+    this.form
+      .get('noHero')
+      ?.setValue(post.heroImageId === null && (post.heroImportUrl ?? null) === null);
+    // The URL field's enabled state follows the tick (see the control).
+    this.syncHeroImportDisabled();
+  }
+
+  /**
+   * The URL control's disabled state follows the "no image" tick: checked
+   * = the field is off (and its value already cleared by the tick's
+   * handler / the prefill). Control-level disable/enable (a [disabled]
+   * binding next to formControlName does not stick — Angular manages the
+   * element's disabled state from the control). A disabled control keeps
+   * its value readable and stays out of the form's validity, so the save
+   * path (which reads the control directly) is unaffected.
+   */
+  private syncHeroImportDisabled(): void {
+    const control = this.heroImportUrl();
+    if (this.noHero().value) {
+      if (!control.disabled) {
+        control.disable({ emitEvent: false });
+      }
+    } else if (control.disabled) {
+      control.enable({ emitEvent: false });
+    }
   }
 
   ngAfterViewInit(): void {
@@ -838,20 +942,37 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     return this.form.get('heroImageAlt') as FormControl<string>;
   }
 
+  protected heroImportUrl(): FormControl<string> {
+    return this.form.get('heroImportUrl') as FormControl<string>;
+  }
+
+  protected noHero(): FormControl<boolean> {
+    return this.form.get('noHero') as FormControl<boolean>;
+  }
+
+  /** The pending import URL as trimmed text — the note's condition and
+   *  the save payload's value (blank = no pending import). */
+  protected heroImportPending(): string {
+    return this.heroImportUrl().value.trim();
+  }
+
   /**
    * The hero/alt cross-field rule (the server's 400, shown up front):
    * 'required' = a hero is set with a blank alt; 'forbidden' = an alt
-   * without a hero; null = paired correctly. A plain method (not a
-   * computed) — the form controls are not signals, so a computed would
-   * cache its first evaluation.
+   * without a hero; null = paired correctly. A hero is a stored-asset
+   * reference OR a pending import URL (the backend's requireHeroPairing
+   * treats the URL like the asset id — both directions 400). A plain
+   * method (not a computed) — the form controls are not signals, so a
+   * computed would cache its first evaluation.
    */
   protected heroAltViolation(): 'required' | 'forbidden' | null {
     const hero = this.heroImageId().value;
+    const hasHero = hero !== null || this.heroImportPending() !== '';
     const alt = this.heroImageAlt().value.trim();
-    if (hero !== null && alt === '') {
+    if (hasHero && alt === '') {
       return 'required';
     }
-    if (hero === null && alt !== '') {
+    if (!hasHero && alt !== '') {
       return 'forbidden';
     }
     return null;
@@ -911,15 +1032,43 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
 
   // ---- hero picker -------------------------------------------------------
   /** Pick the asset as the hero (the picker closes; the alt stays as typed
-   *  — the cross-field rule takes over when it is blank). */
+   *  — the cross-field rule takes over when it is blank). Picking a hero
+   *  unchecks the "no image" tick — the tick never lies about a set hero. */
   selectHero(asset: MediaAssetDto): void {
     this.heroImageId().setValue(asset.id);
+    this.noHero().setValue(false);
+    this.syncHeroImportDisabled();
     this.heroPickerOpen.set(false);
   }
 
-  /** Clear the hero; the asset itself stays in the media library. */
+  /** Clear the hero; the asset itself stays in the media library. (The
+   *  alt stays as typed — the cross-field rule takes over: an alt without
+   *  a hero is the 'forbidden' violation, exactly as before this change.) */
   removeHero(): void {
     this.heroImageId().setValue(null);
+  }
+
+  /**
+   * The "no image" tick (checked = this post has no hero). Checking it
+   * is an explicit assertion, so it clears EVERY hero choice — the
+   * picked asset id, the pending import URL and the alt (the pairing rule:
+   * no hero means no alt). Unchecking is a no-op (nothing to
+   * restore): it only re-enables the picker / upload / URL controls, and
+   * the admin then sets a hero the ordinary way. The checked state is
+   * read from the EVENT (not the control): the form binding and this
+   * handler both listen to `change`, and the clear must not depend on
+   * which of the two runs first.
+   */
+  onNoHeroChange(event: Event): void {
+    const checked = (event.target as HTMLInputElement).checked;
+    if (checked) {
+      this.heroImageId().setValue(null);
+      this.heroImportUrl().setValue('');
+      this.heroImageAlt().setValue('');
+      this.heroPickerOpen.set(false);
+    }
+    this.noHero().setValue(checked);
+    this.syncHeroImportDisabled();
   }
 
   // ---- hero upload ---------------------------------------------------------
@@ -1007,13 +1156,17 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     }
     const alt = this.heroImageAlt().value.trim();
     const hero = this.heroImageId().value;
+    const importUrl = this.heroImportPending();
+    // A hero is a stored-asset reference OR a pending import URL (the
+    // backend's pairing rule — both directions 400, shown up front).
+    const hasHero = hero !== null || importUrl !== '';
     if (this.form.invalid) {
       return; // the field errors are rendered from the touched state
     }
-    if (hero !== null && alt === '') {
+    if (hasHero && alt === '') {
       return; // the altRequired error line is rendered from the violation
     }
-    if (hero === null && alt !== '') {
+    if (!hasHero && alt !== '') {
       return; // the altForbidden error line is rendered from the violation
     }
     const title = this.title().value.trim();
@@ -1028,7 +1181,14 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       ...(locale === '' ? {} : { locale }),
       pinned,
       heroImageId: hero,
-      heroImageAlt: hero === null ? null : alt,
+      // The alt travels only with a hero of EITHER kind (the pairing
+      // rule guarantees: hasHero -> alt non-blank, !hasHero -> alt blank).
+      heroImageAlt: hasHero ? alt : null,
+      // The pending import URL: omitted when blank — on the create that
+      // is "no pending import", on the PUT (full replace) it CLEARS a
+      // previously stored URL. Non-blank: stored with the draft, consumed
+      // at publish (a one-shot PUBLISHED create imports it in the call).
+      ...(importUrl === '' ? {} : { heroImportUrl: importUrl }),
     };
     const post = this.post();
     if (post === null) {

@@ -73,6 +73,74 @@ describe('I18nService (i18n-et-en M14)', () => {
       expect(localStorage.getItem('openshelter-locale')).toBe('en');
     });
   });
+
+  /* The site-text overlay (site_texts): the admin override for the ACTIVE
+     locale wins, the shipped catalog is the default, the catalog default
+     is readable for ANY locale (the admin panel's placeholder), and the
+     link URLs fall back to the shipped defaults. */
+  describe('site-text overlay (site_texts)', () => {
+    it('with no overrides, t() serves the shipped catalog (the default)', () => {
+      const i18n = TestBed.inject(I18nService);
+      expect(i18n.siteTexts()).toBeNull();
+      expect(i18n.t('a11y.popup.title')).toBe('Accessibility');
+    });
+
+    it('an override for the active locale wins over the catalog', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setSiteTexts({
+        en: { 'a11y.popup.title': { value: 'Contrast' } },
+        et: {},
+        ru: {},
+      });
+      expect(i18n.t('a11y.popup.title')).toBe('Contrast'); // en overridden
+      i18n.setLocale('et');
+      expect(i18n.t('a11y.popup.title')).toBe('Kättesaadavus'); // et not overridden → catalog
+    });
+
+    it('an override without the active-locale key falls back to the catalog default', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setSiteTexts({ en: {}, et: { 'nav.map': { value: 'Kaart' } }, ru: {} });
+      i18n.setLocale('en');
+      expect(i18n.t('nav.map')).toBe('Shelter map'); // no en override → default
+      i18n.setLocale('et');
+      expect(i18n.t('nav.map')).toBe('Kaart'); // the et override
+    });
+
+    it('a blank override is treated as absent (the catalog default wins)', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setSiteTexts({ en: { 'nav.map': { value: '   ' } }, et: {}, ru: {} });
+      expect(i18n.t('nav.map')).toBe('Shelter map');
+    });
+
+    it('url() serves the link override, else the shipped default, else empty for non-link keys', () => {
+      const i18n = TestBed.inject(I18nService);
+      expect(i18n.url('footer.rescueBoard')).toBe('https://www.päästeamet.ee'); // shipped default
+      expect(i18n.url('footer.ministry')).toBe('https://www.siseministeerium.ee');
+      i18n.setSiteTexts({
+        en: { 'footer.rescueBoard': { value: 'Rescue', url: 'https://www.paast.ee' } },
+        et: {},
+        ru: {},
+      });
+      expect(i18n.url('footer.rescueBoard')).toBe('https://www.paast.ee'); // the override
+      expect(i18n.url('footer.ministry')).toBe('https://www.siseministeerium.ee'); // untouched
+      expect(i18n.url('nav.map')).toBe(''); // non-link key
+    });
+
+    it('defaultText(key, locale) serves the shipped catalog for an explicit locale (override-independent)', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setSiteTexts({ en: { 'nav.map': { value: 'X' } }, et: {}, ru: {} });
+      expect(i18n.defaultText('nav.map', 'en')).toBe('Shelter map'); // not the override
+      expect(i18n.defaultText('nav.map', 'et')).toBe('Varjupaikade kaart');
+      expect(i18n.defaultText('nav.map', 'ru')).toBe('Карта укрытий');
+    });
+
+    it('setSiteTexts(null) clears the overlay (a down API keeps the catalog)', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setSiteTexts({ en: { 'nav.map': { value: 'X' } }, et: {}, ru: {} });
+      i18n.setSiteTexts(null);
+      expect(i18n.t('nav.map')).toBe('Shelter map');
+    });
+  });
 });
 
 describe('interpolate() (the t(key, params) seam for slice 2+ domain copy)', () => {

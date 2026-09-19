@@ -1,8 +1,10 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ShelterRepository;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.Shelter;
@@ -33,6 +35,17 @@ public class AccountService {
 
     /** The verified-user gate message for the erasure (same 403 vocabulary as the submission gates). */
     public static final String DELETE_ACCOUNT_MESSAGE = "Deleting the account requires a verified account";
+
+    /**
+     * The 403 refusal for the provisioned admin's self-erasure: the
+     * environment-provisioned administrator is the deployment's access path,
+     * and de-provisioning is an operator action on the environment — never
+     * an in-app one (the seeder would otherwise resurrect it, or the
+     * operator would be locked out of {@code /admin/*}).
+     */
+    public static final String PROVISIONED_ADMIN_DELETE_MESSAGE =
+            "The environment-provisioned administrator account cannot be deleted from the app. "
+                    + "De-provision it by removing the ADMIN_EMAIL and ADMIN_PASSWORD environment variables";
 
     private final UserRepository userRepository;
     private final UserCredentialsRepository credentials;
@@ -139,6 +152,12 @@ public class AccountService {
     @Transactional
     public void deleteAccount(RegisteredUser user) {
         Objects.requireNonNull(user, "user");
+        // The provisioned admin is the deployment's access path — self-erasure
+        // is a lockout vector, and the env vars (not the app) own this
+        // account's identity (kind ADMIN — the durable, restart-proof truth).
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_DELETE_MESSAGE);
+        }
         long userId = user.getId();
 
         // The user's rows, read ONCE — the loop below mutates them in

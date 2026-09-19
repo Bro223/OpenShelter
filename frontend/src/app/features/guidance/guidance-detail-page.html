@@ -13,6 +13,36 @@
     @if (loading()) {
       <app-loading-indicator class="guidance-state" [message]="'guidance.loadingDetail' | t" />
     } @else if (post(); as p) {
+      <!-- The hero image (crisis-guidance D1): the index card's visual
+           language at article scale — full width in a fixed 4/3
+           aspect-ratio box (object-fit: cover, matching width/height
+           attributes, so the title never shifts while the image loads).
+           NO-HERO RULE: no hero URL renders NO element at all — no
+           broken image, no empty frame, no layout shift. A 404'd / 
+           unreachable stored URL takes the index's neutral placeholder
+           box (a broken-image icon is never the feedback). The hero is
+           the article's first content (above the fold), so it loads
+           eager with a high fetch priority — the index cards, below the
+           fold, use lazy instead. -->
+      @if (p.heroImageUrl; as heroUrl) {
+        @if (heroFailed()) {
+          <span class="guidance-detail__hero guidance-detail__hero--failed" aria-hidden="true"></span>
+        } @else {
+          <!-- Alt: the stored hero alt (the admin sets it; mandatory
+               whenever a hero exists). A null alt with a present URL =
+               decorative empty alt — never the post title. -->
+          <img
+            class="guidance-detail__hero"
+            [src]="heroUrl"
+            [alt]="p.heroImageAlt ?? ''"
+            width="704"
+            height="528"
+            fetchpriority="high"
+            decoding="async"
+            (error)="onHeroImageError($event)"
+          />
+        }
+      }
       <header class="guidance-detail__header">
         <h1 class="page-title">{{ p.title }}</h1>
         <p class="guidance-detail__date">

@@ -3,13 +3,15 @@ import {
   applyPrePaint,
   applyStoredLocale,
   applyStoredTheme,
-  HIGH_CONTRAST_THEME,
+  BLACK_AND_YELLOW_VALUE,
+  HIGH_CONTRAST_VALUE,
   LOCALE_STORAGE_KEY,
   SUPPORTED_LOCALES,
   THEME_STORAGE_KEY,
   type PrePaintRoot,
   type SupportedLocale,
 } from './prepaint';
+import { BLACK_AND_YELLOW_TOKENS } from './theme-tokens';
 
 /**
  * The pre-paint boot guarantees: two halves, one contract.
@@ -32,19 +34,30 @@ import {
  */
 const INDEX_HTML = readFileSync(`${process.cwd()}/src/index.html`, 'utf8');
 
-/** A <html>-shaped fake (the scripts only touch `lang` + the data-theme
- *  attribute). */
+/** A <html>-shaped fake (the scripts only touch `lang`, the data-theme
+ *  attribute and the style object for the black-and-yellow tokens). */
 function fakeRoot(initialLang: string = 'en'): PrePaintRoot & {
   attributes: Map<string, string>;
+  styleValues: Map<string, string>;
 } {
   const attributes = new Map<string, string>();
+  const styleValues = new Map<string, string>();
   return {
     lang: initialLang,
     attributes,
+    styleValues,
     setAttribute: (name, value) => void attributes.set(name, value),
     getAttribute: (name) => attributes.get(name) ?? null,
+    style: {
+      setProperty: (name, value) => void styleValues.set(name, value),
+      removeProperty: (name) => void styleValues.delete(name),
+    },
   };
 }
+
+/** The black-and-yellow token the pre-paint guarantee is pinned on
+ *  (the full set is pinned in theme-store.spec.ts). */
+const BLACK_AND_YELLOW_PIN = '--color-text';
 
 /** An in-memory Storage (the test-setup.ts pattern). */
 function memoryStorage(initial: Record<string, string> = {}): Storage {
@@ -104,18 +117,22 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
   describe('applyStoredTheme (the module half)', () => {
     const rows = [
       {
-        stored: HIGH_CONTRAST_THEME as string | null,
-        note: 'the persisted high-contrast preference applies',
+        stored: HIGH_CONTRAST_VALUE as string | null,
+        note: 'the persisted high-contrast preference applies (the attribute alone)',
+      },
+      {
+        stored: BLACK_AND_YELLOW_VALUE as string | null,
+        note: 'the persisted black-and-yellow preference applies (attribute + runtime tokens)',
       },
       {
         stored: 'light',
-        note: 'an unrecognised stored value keeps the light default (no attribute)',
+        note: 'an unrecognised stored value keeps the light default (no attribute, no tokens)',
       },
       {
         stored: 'night',
-        note: 'another unrecognised stored value keeps the light default (no attribute)',
+        note: 'another unrecognised stored value keeps the light default (no attribute, no tokens)',
       },
-      { stored: null, note: 'an absent key is the light default (no attribute)' },
+      { stored: null, note: 'an absent key is the light default (no attribute, no tokens)' },
     ];
 
     it.each(rows)('$note', ({ stored }) => {
@@ -123,7 +140,10 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       const storage = memoryStorage(stored === null ? {} : { [THEME_STORAGE_KEY]: stored });
       applyStoredTheme(storage, root);
       expect(root.attributes.get('data-theme')).toBe(
-        stored === HIGH_CONTRAST_THEME ? HIGH_CONTRAST_THEME : undefined,
+        stored === HIGH_CONTRAST_VALUE || stored === BLACK_AND_YELLOW_VALUE ? stored : undefined,
+      );
+      expect(root.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
+        stored === BLACK_AND_YELLOW_VALUE ? BLACK_AND_YELLOW_TOKENS[BLACK_AND_YELLOW_PIN] : undefined,
       );
     });
   });
@@ -131,18 +151,22 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
   describe('the index.html theme script (the page half)', () => {
     const rows = [
       {
-        stored: HIGH_CONTRAST_THEME as string | null,
-        note: 'the persisted high-contrast preference applies',
+        stored: HIGH_CONTRAST_VALUE as string | null,
+        note: 'the persisted high-contrast preference applies (the attribute alone)',
+      },
+      {
+        stored: BLACK_AND_YELLOW_VALUE as string | null,
+        note: 'the persisted black-and-yellow preference applies (attribute + runtime tokens)',
       },
       {
         stored: 'light',
-        note: 'an unrecognised stored value keeps the light default (no attribute)',
+        note: 'an unrecognised stored value keeps the light default (no attribute, no tokens)',
       },
       {
         stored: 'night',
-        note: 'another unrecognised stored value keeps the light default (no attribute)',
+        note: 'another unrecognised stored value keeps the light default (no attribute, no tokens)',
       },
-      { stored: null, note: 'an absent key is the light default (no attribute)' },
+      { stored: null, note: 'an absent key is the light default (no attribute, no tokens)' },
     ];
 
     it.each(rows)('$note', ({ stored }) => {
@@ -150,7 +174,10 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
       const storage = memoryStorage(stored === null ? {} : { [THEME_STORAGE_KEY]: stored });
       runInlineScript(THEME_SCRIPT!, root, storage);
       expect(root.attributes.get('data-theme')).toBe(
-        stored === HIGH_CONTRAST_THEME ? HIGH_CONTRAST_THEME : undefined,
+        stored === HIGH_CONTRAST_VALUE || stored === BLACK_AND_YELLOW_VALUE ? stored : undefined,
+      );
+      expect(root.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
+        stored === BLACK_AND_YELLOW_VALUE ? BLACK_AND_YELLOW_TOKENS[BLACK_AND_YELLOW_PIN] : undefined,
       );
     });
   });
@@ -198,6 +225,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     const moduleRoot = fakeRoot();
     expect(() => applyPrePaint(storage, moduleRoot)).not.toThrow();
     expect(moduleRoot.attributes.get('data-theme')).toBeUndefined();
+    expect(moduleRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBeUndefined();
     expect(moduleRoot.lang).toBe('en');
 
     // The page half: evaluating the inline scripts must not throw either.
@@ -206,6 +234,7 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
     expect(() => runInlineScript(THEME_SCRIPT!, themeRoot, storage)).not.toThrow();
     expect(() => runInlineScript(LOCALE_SCRIPT!, localeRoot, storage)).not.toThrow();
     expect(themeRoot.attributes.get('data-theme')).toBeUndefined();
+    expect(themeRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBeUndefined();
     expect(localeRoot.lang).toBe('en');
   });
 });
@@ -217,11 +246,14 @@ describe('pre-paint boot (index.html inline scripts + core/prepaint.ts)', () => 
 describe('pre-paint lockstep (page vs module)', () => {
   const states: { theme: string | null; locale: string | null }[] = [
     { theme: null, locale: null },
-    { theme: HIGH_CONTRAST_THEME, locale: null },
+    { theme: HIGH_CONTRAST_VALUE, locale: null },
+    { theme: BLACK_AND_YELLOW_VALUE, locale: null },
     { theme: null, locale: 'et' },
-    { theme: HIGH_CONTRAST_THEME, locale: 'et' },
+    { theme: HIGH_CONTRAST_VALUE, locale: 'et' },
+    { theme: BLACK_AND_YELLOW_VALUE, locale: 'et' },
     { theme: null, locale: 'ru' },
-    { theme: HIGH_CONTRAST_THEME, locale: 'ru' },
+    { theme: HIGH_CONTRAST_VALUE, locale: 'ru' },
+    { theme: BLACK_AND_YELLOW_VALUE, locale: 'ru' },
     { theme: 'light', locale: 'fr' },
   ];
 
@@ -244,5 +276,10 @@ describe('pre-paint lockstep (page vs module)', () => {
 
     expect(pageRoot.attributes.get('data-theme')).toBe(moduleRoot.attributes.get('data-theme'));
     expect(pageRoot.lang).toBe(moduleRoot.lang);
+    // The black-and-yellow token seam must agree too (a half-applied token
+    // set would flash a broken palette before the app bundle paints).
+    expect(pageRoot.styleValues.get(BLACK_AND_YELLOW_PIN)).toBe(
+      moduleRoot.styleValues.get(BLACK_AND_YELLOW_PIN),
+    );
   });
 });

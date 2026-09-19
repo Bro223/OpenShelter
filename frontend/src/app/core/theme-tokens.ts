@@ -1,0 +1,154 @@
+/**
+ * The persisted UI theme (accessibility-dialog, extending D2): three
+ * options — the light DEFAULT (absent key / no attribute), the
+ * high-contrast SCSS token override (the [data-theme='high-contrast']
+ * block in styles.scss) and the black-and-yellow theme.
+ *
+ * Black-and-yellow is applied as RUNTIME CSS custom properties on <html>
+ * instead of an SCSS token block, on purpose: the design-tokens audit
+ * (src/app/design-tokens.spec.ts) allows hex literals only inside the
+ * styles.scss :root + high-contrast blocks, and styles.scss is not
+ * editable this wave — so the third theme's verified values live here in
+ * TypeScript and are applied by ThemeStore (post-paint) and the inline
+ * index.html pre-paint script (before paint). The SCSS everywhere else
+ * only ever references var(--color-*), so the runtime values flow through
+ * the existing token seam unchanged.
+ */
+
+export type AppTheme = 'default' | 'high-contrast' | 'black-and-yellow';
+
+/** The stored localStorage value of the high-contrast theme. */
+export const HIGH_CONTRAST_THEME = 'high-contrast';
+/** The stored localStorage value of the black-and-yellow theme. */
+export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
+
+/**
+ * The black-and-yellow palette on #000 (owner-verified ratios; the
+ * computed ones follow the same method as the high-contrast block's
+ * verified comments):
+ *
+ *   text    #ffd400   on #000        14.67:1
+ *   muted   #d4b53a   on #000        10.47:1
+ *   link    #ffe066   on #000        16.11:1 (link-vs-text is 1.10:1, so
+ *                                     links are UNDERLINED — the global
+ *                                     rule ships in the accessibility
+ *                                     dialog's stylesheet, WCAG 1.4.1)
+ *   CTA /   #ff9f1c   black on it    10.23:1 (the CTA + primary fill
+ *   primary                                  family; see the note below)
+ *   primary #ffd400   black on it    14.67:1 (btn--primary INVERTS:
+ *   button   (the --color-text value, the .btn--primary override rule)
+ *   reported #ff6b4d  black on it /  7.46:1  (stays red-family)
+ *   danger   as text on #000
+ *   success #7fd49a   on #000        11.79:1
+ *   registry #7ab8ff  on badge #14263a  7.4:1 (the badge fill reuses the
+ *                                        high-contrast dark tint — the
+ *                                        verified pair)
+ *   new     #ffb84d   black on it    12.22:1
+ *   pick    #4dd0c4   on #000        10.9:1 (the selected-point pin)
+ *   info    #8ac6f5   on #000        11.7:1
+ *   border  #8a7400   vs #000        4.58:1 (UI boundary ≥ 3:1)
+ *
+ * CARDS are distinguished by BORDER, not by a dark tint: every surface
+ * token is #000000 — #111 on black is 1.11:1 and would be invisible, so
+ * --color-border carries the card edge (4.58:1). --color-bg-surface is
+ * #000 AND doubles as the "text on primary" colour (the btn--primary
+ * convention from the high-contrast block), which is what makes the
+ * inverted primary button black-on-yellow with no extra rule.
+ *
+ * The chrome band (header/footer navy) stays theme-invariant, the
+ * high-contrast precedent: its white/muted text already clears the
+ * floor on #12304a. The MAP is not themed (OSM tiles stay light);
+ * --color-map-placeholder and the marker hues keep the source coding.
+ */
+export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
+  /* Text & surfaces */
+  '--color-text': '#ffd400',
+  '--color-muted': '#d4b53a',
+  '--color-bg': '#000000',
+  '--color-bg-surface': '#000000', /* cards: border-distinguished; also the text-on-primary colour */
+  '--color-bg-subtle': '#000000',
+  '--color-surface-hover': '#2b2400', /* ghost-button hover fill — text on it 10.8:1 */
+  '--color-surface-overlay': 'rgba(0, 0, 0, 0.92)', /* legend card over the light tiles */
+  '--color-backdrop': 'rgba(0, 0, 0, 0.8)',
+  /* Brand */
+  '--color-primary': '#ff9f1c', /* CTA/primary fill family + focus ring */
+  '--color-primary-hover': '#ffb347', /* black on it 11.79:1 */
+  '--color-brand': '#ffd400',
+  '--color-accent': '#4dd0c4',
+  /* The link colour (the third theme adds a LINK token of its own:
+     links must stay distinguishable from the body text, WCAG 1.4.1).
+     Consumed by the global rule in the accessibility dialog's scss. */
+  '--color-link': '#ffe066',
+  /* Chrome band — theme-invariant (the high-contrast block's note). */
+  '--color-chrome-bg': '#12304a',
+  '--color-chrome-text': '#ffffff',
+  '--color-chrome-muted': '#c3d2e0',
+  '--color-chrome-focus': '#7fc4f5',
+  '--color-chrome-active': '#4dd0c4',
+  '--color-chrome-border': '#2e4d6a',
+  /* CTA + reported + new (the fills carry BLACK text — --color-bg-surface) */
+  '--color-cta': '#ff9f1c',
+  '--color-reported': '#ff6b4d',
+  '--color-new': '#ffb84d',
+  /* Borders (the card edge is the structure of this theme) */
+  '--color-border': '#8a7400',
+  '--color-border-subtle': '#6b5900', /* decorative divider (≈3:1) */
+  /* Status palette */
+  '--color-danger': '#ff6b4d',
+  '--color-danger-bg': '#2a120d', /* danger on it 6.3:1 */
+  '--color-danger-border': '#7a3a2d',
+  '--color-error': '#ff6b4d',
+  '--color-warning': '#ffb84d',
+  '--color-warning-bg': '#292008', /* warning on it 9.37:1 */
+  '--color-warning-border': '#6e5a1e',
+  '--color-info': '#8ac6f5',
+  '--color-info-bg': '#10222f', /* info on it 8.9:1 (the verified pair) */
+  '--color-info-border': '#2f5a7a',
+  '--color-success': '#7fd49a',
+  '--color-success-bg': '#0f2a18', /* success on it 8.6:1 (the verified pair) */
+  '--color-success-border': '#2f6e45',
+  '--color-success-bg-soft': '#122417',
+  /* Source badges (dark fills, the verified text pairs) */
+  '--color-badge-registry': '#14263a',
+  '--color-badge-user': '#11301d',
+  '--color-badge-new': '#332b12', /* warning on it 8.18:1 */
+  /* Map + markers (the map is not themed — tiles stay light) */
+  '--color-shelter-registry': '#7ab8ff',
+  '--color-shelter-user': '#7ac98a',
+  '--color-shelter-pick': '#4dd0c4',
+  '--color-map-placeholder': '#e9eef2',
+};
+
+/** The token names — clearing removes exactly what was set. */
+export const BLACK_AND_YELLOW_TOKEN_NAMES: readonly string[] = Object.keys(
+  BLACK_AND_YELLOW_TOKENS,
+);
+
+/** The <html> surface the theme is applied to: the attribute seam (for
+ *  the ThemeStore) + the style object (the runtime tokens). */
+export type ThemeRoot = {
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+  style: ThemeStyleRoot['style'];
+};
+
+/** The token appliers only need the style object (the pre-paint script's
+ *  fake roots carry it without the attribute seam). */
+export type ThemeStyleRoot = {
+  style: { setProperty(name: string, value: string): void; removeProperty(name: string): void };
+};
+
+/** Apply the black-and-yellow token set to <html> (inline custom
+ *  properties beat :root, so no SCSS change is needed downstream). */
+export function applyBlackAndYellowTokens(root: ThemeStyleRoot): void {
+  for (const name of BLACK_AND_YELLOW_TOKEN_NAMES) {
+    root.style.setProperty(name, BLACK_AND_YELLOW_TOKENS[name]);
+  }
+}
+
+/** Remove the black-and-yellow tokens (theme switch away from it). */
+export function clearBlackAndYellowTokens(root: ThemeStyleRoot): void {
+  for (const name of BLACK_AND_YELLOW_TOKEN_NAMES) {
+    root.style.removeProperty(name);
+  }
+}

@@ -246,43 +246,57 @@ describe('PageShell', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Log in');
   });
 
-  /* High-contrast toggle (accessibility-and-provenance D2). The toggle is
-     independent of auth — it renders from the first paint, before init(). */
-  describe('high-contrast toggle', () => {
-    function toggleButton(): HTMLButtonElement | null {
-      const buttons = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')];
-      return buttons.find((b) => b.textContent?.trim() === 'High contrast') ?? null;
+  /* Accessibility button (accessibility-dialog, replaces the high-
+     contrast toggle): independent of auth — it renders from the first
+     paint, before init(). The dialog itself is spec'd in
+     accessibility-dialog.component.spec.ts; here: the trigger's contract
+     (label, aria-expanded, open/close + focus return, menu interplay). */
+  describe('accessibility button + dialog trigger', () => {
+    function a11yButton(): HTMLButtonElement | null {
+      return (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>(
+        '#a11y-trigger',
+      );
     }
 
-    it('renders for guests from the first paint, aria-pressed mirrors the light default', () => {
+    function dialogSection(): HTMLElement | null {
+      return (fixture.nativeElement as HTMLElement).querySelector('[role="dialog"]');
+    }
+
+    it('renders for guests from the first paint, aria-expanded mirrors the closed dialog', () => {
       fixture.detectChanges();
-      const toggle = toggleButton();
-      expect(toggle).not.toBeNull();
-      expect(toggle!.getAttribute('aria-pressed')).toBe('false');
-      expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+      const button = a11yButton();
+      expect(button).not.toBeNull();
+      expect(button!.textContent?.trim()).toBe('Accessibility');
+      expect(button!.getAttribute('aria-expanded')).toBe('false');
+      expect(dialogSection()).toBeNull();
     });
 
-    it('clicking enables high contrast: aria-pressed, attribute and persistence all flip', () => {
+    it('clicking opens the dialog (role=dialog, aria-modal, the three options) and flips aria-expanded', () => {
       fixture.detectChanges();
-      toggleButton()!.dispatchEvent(new MouseEvent('click'));
+      a11yButton()!.dispatchEvent(new MouseEvent('click'));
       fixture.detectChanges();
 
-      expect(toggleButton()!.getAttribute('aria-pressed')).toBe('true');
-      expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
-      expect(localStorage.getItem('openshelter-theme')).toBe('high-contrast');
+      const dialog = dialogSection();
+      expect(dialog).not.toBeNull();
+      expect(dialog!.getAttribute('aria-modal')).toBe('true');
+      expect(dialog!.getAttribute('aria-labelledby')).toBe('a11y-dialog-title');
+      expect(dialog!.querySelectorAll('input[type="radio"]')).toHaveLength(3);
+      expect(a11yButton()!.getAttribute('aria-expanded')).toBe('true');
     });
 
-    it('clicking again returns to light: attribute and stored key both removed', async () => {
-      await store.init();
+    it('Escape in the dialog closes it and returns focus to the trigger', async () => {
       fixture.detectChanges();
-      toggleButton()!.dispatchEvent(new MouseEvent('click'));
-      fixture.detectChanges();
-      toggleButton()!.dispatchEvent(new MouseEvent('click'));
+      a11yButton()!.dispatchEvent(new MouseEvent('click'));
       fixture.detectChanges();
 
-      expect(toggleButton()!.getAttribute('aria-pressed')).toBe('false');
-      expect(document.documentElement.getAttribute('data-theme')).toBeNull();
-      expect(localStorage.getItem('openshelter-theme')).toBeNull();
+      const dialog = dialogSection()!;
+      dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      await fixture.whenStable();
+
+      expect(dialogSection()).toBeNull();
+      expect(document.activeElement).toBe(a11yButton());
+      expect(a11yButton()!.getAttribute('aria-expanded')).toBe('false');
     });
   });
 
@@ -399,13 +413,13 @@ describe('PageShell', () => {
       openPanel();
       expect(panel().classList).toContain('shell-menu--open');
 
-      // The high-contrast toggle is the always-present menu item — no
-      // init/auth needed. (Its side effect: the theme flips — irrelevant
-      // to this assertion, localStorage is cleared per test.)
-      const toggle = [...panel().querySelectorAll('button')].find(
-        (b) => b.textContent?.trim() === 'High contrast',
+      // The accessibility button is the always-present menu item — no
+      // init/auth needed. (It opens the dialog — irrelevant to this
+      // assertion; the overlay is fixed-positioned, not a menu child.)
+      const a11y = [...panel().querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Accessibility',
       )!;
-      toggle.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      a11y.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       fixture.detectChanges();
 
       expect(panel().classList).not.toContain('shell-menu--open');
@@ -847,7 +861,7 @@ describe('PageShell', () => {
         'Varjupaikade kaart',
       );
       expect(text()).toContain('Logi sisse');
-      expect(text()).toContain('Kõrge kontrast');
+      expect(text()).toContain('Kättesaadavus');
       expect(text()).toContain('Loo konto');
       const notice = element.querySelector('.shell-footer__notice') as Element;
       expect(notice.textContent).toContain('Hädaolukorras helista 112');
@@ -873,7 +887,7 @@ describe('PageShell', () => {
       expect(localStorage.getItem('openshelter-locale')).toBe('en');
       expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['ET', 'RU']);
       expect(text()).toContain('Log in');
-      expect(text()).toContain('High contrast');
+      expect(text()).toContain('Accessibility');
     });
 
     it('clicking RU switches to the Russian chrome and the persisted choice', async () => {
@@ -894,7 +908,7 @@ describe('PageShell', () => {
         'Карта укрытий',
       );
       expect(text()).toContain('Войти');
-      expect(text()).toContain('Высокий контраст');
+      expect(text()).toContain('Доступность');
       expect(text()).toContain('Создать аккаунт');
       const notice = element.querySelector('.shell-footer__notice') as Element;
       expect(notice.textContent).toContain('В случае чрезвычайной ситуации звоните 112');

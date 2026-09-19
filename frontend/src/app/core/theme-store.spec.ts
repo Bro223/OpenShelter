@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { ThemeStore } from './theme-store';
+import {
+  BLACK_AND_YELLOW_TOKENS,
+  clearBlackAndYellowTokens,
+} from './theme-tokens';
 
 /**
  * src/ — the test runner's cwd is the frontend project root
@@ -8,9 +12,21 @@ import { ThemeStore } from './theme-store';
  */
 const SRC_DIR = `${process.cwd()}/src`;
 
-/** Strip the <html> data-theme attribute (each test starts light). */
+/** Strip the <html> data-theme attribute + the runtime theme tokens
+ *  (each test starts light). */
 function clearThemeAttribute(): void {
   document.documentElement.removeAttribute('data-theme');
+  clearBlackAndYellowTokens(document.documentElement);
+}
+
+/** True when the black-and-yellow token set is applied to <html>. */
+function blackYellowApplied(): boolean {
+  return (
+    document.documentElement.style.getPropertyValue('--color-text') ===
+      BLACK_AND_YELLOW_TOKENS['--color-text'] &&
+    document.documentElement.style.getPropertyValue('--color-bg') ===
+      BLACK_AND_YELLOW_TOKENS['--color-bg']
+  );
 }
 
 describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
@@ -41,9 +57,10 @@ describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
     expect(localStorage.getItem('openshelter-theme')).toBeNull();
   });
 
-  it('an unrecognised stored value is treated as light (only high-contrast is stored)', () => {
+  it('an unrecognised stored value is treated as light (only the non-default themes are stored)', () => {
     localStorage.setItem('openshelter-theme', 'night');
     expect(reload().highContrast()).toBe(false);
+    expect(reload().theme()).toBe('default');
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();
   });
 
@@ -51,6 +68,16 @@ describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
     localStorage.setItem('openshelter-theme', 'high-contrast');
     expect(reload().highContrast()).toBe(true);
     expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
+    expect(blackYellowApplied()).toBe(false);
+  });
+
+  it('adopts a stored black-and-yellow preference on boot: attribute AND runtime tokens', () => {
+    localStorage.setItem('openshelter-theme', 'black-and-yellow');
+    const reloaded = reload();
+    expect(reloaded.theme()).toBe('black-and-yellow');
+    expect(reloaded.highContrast()).toBe(false);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('black-and-yellow');
+    expect(blackYellowApplied()).toBe(true);
   });
 
   it('toggle() enables high contrast: sets the attribute AND persists the key', () => {
@@ -73,6 +100,57 @@ describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
     expect(reload().highContrast()).toBe(true);
     expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
   });
+
+  /* --- the three-option accessibility dialog (accessibility-dialog) --- */
+
+  it('set(\'black-and-yellow\') sets the attribute, applies the tokens AND persists the key', () => {
+    store.set('black-and-yellow');
+    expect(store.theme()).toBe('black-and-yellow');
+    expect(store.highContrast()).toBe(false);
+    expect(document.documentElement.getAttribute('data-theme')).toBe('black-and-yellow');
+    expect(blackYellowApplied()).toBe(true);
+    expect(localStorage.getItem('openshelter-theme')).toBe('black-and-yellow');
+  });
+
+  it('set(\'default\') removes the attribute, the key AND the black-and-yellow tokens', () => {
+    store.set('black-and-yellow');
+    store.set('default');
+    expect(store.theme()).toBe('default');
+    expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+    expect(blackYellowApplied()).toBe(false);
+    expect(localStorage.getItem('openshelter-theme')).toBeNull();
+  });
+
+  it('switching black-and-yellow → high-contrast clears the runtime tokens (inline styles would beat the SCSS block)', () => {
+    store.set('black-and-yellow');
+    expect(blackYellowApplied()).toBe(true);
+    store.set('high-contrast');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
+    expect(blackYellowApplied()).toBe(false);
+    expect(localStorage.getItem('openshelter-theme')).toBe('high-contrast');
+  });
+
+  it('the black-and-yellow choice survives a reload (attribute + tokens re-applied)', () => {
+    store.set('black-and-yellow');
+    const reloaded = reload();
+    expect(reloaded.theme()).toBe('black-and-yellow');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('black-and-yellow');
+    expect(blackYellowApplied()).toBe(true);
+  });
+
+  it('the black-and-yellow token set carries the owner-verified palette', () => {
+    // The verified tokens the design is built on (the rest of the set
+    // follows the documented derivation in theme-tokens.ts).
+    expect(BLACK_AND_YELLOW_TOKENS['--color-text']).toBe('#ffd400');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-muted']).toBe('#d4b53a');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-link']).toBe('#ffe066');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-cta']).toBe('#ff9f1c');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-reported']).toBe('#ff6b4d');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-border']).toBe('#8a7400');
+    expect(BLACK_AND_YELLOW_TOKENS['--color-bg']).toBe('#000000');
+    // Cards are border-distinguished, never a dark tint (#111 on black = 1.11:1).
+    expect(BLACK_AND_YELLOW_TOKENS['--color-bg-surface']).toBe('#000000');
+  });
 });
 
 describe('index.html pre-paint theme script (no flash, no FOUC)', () => {
@@ -80,10 +158,15 @@ describe('index.html pre-paint theme script (no flash, no FOUC)', () => {
     const indexHtml = readFileSync(`${SRC_DIR}/index.html`, 'utf8');
     // The script reads the persisted key…
     expect(indexHtml).toContain("localStorage.getItem('openshelter-theme')");
-    // …and sets the attribute on <html> (the token-override seam).
-    expect(indexHtml).toMatch(
-      /document\.documentElement\.setAttribute\('data-theme',\s*'high-contrast'\)/,
-    );
+    // …and sets the attribute on <html> for BOTH non-default themes
+    // (the high-contrast SCSS seam; black-and-yellow adds runtime tokens).
+    expect(indexHtml).toContain("'high-contrast'");
+    expect(indexHtml).toContain("'black-and-yellow'");
+    expect(indexHtml).toMatch(/document\.documentElement\.setAttribute\('data-theme'/);
+    // The black-and-yellow tokens must be applied pre-paint too (no flash
+    // of the light palette) — the typed twin lives in theme-tokens.ts.
+    expect(indexHtml).toContain(BLACK_AND_YELLOW_TOKENS['--color-text']);
+    expect(indexHtml).toContain('setProperty');
     // House pattern: the inline script sits in <head>, so it executes before
     // the app bundle (injected at the end of <body> by the build).
     const script = indexHtml.match(/<script>[\s\S]*?<\/script>/);

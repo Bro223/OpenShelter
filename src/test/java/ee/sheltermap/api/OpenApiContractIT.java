@@ -123,8 +123,9 @@ class OpenApiContractIT extends AbstractPersistenceIT {
         // the crisis-guidance reads (index, detail and hero-image serving —
         // the /blog pages read them anonymously) and the six /auth
         // operations (all permitAll in SecurityConfig).
-        for (String operation : new String[]{
+            for (String operation : new String[]{
                 "GET /api/shelters", "GET /api/shelters/{id}", "GET /api/data-source",
+                "GET /api/site-texts",
                 "GET /api/guidance", "GET /api/guidance/{slug}", "GET /api/media/{filename}",
                 "POST /auth/register", "POST /auth/login", "POST /auth/refresh",
                 "POST /auth/logout", "POST /auth/password-reset/request",
@@ -278,6 +279,12 @@ class OpenApiContractIT extends AbstractPersistenceIT {
                 "POST /admin/guidance/{id}/publish",
                 "POST /admin/guidance/{id}/unpublish",
                 "DELETE /admin/guidance/{id}",
+                // AdminGuidanceController — translations (bilingual-guidance)
+                "GET /admin/guidance/{id}/translations",
+                "POST /admin/guidance/{id}/translations",
+                "PUT /admin/guidance/{id}/translations/{locale}",
+                "DELETE /admin/guidance/{id}/translations/{locale}",
+                "POST /admin/guidance/{id}/translations/attach",
                 // AdminMediaController (/admin/media)
                 "GET /admin/media",
                 "POST /admin/media",
@@ -304,7 +311,10 @@ class OpenApiContractIT extends AbstractPersistenceIT {
                 // LocationController (/api/geo)
                 "POST /api/geo/resolve",
                 // DataSourceController
-                "GET /api/data-source");
+                "GET /api/data-source",
+                // SiteTextController (/api/site-texts) + AdminSiteTextController
+                "GET /api/site-texts",
+                "PUT /admin/site-texts");
     }
 
     /**

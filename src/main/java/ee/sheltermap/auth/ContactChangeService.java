@@ -1,7 +1,9 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.AppInfo;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.ContactChangeType;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.PhoneNumbers;
@@ -35,9 +37,24 @@ import java.util.Objects;
  * TTL, 5-attempt limit, one pending change per (user, type) — a new request
  * replaces the old. Requests are additionally throttled per client IP at the
  * controller and by a resend cooldown anchored on the pending row.
+ *
+ * <p>The provisioned admin (kind {@code ADMIN}) is refused at every entry
+ * point with 403: its contacts are the environment's — the e-mail is the
+ * provisioning anchor the startup seeder keys on (re-pointing it would fork
+ * the env identity into a second admin row), and the account has no phone
+ * route by design.
  */
 @Service
 public class ContactChangeService {
+
+    /**
+     * The 403 refusal for the provisioned admin's contact change: the
+     * environment-provisioned administrator's contacts are set by the
+     * deployment environment, not the account.
+     */
+    public static final String PROVISIONED_ADMIN_CONTACT_MESSAGE =
+            "The environment-provisioned administrator account's contacts are set by the "
+                    + "deployment environment and cannot be changed from the app";
 
     private final UserRepository userRepository;
     private final PendingContactChangeRepository changes;
@@ -72,6 +89,7 @@ public class ContactChangeService {
      */
     @Transactional
     public void requestEmailChange(RegisteredUser user, String newEmail) {
+        requireNotProvisionedAdmin(user);
         String target = newEmail.trim().toLowerCase(Locale.ROOT);
         if (target.equalsIgnoreCase(user.getData().email())) {
             throw new InvalidContactChangeException("New email equals the current email");
@@ -103,6 +121,7 @@ public class ContactChangeService {
      */
     @Transactional
     public ContactChangeResult confirmEmailChange(RegisteredUser user, String code) {
+        requireNotProvisionedAdmin(user);
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.EMAIL_CHANGE);
         String failure = verifyCode(change, code);
         if (failure != null) {
@@ -134,6 +153,7 @@ public class ContactChangeService {
      */
     @Transactional
     public void requestPhoneChange(RegisteredUser user, String newPhone) {
+        requireNotProvisionedAdmin(user);
         String target = PhoneNumbers.normalizeE164(newPhone);
         if (target.equals(user.getData().phone())) {
             throw new InvalidContactChangeException("New phone equals the current phone");
@@ -157,6 +177,7 @@ public class ContactChangeService {
      */
     @Transactional
     public ContactChangeResult confirmPhoneChange(RegisteredUser user, String code) {
+        requireNotProvisionedAdmin(user);
         PendingContactChange change = requirePending(user.getId(), ContactChangeType.PHONE_CHANGE);
         String failure = verifyCode(change, code);
         if (failure != null) {
@@ -179,6 +200,18 @@ public class ContactChangeService {
     }
 
     // ---- Internals ----
+
+    /**
+     * The provisioned admin's contacts belong to the environment: the
+     * e-mail is the provisioning anchor (the seeder keys on it at every
+     * startup) and the account has no phone route by design. Refused at
+     * every entry point, before any check or side effect (403).
+     */
+    private static void requireNotProvisionedAdmin(RegisteredUser user) {
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_CONTACT_MESSAGE);
+        }
+    }
 
     /**
      * Cooldown anchored on the pending row: while one exists, a new request is

@@ -1,6 +1,8 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.VerificationThrottledException;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,10 +80,53 @@ class ContactChangeServiceTest {
         return user;
     }
 
+    /** The env-provisioned admin (kind ADMIN, every claim pre-set, no phone route). */
+    private AdminUser provisionedAdmin() {
+        AdminUser admin = AdminUser.provisioned("Admin", "admin@example.ee", NOW);
+        users.save(admin);
+        return admin;
+    }
+
     private static String codeFrom(String message) {
         Matcher m = CODE.matcher(message);
         assertThat(m.find()).as("message contains a 6-digit code: %s", message).isTrue();
         return m.group(1);
+    }
+
+    // ---- Provisioned admin: refused at every entry point (403) ----
+
+    @Test
+    void theProvisionedAdminCannotRequestOrConfirmAnyContactChange() {
+        // The admin's contacts are the environment's: the e-mail is the
+        // provisioning anchor the seeder keys on, and the account has no
+        // phone route. Every entry point is refused BEFORE any check or
+        // side effect — no pending row, no SMS, no e-mail.
+        AdminUser admin = provisionedAdmin();
+
+        assertThatThrownBy(() -> service.requestEmailChange(admin, "usurper@example.ee"))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE);
+        assertThatThrownBy(() -> service.confirmEmailChange(admin, "123456"))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE);
+        assertThatThrownBy(() -> service.requestPhoneChange(admin, "+37251111111"))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE);
+        assertThatThrownBy(() -> service.confirmPhoneChange(admin, "123456"))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(ContactChangeService.PROVISIONED_ADMIN_CONTACT_MESSAGE);
+
+        assertThat(changes.findByUserIdAndType(admin.getId(),
+                ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE))
+                .as("no pending email change was persisted").isEmpty();
+        assertThat(changes.findByUserIdAndType(admin.getId(),
+                ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE))
+                .as("no pending phone change was persisted").isEmpty();
+        assertThat(sms.sent()).isEmpty();
+        assertThat(smtp.sent()).isEmpty();
+        // the admin's identity is exactly what the environment gave it
+        assertThat(admin.getData().email()).isEqualTo("admin@example.ee");
+        assertThat(admin.getData().phone()).isNull();
     }
 
     // ---- Email change (verified by SMS to the current phone) ----

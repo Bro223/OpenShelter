@@ -88,13 +88,28 @@
       }
     </div>
 
-    <!-- Hero image: choose from the media library (the D8 inventory).
-         The alt field below carries the cross-field rule (mandatory iff a
-         hero is set) — enforced here AND by the server (400). -->
+    <!-- Hero image: choose from the media library (the D8 inventory),
+         upload one here, or import one from a URL (guidance-hero-import
+         — the URL is stored as a PENDING import with the draft; the
+         server fetches, validates and stores it at the next publish).
+         The alt field below carries the cross-field rule (mandatory iff
+         a hero of EITHER kind is set) — enforced here AND by the server
+         (400). -->
     <div class="field">
       <span class="guidance-editor__field-caption">{{
         'admin.guidance.editor.heroLabel' | t
       }}</span>
+
+      <!-- The explicit "no image" tick: the visible, unambiguous way to
+           say this post has no hero. Visible in BOTH modes, prefilled
+           from the saved state in edit mode (checked = no library asset
+           AND no pending import URL). While checked, the choice controls
+           below are disabled (dimmed); checking it clears the hero
+           choices, unchecking re-enables the controls. -->
+      <label class="guidance-editor__check-label" for="ge-hero-none">
+        <input id="ge-hero-none" type="checkbox" formControlName="noHero" (change)="onNoHeroChange($event)" />
+        {{ i18nKeys.heroNone | t }}
+      </label>
 
       @if (selectedHero(); as hero) {
         <div class="guidance-editor__hero-current">
@@ -121,67 +136,104 @@
         </div>
       }
 
-      <button
-        type="button"
-        class="btn btn--ghost"
-        (click)="heroPickerOpen.set(!heroPickerOpen())"
-        [disabled]="busy() || uploading()"
-      >
-        {{ 'admin.guidance.editor.hero.choose' | t }}
-      </button>
+      <div class="guidance-editor__hero-choices" [class.guidance-editor__hero-choices--disabled]="noHero().value">
+        <button
+          type="button"
+          class="btn btn--ghost"
+          (click)="heroPickerOpen.set(!heroPickerOpen())"
+          [disabled]="busy() || uploading() || noHero().value"
+        >
+          {{ 'admin.guidance.editor.hero.choose' | t }}
+        </button>
 
-      @if (heroPickerOpen()) {
-        <div class="hero-picker" role="group" aria-label="Media library">
-          @if (mediaAssets() === null) {
-            <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
-          } @else if (pickerAssets().length === 0) {
-            <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
-          } @else {
-            @for (asset of pickerAssets(); track asset.id) {
-              <button
-                type="button"
-                class="hero-picker__item"
-                [class.hero-picker__item--selected]="heroImageId().value === asset.id"
-                [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
-                (click)="selectHero(asset)"
-                [disabled]="busy() || uploading()"
-              >
-                <img
-                  [src]="asset.url"
-                  [alt]="asset.originalFilename"
-                  width="72"
-                  height="72"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <span class="hero-picker__name">{{ asset.originalFilename }}</span>
-              </button>
+        @if (heroPickerOpen()) {
+          <div class="hero-picker" role="group" aria-label="Media library">
+            @if (mediaAssets() === null) {
+              <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
+            } @else if (pickerAssets().length === 0) {
+              <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.empty' | t }}</p>
+            } @else {
+              @for (asset of pickerAssets(); track asset.id) {
+                <button
+                  type="button"
+                  class="hero-picker__item"
+                  [class.hero-picker__item--selected]="heroImageId().value === asset.id"
+                  [attr.aria-pressed]="heroImageId().value === asset.id ? 'true' : 'false'"
+                  (click)="selectHero(asset)"
+                  [disabled]="busy() || uploading() || noHero().value"
+                >
+                  <img
+                    [src]="asset.url"
+                    [alt]="asset.originalFilename"
+                    width="72"
+                    height="72"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="hero-picker__name">{{ asset.originalFilename }}</span>
+                </button>
+              }
             }
+          </div>
+        }
+
+        <!-- Upload a hero image right here (no media-library detour): the
+             labelled file input (the backend accepts exactly these three
+             types, magic-byte checked). On success the new asset is
+             auto-selected as the hero; the control is busy-blocked while the
+             upload is in flight. -->
+        <div class="guidance-editor__hero-upload">
+          <label for="ge-hero-upload">
+            {{
+              uploading()
+                ? ('admin.media.uploading' | t)
+                : ('admin.guidance.editor.hero.uploadLabel' | t)
+            }}
+          </label>
+          <input
+            id="ge-hero-upload"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            (change)="onHeroFileChange($event)"
+            [disabled]="busy() || uploading() || noHero().value"
+          />
+          <p class="field-note">{{ 'admin.media.uploadHint' | t }}</p>
+        </div>
+
+        <!-- Import a hero image from a URL (guidance-hero-import):
+             the URL is NOT fetched at edit time — it is stored with the
+             draft as a PENDING import, and the server fetches, validates
+             and stores the image at the next publish (a failed import
+             fails the publish: 400 policy/non-image, 413 over cap,
+             502 unfetchable — the post stays a draft with the URL
+             intact). A one-shot PUBLISHED create (create mode's radio)
+             imports it in the create call itself. type=text on purpose
+             (the URL input's native validation would double the client
+             check with a different rule set; heroImportUrlValidator
+             mirrors the backend's write-time 400s). -->
+        <div class="guidance-editor__hero-import">
+          <label for="ge-hero-import-url">{{ i18nKeys.heroImportLabel | t }}</label>
+          <input
+            id="ge-hero-import-url"
+            type="text"
+            inputmode="url"
+            formControlName="heroImportUrl"
+            maxlength="2048"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="field-note">{{ i18nKeys.heroImportHint | t }}</p>
+          @if (heroImportUrl().invalid && heroImportUrl().touched) {
+            <p class="field-error">{{ i18nKeys.heroImportInvalid | t }}</p>
+          }
+          @if (heroImportPending() !== '') {
+            <!-- The pending state, said out loud: nothing is fetched at
+                 edit time — this is the result the admin will see at
+                 publish (the stored image appears then; a failure shows
+                 the server's message). -->
+            <p class="field-note">{{ i18nKeys.heroImportNote | t }}</p>
           }
         </div>
-      }
-
-      <!-- Upload a hero image right here (no media-library detour): the
-           labelled file input (the backend accepts exactly these three
-           types, magic-byte checked). On success the new asset is
-           auto-selected as the hero; the control is busy-blocked while the
-           upload is in flight. -->
-      <div class="guidance-editor__hero-upload">
-        <label for="ge-hero-upload">
-          {{
-            uploading()
-              ? ('admin.media.uploading' | t)
-              : ('admin.guidance.editor.hero.uploadLabel' | t)
-          }}
-        </label>
-        <input
-          id="ge-hero-upload"
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          (change)="onHeroFileChange($event)"
-          [disabled]="busy() || uploading()"
-        />
-        <p class="field-note">{{ 'admin.media.uploadHint' | t }}</p>
       </div>
     </div>
 

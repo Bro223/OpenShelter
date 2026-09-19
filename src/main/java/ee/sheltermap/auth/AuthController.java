@@ -169,6 +169,9 @@ public class AuthController {
      * before re-requesting (the service's reissue cooldown). The ack is
      * identical for a known email, an unknown email and a cooldown skip —
      * it must never reveal whether the email exists or a send happened.
+     * ONE exception: the provisioned admin's email is refused with 403
+     * naming the environment provisioning — its password is the
+     * deployment's (ADMIN_PASSWORD), not an in-app credential.
      */
     @PostMapping("/password-reset/request")
     @Operation(summary = "Request a password-reset code",
@@ -176,10 +179,15 @@ public class AuthController {
                     + "re-requesting (the service's reissue cooldown). The ack is "
                     + "identical for a known email, an unknown email and a "
                     + "cooldown skip — it must never reveal whether the email "
-                    + "exists or a send happened.")
+                    + "exists or a send happened. The ONE exception is the "
+                    + "environment-provisioned administrator's email, which is "
+                    + "refused with 403 naming the environment provisioning: its "
+                    + "password is set by the deployment environment, not the app.")
     @ApiResponse(responseCode = "200", description = "The resend-cooldown ack "
             + "(identical for known/unknown email — anti-enumeration)", content =
             @Content(schema = @Schema(implementation = CodeSentDto.class)))
+    @ApiResponse(responseCode = "403", description = "The provisioned "
+            + "administrator's email — password reset is not available for it")
     @SecurityRequirements({})
     public CodeSentDto requestPasswordReset(@Valid @RequestBody PasswordResetRequest request, HttpServletRequest http) {
         requireRate(resetRateLimiter, clientIp(http) + "|" + normalizedEmail(request.email()));
@@ -193,12 +201,18 @@ public class AuthController {
                     + "sent to; ANY failure (unknown email / wrong / expired / "
                     + "used / over-limit) answers 400 with one generic message, so "
                     + "the caller must not treat the 400 as account-existence "
-                    + "information. Per-(IP, email) anti-guess bucket: 429 above "
-                    + "it.")
+                    + "information. The ONE exception is the provisioned admin's "
+                    + "email: a confirm for it is refused with 403 naming the "
+                    + "environment provisioning (no code can be issued for it, and "
+                    + "a direct call must not rewrite the env's credentials). "
+                    + "Per-(IP, email) anti-guess bucket: 429 above it.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Password reset"),
             @ApiResponse(responseCode = "400", description = "One generic message — "
                     + "never account-existence information"),
+            @ApiResponse(responseCode = "403", description = "The provisioned "
+                    + "administrator's email — its password is set by the "
+                    + "deployment environment"),
             @ApiResponse(responseCode = "429", description = "Anti-guess bucket "
                     + "exceeded — Retry-After in seconds")
     })

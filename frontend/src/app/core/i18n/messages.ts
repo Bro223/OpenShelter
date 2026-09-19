@@ -22,12 +22,33 @@ export interface Messages {
   'nav.skip': string;
 
   // --- header: actions
-  'theme.toggle': string;
-  /** Language switcher group aria-label. */
+  /** The Accessibility button (replaces the high-contrast toggle): it
+   *  opens the accessibility dialog with the three contrast options.
+   *  Admin-editable (site_texts header block). */
+  'a11y.button': string;
+  /** Language switcher group aria-label. Admin-editable (site_texts header
+   *  block). */
   'lang.label': string;
   'auth.logout': string;
   'auth.login': string;
   'auth.register': string;
+
+  // --- accessibility dialog (accessibility-dialog): the three contrast
+  // options. Every string below is admin-editable through site_texts —
+  // these catalog values are the shipped defaults the overlay falls back
+  // to when no override row exists (see site-texts.ts). The popup block is
+  // title + body + the three option labels/descriptions + footer note +
+  // close button.
+  'a11y.popup.title': string;
+  'a11y.popup.body': string;
+  'a11y.option.default': string;
+  'a11y.option.default.desc': string;
+  'a11y.option.highContrast': string;
+  'a11y.option.highContrast.desc': string;
+  'a11y.option.blackYellow': string;
+  'a11y.option.blackYellow.desc': string;
+  'a11y.popup.footer': string;
+  'a11y.popup.close': string;
 
   // --- footer: safety notice (segmented around the official-source links)
   'footer.notice1': string;
@@ -325,6 +346,10 @@ export interface Messages {
   // guidance tab: the post list (title, status, locale, pinned, published
   // date — from the public index merge, the admin DTO has no publishedAt —
   // updated) and the row actions.
+  /** The Settings tab (site_texts admin UI: the popup/header/footer text
+   *  blocks, each field in the three locales). */
+  'admin.settings.tab': string;
+
   'admin.guidance.tab': string;
   'admin.guidance.loading': string;
   'admin.guidance.empty': string;

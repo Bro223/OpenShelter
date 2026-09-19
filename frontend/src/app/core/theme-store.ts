@@ -1,53 +1,72 @@
-import { Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
+import {
+  applyBlackAndYellowTokens,
+  BLACK_AND_YELLOW_THEME,
+  clearBlackAndYellowTokens,
+  HIGH_CONTRAST_THEME,
+  type AppTheme,
+} from './theme-tokens';
 
 /**
  * Where the UI theme preference lives in localStorage (D2,
- * accessibility-and-provenance). Only the high-contrast value is stored —
- * the default light theme is the ABSENCE of the key (mirrors the pre-paint
- * script in index.html, which reads this same key before first paint).
+ * accessibility-and-provenance; extended by accessibility-dialog). Only
+ * the non-default values are ever stored — the default (light) theme is
+ * the ABSENCE of the key (mirrors the pre-paint script in index.html,
+ * which reads this same key before first paint).
  */
 const THEME_KEY = 'openshelter-theme';
-const HIGH_CONTRAST = 'high-contrast';
 
 /**
- * The persisted UI theme (D2: toggle + persistence, no flash).
+ * The persisted UI theme (D2: persistence, no flash — extended to the
+ * three contrast options of the accessibility dialog).
  *
  * Signal-based, same persistence shape as TokenStore (key constant +
- * try/catch so private-mode storage degrades to a session-only preference).
- * The `data-theme` attribute on `<html>` is the CSS seam: the [data-theme=
- * 'high-contrast'] block in styles.scss overrides the design tokens, so no
- * component style knows the theme exists.
+ * try/catch so private-mode storage degrades to a session-only
+ * preference). The `data-theme` attribute on `<html>` is the CSS seam:
+ * the [data-theme='high-contrast'] block in styles.scss overrides the
+ * design tokens for that theme; the black-and-yellow theme applies its
+ * verified token values as RUNTIME custom properties (theme-tokens.ts —
+ * the design-tokens audit keeps hex literals in the styles.scss blocks,
+ * so the third theme lives in TS). No component style knows the theme
+ * exists either way.
  *
- * No init() lifecycle is needed (unlike AuthStore): reading a synchronous
- * localStorage key has no async race, so the constructor reads the store
- * once and re-asserts the attribute. On a reload the inline index.html
- * script already set the attribute before first paint — this re-assertion
- * is an idempotent no-op that also covers the edge where it was skipped
- * (e.g. a bundler that strips head scripts).
+ * No init() lifecycle is needed (unlike AuthStore): reading a
+ * synchronous localStorage key has no async race, so the constructor
+ * reads the store once and re-asserts the attribute + tokens. On a
+ * reload the inline index.html script already applied both before first
+ * paint — this re-assertion is an idempotent no-op that also covers the
+ * edge where that script was skipped (e.g. a bundler that strips head
+ * scripts).
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeStore {
-  /** True while the high-contrast theme is active. */
-  readonly highContrast = signal<boolean>(storedTheme() === HIGH_CONTRAST);
+  /** The active theme: 'default' (light, no attribute), 'high-contrast'
+      or 'black-and-yellow' (the attribute + the runtime tokens). */
+  readonly theme = signal<AppTheme>(storedTheme());
+
+  /** True while the high-contrast theme is active — the pre-dialog
+      API (kept for the existing consumers and specs). */
+  readonly highContrast = computed(() => this.theme() === HIGH_CONTRAST_THEME);
 
   constructor() {
-    applyTheme(this.highContrast());
+    applyTheme(this.theme());
   }
 
-  /** Flip the theme (the shell header toggle). */
+  /** Flip the theme (the legacy toggle: light ↔ high-contrast). */
   toggle(): void {
-    this.set(!this.highContrast());
+    this.set(this.theme() === HIGH_CONTRAST_THEME ? 'default' : HIGH_CONTRAST_THEME);
   }
 
-  /** Apply + persist the theme. Light removes the key (no stored pref). */
-  set(highContrast: boolean): void {
-    this.highContrast.set(highContrast);
-    applyTheme(highContrast);
+  /** Apply + persist a theme. Default removes the key (no stored
+      pref) and the attribute + tokens; the other two store their value. */
+  set(theme: AppTheme): void {
+    this.theme.set(theme);
+    applyTheme(theme);
     try {
-      if (highContrast) {
-        localStorage.setItem(THEME_KEY, HIGH_CONTRAST);
-      } else {
+      if (theme === 'default') {
         localStorage.removeItem(THEME_KEY);
+      } else {
+        localStorage.setItem(THEME_KEY, theme);
       }
     } catch {
       // Storage unavailable (private mode): the theme still applies for
@@ -56,20 +75,38 @@ export class ThemeStore {
   }
 }
 
-/** The stored value, or null when storage is absent/unreadable. */
-function storedTheme(): string | null {
+/** The stored value when it is a known theme, else the default — an
+    invalid/stale value falls back instead of crashing first paint. */
+function storedTheme(): AppTheme {
   try {
-    return localStorage.getItem(THEME_KEY);
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === HIGH_CONTRAST_THEME || stored === BLACK_AND_YELLOW_THEME) {
+      return stored;
+    }
   } catch {
-    return null;
+    /* storage unavailable (private mode) */
   }
+  return 'default';
 }
 
-/** The CSS seam: high-contrast sets the attribute, light removes it. */
-function applyTheme(highContrast: boolean): void {
-  if (highContrast) {
-    document.documentElement.setAttribute('data-theme', HIGH_CONTRAST);
+/**
+ * The CSS seam: the attribute + the black-and-yellow runtime tokens.
+ * High contrast is owned by the SCSS token block (the attribute alone);
+ * the black-and-yellow values ride on inline custom properties, which
+ * must be CLEARED when switching to either other theme (inline styles
+ * would otherwise beat the SCSS block / :root defaults).
+ */
+function applyTheme(theme: AppTheme): void {
+  const root = document.documentElement;
+  if (theme === 'default') {
+    root.removeAttribute('data-theme');
+    clearBlackAndYellowTokens(root);
+    return;
+  }
+  root.setAttribute('data-theme', theme);
+  if (theme === BLACK_AND_YELLOW_THEME) {
+    applyBlackAndYellowTokens(root);
   } else {
-    document.documentElement.removeAttribute('data-theme');
+    clearBlackAndYellowTokens(root);
   }
 }

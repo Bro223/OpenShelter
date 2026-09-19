@@ -772,6 +772,14 @@ export interface AdminGuidancePostDto {
   heroImageUrl: string | null;
   /** The stored hero alt; null when the post has no hero. */
   heroImageAlt: string | null;
+  /**
+   * The PENDING hero import (guidance-hero-import): the admin-supplied
+   * remote URL stored with the draft, fetched, validated and stored by
+   * the server at the next publish (null when the hero is a plain library
+   * reference — a published post always carries none; the V25 CHECK makes
+   * a pending URL on a published post impossible).
+   */
+  heroImportUrl: string | null;
   /** The author's user id; null after the account's erasure. */
   createdBy: number | null;
   /** ISO-8601 instant. */
@@ -803,6 +811,16 @@ export interface CreateGuidancePostRequest {
   heroImageId: number | null;
   /** At most 300 characters; null when there is no hero. */
   heroImageAlt: string | null;
+  /**
+   * The pending hero import (guidance-hero-import): omitted when blank
+   * (no pending import). An http(s) URL the server fetches, validates and
+   * stores at publish time instead of picking a library asset — the alt is
+   * mandatory iff a hero of EITHER kind is set (the 400 pairing rule). A
+   * one-shot PUBLISHED create imports it in the create call itself (a
+   * failed import fails the create: 400 policy/non-image, 413 over cap,
+   * 502 unfetchable).
+   */
+  heroImportUrl?: string;
   /** DRAFT by default; an explicit PUBLISHED publishes in one call. */
   status: GuidanceStatus;
 }
@@ -825,6 +843,14 @@ export interface UpdateGuidancePostRequest {
   heroImageId: number | null;
   /** null when there is no hero (the 400 pairing rule, both directions). */
   heroImageAlt: string | null;
+  /**
+   * The pending hero import (guidance-hero-import): omitted (or null) when
+   * blank — that CLEARS a pending import (the PUT is a full replace). A
+   * non-null URL on an already-published post is a 400 (unpublish first —
+   * the V25 CHECK); the import is consumed at the next publish, where it
+   * supersedes `heroImageId`.
+   */
+  heroImportUrl?: string;
 }
 
 /**
@@ -855,4 +881,22 @@ export interface MediaAssetDto {
   createdAt: string;
   /** How many posts use the asset as their hero image (0 = unused). */
   reusedBy: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Site texts (site_texts: the admin-editable popup/header/footer copy) */
+/* ------------------------------------------------------------------ */
+
+/** One admin edit (PUT /admin/site-texts entry). `value` blank = reset
+    that (key, locale) to the shipped default (the server deletes the
+    row). `url` only for the link keys (footer.rescueBoard /
+    footer.ministry): https-validated server-side; `''` = back to the
+    shipped default URL; absent = leave the stored URL alone. The public
+    read shape (GET /api/site-texts) is `SiteTextsByLocale` from
+    core/i18n/site-texts.ts. */
+export interface SiteTextEntryDto {
+  key: string;
+  locale: 'en' | 'et' | 'ru';
+  value: string;
+  url?: string | null;
 }

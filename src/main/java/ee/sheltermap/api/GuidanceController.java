@@ -1,7 +1,7 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.MediaAsset;
+import ee.sheltermap.domain.PublicGuidanceView;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
@@ -34,12 +34,15 @@ import java.util.Map;
  * the post body (the detail does — the stored, sanitized HTML).
  *
  * <p>Both reads take an OPTIONAL {@code locale} query parameter: when
- * present, only the posts of that language answer (the detail answers
- * 404 when the post is in another language — a bilingual site must not
- * serve the other language's text at a URL); when absent, the configured
- * default locale applies, so existing links keep working. Blank or
- * over-long values are a 400 (the column is VARCHAR(5)). The ADMIN
- * surface is locale-blind — the administrator manages both languages.
+ * present, only the posts that have a published translation of that language
+ * answer (the detail SERVES the default-locale translation with
+ * {@code localeFallback: true} when the post has no translation in the
+ * requested locale — a 200, never a 404, so a language switch never dead-ends);
+ * when absent, the configured default locale applies, so existing links keep
+ * working. Blank or over-long values are a 400 (the column is VARCHAR(5)). The
+ * detail carries an {@code alternates} map (locale -> slug) the frontend
+ * language switcher follows. The ADMIN surface is locale-blind — the
+ * administrator manages every language.
  */
 @Tag(name = "Public guidance",
         description = "The public crisis-guidance reads — permit-all (no JWT): "
@@ -87,34 +90,41 @@ public class GuidanceController {
                     + "server's default locale. Blank or more than 5 characters "
                     + "is a 400.")
             @RequestParam(name = "locale", required = false) String locale) {
-        List<GuidancePost> published = guidance.listPublic(locale);
+        List<PublicGuidanceView> published = guidance.listPublic(locale);
         // ONE library read for the hero URLs (no N+1 over the list).
-        Map<Long, MediaAsset> heroes = heroIndex(published);
+        Map<Long, MediaAsset> heroes = heroIndex();
         return published.stream()
-                .map(post -> toDto(post, heroes, false))
+                .map(view -> toDto(view, heroes))
                 .toList();
     }
 
     /**
-     * The public detail (D4): PUBLISHED only, by slug (never by id), in
-     * ONE locale. A slug held by a draft answers the same 404 as an
-     * unknown slug, and a slug whose published post lives in ANOTHER
-     * locale answers the same 404 — a bilingual site must not serve the
-     * other language's text at a URL. 400 on a blank or over-long
-     * {@code locale}.
+     * The public detail (D4 + bilingual-guidance): PUBLISHED only, by slug
+     * (never by id). A slug held by a draft answers the same 404 as an unknown
+     * slug. When the post has no translation in the requested locale, the
+     * default-locale translation is served with {@code localeFallback: true}
+     * (a 200, never a 404 — a language switch must not dead-end); a 404 is
+     * reserved for an unknown slug, a draft slug, and a post that has neither a
+     * requested-locale nor a default-locale translation. The response carries an
+     * {@code alternates} map (locale -> slug) for the language switcher. 400 on
+     * a blank or over-long {@code locale}.
      */
     @GetMapping("/{slug}")
     @Operation(summary = "The public guidance detail",
-            description = "PUBLISHED only, by slug, in ONE locale. A draft slug, "
-                    + "an unknown slug, and a slug whose post is in another "
-                    + "locale answer the SAME 404. Carries the stored "
-                    + "(sanitized) bodyHtml.")
+            description = "PUBLISHED only, by slug. Serves the requested locale's "
+                    + "translation, or the default-locale translation with "
+                    + "localeFallback=true when the post has none in the requested "
+                    + "locale (a 200, never a 404). Carries the stored (sanitized) "
+                    + "bodyHtml and an alternates map (locale -> slug) for the "
+                    + "language switcher.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "The published post "
-                    + "(in the requested locale)",
+            @ApiResponse(responseCode = "200", description = "The published post — "
+                    + "the requested locale's translation, or the default-locale one "
+                    + "(localeFallback=true) when the post lacks the requested locale",
                     content = @Content(schema = @Schema(implementation = GuidancePostDto.class))),
             @ApiResponse(responseCode = "404", description = "Unknown slug, a draft "
-                    + "slug, or a post in another locale (all the same answer)"),
+                    + "slug, or a post with neither a requested-locale nor a "
+                    + "default-locale translation"),
             @ApiResponse(responseCode = "400", description = "A blank or over-long "
                     + "locale (the column is VARCHAR(5))")
     })
@@ -126,15 +136,15 @@ public class GuidanceController {
                                        + "default locale. Blank or more than 5 "
                                        + "characters is a 400.")
                                @RequestParam(name = "locale", required = false) String locale) {
-        GuidancePost post = guidance.getByPublicSlug(slug, locale);
+        PublicGuidanceView view = guidance.getByPublicSlug(slug, locale);
         MediaAsset hero = null;
-        if (post.getHeroImageId() != null) {
-            hero = mediaAssets.findById(post.getHeroImageId()).orElse(null);
+        if (view.getHeroImageId() != null) {
+            hero = mediaAssets.findById(view.getHeroImageId()).orElse(null);
         }
-        return toDto(post, hero == null ? Map.of() : Map.of(post.getHeroImageId(), hero), true);
+        return toDto(view, hero == null ? Map.of() : Map.of(view.getHeroImageId(), hero));
     }
 
-    private Map<Long, MediaAsset> heroIndex(List<GuidancePost> posts) {
+    private Map<Long, MediaAsset> heroIndex() {
         Map<Long, MediaAsset> heroes = new HashMap<>();
         for (MediaAsset asset : mediaAssets.findAll()) {
             heroes.put(asset.getId(), asset);
@@ -142,17 +152,19 @@ public class GuidanceController {
         return heroes;
     }
 
-    private GuidancePostDto toDto(GuidancePost post, Map<Long, MediaAsset> heroes, boolean withBody) {
-        MediaAsset hero = post.getHeroImageId() == null ? null : heroes.get(post.getHeroImageId());
+    private GuidancePostDto toDto(PublicGuidanceView view, Map<Long, MediaAsset> heroes) {
+        MediaAsset hero = view.getHeroImageId() == null ? null : heroes.get(view.getHeroImageId());
         return new GuidancePostDto(
-                post.getSlug(),
-                post.getTitle(),
-                withBody ? post.getBodyHtml() : null,
+                view.getSlug(),
+                view.getTitle(),
+                view.getBodyHtml(),
                 hero == null ? null : MediaService.MEDIA_URL_PREFIX + hero.getStoredFilename(),
-                hero == null ? null : post.getHeroImageAlt(),
-                post.isPinned(),
-                post.getLocale(),
-                post.getPublishedAt(),
-                post.getUpdatedAt());
+                hero == null ? null : view.getHeroImageAlt(),
+                view.isPinned(),
+                view.getLocale(),
+                view.getPublishedAt(),
+                view.getUpdatedAt(),
+                view.getAlternates(),
+                view.isLocaleFallback());
     }
 }

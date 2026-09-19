@@ -10,6 +10,7 @@ import ee.sheltermap.domain.VerificationLevel;
 import ee.sheltermap.persistence.AbstractPersistenceIT;
 import ee.sheltermap.security.PiiCrypto;
 import ee.sheltermap.verification.PhoneNumbers;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -43,13 +44,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "app.ratelimit.login-capacity=1000",
-        "app.ratelimit.login-refill-per-second=0"
+        "app.ratelimit.login-refill-per-second=0",
+        // The env-provisioned admin (the refused-deletion case): the seeder
+        // is explicit per class — a plain test context must never seed.
+        "app.admin.email=admin@example.ee",
+        "app.admin.password=admin-pass-1"
 })
 @Transactional
 class AccountDeletionIT extends AbstractPersistenceIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    AdminSeeder seeder;
 
     @Autowired
     UserRepository users;
@@ -62,6 +70,13 @@ class AccountDeletionIT extends AbstractPersistenceIT {
 
     @Autowired
     PiiCrypto piiCrypto;
+
+    @BeforeEach
+    void seedAdmin() {
+        // Create-if-absent (idempotent): guarantees the provisioned admin
+        // exists even if a sibling IT deliberately wiped the shared tables.
+        seeder.run(null);
+    }
 
     /** A write-capable (e-mail-verified) user with real credentials. */
     private record Auth(long id, String email, String phone, String password,
@@ -133,6 +148,35 @@ class AccountDeletionIT extends AbstractPersistenceIT {
     void anonymousDeletionIs401() throws Exception {
         mvc.perform(delete("/account"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void theProvisionedAdminCannotDeleteTheAccount() throws Exception {
+        // The env-provisioned admin (kind ADMIN — the durable truth, a fresh
+        // lookup per request) is the deployment's access path: a DIRECT
+        // API call must be refused with 403 naming the env provisioning —
+        // the hidden UI button is not the enforcement.
+        String admin = adminToken();
+
+        mvc.perform(delete("/account").header("Authorization", "Bearer " + admin))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(AccountService.PROVISIONED_ADMIN_DELETE_MESSAGE));
+
+        // nothing was erased: the row + its credentials survive, and the
+        // operator can still log in with the env password
+        assertThat(users.findByEmail("admin@example.ee")).isNotNull();
+        mvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private String adminToken() throws Exception {
+        MvcResult login = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(login.getResponse().getContentAsString(), "$.accessToken");
     }
 
     @Test

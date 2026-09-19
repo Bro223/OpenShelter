@@ -1,0 +1,116 @@
+/* The admin Settings panel — the site texts (site_texts). Token-only
+   styling (the design-tokens spec police); the panel sits inside the
+   .admin column so it inherits the app's column gap. */
+
+.site-texts-hint {
+  margin: 0 0 var(--space-12);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.site-texts-block {
+  padding: var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+
+  &__heading {
+    margin: 0 0 var(--space-12);
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.site-texts-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--color-border-subtle);
+
+  /* First row of the block: no top border (the heading separates). */
+  &:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  &__key {
+    flex: 0 1 20rem;
+    min-width: 0;
+  }
+
+  &__url {
+    display: block;
+    margin-top: var(--space-6);
+
+    span {
+      display: block;
+      margin-bottom: var(--space-4);
+      color: var(--color-muted);
+      font-size: var(--text-sm);
+    }
+
+    input {
+      width: 100%;
+      padding: var(--space-8) var(--space-12);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg);
+      color: var(--color-text);
+    }
+  }
+
+  &__locales {
+    flex: 1 1 20rem;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-10);
+
+    /* Below the app's single breakpoint the three locale fields stack. */
+    @media (max-width: 900px) {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+.site-texts-field {
+  display: block;
+
+  &__locale {
+    display: block;
+    margin-bottom: var(--space-4);
+    color: var(--color-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  input {
+    width: 100%;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+}
+
+.site-texts-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+}
+
+.site-texts-status {
+  margin: 0;
+  font-size: var(--text-sm);
+
+  &--ok {
+    color: var(--color-success);
+  }
+
+  &--error {
+    color: var(--color-danger);
+  }
+}

@@ -217,6 +217,11 @@ public class SecurityConfig {
                     // Public provenance read (official-dataset-csv): the app-wide
                     // footer shows source + official link + last import to everyone.
                     .requestMatchers(HttpMethod.GET, "/api/data-source").permitAll()
+                    // Public site-text read (site_texts): the admin overrides for
+                    // the popup/header/footer copy — public because it IS the
+                    // copy every visitor sees. The write side is /admin/** (the
+                    // ADMIN-kind rule below), not /api/**.
+                    .requestMatchers(HttpMethod.GET, "/api/site-texts").permitAll()
                     // Public crisis-guidance reads (crisis-guidance D3): the /blog
                     // pages and their hero images are readable anonymously. GETs
                     // ONLY — the write side is /admin/** (ADMIN kind, per-request

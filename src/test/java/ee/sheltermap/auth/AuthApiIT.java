@@ -39,7 +39,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.ratelimit.reset-confirm-capacity=1000",
         "app.ratelimit.reset-confirm-refill-per-second=0",
         "app.ratelimit.register-capacity=1000",
-        "app.ratelimit.register-refill-per-second=0"
+        "app.ratelimit.register-refill-per-second=0",
+        // The env-provisioned admin (the refused password-reset case):
+        // explicit per class — a plain test context must never seed.
+        "app.admin.email=admin@example.ee",
+        "app.admin.password=admin-pass-1"
 })
 @Transactional
 class AuthApiIT extends AbstractPersistenceIT {
@@ -59,6 +63,16 @@ class AuthApiIT extends AbstractPersistenceIT {
 
     @Autowired
     PasswordResetTokenRepository resetTokens;
+
+    @Autowired
+    AdminSeeder seeder;
+
+    @BeforeEach
+    void seedAdmin() {
+        // Create-if-absent (idempotent): guarantees the provisioned admin
+        // exists even if a sibling IT deliberately wiped the shared tables.
+        seeder.run(null);
+    }
 
     @TestConfiguration
     static class Config {
@@ -290,6 +304,32 @@ class AuthApiIT extends AbstractPersistenceIT {
         mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"mari@example.ee\",\"code\":\"" + code + "\",\"newPassword\":\"again\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void passwordResetForTheProvisionedAdminIsRefused() throws Exception {
+        // The env-provisioned admin's password is the deployment's
+        // (ADMIN_PASSWORD): the request is the ONE non-uniform answer to the
+        // anti-enumeration rule — 403 naming the env provisioning, no code
+        // row, nothing e-mailed.
+        mvc.perform(post("/auth/password-reset/request").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"admin@example.ee\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(PasswordResetService.PROVISIONED_ADMIN_RESET_MESSAGE));
+        assertThat(smtp.sent()).as("no reset code is e-mailed to the admin").isEmpty();
+
+        // the DIRECT confirm call (no code was ever issued) is refused the
+        // same way — the env's credentials are never rewritten through the
+        // reset flow, and the admin can still log in with the env password
+        mvc.perform(post("/auth/password-reset/confirm").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"admin@example.ee\",\"code\":\"123456\",\"newPassword\":\"usurped123\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message")
+                        .value(PasswordResetService.PROVISIONED_ADMIN_RESET_MESSAGE));
+        mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"emailOrPhone\":\"admin@example.ee\",\"password\":\"admin-pass-1\"}"))
+                .andExpect(status().isOk());
     }
 
     @Test

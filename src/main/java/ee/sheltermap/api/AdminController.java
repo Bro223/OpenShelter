@@ -341,26 +341,31 @@ public class AdminController {
     /**
      * Suspend a registered account: login, refresh rotation
      * and every in-flight token stop working immediately. 204 (idempotent);
-     * 404 unknown id; 409 admin/guest targets (lockout vector / no
-     * credentials). Audited as USER_SUSPEND with the account as subject.
+     * 404 unknown id; 403 the provisioned admin (it is the deployment's
+     * access path — a lockout vector, and it cannot be disabled at all);
+     * 409 guest targets (no credentials). Audited as USER_SUSPEND with the
+     * account as subject.
      */
     @PostMapping("/users/{id}/suspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Suspend a registered account",
             description = "Login, refresh rotation and every in-flight token stop "
-                    + "working immediately. 204 (idempotent); 404 unknown id; 409 "
-                    + "admin/guest targets (lockout vector / no credentials). "
+                    + "working immediately. 204 (idempotent); 404 unknown id; 403 "
+                    + "the environment-provisioned administrator (lockout vector — "
+                    + "it cannot be disabled); 409 guest targets (no credentials). "
                     + "Audited as USER_SUSPEND with the account as subject.")
     public void suspendUser(@PathVariable long id) {
         moderation.suspendUser(requireAdmin(), id);
     }
 
-    /** Lift a suspension — idempotent, audited. Same 204/404/409. */
+    /** Lift a suspension — idempotent, audited. Same 204/404/403/409. */
     @PostMapping("/users/{id}/unsuspend")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Lift a suspension",
-            description = "Idempotent, audited. Same 204/404/409 vocabulary as "
-                    + "suspend.")
+            description = "Idempotent, audited. Same vocabulary as suspend: 204; "
+                    + "404 unknown id; 403 the environment-provisioned "
+                    + "administrator (it is never suspended — nothing to lift); "
+                    + "409 guest targets.")
     public void unsuspendUser(@PathVariable long id) {
         moderation.unsuspendUser(requireAdmin(), id);
     }

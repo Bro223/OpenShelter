@@ -64,17 +64,20 @@
           }
         }
       </div>
-      <!-- High-contrast toggle (accessibility-and-provenance D2): always
-           visible (independent of auth), aria-pressed mirrors the theme
-           signal; the preference persists in localStorage and is applied
-           before first paint by the inline index.html script. -->
+      <!-- Accessibility button (accessibility-dialog, replaces the
+           high-contrast toggle): opens the role=dialog contrast panel.
+           Always visible (independent of auth); the choice persists in
+           localStorage and applies before first paint (the inline
+           index.html script). #a11y-trigger is the focus-return target
+           when the dialog closes. -->
       <button
         type="button"
+        id="a11y-trigger"
         class="btn btn--ghost"
-        [attr.aria-pressed]="theme.highContrast()"
-        (click)="theme.toggle()"
+        [attr.aria-expanded]="a11yDialog()?.open() === true ? 'true' : 'false'"
+        (click)="openAccessibilityDialog()"
       >
-        {{ 'theme.toggle' | t }}
+        {{ 'a11y.button' | t }}
       </button>
       @if (auth.initialized()) {
         @if (auth.authenticated()) {
@@ -140,13 +143,23 @@
        ~1100px, so it must have the row to itself). -->
   <p class="shell-footer__notice">
     {{ 'footer.notice1' | t }} {{ 'footer.notice2' | t }} {{ 'footer.notice3' | t }}
-    <a href="https://www.päästeamet.ee" target="_blank" rel="noopener">{{
+    <a [href]="i18n.url('footer.rescueBoard')" target="_blank" rel="noopener">{{
       'footer.rescueBoard' | t
     }}</a>
     {{ 'footer.and' | t }}
-    <a href="https://www.siseministeerium.ee" target="_blank" rel="noopener">{{
+    <a [href]="i18n.url('footer.ministry')" target="_blank" rel="noopener">{{
       'footer.ministry' | t
     }}</a
     >.
   </p>
 </footer>
+
+<!-- The accessibility dialog (accessibility-dialog): mounted in the shell
+     next to the header that owns its trigger. role=dialog + aria-modal,
+     focus trapped inside, Escape closes, focus returns to #a11y-trigger.
+     Its ViewEncapsulation.None stylesheet also carries the
+     black-and-yellow theme's page-wide rules (see the component).
+     NOTE: no `#` reference here — a template ref named `a11yDialog`
+     would shadow the viewChild signal of the same name in template
+     expressions (the trigger's aria-expanded reads the signal). -->
+<app-accessibility-dialog />

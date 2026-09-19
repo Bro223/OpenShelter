@@ -19,6 +19,7 @@ import {
   BODY_EDITOR_FORMAT_TAGS,
   SNOW_THEME_HREF,
   bodyHtmlBlankValidator,
+  heroImportUrlValidator,
   slugShapeValidator,
 } from './guidance-editor';
 
@@ -62,6 +63,7 @@ const EDIT_POST: AdminGuidancePostDto = {
   heroImageId: 5,
   heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
   heroImageAlt: 'Kelder, vaade sissepääsust',
+  heroImportUrl: null,
   createdBy: 1,
   createdAt: '2026-09-01T09:00:00Z',
   updatedAt: '2026-09-02T09:00:00Z',
@@ -69,6 +71,26 @@ const EDIT_POST: AdminGuidancePostDto = {
 
 /** The edit-mode DRAFT counterpart of EDIT_POST (the draft-state tests). */
 const DRAFT_POST: AdminGuidancePostDto = { ...EDIT_POST, id: 12, status: 'DRAFT' };
+
+/** A DRAFT with no hero at all — the "no image" tick's checked state. */
+const NO_HERO_DRAFT: AdminGuidancePostDto = {
+  ...DRAFT_POST,
+  heroImageId: null,
+  heroImageUrl: null,
+  heroImageAlt: null,
+  heroImportUrl: null,
+};
+
+/** A DRAFT carrying a PENDING hero import (guidance-hero-import): no
+ *  stored asset yet — the URL is fetched, validated and stored at the
+ *  next publish. */
+const PENDING_IMPORT_DRAFT: AdminGuidancePostDto = {
+  ...DRAFT_POST,
+  heroImageId: null,
+  heroImageUrl: null,
+  heroImageAlt: 'Kelder, vaade sissepääsust',
+  heroImportUrl: 'https://cdn.example.com/kelder.jpg',
+};
 
 const NEW_ASSET: MediaAssetDto = {
   id: 7,
@@ -349,6 +371,8 @@ describe('GuidanceEditor', () => {
     expect(h.editor.form.get('body')?.value).toBe('');
     expect(h.editor.form.get('status')?.value).toBe('DRAFT');
     expect(h.editor.form.get('heroImageId')?.value).toBeNull();
+    // A new post is hero-less: the "no image" tick starts checked.
+    expect(h.editor.form.get('noHero')?.value).toBe(true);
 
     fillRequired(h, 'Varjumine droonirünnaku ajal', '<p>Pöördu peavarjendisse.</p>');
     typeValue(inputById(h.element, 'ge-locale')!, 'et', h.fixture);
@@ -431,6 +455,11 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     fillRequired(h);
 
+    // The "no image" tick starts checked (a new post is hero-less) — the
+    // choice controls are disabled until it is unchecked.
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+
     // Open the picker and select the first asset.
     buttonByText(h.element, 'Choose from the media library')!.click();
     h.fixture.detectChanges();
@@ -469,14 +498,231 @@ describe('GuidanceEditor', () => {
     const h = createHost(null);
     fillRequired(h);
     typeValue(inputById(h.element, 'ge-alt')!, 'Kelder', h.fixture);
-    h.editor.selectHero(MEDIA_ASSETS[0]!);
+    // The user's way (real clicks — what schedules change detection in a
+    // zoneless OnPush component): uncheck the tick, open the picker, pick
+    // the asset, then remove it via the card's Remove button.
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
     h.fixture.detectChanges();
-    h.editor.removeHero();
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+    h.element.querySelectorAll<HTMLButtonElement>('.hero-picker__item')[0]!.click();
+    h.fixture.detectChanges();
+    expect(h.element.querySelector('.guidance-editor__hero-current')).not.toBeNull();
+
+    buttonByText(h.element, 'Remove image')!.click();
     h.fixture.detectChanges();
 
     expect(h.element.textContent).toContain('Remove the alt text or choose a hero image.');
     h.editor.onSave();
     expect(h.host.lastSave).toBeNull();
+  });
+
+  // ---- hero import URL + the "no image" tick (guidance-hero-import) ----------
+  // The URL is a PENDING import: stored with the draft, fetched/validated/
+  // stored by the server at the next publish (or in the one-shot PUBLISHED
+  // create). The copy for the new labels/notes is owned by the i18n lane
+  // (the keys land in the same wave), so these specs assert STRUCTURE and
+  // payloads, not the new copy text.
+
+  it('heroImportUrlValidator: blank passes; absolute http(s) with a host passes; non-http(s), hostless, credentialed and relative fail', () => {
+    const control = new FormControl('', { nonNullable: true, validators: [heroImportUrlValidator] });
+    // Blank = no pending import (always allowed).
+    expect(heroImportUrlValidator(control)).toBeNull();
+    for (const good of [
+      'https://example.com/a.jpg',
+      'http://example.com',
+      'https://sub.example.com:8443/a/b.png?x=1#y',
+    ]) {
+      control.setValue(good);
+      expect(heroImportUrlValidator(control)).toBeNull();
+    }
+    for (const bad of [
+      'ftp://example.com/a.jpg',
+      'javascript:alert(1)',
+      'https://',
+      'https://user:pass@example.com/a.jpg',
+      'a.jpg',
+    ]) {
+      control.setValue(bad);
+      expect(heroImportUrlValidator(control)).not.toBeNull();
+    }
+  });
+
+  it('a typed URL + alt is carried in the create payload as a pending import (no library id)', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck the tick
+    h.fixture.detectChanges();
+    typeValue(
+      inputById(h.element, 'ge-hero-import-url')!,
+      'https://cdn.example.com/kelder.jpg',
+      h.fixture,
+    );
+    typeValue(inputById(h.element, 'ge-alt')!, 'Kelder, vaade sissepääsust', h.fixture);
+
+    h.editor.onSave();
+
+    expect(h.host.lastSave?.id).toBeNull();
+    expect(h.host.lastSave?.create?.heroImportUrl).toBe('https://cdn.example.com/kelder.jpg');
+    expect(h.host.lastSave?.create?.heroImageId).toBeNull();
+    expect(h.host.lastSave?.create?.heroImageAlt).toBe('Kelder, vaade sissepääsust');
+  });
+
+  it('save-and-publish with a URL: the one-shot create carries the URL (the server imports it in the create call)', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    typeValue(
+      inputById(h.element, 'ge-hero-import-url')!,
+      'https://cdn.example.com/kelder.jpg',
+      h.fixture,
+    );
+    typeValue(inputById(h.element, 'ge-alt')!, 'Kelder', h.fixture);
+    (inputById(h.element, 'ge-status-published') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+
+    h.editor.onSave();
+
+    expect(h.host.lastSave?.create?.status).toBe('PUBLISHED');
+    expect(h.host.lastSave?.create?.heroImportUrl).toBe('https://cdn.example.com/kelder.jpg');
+  });
+
+  it('a URL without an alt blocks Save with the altRequired copy (the pairing rule covers the URL)', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    typeValue(
+      inputById(h.element, 'ge-hero-import-url')!,
+      'https://cdn.example.com/kelder.jpg',
+      h.fixture,
+    );
+    h.fixture.detectChanges();
+
+    expect(h.element.textContent).toContain('Alt text is required when a hero image is chosen.');
+    const save = h.element.querySelector<HTMLButtonElement>('button[type="submit"]');
+    expect(save?.disabled).toBe(true);
+    h.editor.onSave();
+    expect(h.host.lastSave).toBeNull();
+  });
+
+  it('an invalid URL blocks Save (no payload) and shows the field-error line', () => {
+    const h = createHost(null);
+    fillRequired(h);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+    const urlInput = inputById(h.element, 'ge-hero-import-url') as HTMLInputElement;
+
+    // A valid URL first (the control is valid)...
+    typeValue(urlInput, 'https://cdn.example.com/kelder.jpg', h.fixture);
+    expect(h.editor.form.get('heroImportUrl')?.valid).toBe(true);
+    typeValue(inputById(h.element, 'ge-alt')!, 'Kelder', h.fixture);
+
+    // ...then a malformed one: the validator refuses (non-http(s), no
+    // host, credentials) and Save emits nothing (the server's 400 is
+    // mirrored up front).
+    for (const bad of [
+      'ftp://cdn.example.com/kelder.jpg',
+      'https://',
+      'https://user:pass@cdn.example.com/kelder.jpg',
+    ]) {
+      typeValue(urlInput, bad, h.fixture);
+      expect(h.editor.form.get('heroImportUrl')?.valid).toBe(false);
+      h.editor.onSave();
+      expect(h.host.lastSave).toBeNull();
+    }
+    // The error line renders from the touched state (the copy lands with
+    // the i18n lane's keys — assert the element, not the text).
+    expect(h.element.querySelector('.guidance-editor__hero-import .field-error')).not.toBeNull();
+  });
+
+  it('a draft without a hero: the "no image" tick is visible and CHECKED (the saved state); the choice controls are disabled', () => {
+    const h = createHost(NO_HERO_DRAFT);
+    const tick = inputById(h.element, 'ge-hero-none') as HTMLInputElement;
+    expect(tick).not.toBeNull(); // visible in edit mode
+    expect(tick.checked).toBe(true);
+    expect(buttonByText(h.element, 'Choose from the media library')!.disabled).toBe(true);
+    expect((inputById(h.element, 'ge-hero-upload') as HTMLInputElement).disabled).toBe(true);
+    expect((inputById(h.element, 'ge-hero-import-url') as HTMLInputElement).disabled).toBe(true);
+
+    // Save as-is: the no-hero state round-trips (no hero fields at all).
+    h.editor.onSave();
+    expect(h.host.lastSave?.id).toBe(12);
+    expect(h.host.lastSave?.update?.heroImageId).toBeNull();
+    expect(h.host.lastSave?.update?.heroImageAlt).toBeNull();
+    expect(h.host.lastSave?.update).not.toHaveProperty('heroImportUrl');
+  });
+
+  it('a draft WITH a pending import: the tick is unchecked, the URL prefills, and Save round-trips the URL', () => {
+    const h = createHost(PENDING_IMPORT_DRAFT);
+    expect((inputById(h.element, 'ge-hero-none') as HTMLInputElement).checked).toBe(false);
+    expect(h.editor.form.get('heroImportUrl')?.value).toBe('https://cdn.example.com/kelder.jpg');
+
+    h.editor.onSave();
+    expect(h.host.lastSave?.id).toBe(12);
+    expect(h.host.lastSave?.update?.heroImportUrl).toBe('https://cdn.example.com/kelder.jpg');
+    expect(h.host.lastSave?.update?.heroImageId).toBeNull();
+  });
+
+  it('a post WITH a stored hero: the tick is unchecked (the saved state is a hero)', () => {
+    const h = createHost(EDIT_POST);
+    expect((inputById(h.element, 'ge-hero-none') as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('checking the "no image" tick clears EVERY hero choice (asset, URL, alt) and disables the controls', () => {
+    const h = createHost(PENDING_IMPORT_DRAFT);
+    // The strongest "something is set" state: a stored hero AND a pending
+    // URL. The hero is picked the USER's way (open the picker, click the
+    // item) — the real click path is what schedules change detection.
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+    h.element.querySelectorAll<HTMLButtonElement>('.hero-picker__item')[0]!.click();
+    h.fixture.detectChanges();
+    expect(h.element.querySelector('.guidance-editor__hero-current')).not.toBeNull();
+
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+
+    expect(h.editor.form.get('heroImageId')?.value).toBeNull();
+    expect(h.editor.form.get('heroImportUrl')?.value).toBe('');
+    expect(h.editor.form.get('heroImageAlt')?.value).toBe('');
+    expect(buttonByText(h.element, 'Choose from the media library')!.disabled).toBe(true);
+    expect(h.element.querySelector('.guidance-editor__hero-current')).toBeNull();
+
+    // The cleared state is saveable (the pairing rule: nothing set) — and
+    // the omitted URL CLEARS the pending import on the server (full replace).
+    h.editor.onSave();
+    expect(h.host.lastSave?.update?.heroImageId).toBeNull();
+    expect(h.host.lastSave?.update?.heroImageAlt).toBeNull();
+    expect(h.host.lastSave?.update).not.toHaveProperty('heroImportUrl');
+  });
+
+  it('unchecking the tick re-enables the controls (nothing is restored)', () => {
+    const h = createHost(NO_HERO_DRAFT);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck
+    h.fixture.detectChanges();
+    expect(buttonByText(h.element, 'Choose from the media library')!.disabled).toBe(false);
+    expect((inputById(h.element, 'ge-hero-import-url') as HTMLInputElement).disabled).toBe(false);
+    expect(h.editor.form.get('heroImageId')?.value).toBeNull(); // nothing restored
+  });
+
+  it('clearing the URL field clears the pending import on save (and the alt must clear too)', () => {
+    const h = createHost(PENDING_IMPORT_DRAFT);
+    typeValue(inputById(h.element, 'ge-hero-import-url')!, '', h.fixture);
+    typeValue(inputById(h.element, 'ge-alt')!, '', h.fixture);
+
+    h.editor.onSave();
+
+    expect(h.host.lastSave?.update).not.toHaveProperty('heroImportUrl'); // cleared
+    expect(h.host.lastSave?.update?.heroImageAlt).toBeNull();
+  });
+
+  it('selecting a library hero unchecks the tick (the tick never lies about a set hero)', () => {
+    const h = createHost(NO_HERO_DRAFT);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck
+    h.fixture.detectChanges();
+    h.editor.selectHero(MEDIA_ASSETS[0]!);
+    h.fixture.detectChanges();
+    expect((inputById(h.element, 'ge-hero-none') as HTMLInputElement).checked).toBe(false);
   });
 
   // ---- edit mode: prefill + the update payload ------------------------------
@@ -550,6 +796,8 @@ describe('GuidanceEditor', () => {
 
   it('the picker shows the loading line while the assets are null', () => {
     const h = createHost(null, null);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck the tick
+    h.fixture.detectChanges();
     buttonByText(h.element, 'Choose from the media library')!.click();
     h.fixture.detectChanges();
     expect(h.element.textContent).toContain('Loading the media library…');
@@ -557,6 +805,8 @@ describe('GuidanceEditor', () => {
 
   it('the picker shows the empty line for an empty library', () => {
     const h = createHost(null, []);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck the tick
+    h.fixture.detectChanges();
     buttonByText(h.element, 'Choose from the media library')!.click();
     h.fixture.detectChanges();
     expect(h.element.textContent).toContain('No images in the media library yet');
@@ -635,6 +885,8 @@ describe('GuidanceEditor', () => {
     );
     const input = inputById(h.element, 'ge-hero-upload') as HTMLInputElement;
 
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click(); // uncheck the tick
+    h.fixture.detectChanges();
     selectFile(input, new File(['x'.repeat(51200)], 'big.png', { type: 'image/png' }));
     await settle(h.fixture);
 

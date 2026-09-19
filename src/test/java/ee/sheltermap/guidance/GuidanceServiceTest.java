@@ -6,6 +6,7 @@ import ee.sheltermap.auth.MutableClock;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.MediaAsset;
+import ee.sheltermap.domain.PublicGuidanceView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,6 +44,7 @@ class GuidanceServiceTest {
     private static final long ADMIN_ID = 1L;
 
     private InMemoryGuidancePostRepository posts;
+    private InMemoryGuidanceTranslationRepository translations;
     private InMemoryMediaAssetRepository media;
     private InMemoryModerationAuditLog audit;
     private MutableClock clock;
@@ -64,6 +66,7 @@ class GuidanceServiceTest {
     void setUp() {
         clock = new MutableClock(Instant.parse("2026-09-13T08:00:00Z"));
         posts = new InMemoryGuidancePostRepository(clock);
+        translations = new InMemoryGuidanceTranslationRepository(clock, posts);
         media = new InMemoryMediaAssetRepository(posts);
         audit = new InMemoryModerationAuditLog(clock);
         storage = new MediaStorage(mediaDir);
@@ -73,7 +76,7 @@ class GuidanceServiceTest {
                 (url, maxBytes) -> fetch.get().fetch(url, maxBytes),
                 host -> publicAddresses(), storage, media, clock,
                 5242880L, Duration.ofSeconds(10), 10000, System::nanoTime);
-        service = new GuidanceService(posts, media, audit, clock, "en", importService);
+        service = new GuidanceService(posts, media, audit, clock, "en", importService, translations);
     }
 
     // ------------------------------------------------------------- helpers
@@ -163,7 +166,7 @@ class GuidanceServiceTest {
 
         assertThat(post.isPublished()).isTrue();
         assertThat(post.getPublishedAt()).isEqualTo(now);
-        assertThat(service.listPublic(null)).extracting(GuidancePost::getId).containsExactly(post.getId());
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId).containsExactly(post.getId());
         assertThat(service.getByPublicSlug(post.getSlug(), null).getId()).isEqualTo(post.getId());
     }
 
@@ -355,19 +358,19 @@ class GuidanceServiceTest {
         service.publish(ADMIN_ID, c.getId());
 
         // Same publication instant → the id descending tie-break.
-        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(c.getId(), b.getId(), a.getId());
 
         // Pinning the oldest floats it to the top.
         service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null);
-        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(a.getId(), c.getId(), b.getId());
 
         // A newer non-pinned post outranks the older non-pinned ones.
         clock.advance(Duration.ofHours(1));
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
                 null, false, null, null, null, GuidanceStatus.PUBLISHED);
-        assertThat(service.listPublic(null)).extracting(GuidancePost::getId)
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(a.getId(), d.getId(), c.getId(), b.getId());
     }
 
@@ -522,9 +525,9 @@ class GuidanceServiceTest {
         GuidancePost et2 = createAndPublish("Eesti kaks", "et");
 
         Set<Long> enIds = service.listPublic("en").stream()
-                .map(GuidancePost::getId).collect(Collectors.toSet());
+                .map(PublicGuidanceView::getId).collect(Collectors.toSet());
         Set<Long> etIds = service.listPublic("et").stream()
-                .map(GuidancePost::getId).collect(Collectors.toSet());
+                .map(PublicGuidanceView::getId).collect(Collectors.toSet());
 
         // Both sets are NON-EMPTY on this data, hold exactly their own
         // locale's rows, and are DISJOINT — the filter is real, not a
@@ -535,9 +538,9 @@ class GuidanceServiceTest {
 
         // A draft in a locale stays invisible in that same locale.
         GuidancePost etDraft = createDraft("Eesti draft", "et");
-        assertThat(service.listPublic("et")).extracting(GuidancePost::getId)
+        assertThat(service.listPublic("et")).extracting(PublicGuidanceView::getId)
                 .doesNotContain(etDraft.getId());
-        assertThat(service.listPublic("et")).extracting(GuidancePost::getId)
+        assertThat(service.listPublic("et")).extracting(PublicGuidanceView::getId)
                 .containsExactlyInAnyOrder(et1.getId(), et2.getId());
     }
 
@@ -547,12 +550,13 @@ class GuidanceServiceTest {
         createAndPublish("Eesti", "et");
 
         // This test's service is configured with default "en"...
-        assertThat(service.listPublic(null)).extracting(GuidancePost::getLocale)
+        assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getLocale)
                 .containsExactly("en");
         // ...and a service configured with "et" falls back to "et" — the
         // fallback IS app.guidance.default-locale, not a hard-coded value.
-        GuidanceService etDefault = new GuidanceService(posts, media, audit, clock, "et", importService);
-        assertThat(etDefault.listPublic(null)).extracting(GuidancePost::getLocale)
+        GuidanceService etDefault = new GuidanceService(posts, media, audit, clock, "et",
+                importService, translations);
+        assertThat(etDefault.listPublic(null)).extracting(PublicGuidanceView::getLocale)
                 .containsExactly("et");
     }
 
@@ -576,19 +580,22 @@ class GuidanceServiceTest {
     }
 
     @Test
-    void theDetailAnswers404WhenThePostIsInAnotherLocale() {
+    void theDetailFallsBackToTheDefaultLocaleWhenThePostLacksTheRequestedOne() {
         GuidancePost post = createAndPublish("English only", "en");
 
-        // Matching locale -> the post.
+        // Matching locale -> the post, no fallback.
         assertThat(service.getByPublicSlug(post.getSlug(), "en").getId()).isEqualTo(post.getId());
+        assertThat(service.getByPublicSlug(post.getSlug(), "en").isLocaleFallback()).isFalse();
         // Parameter absent -> the default locale ("en") resolves it —
         // existing links keep working.
         assertThat(service.getByPublicSlug(post.getSlug(), null).getId()).isEqualTo(post.getId());
-        // Another locale -> the SAME 404 as an unknown slug (a bilingual
-        // site must not serve the other language's text at a URL).
-        assertThatThrownBy(() -> service.getByPublicSlug(post.getSlug(), "et"))
-                .isInstanceOf(GuidanceNotFoundException.class)
-                .hasMessage(GuidanceService.POST_NOT_FOUND_MESSAGE);
+        // Another locale the post has no translation of -> the DEFAULT-locale
+        // translation is served with the fallback flag (a 200, never a 404 —
+        // the language switch must not dead-end on a "no such page" error).
+        PublicGuidanceView fallback = service.getByPublicSlug(post.getSlug(), "et");
+        assertThat(fallback.getId()).isEqualTo(post.getId());
+        assertThat(fallback.getLocale()).isEqualTo("en");
+        assertThat(fallback.isLocaleFallback()).isTrue();
 
         // A DRAFT in the requested locale is still a 404 — the
         // PUBLISHED-only rule is untouched by the locale filter.

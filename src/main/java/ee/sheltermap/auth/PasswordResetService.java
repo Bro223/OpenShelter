@@ -1,7 +1,9 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.app.AppInfo;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.UserRepository;
+import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.verification.SmtpSender;
 import org.slf4j.Logger;
@@ -38,12 +40,26 @@ import java.util.Objects;
  * active code valid, so the endpoint still answers the identical 200 ack
  * (no enumeration, no rotation oracle). The confirm path is
  * additionally rate-limited per (IP, e-mail) at the controller (S1a).
+ *
+ * <p>The provisioned admin (kind {@code ADMIN}) is the ONE exception to
+ * the anti-enumeration uniformity: both the request and the confirm are
+ * refused with 403 naming the environment provisioning — its password is
+ * set by the deployment environment (ADMIN_PASSWORD), not by the app.
  */
 @Service
 public class PasswordResetService {
 
     static final Duration CODE_TTL = Duration.ofMinutes(15);
     static final int MAX_ATTEMPTS = 5;
+
+    /**
+     * The 403 refusal for the provisioned admin's password change: its
+     * credentials are the deployment environment's (ADMIN_PASSWORD), not
+     * the app's — the reset flow must never be able to re-write them.
+     */
+    public static final String PROVISIONED_ADMIN_RESET_MESSAGE =
+            "The environment-provisioned administrator account cannot use password reset — "
+                    + "its password is set by the deployment environment";
 
     /** Min gap between two reissues for the same user (S1b). */
     static final Duration REISSUE_COOLDOWN = Duration.ofSeconds(60);
@@ -101,6 +117,13 @@ public class PasswordResetService {
         if (user == null || user.getId() == null) {
             return;
         }
+        // The env-provisioned admin is the one non-uniform answer: its
+        // password is the environment's (ADMIN_PASSWORD), and a code e-mailed
+        // to its address would let anyone who finds the mailbox re-key the
+        // deployment's access path. Refused, named, 403.
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_RESET_MESSAGE);
+        }
         Instant now = clock.instant();
         // Prune this user's rows past expiry first (S1c — bounds table
         // growth for active users; a global prune of dormant users' old
@@ -144,6 +167,12 @@ public class PasswordResetService {
         RegisteredUser user = users.findByEmail(email);
         if (user == null || user.getId() == null) {
             return false;
+        }
+        // Defense in depth: no code can be ISSUED for the provisioned admin
+        // (requestReset refuses), but a direct confirm must not rewrite the
+        // environment's credentials either — same 403, same message.
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_RESET_MESSAGE);
         }
         PasswordResetToken stored = tokens.findActiveByUserId(user.getId(), clock.instant());
         if (stored == null) {

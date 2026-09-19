@@ -5,6 +5,7 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
+import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.GuidanceService;
 import ee.sheltermap.guidance.MediaAssetRepository;
@@ -277,6 +278,137 @@ public class AdminGuidanceController {
         guidance.delete(requireAdmin(), id, confirm);
     }
 
+    // ------------------------------------------------- translations (bilingual-guidance)
+
+    /**
+     * The post's translations, in locale order (the admin alternates editor).
+     * The post's own-locale row is always present. 200; 404 unknown id.
+     */
+    @GetMapping("/{id}/translations")
+    @Operation(summary = "The post's translations",
+            description = "Every translation of the post, in locale order — the "
+                    + "source of the public detail's alternates map. The post's "
+                    + "own-locale row is always present.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The translations",
+                    content = @Content(array = @ArraySchema(
+                            schema = @Schema(implementation = GuidanceTranslationDto.class)))),
+            @ApiResponse(responseCode = "404", description = "Unknown post id"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public List<GuidanceTranslationDto> listTranslations(@PathVariable long id) {
+        requireAdmin();
+        return guidance.listTranslations(id).stream().map(this::toTranslationDto).toList();
+    }
+
+    /**
+     * Creates a translation of the post in a NEW locale. 200 with the created
+     * translation; 400 validation (title/body required, locale required, the
+     * slug shape); 409 the post already has a translation in that locale or the
+     * (locale, slug) pair is taken; 404 unknown id.
+     */
+    @PostMapping("/{id}/translations")
+    @Operation(summary = "Create a translation of a post",
+            description = "Creates a translation in a new locale. The slug is generated "
+                    + "from the title when omitted; a given slug must be free within the "
+                    + "locale (409). 200 with the created translation; 400 validation; "
+                    + "409 conflict; 404 unknown id.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The created translation",
+                    content = @Content(schema = @Schema(implementation = GuidanceTranslationDto.class))),
+            @ApiResponse(responseCode = "400", description = "Validation failure"),
+            @ApiResponse(responseCode = "409", description = "The post already has a "
+                    + "translation in this locale, or the (locale, slug) pair is taken"),
+            @ApiResponse(responseCode = "404", description = "Unknown post id"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public GuidanceTranslationDto createTranslation(@PathVariable long id,
+                                                    @Valid @RequestBody CreateGuidanceTranslationRequest request) {
+        requireAdmin();
+        GuidanceTranslation t = guidance.createTranslation(id, request.locale(), request.slug(),
+                request.title(), request.body(), request.heroImageAlt());
+        return toTranslationDto(t);
+    }
+
+    /**
+     * Full replace of a translation's content (the locale is the PATH key — it
+     * never moves). 200 with the updated translation; 400 validation; 409 a slug
+     * collision within the locale; 404 unknown post or locale.
+     */
+    @PutMapping("/{id}/translations/{locale}")
+    @Operation(summary = "Replace a translation of a post",
+            description = "Full replace of the translation named by the path locale; the "
+                    + "slug is kept when omitted (a given slug another translation in the "
+                    + "locale holds → 409). 200 with the updated translation; 400 "
+                    + "validation; 404 unknown post or locale.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The updated translation",
+                    content = @Content(schema = @Schema(implementation = GuidanceTranslationDto.class))),
+            @ApiResponse(responseCode = "400", description = "Validation failure"),
+            @ApiResponse(responseCode = "409", description = "Slug collision within the locale"),
+            @ApiResponse(responseCode = "404", description = "Unknown post or locale"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public GuidanceTranslationDto updateTranslation(@PathVariable long id, @PathVariable String locale,
+                                                    @Valid @RequestBody UpdateGuidanceTranslationRequest request) {
+        requireAdmin();
+        GuidanceTranslation t = guidance.updateTranslation(id, locale, request.slug(),
+                request.title(), request.body(), request.heroImageAlt());
+        return toTranslationDto(t);
+    }
+
+    /**
+     * Deletes a post's translation in a locale. The post's HOME-locale
+     * translation cannot be deleted (400 — unpublish or delete the post
+     * instead). 204; 404 unknown post or locale.
+     */
+    @DeleteMapping("/{id}/translations/{locale}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete a translation of a post",
+            description = "Deletes the translation named by the path locale. The post's "
+                    + "own-locale translation cannot be deleted (400). 204; 404 unknown "
+                    + "post or locale.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Deleted"),
+            @ApiResponse(responseCode = "400", description = "Deleting the home-locale translation"),
+            @ApiResponse(responseCode = "404", description = "Unknown post or locale"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public void deleteTranslation(@PathVariable long id, @PathVariable String locale) {
+        requireAdmin();
+        guidance.deleteTranslation(id, locale);
+    }
+
+    /**
+     * Attaches an EXISTING post as a translation of this one — the operator's
+     * pairing convenience: the source post's home-locale translation row is
+     * re-parented onto the target (a MOVE, not a copy). 200 with the moved
+     * translation; 400 source == target; 409 the target already has a
+     * translation in the source's locale; 404 unknown id.
+     */
+    @PostMapping("/{id}/translations/attach")
+    @Operation(summary = "Attach an existing post as a translation",
+            description = "Re-parents the source post's home-locale translation onto this "
+                    + "post (a move, not a copy) — how the operator pairs two existing "
+                    + "posts. 200 with the moved translation; 400 source == target; 409 "
+                    + "the target already has a translation in the source's locale; 404 "
+                    + "unknown id.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "The moved translation",
+                    content = @Content(schema = @Schema(implementation = GuidanceTranslationDto.class))),
+            @ApiResponse(responseCode = "400", description = "source and target are the same post"),
+            @ApiResponse(responseCode = "409", description = "The target already has a "
+                    + "translation in the source's locale"),
+            @ApiResponse(responseCode = "404", description = "Unknown post id"),
+            @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
+    })
+    public GuidanceTranslationDto attachTranslation(@PathVariable long id,
+                                                    @Valid @RequestBody AttachGuidanceTranslationRequest request) {
+        requireAdmin();
+        GuidanceTranslation t = guidance.attachExistingPostAsTranslation(id, request.sourcePostId());
+        return toTranslationDto(t);
+    }
+
     // ------------------------------------------------------------- mapping
 
     private Map<Long, MediaAsset> heroIndex(List<GuidancePost> posts) {
@@ -313,6 +445,19 @@ public class AdminGuidanceController {
                 post.getCreatedBy(),
                 post.getCreatedAt(),
                 post.getUpdatedAt());
+    }
+
+    private GuidanceTranslationDto toTranslationDto(GuidanceTranslation t) {
+        return new GuidanceTranslationDto(
+                t.getId() == null ? 0 : t.getId(),
+                t.getPostId(),
+                t.getLocale(),
+                t.getSlug(),
+                t.getTitle(),
+                t.getBodyHtml(),
+                t.getHeroImageAlt(),
+                t.getCreatedAt(),
+                t.getUpdatedAt());
     }
 
     /**

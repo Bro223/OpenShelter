@@ -1,6 +1,7 @@
 package ee.sheltermap.api;
 
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * The public guidance post (crisis-guidance D3/D6).
@@ -14,8 +15,15 @@ import java.time.Instant;
  * post has no hero — the page then renders no image element at all (D1,
  * no placeholder, no broken state).
  *
- * <p>{@code locale} is a stored attribute returned verbatim (D11: v1 has
- * no translation workflow — posts in different locales are all listed).
+ * <p>{@code locale} is the SERVED translation's locale (the language the
+ * reader is actually reading). {@code alternates} (bilingual-guidance)
+ * maps each locale that has a translation to that translation's slug —
+ * the field the frontend language switcher follows to open the SAME page
+ * in another language; it is populated on the detail and {@code null} on
+ * the index (kept lean). {@code localeFallback} is {@code true} when the
+ * reader's requested locale had no translation and the default-locale one
+ * was served instead — a 200 with the flag, never a 404, so a language
+ * switch never dead-ends on a "no such page" error.
  */
 public record GuidancePostDto(
         String slug,
@@ -26,5 +34,7 @@ public record GuidancePostDto(
         boolean pinned,
         String locale,
         Instant publishedAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        Map<String, String> alternates,
+        boolean localeFallback) {
 }

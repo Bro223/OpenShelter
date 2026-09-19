@@ -3,7 +3,9 @@ package ee.sheltermap.guidance;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
+import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
+import ee.sheltermap.domain.PublicGuidanceView;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,8 +13,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * The crisis-guidance authoring surface (crisis-guidance D3/D4/D5/D6/D11).
@@ -96,19 +105,23 @@ public class GuidanceService {
     private final String defaultLocale;
     /** The remote-hero importer (guidance-hero-import) — runs inside the publish transaction. */
     private final HeroImageImportService heroImport;
+    /** The per-locale translation rows (bilingual-guidance, V26). */
+    private final GuidanceTranslationRepository translations;
 
     public GuidanceService(GuidancePostRepository posts,
                            MediaAssetRepository mediaAssets,
                            ModerationAuditLog audit,
                            Clock clock,
                            @Value("${app.guidance.default-locale:en}") String defaultLocale,
-                           HeroImageImportService heroImport) {
+                           HeroImageImportService heroImport,
+                           GuidanceTranslationRepository translations) {
         this.posts = Objects.requireNonNull(posts, "posts");
         this.mediaAssets = Objects.requireNonNull(mediaAssets, "mediaAssets");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.defaultLocale = Objects.requireNonNull(defaultLocale, "defaultLocale");
         this.heroImport = Objects.requireNonNull(heroImport, "heroImport");
+        this.translations = Objects.requireNonNull(translations, "translations");
     }
 
     // ------------------------------------------------------------- reads
@@ -127,8 +140,29 @@ public class GuidanceService {
      * @throws GuidanceValidationException 400 — a blank or over-long locale
      */
     @Transactional(readOnly = true)
-    public List<GuidancePost> listPublic(String locale) {
-        return posts.findPublished(resolveLocale(locale));
+    public List<PublicGuidanceView> listPublic(String locale) {
+        String requested = resolveLocale(locale);
+        // The translation rows of PUBLISHED posts in the locale, already in the
+        // public index order (pinned first, publishedAt desc, id desc). The
+        // posts are batch-loaded once for the hero image, pinned and published
+        // stamp — one extra read, no per-row N+1.
+        List<GuidanceTranslation> rows = translations.findPublishedInLocale(requested);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        List<Long> postIds = rows.stream().map(GuidanceTranslation::getPostId).distinct().toList();
+        Map<Long, GuidancePost> postById = new HashMap<>();
+        for (long id : postIds) {
+            posts.findById(id).ifPresent(p -> postById.put(id, p));
+        }
+        List<PublicGuidanceView> views = new ArrayList<>(rows.size());
+        for (GuidanceTranslation row : rows) {
+            GuidancePost post = postById.get(row.getPostId());
+            if (post != null) {
+                views.add(PublicGuidanceView.of(post, row, false, null, false));
+            }
+        }
+        return views;
     }
 
     /**
@@ -158,9 +192,51 @@ public class GuidanceService {
      * @throws GuidanceValidationException   400 — a blank or over-long locale
      */
     @Transactional(readOnly = true)
-    public GuidancePost getByPublicSlug(String slug, String locale) {
-        return posts.findPublishedBySlugAndLocale(slug, resolveLocale(locale))
-                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
+    public PublicGuidanceView getByPublicSlug(String slug, String locale) {
+        String requested = resolveLocale(locale);
+        // 1. The URL slug names a translation row (a slug is unique within its
+        //    locale). Resolve it to the owning post; a slug held by no row — or
+        //    by rows of MORE THAN ONE post (a data anomaly) — is a 404.
+        List<GuidanceTranslation> rows = translations.findBySlug(slug);
+        if (rows.isEmpty()) {
+            throw new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE);
+        }
+        Set<Long> postIds = new LinkedHashSet<>();
+        for (GuidanceTranslation row : rows) {
+            postIds.add(row.getPostId());
+        }
+        if (postIds.size() > 1) {
+            throw new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE);
+        }
+        long postId = postIds.iterator().next();
+        GuidancePost post = requirePost(postId);
+        // 2. A DRAFT post's slug answers the SAME 404 as an unknown slug (D4) —
+        //    the response must not reveal that a draft exists.
+        if (!post.isPublished()) {
+            throw new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE);
+        }
+        // 3. Serve the requested locale if the post has it; otherwise serve the
+        //    default-locale translation with the fallback flag (a 200, never a
+        //    404 — the language switch must not dead-end); otherwise 404.
+        List<GuidanceTranslation> all = translations.findAllByPostId(postId);
+        GuidanceTranslation served = findByLocale(all, requested).orElse(null);
+        boolean fallback = false;
+        if (served == null) {
+            served = findByLocale(all, defaultLocale).orElse(null);
+            fallback = served != null;
+        }
+        if (served == null) {
+            throw new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE);
+        }
+        Map<String, String> alternates = new LinkedHashMap<>();
+        for (GuidanceTranslation row : all) {
+            alternates.put(row.getLocale(), row.getSlug());
+        }
+        return PublicGuidanceView.of(post, served, true, alternates, fallback);
+    }
+
+    private static Optional<GuidanceTranslation> findByLocale(List<GuidanceTranslation> rows, String locale) {
+        return rows.stream().filter(r -> r.getLocale().equals(locale)).findFirst();
     }
 
     /** The admin detail read — id-keyed (the admin form edits by id); unknown id → 404. */
@@ -226,7 +302,12 @@ public class GuidanceService {
             // lifecycle transition: no separate publish audit row.
             post.publish(now);
         }
-        return posts.save(post);
+        GuidancePost saved = posts.save(post);
+        // Every post owns at least one translation row — its own (the V26
+        // backfill's invariant, kept for new posts too) — so the public reads
+        // (which key off translations) see it in its own locale.
+        saveOwnTranslation(saved, now);
+        return saved;
     }
 
     /**
@@ -268,10 +349,20 @@ public class GuidanceService {
         requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = resolveSuppliedSlug(slug, post.getSlug());
+        String oldLocale = post.getLocale();
 
         post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, heroImageId,
                 heroAlt, cleanImportUrl, now);
-        return posts.save(post);
+        GuidancePost saved = posts.save(post);
+        if (!oldLocale.equals(cleanLocale)) {
+            // The post's home locale moved: drop the old own-locale row so the
+            // post is not left "public" in a locale it no longer claims.
+            translations.findByPostIdAndLocale(post.getId(), oldLocale).ifPresent(translations::delete);
+        }
+        // Re-sync the (possibly new) own-locale translation from the post's
+        // home content — the V26 invariant, kept on every update.
+        saveOwnTranslation(saved, now);
+        return saved;
     }
 
     /**
@@ -354,6 +445,9 @@ public class GuidanceService {
         }
         audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_DELETE,
                 auditLabel(post), null);
+        // The post's translation rows die with it (the V26 FK cascades in the
+        // DB; the explicit delete keeps the in-memory twin honest too, D8).
+        translations.deleteAllByPostId(post.getId());
         posts.delete(post);
     }
 
@@ -526,5 +620,208 @@ public class GuidanceService {
     private GuidancePost requirePost(long id) {
         return posts.findById(id)
                 .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
+    }
+
+    // ------------------------------------------------- translation linking (bilingual-guidance)
+
+    /**
+     * Creates a translation for a post in a locale it does not already have.
+     * The slug is generated from the title when omitted (D5, the same shape
+     * rules); an explicit slug is validated and must be free WITHIN the locale
+     * (409 naming it). The stored body is the sanitizer output (D2).
+     *
+     * @throws GuidanceNotFoundException   404 — unknown post id
+     * @throws GuidanceValidationException 400 — missing/oversized title or body,
+     *                                     a malformed custom slug, a blank or
+     *                                     over-long locale
+     * @throws GuidanceValidationException 409 — the post already has a
+     *                                     translation in this locale
+     * @throws SlugAlreadyUsedException    409 — the (locale, slug) pair is taken
+     */
+    @Transactional
+    public GuidanceTranslation createTranslation(long postId, String locale, String slug,
+                                                 String title, String body, String heroImageAlt) {
+        requirePost(postId);
+        Instant now = clock.instant();
+        String cleanLocale = requireLocale(locale);
+        String cleanTitle = requireTitle(title);
+        String cleanBody = sanitize(body);
+        String cleanAlt = heroImageAlt == null ? null : heroImageAlt.trim();
+        if (translations.existsByPostIdAndLocale(postId, cleanLocale)) {
+            throw new GuidanceValidationException(
+                    "post already has a " + cleanLocale + " translation — update or delete it first");
+        }
+        String finalSlug = slug == null || slug.isBlank()
+                ? nextGeneratedTranslationSlug(cleanLocale, cleanTitle)
+                : resolveTranslationSlug(cleanLocale, slug, null);
+        return translations.save(GuidanceTranslation.forPost(postId, cleanLocale, finalSlug,
+                cleanTitle, cleanBody, cleanAlt, now));
+    }
+
+    /**
+     * Full replace of a translation's content (the locale is the KEY — it never
+     * moves here). The slug is kept when omitted; the body is re-sanitized (D2).
+     *
+     * @throws GuidanceNotFoundException   404 — unknown post, or no translation
+     *                                     in this locale
+     * @throws GuidanceValidationException 400 — same vocabulary as create
+     * @throws SlugAlreadyUsedException    409 — the given (locale, slug) is held
+     *                                     by another translation
+     */
+    @Transactional
+    public GuidanceTranslation updateTranslation(long postId, String locale, String slug,
+                                                 String title, String body, String heroImageAlt) {
+        requirePost(postId);
+        String cleanLocale = requireLocale(locale);
+        GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
+                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
+        Instant now = clock.instant();
+        String cleanTitle = requireTitle(title);
+        String cleanBody = sanitize(body);
+        String cleanAlt = heroImageAlt == null ? null : heroImageAlt.trim();
+        String finalSlug = resolveTranslationSlug(cleanLocale, slug, translation.getSlug());
+        translation.update(finalSlug, cleanTitle, cleanBody, cleanAlt, now);
+        return translations.save(translation);
+    }
+
+    /**
+     * Deletes a post's translation in a locale. A post's HOME-locale
+     * translation cannot be deleted — it is the post's own content (unpublish
+     * or delete the post instead). Deleting a linked locale's translation
+     * simply unlinks it.
+     *
+     * @throws GuidanceNotFoundException   404 — unknown post, or no translation
+     *                                     in this locale
+     * @throws GuidanceValidationException 400 — deleting the home-locale translation
+     */
+    @Transactional
+    public void deleteTranslation(long postId, String locale) {
+        GuidancePost post = requirePost(postId);
+        String cleanLocale = requireLocale(locale);
+        GuidanceTranslation translation = translations.findByPostIdAndLocale(postId, cleanLocale)
+                .orElseThrow(() -> new GuidanceNotFoundException(POST_NOT_FOUND_MESSAGE));
+        if (cleanLocale.equals(post.getLocale())) {
+            throw new GuidanceValidationException(
+                    "the post's own-locale (" + cleanLocale + ") translation cannot be deleted — "
+                            + "unpublish or delete the post instead");
+        }
+        translations.delete(translation);
+    }
+
+    /** A post's translations, in locale order (the admin detail / alternates editor). */
+    @Transactional(readOnly = true)
+    public List<GuidanceTranslation> listTranslations(long postId) {
+        requirePost(postId);
+        return translations.findAllByPostId(postId);
+    }
+
+    /**
+     * The "attach an existing post as a translation" convenience: re-parents
+     * the source post's home-locale translation onto the target post. It is a
+     * MOVE, not a copy — the (locale, slug) pair travels with the row, so the
+     * V26 uniqueness holds and the source stops claiming the slug publicly
+     * (the source is left a shell with no translations, which the admin may
+     * hard-delete). The target must not already have a translation in that
+     * locale (409).
+     *
+     * @throws GuidanceNotFoundException   404 — unknown target or source post
+     * @throws GuidanceValidationException 400 — source == target
+     * @throws GuidanceValidationException 409 — the target already has a
+     *                                     translation in the source's locale
+     */
+    @Transactional
+    public GuidanceTranslation attachExistingPostAsTranslation(long targetPostId, long sourcePostId) {
+        if (targetPostId == sourcePostId) {
+            throw new GuidanceValidationException("source and target must be different posts");
+        }
+        requirePost(targetPostId);
+        GuidancePost source = requirePost(sourcePostId);
+        String locale = source.getLocale();
+        if (translations.existsByPostIdAndLocale(targetPostId, locale)) {
+            throw new GuidanceValidationException(
+                    "target already has a " + locale + " translation — update or delete it first");
+        }
+        Instant now = clock.instant();
+        return translations.findByPostIdAndLocale(sourcePostId, locale)
+                .map(t -> {
+                    t.reparentTo(targetPostId, now);
+                    return translations.save(t);
+                })
+                .orElseGet(() -> translations.save(GuidanceTranslation.forPost(
+                        targetPostId, locale, source.getSlug(), source.getTitle(),
+                        source.getBodyHtml(), source.getHeroImageAlt(), now)));
+    }
+
+    /**
+     * Keeps the post's own-locale translation in sync with its home content
+     * columns (the V26 invariant: every post owns at least one translation
+     * row, in its own locale). An existing row is upserted, not duplicated.
+     */
+    private void saveOwnTranslation(GuidancePost post, Instant now) {
+        translations.findByPostIdAndLocale(post.getId(), post.getLocale())
+                .ifPresentOrElse(
+                        existing -> {
+                            existing.update(post.getSlug(), post.getTitle(), post.getBodyHtml(),
+                                    post.getHeroImageAlt(), now);
+                            translations.save(existing);
+                        },
+                        () -> translations.save(GuidanceTranslation.forPost(post.getId(),
+                                post.getLocale(), post.getSlug(), post.getTitle(),
+                                post.getBodyHtml(), post.getHeroImageAlt(), now)));
+    }
+
+    /** Locale required, trimmed, and bounded by the VARCHAR(5) column (400). */
+    private String requireLocale(String locale) {
+        if (locale == null || locale.isBlank()) {
+            throw new GuidanceValidationException("locale is required");
+        }
+        String trimmed = locale.trim();
+        if (trimmed.length() > MAX_LOCALE_LENGTH) {
+            throw new GuidanceValidationException(
+                    "locale must be at most " + MAX_LOCALE_LENGTH + " characters");
+        }
+        return trimmed;
+    }
+
+    /**
+     * A translation's admin-supplied slug, used exactly as given: validated to
+     * the generated shape (400) and refused on a collision within the locale
+     * (409 naming the slug). A blank slug keeps the current one (an update
+     * no-op); a slug equal to the current one is not a collision.
+     */
+    private String resolveTranslationSlug(String locale, String supplied, String currentSlug) {
+        if (supplied == null || supplied.isBlank()) {
+            return currentSlug;
+        }
+        String slug = supplied.trim();
+        if (!SlugFactory.isValidCustomSlug(slug)) {
+            throw new GuidanceValidationException(
+                    "slug must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be at most "
+                            + SlugFactory.MAX_SLUG_LENGTH + " characters");
+        }
+        if (slug.equals(currentSlug)) {
+            return slug;
+        }
+        if (translations.existsByLocaleAndSlug(locale, slug)) {
+            throw new SlugAlreadyUsedException(slug);
+        }
+        return slug;
+    }
+
+    /**
+     * The auto-generated translation slug: from the title; a collision WITHIN
+     * the locale takes {@code -2}, {@code -3}, ... and takes the first free value.
+     */
+    private String nextGeneratedTranslationSlug(String locale, String title) {
+        String base = SlugFactory.of(title);
+        if (!translations.existsByLocaleAndSlug(locale, base)) {
+            return base;
+        }
+        for (int suffix = 2; ; suffix++) {
+            String candidate = base + "-" + suffix;
+            if (!translations.existsByLocaleAndSlug(locale, candidate)) {
+                return candidate;
+            }
+        }
     }
 }

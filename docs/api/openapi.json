@@ -347,6 +347,16 @@
         },
         "type" : "object"
       },
+      "AttachGuidanceTranslationRequest" : {
+        "properties" : {
+          "sourcePostId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "sourcePostId" ],
+        "type" : "object"
+      },
       "ChangeEmailRequest" : {
         "properties" : {
           "newEmail" : {
@@ -436,6 +446,35 @@
           }
         },
         "required" : [ "body", "title" ],
+        "type" : "object"
+      },
+      "CreateGuidanceTranslationRequest" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "heroImageAlt" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "locale" : {
+            "maxLength" : 5,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "slug" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "body", "locale", "title" ],
         "type" : "object"
       },
       "CreateShelterRequest" : {
@@ -617,6 +656,12 @@
       },
       "GuidancePostDto" : {
         "properties" : {
+          "alternates" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
           "bodyHtml" : {
             "type" : "string"
           },
@@ -629,12 +674,51 @@
           "locale" : {
             "type" : "string"
           },
+          "localeFallback" : {
+            "type" : "boolean"
+          },
           "pinned" : {
             "type" : "boolean"
           },
           "publishedAt" : {
             "format" : "date-time",
             "type" : "string"
+          },
+          "slug" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GuidanceTranslationDto" : {
+        "properties" : {
+          "bodyHtml" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "heroImageAlt" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "postId" : {
+            "format" : "int64",
+            "type" : "integer"
           },
           "slug" : {
             "type" : "string"
@@ -1108,6 +1192,23 @@
         },
         "type" : "object"
       },
+      "SiteTextEntry" : {
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "locale" : {
+            "type" : "string"
+          },
+          "url" : {
+            "type" : "string"
+          },
+          "value" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TokenResponse" : {
         "properties" : {
           "accessToken" : {
@@ -1167,6 +1268,30 @@
         "required" : [ "body", "title" ],
         "type" : "object"
       },
+      "UpdateGuidanceTranslationRequest" : {
+        "properties" : {
+          "body" : {
+            "type" : "string"
+          },
+          "heroImageAlt" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "slug" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "title" : {
+            "maxLength" : 255,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "body", "title" ],
+        "type" : "object"
+      },
       "UpdateShelterRequest" : {
         "properties" : {
           "capacity" : {
@@ -1207,6 +1332,17 @@
           }
         },
         "required" : [ "name" ],
+        "type" : "object"
+      },
+      "UpdateSiteTextRequest" : {
+        "properties" : {
+          "texts" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SiteTextEntry"
+            },
+            "type" : "array"
+          }
+        },
         "type" : "object"
       },
       "VerifyConfirmRequest" : {
@@ -1264,11 +1400,11 @@
   "paths" : {
     "/account" : {
       "delete" : {
-        "description" : "The account erasure: the declared private homes are purged, the public community rows are orphaned (map data outlives accounts), and the DB cascades credentials, claims, pending changes, tokens and reports. The verified-user gate matches the submission gates (403 without a claim); a repeat call is an idempotent no-op — the JWT is valid until its expiry, but the account is already gone.",
+        "description" : "The account erasure: the declared private homes are purged, the public community rows are orphaned (map data outlives accounts), and the DB cascades credentials, claims, pending changes, tokens and reports. The verified-user gate matches the submission gates (403 without a claim); a repeat call is an idempotent no-op — the JWT is valid until its expiry, but the account is already gone. The environment-provisioned administrator (kind ADMIN) is refused with 403 naming the environment provisioning — de-provisioning is an operator action on the env vars, not an in-app deletion.",
         "operationId" : "deleteAccount",
         "responses" : {
           "204" : {
-            "description" : "No Content"
+            "description" : "The account is erased (an idempotent no-op on a repeat call)"
           },
           "400" : {
             "content" : {
@@ -1291,14 +1427,7 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+            "description" : "No verification claim — or the environment-provisioned administrator account (refused; the message names the env provisioning)"
           },
           "404" : {
             "content" : {
@@ -2634,7 +2763,7 @@
       },
       "put" : {
         "description" : "Full replace of the editable fields; the slug is kept when omitted (a given slug that another post holds → 409 naming it). The body is re-sanitized — the stored value is the sanitizer output. 200 with the updated post; 404 unknown id.",
-        "operationId" : "update_1",
+        "operationId" : "update_2",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -2817,6 +2946,537 @@
           }
         },
         "summary" : "Publish a guidance post",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/guidance/{id}/translations" : {
+      "get" : {
+        "description" : "Every translation of the post, in locale order — the source of the public detail's alternates map. The post's own-locale row is always present.",
+        "operationId" : "listTranslations",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "The translations"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "Unknown post id"
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "The post's translations",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      },
+      "post" : {
+        "description" : "Creates a translation in a new locale. The slug is generated from the title when omitted; a given slug must be free within the locale (409). 200 with the created translation; 400 validation; 409 conflict; 404 unknown id.",
+        "operationId" : "createTranslation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateGuidanceTranslationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "The created translation"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Validation failure"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Unknown post id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "The post already has a translation in this locale, or the (locale, slug) pair is taken"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Create a translation of a post",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/guidance/{id}/translations/attach" : {
+      "post" : {
+        "description" : "Re-parents the source post's home-locale translation onto this post (a move, not a copy) — how the operator pairs two existing posts. 200 with the moved translation; 400 source == target; 409 the target already has a translation in the source's locale; 404 unknown id.",
+        "operationId" : "attachTranslation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AttachGuidanceTranslationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "The moved translation"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "source and target are the same post"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Unknown post id"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "The target already has a translation in the source's locale"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Attach an existing post as a translation",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
+    "/admin/guidance/{id}/translations/{locale}" : {
+      "delete" : {
+        "description" : "Deletes the translation named by the path locale. The post's own-locale translation cannot be deleted (400). 204; 404 unknown post or locale.",
+        "operationId" : "deleteTranslation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "Deleted"
+          },
+          "400" : {
+            "description" : "Deleting the home-locale translation"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "description" : "Unknown post or locale"
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Delete a translation of a post",
+        "tags" : [ "Admin guidance" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      },
+      "put" : {
+        "description" : "Full replace of the translation named by the path locale; the slug is kept when omitted (a given slug another translation in the locale holds → 409). 200 with the updated translation; 400 validation; 404 unknown post or locale.",
+        "operationId" : "updateTranslation",
+        "parameters" : [ {
+          "name" : "id",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }, {
+          "name" : "locale",
+          "in" : "path",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateGuidanceTranslationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "The updated translation"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Validation failure"
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Authenticated non-admin"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Unknown post or locale"
+          },
+          "409" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/GuidanceTranslationDto"
+                }
+              }
+            },
+            "description" : "Slug collision within the locale"
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Replace a translation of a post",
         "tags" : [ "Admin guidance" ],
         "x-admin-only" : {
           "value" : "true"
@@ -4283,6 +4943,81 @@
         }
       }
     },
+    "/admin/site-texts" : {
+      "put" : {
+        "description" : "A batch of (key, locale) edits. A blank value resets that (key, locale) to the shipped default (the row is deleted); a blank url on a link key resets to the shipped default URL. Unknown keys, unknown locales, values over 500 characters, URLs on non-link keys and non-https URLs refuse the whole batch with a 400.",
+        "operationId" : "update_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateSiteTextRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Saved"
+          },
+          "400" : {
+            "description" : "A disallowed key/locale/value/URL"
+          },
+          "401" : {
+            "description" : "No valid token"
+          },
+          "403" : {
+            "description" : "Authenticated but not an admin"
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "summary" : "Save the admin's site-text edits",
+        "tags" : [ "Admin site texts" ],
+        "x-admin-only" : {
+          "value" : "true"
+        }
+      }
+    },
     "/admin/users" : {
       "get" : {
         "description" : "Every REGISTERED and ADMIN account with its suspension state, id-ordered. E-mail is admin-only data, served from /admin/* only.",
@@ -4381,7 +5116,7 @@
     },
     "/admin/users/{id}/suspend" : {
       "post" : {
-        "description" : "Login, refresh rotation and every in-flight token stop working immediately. 204 (idempotent); 404 unknown id; 409 admin/guest targets (lockout vector / no credentials). Audited as USER_SUSPEND with the account as subject.",
+        "description" : "Login, refresh rotation and every in-flight token stop working immediately. 204 (idempotent); 404 unknown id; 403 the environment-provisioned administrator (lockout vector — it cannot be disabled); 409 guest targets (no credentials). Audited as USER_SUSPEND with the account as subject.",
         "operationId" : "suspendUser",
         "parameters" : [ {
           "name" : "id",
@@ -4476,7 +5211,7 @@
     },
     "/admin/users/{id}/unsuspend" : {
       "post" : {
-        "description" : "Idempotent, audited. Same 204/404/409 vocabulary as suspend.",
+        "description" : "Idempotent, audited. Same vocabulary as suspend: 204; 404 unknown id; 403 the environment-provisioned administrator (it is never suspended — nothing to lift); 409 guest targets.",
         "operationId" : "unsuspendUser",
         "parameters" : [ {
           "name" : "id",
@@ -4878,7 +5613,7 @@
     },
     "/api/guidance/{slug}" : {
       "get" : {
-        "description" : "PUBLISHED only, by slug, in ONE locale. A draft slug, an unknown slug, and a slug whose post is in another locale answer the SAME 404. Carries the stored (sanitized) bodyHtml.",
+        "description" : "PUBLISHED only, by slug. Serves the requested locale's translation, or the default-locale translation with localeFallback=true when the post has none in the requested locale (a 200, never a 404). Carries the stored (sanitized) bodyHtml and an alternates map (locale -> slug) for the language switcher.",
         "operationId" : "get_1",
         "parameters" : [ {
           "name" : "slug",
@@ -4905,7 +5640,7 @@
                 }
               }
             },
-            "description" : "The published post (in the requested locale)"
+            "description" : "The published post — the requested locale's translation, or the default-locale one (localeFallback=true) when the post lacks the requested locale"
           },
           "400" : {
             "content" : {
@@ -4945,7 +5680,7 @@
                 }
               }
             },
-            "description" : "Unknown slug, a draft slug, or a post in another locale (all the same answer)"
+            "description" : "Unknown slug, a draft slug, or a post with neither a requested-locale nor a default-locale translation"
           },
           "409" : {
             "content" : {
@@ -6162,6 +6897,97 @@
         "tags" : [ "Public shelters" ]
       }
     },
+    "/api/site-texts" : {
+      "get" : {
+        "description" : "locale → key → {value, url?}. The three locale keys (en/et/ru) are always present (an empty map = every shipped catalog default). Absent key = the frontend catalog default. `url` exists only for the two footer source-link keys (https).",
+        "operationId" : "siteTexts",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "The overrides by locale"
+          },
+          "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Validation failure — the uniform error body."
+          },
+          "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
+          },
+          "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+          },
+          "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unknown resource id — the uniform error body."
+          },
+          "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Rate limit / report throttle exceeded — Retry-After in seconds."
+          },
+          "500" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "Unexpected server error — the uniform error body."
+          }
+        },
+        "security" : [ ],
+        "summary" : "The current admin overrides for the site texts",
+        "tags" : [ "Site texts" ]
+      }
+    },
     "/auth/login" : {
       "post" : {
         "description" : "E-mail or phone + password. BOTH rate buckets must pass — the per-IP aggregate (one IP hammering many accounts) and the per-(IP, contact) bucket. Phone may be local or +372 form.",
@@ -6359,7 +7185,7 @@
     },
     "/auth/password-reset/confirm" : {
       "post" : {
-        "description" : "The e-mail scopes the 6-digit code to the account it was sent to; ANY failure (unknown email / wrong / expired / used / over-limit) answers 400 with one generic message, so the caller must not treat the 400 as account-existence information. Per-(IP, email) anti-guess bucket: 429 above it.",
+        "description" : "The e-mail scopes the 6-digit code to the account it was sent to; ANY failure (unknown email / wrong / expired / used / over-limit) answers 400 with one generic message, so the caller must not treat the 400 as account-existence information. The ONE exception is the provisioned admin's email: a confirm for it is refused with 403 naming the environment provisioning (no code can be issued for it, and a direct call must not rewrite the env's credentials). Per-(IP, email) anti-guess bucket: 429 above it.",
         "operationId" : "resetPassword",
         "requestBody" : {
           "content" : {
@@ -6389,14 +7215,7 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+            "description" : "The provisioned administrator's email — its password is set by the deployment environment"
           },
           "404" : {
             "content" : {
@@ -6439,7 +7258,7 @@
     },
     "/auth/password-reset/request" : {
       "post" : {
-        "description" : "The ack body tells the client how long to wait before re-requesting (the service's reissue cooldown). The ack is identical for a known email, an unknown email and a cooldown skip — it must never reveal whether the email exists or a send happened.",
+        "description" : "The ack body tells the client how long to wait before re-requesting (the service's reissue cooldown). The ack is identical for a known email, an unknown email and a cooldown skip — it must never reveal whether the email exists or a send happened. The ONE exception is the environment-provisioned administrator's email, which is refused with 403 naming the environment provisioning: its password is set by the deployment environment, not the app.",
         "operationId" : "requestPasswordReset",
         "requestBody" : {
           "content" : {
@@ -6484,13 +7303,13 @@
           },
           "403" : {
             "content" : {
-              "application/json" : {
+              "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "$ref" : "#/components/schemas/CodeSentDto"
                 }
               }
             },
-            "description" : "Authenticated but not allowed (admin kind, verified account or authorship)."
+            "description" : "The provisioned administrator's email — password reset is not available for it"
           },
           "404" : {
             "content" : {
@@ -6910,15 +7729,6 @@
     "bearerAuth" : [ ]
   } ],
   "tags" : [ {
-    "name" : "Account & verification",
-    "description" : "Verification codes for the account's contacts. Both calls require a Bearer JWT (the user is resolved from the token, never from the body; the target contact comes from the user profile). The request endpoint is additionally throttled per client IP on top of the service-level cooldown + daily cap per (user, level) — a throttled 429 carries the exact remaining seconds in Retry-After. SMART_ID is rejected up front with 400 (the provider is a stub in v1)."
-  }, {
-    "name" : "Public shelters",
-    "description" : "The community shelter map. The list and detail reads are PUBLIC (guests can watch — an emergency map must be viewable without an account); every mutation requires a Bearer JWT and a verified registered account. Note the deliberate split: GET /mine is authenticated even though the rest of /api/shelters/** is public."
-  }, {
-    "name" : "Admin moderation",
-    "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably). Reporter identity is served from this API ONLY."
-  }, {
     "name" : "Admin guidance",
     "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably)."
   }, {
@@ -6931,16 +7741,31 @@
     "name" : "Geo",
     "description" : "The short-link resolver (shelter-location-input). JWT-protected (inside the authenticated set — NOT permitAll) and rate-limited per client IP (5 requests/minute) — 429 above it."
   }, {
+    "name" : "Auth",
+    "description" : "The public auth surface: registration, login, refresh rotation, logout and password reset. The login/refresh responses carry bearer credentials (TokenResponse) — never log them. Login, reset-request and registration are rate-limited per real client IP (X-Forwarded-For aware) and, for login/reset, per contact — 429 above the buckets."
+  }, {
+    "name" : "Account & verification",
+    "description" : "Verification codes for the account's contacts. Both calls require a Bearer JWT (the user is resolved from the token, never from the body; the target contact comes from the user profile). The request endpoint is additionally throttled per client IP on top of the service-level cooldown + daily cap per (user, level) — a throttled 429 carries the exact remaining seconds in Retry-After. SMART_ID is rejected up front with 400 (the provider is a stub in v1)."
+  }, {
+    "name" : "Public shelters",
+    "description" : "The community shelter map. The list and detail reads are PUBLIC (guests can watch — an emergency map must be viewable without an account); every mutation requires a Bearer JWT and a verified registered account. Note the deliberate split: GET /mine is authenticated even though the rest of /api/shelters/** is public."
+  }, {
+    "name" : "Admin moderation",
+    "description" : "Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup — the JWT's userId is loaded and its kind checked, never a role claim in the token (a JWT minted before a demotion/deletion keeps failing). Anonymous → 401; authenticated non-admin → 403 (the x-admin-only extension marks these operations machine-readably). Reporter identity is served from this API ONLY."
+  }, {
+    "name" : "Site texts",
+    "description" : "The public read of the admin-editable popup/header/footer texts (site_texts). Public (no JWT): the overrides are public copy — the same text every visitor sees."
+  }, {
     "name" : "Account & verification",
     "description" : "The authenticated account surface — every operation requires a Bearer JWT and the user is resolved from the token, never from the body. The change-request endpoints are additionally throttled per client IP (429 above); the confirms are code-verified and attempt-limited instead. The request endpoints ack with CodeSentDto — the cooldown a client should count down before resending."
   }, {
     "name" : "Public guidance",
     "description" : "The public crisis-guidance reads — permit-all (no JWT): the /blog pages read these anonymously. PUBLISHED posts only, pinned first; a draft slug and an unknown slug answer the SAME 404 (a draft's existence is never revealed). Optional locale query parameter: absent = the server's default locale; a post in another locale is a 404."
   }, {
+    "name" : "Admin site texts",
+    "description" : "The admin-editable popup/header/footer texts (site_texts). Every operation requires a valid Bearer JWT AND an ADMIN-kind account, checked by a fresh per-request DB lookup (never a role claim in the token). Anonymous → 401; non-admin → 403; a disallowed key/locale/value/URL → 400."
+  }, {
     "name" : "Data source",
     "description" : "The public provenance read (official-dataset-csv M5): the map is built from the Päästeamet open-data shelter dataset, and the app says so — source, link to the official open-data page, and when the last import ran. Public (no JWT)."
-  }, {
-    "name" : "Auth",
-    "description" : "The public auth surface: registration, login, refresh rotation, logout and password reset. The login/refresh responses carry bearer credentials (TokenResponse) — never log them. Login, reset-request and registration are rate-limited per real client IP (X-Forwarded-For aware) and, for login/reset, per contact — 429 above the buckets."
   } ]
 }

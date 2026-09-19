@@ -85,6 +85,15 @@
     <button
       type="button"
       class="btn btn--ghost admin-tab"
+      [class.admin-tab--active]="tab() === 'settings'"
+      [attr.aria-pressed]="tab() === 'settings' ? 'true' : 'false'"
+      (click)="switchTab('settings')"
+    >
+      {{ 'admin.settings.tab' | t }}
+    </button>
+    <button
+      type="button"
+      class="btn btn--ghost admin-tab"
       [class.admin-tab--active]="tab() === 'audit'"
       [attr.aria-pressed]="tab() === 'audit' ? 'true' : 'false'"
       (click)="switchTab('audit')"
@@ -770,7 +779,8 @@
                     }
                   } @else {
                     <!-- ADMIN kind: listed for visibility, not suspendable
-                         (lockout vector — the backend answers 409). -->
+                         (lockout vector — the backend answers 403: the
+                         provisioned admin cannot be disabled at all). -->
                     <span class="admin-muted">Not suspendable</span>
                   }
                   </div>
@@ -1114,6 +1124,14 @@
         </table>
       </div>
     }
+  }
+
+  @if (tab() === 'settings') {
+    <!-- The site texts (site_texts): the admin-editable popup/header/footer
+         copy, three languages, shipped catalog as the placeholder. The
+         panel owns its own loading/saving state (self-contained, like the
+         guidance/media tabs). -->
+    <app-site-texts-panel />
   }
 
   @if (tab() === 'audit') {

@@ -364,6 +364,138 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Hero image (crisis-guidance D1): rendered when the post has one,
+  // NOTHING (no element at all) when it does not.
+  // ---------------------------------------------------------------------------
+  describe('hero image', () => {
+    it('renders the hero image with its stored alt when the post has one', async () => {
+      guidanceGateway.set(
+        'with-hero',
+        guidancePost({
+          slug: 'with-hero',
+          heroImageUrl: '/api/media/0123456789abcdef0123456789abcdef.jpg',
+          heroImageAlt: 'A shelter entrance in snow',
+        }),
+      );
+      const { element } = await open('/blog/with-hero');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('src')).toBe('/api/media/0123456789abcdef0123456789abcdef.jpg');
+      expect(img?.getAttribute('alt')).toBe('A shelter entrance in snow');
+      // The stored alt is NOT the post title (which would duplicate the h1).
+      expect(img?.getAttribute('alt')).not.toBe('Water and heating in the first days');
+      // The hero is the article's first content: above the title header,
+      // and the title stays the page's single h1.
+      expect(element.querySelector('h1')?.textContent).toBe(
+        'Water and heating in the first days',
+      );
+      expect(element.querySelectorAll('h1')).toHaveLength(1);
+      const heroBox = element.querySelector('.guidance-detail__hero');
+      const title = element.querySelector('h1');
+      expect(
+        heroBox !== null &&
+          title !== null &&
+          (heroBox.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      ).toBe(true); // the hero box precedes the title
+    });
+
+    it('a hero with a null alt renders with an empty (decorative) alt — never the title', async () => {
+      guidanceGateway.set(
+        'hero-no-alt',
+        guidancePost({
+          slug: 'hero-no-alt',
+          title: 'Hero without alt',
+          heroImageUrl: '/api/media/fedcba9876543210fedcba9876543210.png',
+          heroImageAlt: null,
+        }),
+      );
+      const { element } = await open('/blog/hero-no-alt');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img?.getAttribute('alt')).toBe('');
+      expect(img?.getAttribute('alt')).not.toBe('Hero without alt');
+    });
+
+    it('renders NO image element (and no empty frame) when the post has no hero', async () => {
+      // The default fixture has heroImageUrl: null / heroImageAlt: null.
+      guidanceGateway.set('no-hero', guidancePost({ slug: 'no-hero' }));
+      const { element } = await open('/blog/no-hero');
+
+      // The post rendered (chrome + body intact)...
+      expect(element.querySelector('h1')?.textContent).toBe(
+        'Water and heating in the first days',
+      );
+      expect(element.querySelector('.guidance-detail__body')).not.toBeNull();
+      // ...but the section carries NO <img> at all (the stored body here is
+      // plain prose) and NO placeholder frame — asserted on the DOM, not on
+      // a class: the absence is the contract.
+      const section = element.querySelector('.guidance-detail')!;
+      expect(section.querySelectorAll('img').length).toBe(0);
+      expect(section.querySelector('.guidance-detail__hero')).toBeNull();
+    });
+
+    it('a broken hero takes the neutral placeholder (never a broken-image icon)', async () => {
+      guidanceGateway.set(
+        'broken-hero',
+        guidancePost({
+          slug: 'broken-hero',
+          heroImageUrl: '/api/media/missing.jpg',
+          heroImageAlt: 'Gone',
+        }),
+      );
+      const { element, fixture } = await open('/blog/broken-hero');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img).not.toBeNull();
+      // The stored URL 404s / the network fails: the placeholder box takes
+      // the image's place (the index's one-visual-language-for-\"no image\").
+      img!.dispatchEvent(new Event('error'));
+      fixture.detectChanges();
+
+      expect(element.querySelector('img.guidance-detail__hero')).toBeNull();
+      expect(
+        element.querySelector('.guidance-detail__hero--failed'),
+      ).not.toBeNull();
+    });
+
+    it('a failed hero does not carry over to the next slug (the state resets per load)', async () => {
+      guidanceGateway.set(
+        'broken-a',
+        guidancePost({
+          slug: 'broken-a',
+          title: 'Post A',
+          heroImageUrl: '/api/media/broken.jpg',
+          heroImageAlt: 'A',
+        }),
+      );
+      guidanceGateway.set(
+        'ok-b',
+        guidancePost({
+          slug: 'ok-b',
+          title: 'Post B',
+          heroImageUrl: '/api/media/ok.jpg',
+          heroImageAlt: 'B',
+        }),
+      );
+      const { element, fixture, router } = await open('/blog/broken-a');
+      element.querySelector<HTMLImageElement>('img.guidance-detail__hero')!.dispatchEvent(
+        new Event('error'),
+      );
+      fixture.detectChanges();
+      expect(element.querySelector('.guidance-detail__hero--failed')).not.toBeNull();
+
+      await router.navigateByUrl('/blog/ok-b');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img?.getAttribute('src')).toBe('/api/media/ok.jpg');
+      expect(element.querySelector('.guidance-detail__hero--failed')).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Param switching (the shelter-detail N7 pattern): back/forward between
   // two posts re-loads the new slug instead of keeping the old post.
   // ---------------------------------------------------------------------------

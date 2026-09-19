@@ -51,6 +51,7 @@ import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { ApiError } from '../../core/api-error';
 import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
+import { SiteTextsPanel } from './site-texts-panel';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
@@ -59,7 +60,7 @@ registerLocaleData(localeEnGB, 'en-GB');
  *  the guidance (crisis-guidance D8) and media-library tabs sit before the
  *  audit. */
 export type AdminTab =
-  'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'guidance' | 'media' | 'audit';
+  'unconfirmed' | 'shelters' | 'reports' | 'alerts' | 'users' | 'guidance' | 'media' | 'settings' | 'audit';
 
 /** The reject reason's hard limit — mirrored by the backend contract
  *  (community-review-queue): required, at most 500 characters. */
@@ -189,6 +190,7 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
     LoadingIndicator,
     TranslatePipe,
     GuidanceEditor,
+    SiteTextsPanel,
   ],
   templateUrl: './admin-page.html',
   styleUrl: './admin-page.scss',
@@ -1132,6 +1134,25 @@ export class AdminPage implements OnInit {
     try {
       if (status === 'PUBLISHED') {
         await this.admin.publishGuidancePost(row.id);
+        // The pending hero import (guidance-hero-import) RUNS inside this
+        // publish call: the server fetches, validates and stores the
+        // draft's heroImportUrl (a failed import fails the publish, so a
+        // success here means the import succeeded or was absent). The 204
+        // carries no body, so when the row carried a pending URL the hero
+        // reference changed (now a stored asset, URL cleared) and the
+        // detail re-fetch keeps the list's thumbnail honest. The fetch is
+        // held under the shared busy flag — the button's "Working…" covers
+        // the whole import, not just the stamp. A re-fetch failure (the
+        // post vanished concurrently) degrades to the stale row: the
+        // publish itself succeeded, the next list load fixes the row.
+        if (row.heroImportUrl !== null) {
+          try {
+            const fresh = await this.admin.getGuidancePost(row.id);
+            this.patchGuidance(row.id, fresh);
+          } catch {
+            // Stale row: the publish succeeded, the list load heals it.
+          }
+        }
       } else {
         await this.admin.unpublishGuidancePost(row.id);
       }

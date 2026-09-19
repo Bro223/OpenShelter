@@ -27,6 +27,27 @@
   gap: var(--space-8);
 }
 
+/* The hero image: the index card's hero idiom (guidance-list-page) at
+   article scale — full width in a fixed 4/3 aspect-ratio box,
+   object-fit: cover. The box (not the image bytes) defines the height,
+   so the title below never shifts while the image loads. The failed
+   variant is the index's neutral "no image" box — same look for a
+   404'd stored URL as the cards use for a hero-less / failed card. */
+.guidance-detail__hero {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-md);
+
+  &--failed {
+    /* The neutral "no image" box: a border + background on the same 4/3
+       frame (the element is a <span>, so it needs a display upgrade to
+       take the width/aspect-ratio of the shared rule). */
+    display: block;
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-bg-subtle);
+  }
+}
+
 .guidance-detail__date {
   color: var(--color-muted);
   font-size: var(--text-sm);

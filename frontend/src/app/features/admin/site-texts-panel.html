@@ -1,0 +1,76 @@
+<!-- The admin Settings panel — the site texts (site_texts): the
+     admin-editable popup / header / footer texts, three languages. The
+     shipped i18n catalog value is each field's PLACEHOLDER (the default:
+     a blank field means "use the default", and saving a cleared field
+     deletes the override). The two link keys carry one URL input each
+     (https, shared by all three locales). The admin edits VALUES only —
+     the keys come from the declared allowlist, never invented. -->
+@if (loaded() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" message="Loading site texts…" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="load()">Retry</button>
+} @else {
+  <p class="site-texts-hint">
+    Leave a field blank to use the shipped default (shown as the placeholder). Saving a
+    cleared field removes the override. Link URLs must start with
+    <code>https://</code> and are shared by all three languages.
+  </p>
+
+  @for (block of blocks(); track block.id) {
+    <section class="site-texts-block" [attr.aria-label]="block.heading">
+      <h3 class="site-texts-block__heading">{{ block.heading }}</h3>
+      @for (k of block.keys; track k.key) {
+        <div class="site-texts-row">
+          <div class="site-texts-row__key">
+            <code>{{ k.key }}</code>
+            @if (k.isLink) {
+              <label class="site-texts-row__url">
+                <span>Link (https, all languages)</span>
+                <input
+                  type="url"
+                  [attr.data-url-key]="k.key"
+                  [value]="url(k.key)"
+                  [placeholder]="k.urlDefault"
+                  (input)="setUrl(k.key, $any($event.target).value)"
+                />
+              </label>
+            }
+          </div>
+          <div class="site-texts-row__locales">
+            @for (l of locales; track l.code) {
+              <label class="site-texts-field">
+                <span class="site-texts-field__locale">{{ l.label }}</span>
+                <input
+                  type="text"
+                  maxlength="500"
+                  [attr.data-key]="k.key"
+                  [attr.data-locale]="l.code"
+                  [value]="value(k.key, l.code)"
+                  [placeholder]="k.defaults[l.code]"
+                  (input)="setValue(k.key, l.code, $any($event.target).value)"
+                />
+              </label>
+            }
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <div class="site-texts-actions">
+    @if (status(); as s) {
+      <p
+        class="site-texts-status"
+        [class.site-texts-status--ok]="s.ok"
+        [class.site-texts-status--error]="!s.ok"
+        role="alert"
+      >
+        {{ s.message }}
+      </p>
+    }
+    <button type="button" class="btn btn--primary" (click)="save()" [disabled]="saving()">
+      {{ saving() ? 'Saving…' : 'Save changes' }}
+    </button>
+  </div>
+}

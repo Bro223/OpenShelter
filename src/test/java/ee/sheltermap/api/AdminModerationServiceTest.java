@@ -13,6 +13,7 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ShelterHistoryChanges;
 import ee.sheltermap.app.ShelterHistoryLog;
 import ee.sheltermap.app.ShelterInfoRequestLog;
@@ -381,11 +382,45 @@ class AdminModerationServiceTest {
     }
 
     @Test
-    void suspendingAnAdminAccountIsRefusedWith409() {
+    void suspendingAnAdminAccountIsRefusedWith403() {
+        // The provisioned admin is the deployment's access path — disabling it
+        // is a lockout vector, so the refusal is a 403 naming the env
+        // provisioning (was a 409; the env-admin-protect lockdown splits the
+        // admin/guest vocabulary: 403 admin, 409 guest).
         assertThatThrownBy(() -> service.suspendUser(adminId, adminId))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+        assertThat(users.findById(adminId).isSuspended()).isFalse();
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void unsuspendingAnAdminAccountIsRefusedWith403() {
+        // It is never suspended — but a direct call must still be refused
+        // (not a no-op 204): same 403, same message, nothing changes.
+        assertThatThrownBy(() -> service.unsuspendUser(adminId, adminId))
+                .isInstanceOf(ProvisionedAdminProtectedException.class)
+                .hasMessage(AdminModerationService.PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+        assertThat(users.findById(adminId).isSuspended()).isFalse();
+        assertThat(audit.rows()).isEmpty();
+    }
+
+    @Test
+    void suspendingAGuestAccountStillAnswers409() {
+        // The 409 survives for the non-REGISTERED kind that has no
+        // credentials to stop — only the ADMIN kind moved to the 403.
+        long guestId;
+        {
+            ee.sheltermap.domain.GuestUser guest = new ee.sheltermap.domain.GuestUser();
+            users.save(guest);
+            guestId = guest.getId();
+        }
+        assertThatThrownBy(() -> service.suspendUser(adminId, guestId))
                 .isInstanceOf(NonSuspendableUserException.class)
                 .hasMessage(AdminModerationService.NON_REGISTERED_SUSPENSION_MESSAGE);
-        assertThat(users.findById(adminId).isSuspended()).isFalse();
+        assertThatThrownBy(() -> service.unsuspendUser(adminId, guestId))
+                .isInstanceOf(NonSuspendableUserException.class)
+                .hasMessage(AdminModerationService.NON_REGISTERED_SUSPENSION_MESSAGE);
         assertThat(audit.rows()).isEmpty();
     }
 

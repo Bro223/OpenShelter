@@ -7,6 +7,7 @@ import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationUpstreamException;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ReportThrottledException;
 import ee.sheltermap.app.ShelterDuplicateException;
@@ -373,8 +374,15 @@ public class ApiErrorHandler {
         return false;
     }
 
+    /**
+     * The 403 family: not verified, not the author, not an admin, a
+     * suspended account — and the provisioned-admin protection (the
+     * environment-provisioned administrator account cannot be deleted,
+     * suspended, password-reset or contact-changed from the app; the
+     * message names the environment provisioning).
+     */
     @ExceptionHandler({NotVerifiedException.class, NotAuthorException.class, AdminAccessException.class,
-            SuspendedAccountException.class})
+            SuspendedAccountException.class, ProvisionedAdminProtectedException.class})
     ResponseEntity<ErrorResponse> forbidden(RuntimeException ex, HttpServletRequest request) {
         return error(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }

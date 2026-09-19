@@ -907,6 +907,36 @@ describe('AccountPage', () => {
   });
 
   describe('delete account (M4 slice 2)', () => {
+    it('the provisioned admin gets no delete controls — only the explanation', async () => {
+      // The env-provisioned administrator (kind ADMIN — the profile's
+      // isAdmin): the type-to-confirm input and the delete button are
+      // ABSENT (the server would refuse the call with 403 anyway), and the
+      // panel says why instead.
+      account.me.mockResolvedValue({ ...PROFILE, isAdmin: true });
+      const { page, element, fixture } = await open();
+      expect(store.isAdmin()).toBe(true);
+
+      expect(element.querySelector('#delete-account')).toBeNull();
+      expect(element.querySelector('#delete-confirm')).toBeNull();
+      expect(text(fixture)).toContain(
+        'This account was provisioned by the deployment environment, so it cannot be deleted from the app.',
+      );
+      // the explanation names the operator action, and calling the flow
+      // directly still does nothing (no arming possible without the input)
+      expect(text(fixture)).toContain('ADMIN_EMAIL');
+      await page.deleteAccount();
+      fixture.detectChanges();
+      expect(account.deleteAccount).not.toHaveBeenCalled();
+    });
+
+    it('an ordinary account still renders the full delete flow', async () => {
+      const { element, fixture } = await open();
+      expect(store.isAdmin()).toBe(false);
+      expect(element.querySelector('#delete-account')).not.toBeNull();
+      expect(element.querySelector('#delete-confirm')).not.toBeNull();
+      expect(text(fixture)).not.toContain('provisioned by the deployment environment');
+    });
+
     it('the delete button stays disarmed until DELETE is typed', async () => {
       const { page, element, fixture } = await open();
       const button = element.querySelector<HTMLButtonElement>('#delete-account');

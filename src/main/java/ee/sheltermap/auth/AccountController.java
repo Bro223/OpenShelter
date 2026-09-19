@@ -50,7 +50,9 @@ import java.util.stream.Collectors;
  *       shelters) as one JSON document (legal-recovery)</li>
  *   <li>{@code DELETE /account} — the account erasure (legal-recovery):
  *       purge the declared private homes, orphan the public community rows,
- *       cascade the rest via the DB FK policy (V14)</li>
+ *       cascade the rest via the DB FK policy (V14). The provisioned admin
+ *       (kind ADMIN) is refused with 403 — de-provisioning is an operator
+ *       action on the environment, not an in-app one</li>
  * </ul>
  *
  * <p>All endpoints require a Bearer JWT (default security rule). The user is
@@ -218,7 +220,10 @@ public class AccountController {
      * credentials, claims, pending changes, tokens and reports.
      * The verified-user gate matches the submission gates (403
      * without a claim); a repeat call is an idempotent no-op — the JWT is
-     * valid until its expiry, but the account is already gone.
+     * valid until its expiry, but the account is already gone. The
+     * provisioned admin (kind ADMIN) is refused with 403: the account is
+     * the deployment's access path and de-provisioning removes the env
+     * vars, not the row.
      */
     @DeleteMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -230,7 +235,17 @@ public class AccountController {
                     + "verified-user gate matches the submission gates (403 "
                     + "without a claim); a repeat call is an idempotent no-op — "
                     + "the JWT is valid until its expiry, but the account is "
-                    + "already gone.")
+                    + "already gone. The environment-provisioned administrator "
+                    + "(kind ADMIN) is refused with 403 naming the environment "
+                    + "provisioning — de-provisioning is an operator action on "
+                    + "the env vars, not an in-app deletion.")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "The account is "
+                    + "erased (an idempotent no-op on a repeat call)"),
+            @ApiResponse(responseCode = "403", description = "No verification "
+                    + "claim — or the environment-provisioned administrator "
+                    + "account (refused; the message names the env provisioning)")
+    })
     public void deleteAccount() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof Long userId)) {

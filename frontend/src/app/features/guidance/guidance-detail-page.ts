@@ -59,6 +59,19 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
       switch, whose 404/200 outcome can flip between fetches). */
   private fetchSeq = 0;
 
+  /** Did the CURRENT post's hero <img> fail to load (404/network)? The
+      index card's idiom (guidance-list-page): the neutral placeholder box
+      takes its place — a broken-image icon is never the feedback. A plain
+      boolean (one post at a time, unlike the index's per-slug set); reset
+      on every load so a failed hero never carries over to the next slug. */
+  protected readonly heroFailed = signal(false);
+
+  /** Template seam for the hero <img>'s (error): the placeholder takes
+      the image's place (the box keeps its height, no layout shift). */
+  onHeroImageError(_event: Event): void {
+    this.heroFailed.set(true);
+  }
+
   /** The language switcher sets I18nService.locale: the detail is
       locale-scoped on the server, so a switch re-fetches (the guard
       keeps a stale response from the other language from landing).
@@ -117,6 +130,9 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
     // dropped with the other stale state; the 404 handler re-sets it
     // when the post is still not in this language.
     this.notFound.set(false);
+    // The previous post's failed-hero state never carries over to a new
+    // slug (the load may land a different post, with or without a hero).
+    this.heroFailed.set(false);
     this.loading.set(true);
     return this.gateway.getBySlug(slug).then(
       (value) => {

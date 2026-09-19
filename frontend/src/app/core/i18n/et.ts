@@ -15,11 +15,28 @@ export const ET: Messages = {
   'nav.admin': 'Admin',
   'nav.skip': 'Liigu põhisisu juurde',
 
-  'theme.toggle': 'Kõrge kontrast',
+  'a11y.button': 'Kättesaadavus',
   'lang.label': 'Keel',
   'auth.logout': 'Logi välja',
   'auth.login': 'Logi sisse',
   'auth.register': 'Loo konto',
+
+  // --- kättesaadavusdialog (kolm kontrastivalikut). Lähteväärtused —
+  //  kõiki allpool olevaid trükiseid saab administraator muuta
+  //  site_texts kaudu (I18nService kattekiht taganeb nendele
+  //  väärtustele, kui muudatust rea pole).
+  'a11y.popup.title': 'Kättesaadavus',
+  'a11y.popup.body':
+    'Vali, kuidas OpenShelter sulle näeb välja. Valik kehtib kohe ja salvestatakse sellesse seadmesse.',
+  'a11y.option.default': 'Vaikimisi',
+  'a11y.option.default.desc': 'Tavaline heleda välimus.',
+  'a11y.option.highContrast': 'Kõrge kontrast',
+  'a11y.option.highContrast.desc': 'Tume taust ja hele, selge kiri.',
+  'a11y.option.blackYellow': 'Must-kollane',
+  'a11y.option.blackYellow.desc':
+    'Kollane kiri mustal taustal — madalale nägemisvõimele ja otsepäikesevalgusele.',
+  'a11y.popup.footer': 'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
+  'a11y.popup.close': 'Sule',
 
   'footer.notice1':
     'OpenShelter on kogukonna poolt hooldatud nimekiri, mitte ametlik hädaabiteenus.',
@@ -337,6 +354,8 @@ export const ET: Messages = {
 
   // --- administraator: juhisepostid + toimetaja + meediakogumik (crisis-guidance D8).
   'admin.retry': 'Proovi uuesti',
+
+  'admin.settings.tab': 'Sätted',
 
   'admin.guidance.tab': 'Juhised',
   'admin.guidance.loading': 'Juhiseposte laetakse…',

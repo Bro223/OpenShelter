@@ -1,0 +1,54 @@
+@if (open()) {
+  <!-- The dimmed page behind: clicking it closes (the backdrop is NOT a
+       control of the dialog itself — the dialog box ignores the click). -->
+  <div class="a11y-overlay" (click)="onOverlayClick($event)">
+    <section
+      class="a11y-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="a11y-dialog-title"
+      aria-describedby="a11y-dialog-body"
+      tabindex="-1"
+      #dialog
+      (keydown)="onKeydown($event)"
+    >
+      <!-- The popup header (admin-editable: site_texts a11y.popup.title). -->
+      <h2 class="a11y-dialog__title" id="a11y-dialog-title">{{ 'a11y.popup.title' | t }}</h2>
+      <p class="a11y-dialog__body" id="a11y-dialog-body">{{ 'a11y.popup.body' | t }}</p>
+
+      <!-- The three contrast options: a real radio group (arrow keys
+           move between options, the state is announced). The selected
+           row is distinguished by its BORDER, not a tint — the same rule
+           the black-and-yellow theme applies to every card. -->
+      <fieldset class="a11y-dialog__options">
+        <legend class="a11y-dialog__legend">{{ 'a11y.popup.title' | t }}</legend>
+        @for (option of options; track option.value) {
+          <label
+            class="a11y-option"
+            [class.a11y-option--selected]="theme() === option.value"
+          >
+            <input
+              type="radio"
+              name="a11y-theme"
+              [value]="option.value"
+              [checked]="theme() === option.value"
+              (change)="select(option.value)"
+            />
+            <span class="a11y-option__text">
+              <span class="a11y-option__label">{{ option.labelKey | t }}</span>
+              <span class="a11y-option__desc">{{ option.descKey | t }}</span>
+            </span>
+          </label>
+        }
+      </fieldset>
+
+      <!-- The popup footer (admin-editable: a11y.popup.footer / .close). -->
+      <footer class="a11y-dialog__footer">
+        <p class="a11y-dialog__footernote">{{ 'a11y.popup.footer' | t }}</p>
+        <button type="button" class="btn btn--ghost a11y-dialog__close" (click)="close()">
+          {{ 'a11y.popup.close' | t }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

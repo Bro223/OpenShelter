@@ -131,3 +131,29 @@ collected anywhere in the app.
 
 - **WHEN** no valid JWT is presented
 - **THEN** the endpoint answers 401 and no data changes
+
+### Requirement: Provisioned admin — delete controls absent with explanation
+
+For the ADMIN-kind account (`GET /account/me` `isAdmin: true` — the
+env-provisioned administrator), the account page SHALL NOT render the
+delete-account controls (the type-DELETE-to-confirm input and the
+delete button) and SHALL show a short explanation instead: the account
+is provisioned by the deployment environment, de-provisioning is an
+operator action (removing the ADMIN_EMAIL / ADMIN_PASSWORD environment
+variables), and the server refuses the deletion either way. The
+explanation exists so the operator understands why the controls are
+absent. The enforcement is server-side regardless of the UI: `DELETE
+/account` for the ADMIN-kind account answers 403. For a REGISTERED
+account the type-to-confirm delete flow SHALL render unchanged.
+
+#### Scenario: The provisioned admin sees no delete controls
+
+- **WHEN** the provisioned admin opens `/account`
+- **THEN** the Delete account section contains only the explanation —
+  no confirm input, no delete button
+
+#### Scenario: An ordinary account keeps the delete flow
+
+- **WHEN** a REGISTERED user opens `/account`
+- **THEN** the type-DELETE-to-confirm input and the delete button
+  render, and no provisioning explanation is shown

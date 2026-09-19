@@ -4,6 +4,7 @@ import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
+import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.app.ReportNotFoundException;
 import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.app.ShelterHistoryChanges;
@@ -86,9 +87,18 @@ public class AdminModerationService {
     /** The read-time rendering of a gone subject account in the audit trail. */
     public static final String DELETED_ACCOUNT_NAME = "Deleted account";
 
-    /** Plain-spoken 409 for a suspend/unsuspend of a non-REGISTERED account. */
+    /** Plain-spoken 409 for a suspend/unsuspend of a GUEST account (no credentials). */
     public static final String NON_REGISTERED_SUSPENSION_MESSAGE =
             "Only registered user accounts can be suspended";
+
+    /**
+     * Plain-spoken 403 for a suspend/unsuspend of the provisioned ADMIN
+     * account: the environment-provisioned administrator is the
+     * deployment's access path — disabling it is a lockout vector, and the
+     * env vars (not the app) own the account.
+     */
+    public static final String PROVISIONED_ADMIN_SUSPENSION_MESSAGE =
+            "The environment-provisioned administrator account cannot be suspended or unsuspended";
 
     private final ShelterQueryService queryService;
     private final ShelterRepository shelters;
@@ -517,13 +527,17 @@ public class AdminModerationService {
      * POST /admin/users/{id}/suspend — set the suspension
      * stamp on a REGISTERED account (idempotent: re-suspending an
      * already-suspended account is a no-op that records no audit row).
-     * Unknown id → 404; ADMIN/GUEST → 409 (the provisioned admin is a
-     * lockout vector, a guest has no credentials). The audit row joins
-     * this transaction with the account as subject (shelterless row).
+     * Unknown id → 404; ADMIN → 403 (the provisioned admin is a lockout
+     * vector — it cannot be disabled at all); GUEST → 409 (no
+     * credentials). The audit row joins this transaction with the account
+     * as subject (shelterless row).
      */
     @Transactional
     public void suspendUser(long moderatorId, long userId) {
         User user = requireUser(userId);
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+        }
         if (!isRegistered(user)) {
             throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
         }
@@ -538,11 +552,16 @@ public class AdminModerationService {
     /**
      * POST /admin/users/{id}/unsuspend — clear the stamp
      * (idempotent: unsuspending an active account is a no-op that records
-     * no audit row). The same 404/409 guards as {@link #suspendUser}.
+     * no audit row). The same guards as {@link #suspendUser}: 404 unknown
+     * id, 403 the provisioned admin (it is never suspended — there is
+     * nothing to lift), 409 guest.
      */
     @Transactional
     public void unsuspendUser(long moderatorId, long userId) {
         User user = requireUser(userId);
+        if (user instanceof AdminUser) {
+            throw new ProvisionedAdminProtectedException(PROVISIONED_ADMIN_SUSPENSION_MESSAGE);
+        }
         if (!isRegistered(user)) {
             throw new NonSuspendableUserException(NON_REGISTERED_SUSPENSION_MESSAGE);
         }
@@ -565,7 +584,9 @@ public class AdminModerationService {
     /**
      * REGISTERED only — the kind truth is the domain class (the in-memory
      * fake mirrors the JPA impl's users.kind column the same way).
-     * AdminUser IS-A RegisteredUser, so it is excluded explicitly.
+     * AdminUser IS-A RegisteredUser, so it is excluded explicitly (the
+     * ADMIN kind is already refused above with the 403 — only GUEST
+     * reaches this guard today).
      */
     private static boolean isRegistered(User user) {
         return user instanceof RegisteredUser && !(user instanceof AdminUser);

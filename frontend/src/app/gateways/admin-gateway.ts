@@ -15,6 +15,7 @@ import type {
   ReviewShelterRequest,
   ReviewShelterResponse,
   ShelterStatus,
+  SiteTextEntryDto,
   UpdateGuidancePostRequest,
 } from '../core/models';
 
@@ -245,7 +246,11 @@ export class AdminGateway {
    * an explicit status PUBLISHED publishes in one call. 400 validation
    * (title/body required, the alt/hero pairing, the slug shape); 409 an
    * admin-supplied slug another post already holds (naming the slug); 404
-   * a heroImageId with no such asset.
+   * a heroImageId with no such asset. The pending hero import
+   * (`heroImportUrl`, guidance-hero-import): stored with the draft and
+   * consumed at publish; in the one-shot PUBLISHED create the server
+   * fetches, validates and stores the image IN this call — a failed import
+   * fails the create (400 policy/non-image, 413 over cap, 502 unfetchable).
    */
   createGuidancePost(request: CreateGuidancePostRequest): Promise<AdminGuidancePostDto> {
     return lastValueFrom(this.api.post<AdminGuidancePostDto>('/admin/guidance', request));
@@ -257,7 +262,10 @@ export class AdminGateway {
    * another post holds → 409 naming it); the body is re-sanitized
    * server-side (the stored value is the sanitizer output). The
    * publication state is NOT editable here — publish/unpublish own it.
-   * 404 unknown id (or a heroImageId with no such asset).
+   * 404 unknown id (or a heroImageId with no such asset). `heroImportUrl`
+   * (guidance-hero-import): a blank/absent value CLEARS a pending import
+   * (full replace); a non-null URL on an already-published post is a 400
+   * (unpublish first).
    */
   updateGuidancePost(
     id: number,
@@ -270,7 +278,11 @@ export class AdminGateway {
    * POST /admin/guidance/{id}/publish -> 204 (no body). Stamps publishedAt
    * from the server clock (a re-publish stamps a FRESH instant);
    * idempotent — an already-published post is a 204 no-op that writes no
-   * audit row. 404 unknown id.
+   * audit row. 404 unknown id. This call is where the pending hero import
+   * (guidance-hero-import) RUNS: a draft carrying `heroImportUrl` has the
+   * image fetched, validated and stored inside this call, and a failed
+   * import fails the publish (400 policy/non-image, 413 over cap, 502
+   * unfetchable) leaving the post a DRAFT with the URL intact.
    */
   publishGuidancePost(id: number): Promise<void> {
     return lastValueFrom(this.api.post<void>(`/admin/guidance/${id}/publish`));
@@ -336,6 +348,19 @@ export class AdminGateway {
   deleteMediaAsset(id: number, confirm: boolean): Promise<MediaAssetDto> {
     const path = confirm ? `/admin/media/${id}?confirm=true` : `/admin/media/${id}`;
     return lastValueFrom(this.api.delete<MediaAssetDto>(path));
+  }
+
+  /**
+   * The site texts (site_texts): save the admin's edits. A blank `value`
+   * resets that (key, locale) to the shipped default (the server deletes
+   * the row); a blank `url` on a link key resets to the shipped default
+   * URL. The server 400s unknown keys, non-https URLs, urls on non-link
+   * keys and oversized values — the admin page surfaces the message.
+   */
+  putSiteTexts(entries: SiteTextEntryDto[]): Promise<void> {
+    return lastValueFrom(
+      this.api.put<void>('/admin/site-texts', { texts: entries }),
+    );
   }
 }
 
