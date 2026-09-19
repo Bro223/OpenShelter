@@ -190,10 +190,36 @@ describe('design tokens (M6)', () => {
     return out;
   }
 
+  /** --color* token name -> literal value, from the theme-tokens.ts
+   *  BLACK_AND_YELLOW_TOKENS map (quoted keys: the only place in the file
+   *  where a --color-* name carries a 'name': 'value' pair). */
+  function tsColorTokens(source: string): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const line of source.split('\n')) {
+      const match = line.match(/'(--color-[\w-]+)'\s*:\s*'([^']+)'/);
+      if (match !== null) {
+        out.set(match[1], match[2].trim());
+      }
+    }
+    return out;
+  }
+
   const rootTokens = colorTokens(rootLines);
   const themeTokens = colorTokens(themeLines);
+  // The black-and-yellow theme's values are runtime tokens (theme-tokens.ts
+  // — the audit keeps hex literals out of SCSS, so this theme has no SCSS
+  // block to parse). Parse the TS map into the same name -> literal shape
+  // and hold it to the same contrast math + the same name-set rule.
+  const byTokens = tsColorTokens(
+    readFileSync(`${SRC_DIR}/app/core/theme-tokens.ts`, 'utf8'),
+  );
 
-  type ContrastPair = { theme: 'light' | 'high-contrast'; fg: string; bg: string; min: number };
+  type ContrastPair = {
+    theme: 'light' | 'high-contrast' | 'black-and-yellow';
+    fg: string;
+    bg: string;
+    min: number;
+  };
 
   const TEXT_PAIRS: [string, string][] = [
     // Body text on every surface it actually renders on.
@@ -231,9 +257,12 @@ describe('design tokens (M6)', () => {
     // the NEW community rows' "Newly added" badge on every surface.
     ['--color-warning', '--color-badge-new'],
     // Chrome band (header + footer + <900 menu panel): every text pair on
-    // the navy band, both themes (the HC theme pins the same values — see
-    // the block comment in styles.scss). Measured: 13.57 / 8.80 / 7.18 /
-    // 7.20:1.
+    // the band, every theme. Light + high-contrast: the navy band —
+    // 13.57 / 8.80 / 7.18 / 7.20:1 (the HC block pins the same values and
+    // the HC name-set test above keeps them declared). Black-and-yellow:
+    // the band IS the theme — black with yellow text (the runtime tokens
+    // in theme-tokens.ts, the owner's "yellow text, black background"):
+    // 14.67 / 10.47 / 14.67 / 14.67:1.
     ['--color-chrome-text', '--color-chrome-bg'],
     ['--color-chrome-muted', '--color-chrome-bg'],
     ['--color-chrome-focus', '--color-chrome-bg'],
@@ -249,9 +278,14 @@ describe('design tokens (M6)', () => {
   ];
 
   const CONTRAST_CHECKS: ContrastPair[] = [
-    // Text: WCAG AA 4.5:1.
+    // Text: WCAG AA 4.5:1, every theme.
     ...TEXT_PAIRS.flatMap(([fg, bg]) =>
-      (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 4.5 })),
+      (['light', 'high-contrast', 'black-and-yellow'] as const).map((theme) => ({
+        theme,
+        fg,
+        bg,
+        min: 4.5,
+      })),
     ),
     // Non-text (UI component boundary / graphical object): 3:1.
     ...(
@@ -273,6 +307,19 @@ describe('design tokens (M6)', () => {
     ).flatMap(([fg, bg]) =>
       (['light', 'high-contrast'] as const).map((theme) => ({ theme, fg, bg, min: 3 })),
     ),
+    // Black-and-yellow UI boundaries: the band's background is pure black,
+    // so its edges clear 3:1 here (divider + ghost-button edge 4.58:1,
+    // the ghost's resting/hover fills are the documented exemptions
+    // below) — where the other two themes document the navy band's edges
+    // as decorative sub-3:1 pairs.
+    ...(
+      [
+        ['--color-border', '--color-chrome-bg'],
+        ['--color-border', '--color-bg-surface'],
+        ['--color-border', '--color-bg'],
+        ['--color-chrome-border', '--color-chrome-bg'],
+      ] as [string, string][]
+    ).map(([fg, bg]) => ({ theme: 'black-and-yellow' as const, fg, bg, min: 3 })),
     // HC-only text pairs (not checked in light, where the value is a
     // graphical-object fill, not a text colour): --color-shelter-pick is the
     // one "unchanged (map context)" token of the theme. It is #ff8a80
@@ -349,6 +396,22 @@ describe('design tokens (M6)', () => {
       reason:
         'ordinary border on the chrome band (2.36:1) — the ghost-button edge on navy in HC; decorative like the documented chrome-border divider (1.54:1)',
     },
+    {
+      theme: 'black-and-yellow',
+      fg: '--color-bg',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'ghost-button resting fill on the black chrome band (1.00:1) — in this theme --color-bg IS the band, so the resting fill merges with it; the button is identified by its 4.58:1 --color-border edge and its 14.67:1 yellow label, the same fill+label rationale as the HC band exemption',
+    },
+    {
+      theme: 'black-and-yellow',
+      fg: '--color-surface-hover',
+      bg: '--color-chrome-bg',
+      min: 3,
+      reason:
+        'ghost-button hover fill on the black chrome band (1.36:1) — same B&Y band rationale: the 4.58:1 border edge + the 10.83:1 yellow label carry the identification',
+    },
   ];
 
   const isPlainHex = (v: string): boolean => /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v);
@@ -361,14 +424,35 @@ describe('design tokens (M6)', () => {
     expect(missingInRoot, 'high-contrast tokens missing from :root').toEqual([]);
   });
 
-  it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in both themes', () => {
+  it('the black-and-yellow map overrides the SAME --color* name set as :root, plus its own --color-link (both directions)', () => {
+    // A typo'd or dropped name in the runtime map would leave that token
+    // un-overridden — the :root value would leak through (the navy band
+    // surviving in the black-and-yellow theme is exactly this failure
+    // mode). --color-link is the documented third-theme addition (the
+    // other two themes colour links with --color-primary).
+    expect(
+      byTokens.size,
+      'black-and-yellow token set unexpectedly small',
+    ).toBeGreaterThanOrEqual(40);
+    const missing = [...rootTokens.keys()].filter((t) => !byTokens.has(t));
+    const extra = [...byTokens.keys()].filter((t) => !rootTokens.has(t) && t !== '--color-link');
+    expect(missing, ':root tokens missing from the black-and-yellow map').toEqual([]);
+    expect(extra, 'black-and-yellow tokens without a :root counterpart').toEqual([]);
+  });
+
+  it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme', () => {
     const exempted = new Set(CONTRAST_EXEMPTIONS.map((e) => `${e.theme}:${e.fg}:${e.bg}`));
     const offenders: string[] = [];
     for (const check of CONTRAST_CHECKS) {
       if (exempted.has(`${check.theme}:${check.fg}:${check.bg}`)) {
         continue; // documented sub-threshold token — verified by the honesty test below
       }
-      const tokens = check.theme === 'light' ? rootTokens : themeTokens;
+      const tokens =
+        check.theme === 'light'
+          ? rootTokens
+          : check.theme === 'high-contrast'
+            ? themeTokens
+            : byTokens;
       const fg = tokens.get(check.fg);
       const bg = tokens.get(check.bg);
       if (fg === undefined || bg === undefined || !isPlainHex(fg) || !isPlainHex(bg)) {
@@ -390,7 +474,12 @@ describe('design tokens (M6)', () => {
   it('every contrast exemption is honest (the pair really is below its threshold)', () => {
     const stale: string[] = [];
     for (const exempted of CONTRAST_EXEMPTIONS) {
-      const tokens = exempted.theme === 'light' ? rootTokens : themeTokens;
+      const tokens =
+        exempted.theme === 'light'
+          ? rootTokens
+          : exempted.theme === 'high-contrast'
+            ? themeTokens
+            : byTokens;
       const ratio = contrast(tokens.get(exempted.fg)!, tokens.get(exempted.bg)!);
       if (ratio >= exempted.min) {
         stale.push(

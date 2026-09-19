@@ -55,10 +55,16 @@ export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
  * convention from the high-contrast block), which is what makes the
  * inverted primary button black-on-yellow with no extra rule.
  *
- * The chrome band (header/footer navy) stays theme-invariant, the
- * high-contrast precedent: its white/muted text already clears the
- * floor on #12304a. The MAP is not themed (OSM tiles stay light);
- * --color-map-placeholder and the marker hues keep the source coding.
+ * The chrome band (header/footer) FOLLOWS this theme (owner decision):
+ * the mode's word for it is "black and yellow = yellow text on a black
+ * background", so the --color-chrome-* values are black + the palette's
+ * yellows (design-tokens.spec.ts re-runs those ratios like the rest of
+ * the map; a name-set test pins that the map overrides every :root
+ * token, so no navy value can leak through the band). The
+ * high-contrast theme keeps the navy band — that is the HC SCSS block's
+ * own values, spec-enforced there. The MAP is not themed (OSM tiles
+ * stay light); --color-map-placeholder and the marker hues keep the
+ * source coding.
  */
 export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   /* Text & surfaces */
@@ -79,13 +85,29 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
      links must stay distinguishable from the body text, WCAG 1.4.1).
      Consumed by the global rule in the accessibility dialog's scss. */
   '--color-link': '#ffe066',
-  /* Chrome band — theme-invariant (the high-contrast block's note). */
-  '--color-chrome-bg': '#12304a',
-  '--color-chrome-text': '#ffffff',
-  '--color-chrome-muted': '#c3d2e0',
-  '--color-chrome-focus': '#7fc4f5',
-  '--color-chrome-active': '#4dd0c4',
-  '--color-chrome-border': '#2e4d6a',
+  /* Chrome band (header + footer + <900 menu panel) — the owner's word:
+     BLACK background, YELLOW text. Every band surface rides on these
+     tokens, so the whole band follows the theme:
+     bg     #000000  (the black background)
+     text   #ffd400  on #000  14.67:1 (wordmark, nav links, footer links)
+     muted  #d4b53a  on #000  10.47:1 (footer notice + provenance text)
+     focus  #ffd400  on #000  14.67:1 (>= 3:1 — the focus ring on the band)
+     active #ffd400  on #000  14.67:1 (>= 3:1 — the active-nav indicator)
+     border #8a7400  on #000  4.58:1  (>= 3:1 — the band divider + the
+                                   ghost buttons' edge, enforced at 3:1)
+     The header ghost buttons' resting fill is --color-bg (#000) and the
+     hover fill --color-surface-hover (#2b2400): 1.00:1 / 1.36:1 against
+     the band — documented exemptions in design-tokens.spec.ts (the
+     4.58:1 border edge + the 14.67:1 yellow label carry the
+     identification, the same fill+label rationale as the HC band's).
+     The nav links' underline (the non-colour link cue) ships in the
+     accessibility dialog's page-wide rules. */
+  '--color-chrome-bg': '#000000',
+  '--color-chrome-text': '#ffd400',
+  '--color-chrome-muted': '#d4b53a',
+  '--color-chrome-focus': '#ffd400',
+  '--color-chrome-active': '#ffd400',
+  '--color-chrome-border': '#8a7400',
   /* CTA + reported + new (the fills carry BLACK text — --color-bg-surface) */
   '--color-cta': '#ff9f1c',
   '--color-reported': '#ff6b4d',

@@ -167,3 +167,21 @@
 [data-theme='black-and-yellow'] .btn--primary:hover:not(:disabled) {
   background: var(--color-primary-hover);
 }
+
+/* The chrome band (header, footer + its links, the <900px menu panel)
+   follows the theme: theme-tokens.ts overrides the band's tokens to
+   black + yellow (the owner's "yellow text, black background"), so no
+   navy leaks through in this mode. The band's links keep the rule above
+   — with one scoped exception: the HEADER NAV LINKS reset
+   text-decoration to none in page-shell.scss, and on the black band a
+   nav link is the same yellow as the header's own text (both ride on
+   --color-chrome-text) — the underline is the only non-colour cue that
+   a link is a link (WCAG 1.4.1). The active item's page-shell rule
+   already underlines with the chrome-active decoration colour (the same
+   yellow in this theme); text-decoration-line (the longhand, not the
+   shorthand) keeps a specificity tie from resetting that rule's colour.
+   text-underline-offset matches the active item's 4px. */
+[data-theme='black-and-yellow'] .shell-header .shell-nav a {
+  text-decoration-line: underline;
+  text-underline-offset: 4px;
+}

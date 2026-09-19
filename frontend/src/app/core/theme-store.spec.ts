@@ -151,6 +151,77 @@ describe('ThemeStore (D2: toggle + persistence, no flash)', () => {
     // Cards are border-distinguished, never a dark tint (#111 on black = 1.11:1).
     expect(BLACK_AND_YELLOW_TOKENS['--color-bg-surface']).toBe('#000000');
   });
+
+  /* The chrome band (header + footer + the <900 menu panel) follows the
+     selected mode: page-shell.scss styles the band exclusively through
+     the --color-chrome-* tokens (page-shell.spec.ts pins the token
+     references, including the panel's), so driving the tokens on <html>
+     drives the whole band — no SCSS change, no reload. */
+  describe('the mode drives the chrome band tokens (no navy leak)', () => {
+    const CHROME = [
+      '--color-chrome-bg',
+      '--color-chrome-text',
+      '--color-chrome-muted',
+      '--color-chrome-focus',
+      '--color-chrome-active',
+      '--color-chrome-border',
+    ] as const;
+
+    it('black-and-yellow puts the band\'s black + yellow values on <html>', () => {
+      store.set('black-and-yellow');
+      for (const token of CHROME) {
+        expect(
+          document.documentElement.style.getPropertyValue(token),
+          `${token} must carry the black-and-yellow runtime value`,
+        ).toBe(BLACK_AND_YELLOW_TOKENS[token]);
+      }
+      // The owner\'s words: black background, yellow text.
+      expect(BLACK_AND_YELLOW_TOKENS['--color-chrome-bg']).toBe('#000000');
+      expect(BLACK_AND_YELLOW_TOKENS['--color-chrome-text']).toBe('#ffd400');
+    });
+
+    it('switching modes updates the band without a reload (the tokens are re-applied/cleared on <html>)', () => {
+      store.set('black-and-yellow');
+      expect(document.documentElement.style.getPropertyValue('--color-chrome-bg')).toBe(
+        BLACK_AND_YELLOW_TOKENS['--color-chrome-bg'],
+      );
+
+      // high-contrast: the attribute seam only — the inline B&Y values are
+      // cleared so the [data-theme='high-contrast'] SCSS block\'s own band
+      // tokens rule (navy, spec-verified there).
+      store.set('high-contrast');
+      expect(document.documentElement.getAttribute('data-theme')).toBe('high-contrast');
+      for (const token of CHROME) {
+        expect(document.documentElement.style.getPropertyValue(token), token).toBe('');
+      }
+
+      // back to black-and-yellow: the values re-apply on the live document.
+      store.set('black-and-yellow');
+      for (const token of CHROME) {
+        expect(document.documentElement.style.getPropertyValue(token), token).toBe(
+          BLACK_AND_YELLOW_TOKENS[token],
+        );
+      }
+
+      // default: cleared again — the :root (navy) values rule.
+      store.set('default');
+      expect(document.documentElement.getAttribute('data-theme')).toBeNull();
+      for (const token of CHROME) {
+        expect(document.documentElement.style.getPropertyValue(token), token).toBe('');
+      }
+    });
+
+    it('booting with the stored black-and-yellow preference re-applies the band values (pre-paint twin)', () => {
+      localStorage.setItem('openshelter-theme', 'black-and-yellow');
+      const reloaded = reload();
+      expect(reloaded.theme()).toBe('black-and-yellow');
+      for (const token of CHROME) {
+        expect(document.documentElement.style.getPropertyValue(token), token).toBe(
+          BLACK_AND_YELLOW_TOKENS[token],
+        );
+      }
+    });
+  });
 });
 
 describe('index.html pre-paint theme script (no flash, no FOUC)', () => {
