@@ -657,6 +657,13 @@ export const EN: Messages = {
   'admin.audit.col.change': 'Change',
   'admin.audit.col.reason': 'Reason',
 
+  'admin.settings.languages.title': 'Languages',
+  'admin.settings.languages.adminLabel': 'Admin language',
+  'admin.settings.languages.adminHint':
+    'The language of this admin interface (tabs, buttons, column headers). Changing it does not change the guidance content.',
+  'admin.settings.languages.contentLabel': 'Content language',
+  'admin.settings.languages.contentHint':
+    'The language of the guidance posts listed and edited in the Guidance tab. On first use it follows the admin language; afterwards it is independent.',
   'admin.siteTexts.loading': 'Loading site texts…',
   'admin.siteTexts.hint1':
     'Leave a field blank to use the shipped default (shown as the placeholder). Saving a cleared field removes the override. Link URLs must start with ',

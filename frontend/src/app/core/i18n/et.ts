@@ -666,6 +666,13 @@ export const ET: Messages = {
   'admin.audit.col.change': 'Muutus',
   'admin.audit.col.reason': 'Põhjus',
 
+  'admin.settings.languages.title': 'Keel',
+  'admin.settings.languages.adminLabel': 'Admin keel',
+  'admin.settings.languages.adminHint':
+    'Selle haldusliidese keel (vahekaardid, nupud, veeru pealkirjad). Selle muutmine ei muuda juhiste sisu.',
+  'admin.settings.languages.contentLabel': 'Sisu keel',
+  'admin.settings.languages.contentHint':
+    'Juhistepostituste keel, mida Juhised vahekaardil loetletakse ja muudetakse. Esimesel kasutamisel järgib admin keelt; seejärel on sõltumatu.',
   'admin.siteTexts.loading': 'Laen saidi tekste…',
   'admin.siteTexts.hint1':
     'Jäta väli tühjaks, et kasutada kaasaantud vaikimisi (näidatud kaoaiana). Tühjendatud väli salvestamine eemaldab ülekirjutuse. Lingi aadressid peavad algama ',

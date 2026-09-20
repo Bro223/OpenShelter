@@ -20,6 +20,17 @@ import {
 const LOCALE_KEY = 'openshelter-locale';
 
 /**
+ * Where the admin area's CONTENT language lives in localStorage
+ * (admin-locale-split): the locale the guidance admin's list/detail/
+ * save/reorder calls scope to. A SEPARATE key from LOCALE_KEY on purpose
+ * — the two languages are independent (the owner's requirement): the
+ * admin chrome can be Estonian while the moderator edits Russian
+ * content, and the public header switcher (LOCALE_KEY) never touches
+ * this one.
+ */
+const CONTENT_LOCALE_KEY = 'openshelter-admin-content-locale';
+
+/**
  * The default locale: `en`, the app's original copy language — a fresh
  * visitor sees the UI exactly as authored (zero first-load behavior
  * change). Flipping the default to `et` (whitepaper: "Estonian first") is
@@ -42,6 +53,16 @@ const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET, ru: RU };
  * index.html script — the constructor re-assertion is an idempotent no-op
  * that covers the edge where that script was skipped.
  *
+ * TWO LANGUAGES (admin-locale-split): `locale`/`setLocale` is the UI
+ * language — the chrome, exactly as before; the public site's header
+ * switcher drives it, and public pages render both their chrome and their
+ * content in it, unchanged. `contentLocale`/`setContentLocale` is the
+ * admin area's content language: the locale the guidance admin's list/
+ * detail/save/reorder calls scope to. It defaults to the UI locale on
+ * first entry, then persists INDEPENDENTLY (its own key) — a UI-language
+ * switch never moves it, and a content-language switch never re-translates
+ * the chrome.
+ *
  * `t()` is the single lookup seam: templates use the `t` pipe
  * (`{{ 'nav.map' | t }}`), non-template code (titleGuard, the
  * shelter-copy/error-copy helpers) calls it directly with an optional
@@ -59,6 +80,14 @@ const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET, ru: RU };
 export class I18nService {
   /** The active locale. */
   readonly locale = signal<Locale>(storedLocale());
+
+  /** The admin area's CONTENT language (admin-locale-split): the locale
+      the guidance admin's list/detail/save/reorder calls scope to. The
+      UI locale does NOT drive it — the default (on first entry) is the
+      UI locale, and from then on it persists independently under its
+      own key. The public site never reads it: public pages render in
+      the UI locale, exactly as before. */
+  readonly contentLocale = signal<Locale>(storedContentLocale(this.locale()));
 
   /** The admin overrides (site_texts), fetched once at boot by the shell.
       null = not loaded yet (or the fetch failed) — t() serves the
@@ -117,7 +146,9 @@ export class I18nService {
     return CATALOGS[this.locale()][key] ?? CATALOGS[DEFAULT_LOCALE][key];
   }
 
-  /** Switch + persist the locale (the header language switcher). */
+  /** Switch + persist the locale (the header language switcher). Never
+      touches the admin's content locale — the two languages are
+      independent (admin-locale-split). */
   setLocale(locale: Locale): void {
     this.locale.set(locale);
     document.documentElement.lang = locale;
@@ -125,6 +156,20 @@ export class I18nService {
       localStorage.setItem(LOCALE_KEY, locale);
     } catch {
       // Storage unavailable (private mode): the locale still applies for
+      // this session, it just will not survive a reload.
+    }
+  }
+
+  /** Switch + persist the admin's CONTENT language (the admin Settings
+      panel's content-language control). Never touches the UI locale: the
+      chrome keeps its language, the guidance list/detail/save/reorder
+      scope to this one. */
+  setContentLocale(locale: Locale): void {
+    this.contentLocale.set(locale);
+    try {
+      localStorage.setItem(CONTENT_LOCALE_KEY, locale);
+    } catch {
+      // Storage unavailable (private mode): the choice still applies for
       // this session, it just will not survive a reload.
     }
   }
@@ -138,6 +183,18 @@ function storedLocale(): Locale {
     return LOCALES.includes(stored as Locale) ? (stored as Locale) : DEFAULT_LOCALE;
   } catch {
     return DEFAULT_LOCALE;
+  }
+}
+
+/** The stored admin content locale when it is a known one, else `fallback`
+    — an invalid/stale value falls back to the UI locale (the first-entry
+    default), never a hardcoded locale (admin-locale-split). */
+function storedContentLocale(fallback: Locale): Locale {
+  try {
+    const stored = localStorage.getItem(CONTENT_LOCALE_KEY);
+    return LOCALES.includes(stored as Locale) ? (stored as Locale) : fallback;
+  } catch {
+    return fallback;
   }
 }
 

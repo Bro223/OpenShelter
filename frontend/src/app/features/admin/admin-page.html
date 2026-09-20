@@ -856,13 +856,13 @@
       </button>
     } @else if ((guidanceRows() ?? []).length === 0) {
       <p class="admin-state">
-        {{ 'admin.guidance.emptyLocale' | t: { locale: uiLocale() } }}
+        {{ 'admin.guidance.emptyLocale' | t: { locale: contentLocale() } }}
       </p>
     } @else {
-      <!-- admin-locale-scope: the list is the ACTIVE UI language's — the
-           line names the language being managed (the other languages' posts
-           are edited from their own lists). -->
-      <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: uiLocale() } }}</p>
+      <!-- admin-locale-scope + admin-locale-split: the list is the CONTENT
+           language's — the line names the language being managed (the
+           other languages' posts are edited from their own lists). -->
+      <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}</p>
       <!-- guidance-manual-order D6: the list order IS the public order —
            the hint names the two mechanisms (PRIMARY: the keyboard-
            reachable move buttons; SECONDARY: drag & drop). -->
@@ -1198,6 +1198,44 @@
   }
 
   @if (tab() === 'settings') {
+    <!-- Languages (admin-locale-split): the admin UI language (the chrome)
+         and the guidance content language are INDEPENDENT — two labeled
+         selects, clearly distinguishable, so nobody confuses them. Both
+         persist (separate localStorage keys). The public header switcher
+         is the UI-language control for the public site; these are the
+         admin's own controls for the same UI language plus the content
+         language. -->
+    <section class="admin-languages" aria-labelledby="admin-languages-title">
+      <h2 id="admin-languages-title" class="admin-languages__heading">
+        {{ 'admin.settings.languages.title' | t }}
+      </h2>
+      <div class="admin-languages__field">
+        <label for="admin-language-select">{{ 'admin.settings.languages.adminLabel' | t }}</label>
+        <select
+          id="admin-language-select"
+          [value]="uiLanguage()"
+          (change)="onAdminLanguageChange($event)"
+        >
+          @for (code of locales; track code) {
+            <option [value]="code">{{ code }}</option>
+          }
+        </select>
+        <p class="admin-languages__hint">{{ 'admin.settings.languages.adminHint' | t }}</p>
+      </div>
+      <div class="admin-languages__field">
+        <label for="content-language-select">{{ 'admin.settings.languages.contentLabel' | t }}</label>
+        <select
+          id="content-language-select"
+          [value]="contentLocale()"
+          (change)="onContentLanguageChange($event)"
+        >
+          @for (code of locales; track code) {
+            <option [value]="code">{{ code }}</option>
+          }
+        </select>
+        <p class="admin-languages__hint">{{ 'admin.settings.languages.contentHint' | t }}</p>
+      </div>
+    </section>
     <!-- The site texts (site_texts): the admin-editable popup/header/footer
          copy, three languages, shipped catalog as the placeholder. The
          panel owns its own loading/saving state (self-contained, like the

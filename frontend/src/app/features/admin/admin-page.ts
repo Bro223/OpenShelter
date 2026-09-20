@@ -52,6 +52,8 @@ import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
+import type { Locale } from '../../core/i18n/locale';
+import { LOCALES } from '../../core/i18n/locale';
 import { ApiError } from '../../core/api-error';
 import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
 import { SiteTextsPanel } from './site-texts-panel';
@@ -301,10 +303,21 @@ export class AdminPage implements OnInit, OnDestroy {
   );
 
   // ---- guidance tab (crisis-guidance D8) -------------------------------------
-  /** The active UI language (admin-locale-scope): the guidance list, detail
-   *  fetches, saves and reorders all scope to it — the template renders it
-   *  in the "posts in {locale}" line. */
-  protected readonly uiLocale = this.i18n.locale;
+  /** The admin's UI language (the chrome — the Settings panel's "Admin
+   *  language" select renders it). admin-locale-split: it does NOT drive
+   *  the guidance list — that is the content locale below. */
+  protected readonly uiLanguage = this.i18n.locale;
+  /** The admin's CONTENT language (admin-locale-scope + admin-locale-
+   *  split): the guidance list, detail fetches, saves and reorders all
+   *  scope to it — the template renders it in the "posts in {locale}"
+   *  line and the scoped empty state, and the Settings panel's "Content
+   *  language" select renders it. It defaults to the UI language on
+   *  first entry, then persists independently. */
+  protected readonly contentLocale = this.i18n.contentLocale;
+  /** The supported locales — the Settings panel's two language selects
+   *  render from this list (the language codes are the labels, the
+   *  public switcher's convention). */
+  protected readonly locales = LOCALES;
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
    *  SCOPEd to the active UI language (admin-locale-scope): only the posts
    *  that have content in it (a translation row there or the home being it),
@@ -338,16 +351,19 @@ export class AdminPage implements OnInit, OnDestroy {
   private guidanceFetchSeq = 0;
   /** The monotonic editor-detail fetch sequence (same guard). */
   private editorFetchSeq = 0;
-  /** The language switcher sets I18nService.locale: the guidance list is
-   *  locale-scoped, so a switch re-fetches it (the guidance-list-page's
-   *  idiom). A field initializer (an injection context — toObservable's
-   *  requirement) builds the subscription; toObservable emits the CURRENT
-   *  value on subscribe, so skip(1) — only a real switch triggers it.
-   *  Unsubscribed in ngOnDestroy. An open editor is CLOSED by the switch
-   *  — its unsaved edits are DISCARDED (they belong to the previous
-   *  language's rows; re-open after the switch re-fetches the new
-   *  locale's content). */
-  private readonly guidanceLocaleSub = toObservable(this.i18n.locale)
+  /** The content-language switcher sets I18nService.contentLocale (the
+   *  admin Settings panel's "Content language" control): the guidance
+   *  list is scoped to it, so a switch re-fetches it (the
+   *  guidance-list-page's idiom). A UI-language switch (I18nService.
+   *  locale) deliberately does NOT re-fetch (admin-locale-split: the
+   *  listed content is untouched). A field initializer (an injection
+   *  context — toObservable's requirement) builds the subscription;
+   *  toObservable emits the CURRENT value on subscribe, so skip(1) —
+   *  only a real switch triggers it. Unsubscribed in ngOnDestroy. An
+   *  open editor is CLOSED by the switch — its unsaved edits are
+   *  DISCARDED (they belong to the previous language's rows; re-open
+   *  after the switch re-fetches the new locale's content). */
+  private readonly guidanceLocaleSub = toObservable(this.i18n.contentLocale)
     .pipe(skip(1))
     .subscribe(() => {
       this.closeGuidanceEditor();
@@ -453,6 +469,37 @@ export class AdminPage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.guidanceLocaleSub.unsubscribe();
+  }
+
+  // -------------------------------------------------------------------------
+  // Settings tab: the language controls (admin-locale-split)
+  // -------------------------------------------------------------------------
+
+  /**
+   * "Admin language" select: the admin UI language (the chrome). The same
+   *  path as the public header switcher (I18nService.setLocale — persists
+   *  under its own key, flips <html lang>). It NEVER touches the content
+   *  locale: the guidance list/detail/save/reorder keep scoping to the
+   *  content language (admin-locale-split).
+   */
+  onAdminLanguageChange(event: Event): void {
+    this.i18n.setLocale((event.target as HTMLSelectElement).value as Locale);
+  }
+
+  /**
+   * "Content language" select: the guidance content language. Persists
+   *  under its own key (I18nService.setContentLocale — the UI language is
+   *  untouched). From the Settings tab the open-list refetch cannot run
+   *  (the list is only live on the Guidance tab), so the cached rows are
+   *  invalidated: they belong to the previous content language, and the
+   *  Guidance tab's lazy-load rule re-fetches them in the new locale on
+   *  the next visit. On the Guidance tab itself the content-locale
+   *  subscription re-fetches immediately (the editor closes on the
+   *  switch, as before the split).
+   */
+  onContentLanguageChange(event: Event): void {
+    this.i18n.setContentLocale((event.target as HTMLSelectElement).value as Locale);
+    this.guidanceRows.set(null);
   }
 
   ngOnInit(): void {
@@ -996,20 +1043,20 @@ export class AdminPage implements OnInit, OnDestroy {
   // -------------------------------------------------------------------------
 
   /**
-   * Load the posts visible in the ACTIVE UI language (admin-locale-scope):
-   * only the posts that have content in it (a translation row there, or the
-   * post's home being it), each carrying that locale's content, in the
-   * stored global manual order (the list renders in the server's order —
-   * no client sort). The monotonic fetch sequence drops a stale
-   * (out-of-order) response: a superseded load must not overwrite a newer
-   * one (a language switch's pattern).
+   * Load the posts visible in the CONTENT language (admin-locale-scope
+   * + admin-locale-split): only the posts that have content in it (a
+   * translation row there, or the post's home being it), each carrying
+   * that locale's content, in the stored global manual order (the list
+   * renders in the server's order — no client sort). The monotonic fetch
+   * sequence drops a stale (out-of-order) response: a superseded load
+   * must not overwrite a newer one (a language switch's pattern).
    */
   loadGuidance(): void {
     this.guidanceRows.set(null);
     this.guidanceLoadError.set(null);
     const seq = ++this.guidanceFetchSeq;
     this.admin
-      .listGuidancePosts(this.i18n.locale())
+      .listGuidancePosts(this.i18n.contentLocale())
       .then((rows) => {
         if (seq !== this.guidanceFetchSeq) {
           return; // a newer load superseded this response
@@ -1055,8 +1102,8 @@ export class AdminPage implements OnInit, OnDestroy {
 
   /**
    * Open the editor. Create mode opens directly (the form is prefilled
-   * with the ACTIVE UI language — the post is created in it); edit mode
-   * fetches the id-keyed detail FIRST, SCOPED to the active UI language
+   * with the CONTENT language — the post is created in it); edit mode
+   * fetches the id-keyed detail FIRST, SCOPED to the content language
    * (the stored (sanitized) bodyHtml is what the editor round-trips — the
    * row's copy may be stale after a save from elsewhere; a post without
    * content in the locale 404s — unreachable from a scoped row). The media
@@ -1076,7 +1123,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.guidanceEditor.set('new'); // the editor section renders (loading…)
     this.guidanceEditorLoading.set(true);
     this.admin
-      .getGuidancePost(post.id, this.i18n.locale())
+      .getGuidancePost(post.id, this.i18n.contentLocale())
       .then((fetched) => {
         if (seq !== this.editorFetchSeq) {
           return; // superseded (a newer open/cancel) — drop the stale post
@@ -1147,9 +1194,10 @@ export class AdminPage implements OnInit, OnDestroy {
         this.guidanceRows.update((rows) => [...(rows ?? []), result]);
         this.success.set(this.i18n.t('admin.guidance.success.created'));
       } else {
-        // SCOPED to the active UI language: the content fields land on that
-        // locale's translation row (the post-level fields stay shared).
-        result = await this.admin.updateGuidancePost(save.id, save.update!, this.i18n.locale());
+        // SCOPED to the CONTENT language (admin-locale-split): the content
+        // fields land on that locale's translation row (the post-level
+        // fields stay shared).
+        result = await this.admin.updateGuidancePost(save.id, save.update!, this.i18n.contentLocale());
         this.guidanceRows.update((rows) =>
           (rows ?? []).map((r) => (r.id === result.id ? result : r)),
         );
@@ -1204,7 +1252,7 @@ export class AdminPage implements OnInit, OnDestroy {
         // publish itself succeeded, the next list load fixes the row.
         if (row.heroImportUrl !== null) {
           try {
-            const fresh = await this.admin.getGuidancePost(row.id, this.i18n.locale());
+            const fresh = await this.admin.getGuidancePost(row.id, this.i18n.contentLocale());
             this.patchGuidance(row.id, fresh);
           } catch {
             // Stale row: the publish succeeded, the list load heals it.
@@ -1378,13 +1426,14 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   /** The shared submission: PUT /admin/guidance/order with the FULL
-   *  submitted order — SCOPEd to the active UI language (admin-locale-
-   *  scope): the list is exactly the posts visible in it, and the server
-   *  rewrites them into their slots of the GLOBAL order (slot-preserving —
-   *  the other languages' posts are untouched). Success reorders the table
-   *  in place (the server confirmed it — its 204 is the confirmation); a
-   *  failure (400 stale / unknown / not-visible-in-the-locale list, or the
-   *  network) KEEPS the last confirmed order and shows the error banner. */
+   *  submitted order — SCOPEd to the CONTENT language (admin-locale-scope
+   *  + admin-locale-split): the list is exactly the posts visible in it,
+   *  and the server rewrites them into their slots of the GLOBAL order
+   *  (slot-preserving — the other languages' posts are untouched).
+   *  Success reorders the table in place (the server confirmed it — its
+   *  204 is the confirmation); a failure (400 stale / unknown /
+   *  not-visible-in-the-locale list, or the network) KEEPS the last
+   *  confirmed order and shows the error banner. */
   private async submitGuidanceOrder(nextRows: AdminGuidancePostDto[]): Promise<void> {
     if (this.busy()) {
       return;
@@ -1392,7 +1441,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.clearFeedback();
     this.busy.set(true);
     try {
-      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id), this.i18n.locale());
+      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id), this.i18n.contentLocale());
       this.guidanceRows.set(nextRows);
       this.success.set(this.i18n.t('admin.guidance.success.reordered'));
     } catch (error) {

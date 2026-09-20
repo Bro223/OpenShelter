@@ -473,3 +473,39 @@
 .admin-row--dismissed {
   opacity: 0.6;
 }
+
+/* Languages (admin-locale-split): the two independent language controls
+   on the Settings tab — the admin UI language (the chrome) and the
+   guidance content language. */
+.admin-languages {
+  display: grid;
+  gap: var(--space-8);
+  margin-bottom: var(--space-16);
+}
+
+.admin-languages__heading {
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-languages__field {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 420px;
+}
+
+.admin-languages__field select {
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  font: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: inherit;
+}
+
+.admin-languages__hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}

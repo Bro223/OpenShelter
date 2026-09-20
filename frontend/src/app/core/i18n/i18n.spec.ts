@@ -74,6 +74,66 @@ describe('I18nService (i18n-et-en M14)', () => {
     });
   });
 
+  /* The admin content language (admin-locale-split): the locale the
+     guidance admin's list/detail/save/reorder calls scope to. It is the
+     SECOND, independent language — the UI language (locale/setLocale,
+     the public switcher's path) drives the chrome; the content language
+     drives which posts are listed and which translation an edit writes.
+     Default on first entry: the UI locale. Then independent + persisted. */
+  describe('contentLocale (admin-locale-split)', () => {
+    it('defaults to the UI locale when no content locale is stored', () => {
+      const i18n = TestBed.inject(I18nService);
+      expect(i18n.contentLocale()).toBe('en'); // UI locale is en
+    });
+
+    it('defaults to the UI locale when the UI locale is stored', () => {
+      localStorage.setItem('openshelter-locale', 'et');
+      const i18n = TestBed.inject(I18nService);
+      expect(i18n.locale()).toBe('et');
+      expect(i18n.contentLocale()).toBe('et'); // the first-entry default
+    });
+
+    it('is independent of the UI locale: setLocale (the public switcher\'s path) does not move it', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setContentLocale('ru');
+      expect(i18n.contentLocale()).toBe('ru');
+
+      // The header switcher (public site) flips the UI language…
+      i18n.setLocale('et');
+      expect(i18n.locale()).toBe('et');
+      // …and the admin content locale stays where the admin left it.
+      expect(i18n.contentLocale()).toBe('ru');
+      expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
+    });
+
+    it('persists under its own key (never the UI locale\'s key)', () => {
+      const i18n = TestBed.inject(I18nService);
+      i18n.setContentLocale('ru');
+      expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
+      expect(localStorage.getItem('openshelter-locale')).toBeNull(); // untouched
+
+      i18n.setContentLocale('en');
+      expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('en');
+    });
+
+    it('survives a reload: a fresh service reads the stored content locale', () => {
+      let i18n = TestBed.inject(I18nService);
+      i18n.setContentLocale('ru');
+      // The reload: a fresh service reads the stored pair.
+      TestBed.resetTestingModule();
+      i18n = TestBed.inject(I18nService);
+      expect(i18n.locale()).toBe('en'); // UI locale unchanged by the admin
+      expect(i18n.contentLocale()).toBe('ru');
+    });
+
+    it('an invalid stored content locale falls back to the UI locale (never crashes)', () => {
+      localStorage.setItem('openshelter-locale', 'ru');
+      localStorage.setItem('openshelter-admin-content-locale', 'fr');
+      const i18n = TestBed.inject(I18nService);
+      expect(i18n.contentLocale()).toBe('ru');
+    });
+  });
+
   /* The site-text overlay (site_texts): the admin override for the ACTIVE
      locale wins, the shipped catalog is the default, the catalog default
      is readable for ANY locale (the admin panel's placeholder), and the

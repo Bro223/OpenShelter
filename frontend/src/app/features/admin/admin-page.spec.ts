@@ -1543,7 +1543,18 @@ describe('AdminPage', () => {
     expect(buttonByText(element, 'New post')).not.toBeNull();
   });
 
-  it('a UI language switch re-fetches the scoped list (admin-locale-scope)', async () => {
+  // admin-locale-split replaced the pre-split behavior this used to spec:
+  // a UI language switch no longer re-fetches the list (the list is the
+  // CONTENT language's, not the UI language's) — the admin-locale-split
+  // specs below cover both directions.
+
+  // ---- admin-locale-split: the admin UI language and the content language
+  // are INDEPENDENT. The UI language drives the chrome (tab labels, buttons,
+  // the scope line's copy); the CONTENT language drives what the guidance
+  // list/detail/save/reorder calls scope to. A UI-language switch changes
+  // the chrome only — the listed content stays where it was.
+
+  it('a UI language switch changes the admin chrome but leaves the listed content untouched (admin-locale-split)', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
@@ -1553,13 +1564,202 @@ describe('AdminPage', () => {
     expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
     expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
 
-    // The switcher sets the service's locale: the list is scoped to it, so
-    // a switch re-fetches (the rows are the NEW language's content).
+    // The admin UI language flips to et (the header switcher's path).
     i18nService.setLocale('et');
     await settle(fixture);
 
+    // The chrome follows the UI language: the tab label is re-translated.
+    expect(buttonByText(element, 'Guidance')).toBeNull();
+    expect(element.textContent).toContain('Juhised'); // et catalog's tab label
+    // The listed content is untouched: the list is NOT re-fetched (no
+    // content-locale change) and the en-scoped rows still render.
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+    expect(element.textContent).toContain('Varjumine droonirünnaku ajal');
+  });
+
+  it('a UI language switch leaves the scoped empty state on the CONTENT locale (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([]);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    expect(element.textContent).toContain('No guidance posts in en yet.');
+
+    i18nService.setLocale('et');
+    await settle(fixture);
+
+    // The empty-state COPY is chrome (re-translated to et), but its {locale}
+    // parameter is the CONTENT locale — still en, not the new UI locale —
+    // and the list is not re-fetched.
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+    expect(element.textContent).toContain('Keeles en juhiseid pole veel.');
+  });
+
+  it('a content language switch changes the listed content and leaves the chrome untouched (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+
+    i18nService.setContentLocale('ru');
+    await settle(fixture);
+
+    // The list is re-fetched in the NEW content locale (the listed content
+    // is now the ru rows)…
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('ru');
+    // …and the chrome is untouched: the UI language is still en (the tab
+    // label keeps the en copy, <html lang> is untouched).
+    expect(buttonByText(element, 'Guidance')).not.toBeNull();
+    expect(document.documentElement.lang).toBe('en');
+  });
+
+  it('the editor detail fetch and save scope to the content locale (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.updateGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    // The content language flips (ru); the UI language flips too (et —
+    // chrome only, no content re-fetch).
+    i18nService.setContentLocale('ru');
+    await settle(fixture);
+    i18nService.setLocale('et');
+    await settle(fixture);
+
+    const rows = element.querySelectorAll('tbody tr');
+    // The row action button is the ET chrome label (the buttons follow the
+    // UI language — the chrome, which just flipped to et) — while the
+    // detail fetch below must scope to the CONTENT language (ru).
+    buttonByText(rows[1]!.querySelector('td.admin-cell--actions')!, 'Muuda')!.click();
+    await settle(fixture);
+    // The detail fetch scopes to the CONTENT locale (ru), not the UI
+    // language (et).
+    expect(admin.getGuidancePost).toHaveBeenCalledTimes(1);
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'ru');
+
+    // The prefill is valid (hero + alt paired) — save as-is (the Save
+    // button is the ET chrome label): the PUT scopes to the content
+    // locale too.
+    buttonByText(element, 'Salvesta')!.click();
+    await settle(fixture);
+
+    expect(admin.updateGuidancePost).toHaveBeenCalledTimes(1);
+    expect(admin.updateGuidancePost.mock.calls[0]![0]).toBe(11);
+    expect(admin.updateGuidancePost.mock.calls[0]![2]).toBe('ru');
+  });
+
+  it('reorder submits the content locale the rendered list came from (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    admin.reorderGuidanceOrder.mockResolvedValue(undefined);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+
+    // The content language flips (the list re-fetches in et)…
+    i18nService.setContentLocale('et');
+    await settle(fixture);
     expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
     expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('et');
+    // …and the UI language flips too (chrome only — no re-fetch)…
+    i18nService.setLocale('ru');
+    await settle(fixture);
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
+
+    // …then a reorder: the submission scopes to the LIST's locale (et),
+    // not the UI language (ru).
+    const rows = element.querySelectorAll('tbody tr');
+    const [, up] = moveButtons(rows[1]!);
+    up!.click();
+    await settle(fixture);
+
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledTimes(1);
+    expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12], 'et');
+  });
+
+  it('the Settings tab offers the two labeled language controls (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Settings', element, fixture);
+
+    // Both controls are present, with the distinguishable labels…
+    expect(element.textContent).toContain('Admin language');
+    expect(element.textContent).toContain('Content language');
+    const adminSel = element.querySelector<HTMLSelectElement>('#admin-language-select');
+    const contentSel = element.querySelector<HTMLSelectElement>('#content-language-select');
+    expect(adminSel).not.toBeNull();
+    expect(contentSel).not.toBeNull();
+    // …each reflecting its own language (both default to the UI locale).
+    expect(adminSel!.value).toBe('en');
+    expect(contentSel!.value).toBe('en');
+  });
+
+  it('the "Admin language" control switches the chrome only (the content locale is untouched, admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Settings', element, fixture);
+
+    // A non-default content choice first (so the independence is real)…
+    i18nService.setContentLocale('ru');
+    await settle(fixture);
+
+    const adminSel = element.querySelector<HTMLSelectElement>('#admin-language-select')!;
+    adminSel.value = 'et';
+    adminSel.dispatchEvent(new Event('change'));
+    await settle(fixture);
+
+    // The chrome follows the admin language (the tab labels re-translate)…
+    expect(buttonByText(element, 'Guidance')).toBeNull();
+    expect(element.textContent).toContain('Juhised'); // et catalog's label
+    expect(document.documentElement.lang).toBe('et');
+    expect(localStorage.getItem('openshelter-locale')).toBe('et');
+    // …and the content locale — signal AND persisted key — stays put.
+    expect(i18nService.contentLocale()).toBe('ru');
+    expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
+  });
+
+  it('the "Content language" control re-scopes the list on the next Guidance visit (admin-locale-split)', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
+    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+
+    // From the Settings tab (where the controls live)…
+    await switchTab('Settings', element, fixture);
+    const contentSel = element.querySelector<HTMLSelectElement>('#content-language-select')!;
+    contentSel.value = 'ru';
+    contentSel.dispatchEvent(new Event('change'));
+    await settle(fixture);
+
+    // …the choice persists under the content key, the chrome is untouched…
+    expect(i18nService.contentLocale()).toBe('ru');
+    expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
+    expect(document.documentElement.lang).toBe('en');
+    expect(buttonByText(element, 'Guidance')).not.toBeNull(); // still en chrome
+    // …and the cached list is invalidated: the next Guidance visit
+    // re-fetches in the new content locale.
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('ru');
   });
 
   it('the guidance list error state shows the banner with Retry; Retry re-loads', async () => {

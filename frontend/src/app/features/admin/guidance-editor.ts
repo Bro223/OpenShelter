@@ -677,9 +677,10 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     const post = this.post();
     if (post === null) {
       // create mode — the form starts blank; the post is created in the
-      // ACTIVE UI language (admin-locale-scope — the language line names
-      // it), so the locale control is prefilled with it.
-      this.form.get('locale')?.setValue(this.i18n.locale());
+      // CONTENT language (admin-locale-scope + admin-locale-split — the
+      // language line names it), so the locale control is prefilled with
+      // it. The admin UI language does not drive it.
+      this.form.get('locale')?.setValue(this.i18n.contentLocale());
       // the "no image" tick starts checked, so the URL field starts off
       // (see syncHeroImportDisabled).
       this.syncHeroImportDisabled();
@@ -1015,15 +1016,18 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   /**
    * The LANGUAGE LINE (admin-locale-scope): the UI must state which
    * language is being edited. Edit mode: the post's CONTENT locale of the
-   * scoped read (the row the form round-trips); create mode: the active UI
-   * language the post will be created in. A plain method (re-evaluated on
+   * scoped read (the row the form round-trips); create mode: the CONTENT
+   * language the post will be created in (admin-locale-split — not the
+   * admin UI language). A plain method (re-evaluated on
    * each CD pass — the post input and the locale signal both change only
    * when the page recreates/switches the editor).
    */
   protected localeLine(): string {
     const post = this.post();
     if (post === null) {
-      return this.i18n.t('admin.guidance.editor.creatingIn', { locale: this.i18n.locale() });
+      return this.i18n.t('admin.guidance.editor.creatingIn', {
+        locale: this.i18n.contentLocale(),
+      });
     }
     return this.i18n.t('admin.guidance.editor.editingIn', { locale: post.locale });
   }

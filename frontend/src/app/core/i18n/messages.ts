@@ -726,6 +726,19 @@ export interface Messages {
   'admin.audit.col.change': string;
   'admin.audit.col.reason': string;
 
+  // settings tab: language controls (admin-locale-split): the admin UI
+  // language (the chrome) and the guidance content language — two
+  // independent, persisted languages, rendered as labeled selects.
+  'admin.settings.languages.title': string;
+  /** The "Admin language" select label (the chrome's language). */
+  'admin.settings.languages.adminLabel': string;
+  /** The hint under the admin-language select. */
+  'admin.settings.languages.adminHint': string;
+  /** The "Content language" select label (the guidance content's language). */
+  'admin.settings.languages.contentLabel': string;
+  /** The hint under the content-language select. */
+  'admin.settings.languages.contentHint': string;
+
   // settings tab: the site_texts panel (its own load/save state lives in
   // the panel component, which reads these through i18n.t).
   'admin.siteTexts.loading': string;
