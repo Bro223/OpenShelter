@@ -1,10 +1,8 @@
-import { Injectable, signal } from '@angular/core';
+import { ApplicationRef, Injectable, inject, signal } from '@angular/core';
 import type { Locale } from './locale';
 import { LOCALES } from './locale';
 import type { Messages, MessageKey } from './messages';
 import { EN } from './en';
-import { ET } from './et';
-import { RU } from './ru';
 import {
   DEFAULT_SITE_TEXT_URLS,
   type SiteTextOverride,
@@ -39,9 +37,32 @@ const CONTENT_LOCALE_KEY = 'openshelter-admin-content-locale';
  */
 const DEFAULT_LOCALE: Locale = 'en';
 
-/** The message catalogs, keyed by locale — the typed `Messages` interface
-    is the compile-time parity guard, i18n.spec.ts the runtime one. */
-const CATALOGS: Record<Locale, Messages> = { en: EN, et: ET, ru: RU };
+/**
+ * Catalog loading (bundle-lazy-i18n). The DEFAULT catalog ships in the
+ * initial bundle: a fresh (or default-locale) visitor paints the final
+ * text with zero flash, and the pre-paint script in index.html needs no
+ * catalog data at all — it only validates the stored locale STRING
+ * against the known set and sets `<html lang>`, and the pre-paint
+ * `<title>` is the brand name, which no locale translates. The other
+ * catalogs load ON DEMAND — dynamic imports, so `et`/`ru` live in their
+ * own lazy chunks — the first time a visitor actually needs one (a stored
+ * non-default preference at boot, or the header language switcher) — and
+ * stay cached for the session. While a catalog is still loading, `t()`
+ * serves the DEFAULT locale's value for the key: translated copy, never a
+ * raw key, never undefined — and one extra change-detection pass
+ * (ApplicationRef.tick, scheduled by the service) repaints the chrome in
+ * the active locale when the chunk lands.
+ *
+ * The typed `Messages` interface is the compile-time parity guard, the
+ * runtime parity + on-demand-loading guards live in i18n.spec.ts.
+ */
+const EAGER_CATALOGS: Partial<Record<Locale, Messages>> = { en: EN };
+
+/** The on-demand loaders for the non-default catalogs. */
+const LAZY_CATALOG_LOADERS: Partial<Record<Locale, () => Promise<Messages>>> = {
+  et: () => import('./et').then((m) => m.ET),
+  ru: () => import('./ru').then((m) => m.RU),
+};
 
 /**
  * The UI language (i18n-et-en: app chrome + route titles).
@@ -94,8 +115,102 @@ export class I18nService {
       shipped catalog, so a down API degrades to the default copy. */
   readonly siteTexts = signal<SiteTextsByLocale | null>(null);
 
+  /** Bumped each time a catalog finishes loading (bundle-lazy-i18n) —
+      reactive consumers (the admin site-texts panel's placeholder
+      computed, via defaultText) re-run with the real values when a
+      non-default chunk lands. */
+  readonly catalogVersion = signal(0);
+
+  private readonly appRef = inject(ApplicationRef);
+  /** The catalogs in memory: the default locale eagerly, the rest as
+      their chunks arrive. `lookup` falls back to the default locale
+      while one is still loading. */
+  private readonly resolvedCatalogs: Partial<Record<Locale, Messages>> = {
+    en: EN,
+  };
+  /** One load per locale per session — the promise IS the cache. */
+  private readonly catalogLoads: Partial<Record<Locale, Promise<Messages>>> = {};
+  /** One-shot callbacks run when the next catalog lands (the tab-title
+      re-resolve in core/title.ts); flushed in order, then cleared. */
+  private readonly catalogArrivals: Array<() => void> = [];
+
   constructor() {
     document.documentElement.lang = this.locale();
+    // A stored non-default preference starts its chunk loading NOW (the
+    // shell creates this service at boot, before the route content
+    // renders). If the chunk has not landed by first paint, t() serves
+    // the default locale — the accepted one-language flash, never a raw
+    // key.
+    if (this.locale() !== DEFAULT_LOCALE) {
+      void this.ensureCatalog(this.locale()).catch(() => {
+        /* chunk load failed (network): t() keeps serving the default
+           locale; a later ensureCatalog (switcher click, title
+           re-resolve) retries, because a failed load is not cached. */
+      });
+    }
+  }
+
+  /** Load the catalog for `locale` (if not in memory yet) and return the
+      — cached — promise. The default locale is synchronous: its catalog
+      ships in the initial bundle, so this never waits.
+      On arrival: bump `catalogVersion`, run the queued arrival callbacks
+      (the title re-resolve), and schedule ONE change-detection pass
+      (ApplicationRef.tick — the zoneless app has no zone to schedule
+      one) so every `| t` consumer repaints in the active locale without
+      any template change. A failed load rejects AND drops out of the
+      cache, so the next call retries. */
+  ensureCatalog(locale: Locale): Promise<Messages> {
+    const eager = EAGER_CATALOGS[locale];
+    if (eager !== undefined) {
+      return Promise.resolve(eager);
+    }
+    const inFlight = this.catalogLoads[locale];
+    if (inFlight !== undefined) {
+      return inFlight;
+    }
+    const load = LAZY_CATALOG_LOADERS[locale] ?? (() => Promise.resolve(EN));
+    const promise = load()
+      .then((catalog) => {
+        this.resolvedCatalogs[locale] = catalog;
+        this.catalogVersion.update((version) => version + 1);
+        const arrivals = this.catalogArrivals.splice(0);
+        for (const arrive of arrivals) {
+          arrive();
+        }
+        // One extra change-detection pass (zoneless: no zone to schedule
+        // one). Guarded: the chunk may land after the app is destroyed
+        // (test teardown) — nothing to repaint then, and the signal-
+        // tracking in lookup() already covers live views.
+        try {
+          this.appRef.tick();
+        } catch {
+          /* app destroyed before the chunk landed — no repaint target */
+        }
+        return catalog;
+      })
+      .catch((error) => {
+        delete this.catalogLoads[locale];
+        throw error;
+      });
+    this.catalogLoads[locale] = promise;
+    return promise;
+  }
+
+  /** True once the catalog for `locale` is in memory (the default
+      locale: always — it ships in the initial bundle). */
+  isCatalogLoaded(locale: Locale): boolean {
+    return this.resolvedCatalogs[locale] !== undefined;
+  }
+
+  /** Run `cb` once, the next time a catalog lands (bundle-lazy-i18n). If
+      the ACTIVE locale's catalog is already in memory, `cb` runs
+      immediately — the caller can rely on it running exactly once. */
+  onCatalogLoaded(cb: () => void): void {
+    if (this.isCatalogLoaded(this.locale())) {
+      cb();
+      return;
+    }
+    this.catalogArrivals.push(cb);
   }
 
   /** Translate a key for the active locale, interpolating `{param}`
@@ -115,9 +230,13 @@ export class I18nService {
   }
 
   /** The shipped CATALOG value for an explicit locale — the admin
-      Settings panel's placeholder (the default, override-independent). */
+      Settings panel's placeholder (the default, override-independent).
+      While a non-default catalog is still loading (bundle-lazy-i18n) the
+      DEFAULT locale's value stands in; the `catalogVersion` read makes a
+      calling `computed` re-run the moment the real catalog lands. */
   defaultText(key: MessageKey, locale: Locale): string {
-    return CATALOGS[locale][key] ?? CATALOGS[DEFAULT_LOCALE][key];
+    this.catalogVersion(); // tracked read — recomputes when a catalog lands
+    return this.resolvedCatalogs[locale]?.[key] ?? EN[key];
   }
 
   /** Install (or clear, with null) the fetched admin overrides. */
@@ -136,14 +255,31 @@ export class I18nService {
     return entry;
   }
 
-  /** The single override seam: active-locale override FIRST, shipped
-      catalog as the default (the old lookup, unchanged as a fallback). */
+  /** The single override seam: active-locale override FIRST, the ACTIVE
+      locale's catalog when it is loaded, and the DEFAULT locale's
+      catalog otherwise (bundle-lazy-i18n: the loading state renders the
+      default locale — never a raw key, never undefined; the default
+      catalog is key-complete and always in memory).
+
+      The `catalogVersion` read is the lazy-loading re-render seam
+      (zoneless CD): every template binding that calls t() thereby
+      consumes `catalogVersion`, so the zoneless scheduler marks the
+      view for refresh the moment a non-default chunk lands — the pipe
+      re-evaluates into the active locale's text with no template change
+      and no zone. (Same tracking pattern this codebase already uses
+      for locale switches — account-page's "Reading i18n.t() here
+      tracks the locale".) */
   private lookup(key: MessageKey): string {
     const override = this.overrideFor(key);
     if (override !== null) {
       return override.value;
     }
-    return CATALOGS[this.locale()][key] ?? CATALOGS[DEFAULT_LOCALE][key];
+    this.catalogVersion(); // tracked read — views re-run when a catalog lands
+    const catalog = this.resolvedCatalogs[this.locale()];
+    if (catalog !== undefined) {
+      return catalog[key];
+    }
+    return EN[key];
   }
 
   /** Switch + persist the locale (the header language switcher). Never
@@ -152,6 +288,14 @@ export class I18nService {
   setLocale(locale: Locale): void {
     this.locale.set(locale);
     document.documentElement.lang = locale;
+    // Start fetching the (possibly new) locale's chunk NOW — the chrome
+    // shows the default locale's copy until it lands, then the
+    // ensureCatalog's change-detection pass repaints it (bundle-lazy-i18n).
+    // A failed load is silent: the UI keeps the default-locale copy and
+    // the next switch retries (a failed load is not cached).
+    void this.ensureCatalog(locale).catch(() => {
+      /* see setLocale's comment — degraded to the default-locale copy */
+    });
     try {
       localStorage.setItem(LOCALE_KEY, locale);
     } catch {

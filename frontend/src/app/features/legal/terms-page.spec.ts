@@ -85,10 +85,11 @@ describe('TermsPage', () => {
     expect(links).toContain('/privacy');
   });
 
-  it('re-renders on a language switch (fully catalog-driven, i18n M4)', () => {
+  it('re-renders on a language switch (fully catalog-driven, i18n M4)', async () => {
     expect(text()).toContain('Terms of use');
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');
+    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
     fixture.detectChanges();
     expect(text()).toContain('Kasutustingimused');
     expect(text()).toContain('Mis on OpenShelter');

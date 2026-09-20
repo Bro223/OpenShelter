@@ -519,10 +519,7 @@ describe('PageShell', () => {
      acceptance. */
   describe('burger bars (page-shell.scss invariants)', () => {
     // The test runner's cwd is the frontend project root (npx ng test).
-    const shellScss = readFileSync(
-      `${process.cwd()}/src/app/shared/page-shell.scss`,
-      'utf8',
-    );
+    const shellScss = readFileSync(`${process.cwd()}/src/app/shared/page-shell.scss`, 'utf8');
     // The narrow block is where the burger lives (display: none at >=900).
     // Extracted by brace balancing (the design-tokens.spec.ts blockLines
     // idiom) — a regex alone would over-run into the file tail. The file
@@ -534,8 +531,7 @@ describe('PageShell', () => {
         if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
         let depth = 0;
         for (let i = start; i < lines.length; i++) {
-          depth +=
-            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
           if (depth <= 0) {
             const block = lines.slice(start, i + 1).join('\n');
             if (block.includes('.shell-burger')) return block;
@@ -586,7 +582,8 @@ describe('PageShell', () => {
       expect(burgerRule, 'the .shell-burger rule must precede the bar rule').not.toBe('');
       expect(burgerRule).toMatch(/gap: var\(--space-6\)/);
       expect(burgerRule, '48px touch target').toMatch(/min-height: var\(--space-48\)/);
-      expect(burgerRule, '48px touch target').toMatch(/min-width: var\(--space-48\)/);    });
+      expect(burgerRule, '48px touch target').toMatch(/min-width: var\(--space-48\)/);
+    });
 
     it('open-state cross: outer bars rotate ±45° onto the centre line, middle bar hides', () => {
       const open = barRules().filter((r) => r.includes("aria-expanded='true'"));
@@ -631,10 +628,7 @@ describe('PageShell', () => {
      (no orphaned dots, no 320px overflow) still needs a browser check. */
   describe('narrow footer (page-shell.scss invariants)', () => {
     // The test runner's cwd is the frontend project root (npx ng test).
-    const shellScss = readFileSync(
-      `${process.cwd()}/src/app/shared/page-shell.scss`,
-      'utf8',
-    );
+    const shellScss = readFileSync(`${process.cwd()}/src/app/shared/page-shell.scss`, 'utf8');
 
     // The file has TWO `@media (max-width: 900px)` blocks (the burger
     // panel at top level, the footer one nested in .shell-footer). Extract
@@ -648,8 +642,7 @@ describe('PageShell', () => {
         if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
         let depth = 0;
         for (let i = start; i < lines.length; i++) {
-          depth +=
-            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
           if (depth <= 0) {
             const block = lines.slice(start, i + 1).join('\n');
             if (block.includes('.shell-footer__legal')) return block;
@@ -690,8 +683,9 @@ describe('PageShell', () => {
       expect(links, 'the narrow legal-link tap-target rule must exist').not.toBeNull();
       // 16px vertical × 2 + the ~20px text-sm line box (1.5 line-height)
       // ≈ 52px ≥ the 44px minimum tap target.
-      expect(links![0], 'the hit area is built with vertical padding')
-        .toMatch(/padding: var\(--space-16\) var\(--space-12\)/);
+      expect(links![0], 'the hit area is built with vertical padding').toMatch(
+        /padding: var\(--space-16\) var\(--space-12\)/,
+      );
       // No fixed widths and no nowrap: the long strings (provenance line,
       // "Ministry of the Interior") must wrap between words at 320-430px.
       expect(footerNarrow!, 'no fixed widths in the narrow footer block').not.toMatch(
@@ -710,10 +704,7 @@ describe('PageShell', () => {
      the band actually LOOKS (navy against the page, white chrome on it,
      the divider's subtlety) still needs a browser eyeball. */
   describe('chrome band (page-shell.scss invariants)', () => {
-    const shellScss = readFileSync(
-      `${process.cwd()}/src/app/shared/page-shell.scss`,
-      'utf8',
-    );
+    const shellScss = readFileSync(`${process.cwd()}/src/app/shared/page-shell.scss`, 'utf8');
 
     // Top-level rule block by exact selector line (brace-balanced, the
     // design-tokens.spec.ts blockLines idiom) — the nested rules (the
@@ -725,8 +716,7 @@ describe('PageShell', () => {
         if (lines[start].trim() !== `${selector} {`) continue;
         let depth = 0;
         for (let i = start; i < lines.length; i++) {
-          depth +=
-            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
           if (depth <= 0) {
             return lines.slice(start, i + 1).join('\n');
           }
@@ -739,7 +729,10 @@ describe('PageShell', () => {
     const footerBlock = topLevelBlock('.shell-footer');
 
     it('the header is the band: chrome background + text + divider, white wordmark', () => {
-      expect(headerBlock, 'page-shell.scss must keep a top-level .shell-header rule').not.toBeNull();
+      expect(
+        headerBlock,
+        'page-shell.scss must keep a top-level .shell-header rule',
+      ).not.toBeNull();
       expect(headerBlock, 'the header takes the band background').toContain(
         'background: var(--color-chrome-bg)',
       );
@@ -756,7 +749,10 @@ describe('PageShell', () => {
     });
 
     it('the footer is the band: chrome background, divider top edge, muted text, chrome-text links', () => {
-      expect(footerBlock, 'page-shell.scss must keep a top-level .shell-footer rule').not.toBeNull();
+      expect(
+        footerBlock,
+        'page-shell.scss must keep a top-level .shell-footer rule',
+      ).not.toBeNull();
       expect(footerBlock, 'the footer takes the band background').toContain(
         'background: var(--color-chrome-bg)',
       );
@@ -767,18 +763,14 @@ describe('PageShell', () => {
       expect(muted.length, 'notice + legal + provenance all move to chrome-muted').toBe(3);
       const links = footerBlock!.match(/color: var\(--color-chrome-text\)/g) ?? [];
       expect(links.length, 'all three footer link groups move to chrome-text').toBe(3);
-      expect(
-        footerBlock,
-        'no light-theme text token left in the footer',
-      ).not.toMatch(/color: var\(--color-(muted|primary)\)/);
+      expect(footerBlock, 'no light-theme text token left in the footer').not.toMatch(
+        /color: var\(--color-(muted|primary)\)/,
+      );
     });
 
     it('the ghost .btns on the band are the body ghost button: same ink/border/hover tokens, resting fill the only deviation', () => {
       const ghost = shellScss.match(/\.shell-header \.btn--ghost \{[\s\S]*?\n\}/);
-      expect(
-        ghost,
-        'page-shell.scss must scope a .shell-header .btn--ghost rule',
-      ).not.toBeNull();
+      expect(ghost, 'page-shell.scss must scope a .shell-header .btn--ghost rule').not.toBeNull();
       expect(
         ghost![0],
         'resting fill: the page background token itself — the colour a body ghost appears as at rest (the only deviation: the transparent rest would put the ink on the navy band at 1.18:1)',
@@ -793,9 +785,7 @@ describe('PageShell', () => {
       expect(
         ghost![0],
         'the body ghost hover token (border unchanged on hover, like on light surfaces)',
-      ).toMatch(
-        /&:hover:not\(:disabled\) \{[^}]*background: var\(--color-surface-hover\)/,
-      );
+      ).toMatch(/&:hover:not\(:disabled\) \{[^}]*background: var\(--color-surface-hover\)/);
       expect(
         ghost![0],
         'no chrome text/border/muted tokens on the ghost button (no bespoke band tinting)',
@@ -803,15 +793,10 @@ describe('PageShell', () => {
     });
 
     it('the active nav item is white text + a 2px chrome-active indicator', () => {
-      expect(
-        shellScss,
-        'the active nav rule must take the chrome indicator',
-      ).toMatch(
+      expect(shellScss, 'the active nav rule must take the chrome indicator').toMatch(
         /&\.active \{[\s\S]*?color: var\(--color-chrome-text\)[\s\S]*?text-decoration-color: var\(--color-chrome-active\)/,
       );
-      expect(shellScss, 'the indicator is exactly 2px').toMatch(
-        /text-decoration-thickness: 2px/,
-      );
+      expect(shellScss, 'the indicator is exactly 2px').toMatch(/text-decoration-thickness: 2px/);
     });
 
     it('a chrome-scoped :focus-visible ring (--color-chrome-focus) covers header, footer and the skip link', () => {
@@ -832,8 +817,7 @@ describe('PageShell', () => {
         if (lines[start].trim() !== '@media (max-width: 900px) {') continue;
         let depth = 0;
         for (let i = start; i < lines.length; i++) {
-          depth +=
-            (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
+          depth += (lines[i].match(/\{/g) ?? []).length - (lines[i].match(/\}/g) ?? []).length;
           if (depth <= 0) {
             const block = lines.slice(start, i + 1).join('\n');
             if (block.includes('.shell-burger')) panel = block;
@@ -893,6 +877,11 @@ describe('PageShell', () => {
       // The active language is hidden; the buttons now offer the two ways back.
       expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'RU']);
 
+      // bundle-lazy-i18n: the et chunk is on demand — the chrome showed the
+      // default locale's copy until it landed; settle it before asserting copy.
+      await TestBed.inject(I18nService).ensureCatalog('et');
+      fixture.detectChanges();
+
       // The chrome is now Estonian: nav, guest actions and footer.
       const element = fixture.nativeElement as HTMLElement;
       // .shell-nav scope: the brand link shares href="/map".
@@ -941,6 +930,10 @@ describe('PageShell', () => {
       // The active language is hidden; the buttons offer the two others.
       expect(langButtons().map((b) => b.textContent?.trim())).toEqual(['EN', 'ET']);
 
+      // bundle-lazy-i18n: the ru chunk is on demand — settle it before asserting copy.
+      await TestBed.inject(I18nService).ensureCatalog('ru');
+      fixture.detectChanges();
+
       // The chrome is now Russian: nav, guest actions and the safety notice.
       const element = fixture.nativeElement as HTMLElement;
       expect(element.querySelector('.shell-nav a[href="/map"]')?.textContent).toContain(
@@ -963,6 +956,10 @@ describe('PageShell', () => {
       await store.login('user@example.ee', 'secret');
       fixture.detectChanges();
       langButtons()[0].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      fixture.detectChanges();
+
+      // bundle-lazy-i18n: the et chunk is on demand — settle it before asserting copy.
+      await TestBed.inject(I18nService).ensureCatalog('et');
       fixture.detectChanges();
 
       const element = fixture.nativeElement as HTMLElement;

@@ -1835,6 +1835,7 @@ describe('MapPage', () => {
     it('renders the block in Estonian after a locale switch', async () => {
       TestBed.inject(I18nService).setLocale('et');
       const { element } = await open('/map');
+      await TestBed.inject(I18nService).ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
       const how = element.querySelector('.map-page__how');
       expect(how?.textContent).toContain('Kuidas OpenShelter töötab');
       expect(how?.textContent).toContain('hädaabiteenus');

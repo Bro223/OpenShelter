@@ -54,16 +54,34 @@ describe('route titles', () => {
 
   it('resolves the title in the active locale (et)', async () => {
     document.title = 'initial';
-    i18n.setLocale('et');
+    i18n.setLocale('et'); // bundle-lazy-i18n: also starts the et chunk load
     await router.navigateByUrl('/a');
+    await i18n.ensureCatalog('et'); // the chunk lands → the guard's one-shot re-resolves the title
     expect(document.title).toBe(`Varjupaikade kaart — ${APP_NAME}`);
   });
 
   it('resolves the title in the active locale (ru)', async () => {
     document.title = 'initial';
-    i18n.setLocale('ru');
+    i18n.setLocale('ru'); // bundle-lazy-i18n: also starts the ru chunk load
     await router.navigateByUrl('/a');
+    await i18n.ensureCatalog('ru'); // the chunk lands → the guard's one-shot re-resolves the title
     expect(document.title).toBe(`Карта укрытий — ${APP_NAME}`);
+  });
+
+  it('a titled navigation with the active locale catalog still loading never shows a raw key (bundle-lazy-i18n)', async () => {
+    document.title = 'initial';
+    i18n.setLocale('et'); // starts the et chunk load; the chunk may or may
+    // not have resolved by the time the guard runs
+    await router.navigateByUrl('/a');
+    expect(
+      document.title,
+      'best available language — fallback or loaded, never a raw key',
+    ).toBeOneOf([
+      `Shelter map — ${APP_NAME}`, // et still loading → default-locale fallback
+      `Varjupaikade kaart — ${APP_NAME}`, // et already landed → the real title
+    ]);
+    await i18n.ensureCatalog('et');
+    expect(document.title).toBe(`Varjupaikade kaart — ${APP_NAME}`); // settled in et either way
   });
 
   it('leaves document.title untouched for routes without a title', async () => {

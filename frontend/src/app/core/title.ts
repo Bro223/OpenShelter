@@ -24,12 +24,31 @@ export const APP_NAME = 'OpenShelter';
  * The title is per-navigation: switching the locale updates the chrome
  * immediately but the tab title picks the new language on the next
  * activation.
+ *
+ * Lazy catalogs (bundle-lazy-i18n): with a stored non-default preference
+ * (or a just-clicked switcher), the active locale's chunk may still be
+ * loading when the guard runs. The guard therefore sets the title in the
+ * BEST AVAILABLE language (`t()` serves the default locale while the
+ * catalog is in flight — never a raw key) and re-resolves ONCE when the
+ * chunk lands. Deliberately NOT an `await`: blocking first navigation on
+ * the chunk fetch would delay first paint for non-default-locale users.
+ * The pre-paint `<title>` in index.html (the brand name — a proper noun
+ * no locale translates) is untouched by all of this.
  */
 export const titleGuard: CanActivateFn = (route) => {
   const title = route.data['title'];
   if (typeof title === 'string' && title.length > 0) {
     const i18n = inject(I18nService);
-    inject(Title).setTitle(`${i18n.t(title as MessageKey)} — ${APP_NAME}`);
+    const titleService = inject(Title);
+    const key = title as MessageKey;
+    const apply = (): void => {
+      titleService.setTitle(`${i18n.t(key)} — ${APP_NAME}`);
+    };
+    apply();
+    // Re-resolve once when the active locale's catalog lands (immediate
+    // no-op re-apply when it is already in memory — the default locale
+    // always is, so the default path is byte-identical to before).
+    i18n.onCatalogLoaded(apply);
   }
   return true;
 };

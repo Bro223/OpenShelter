@@ -109,10 +109,11 @@ describe('PrivacyPolicyPage', () => {
     expect(links).toContain('/terms');
   });
 
-  it('re-renders on a language switch (fully catalog-driven, i18n M4)', () => {
+  it('re-renders on a language switch (fully catalog-driven, i18n M4)', async () => {
     expect(text()).toContain('Privacy policy');
     const i18n = TestBed.inject(I18nService);
     i18n.setLocale('et');
+    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
     fixture.detectChanges();
     expect(text()).toContain('Privaatsuspoliitika');
     expect(text()).toContain('Kes käitab OpenShelterit');

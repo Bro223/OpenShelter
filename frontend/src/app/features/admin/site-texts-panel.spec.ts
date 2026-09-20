@@ -81,7 +81,9 @@ describe('SiteTextsPanel', () => {
     expect(el.querySelectorAll('input[data-key]')).toHaveLength(SITE_TEXT_KEYS.length * 3);
     for (const key of SITE_TEXT_KEYS) {
       for (const locale of ['en', 'et', 'ru'] as const) {
-        expect(el.querySelector(`input[data-key="${key}"][data-locale="${locale}"]`)).not.toBeNull();
+        expect(
+          el.querySelector(`input[data-key="${key}"][data-locale="${locale}"]`),
+        ).not.toBeNull();
       }
     }
     expect(SITE_TEXT_POPUP_KEYS.length).toBe(10);
@@ -92,6 +94,14 @@ describe('SiteTextsPanel', () => {
 
   it('the loaded override is the value; the shipped catalog is the placeholder for the rest', async () => {
     await render();
+    // bundle-lazy-i18n: the non-default placeholders stand in the default
+    // locale's copy until the chunk lands; the blocks computed re-runs with
+    // the real values once it does (the tracked catalogVersion read).
+    await Promise.all([
+      TestBed.inject(I18nService).ensureCatalog('et'),
+      TestBed.inject(I18nService).ensureCatalog('ru'),
+    ]);
+    await settle();
     const title = inputsFor('a11y.popup.title');
     expect(title.en.value).toBe('Kontrast'); // the loaded override
     expect(title.et.value).toBe(''); // no override → blank
@@ -133,7 +143,9 @@ describe('SiteTextsPanel', () => {
 
   it('a non-https link URL refuses to save (client-side mirror of the server rule)', async () => {
     await render();
-    const urlInput = el.querySelector('input[data-url-key="footer.rescueBoard"]') as HTMLInputElement;
+    const urlInput = el.querySelector(
+      'input[data-url-key="footer.rescueBoard"]',
+    ) as HTMLInputElement;
     urlInput.value = 'http://insecure.example';
     urlInput.dispatchEvent(new Event('input', { bubbles: true }));
 

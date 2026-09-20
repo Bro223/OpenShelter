@@ -51,10 +51,11 @@ describe('I18nService (i18n-et-en M14)', () => {
   });
 
   describe('t()', () => {
-    it('translates for the active locale and follows setLocale', () => {
+    it('translates for the active locale and follows setLocale', async () => {
       const i18n = TestBed.inject(I18nService);
       expect(i18n.t('nav.map')).toBe('Shelter map');
       i18n.setLocale('et');
+      await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
       expect(i18n.t('nav.map')).toBe('Varjupaikade kaart');
     });
   });
@@ -93,7 +94,7 @@ describe('I18nService (i18n-et-en M14)', () => {
       expect(i18n.contentLocale()).toBe('et'); // the first-entry default
     });
 
-    it('is independent of the UI locale: setLocale (the public switcher\'s path) does not move it', () => {
+    it("is independent of the UI locale: setLocale (the public switcher's path) does not move it", () => {
       const i18n = TestBed.inject(I18nService);
       i18n.setContentLocale('ru');
       expect(i18n.contentLocale()).toBe('ru');
@@ -106,7 +107,7 @@ describe('I18nService (i18n-et-en M14)', () => {
       expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
     });
 
-    it('persists under its own key (never the UI locale\'s key)', () => {
+    it("persists under its own key (never the UI locale's key)", () => {
       const i18n = TestBed.inject(I18nService);
       i18n.setContentLocale('ru');
       expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
@@ -145,7 +146,7 @@ describe('I18nService (i18n-et-en M14)', () => {
       expect(i18n.t('a11y.popup.title')).toBe('Accessibility');
     });
 
-    it('an override for the active locale wins over the catalog', () => {
+    it('an override for the active locale wins over the catalog', async () => {
       const i18n = TestBed.inject(I18nService);
       i18n.setSiteTexts({
         en: { 'a11y.popup.title': { value: 'Contrast' } },
@@ -154,6 +155,7 @@ describe('I18nService (i18n-et-en M14)', () => {
       });
       expect(i18n.t('a11y.popup.title')).toBe('Contrast'); // en overridden
       i18n.setLocale('et');
+      await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
       expect(i18n.t('a11y.popup.title')).toBe('Kättesaadavus'); // et not overridden → catalog
     });
 
@@ -186,10 +188,13 @@ describe('I18nService (i18n-et-en M14)', () => {
       expect(i18n.url('nav.map')).toBe(''); // non-link key
     });
 
-    it('defaultText(key, locale) serves the shipped catalog for an explicit locale (override-independent)', () => {
+    it('defaultText(key, locale) serves the shipped catalog for an explicit locale (override-independent)', async () => {
       const i18n = TestBed.inject(I18nService);
       i18n.setSiteTexts({ en: { 'nav.map': { value: 'X' } }, et: {}, ru: {} });
       expect(i18n.defaultText('nav.map', 'en')).toBe('Shelter map'); // not the override
+      // bundle-lazy-i18n: the non-default placeholders stand in the default
+      // locale until their chunks land — the real values after the load.
+      await Promise.all([i18n.ensureCatalog('et'), i18n.ensureCatalog('ru')]);
       expect(i18n.defaultText('nav.map', 'et')).toBe('Varjupaikade kaart');
       expect(i18n.defaultText('nav.map', 'ru')).toBe('Карта укрытий');
     });
@@ -215,19 +220,109 @@ describe('interpolate() (the t(key, params) seam for slice 2+ domain copy)', () 
   });
 });
 
-describe('TranslatePipe (t)', () => {
-  @Component({ template: "{{ 'nav.map' | t }}", imports: [TranslatePipe] })
-  class Host {}
+/** Test host: one chrome string through the t pipe (module-level so the
+    lazy-loading describe below can reuse it for the first-paint spec). */
+@Component({ template: "{{ 'nav.map' | t }}", imports: [TranslatePipe] })
+class Host {}
 
-  it('renders the active locale and re-renders on a locale switch', () => {
+describe('TranslatePipe (t)', () => {
+  it('renders the active locale and re-renders on a locale switch', async () => {
     TestBed.configureTestingModule({ imports: [Host, TranslatePipe] });
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toBe('Shelter map');
 
     TestBed.inject(I18nService).setLocale('et');
+    await TestBed.inject(I18nService).ensureCatalog('et'); // bundle-lazy-i18n: the chunk is on demand
     fixture.detectChanges();
     expect((fixture.nativeElement as HTMLElement).textContent).toBe('Varjupaikade kaart');
+  });
+});
+
+describe('lazy catalog loading (bundle-lazy-i18n)', () => {
+  beforeEach(() => {
+    // Fresh service per test (TestBed auto-reset) reads localStorage in
+    // its constructor — clear it BEFORE the first inject.
+    localStorage.clear();
+    document.documentElement.lang = '';
+  });
+
+  it('the default locale ships in the initial bundle: loaded synchronously, no load step', async () => {
+    const i18n = TestBed.inject(I18nService);
+    expect(i18n.isCatalogLoaded('en')).toBe(true);
+    await expect(i18n.ensureCatalog('en')).resolves.toBe(EN); // never waits
+    expect(i18n.t('nav.map')).toBe(EN['nav.map']);
+    // …and a fresh service has NOT eagerly loaded the other catalogs:
+    expect(i18n.isCatalogLoaded('et')).toBe(false);
+    expect(i18n.isCatalogLoaded('ru')).toBe(false);
+  });
+
+  it.each([
+    ['et', ET],
+    ['ru', RU],
+  ] as const)(
+    '%s: loads on demand (not eagerly), loads the REAL module content, and caches',
+    async (locale, catalog) => {
+      const i18n = TestBed.inject(I18nService);
+      // On demand: a fresh service has not loaded it…
+      expect(i18n.isCatalogLoaded(locale)).toBe(false);
+      // …so t() serves the DEFAULT locale's text — translated copy, never a raw key:
+      expect(i18n.t('nav.map')).toBe(EN['nav.map']);
+      // …and ensureCatalog loads it. The promise is cached (one load per
+      // session) and resolves to the real module content, not a copy:
+      const first = i18n.ensureCatalog(locale);
+      expect(i18n.ensureCatalog(locale)).toBe(first); // cached — same promise
+      const loaded = await first;
+      expect(loaded).toBe(catalog); // the module's own export object
+      expect(i18n.isCatalogLoaded(locale)).toBe(true);
+      i18n.setLocale(locale); // the chrome follows the now-loaded catalog
+      expect(i18n.t('nav.map')).toBe(catalog['nav.map']);
+      expect(i18n.t('title.map')).toBe(catalog['title.map']);
+      expect(i18n.defaultText('nav.map', locale)).toBe(catalog['nav.map']);
+    },
+  );
+
+  it('a stored non-default locale starts its load at construction (the boot path), and t() serves the default locale until it lands', async () => {
+    localStorage.setItem('openshelter-locale', 'ru');
+    const i18n = TestBed.inject(I18nService);
+    expect(i18n.locale()).toBe('ru');
+    // Synchronously after construction the chunk is in flight — the
+    // loading state renders the DEFAULT locale, never a raw key:
+    expect(i18n.isCatalogLoaded('ru')).toBe(false);
+    expect(i18n.t('nav.map')).toBe(EN['nav.map']);
+    // …and the constructor-started load resolves to the real content:
+    await i18n.ensureCatalog('ru'); // the SAME cached promise the constructor started
+    expect(i18n.isCatalogLoaded('ru')).toBe(true);
+    expect(i18n.t('nav.map')).toBe(RU['nav.map']);
+  });
+
+  it('onCatalogLoaded runs the callback exactly once, when a catalog lands (the title re-resolve seam)', async () => {
+    localStorage.setItem('openshelter-locale', 'et');
+    const i18n = TestBed.inject(I18nService); // the constructor starts the et load
+    let runs = 0;
+    i18n.onCatalogLoaded(() => runs++); // the active locale is still loading → deferred
+    await i18n.ensureCatalog('et');
+    expect(runs).toBe(1); // fired exactly once, on arrival
+    i18n.onCatalogLoaded(() => runs++); // active locale loaded → immediate
+    expect(runs).toBe(2);
+  });
+
+  it('first paint with a stored non-default locale never shows an untranslated key (the pipe seam)', async () => {
+    localStorage.setItem('openshelter-locale', 'et');
+    TestBed.configureTestingModule({ imports: [Host, TranslatePipe] });
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges(); // FIRST PAINT — the et chunk has not resolved yet
+    const el = fixture.nativeElement as HTMLElement;
+    // Translated copy (the default locale) — never the raw key, never blank:
+    expect(el.textContent).toBe(EN['nav.map']);
+    expect(el.textContent).not.toContain('nav.map');
+    expect((el.textContent ?? '').trim()).not.toHaveLength(0);
+
+    // The chunk lands (in the browser: the network fetch); the service's
+    // own change-detection pass repaints — one more pass pins the seam:
+    await TestBed.inject(I18nService).ensureCatalog('et');
+    fixture.detectChanges();
+    expect(el.textContent).toBe(ET['nav.map']);
   });
 });
 
