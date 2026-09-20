@@ -223,10 +223,19 @@ public class SecurityConfig {
                     // ADMIN-kind rule below), not /api/**.
                     .requestMatchers(HttpMethod.GET, "/api/site-texts").permitAll()
                     // Public crisis-guidance reads (crisis-guidance D3): the /blog
-                    // pages and their hero images are readable anonymously. GETs
-                    // ONLY — the write side is /admin/** (ADMIN kind, per-request
-                    // lookup), already covered by the rule below.
-                    .requestMatchers(HttpMethod.GET, "/api/guidance/**", "/api/media/**").permitAll()
+                    // pages are readable anonymously. GETs ONLY — the write
+                    // side is /admin/** (ADMIN kind, per-request lookup),
+                    // already covered by the rule below.
+                    .requestMatchers(HttpMethod.GET, "/api/guidance/**").permitAll()
+                    // Public media serving (hero images): GET and HEAD — a
+                    // public, permit-all asset must answer HEAD the way GET
+                    // does (same status, Content-Type and Content-Length, no
+                    // body) so proxies, CDNs and monitoring can probe it.
+                    // The write side is /admin/** (ADMIN kind, per-request
+                    // lookup), already covered by the rule below; every other
+                    // method on /api/media/** stays authenticated.
+                    .requestMatchers(HttpMethod.GET, "/api/media/**").permitAll()
+                    .requestMatchers(HttpMethod.HEAD, "/api/media/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                     // Chain-level guard for the admin surface: the ADMIN
                     // authority comes from the JwtAuthenticationFilter's fresh

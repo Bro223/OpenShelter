@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -39,7 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * (crisis-guidance D3): anonymous /admin/guidance/* and /admin/media/* is
  * a 401, a registered non-admin a 403, the env-provisioned admin gets
  * through; and the two public guidance routes plus the hero-image serving
- * path answer anonymously (200 on a published post / a stored file, the
+ * path answer anonymously (200 on a published post / a stored file — whose
+ * HEAD answers like its GET, for proxies/CDNs/monitoring to probe — the
  * SAME 404 for a draft slug and an unknown one).
  *
  * <p>Same shape as {@link AdminAuthorizationIT}: the admin kind comes from
@@ -340,6 +342,62 @@ class GuidanceAuthorizationIT extends AbstractPersistenceIT {
         // name-shape 404 only applies to names that get as far as the route.
         mvc.perform(get("/api/media/../../etc/passwd"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * HEAD on the public media path answers like GET (the same status,
+     * Content-Type and Content-Length — the standard probe for proxies,
+     * CDNs and monitoring), unknown names still answer the same 404, and
+     * the method-level permit widens nothing: every other method on the
+     * public path and every protected route still reject an anonymous
+     * HEAD with 401 + hardening headers.
+     */
+    @Test
+    void thePublicMediaRouteAnswersHeadLikeGet() throws Exception {
+        String admin = login("guid-admin@example.ee", "guid-admin-pass");
+
+        MvcResult upload = mvc.perform(multipart("/admin/media")
+                        .file(new MockMultipartFile("file", "head.png", "image/png", PNG_1X1))
+                        .header("Authorization", "Bearer " + admin))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String stored = JsonPath.read(upload.getResponse().getContentAsString(), "$.storedFilename");
+
+        MvcResult get = mvc.perform(get("/api/media/" + stored))
+                .andExpect(status().isOk())
+                .andReturn();
+        String type = get.getResponse().getContentType();
+        String length = get.getResponse().getHeader("Content-Length");
+        assertThat(type).isEqualTo("image/png");
+        assertThat(length).isNotBlank();
+
+        // The anonymous HEAD: the SAME status, Content-Type and
+        // Content-Length as the GET, with the hardening headers.
+        mvc.perform(head("/api/media/" + stored))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", type))
+                .andExpect(header().string("Content-Length", length))
+                .andExpect(hardeningHeadersAndNoCookie());
+
+        // Unknown names: the same 404, nothing leaked.
+        mvc.perform(head("/api/media/ffffffffffffffffffffffffffffffff.png"))
+                .andExpect(status().isNotFound());
+
+        // No widening: POST/PUT/DELETE on the public path stay 401 for
+        // anonymous — the write side is /admin/media (ADMIN kind only).
+        mvc.perform(post("/api/media/" + stored))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+        mvc.perform(put("/api/media/" + stored))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(delete("/api/media/" + stored))
+                .andExpect(status().isUnauthorized());
+
+        // A legitimately protected endpoint still rejects an anonymous HEAD.
+        mvc.perform(head("/admin/media"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(hardeningHeadersAndNoCookie());
     }
 
     /** Creates a post; returns its id (published when requested). */
