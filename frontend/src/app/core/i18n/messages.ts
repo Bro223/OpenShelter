@@ -212,6 +212,8 @@ export interface Messages {
   'map.filter.all': string;
   'map.filter.registry': string;
   'map.filter.user': string;
+  /** The filter-chips group aria-label. */
+  'map.filterSourcesAria': string;
   'map.chipOpen': string;
   'map.chipHasCapacity': string;
   'map.emptyFilter': string;
@@ -234,6 +236,11 @@ export interface Messages {
   'detail.notFoundTitle': string;
   'detail.notFoundBody': string;
   'detail.locationHeading': string;
+  /** The initial load state. */
+  'detail.loading': string;
+  /** The straight-line distance line; `{distance}` is the shared
+   *  straightLineText() format ("≈ 1.1 km straight line"). */
+  'detail.distance.fromYou': string;
   'detail.detailsHeading': string;
   'detail.infoHeading': string;
   'detail.reportOccupancy': string;
@@ -571,6 +578,172 @@ export interface Messages {
   /** The Settings tab (site_texts admin UI: the popup/header/footer text
    *  blocks, each field in the three locales). */
   'admin.settings.tab': string;
+
+  // moderation-queue tabs (pre-guidance): the page shell + the five queue
+  // surfaces. The tabs group its aria-label, the shared working/cancel
+  // action copy, and the per-tab loading/empty states, table columns and
+  // row actions.
+  /** The subtitle under the page H1. */
+  'admin.subtitle': string;
+  /** The tab switcher group aria-label. */
+  'admin.tabs.aria': string;
+  'admin.tabs.unconfirmed': string;
+  'admin.tabs.shelters': string;
+  'admin.tabs.reports': string;
+  'admin.tabs.alerts': string;
+  'admin.tabs.users': string;
+  'admin.tabs.audit': string;
+  /** Shared busy state while a queue action is in flight. */
+  'admin.working': string;
+  /** Shared cancel for the inline editors and two-tap confirms. */
+  'admin.cancel': string;
+
+  // unconfirmed queue (the community review queue, first tab).
+  'admin.unconfirmed.loading': string;
+  'admin.unconfirmed.empty': string;
+  /** The queue table region aria-label. */
+  'admin.unconfirmed.aria': string;
+  'admin.unconfirmed.col.name': string;
+  'admin.unconfirmed.col.address': string;
+  'admin.unconfirmed.col.submitter': string;
+  'admin.unconfirmed.col.actions': string;
+  'admin.unconfirmed.confirm': string;
+  'admin.unconfirmed.reject': string;
+  'admin.unconfirmed.reject.label': string;
+  'admin.unconfirmed.reject.placeholder': string;
+  /** The inline validation line; `{max}` is the character cap. */
+  'admin.unconfirmed.reject.required': string;
+
+  // shelters tab: the search box, the queue table and the row actions
+  // (history/info/inaccuracy toggles, hide/activate, two-tap delete).
+  'admin.shelters.search.label': string;
+  'admin.shelters.search.placeholder': string;
+  'admin.shelters.search.button': string;
+  'admin.shelters.loading': string;
+  'admin.shelters.empty': string;
+  /** The table region aria-label. */
+  'admin.shelters.aria': string;
+  'admin.shelters.col.name': string;
+  'admin.shelters.col.source': string;
+  'admin.shelters.col.status': string;
+  'admin.shelters.col.reports': string;
+  'admin.shelters.col.occupancy': string;
+  'admin.shelters.col.submitter': string;
+  'admin.shelters.col.actions': string;
+  /** The muted hint on registry (import-owned) rows. */
+  'admin.shelters.source.registry': string;
+  'admin.shelters.status.hidden': string;
+  'admin.shelters.status.active': string;
+  'admin.shelters.history': string;
+  'admin.shelters.history.close': string;
+  'admin.shelters.info': string;
+  'admin.shelters.info.close': string;
+  'admin.shelters.inaccurate.clear': string;
+  'admin.shelters.inaccurate.mark': string;
+  'admin.shelters.inaccurate.markClose': string;
+  'admin.shelters.hide': string;
+  'admin.shelters.activate': string;
+  'admin.shelters.delete': string;
+  /** The two-tap armed prompt. */
+  'admin.shelters.delete.confirm': string;
+  'admin.shelters.delete.working': string;
+  'admin.shelters.delete.confirmButton': string;
+  /** The muted hint on registry rows (no actions). */
+  'admin.shelters.readOnly': string;
+
+  // the shelters-tab inline panels: the edit-history list, the
+  // moderator→submitter info request (question editor + read-only
+  // exchange) and the mark-inaccurate reason editor.
+  'admin.shelters.history.loading': string;
+  'admin.shelters.history.empty': string;
+  'admin.shelters.info.request': string;
+  'admin.shelters.info.answer': string;
+  'admin.shelters.info.waiting': string;
+  'admin.shelters.info.question.label': string;
+  'admin.shelters.info.question.placeholder': string;
+  /** The inline validation line; `{max}` is the character cap. */
+  'admin.shelters.info.question.required': string;
+  'admin.shelters.info.send': string;
+  'admin.shelters.info.sending': string;
+  'admin.shelters.inaccurate.reason.label': string;
+  'admin.shelters.inaccurate.reason.placeholder': string;
+  /** The inline length line; `{max}` is the character cap. */
+  'admin.shelters.inaccurate.reason.max': string;
+  'admin.shelters.inaccurate.marking': string;
+
+  // shelter-reports tab: the report queue rows (dismiss, restore a
+  // hidden shelter) and the dampened/dismissed badges.
+  'admin.reports.loading': string;
+  'admin.reports.empty': string;
+  'admin.reports.dismissed': string;
+  'admin.reports.dampened': string;
+  'admin.reports.restore': string;
+  'admin.reports.dismiss': string;
+
+  // alerts tab: the M3 abuse-limits queue.
+  'admin.alerts.loading': string;
+  'admin.alerts.empty': string;
+  /** The table region aria-label. */
+  'admin.alerts.aria': string;
+  'admin.alerts.col.when': string;
+  'admin.alerts.col.type': string;
+  'admin.alerts.col.subject': string;
+  'admin.alerts.col.detail': string;
+  'admin.alerts.col.retryAfter': string;
+
+  // users tab: the accounts table and the suspend/unsuspend two-tap
+  // confirm (the ADMIN kind is listed but not suspendable).
+  'admin.users.loading': string;
+  'admin.users.empty': string;
+  /** The table region aria-label. */
+  'admin.users.aria': string;
+  'admin.users.col.name': string;
+  'admin.users.col.email': string;
+  'admin.users.col.kind': string;
+  'admin.users.col.status': string;
+  'admin.users.col.actions': string;
+  'admin.users.suspended': string;
+  'admin.users.active': string;
+  /** The armed two-tap prompt (suspend). */
+  'admin.users.suspend.confirm': string;
+  /** The armed two-tap prompt (unsuspend). */
+  'admin.users.unsuspend.confirm': string;
+  'admin.users.suspend.confirmButton': string;
+  'admin.users.unsuspend.confirmButton': string;
+  'admin.users.suspend': string;
+  'admin.users.unsuspend': string;
+  'admin.users.notSuspendable': string;
+
+  // audit tab: the moderation trail.
+  'admin.audit.loading': string;
+  'admin.audit.empty': string;
+  /** The table region aria-label. */
+  'admin.audit.aria': string;
+  'admin.audit.col.when': string;
+  'admin.audit.col.moderator': string;
+  'admin.audit.col.subject': string;
+  'admin.audit.col.action': string;
+  'admin.audit.col.change': string;
+  'admin.audit.col.reason': string;
+
+  // settings tab: the site_texts panel (its own load/save state lives in
+  // the panel component, which reads these through i18n.t).
+  'admin.siteTexts.loading': string;
+  /** The hint sentence, split around the literal <code>https://</code>.
+   *  hint1 ends with the trailing space before the code. */
+  'admin.siteTexts.hint1': string;
+  /** The hint tail, leading space included (after the code). */
+  'admin.siteTexts.hint2': string;
+  'admin.siteTexts.linkLabel': string;
+  'admin.siteTexts.saving': string;
+  'admin.siteTexts.save': string;
+  'admin.siteTexts.loadError': string;
+  'admin.siteTexts.urlError': string;
+  'admin.siteTexts.noChanges': string;
+  'admin.siteTexts.saved': string;
+  'admin.siteTexts.saveFailed': string;
+  /** `{message}` is the server/transport error text. */
+  'admin.siteTexts.saveFailedWith': string;
 
   'admin.guidance.tab': string;
   'admin.guidance.loading': string;

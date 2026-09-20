@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { LOCALES, type Locale } from '../../core/i18n/locale';
 import {
   DEFAULT_SITE_TEXT_URLS,
@@ -33,7 +34,7 @@ import type { SiteTextEntryDto } from '../../core/models';
  */
 @Component({
   selector: 'app-site-texts-panel',
-  imports: [LoadingIndicator],
+  imports: [LoadingIndicator, TranslatePipe],
   templateUrl: './site-texts-panel.html',
   styleUrl: './site-texts-panel.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -136,7 +137,7 @@ export class SiteTextsPanel {
         );
       })
       .catch(() => {
-        this.loadError.set('Failed to load the site texts.');
+        this.loadError.set(this.i18n.t('admin.siteTexts.loadError'));
       });
   }
 
@@ -155,7 +156,7 @@ export class SiteTextsPanel {
       if (draft !== '' && !draft.startsWith('https://')) {
         this.status.set({
           ok: false,
-          message: 'Link URLs must start with https://.',
+          message: this.i18n.t('admin.siteTexts.urlError'),
         });
         return;
       }
@@ -185,7 +186,7 @@ export class SiteTextsPanel {
     }
 
     if (entries.length === 0) {
-      this.status.set({ ok: true, message: 'No changes to save.' });
+      this.status.set({ ok: true, message: this.i18n.t('admin.siteTexts.noChanges') });
       return;
     }
 
@@ -197,15 +198,15 @@ export class SiteTextsPanel {
         // Echo: the server now stores exactly the drafts (a blank value
         // means the row is deleted — the default stands).
         this.loaded.set(this.nextLoadedFromDrafts());
-        this.status.set({ ok: true, message: 'Saved.' });
+        this.status.set({ ok: true, message: this.i18n.t('admin.siteTexts.saved') });
       })
       .catch((err: unknown) => {
         this.status.set({
           ok: false,
           message:
             err instanceof Error && err.message !== ''
-              ? `Save failed: ${err.message}`
-              : 'Save failed.',
+              ? this.i18n.t('admin.siteTexts.saveFailedWith', { message: err.message })
+              : this.i18n.t('admin.siteTexts.saveFailed'),
         });
       })
       .finally(() => {

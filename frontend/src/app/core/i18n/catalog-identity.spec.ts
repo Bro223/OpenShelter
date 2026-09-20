@@ -45,8 +45,7 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // Legal pages (legal-i18n M4): punctuation-only splice tails. A semicolon
   // or a period is a semicolon/period in every supported locale; the
   // translated sentence around them carries the language.
-  'legal.privacy.collect.li1.after': ';',
-  'legal.privacy.collect.li2.after': ';',
+  'legal.privacy.collect.li1.after': ';',  'legal.privacy.collect.li2.after': ';',
   'legal.privacy.collect.li3.after': ';',
   'legal.privacy.collect.p2.after': '.',
   'legal.privacy.rights.li1.after': '.',
@@ -65,6 +64,9 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // rationale as the privacy splice tails above.
   'legal.terms.thirdParty.p1.after': '.',
   'legal.terms.contact.p1.after': '.',
+  // Column header: "E-mail" is the established Russian spelling (the loan
+  // word is written exactly this way in RU); ET localizes it to "E-post".
+  'admin.users.col.email': 'E-mail',
 };
 
 function identicalToEn(catalog: Messages, locale: string): string[] {

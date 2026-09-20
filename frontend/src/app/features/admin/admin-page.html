@@ -1,9 +1,6 @@
 <section class="admin">
-  <h1 class="page-title">Admin</h1>
-  <p class="page-subtitle">
-    Moderation: the community review queue, shelter visibility, the report queues, the M3 abuse
-    alerts and the audit trail.
-  </p>
+  <h1 class="page-title">{{ 'title.admin' | t }}</h1>
+  <p class="page-subtitle">{{ 'admin.subtitle' | t }}</p>
 
   <app-banner severity="success" [message]="success()" />
   <app-banner severity="error" [message]="error()" />
@@ -18,7 +15,7 @@
        column's gaps), so the switcher follows the app's existing
        aria-pressed group pattern (the language switcher) instead of
        announcing tabs that do not behave like tabs. -->
-  <div class="admin-tabs" role="group" aria-label="Admin sections">
+  <div class="admin-tabs" role="group" [attr.aria-label]="'admin.tabs.aria' | t">
     <button
       type="button"
       class="btn btn--ghost admin-tab"
@@ -26,7 +23,7 @@
       [attr.aria-pressed]="tab() === 'unconfirmed' ? 'true' : 'false'"
       (click)="switchTab('unconfirmed')"
     >
-      Unconfirmed
+      {{ 'admin.tabs.unconfirmed' | t }}
     </button>
     <button
       type="button"
@@ -35,7 +32,7 @@
       [attr.aria-pressed]="tab() === 'shelters' ? 'true' : 'false'"
       (click)="switchTab('shelters')"
     >
-      Shelters
+      {{ 'admin.tabs.shelters' | t }}
     </button>
     <button
       type="button"
@@ -44,7 +41,7 @@
       [attr.aria-pressed]="tab() === 'reports' ? 'true' : 'false'"
       (click)="switchTab('reports')"
     >
-      Shelter reports
+      {{ 'admin.tabs.reports' | t }}
     </button>
     <button
       type="button"
@@ -53,7 +50,7 @@
       [attr.aria-pressed]="tab() === 'alerts' ? 'true' : 'false'"
       (click)="switchTab('alerts')"
     >
-      Alerts
+      {{ 'admin.tabs.alerts' | t }}
     </button>
     <button
       type="button"
@@ -62,7 +59,7 @@
       [attr.aria-pressed]="tab() === 'users' ? 'true' : 'false'"
       (click)="switchTab('users')"
     >
-      Users
+      {{ 'admin.tabs.users' | t }}
     </button>
     <button
       type="button"
@@ -98,33 +95,33 @@
       [attr.aria-pressed]="tab() === 'audit' ? 'true' : 'false'"
       (click)="switchTab('audit')"
     >
-      Audit log
+      {{ 'admin.tabs.audit' | t }}
     </button>
   </div>
 
   <!-- =========================== Unconfirmed queue =========================== -->
   @if (tab() === 'unconfirmed') {
     @if (shelterRows() === null && shelterLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading community locations…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.unconfirmed.loading' | t" />
     } @else if (shelterLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadShelters()">{{ 'admin.retry' | t }}</button>
     } @else if (unconfirmedRows().length === 0) {
-      <p class="admin-state">No unconfirmed community locations.</p>
+      <p class="admin-state">{{ 'admin.unconfirmed.empty' | t }}</p>
     } @else {
       <div
         class="admin-table-wrap"
         tabindex="0"
         role="region"
-        aria-label="Unconfirmed community locations"
+        [attr.aria-label]="'admin.unconfirmed.aria' | t"
       >
         <table class="admin-table">
           <thead>
             <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Address</th>
-              <th scope="col">Submitter</th>
-              <th scope="col" class="admin-table__actions-head">Actions</th>
+              <th scope="col">{{ 'admin.unconfirmed.col.name' | t }}</th>
+              <th scope="col">{{ 'admin.unconfirmed.col.address' | t }}</th>
+              <th scope="col">{{ 'admin.unconfirmed.col.submitter' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">{{ 'admin.unconfirmed.col.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
@@ -162,19 +159,19 @@
                       (click)="confirmRow(row)"
                       [disabled]="busy()"
                     >
-                      {{ busy() ? 'Working…' : 'Mark confirmed' }}
+                      {{ busy() ? ('admin.working' | t) : ('admin.unconfirmed.confirm' | t) }}
                     </button>
                     @if (rejectRowFor()?.id === row.id) {
                       <div class="admin-reason">
-                        <label for="reject-reason">Reason (required)</label>
+                        <label for="reject-reason">{{ 'admin.unconfirmed.reject.label' | t }}</label>
                         <textarea
                           id="reject-reason"
                           [formControl]="rejectReason"
-                          placeholder="Why is this location rejected?"
+                          [placeholder]="'admin.unconfirmed.reject.placeholder' | t"
                         ></textarea>
                         @if (rejectReason.invalid && rejectReason.touched) {
                           <span class="admin-reason__error">
-                            A reason is required (max {{ 500 }} characters).
+                            {{ 'admin.unconfirmed.reject.required' | t: { max: 500 } }}
                           </span>
                         }
                         <div class="admin-reason__actions">
@@ -184,7 +181,7 @@
                             (click)="rejectRow(row)"
                             [disabled]="busy() || rejectReason.invalid"
                           >
-                            {{ busy() ? 'Working…' : 'Reject' }}
+                            {{ busy() ? ('admin.working' | t) : ('admin.unconfirmed.reject' | t) }}
                           </button>
                           <button
                             type="button"
@@ -192,7 +189,7 @@
                             (click)="cancelReject()"
                             [disabled]="busy()"
                           >
-                            Cancel
+                            {{ 'admin.cancel' | t }}
                           </button>
                         </div>
                       </div>
@@ -203,7 +200,7 @@
                         (click)="openRejectEditor(row)"
                         [disabled]="busy()"
                       >
-                        Reject
+                        {{ 'admin.unconfirmed.reject' | t }}
                       </button>
                     }
                   </div>
@@ -220,37 +217,37 @@
   @if (tab() === 'shelters') {
     <form class="admin-search" (submit)="onSearchSubmit()">
       <div class="field admin-search__field">
-        <label for="admin-search">Search shelters (name or address)</label>
+        <label for="admin-search">{{ 'admin.shelters.search.label' | t }}</label>
         <input
           id="admin-search"
           type="search"
           [formControl]="searchQuery"
-          placeholder="e.g. kelder"
+          [placeholder]="'admin.shelters.search.placeholder' | t"
           autocomplete="off"
         />
       </div>
-      <button type="submit" class="btn btn--ghost" [disabled]="busy()">Search</button>
+      <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.shelters.search.button' | t }}</button>
     </form>
 
     @if (shelterRows() === null && shelterLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading shelters…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.shelters.loading' | t" />
     } @else if (shelterLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadShelters()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadShelters()">{{ 'admin.retry' | t }}</button>
     } @else if ((shelterRows() ?? []).length === 0) {
-      <p class="admin-state">No shelters.</p>
+      <p class="admin-state">{{ 'admin.shelters.empty' | t }}</p>
     } @else {
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Shelters">
+      <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.shelters.aria' | t">
         <table class="admin-table">
           <thead>
             <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Source</th>
-              <th scope="col">Status</th>
-              <th scope="col">Reports</th>
-              <th scope="col">Occupancy</th>
-              <th scope="col">Submitter</th>
-              <th scope="col" class="admin-table__actions-head">Actions</th>
+              <th scope="col">{{ 'admin.shelters.col.name' | t }}</th>
+              <th scope="col">{{ 'admin.shelters.col.source' | t }}</th>
+              <th scope="col">{{ 'admin.shelters.col.status' | t }}</th>
+              <th scope="col">{{ 'admin.shelters.col.reports' | t }}</th>
+              <th scope="col">{{ 'admin.shelters.col.occupancy' | t }}</th>
+              <th scope="col">{{ 'admin.shelters.col.submitter' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">{{ 'admin.shelters.col.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
@@ -286,14 +283,14 @@
                   <!-- D4: registry rows are import-owned — no actions, the
                        hint is the muted "registry" marker. -->
                   @if (row.source !== 'USER') {
-                    <span class="admin-hint">registry</span>
+                    <span class="admin-hint">{{ 'admin.shelters.source.registry' | t }}</span>
                   }
                 </td>
                 <td>
                   @if (row.status === 'INACTIVE') {
-                    <span class="badge badge--hidden">Hidden</span>
+                    <span class="badge badge--hidden">{{ 'admin.shelters.status.hidden' | t }}</span>
                   } @else {
-                    <span class="admin-muted">Active</span>
+                    <span class="admin-muted">{{ 'admin.shelters.status.active' | t }}</span>
                   }
                 </td>
                 <td>{{ row.nonexistentReports }}</td>
@@ -323,7 +320,11 @@
                         (click)="openHistory(row)"
                         [disabled]="busy()"
                       >
-                        {{ historyFor() === row.id ? 'Close history' : 'History' }}
+                        {{
+                          historyFor() === row.id
+                            ? ('admin.shelters.history.close' | t)
+                            : ('admin.shelters.history' | t)
+                        }}
                       </button>
                       <!-- Info-request toggle: the moderator→
                          submitter exchange — question editor for rows
@@ -336,7 +337,9 @@
                         (click)="toggleInfo(row)"
                         [disabled]="busy()"
                       >
-                        {{ infoFor() === row.id ? 'Close info' : 'Info' }}
+                        {{
+                          infoFor() === row.id ? ('admin.shelters.info.close' | t) : ('admin.shelters.info' | t)
+                        }}
                       </button>
                       <!-- Mark inaccurate: the Clear action for a
                          marked row, the editor toggle for an unmarked one.
@@ -348,7 +351,7 @@
                           (click)="clearInaccurateAction(row)"
                           [disabled]="busy()"
                         >
-                          Clear inaccurate
+                          {{ 'admin.shelters.inaccurate.clear' | t }}
                         </button>
                       } @else {
                         <button
@@ -357,7 +360,11 @@
                           (click)="toggleInaccurate(row)"
                           [disabled]="busy()"
                         >
-                          {{ inaccurateFor() === row.id ? 'Close mark' : 'Mark inaccurate' }}
+                            {{
+                              inaccurateFor() === row.id
+                                ? ('admin.shelters.inaccurate.markClose' | t)
+                                : ('admin.shelters.inaccurate.mark' | t)
+                            }}
                         </button>
                       }
                       @if (!shelterDeleteConfirm.isArmed(row.id)) {
@@ -368,7 +375,7 @@
                             (click)="hideShelter(row)"
                             [disabled]="busy()"
                           >
-                            Hide
+                            {{ 'admin.shelters.hide' | t }}
                           </button>
                         } @else {
                           <button
@@ -377,7 +384,7 @@
                             (click)="activateShelter(row)"
                             [disabled]="busy()"
                           >
-                            Activate
+                            {{ 'admin.shelters.activate' | t }}
                           </button>
                         }
                         <button
@@ -387,7 +394,7 @@
                           (click)="requestDelete(row.id)"
                           [disabled]="busy()"
                         >
-                          Delete
+                          {{ 'admin.shelters.delete' | t }}
                         </button>
                       } @else {
                         <!-- two-tap confirm (no window.confirm, the app's inline
@@ -396,7 +403,7 @@
                            restore to Delete on cancel; the prompt
                            is a live region so arming is announced. -->
                         <span class="admin-confirm" role="status"
-                          >Delete this shelter permanently?</span
+                          >{{ 'admin.shelters.delete.confirm' | t }}</span
                         >
                         <button
                           type="button"
@@ -405,7 +412,9 @@
                           (click)="confirmDelete(row.id)"
                           [disabled]="busy()"
                         >
-                          {{ busy() ? 'Deleting…' : 'Confirm delete' }}
+                          {{
+                            busy() ? ('admin.shelters.delete.working' | t) : ('admin.shelters.delete.confirmButton' | t)
+                          }}
                         </button>
                         <button
                           type="button"
@@ -413,11 +422,11 @@
                           (click)="cancelDelete()"
                           [disabled]="busy()"
                         >
-                          Cancel
+                          {{ 'admin.cancel' | t }}
                         </button>
                       }
                     } @else {
-                      <span class="admin-hint">read-only</span>
+                      <span class="admin-hint">{{ 'admin.shelters.readOnly' | t }}</span>
                     }
                   </div>
                 </td>
@@ -430,9 +439,9 @@
                 <tr class="admin-history-row">
                   <td class="admin-history" colspan="9">
                     @if (historyEvents() === null) {
-                      <p class="admin-muted">Loading history…</p>
+                      <p class="admin-muted">{{ 'admin.shelters.history.loading' | t }}</p>
                     } @else if ((historyEvents() ?? []).length === 0) {
-                      <p class="admin-muted">No history yet.</p>
+                      <p class="admin-muted">{{ 'admin.shelters.history.empty' | t }}</p>
                     } @else {
                       <ul class="admin-history__list">
                         @for (event of historyEvents() ?? []; track event.id) {
@@ -465,7 +474,7 @@
                   <td class="admin-history" colspan="9">
                     @if (row.infoRequest; as req) {
                       <p class="admin-history__event">
-                        <span class="admin-history__action">Info request</span>
+                        <span class="admin-history__action">{{ 'admin.shelters.info.request' | t }}</span>
                         <span class="admin-history__actor">{{ req.requestedByName }}</span>
                         <span class="admin-history__time">{{
                           req.requestedAt | date: 'medium'
@@ -474,28 +483,28 @@
                       <p class="admin-history__change">{{ req.message }}</p>
                       @if (req.replyMessage; as reply) {
                         <p class="admin-history__event">
-                          <span class="admin-history__action">Answer</span>
+                          <span class="admin-history__action">{{ 'admin.shelters.info.answer' | t }}</span>
                           <span class="admin-history__time">{{
                             req.repliedAt | date: 'medium'
                           }}</span>
                         </p>
                         <p class="admin-history__change">{{ reply }}</p>
                       } @else {
-                        <p class="admin-muted">Waiting for the submitter's answer.</p>
+                        <p class="admin-muted">{{ 'admin.shelters.info.waiting' | t }}</p>
                       }
                     } @else {
                       <div class="admin-reason">
                         <label for="info-request-message"
-                          >Question for the submitter (required)</label
+                          >{{ 'admin.shelters.info.question.label' | t }}</label
                         >
                         <textarea
                           id="info-request-message"
                           [formControl]="requestMessage"
-                          placeholder="What do you need from the submitter?"
+                          [placeholder]="'admin.shelters.info.question.placeholder' | t"
                         ></textarea>
                         @if (requestMessage.invalid && requestMessage.touched) {
                           <span class="admin-reason__error">
-                            A question is required (max {{ 2000 }} characters).
+                            {{ 'admin.shelters.info.question.required' | t: { max: 2000 } }}
                           </span>
                         }
                         <div class="admin-reason__actions">
@@ -505,7 +514,7 @@
                             (click)="sendInfoRequest(row)"
                             [disabled]="busy() || requestMessage.invalid"
                           >
-                            {{ busy() ? 'Sending…' : 'Send' }}
+                            {{ busy() ? ('admin.shelters.info.sending' | t) : ('admin.shelters.info.send' | t) }}
                           </button>
                           <button
                             type="button"
@@ -513,7 +522,7 @@
                             (click)="closeInfo()"
                             [disabled]="busy()"
                           >
-                            Cancel
+                            {{ 'admin.cancel' | t }}
                           </button>
                         </div>
                       </div>
@@ -528,14 +537,14 @@
                 <tr class="admin-history-row">
                   <td class="admin-history" colspan="9">
                     <div class="admin-reason">
-                      <label for="mark-inaccurate-reason">Reason (optional)</label>
+                      <label for="mark-inaccurate-reason">{{ 'admin.shelters.inaccurate.reason.label' | t }}</label>
                       <textarea
                         id="mark-inaccurate-reason"
                         [formControl]="inaccurateReason"
-                        placeholder="What did you find to be inaccurate?"
+                        [placeholder]="'admin.shelters.inaccurate.reason.placeholder' | t"
                       ></textarea>
                       @if (inaccurateReason.invalid && inaccurateReason.touched) {
-                        <span class="admin-reason__error"> Max {{ 500 }} characters. </span>
+                        <span class="admin-reason__error"> {{ 'admin.shelters.inaccurate.reason.max' | t: { max: 500 } }} </span>
                       }
                       <div class="admin-reason__actions">
                         <button
@@ -544,7 +553,7 @@
                           (click)="markInaccurateAction(row)"
                           [disabled]="busy() || inaccurateReason.invalid"
                         >
-                          {{ busy() ? 'Marking…' : 'Mark inaccurate' }}
+                          {{ busy() ? ('admin.shelters.inaccurate.marking' | t) : ('admin.shelters.inaccurate.mark' | t) }}
                         </button>
                         <button
                           type="button"
@@ -552,7 +561,7 @@
                           (click)="closeInaccurate()"
                           [disabled]="busy()"
                         >
-                          Cancel
+                          {{ 'admin.cancel' | t }}
                         </button>
                       </div>
                     </div>
@@ -569,12 +578,12 @@
   <!-- ========================== Shelter reports ========================== -->
   @if (tab() === 'reports') {
     @if (reportRows() === null && reportLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading reports…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.reports.loading' | t" />
     } @else if (reportLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadReports()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadReports()">{{ 'admin.retry' | t }}</button>
     } @else if ((reportRows() ?? []).length === 0) {
-      <p class="admin-state">No reports.</p>
+      <p class="admin-state">{{ 'admin.reports.empty' | t }}</p>
     } @else {
       <ul class="admin-queue">
         @for (row of reportRows() ?? []; track row.id) {
@@ -583,13 +592,13 @@
               <span class="admin-queue-row__title">
                 <a [routerLink]="['/shelters', row.shelterId]">{{ row.shelterName }}</a>
                 @if (row.dismissed) {
-                  <span class="badge badge--hidden">Dismissed</span>
+                  <span class="badge badge--hidden">{{ 'admin.reports.dismissed' | t }}</span>
                 }
               </span>
               <span class="admin-queue-row__meta">
                 {{ reportTypeLabel(row.type) }}
                 @if (row.damped) {
-                  <span class="badge badge--hidden">Dampened</span>
+                  <span class="badge badge--hidden">{{ 'admin.reports.dampened' | t }}</span>
                 }
                 · {{ reporterText(row) }} ·
                 {{ ageText(row.createdAt) }}
@@ -606,7 +615,7 @@
                   (click)="restoreShelter(row.shelterId)"
                   [disabled]="busy()"
                 >
-                  Restore shelter
+                  {{ 'admin.reports.restore' | t }}
                 </button>
               }
               @if (!row.dismissed) {
@@ -616,7 +625,7 @@
                   (click)="dismissReport(row.id)"
                   [disabled]="busy()"
                 >
-                  {{ busy() ? 'Working…' : 'Dismiss' }}
+                  {{ busy() ? ('admin.working' | t) : ('admin.reports.dismiss' | t) }}
                 </button>
               }
             </div>
@@ -629,22 +638,22 @@
   <!-- ============================== Alerts ============================= -->
   @if (tab() === 'alerts') {
     @if (alertsRows() === null && alertsLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading alerts…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.alerts.loading' | t" />
     } @else if (alertsLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadAlerts()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadAlerts()">{{ 'admin.retry' | t }}</button>
     } @else if ((alertsRows() ?? []).length === 0) {
-      <p class="admin-state">No throttled or abusive activity yet.</p>
+      <p class="admin-state">{{ 'admin.alerts.empty' | t }}</p>
     } @else {
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Abuse alerts">
+      <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.alerts.aria' | t">
         <table class="admin-table admin-table--audit">
           <thead>
             <tr>
-              <th scope="col">When</th>
-              <th scope="col">Type</th>
-              <th scope="col">Subject</th>
-              <th scope="col">Detail</th>
-              <th scope="col">Retry after</th>
+              <th scope="col">{{ 'admin.alerts.col.when' | t }}</th>
+              <th scope="col">{{ 'admin.alerts.col.type' | t }}</th>
+              <th scope="col">{{ 'admin.alerts.col.subject' | t }}</th>
+              <th scope="col">{{ 'admin.alerts.col.detail' | t }}</th>
+              <th scope="col">{{ 'admin.alerts.col.retryAfter' | t }}</th>
             </tr>
           </thead>
           <tbody>
@@ -667,22 +676,22 @@
   <!-- ================================== Users ================================== -->
   @if (tab() === 'users') {
     @if (userRows() === null && userLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading accounts…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.users.loading' | t" />
     } @else if (userLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadUsers()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadUsers()">{{ 'admin.retry' | t }}</button>
     } @else if ((userRows() ?? []).length === 0) {
-      <p class="admin-state">No accounts yet.</p>
+      <p class="admin-state">{{ 'admin.users.empty' | t }}</p>
     } @else {
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Accounts">
+      <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.users.aria' | t">
         <table class="admin-table">
           <thead>
             <tr>
-              <th scope="col">Name</th>
-              <th scope="col">E-mail</th>
-              <th scope="col">Kind</th>
-              <th scope="col">Status</th>
-              <th scope="col" class="admin-table__actions-head">Actions</th>
+              <th scope="col">{{ 'admin.users.col.name' | t }}</th>
+              <th scope="col">{{ 'admin.users.col.email' | t }}</th>
+              <th scope="col">{{ 'admin.users.col.kind' | t }}</th>
+              <th scope="col">{{ 'admin.users.col.status' | t }}</th>
+              <th scope="col" class="admin-table__actions-head">{{ 'admin.users.col.actions' | t }}</th>
             </tr>
           </thead>
           <tbody>
@@ -709,10 +718,10 @@
                 </td>
                 <td>
                   @if (row.suspendedAt; as suspendedAt) {
-                    <span class="badge badge--hidden">Suspended</span>
+                    <span class="badge badge--hidden">{{ 'admin.users.suspended' | t }}</span>
                     <span class="admin-muted"> {{ suspendedAt | date: 'medium' }}</span>
                   } @else {
-                    <span class="admin-muted">Active</span>
+                    <span class="admin-muted">{{ 'admin.users.active' | t }}</span>
                   }
                 </td>
                 <td class="admin-cell--actions">
@@ -726,10 +735,9 @@
                            the prompt is a live region so arming is announced. -->
                         <span class="admin-confirm" role="status">
                           @if (userActionConfirm.armed()!.value === 'suspend') {
-                            Suspend this account? It loses login, refresh and its open session; its
-                            shelters stay on the map.
+                            {{ 'admin.users.suspend.confirm' | t }}
                           } @else {
-                            Restore this account's access?
+                            {{ 'admin.users.unsuspend.confirm' | t }}
                           }
                         </span>
                         <button
@@ -742,10 +750,10 @@
                         >
                           {{
                             busy()
-                              ? 'Working…'
+                              ? ('admin.working' | t)
                               : userActionConfirm.armed()!.value === 'suspend'
-                                ? 'Confirm suspend'
-                                : 'Confirm unsuspend'
+                                ? ('admin.users.suspend.confirmButton' | t)
+                                : ('admin.users.unsuspend.confirmButton' | t)
                           }}
                         </button>
                         <button
@@ -754,7 +762,7 @@
                           (click)="cancelUserAction()"
                           [disabled]="busy()"
                         >
-                          Cancel
+                          {{ 'admin.cancel' | t }}
                         </button>
                       } @else if (row.suspendedAt === null) {
                         <button
@@ -764,7 +772,7 @@
                           (click)="requestUserAction(row.id, 'suspend')"
                           [disabled]="busy()"
                         >
-                          Suspend
+                          {{ 'admin.users.suspend' | t }}
                         </button>
                       } @else {
                         <button
@@ -774,14 +782,14 @@
                           (click)="requestUserAction(row.id, 'unsuspend')"
                           [disabled]="busy()"
                         >
-                          Unsuspend
+                          {{ 'admin.users.unsuspend' | t }}
                         </button>
                       }
                     } @else {
                       <!-- ADMIN kind: listed for visibility, not suspendable
                          (lockout vector — the backend answers 403: the
                          provisioned admin cannot be disabled at all). -->
-                      <span class="admin-muted">Not suspendable</span>
+                      <span class="admin-muted">{{ 'admin.users.notSuspendable' | t }}</span>
                     }
                   </div>
                 </td>
@@ -1199,26 +1207,26 @@
 
   @if (tab() === 'audit') {
     @if (auditRows() === null && auditLoadError() === null) {
-      <app-loading-indicator class="admin-state" message="Loading audit log…" />
+      <app-loading-indicator class="admin-state" [message]="'admin.audit.loading' | t" />
     } @else if (auditLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadAudit()">Retry</button>
+      <button type="button" class="btn btn--ghost" (click)="loadAudit()">{{ 'admin.retry' | t }}</button>
     } @else if ((auditRows() ?? []).length === 0) {
-      <p class="admin-state">No moderation actions yet.</p>
+      <p class="admin-state">{{ 'admin.audit.empty' | t }}</p>
     } @else {
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Audit log">
+      <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.audit.aria' | t">
         <table class="admin-table admin-table--audit">
           <thead>
             <tr>
-              <th scope="col">When</th>
-              <th scope="col">Moderator</th>
+              <th scope="col">{{ 'admin.audit.col.when' | t }}</th>
+              <th scope="col">{{ 'admin.audit.col.moderator' | t }}</th>
               <!-- "Subject": a shelter row's name OR the
                    suspended account ("Account: name (email)" / "Deleted
                    account") — the server resolves both into one text. -->
-              <th scope="col">Subject</th>
-              <th scope="col">Action</th>
-              <th scope="col">Change</th>
-              <th scope="col">Reason</th>
+              <th scope="col">{{ 'admin.audit.col.subject' | t }}</th>
+              <th scope="col">{{ 'admin.audit.col.action' | t }}</th>
+              <th scope="col">{{ 'admin.audit.col.change' | t }}</th>
+              <th scope="col">{{ 'admin.audit.col.reason' | t }}</th>
             </tr>
           </thead>
           <tbody>

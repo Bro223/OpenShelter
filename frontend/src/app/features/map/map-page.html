@@ -190,7 +190,7 @@
         </p>
       }
 
-      <div class="filter-chips" role="group" aria-label="Filter shelters by source">
+      <div class="filter-chips" role="group" [attr.aria-label]="'map.filterSourcesAria' | t">
         @for (chip of sourceFilters; track chip.value) {
           <button
             type="button"

@@ -107,7 +107,7 @@
              straight line from the user's browser position — never a
              walking-route or official claim. -->
         <p class="shelter-detail__distance-line num-tabular" role="status">
-          {{ straightLineText(distanceKm()!) }} from you
+          {{ 'detail.distance.fromYou' | t: { distance: straightLineText(distanceKm()!) } }}
         </p>
       } @else if (distanceError(); as msg) {
         <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
@@ -151,7 +151,7 @@
     </section>
 
     @if (loading()) {
-      <app-loading-indicator class="detail-state" message="Loading shelter…" />
+      <app-loading-indicator class="detail-state" [message]="'detail.loading' | t" />
     } @else if (shelter(); as s) {
       @if (hasUserDetails()) {
         <section class="detail-section">

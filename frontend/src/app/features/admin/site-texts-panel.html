@@ -6,15 +6,13 @@
      (https, shared by all three locales). The admin edits VALUES only —
      the keys come from the declared allowlist, never invented. -->
 @if (loaded() === null && loadError() === null) {
-  <app-loading-indicator class="admin-state" message="Loading site texts…" />
+  <app-loading-indicator class="admin-state" [message]="'admin.siteTexts.loading' | t" />
 } @else if (loadError(); as loadErr) {
   <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-  <button type="button" class="btn btn--ghost" (click)="load()">Retry</button>
+  <button type="button" class="btn btn--ghost" (click)="load()">{{ 'admin.retry' | t }}</button>
 } @else {
   <p class="site-texts-hint">
-    Leave a field blank to use the shipped default (shown as the placeholder). Saving a
-    cleared field removes the override. Link URLs must start with
-    <code>https://</code> and are shared by all three languages.
+    {{ 'admin.siteTexts.hint1' | t }}<code>https://</code>{{ 'admin.siteTexts.hint2' | t }}
   </p>
 
   @for (block of blocks(); track block.id) {
@@ -26,7 +24,7 @@
             <code>{{ k.key }}</code>
             @if (k.isLink) {
               <label class="site-texts-row__url">
-                <span>Link (https, all languages)</span>
+                <span>{{ 'admin.siteTexts.linkLabel' | t }}</span>
                 <input
                   type="url"
                   [attr.data-url-key]="k.key"
@@ -70,7 +68,7 @@
       </p>
     }
     <button type="button" class="btn btn--primary" (click)="save()" [disabled]="saving()">
-      {{ saving() ? 'Saving…' : 'Save changes' }}
+      {{ saving() ? ('admin.siteTexts.saving' | t) : ('admin.siteTexts.save' | t) }}
     </button>
   </div>
 }

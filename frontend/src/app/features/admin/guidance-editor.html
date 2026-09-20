@@ -156,7 +156,7 @@
         </button>
 
         @if (heroPickerOpen()) {
-          <div class="hero-picker" role="group" aria-label="Media library">
+          <div class="hero-picker" role="group" [attr.aria-label]="'admin.media.tab' | t">
             @if (mediaAssets() === null) {
               <p class="hero-picker__state">{{ 'admin.guidance.editor.hero.loading' | t }}</p>
             } @else if (pickerAssets().length === 0) {
