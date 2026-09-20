@@ -133,10 +133,14 @@ export function isPrivateLocation(shelter: { locationKind: LocationKind }): bool
  * report hedges ("Reported closed"), a fresh firm one (two+) is firm
  * ("Closed"), a fresh OPEN reads "Open"; with nothing fresh the lifecycle
  * status decides — INACTIVE reads "Closed", ACTIVE reads "Open (no recent
- * reports)". Single-sourced: the detail page's info block and the map's
- * "Open" chip consume the same rule. INACTIVE rows normally never reach
- * the public UI (the detail read 404s), but the mapping stays for the
- * admin-facing displays.
+ * reports)". Single-sourced: the map's "Open" chip (isOpenRow), the amber
+ * badge copy (openStatusBadgeText) and the admin-facing displays consume
+ * the same rule. The PUBLIC detail page deliberately does NOT render it
+ * (owner decision — its Info section shows the last reported rows instead,
+ * which consult the same fresh reports and carry the time; see the Info
+ * section comment in shelter-detail-page.html). INACTIVE rows normally
+ * never reach the public UI (the detail read 404s), but the mapping stays
+ * for the admin-facing displays.
  */
 export function shelterStatusText(shelter: {
   status: ShelterStatus;

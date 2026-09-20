@@ -233,11 +233,18 @@ export const ET: Messages = {
   'detail.distance.fromYou': '{distance} sinust',
   'detail.detailsHeading': 'Detalid',
   'detail.infoHeading': 'Teave',
+  'detail.statusLabel': 'Olek',
+  'detail.capacityLabel': 'Mahutavus',
+  'detail.lastReported': 'Viimati teatati: {kind}',
+  'detail.statusEmpty': 'Avatud/suletud teateid pole veel',
+  'detail.capacityEmpty': 'Täitumisteateid pole veel',
   'detail.reportOccupancy': 'Teata täitumisastmest',
   'detail.reportOpen': 'Teata avatud/suletud olekust',
   'detail.reportThis': 'Teata sellest varjupaigast',
-  'detail.navigate': 'Navigeeri',
-  'detail.appleMaps': 'Ava Apple Mapsis',
+  'detail.navigate': 'Google Maps',
+  'detail.appleMaps': 'Apple Maps',
+  'detail.navigateAria': 'Ava jalgsed teejuhised sihtkohta {name} Google Mapsis',
+  'detail.appleMapsAria': 'Ava teejuhised sihtkohta {name} Apple Mapsis',
   'detail.occupancy.aria': 'Kui täis on see varjupaik praegu?',
   'detail.band.space': 'On vaba mahtu',
   'detail.band.gettingFull': 'Täitumas',
@@ -279,6 +286,7 @@ export const ET: Messages = {
   'detail.pulse.openClosedText': 'Teated: {open} avatud, {closed} suletud',
   'detail.pulse.occupancyText': 'Teated: {space} vaba mahtu, {gettingFull} täitumas, {full} täis',
   'detail.pulse.windowHint': 'Peegeldab viimase 2 tunni jooksul saadud teateid',
+  'detail.pulse.estimateNote': 'Nooled näitavad arvutatud hinnangut, mitte kinnitatud andmeid.',
 
   // --- submit shelter page. Quoted button labels use the
   // Estonian label (the button is translated on this page).

@@ -1,11 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { Component, type DebugElement, signal } from '@angular/core';
+import { registerLocaleData } from '@angular/common';
+import ruLocale from '@angular/common/locales/ru';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
+import { I18nService } from '../../core/i18n/i18n.service';
 import type {
+  CommunityPulseRecentReport,
   ShelterDetailDto,
   ShelterDto,
   ShelterReportResult,
@@ -16,6 +20,11 @@ import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
 import { LeafletService, SHELTER_ZOOM } from '../../shared/leaflet-service';
 import { ShelterDetailPage } from './shelter-detail-page';
+
+// The Info section's locale-switch spec formats the <time> stamps in RU —
+// mirror main.ts's registration (specs bootstrap components, not the app,
+// so main.ts's registerLocaleData never runs here).
+registerLocaleData(ruLocale);
 
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
 class FakeShelterGateway {
@@ -236,6 +245,15 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
   }
 
+  /** The Info section row's <dd> text by its <dt> label ('' = row absent). */
+  function infoRowValue(element: HTMLElement, label: string): string {
+    const info = element.querySelector('#info-heading')?.closest('section');
+    const dt = [...info!.querySelectorAll('dt')].find(
+      (d) => (d.textContent ?? '').trim() === label,
+    );
+    return dt?.nextElementSibling?.textContent?.trim() ?? '';
+  }
+
   describe('reading (public)', () => {
     it('renders the shelter header and the practical info block (no reviews UI)', async () => {
       shelterGateway.rows.set(1, registryShelter());
@@ -249,16 +267,16 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('[role="img"]')).toBeNull();
       expect(element.querySelector('.review-list')).toBeNull();
       expect(element.querySelector('form')).toBeNull();
-      // The practical info block: the derived display status for an ACTIVE
-      // row with nothing fresh (the no-recent-reports hedge).
+      // The practical info block (INFO-LAST-REPORTED): the two LAST
+      // REPORTED rows — for a row with no recent log both show their
+      // explicit empty states (no derived-status row on the public page;
+      // see the Info section comment in the template for why).
       const info = element.querySelector('#info-heading')?.closest('section');
       expect(info).not.toBeNull();
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe(
-        'Open (no recent reports)',
-      );
+      const labels = [...info!.querySelectorAll('dt')].map((d) => (d.textContent ?? '').trim());
+      expect(labels).toEqual(['Status', 'Capacity']);
+      expect(infoRowValue(element, 'Status')).toBe('No open/closed reports yet');
+      expect(infoRowValue(element, 'Capacity')).toBe('No how-full reports yet');
     });
 
     it('renders a USER row null-safely: no address, description + capacity, Status Open', async () => {
@@ -272,15 +290,13 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // The trust-state label (community-review-queue D5): NEW ->
       // "Newly added" (replacing the old "User-submitted" wording).
       expect(element.querySelector('.badge')?.textContent?.trim()).toBe('Newly added');
-      // An ACTIVE row with nothing fresh reads "Open (no recent reports)"
-      // in the info block.
+      // An ACTIVE row with nothing fresh shows BOTH last-reported rows in
+      // their empty states (no derived-status row on the public page).
       const info = element.querySelector('#info-heading')?.closest('section');
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe(
-        'Open (no recent reports)',
-      );
+      const labels = [...info!.querySelectorAll('dt')].map((d) => (d.textContent ?? '').trim());
+      expect(labels).toEqual(['Status', 'Capacity']);
+      expect(infoRowValue(element, 'Status')).toBe('No open/closed reports yet');
+      expect(infoRowValue(element, 'Capacity')).toBe('No how-full reports yet');
     });
 
     it('a NEW community row carries the unverified warning block next to the trust badge', async () => {
@@ -551,7 +567,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     it('renders both deep links in the header with 5-decimal coordinates and the encoded name', async () => {
       const { element } = await open('/shelters/1');
 
-      const navigate = linkByText(element, 'Navigate');
+      const navigate = linkByText(element, 'Google Maps');
       expect(navigate).toBeDefined();
       expect(navigate?.getAttribute('href')).toBe(
         'https://www.google.com/maps/dir/?api=1&destination=59.43700,24.75400&travelmode=walking',
@@ -559,7 +575,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(navigate?.getAttribute('target')).toBe('_blank');
       expect(navigate?.getAttribute('rel')).toBe('noopener');
 
-      const apple = linkByText(element, 'Open in Apple Maps');
+      const apple = linkByText(element, 'Apple Maps');
       expect(apple).toBeDefined();
       expect(apple?.getAttribute('href')).toBe(
         'https://maps.apple.com/?daddr=59.43700,24.75400&q=Tallinn%20Central%20Shelter',
@@ -586,14 +602,42 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       shelterGateway.rows.set(7, userShelter());
       const { element } = await open('/shelters/7');
 
-      expect(linkByText(element, 'Navigate')?.getAttribute('href')).toBe(
+      expect(linkByText(element, 'Google Maps')?.getAttribute('href')).toBe(
         'https://www.google.com/maps/dir/?api=1&destination=59.43700,24.75400&travelmode=walking',
       );
-      expect(linkByText(element, 'Open in Apple Maps')?.getAttribute('href')).toBe(
+      expect(linkByText(element, 'Apple Maps')?.getAttribute('href')).toBe(
         'https://maps.apple.com/?daddr=59.43700,24.75400&q=Community%20Cellar',
+      );
+      // The accessible name names THIS shelter (the name interpolation):
+      expect(linkByText(element, 'Google Maps')?.getAttribute('aria-label')).toBe(
+        'Open walking directions to Community Cellar in Google Maps',
       );
       expect(element.querySelector('.shelter-detail__coords')?.textContent).toContain(
         '59.43700, 24.75400',
+      );
+    });
+
+    it('brand-only visible labels keep a meaningful accessible name (aria-label = action + destination + service)', async () => {
+      const { element } = await open('/shelters/1');
+      const byLabel = (label: string) =>
+        [...element.querySelectorAll<HTMLAnchorElement>('.shelter-detail__navigate a')].find(
+          (a) => (a.textContent ?? '').trim() === label,
+        );
+
+      const google = byLabel('Google Maps');
+      const apple = byLabel('Apple Maps');
+      expect(google, 'the visible label is the brand name only (owner)').toBeDefined();
+      expect(apple, 'the visible label is the brand name only (owner)').toBeDefined();
+
+      // A bare brand name is not a meaningful accessible name: each link
+      // states what it DOES — open directions to THIS shelter in that
+      // service — and the two links stay distinguishable (service, plus
+      // the walking mode the Google link actually requests).
+      expect(google!.getAttribute('aria-label')).toBe(
+        'Open walking directions to Tallinn Central Shelter in Google Maps',
+      );
+      expect(apple!.getAttribute('aria-label')).toBe(
+        'Open directions to Tallinn Central Shelter in Apple Maps',
       );
     });
   });
@@ -961,61 +1005,44 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.badge--occupancy')).toBeNull();
     });
 
-    // ----- practical info block --------------------------------------
+    // ----- info block (INFO-LAST-REPORTED: the last reported rows) -----
 
-    it('the info block reads "Reported closed" for a fresh lone CLOSED report (hedged)', async () => {
+    it('the info block renders exactly the two last-reported rows — the derived status is NOT a row on the public page, but the header badge still carries the derived copy', async () => {
+      // A fresh lone CLOSED report: the derived rule hedges to "Reported
+      // closed". That copy still surfaces on the public page — in the
+      // header badge — while the info block shows ONLY the last-reported
+      // rows (the owner removed the derived row: redundant with these —
+      // same fresh reports, same word — and the one case where it would
+      // differ, INACTIVE, 404s on the public detail read).
       shelterGateway.rows.set(
         1,
         registryShelter({
           openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 1 },
+          communityPulse: {
+            openClosed: null,
+            occupancy: null,
+            recentReports: [
+              { kind: 'CLOSED', reportedAt: minutesAgo(12) },
+            ],
+          },
         }),
       );
       const { element } = await open('/shelters/1');
+      // The badge keeps the derived copy (shared rule, shelter-copy —
+      // unit-pinned in shelter-copy.spec.ts, which the map chip and the
+      // admin-facing displays also consume).
+      expect(element.querySelector('.badge--closed')?.textContent?.trim()).toBe('Reported closed');
+      // The info block: exactly the two last-reported rows, nothing else.
       const info = element.querySelector('#info-heading')?.closest('section');
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Reported closed');
-    });
-
-    it('the info block reads "Closed" for a fresh firm CLOSED net (two+) — even over INACTIVE', async () => {
-      shelterGateway.rows.set(
-        1,
-        registryShelter({
-          openStatus: { state: 'CLOSED', reportedAt: minutesAgo(12), reportCount: 2 },
-        }),
-      );
-      const { element } = await open('/shelters/1');
-      const info = element.querySelector('#info-heading')?.closest('section');
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Closed');
-    });
-
-    it('a fresh OPEN report reads "Open" (an open confirmation, no hedge)', async () => {
-      shelterGateway.rows.set(
-        1,
-        registryShelter({
-          openStatus: { state: 'OPEN', reportedAt: minutesAgo(12), reportCount: 1 },
-        }),
-      );
-      const { element } = await open('/shelters/1');
-      const info = element.querySelector('#info-heading')?.closest('section');
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Open');
-    });
-
-    it('a lifecycle-INACTIVE row (nothing fresh) reads "Closed" — the hidden-row detail read', async () => {
-      shelterGateway.rows.set(1, registryShelter({ status: 'INACTIVE' }));
-      const { element } = await open('/shelters/1');
-      const info = element.querySelector('#info-heading')?.closest('section');
-      const statusRow = [...info!.querySelectorAll('dt')].find(
-        (d) => (d.textContent ?? '').trim() === 'Status',
-      )!;
-      expect((statusRow.nextElementSibling?.textContent ?? '').trim()).toBe('Closed');
+      const labels = [...info!.querySelectorAll('dt')].map((d) => (d.textContent ?? '').trim());
+      expect(labels).toEqual(['Status', 'Capacity']);
+      expect(infoRowValue(element, 'Status')).toContain('Last reported as Closed');
+      // The derived word must not leak back into the info block.
+      expect(infoRowValue(element, 'Status')).not.toContain('Reported closed');
+      expect(
+        [...info!.querySelectorAll('dt')].some((d) => (d.textContent ?? '').trim() === 'Shelter status'),
+        'no derived "Shelter status" row on the public page',
+      ).toBe(false);
     });
 
     // ----- shelter report (D1/D6) --------------------------------------
@@ -1486,13 +1513,16 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
     }
 
     /** The arrows live in .pulse-gauges__arrows (layout pass); find one
-     *  by the caption id its figure's aria-describedby points at. */
+     *  by the caption id its figure's aria-describedby references. Word
+     *  match (`~=`) tolerates a future multi-id reference list; today the
+     *  figure references only its own count-line id (the general estimate
+     *  notice is section-level, not per-gauge). */
     function arrowGauge(element: HTMLElement, captionId: string): HTMLElement | null {
       const arrows = element.querySelector('.pulse-gauges__arrows');
       if (!arrows) return null;
       return (
         [...arrows.querySelectorAll<HTMLElement>('app-report-gauge')].find(
-          (g) => g.querySelector(`figure[aria-describedby="${captionId}"]`) !== null,
+          (g) => g.querySelector(`figure[aria-describedby~="${captionId}"]`) !== null,
         ) ?? null
       );
     }
@@ -1824,13 +1854,16 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       // Association: each arrow figure points (aria-describedby) at the
       // element carrying its count line — the caption stays the gauge's
-      // accessible text, now living in the captions column.
+      // accessible text, now living in the captions column. The word match
+      // (`~=`) tolerates a future multi-id reference list; today the figure
+      // references only its own count-line id (the general estimate notice
+      // is section-level, not per-gauge).
       const pairs: [string, string][] = [
         ['pulse-occupancy-caption', 'Reports: 0 space available, 0 getting full, 4 full'],
         ['pulse-open-caption', 'Reports: 3 open, 2 closed'],
       ];
       for (const [id, text] of pairs) {
-        const figure = wrap!.querySelector(`figure[aria-describedby="${id}"]`);
+        const figure = wrap!.querySelector(`figure[aria-describedby~="${id}"]`);
         expect(figure, `an arrow figure must reference #${id}`).not.toBeNull();
         const caption = wrap!.querySelector<HTMLElement>(`#${id}`);
         expect(caption, `the caption #${id} must render`).not.toBeNull();
@@ -1849,6 +1882,87 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(wrap!.querySelectorAll('figcaption').length, 'no figcaption in the pulse block').toBe(
         0,
       );
+    });
+
+    it('the pulse block carries ONE general estimate notice with the window hint — no per-arrow notices, and each gauge still exposes its own counts', async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+      const wrap = element.querySelector('.pulse-gauges');
+      expect(wrap, 'the pulse block must render').not.toBeNull();
+
+      // ONE general notice for the whole section, sitting with the window
+      // hint (both are .pulse-gauges__hint at the top). It says the arrows
+      // show a CALCULATED ESTIMATE, not confirmed data — a phrase true for
+      // BOTH arrows (open/closed = a probability, how-full = an expected
+      // level), so it must never claim "probability" (which would
+      // mis-describe the how-full arrow).
+      const hints = [...wrap!.querySelectorAll<HTMLElement>('.pulse-gauges__hint')].map(
+        (h) => h.textContent ?? '',
+      );
+      expect(hints.length, 'window hint + one general notice').toBe(2);
+      expect(hints.some((h) => h.includes('last 2 hours')), 'the window hint is kept').toBe(true);
+      const estimateNote = hints.find((h) => h.includes('calculated estimate'));
+      expect(estimateNote, 'the general estimate notice renders').toBeDefined();
+      expect(estimateNote).toContain('not confirmed data');
+      expect(
+        estimateNote,
+        'the general notice never claims "probability" (the how-full arrow is a level)',
+      ).not.toMatch(/probab/i);
+
+      // The per-arrow notices are GONE — nothing renders or references the
+      // deleted sentences (no stale id, no leftover text).
+      expect(wrap!.querySelector('#pulse-open-note'), 'no per-arrow open notice').toBeNull();
+      expect(wrap!.querySelector('#pulse-occupancy-note'), 'no per-arrow how-full notice').toBeNull();
+      expect(wrap!.textContent).not.toContain('probability that this shelter is open');
+      expect(wrap!.textContent).not.toContain('position from empty to full');
+
+      // Association: each arrow figure references ONLY its own count-line
+      // id now (the general notice is section-level, not per-gauge). The
+      // count line stays each gauge's accessible text.
+      const occupancyFigure = wrap!.querySelector(
+        'figure[aria-describedby="pulse-occupancy-caption"]',
+      );
+      const openFigure = wrap!.querySelector('figure[aria-describedby="pulse-open-caption"]');
+      expect(
+        occupancyFigure?.getAttribute('aria-describedby'),
+        'the how-full figure references its count line only',
+      ).toBe('pulse-occupancy-caption');
+      expect(
+        openFigure?.getAttribute('aria-describedby'),
+        'the open/closed figure references its count line only',
+      ).toBe('pulse-open-caption');
+
+      // Each gauge still exposes its counts (the accessible text remains).
+      expect(wrap!.querySelector<HTMLElement>('#pulse-occupancy-caption')?.textContent).toContain(
+        'Reports: 0 space available, 0 getting full, 4 full',
+      );
+      expect(wrap!.querySelector<HTMLElement>('#pulse-open-caption')?.textContent).toContain(
+        'Reports: 3 open, 2 closed',
+      );
+    });
+
+    it('with nothing fresh the general notice still renders (section-level, with the window hint) — and no arrow figure dangles a reference', async () => {
+      shelterGateway.rows.set(
+        1,
+        pulseShelter({
+          communityPulse: { openClosed: null, occupancy: null, recentReports: [] },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+      const wrap = element.querySelector('.pulse-gauges');
+      // The section-level notices (window hint + estimate notice) render
+      // even with no fresh data — they describe the section, not a gauge.
+      const hints = [...wrap!.querySelectorAll<HTMLElement>('.pulse-gauges__hint')].map(
+        (h) => h.textContent ?? '',
+      );
+      expect(hints.length, 'window hint + general notice render unconditionally').toBe(2);
+      expect(hints.some((h) => h.includes('calculated estimate')), 'general notice present').toBe(
+        true,
+      );
+      // But no gauges: no captions column, no arrow figure — so nothing
+      // can reference an absent count-line id (no dangling reference).
+      expect(wrap!.querySelector('.pulse-gauges__captions')).toBeNull();
+      expect(wrap!.querySelector('figure')).toBeNull();
     });
 
     it('zero fresh reports render the explicit empty states — no gauge, no neutral arrow', async () => {
@@ -1919,15 +2033,22 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       // The window line: inside the pulse block, FIRST (a screen reader
       // hears the window before the numbers it qualifies) and naming the
-      // 2-hour basis of the gauges/counts.
+      // 2-hour basis of the gauges/counts; the ONE general estimate
+      // notice sits right after it, and the gauges row follows both.
       const hint = element.querySelector('.pulse-gauges > .pulse-gauges__hint');
       expect(hint, 'the pulse block must state its 2-hour window').not.toBeNull();
       expect(hint!.textContent, 'the window line names the 2-hour window').toContain(
         'last 2 hours',
       );
+      const notice = hint!.nextElementSibling as HTMLElement | null;
+      expect(notice, 'the estimate notice sits right after the window hint').not.toBeNull();
+      expect(notice!.className, 'the notice reuses the hint treatment').toContain(
+        'pulse-gauges__hint',
+      );
+      expect(notice!.textContent, 'the notice is the estimate line').toContain('calculated estimate');
       expect(
-        hint!.nextElementSibling,
-        'the window line precedes the gauges row',
+        notice!.nextElementSibling,
+        'the gauges row follows the notices',
       ).toBe(element.querySelector('.pulse-gauges__arrows'));
 
       // The log is the LAST 10 reports (newest first, capped server-side),
@@ -1961,6 +2082,159 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(hintCss![0], 'the hint is muted secondary text').toMatch(
         /color: var\(--color-muted\)/,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Info section (INFO-LAST-REPORTED): the LAST REPORTED status/capacity
+  // ---------------------------------------------------------------------------
+
+  describe('info section (last reported status + capacity rows)', () => {
+    /** A fixed instant, mid-month: no viewer timezone can shift its month
+     *  (the month word is the locale witness in the format assertions). */
+    const REPORT_ISO = '2026-07-14T12:30:00Z';
+    const iso = (minutesAgo: number): string =>
+      new Date(Date.now() - minutesAgo * 60000).toISOString();
+
+    function reportedShelter(
+      recentReports: CommunityPulseRecentReport[],
+      overrides: Partial<ShelterDetailDto> = {},
+    ): ShelterDetailDto {
+      return registryShelter({
+        communityPulse: { openClosed: null, occupancy: null, recentReports },
+        ...overrides,
+      });
+    }
+
+    it('the Info section renders exactly the last-reported rows — Status, Capacity — and no derived "Shelter status" row (owner decision; do not re-add)', async () => {
+      // The fixture carries a fresh open/closed net too, so a derived row
+      // WOULD have had a value ("Reported closed") — the point is that the
+      // public page does not render it. Reasoning (do not re-add): the
+      // derived status consults the SAME fresh open/closed reports and
+      // usually prints the same word; the one case where it would differ —
+      // a lifecycle-INACTIVE row reading "Closed" — cannot be reached
+      // here (the public detail read 404s INACTIVE rows). The last-
+      // reported rows are strictly more informative: they carry the time.
+      shelterGateway.rows.set(
+        1,
+        reportedShelter(
+          [
+            { kind: 'FULL', reportedAt: iso(5) },
+            { kind: 'OPEN', reportedAt: iso(10) },
+          ],
+          { openStatus: { state: 'CLOSED', reportedAt: iso(5), reportCount: 2 } },
+        ),
+      );
+      const { element } = await open('/shelters/1');
+      const info = element.querySelector('#info-heading')?.closest('section');
+      const labels = [...info!.querySelectorAll('dt')].map((d) => (d.textContent ?? '').trim());
+      expect(labels, 'exactly the two last-reported rows, in order').toEqual(['Status', 'Capacity']);
+      expect(
+        [...info!.querySelectorAll('dt')].some((d) => (d.textContent ?? '').trim() === 'Shelter status'),
+        'no derived status row on the public page',
+      ).toBe(false);
+      // The rows themselves still render their last-reported values.
+      expect(infoRowValue(element, 'Status')).toContain('Last reported as Open');
+      expect(infoRowValue(element, 'Capacity')).toContain('Last reported as Full');
+    });
+
+    it('the Status row is the newest OPEN/CLOSED report — a newest-overall FULL is not a status; the Capacity row is the newest band — a newest-overall OPEN is not a capacity', async () => {
+      shelterGateway.rows.set(
+        1,
+        reportedShelter([
+          { kind: 'FULL', reportedAt: iso(5) }, // newest overall → capacity's
+          { kind: 'OPEN', reportedAt: iso(10) }, // status's (beats CLOSED)
+          { kind: 'SPACE', reportedAt: iso(20) },
+          { kind: 'CLOSED', reportedAt: iso(45) },
+        ]),
+      );
+      const { element } = await open('/shelters/1');
+      // Status = the newest OPEN/CLOSED (OPEN at 10 min beats CLOSED at 45) —
+      // NOT the newest entry overall (the FULL at 5).
+      expect(infoRowValue(element, 'Status')).toContain('Last reported as Open');
+      // Capacity = the newest SPACE/GETTING_FULL/FULL (FULL at 5 beats SPACE) —
+      // an OPEN report never becomes the capacity.
+      expect(infoRowValue(element, 'Capacity')).toContain('Last reported as Full');
+    });
+
+    it('each reported row shows the report date and time in the ACTIVE UI locale, with the machine-readable instant on <time>', async () => {
+      shelterGateway.rows.set(
+        1,
+        reportedShelter([
+          { kind: 'OPEN', reportedAt: REPORT_ISO },
+          { kind: 'FULL', reportedAt: REPORT_ISO },
+        ]),
+      );
+      const { element, fixture } = await open('/shelters/1');
+      const times = [
+        ...element.querySelectorAll('section[aria-labelledby="info-heading"] time'),
+      ];
+      expect(times.length).toBe(2);
+      // The unambiguous machine-readable instant (not only a formatted
+      // string) is the report's own ISO instant.
+      expect(times[0].getAttribute('datetime')).toBe(REPORT_ISO);
+      expect(times[1].getAttribute('datetime')).toBe(REPORT_ISO);
+      // The formatted text follows the active UI locale (en default):
+      // the month word is the locale witness, the absolute year is present.
+      expect(times[0].textContent).toContain('Jul');
+      expect(times[0].textContent).toContain('2026');
+      // A switch of the UI language re-formats the SAME instant natively
+      // (the ru medium format's abbreviated month is the locale witness).
+      TestBed.inject(I18nService).setLocale('ru');
+      await settle(fixture);
+      expect(times[0].textContent).toContain('июл.');
+      expect(times[0].textContent).toContain('2026');
+    });
+
+    it('no OPEN/CLOSED report in the log: the Status row shows its empty state — never a stale or invented status', async () => {
+      shelterGateway.rows.set(
+        1,
+        reportedShelter([
+          { kind: 'FULL', reportedAt: iso(5) },
+          { kind: 'SPACE', reportedAt: iso(10) },
+        ]),
+      );
+      const { element } = await open('/shelters/1');
+      expect(infoRowValue(element, 'Status')).toBe('No open/closed reports yet');
+    });
+
+    it('no band report in the log: the Capacity row shows its empty state', async () => {
+      shelterGateway.rows.set(
+        1,
+        reportedShelter([
+          { kind: 'OPEN', reportedAt: iso(5) },
+          { kind: 'CLOSED', reportedAt: iso(10) },
+        ]),
+      );
+      const { element } = await open('/shelters/1');
+      expect(infoRowValue(element, 'Capacity')).toBe('No how-full reports yet');
+    });
+
+    it('an older BE (no communityPulse) shows both empty states', async () => {
+      shelterGateway.rows.set(1, registryShelter());
+      const { element } = await open('/shelters/1');
+      expect(infoRowValue(element, 'Status')).toBe('No open/closed reports yet');
+      expect(infoRowValue(element, 'Capacity')).toBe('No how-full reports yet');
+    });
+
+    it('a lifecycle-INACTIVE row keeps its "Closed" lifecycle fact in its own row even when the newest report says Open', async () => {
+      // NOTE: the public detail read 404s INACTIVE rows, so this fixture
+      // only reaches the page through the test gateway (the admin-facing
+      // displays are where the INACTIVE lifecycle fact renders publicly).
+      // The last-reported rows must still show the report — the lifecycle
+      // fact is not the Status row's job.
+      shelterGateway.rows.set(
+        1,
+        reportedShelter([{ kind: 'OPEN', reportedAt: iso(5) }], { status: 'INACTIVE' }),
+      );
+      const { element } = await open('/shelters/1');
+      const infoSection = element.querySelector('#info-heading')?.closest('section');
+      if (!infoSection) throw new Error('the Info section must render');
+      const labels = [...infoSection.querySelectorAll('dt')].map(
+        (d) => (d.textContent ?? '').trim(),
+      );
+      expect(labels).toEqual(['Status', 'Capacity']);
+      expect(infoRowValue(element, 'Status')).toContain('Last reported as Open');
     });
   });
 });

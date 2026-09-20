@@ -53,6 +53,12 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // Proper noun as a WHOLE value (the emphasized service name); it is not
   // translated in any locale.
   'legal.privacy.thirdParties.li3.strong': 'OpenStreetMap',
+  // Service BRAND NAMES as whole values: the two directions-link visible
+  // labels are the brand only in every locale (owner: short labels), so
+  // ET/RU are legitimately identical to EN. The meaningful accessible
+  // names live in the translated detail.*Aria keys.
+  'detail.navigate': 'Google Maps',
+  'detail.appleMaps': 'Apple Maps',
   // The env-var name is code, not copy (quoted from the backend config).
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
   // The emergency number — a literal in every locale.

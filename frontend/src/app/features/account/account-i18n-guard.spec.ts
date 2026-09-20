@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs';
 
 /**
- * i18n-et-en DURABLE GUARD (account surface): no hardcoded user-visible
- * text in the account templates.
+ * i18n-et-en DURABLE GUARD (translated surfaces): no hardcoded user-visible
+ * text in the account templates — and, since INFO-LAST-REPORTED, in the
+ * shelter detail template (its Info-section copy moved to the `detail.*`
+ * catalog keys; the only literals left there are allow-listed below).
  *
  * The account area (features/account/**) was shipped as hardcoded English —
  * the templates never referenced i18n at all, so switching language changed
@@ -33,7 +35,7 @@ import { readFileSync } from 'node:fs';
  * catalog-identity.spec.ts) catches the sibling failure class — a catalog
  * value copied from EN instead of translated.
  *
- * Adding a template here is mandatory when an account-surface component
+ * Adding a template here is mandatory when a translated-surface component
  * gains one; extending the allow-list requires a justification comment.
  */
 
@@ -67,12 +69,29 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
     // its position/meaning is carried by the translated strings around it.
     '·': 'chip status/noun separator glyph',
   },
+  'shelter-detail-page.html': {
+    // The back-link's arrow ("← Back to the map"): a directional glyph,
+    // not a translated word — the label next to it IS translated.
+    '&larr;': 'decorative back-arrow glyph',
+    // The Details section's registered-capacity data label ("Capacity: 30")
+    // — the documented-stays-English label pair (see the detail.* comment
+    // in core/i18n/messages.ts). The Info section's OWN Capacity row IS
+    // catalog-keyed (detail.capacityLabel) and guarded as normal.
+    'Capacity:': 'documented-stays-English data label (Details section)',
+  },
 };
 
 /** The user-visible attributes whose LITERAL values are copy. */
 const CHECKED_ATTRS = new Set(['placeholder', 'aria-label', 'title', 'alt', 'message']);
 
-const TEMPLATES = ['account-page.html', 'contributions-panel.html', 'verify-page.html'];
+const TEMPLATES: Record<string, string> = {
+  'account-page.html': 'account',
+  'contributions-panel.html': 'account',
+  'verify-page.html': 'account',
+  // INFO-LAST-REPORTED: the detail page's Info-section copy is catalog-
+  // keyed now; the scanner re-checks the whole template on every run.
+  'shelter-detail-page.html': 'shelter',
+};
 
 const FRONTEND_ROOT = process.cwd();
 
@@ -305,10 +324,10 @@ function scan(file: string, source: string): Violation[] {
 // The guard
 // ---------------------------------------------------------------------------
 
-describe('account surface i18n guard (no hardcoded user-visible template text)', () => {
-  for (const file of TEMPLATES) {
+describe('i18n template guard (no hardcoded user-visible template text)', () => {
+  for (const [file, dir] of Object.entries(TEMPLATES)) {
     it(`${file}: every user-visible string goes through the t pipe`, () => {
-      const path = `${FRONTEND_ROOT}/src/app/features/account/${file}`;
+      const path = `${FRONTEND_ROOT}/src/app/features/${dir}/${file}`;
       const source = readFileSync(path, 'utf8');
       const violations = scan(file, source);
       expect(violations, violations.map((v) => `  line ${v.line}: ${v.what}`).join('\n')).toEqual([]);

@@ -231,7 +231,9 @@ export interface Messages {
   'map.geocode.network': string;
 
   // --- shelter detail page (i18n-et-en). The Distance-from-you action (its
-  // button + DISTANCE_COPY) and the Status/Capacity data labels stay English.
+  // button + DISTANCE_COPY) stays English. The Details section's registered
+  // "Capacity:" data label stays English too; the Info section's own
+  // Status/Capacity row labels are catalog-keyed below (INFO-LAST-REPORTED).
   'detail.backToMap': string;
   'detail.notFoundTitle': string;
   'detail.notFoundBody': string;
@@ -243,11 +245,38 @@ export interface Messages {
   'detail.distance.fromYou': string;
   'detail.detailsHeading': string;
   'detail.infoHeading': string;
+  /** The Info "Status" row's label: the LAST REPORTED open/closed state —
+   *  a community report, not the app's conclusion (the derived display
+   *  status is deliberately NOT a row on the public page — the map's
+   *  "Open" chip, the header badge and the admin displays consume it
+   *  instead). */
+  'detail.statusLabel': string;
+  /** The Info "Capacity" row's label: the LAST REPORTED how-full band. */
+  'detail.capacityLabel': string;
+  /** {kind} is the localized state noun (a detail.pulse.kind.* value). */
+  'detail.lastReported': string;
+  /** The Status row's empty state: no OPEN/CLOSED report in the recent log. */
+  'detail.statusEmpty': string;
+  /** The Capacity row's empty state: no band report in the recent log. */
+  'detail.capacityEmpty': string;
   'detail.reportOccupancy': string;
   'detail.reportOpen': string;
   'detail.reportThis': string;
+  /** The Google Maps directions link's VISIBLE label. The brand name
+   *  only, in every locale (owner: short labels) — legitimately
+   *  byte-identical to EN, allow-listed in catalog-identity.spec.ts.
+   *  The meaningful accessible name lives in detail.navigateAria: a bare
+   *  brand name must not be a directions link's screen-reader name. */
   'detail.navigate': string;
+  /** The Apple Maps link's visible label — same rule as detail.navigate. */
   'detail.appleMaps': string;
+  /** Accessible name for the Google Maps link: what it DOES — open
+   *  WALKING directions to {name} in Google Maps (the link's actual
+   *  travelmode=walking). */
+  'detail.navigateAria': string;
+  /** Accessible name for the Apple Maps link: what it does — open
+   *  directions to {name} in Apple Maps (no travel mode requested). */
+  'detail.appleMapsAria': string;
   'detail.occupancy.aria': string;
   'detail.band.space': string;
   'detail.band.gettingFull': string;
@@ -312,6 +341,16 @@ export interface Messages {
    *  log with no such window — stated where the reader meets the counts,
    *  or the counts read as a contradiction of the (older) log entries. */
   'detail.pulse.windowHint': string;
+  /** The ONE general notice for the whole gauges section (sits with the
+   *  window hint): the arrows show a CALCULATED ESTIMATE from the fresh
+   *  reports, not confirmed data. "Estimate" (the owner's precision
+   *  choice over "probability") is true for BOTH arrows — the open/closed
+   *  arrow is a genuine PROBABILITY (the trust-weighted share of fresh
+   *  reports saying open) while the how-full arrow is an EXPECTED LEVEL
+   *  (the weighted position on the empty→full scale: SPACE 0,
+   *  GETTING_FULL 0.5, FULL 1), not a likelihood. The single phrase must
+   *  stay accurate for both — never re-introduce "probability" here. */
+  'detail.pulse.estimateNote': string;
 
   // --- submit shelter page (i18n-et-en: the contribute surface).
   'submit.backToMap': string;

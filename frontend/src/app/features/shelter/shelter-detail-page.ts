@@ -10,7 +10,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import { NgClass } from '@angular/common';
+import { DatePipe, NgClass } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ApiError } from '../../core/api-error';
@@ -48,7 +48,6 @@ import {
   recencyText as recencyTextShared,
   sourceTrustLabel as sourceTrustLabelShared,
   communityBadgeClass as communityBadgeClassShared,
-  shelterStatusText as shelterStatusTextShared,
   reportedBadgeText as reportedBadgeTextShared,
   lastVerifiedText as lastVerifiedTextShared,
   communityReportsText as communityReportsTextShared,
@@ -107,9 +106,13 @@ const RECENT_KIND_KEYS: Record<CommunityPulseRecentReport['kind'], MessageKey> =
  *
  * The reviews model is GONE (owner decision): no review list, no review
  * form, no per-review reports. In place of the old Reviews section the
- * page shows a small practical info block (the derived display status —
- * "Open" / "Reported closed" / "Closed" — shared rule with the map's
- * "Open" chip, existing row data only).
+ * page shows a small practical info block (INFO-LAST-REPORTED): the LAST
+ * REPORTED open/closed state and the last reported how-full band, each
+ * with its report's date and time. The derived display status is
+ * deliberately NOT a row here (see the Info section comment in the
+ * template for the reasoning) — the header badge still carries its
+ * CLOSED copy via openStatusBadgeText (shared rule with the map's "Open"
+ * chip, single source in shared/shelter-copy.ts).
  *
  * Location map: a small STATIC map under the header (page-scoped
  * LeafletService, same pattern as the /submit mini-map). The container is
@@ -131,6 +134,7 @@ const RECENT_KIND_KEYS: Record<CommunityPulseRecentReport['kind'], MessageKey> =
   imports: [
     RouterLink,
     NgClass,
+    DatePipe,
     ReactiveFormsModule,
     BannerComponent,
     LoadingIndicator,
@@ -149,6 +153,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly leaflet = inject(LeafletService);
   /** Resolves the report detail field's per-type placeholder (i18n-et-en). */
   private readonly i18n = inject(I18nService);
+  /** The active UI locale, exposed to the template so the Info section's
+   *  <time> stamps format in the VIEWER'S language (not the content
+   *  language) — the same seam the t pipe and the account panel use. */
+  protected readonly uiLocale = this.i18n.locale;
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
 
@@ -172,10 +180,6 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  trust badges (D6). */
   protected readonly sourceTrustLabel = sourceTrustLabelShared;
   protected readonly communityBadgeClass = communityBadgeClassShared;
-  /** The derived display status ("Open" / "Reported closed" / "Closed" /
-   *  "Open (no recent reports)") — the practical info block, shared rule
-   *  with the map's "Open" chip. */
-  protected readonly shelterStatusText = shelterStatusTextShared;
   /** The list row's fresh-CLOSED badge — the same copy the status row uses;
    *  fresh OPEN rows render no badge. */
   protected readonly openStatusBadgeText = openStatusBadgeTextShared;
@@ -245,6 +249,50 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected recentReportKind(entry: CommunityPulseRecentReport): string {
     const kindKey: MessageKey = RECENT_KIND_KEYS[entry.kind] ?? 'detail.pulse.kind.full';
     return this.i18n.t('detail.pulse.recentEntry', { kind: this.i18n.t(kindKey) });
+  }
+
+  // ---- info section: the last reported status/capacity (INFO-LAST-REPORTED) --
+  /**
+   * The newest report among the given kinds over the merged recent log.
+   * The log is server-ordered newest-first, but the explicit max keeps the
+   * rule honest if the order ever drifts. null = no report of those kinds
+   * in the log — the row renders its explicit empty state, never a stale
+   * or invented status.
+   */
+  private newestReportOf(
+    kinds: readonly CommunityPulseRecentReport['kind'][],
+  ): CommunityPulseRecentReport | null {
+    let newest: CommunityPulseRecentReport | null = null;
+    for (const entry of this.recentReports()) {
+      if (!kinds.includes(entry.kind)) {
+        continue;
+      }
+      if (newest === null || Date.parse(entry.reportedAt) > Date.parse(newest.reportedAt)) {
+        newest = entry;
+      }
+    }
+    return newest;
+  }
+
+  /** The "Status" row's entry: the newest OPEN/CLOSED report — the newest
+   *  entry overall may be a how-full report and never becomes the status.
+   *  null → the row's empty state. */
+  protected lastOpenClosedReport(): CommunityPulseRecentReport | null {
+    return this.newestReportOf(['OPEN', 'CLOSED']);
+  }
+
+  /** The "Capacity" row's entry: the newest SPACE/GETTING_FULL/FULL
+   *  report — an OPEN/CLOSED report never becomes the capacity.
+   *  null → the row's empty state. */
+  protected lastCapacityReport(): CommunityPulseRecentReport | null {
+    return this.newestReportOf(['SPACE', 'GETTING_FULL', 'FULL']);
+  }
+
+  /** The reported row's value ("Last reported as {kind}"): the kind noun
+   *  reuses the recent log's detail.pulse.kind.* vocabulary. */
+  protected lastReportText(entry: CommunityPulseRecentReport): string {
+    const kindKey: MessageKey = RECENT_KIND_KEYS[entry.kind] ?? 'detail.pulse.kind.full';
+    return this.i18n.t('detail.lastReported', { kind: this.i18n.t(kindKey) });
   }
 
   // ---- distance from you (location-navigation) ---------------------------

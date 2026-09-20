@@ -68,14 +68,27 @@
           <!-- Navigate actions (map-crisis-actions D3): small secondary
                links near the name — they leave the app to the phone's own
                navigation app, they do not navigate within it, and they do
-               not compete with the back link. -->
+               not compete with the back link. The visible labels are the
+               BRAND NAMES only (owner: short labels); the meaningful
+               accessible names live in the aria-labels (detail.navigateAria
+               / detail.appleMapsAria) — action + destination + service,
+               so a screen reader hears what each link does, not just a
+               brand. -->
           <div class="shelter-detail__navigate">
-            <a [href]="navigateUrl(s)" target="_blank" rel="noopener">{{
-              'detail.navigate' | t
-            }}</a>
-            <a [href]="appleMapsUrl(s)" target="_blank" rel="noopener">{{
-              'detail.appleMaps' | t
-            }}</a>
+            <a
+              [href]="navigateUrl(s)"
+              target="_blank"
+              rel="noopener"
+              [attr.aria-label]="'detail.navigateAria' | t: { name: s.name }"
+              >{{ 'detail.navigate' | t }}</a
+            >
+            <a
+              [href]="appleMapsUrl(s)"
+              target="_blank"
+              rel="noopener"
+              [attr.aria-label]="'detail.appleMapsAria' | t: { name: s.name }"
+              >{{ 'detail.appleMaps' | t }}</a
+            >
             <!-- Distance from you (location-navigation): the page's
                  ONLY geolocation trigger — browser asks first, the point
                  never leaves the device, the result is the straight-line
@@ -360,8 +373,13 @@
            (the captions — each gauge's accessible text, associated via
            aria-describedby) sit in .pulse-gauges__captions, ONE
            normal-flow column below the arrows, stacked one under the
-           other. The inline captions used to overflow their 240px boxes
-           (the count line's nowrap tokens carried no break
+           other. The window hint + ONE general estimate notice ("the
+           arrows show a calculated estimate, not confirmed data" — a
+           phrase true for BOTH arrows: open/closed is a probability,
+           how-full an expected level; see detail.pulse.estimateNote)
+           sit at the top with the window hint. The inline captions used
+           to overflow their
+           240px boxes (the count line's nowrap tokens carried no break
            opportunities) and paint over each other; the column + the
            wbr between the tokens keeps both lines always fully
            readable. Rendered for EVERY viewer (guests included) —
@@ -379,8 +397,19 @@
              a screen reader hears the window before the numbers it
              qualifies. -->
         <p class="pulse-gauges__hint">{{ 'detail.pulse.windowHint' | t }}</p>
+        <!-- ONE general notice for the whole gauges section (owner): the
+             arrows show a CALCULATED ESTIMATE from the fresh reports,
+             not confirmed data. "Estimate" is true for BOTH arrows —
+             open/closed is a probability, how-full an expected level —
+             so the single phrase never mis-describes the how-full arrow
+             (see the key's doc in core/i18n/messages.ts). Sits with the
+             window hint; the per-gauge COUNT LINES below stay each
+             gauge's accessible text (aria-describedby → count line). -->
+        <p class="pulse-gauges__hint">{{ 'detail.pulse.estimateNote' | t }}</p>
         <div class="pulse-gauges__arrows">
           @if (occupancyPulse(); as occPulse) {
+            <!-- The how-full arrow references its count-line id — the
+                 count line is the gauge's accessible text. -->
             <app-report-gauge
               [leftLabel]="'detail.pulse.kind.space' | t"
               [rightLabel]="'detail.pulse.kind.full' | t"
@@ -391,6 +420,8 @@
             <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
           }
           @if (openPulse(); as openPulse) {
+            <!-- The open/closed arrow references its count-line id — the
+                 count line is the gauge's accessible text. -->
             <app-report-gauge
               [leftLabel]="'detail.pulse.kind.closed' | t"
               [rightLabel]="'detail.pulse.kind.open' | t"
@@ -443,18 +474,63 @@
         }
       </section>
 
-      <!-- Practical info (review-model removal): the
-           derived display status — the FRESH open/closed reports first
-           ("Reported closed" at one, "Closed" at two+, "Open"), then the
-           lifecycle status ("Closed" for INACTIVE, "Open (no recent
-           reports)" otherwise). Same rule the map's "Open" chip filters
-           on (single source, shelter-copy). -->
+      <!-- Practical info (INFO-LAST-REPORTED): what was LAST REPORTED —
+           the Status row is the newest OPEN/CLOSED report, the Capacity
+           row the newest SPACE/GETTING_FULL/FULL report, each with its
+           own date and time in the viewer's locale (<time datetime> is
+           the machine-readable instant). A kind with no report in the
+           recent log → that row's explicit empty state (never a stale or
+           invented status).
+
+           NO derived-status row here (owner decision — do not re-add):
+           the derived display status (shelterStatusText in
+           shared/shelter-copy.ts) consults the SAME fresh open/closed
+           reports and so usually prints the same word these rows already
+           show, and the one case where it would differ — a lifecycle-
+           INACTIVE row reading "Closed" — cannot be reached on this page
+           (the public detail read 404s INACTIVE rows). The last-reported
+           rows are strictly more informative: they carry the time. The
+           rule is NOT dead — the map's "Open" chip (isOpenRow), the
+           header's amber badge (openStatusBadgeText) and the
+           admin-facing displays still consume it. Its full order, for
+           the record: the FRESH open/closed reports outrank the
+           lifecycle status — a fresh lone CLOSED report hedges
+           ("Reported closed"), a fresh firm one (two+) is firm
+           ("Closed"), a fresh OPEN reads "Open"; only with nothing fresh
+           the lifecycle status decides — INACTIVE reads "Closed",
+           ACTIVE reads "Open (no recent reports)". -->
       <section class="detail-section" aria-labelledby="info-heading">
         <h2 class="section-title" id="info-heading">{{ 'detail.infoHeading' | t }}</h2>
         <dl class="fact-list">
           <div class="fact-list__row">
-            <dt class="fact-list__label">Status</dt>
-            <dd class="fact-list__value">{{ shelterStatusText(s) }}</dd>
+            <dt class="fact-list__label">{{ 'detail.statusLabel' | t }}</dt>
+            <dd class="fact-list__value">
+              @if (lastOpenClosedReport(); as entry) {
+                {{ lastReportText(entry) }}
+                <time
+                  class="fact-list__time num-tabular"
+                  [attr.datetime]="entry.reportedAt"
+                  >{{ entry.reportedAt | date: 'medium': undefined: uiLocale() }}</time
+                >
+              } @else {
+                {{ 'detail.statusEmpty' | t }}
+              }
+            </dd>
+          </div>
+          <div class="fact-list__row">
+            <dt class="fact-list__label">{{ 'detail.capacityLabel' | t }}</dt>
+            <dd class="fact-list__value">
+              @if (lastCapacityReport(); as entry) {
+                {{ lastReportText(entry) }}
+                <time
+                  class="fact-list__time num-tabular"
+                  [attr.datetime]="entry.reportedAt"
+                  >{{ entry.reportedAt | date: 'medium': undefined: uiLocale() }}</time
+                >
+              } @else {
+                {{ 'detail.capacityEmpty' | t }}
+              }
+            </dd>
           </div>
         </dl>
       </section>

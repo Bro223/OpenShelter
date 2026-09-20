@@ -242,9 +242,11 @@
   font-size: var(--text-md);
 }
 
-/* The practical info block (review-model removal): plain label/value rows —
-   the derived display status for now. The row is a definition list: dt is
-   the muted label, dd the value. */
+/* The practical info block (INFO-LAST-REPORTED): label/value rows — the
+   LAST REPORTED open/closed state + the LAST REPORTED how-full band, each
+   with its <time> stamp in the viewer's locale. (The derived display
+   status is deliberately NOT a row here — see the template comment.)
+   The block is a definition list: dt is the muted label, dd the value. */
 .fact-list {
   margin: 0;
   display: flex;
@@ -266,6 +268,19 @@
   &__value {
     margin: 0;
     font-size: var(--text-sm);
+    /* The reported rows: the state words + the <time> stamp sit on one
+       wrapping line (a narrow viewport drops the stamp to its own line). */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-4) var(--space-8);
+  }
+
+  /* The report's own date + time: muted secondary text next to the state
+     words; the absolute instant is primary (the recent log above carries
+     the relative ages). */
+  &__time {
+    color: var(--color-muted);
   }
 }
 
