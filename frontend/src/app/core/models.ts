@@ -198,6 +198,67 @@ export interface ShelterReportResult {
   damped: boolean;
 }
 
+/**
+ * The fresh (≤ 2 h) open/closed aggregate (M9 community pulse): the PLAIN
+ * fresh-tap counts + the server-derived TRUST-WEIGHTED share of votes that
+ * say OPEN (0..1; 0.5 = an exact equal split → the gauge's straight-up
+ * needle). `null` on the detail = nothing fresh (the explicit empty state).
+ */
+export interface CommunityPulseOpenClosed {
+  /** Fresh OPEN taps (plain count). */
+  openReports: number;
+  /** Fresh CLOSED taps (plain count). */
+  closedReports: number;
+  /** Trust-weighted share of fresh open/closed votes for OPEN (0..1). */
+  openShare: number;
+}
+
+/**
+ * The fresh (≤ 2 h) how-full aggregate (M9 community pulse): the PLAIN
+ * fresh-report counts per band + the server-derived TRUST-WEIGHTED
+ * position from empty to full (SPACE = 0, GETTING_FULL = 0.5, FULL = 1;
+ * 0.5 = an exact empty/full tie → the gauge's straight-up needle).
+ * `null` on the detail = nothing fresh.
+ */
+export interface CommunityPulseOccupancy {
+  /** Fresh SPACE reports (plain count). */
+  spaceReports: number;
+  /** Fresh GETTING_FULL reports (plain count). */
+  gettingFullReports: number;
+  /** Fresh FULL reports (plain count). */
+  fullReports: number;
+  /** Trust-weighted position from empty to full (0..1). */
+  fullness: number;
+}
+
+/**
+ * One recent-report log entry (M9 community pulse): what was reported
+ * (the OPEN/CLOSED taps, the SPACE/GETTING_FULL/FULL bands) and when.
+ * NO reporter identity — the public surface says "a community member".
+ */
+export interface CommunityPulseRecentReport {
+  kind: 'OPEN' | 'CLOSED' | 'SPACE' | 'GETTING_FULL' | 'FULL';
+  /** ISO-8601 instant of the report. */
+  reportedAt: string;
+}
+
+/**
+ * The community pulse (M9 — report aggregation UI): the detail-read fresh
+ * (≤ 2 h) aggregates behind the detail page's gauges + recent log. The
+ * plain counts feed the visible count lines (the accessible equivalent of
+ * the needle); the weighted shares feed the needle angles. `null`
+ * sub-blocks = nothing fresh (the UI renders the explicit empty state,
+ * never a neutral gauge). Detail-read only — absent/null on list rows and
+ * from an older BE (treat as null, the same FE-ships-ahead rule as
+ * `openStatus`).
+ */
+export interface CommunityPulse {
+  openClosed: CommunityPulseOpenClosed | null;
+  occupancy: CommunityPulseOccupancy | null;
+  /** The merged recent log (newest first, capped at 10 server-side). */
+  recentReports: CommunityPulseRecentReport[];
+}
+
 /** Live occupancy bands (PUT /api/shelters/{id}/occupancy — one per user). */
 export type OccupancyBand = 'SPACE' | 'GETTING_FULL' | 'FULL';
 
@@ -364,6 +425,12 @@ export interface ShelterDto {
 export interface ShelterDetailDto extends ShelterDto {
   yourOccupancyBand: OccupancyBand | null;
   yourOpenStatus: OpenState | null;
+  /**
+   * The community pulse (M9 — detail read only): the fresh-window gauge
+   * aggregates + the anonymized recent-report log. Undefined from an
+   * older BE — treat as null (the FE ships ahead of the API safely).
+   */
+  communityPulse?: CommunityPulse | null;
 }
 
 /**

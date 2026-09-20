@@ -1,0 +1,57 @@
+/* The semicircular report gauge (M9 community pulse).
+ *
+ * Geometry: the viewBox is 200×112; the arc spans (20,100)→(180,100)
+ * (radius 80, hub at (100,100)). The needle's resting direction points
+ * LEFT (0°) and the group rotates clockwise around the hub — 90° is
+ * straight up, 180° points right. All colours are design tokens (the
+ * token audit polices literals); line weights are the documented
+ * literal exceptions. */
+
+.report-gauge {
+  margin: 0 0 var(--space-12);
+  max-width: 240px;
+}
+
+.report-gauge__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.report-gauge__arc {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 3px; /* line weight — documented literal exception */
+  stroke-linecap: round;
+}
+
+.report-gauge__needle line {
+  stroke: var(--color-brand);
+  stroke-width: 3px; /* line weight — documented literal exception */
+  stroke-linecap: round;
+}
+
+.report-gauge__needle path {
+  fill: var(--color-brand);
+}
+
+.report-gauge__hub {
+  fill: var(--color-brand);
+}
+
+.report-gauge__ends {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-8) 0;
+  color: var(--color-muted);
+}
+
+.report-gauge__text {
+  margin: var(--space-4) 0 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.report-gauge__empty {
+  margin: 0;
+  color: var(--color-muted);
+}

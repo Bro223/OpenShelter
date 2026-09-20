@@ -238,6 +238,37 @@ public class ShelterService {
      * Callers own the authorization (author check) and validation (field
      * bounds + the Estonia bbox) before calling this.
      *
+     * <p>Owner-edit trust reset (M5b, the owner's decision): verification
+     * is a STATUS, not a gate in front of the edit. {@code reviewStatus}
+     * is decided HERE — the incoming row's value is overwritten in every
+     * case, so no request field can carry a trust state through (an owner
+     * can never self-confirm by editing):
+     * <ul>
+     *   <li>A real edit (at least one editable field moved) of a
+     *       PUBLISHED row sets {@code ReviewStatus.NEW} — exactly the
+     *       unverified state {@link #addPlace} gives a newly added
+     *       shelter (the provenance then derives UNDER_REVIEW, the amber
+     *       "pending verification" treatment). The row's {@code status}
+     *       is preserved by the caller and the save: the shelter stays
+     *       published, nothing hides. A verification that follows the
+     *       edit (the admin CONFIRM, or a community {@code OPEN_CONFIRMED}
+     *       report from a non-submitter — both promote NEW→CONFIRMED)
+     *       re-clears it.
+     *   <li>A no-op PUT (no editable field moved) leaves the trust state
+     *       untouched — unchanged data keeps its standing, mirroring the
+     *       no-op writing no history row.
+     *   <li>An INACTIVE row (the admin REJECT or the 5-report auto-hide)
+     *       keeps its review state: the decision stands — no
+     *       republish-by-edit and no demotion of the admin's REJECT.
+     *       Republishing is an admin action (the status endpoint, which
+     *       starts the review over as NEW per community-review-queue v2).
+     *   <li>Registry (PAASETEAMET) and partner (MUNICIPALITY) rows cannot
+     *       reach this path with a community author at all (the API layer
+     *       requires {@code source = USER} + a matching author link), so
+     *       their import-owned standing (provenance OFFICIAL /
+     *       PARTNER_VERIFIED) is unaffected by this rule.
+     * </ul>
+     *
      * <p>Concurrent-DELETE race: if the row was
      * deleted between the caller's read and this save, the repository's
      * unknown-id guard surfaces as {@link IllegalStateException} — mapped
@@ -258,6 +289,12 @@ public class ShelterService {
         Shelter current = shelterRepository.findById(place.getId())
                 .orElseThrow(() -> new ShelterNotFoundException(place.getId()));
         Map<String, Object[]> moved = diffFields(current, place);
+        // The owner-edit trust reset (M5b) — the rule and its documented
+        // decisions are in the method javadoc. The incoming row's
+        // reviewStatus is server-owned and overwritten in every case.
+        place.setReviewStatus(!moved.isEmpty() && current.getStatus() == ShelterStatus.ACTIVE
+                ? ReviewStatus.NEW
+                : current.getReviewStatus());
         try {
             shelterRepository.save(place);
         } catch (IllegalStateException unknownId) {

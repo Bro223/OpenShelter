@@ -274,6 +274,19 @@ export const RU: Messages = {
   'detail.submitReport': 'Отправить сообщение',
   'detail.cancel': 'Отмена',
   'detail.verifyAccount': 'Подтвердите аккаунт',
+  // community pulse (M9): концы шкалы = виды последних сообщений.
+  'detail.pulse.kind.open': 'Открыто',
+  'detail.pulse.kind.closed': 'Закрыто',
+  'detail.pulse.kind.space': 'Есть места',
+  'detail.pulse.kind.gettingFull': 'Заполняется',
+  'detail.pulse.kind.full': 'Мест нет',
+  'detail.pulse.recentEntry': 'кто-то из сообщества сообщил: {kind}',
+  'detail.pulse.recent': 'Последние сообщения',
+  'detail.pulse.recentEmpty': 'Последних сообщений нет',
+  'detail.pulse.emptyOpen': 'За последние 2 часа нет сообщений об открытости',
+  'detail.pulse.emptyOccupancy': 'За последние 2 часа нет сообщений о заполненности',
+  'detail.pulse.openClosedText': 'Сообщения: {open} открыто, {closed} закрыто',
+  'detail.pulse.occupancyText': 'Сообщения: {space} есть места, {gettingFull} заполняется, {full} мест нет',
 
   // --- страница добавления укрытия (поверхность вклада сообщества).
   'submit.backToMap': 'Назад к карте',

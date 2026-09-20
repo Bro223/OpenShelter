@@ -1,0 +1,24 @@
+@if (share() !== null) {
+  <figure class="report-gauge">
+    <!-- The semicircle: the arc from the left end (20,100) over the top
+         to the right end (180,100); the needle starts pointing LEFT
+         (0°) and rotates clockwise around the hub (100,100) — 90° is
+         straight up, 180° points right. Decorative: the meaning is the
+         visible text below (the count line) + the end labels. -->
+    <svg class="report-gauge__svg" viewBox="0 0 200 112" aria-hidden="true" focusable="false">
+      <path class="report-gauge__arc" d="M 20 100 A 80 80 0 0 1 180 100" />
+      <g class="report-gauge__needle" [attr.transform]="'rotate(' + angle() + ' 100 100)'">
+        <line x1="100" y1="100" x2="38" y2="100" />
+        <path d="M 38 100 L 50 94 L 50 106 Z" />
+      </g>
+      <circle class="report-gauge__hub" cx="100" cy="100" r="5" />
+    </svg>
+    <div class="report-gauge__ends">
+      <span class="report-gauge__end report-gauge__end--left">{{ leftLabel() }}</span>
+      <span class="report-gauge__end report-gauge__end--right">{{ rightLabel() }}</span>
+    </div>
+    <figcaption class="report-gauge__text">{{ text() }}</figcaption>
+  </figure>
+} @else {
+  <p class="report-gauge__empty" role="status">{{ emptyText() }}</p>
+}

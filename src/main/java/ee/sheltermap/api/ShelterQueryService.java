@@ -13,6 +13,8 @@ import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
+import ee.sheltermap.domain.ReporterTrust;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
@@ -25,8 +27,10 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +87,9 @@ public class ShelterQueryService {
 
     /** The largest page the public list answers (shelter-bbox-paging D1): beyond it the caller narrows the viewport. */
     public static final int MAX_PAGE_SIZE = 200;
+
+    /** The recent-report log length the community pulse answers (M9): newest first, the rest scroll away. */
+    public static final int RECENT_REPORTS_CAP = 10;
 
     private final ShelterRepository shelterRepository;
     private final UserRepository userRepository;
@@ -196,10 +203,18 @@ public class ShelterQueryService {
      * callers without a report. Rejected (INACTIVE) rows stay readable
      * by id exactly as any other INACTIVE row (ids are public); no trust
      * rule blocks a detail read.
+     *
+     * <p>M9 community pulse: the detail read is ALSO the only projection
+     * that carries {@code communityPulse} (the fresh-window aggregates +
+     * recent log behind the detail page's gauges) — it is public (guests
+     * read it too) and is NOT caller-scoped.
      */
     public Optional<ShelterDto> findById(long id, User caller) {
-        return shelterRepository.findById(id)
-                .map(shelter -> toDtos(List.of(shelter), caller).get(0));
+        Shelter shelter = shelterRepository.findById(id).orElse(null);
+        if (shelter == null) {
+            return Optional.empty();
+        }
+        return Optional.of(toDtos(List.of(shelter), caller, true).get(0));
     }
 
     /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows).
@@ -207,19 +222,25 @@ public class ShelterQueryService {
      *  information request — the exchange is private, so the
      *  public list and detail reads never fetch it. */
     public List<ShelterDto> findByCreatedBy(long userId) {
-        return toDtos(shelterRepository.findByCreatedBy(userId), null, true);
+        return toDtos(shelterRepository.findByCreatedBy(userId), null, true, false);
     }
 
     /** Maps a batch of shelters in ONE aggregate pass (no N+1). */
     private List<ShelterDto> toDtos(List<Shelter> shelters, User caller) {
-        return toDtos(shelters, caller, false);
+        return toDtos(shelters, caller, false, false);
     }
 
-    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withInfoRequests) {
+    /** The detail read: the shared projection + the community pulse (M9). */
+    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withPulse) {
+        return toDtos(shelters, caller, false, withPulse);
+    }
+
+    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withInfoRequests,
+                                    boolean withPulse) {
         if (shelters.isEmpty()) {
             return List.of();
         }
-        Batches batches = batchesFor(shelters, withInfoRequests);
+        Batches batches = batchesFor(shelters, withInfoRequests, withPulse);
         // The caller's own live states are DETAIL-only fields (D5): one
         // indexed lookup each, and only for the single-shelter read — the
         // list paths (public + /mine) pass a null caller and stay pure
@@ -239,10 +260,14 @@ public class ShelterQueryService {
      * type, the fresh occupancy rows, and the last-verified stamp.
      */
     private Batches batchesFor(List<Shelter> shelters) {
-        return batchesFor(shelters, false);
+        return batchesFor(shelters, false, false);
     }
 
     private Batches batchesFor(List<Shelter> shelters, boolean withInfoRequests) {
+        return batchesFor(shelters, withInfoRequests, false);
+    }
+
+    private Batches batchesFor(List<Shelter> shelters, boolean withInfoRequests, boolean withPulse) {
         List<Long> ids = shelters.stream().map(Shelter::getId).toList();
         // Provenance (accessibility-and-provenance D3): the batch's creators in
         // ONE lookup — distinct non-null author ids; missing ids (deleted users)
@@ -283,8 +308,16 @@ public class ShelterQueryService {
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet()))
                 : Map.of();
+        // Community pulse (M9 — report aggregation UI): the fresh-window
+        // aggregates + recent log, DETAIL-read only. The distinct-reporter
+        // trust weights are per-reporter lookups over the (small) fresh set,
+        // so the batched list/mine/admin reads stay pulse-free (no N+1).
+        Map<Long, ShelterDto.CommunityPulse> pulses = withPulse
+                ? shelters.stream()
+                        .collect(Collectors.toMap(Shelter::getId, shelter -> communityPulse(shelter.getId())))
+                : Map.of();
         return new Batches(authors, reportCounts, occupancy, openStatus, lastVerified,
-                infoRequestRows, infoRequesters);
+                infoRequestRows, infoRequesters, pulses);
     }
 
     /** The shared batched inputs of both shelter projections. */
@@ -295,7 +328,8 @@ public class ShelterQueryService {
             Map<Long, ShelterDto.OpenStatus> openStatus,
             Map<Long, Instant> lastVerified,
             Map<Long, ShelterInfoRequestLog.InfoRequest> infoRequests,
-            Map<Long, User> infoRequesters) {
+            Map<Long, User> infoRequesters,
+            Map<Long, ShelterDto.CommunityPulse> pulses) {
     }
 
     /**
@@ -426,7 +460,8 @@ public class ShelterQueryService {
                 reportTotal,
                 batches.lastVerified().get(shelter.getId()),
                 shelter.getInaccurateMarkedAt() != null,
-                toInfoRequest(batches.infoRequests().get(shelter.getId())));
+                toInfoRequest(batches.infoRequests().get(shelter.getId())),
+                batches.pulses().get(shelter.getId()));
     }
 
     /** The /mine projection's info-request field (null when the row has none). */
@@ -566,6 +601,151 @@ public class ShelterQueryService {
             result.put(shelterId, new ShelterDto.OpenStatus(state.name(), reportedAt, (int) agreeing));
         });
         return result;
+    }
+
+    // ---- community pulse (M9 — report aggregation UI) -----------------------
+
+    /**
+     * The community pulse (M9 — report aggregation UI), DETAIL-read only.
+     *
+     * <p>The fresh window is the SAME 2 h read-time window as the occupancy
+     * D4 and open/closed taps (clock minus the window, applied at read —
+     * no cleanup job). The plain counts are unweighted; the shares are
+     * trust-weighted with the SAME derived weight the auto-hide tally uses
+     * (community-self-moderation D1 — see {@code ShelterReportService});
+     * taps and bands carry no damp flag (damping is a NON_EXISTENT-report
+     * concept), so every fresh report contributes at least the baseline
+     * weight. The recent log is the merged fresh taps + bands, newest
+     * first, capped — it carries NO reporter identity (privacy: the
+     * public log says "a community member", never who).
+     */
+    private ShelterDto.CommunityPulse communityPulse(long shelterId) {
+        Instant freshSince = clock.instant().minus(OCCUPANCY_FRESHNESS_WINDOW);
+        List<ShelterOpenStatusReport> taps =
+                openStatusRepository.findFreshByShelterIds(List.of(shelterId), freshSince);
+        List<ShelterOccupancyReport> bands =
+                occupancyRepository.findFreshByShelterIds(List.of(shelterId), freshSince);
+        Set<Long> reporters = new HashSet<>();
+        taps.forEach(tap -> reporters.add(tap.getUserId()));
+        bands.forEach(band -> reporters.add(band.getUserId()));
+        Map<Long, Integer> weights = new HashMap<>();
+        reporters.forEach(userId -> weights.put(userId, trustWeight(userId)));
+        return new ShelterDto.CommunityPulse(
+                deriveOpenClosedPulse(taps, weights),
+                deriveOccupancyPulse(bands, weights),
+                deriveRecentReports(taps, bands));
+    }
+
+    /**
+     * The fresh open/closed aggregate: the PLAIN counts per state and the
+     * trust-weighted share of votes that say OPEN (0..1 — 0.5 is an exact
+     * equal split, the gauge's straight-up needle). Null when nothing is
+     * fresh — the UI renders an explicit empty state, never a neutral
+     * arrow.
+     */
+    static ShelterDto.CommunityPulse.OpenClosed deriveOpenClosedPulse(
+            List<ShelterOpenStatusReport> fresh, Map<Long, Integer> weights) {
+        if (fresh.isEmpty()) {
+            return null;
+        }
+        long open = 0;
+        long closed = 0;
+        double weightedOpen = 0;
+        double weightedClosed = 0;
+        for (ShelterOpenStatusReport tap : fresh) {
+            int weight = weightOf(weights, tap.getUserId());
+            if (tap.getState() == OpenStatusState.OPEN) {
+                open++;
+                weightedOpen += weight;
+            } else {
+                closed++;
+                weightedClosed += weight;
+            }
+        }
+        // Non-empty fresh input + baseline weight ≥ 1 → the sum is ≥ 1.
+        double openShare = weightedOpen / (weightedOpen + weightedClosed);
+        return new ShelterDto.CommunityPulse.OpenClosed((int) open, (int) closed, openShare);
+    }
+
+    /**
+     * The fresh how-full aggregate: the PLAIN counts per band and the
+     * trust-weighted position on the empty→full scale — SPACE = 0,
+     * GETTING_FULL = 0.5, FULL = 1 (the gauge's straight-up needle is an
+     * exact empty/full tie). Null when nothing is fresh.
+     */
+    static ShelterDto.CommunityPulse.OccupancyBands deriveOccupancyPulse(
+            List<ShelterOccupancyReport> fresh, Map<Long, Integer> weights) {
+        if (fresh.isEmpty()) {
+            return null;
+        }
+        long space = 0;
+        long gettingFull = 0;
+        long full = 0;
+        double weightedPosition = 0;
+        double weightedTotal = 0;
+        for (ShelterOccupancyReport band : fresh) {
+            int weight = weightOf(weights, band.getUserId());
+            weightedTotal += weight;
+            switch (band.getBand()) {
+                case SPACE -> space++;
+                case GETTING_FULL -> {
+                    gettingFull++;
+                    weightedPosition += 0.5 * weight;
+                }
+                case FULL -> {
+                    full++;
+                    weightedPosition += weight;
+                }
+            }
+        }
+        return new ShelterDto.CommunityPulse.OccupancyBands(
+                (int) space, (int) gettingFull, (int) full, weightedPosition / weightedTotal);
+    }
+
+    /**
+     * The recent-report log: the merged fresh taps + bands, newest first
+     * (ties broken by kind — timestamptz precision makes ties vanishingly
+     * rare, but the output stays deterministic), capped at
+     * {@link #RECENT_REPORTS_CAP}. Privacy: an entry carries ONLY what was
+     * reported and when — never a reporter id or name (the UI says "a
+     * community member").
+     */
+    static List<ShelterDto.CommunityPulse.RecentReport> deriveRecentReports(
+            List<ShelterOpenStatusReport> taps, List<ShelterOccupancyReport> bands) {
+        List<ShelterDto.CommunityPulse.RecentReport> merged =
+                new ArrayList<>(taps.size() + bands.size());
+        taps.forEach(tap -> merged.add(new ShelterDto.CommunityPulse.RecentReport(
+                tap.getState().name(), tap.getCreatedAt())));
+        bands.forEach(band -> merged.add(new ShelterDto.CommunityPulse.RecentReport(
+                band.getBand().name(), band.getUpdatedAt())));
+        merged.sort(Comparator.comparing(ShelterDto.CommunityPulse.RecentReport::reportedAt)
+                .reversed()
+                .thenComparing(ShelterDto.CommunityPulse.RecentReport::kind));
+        return merged.size() <= RECENT_REPORTS_CAP
+                ? List.copyOf(merged)
+                : List.copyOf(merged.subList(0, RECENT_REPORTS_CAP));
+    }
+
+    /**
+     * The reporter's derived trust weight — the SAME derivation the
+     * auto-hide tally uses (community-self-moderation D1, see
+     * {@code ShelterReportService#trustWeight}): re-derived from the rows
+     * that already exist (the reporter's own submissions + the moderation
+     * audit trail), never stored — baseline 1, +1 a cross-verified own
+     * submission, +1 two own AUTO_CONFIRM actions, capped at 3.
+     */
+    private int trustWeight(long userId) {
+        boolean crossVerifiedSubmission = shelterRepository
+                .countByCreatedByAndSourceAndReviewStatus(
+                        userId, ShelterSource.USER, ReviewStatus.CONFIRMED) > 0;
+        int ownAutoConfirms = (int) moderationAudit.countByModeratorAndAction(userId,
+                ModerationAuditLog.Action.AUTO_CONFIRM);
+        return ReporterTrust.of(crossVerifiedSubmission, ownAutoConfirms).weight();
+    }
+
+    /** A reporter absent from the weight map gets the baseline weight (defensive — the map is built over every reporter). */
+    private static int weightOf(Map<Long, Integer> weights, long userId) {
+        return weights.getOrDefault(userId, ReporterTrust.BASELINE);
     }
 
     /** D5: the trust filters over the projected list (absent = no filter).

@@ -397,6 +397,25 @@
         },
         "type" : "object"
       },
+      "CommunityPulse" : {
+        "description" : "The detail-read fresh (≤ 2 h) report aggregates: the plain fresh counts, the trust-weighted shares (the gauge arrow's position — 0.5 is an exact equal split) and the anonymized recent-report log (no reporter identity). Null sub-blocks = nothing fresh (the UI's explicit empty state, never a neutral gauge). Detail-read only — null on every other projection.",
+        "properties" : {
+          "occupancy" : {
+            "$ref" : "#/components/schemas/OccupancyBands"
+          },
+          "openClosed" : {
+            "$ref" : "#/components/schemas/OpenClosed"
+          },
+          "recentReports" : {
+            "description" : "The recent-report log — the merged fresh open/closed taps + occupancy bands, newest first, capped at 10. Each entry carries what was reported and when — NO reporter identity (the UI says 'a community member').",
+            "items" : {
+              "$ref" : "#/components/schemas/RecentReport"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "ConfirmChangeRequest" : {
         "description" : "Body for POST /account/email-change/confirm and POST /account/phone-change/confirm.",
         "properties" : {
@@ -936,6 +955,28 @@
         },
         "type" : "object"
       },
+      "OccupancyBands" : {
+        "description" : "The fresh how-full aggregate: the plain fresh report counts per band and the trust-weighted position from empty to full (0..1; SPACE = 0, GETTING_FULL = 0.5, FULL = 1).",
+        "properties" : {
+          "fullReports" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "fullness" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "gettingFullReports" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "spaceReports" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "OccupancyReportRequest" : {
         "properties" : {
           "band" : {
@@ -944,6 +985,24 @@
           }
         },
         "required" : [ "band" ],
+        "type" : "object"
+      },
+      "OpenClosed" : {
+        "description" : "The fresh open/closed aggregate: the plain fresh tap counts per state and the trust-weighted share of votes that say OPEN (0..1; 0.5 = an exact equal split = the gauge's straight-up needle).",
+        "properties" : {
+          "closedReports" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "openReports" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "openShare" : {
+            "format" : "double",
+            "type" : "number"
+          }
+        },
         "type" : "object"
       },
       "OpenStatus" : {
@@ -1026,6 +1085,19 @@
         "required" : [ "currentPassword", "name" ],
         "type" : "object"
       },
+      "RecentReport" : {
+        "description" : "One recent-report log entry: what was reported (OPEN/CLOSED taps, SPACE/GETTING_FULL/FULL bands) and when. No reporter identity.",
+        "properties" : {
+          "kind" : {
+            "type" : "string"
+          },
+          "reportedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "RefreshRequest" : {
         "description" : "Refresh / logout payload (03-auth.puml).",
         "properties" : {
@@ -1093,6 +1165,9 @@
             "description" : "USER-submission detail (capacity); null on registry rows without capacity data.",
             "format" : "int32",
             "type" : "integer"
+          },
+          "communityPulse" : {
+            "$ref" : "#/components/schemas/CommunityPulse"
           },
           "createdAt" : {
             "format" : "date-time",
@@ -6514,7 +6589,7 @@
         "tags" : [ "Public shelters" ]
       },
       "put" : {
-        "description" : "Update the caller's OWN USER-source shelter. 404 if absent; 403 if not the author (registry/legacy rows are unmanageable by anyone); 400 on bbox/field violations. Only the writable fields change; the response is the updated ShelterDto.",
+        "description" : "Update the caller's OWN USER-source shelter. 404 if absent; 403 if not the author (registry/legacy rows are unmanageable by anyone); 400 on bbox/field violations. Only the writable fields change; an edit of a published row also returns the shelter to the pending-verification trust state a newly added shelter carries (reviewStatus NEW — published stays published, a following verification clears it; a no-op PUT and hidden rows keep their state; the trust state is not a request field). The response is the updated ShelterDto.",
         "operationId" : "update",
         "parameters" : [ {
           "name" : "id",

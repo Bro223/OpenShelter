@@ -268,6 +268,35 @@ export interface Messages {
   'detail.cancel': string;
   'detail.verifyAccount': string;
 
+  // --- community pulse (M9 — report aggregation UI): the gauge end labels
+  // double as the recent-log kind labels (one set of short state nouns),
+  // the log entry line ("a community member reported: {kind}" — privacy:
+  // never who) and the count/empty-state copy. {open}/{closed}/
+  // {space}/{gettingFull}/{full} are the plain fresh counts; the gauge
+  // needle's position is the SERVER-weighted share, not these counts.
+  'detail.pulse.kind.open': string;
+  'detail.pulse.kind.closed': string;
+  'detail.pulse.kind.space': string;
+  'detail.pulse.kind.gettingFull': string;
+  'detail.pulse.kind.full': string;
+  /** {kind} is the localized state noun (a detail.pulse.kind.* value). */
+  'detail.pulse.recentEntry': string;
+  /** The recent-reports section heading (the merged fresh log). */
+  'detail.pulse.recent': string;
+  'detail.pulse.recentEmpty': string;
+  /** The open/closed gauge's explicit empty state (no fresh taps — the
+   *  gauge renders NO neutral arrow without data). */
+  'detail.pulse.emptyOpen': string;
+  /** The how-full gauge's explicit empty state (no fresh bands). */
+  'detail.pulse.emptyOccupancy': string;
+  /** The open/closed gauge's visible + accessible count line (the angle is
+   *  never the only carrier of meaning). {open}/{closed} are the plain
+   *  fresh counts. */
+  'detail.pulse.openClosedText': string;
+  /** The how-full gauge's visible + accessible count line. {space}/
+   *  {gettingFull}/{full} are the plain fresh counts. */
+  'detail.pulse.occupancyText': string;
+
   // --- submit shelter page (i18n-et-en: the contribute surface).
   'submit.backToMap': string;
   'submit.title': string;

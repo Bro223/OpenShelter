@@ -5,6 +5,7 @@ import ee.sheltermap.app.ShelterNotFoundException;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
@@ -145,6 +146,105 @@ class ShelterServiceTest {
         assertThat(saved.getCreatedBy()).isEqualTo(1L);
         assertThat(saved.getSource()).isEqualTo(ShelterSource.USER);
         assertThat(saved.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+    }
+
+    // ---------- owner-edit trust reset (M5b) ----------
+
+    @Test
+    void anOwnerEditOfAPublishedRowResetsTheTrustStateToNewLikeANewSubmission() {
+        Shelter place = userPlace("Kinnitatud");
+        service.addPlace(verifiedUser(), place); // → NEW
+        Long id = place.getId();
+
+        // verified first (the admin CONFIRM / a community report — set
+        // directly here, the same way the promotion paths do it)
+        Shelter verified = repo.findById(id).orElseThrow();
+        verified.setReviewStatus(ReviewStatus.CONFIRMED);
+        repo.save(verified);
+
+        // the incoming row carries the domain default (CONFIRMED) — the
+        // value a caller would try to ride through; a real edit (the name
+        // moves) must land NEW, and the row stays published
+        Shelter updated = new Shelter(
+                "Uus nimi", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, null);
+        updated.setId(id);
+        service.updatePlace(updated);
+
+        Shelter saved = repo.findById(id).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(ShelterStatus.ACTIVE); // still public
+        assertThat(saved.getReviewStatus()).isEqualTo(ReviewStatus.NEW); // pending again
+    }
+
+    @Test
+    void aNoOpEditLeavesTheTrustStateUntouched() {
+        Shelter place = userPlace("Samasamane 2");
+        service.addPlace(verifiedUser(), place); // → NEW
+        Long id = place.getId();
+        Shelter verified = repo.findById(id).orElseThrow();
+        verified.setReviewStatus(ReviewStatus.CONFIRMED);
+        repo.save(verified);
+
+        // identical values — the domain default (CONFIRMED) rides along
+        // in the incoming row, but nothing MOVED, so the state stays
+        // untouched and no history row is written
+        Shelter same = userPlace("Samasamane 2");
+        same.setId(id);
+        service.updatePlace(same);
+
+        Shelter saved = repo.findById(id).orElseThrow();
+        assertThat(saved.getReviewStatus()).isEqualTo(ReviewStatus.CONFIRMED);
+        assertThat(history.rows()).hasSize(1); // still only the CREATED row
+    }
+
+    @Test
+    void anEditOfAStillUnverifiedRowStaysInThePendingState() {
+        Shelter place = userPlace("Otsene");
+        service.addPlace(verifiedUser(), place); // → NEW
+        Long id = place.getId();
+
+        // the incoming row's domain default is CONFIRMED — a real edit of
+        // a still-NEW row must land (and stay) NEW, never the caller's value
+        Shelter updated = new Shelter(
+                "Otsene 2", POINT, ShelterStatus.ACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, null);
+        updated.setId(id);
+        service.updatePlace(updated);
+
+        Shelter saved = repo.findById(id).orElseThrow();
+        assertThat(saved.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
+        assertThat(saved.getReviewStatus()).isEqualTo(ReviewStatus.NEW);
+    }
+
+    @Test
+    void anEditOfAHiddenRowKeepsItsReviewStateAndStaysHidden() {
+        Shelter place = userPlace("Keeldatud 2");
+        service.addPlace(verifiedUser(), place);
+        Long id = place.getId();
+        // the admin's REJECT (as AdminModerationService writes it)
+        Shelter rejected = repo.findById(id).orElseThrow();
+        rejected.setReviewStatus(ReviewStatus.REJECTED);
+        rejected.setStatus(ShelterStatus.INACTIVE);
+        rejected.setReviewNote("Pole varjend");
+        repo.save(rejected);
+
+        // the owner's edit still applies the data change (the controller
+        // carries the row's own status through), but the decision stands:
+        // no republish-by-edit, no demotion of the admin's REJECT
+        Shelter updated = new Shelter(
+                "Uus nimi", POINT, ShelterStatus.INACTIVE, null, ShelterSource.USER,
+                null, null, null, null, null, null, null);
+        updated.setId(id);
+        // the controller copies the admin-owned state through the edit —
+        // mirror that here (this service owns only the trust-state rule)
+        updated.setReviewNote("Pole varjend");
+        service.updatePlace(updated);
+
+        Shelter saved = repo.findById(id).orElseThrow();
+        assertThat(saved.getName()).isEqualTo("Uus nimi"); // the data edit applies
+        assertThat(saved.getStatus()).isEqualTo(ShelterStatus.INACTIVE);
+        assertThat(saved.getReviewStatus()).isEqualTo(ReviewStatus.REJECTED);
+        assertThat(saved.getReviewNote()).isEqualTo("Pole varjend");
     }
 
     /**

@@ -1469,4 +1469,95 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(section.querySelector('a[href*="returnUrl"]')).toBeNull();
     });
   });
+
+  describe('community pulse (M9 — report aggregation UI)', () => {
+    function pulseShelter(overrides: Partial<ShelterDetailDto> = {}): ShelterDetailDto {
+      return registryShelter({
+        communityPulse: {
+          openClosed: { openReports: 3, closedReports: 2, openShare: 0.5 },
+          occupancy: { spaceReports: 0, gettingFullReports: 0, fullReports: 4, fullness: 1 },
+          recentReports: [
+            { kind: 'OPEN', reportedAt: new Date(Date.now() - 10 * 60000).toISOString() },
+            { kind: 'FULL', reportedAt: new Date(Date.now() - 25 * 60000).toISOString() },
+          ],
+        },
+        ...overrides,
+      });
+    }
+
+    it('an equal weighted split points the open/closed needle straight up (50/50 → 90°)', async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const section = element.querySelector('#open-status-heading')?.closest('section');
+      const needle = section?.querySelector('.report-gauge__needle') as SVGElement | null;
+      expect(needle).not.toBeNull();
+      expect(needle!.getAttribute('transform')).toBe('rotate(90 100 100)');
+      // the accessible count line is visible (the angle is never the only carrier)
+      expect(section?.querySelector('.report-gauge__text')?.textContent).toContain(
+        'Reports: 3 open, 2 closed',
+      );
+    });
+
+    it('all-one-way maps to the extremes: fullness 1 → 180° (the full end)', async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const section = element.querySelector('#occupancy-heading')?.closest('section');
+      const needle = section?.querySelector('.report-gauge__needle') as SVGElement | null;
+      expect(needle).not.toBeNull();
+      expect(needle!.getAttribute('transform')).toBe('rotate(180 100 100)');
+      expect(section?.querySelector('.report-gauge__text')?.textContent).toContain(
+        'Reports: 0 space available, 0 getting full, 4 full',
+      );
+      // the end labels frame the semicircle (not colour-only)
+      expect(section?.textContent).toContain('Space available');
+      expect(section?.textContent).toContain('Full');
+    });
+
+    it('zero fresh reports render the explicit empty states — no gauge, no neutral arrow', async () => {
+      shelterGateway.rows.set(
+        1,
+        pulseShelter({
+          communityPulse: { openClosed: null, occupancy: null, recentReports: [] },
+        }),
+      );
+      const { element, fixture } = await open('/shelters/1');
+
+      expect(element.querySelector('.report-gauge__svg')).toBeNull();
+      expect(element.querySelector('.report-gauge__needle')).toBeNull();
+      expect(text(fixture)).toContain('No open/closed reports in the last 2 hours');
+      expect(text(fixture)).toContain('No how-full reports in the last 2 hours');
+      expect(text(fixture)).toContain('No recent reports');
+    });
+
+    it('an older BE (no communityPulse field) still renders the empty states', async () => {
+      // the fixture deliberately carries NO communityPulse key — the FE
+      // ships ahead of the API safely (the openStatus ?? null precedent)
+      shelterGateway.rows.set(1, registryShelter());
+      const { fixture } = await open('/shelters/1');
+
+      expect(text(fixture)).toContain('No open/closed reports in the last 2 hours');
+      expect(text(fixture)).toContain('No how-full reports in the last 2 hours');
+      expect(text(fixture)).toContain('No recent reports');
+    });
+
+    it('the recent log renders time + the community attribution + the kind — never a reporter identity', async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element, fixture } = await open('/shelters/1');
+
+      const section = element.querySelector('#recent-reports-heading')?.closest('section');
+      expect(section).not.toBeNull();
+      const entries = section!.querySelectorAll('.recent-reports__entry');
+      expect(entries.length).toBe(2);
+      // time (the shared recency vocabulary) + what, anonymized
+      expect(entries[0].textContent).toContain('10 min ago');
+      expect(entries[0].textContent).toContain('a community member reported: Open');
+      expect(entries[1].textContent).toContain('25 min ago');
+      expect(entries[1].textContent).toContain('a community member reported: Full');
+      // privacy: no user-shaped data anywhere in the log (no names, no ids)
+      expect(section!.textContent).not.toMatch(/\buser\b/i);
+      expect(text(fixture)).not.toContain('@example.ee');
+    });
+  });
 });

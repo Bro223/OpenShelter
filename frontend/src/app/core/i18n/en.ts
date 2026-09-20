@@ -257,6 +257,19 @@ export const EN: Messages = {
   'detail.submitReport': 'Submit report',
   'detail.cancel': 'Cancel',
   'detail.verifyAccount': 'Verify your account',
+  // community pulse (M9): gauge end labels = recent-log kind labels.
+  'detail.pulse.kind.open': 'Open',
+  'detail.pulse.kind.closed': 'Closed',
+  'detail.pulse.kind.space': 'Space available',
+  'detail.pulse.kind.gettingFull': 'Getting full',
+  'detail.pulse.kind.full': 'Full',
+  'detail.pulse.recentEntry': 'a community member reported: {kind}',
+  'detail.pulse.recent': 'Recent reports',
+  'detail.pulse.recentEmpty': 'No recent reports',
+  'detail.pulse.emptyOpen': 'No open/closed reports in the last 2 hours',
+  'detail.pulse.emptyOccupancy': 'No how-full reports in the last 2 hours',
+  'detail.pulse.openClosedText': 'Reports: {open} open, {closed} closed',
+  'detail.pulse.occupancyText': 'Reports: {space} space available, {gettingFull} getting full, {full} full',
 
   // --- submit shelter page (the contribute surface).
   'submit.backToMap': 'Back to the map',

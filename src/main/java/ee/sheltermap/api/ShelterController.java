@@ -387,13 +387,28 @@ public class ShelterController {
      * 404 if absent; 403 if not the author (registry/legacy rows are
      * unmanageable by anyone); 400 on bbox/field violations. Only the five
      * writable fields change; the response is the updated {@link ShelterDto}.
+     *
+     * <p>Owner-edit trust reset (M5b): a real edit of a PUBLISHED row also
+     * returns the shelter to the same pending-verification state
+     * ({@code reviewStatus = NEW}) a newly added shelter carries —
+     * published stays published (the row's status is preserved), the
+     * pending treatment applies until a verification (the admin CONFIRM or
+     * a community OPEN_CONFIRMED report) clears it. A no-op PUT and hidden
+     * (REJECTED/auto-hidden) rows keep their state. The trust state is not
+     * a request field — it cannot be set by the client (see
+     * {@link ShelterService#updatePlace}).
      */
     @PutMapping("/{id}")
     @Operation(summary = "Update the caller's own shelter",
             description = "Update the caller's OWN USER-source shelter. 404 if absent; "
                     + "403 if not the author (registry/legacy rows are unmanageable by "
                     + "anyone); 400 on bbox/field violations. Only the writable fields "
-                    + "change; the response is the updated ShelterDto.")
+                    + "change; an edit of a published row also returns the shelter to "
+                    + "the pending-verification trust state a newly added shelter carries "
+                    + "(reviewStatus NEW — published stays published, a following "
+                    + "verification clears it; a no-op PUT and hidden rows keep their "
+                    + "state; the trust state is not a request field). The response is "
+                    + "the updated ShelterDto.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The updated shelter", content =
                     @Content(schema = @Schema(implementation = ShelterDto.class))),
@@ -421,12 +436,15 @@ public class ShelterController {
         updated.setCreatedAt(shelter.getCreatedAt());
         updated.setCreatedBy(shelter.getCreatedBy());
         // Admin-owned state is preserved through the owner's edit (the
-        // save copies every domain field): the trust-layer disarm flag,
-        // the community trust state and the admin "inaccurate" mark (a
-        // PUT must never let the owner reset review_status/review_note —
-        // including "self-confirming" a NEW row by editing it).
+        // save copies every domain field): the trust-layer disarm flag
+        // and the admin "inaccurate" mark. The community trust state is
+        // NOT copied here — ShelterService.updatePlace owns it (the M5b
+        // owner-edit trust reset): a real edit of a published row returns
+        // the shelter to the same pending-verification (NEW) state a
+        // newly added shelter carries, and the owner can never
+        // self-confirm by editing (the request carries no trust field —
+        // the service overwrites the incoming value in every case).
         updated.setAutoHideDisarmed(shelter.isAutoHideDisarmed());
-        updated.setReviewStatus(shelter.getReviewStatus());
         updated.setReviewNote(shelter.getReviewNote());
         updated.setInaccurateMarkedAt(shelter.getInaccurateMarkedAt());
         updated.setInaccurateMarkedBy(shelter.getInaccurateMarkedBy());

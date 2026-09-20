@@ -18,6 +18,11 @@ import jakarta.validation.constraints.Size;
  * are never. {@code locationKind} is the private-home declaration
  * (community-review-queue v2 D7): absent (or {@code null}) keeps the
  * row's current value.
+ *
+ * <p>The shelter's trust state is NOT a field here (M5b): {@code
+ * reviewStatus} is server-owned — the owner-edit trust reset in
+ * {@code ShelterService.updatePlace} decides it on the write path, so no
+ * request field can let a caller set (or skip) verification.
  */
 public record UpdateShelterRequest(
         @NotBlank @Size(max = 200) String name,

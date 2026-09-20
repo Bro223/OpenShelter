@@ -9,6 +9,7 @@ import ee.sheltermap.domain.ShelterStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * The versioned read contract with the frontend (05-shelter-api.puml;
@@ -161,7 +162,14 @@ public record ShelterDto(
                 + "projection ONLY (the submitter's own surface); null on "
                 + "the public list and detail reads (the exchange is "
                 + "private between the admin and the author).")
-        InfoRequest infoRequest) {
+        InfoRequest infoRequest,
+        @Schema(description = "DETAIL-read only (M9 community pulse): the "
+                + "fresh (≤ 2 h) report aggregates behind the detail page's "
+                + "gauges + recent log — the plain fresh counts, the "
+                + "trust-weighted shares (the gauge arrow's position) and "
+                + "the anonymized recent-report log. Null on every other "
+                + "projection (public list, /mine, admin).")
+        CommunityPulse communityPulse) {
 
     /**
      * The live open/closed block (same level as capacity): the LATEST
@@ -209,5 +217,86 @@ public record ShelterDto(
             Instant requestedAt,
             String replyMessage,
             Instant repliedAt) {
+    }
+
+    /**
+     * The community pulse (M9 — report aggregation UI): the DETAIL-read
+     * fresh-window (≤ 2 h — the SAME read-time window as the occupancy D4
+     * and open/closed taps) aggregates behind the detail page's gauges and
+     * the recent-report log. Plain counts are the UNWEIGHTED fresh counts
+     * (the "general count" + the accessible text); the shares are
+     * TRUST-WEIGHTED with the same derived weight the auto-hide tally uses
+     * (community-self-moderation D1 — baseline 1, +1 a cross-verified own
+     * submission, +1 two own AUTO_CONFIRM actions, capped at 3) and drive
+     * the gauge arrow (0.5 = an exact equal split = straight up). Taps and
+     * bands carry no damp flag (damping is a NON_EXISTENT-report concept),
+     * so every fresh report contributes at least the baseline weight. The
+     * log carries NO reporter identity — the public surface says "a
+     * community member", never who.
+     */
+    @Schema(description = "The detail-read fresh (≤ 2 h) report aggregates: the "
+            + "plain fresh counts, the trust-weighted shares (the gauge "
+            + "arrow's position — 0.5 is an exact equal split) and the "
+            + "anonymized recent-report log (no reporter identity). Null "
+            + "sub-blocks = nothing fresh (the UI's explicit empty state, "
+            + "never a neutral gauge). Detail-read only — null on every "
+            + "other projection.")
+    public record CommunityPulse(
+            @Schema(description = "The fresh open/closed aggregate; null when "
+                    + "no fresh tap exists.")
+            OpenClosed openClosed,
+            @Schema(description = "The fresh how-full aggregate; null when "
+                    + "no fresh occupancy report exists.")
+            OccupancyBands occupancy,
+            @Schema(description = "The recent-report log — the merged fresh "
+                    + "open/closed taps + occupancy bands, newest first, "
+                    + "capped at 10. Each entry carries what was reported "
+                    + "and when — NO reporter identity (the UI says 'a "
+                    + "community member').")
+            List<RecentReport> recentReports) {
+
+        /**
+         * The fresh (≤ 2 h) open/closed aggregate: the plain counts per
+         * state and the trust-weighted share of votes that say OPEN.
+         */
+        @Schema(description = "The fresh open/closed aggregate: the plain fresh "
+                + "tap counts per state and the trust-weighted share of "
+                + "votes that say OPEN (0..1; 0.5 = an exact equal split "
+                + "= the gauge's straight-up needle).")
+        public record OpenClosed(
+                int openReports,
+                int closedReports,
+                double openShare) {
+        }
+
+        /**
+         * The fresh (≤ 2 h) occupancy aggregate: the plain counts per band
+         * and the trust-weighted position on the empty→full scale (SPACE
+         * = 0, GETTING_FULL = 0.5, FULL = 1).
+         */
+        @Schema(description = "The fresh how-full aggregate: the plain fresh "
+                + "report counts per band and the trust-weighted position "
+                + "from empty to full (0..1; SPACE = 0, GETTING_FULL = 0.5, "
+                + "FULL = 1).")
+        public record OccupancyBands(
+                int spaceReports,
+                int gettingFullReports,
+                int fullReports,
+                double fullness) {
+        }
+
+        /**
+         * One recent-report log entry. {@code kind} is one of OPEN / CLOSED
+         * (open-status taps) and SPACE / GETTING_FULL / FULL (occupancy
+         * bands). No reporter identity — privacy: the log says what was
+         * reported and when, never who.
+         */
+        @Schema(description = "One recent-report log entry: what was reported "
+                + "(OPEN/CLOSED taps, SPACE/GETTING_FULL/FULL bands) and "
+                + "when. No reporter identity.")
+        public record RecentReport(
+                String kind,
+                Instant reportedAt) {
+        }
     }
 }

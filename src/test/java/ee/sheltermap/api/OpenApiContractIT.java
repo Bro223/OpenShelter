@@ -217,6 +217,28 @@ class OpenApiContractIT extends AbstractPersistenceIT {
         }
     }
 
+    @Test
+    void theShelterDtoDocumentsTheCommunityPulse() throws Exception {
+        // M9 community pulse: the detail-read field and its nested schemas
+        // are part of the published contract (the gauge inputs the FE
+        // renders — the plain counts, the weighted shares, the log).
+        JsonNode shelterDto = doc().path("components").path("schemas").path("ShelterDto");
+        assertThat(shelterDto.path("properties").has("communityPulse"))
+                .as("ShelterDto must document the communityPulse detail field")
+                .isTrue();
+        assertThat(shelterDto.path("properties").path("communityPulse").path("$ref").asText())
+                .isEqualTo("#/components/schemas/CommunityPulse");
+        JsonNode schemas = doc().path("components").path("schemas");
+        assertThat(schemas.has("CommunityPulse")).isTrue();
+        assertThat(schemas.has("OpenClosed")).isTrue();
+        assertThat(schemas.has("OccupancyBands")).isTrue();
+        assertThat(schemas.has("RecentReport")).isTrue();
+        JsonNode pulse = schemas.path("CommunityPulse").path("properties");
+        assertThat(pulse.has("openClosed")).isTrue();
+        assertThat(pulse.has("occupancy")).isTrue();
+        assertThat(pulse.has("recentReports")).isTrue();
+    }
+
     /** "METHOD /path" for every operation in the document. */
     private static Set<String> inventory(JsonNode doc) {
         Set<String> inventory = new TreeSet<>();

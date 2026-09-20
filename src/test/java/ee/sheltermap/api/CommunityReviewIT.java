@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -570,5 +571,166 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         .content("{\"name\":\"Kummaline\",\"latitude\":59.4,\"longitude\":24.7,"
                                 + "\"locationKind\":\"SECRET\"}")),
                 400, "Bad Request");
+    }
+
+    // ---------- owner edits (M5b): the pending-verification reset ----------
+
+    @Test
+    void anOwnerEditPublishesImmediatelyAndCarriesThePendingVerificationState() throws Exception {
+        String author = verifiedToken("Autor", "autor-m5b-1@example.ee");
+        long id = createShelterViaApi(author, "M5b varjend");
+
+        // verified first: the row is green/CONFIRMED
+        mvc.perform(post("/admin/shelters/" + id + "/review")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"CONFIRM\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"));
+
+        // the owner's edit (the name moves): it PUBLISHES IMMEDIATELY —
+        // the row stays ACTIVE and on the public map — and carries the
+        // SAME pending state a newly added shelter does (NEW → the amber
+        // UNDER_REVIEW provenance, the "pending verification" treatment)
+        mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"M5b varjend 2\",\"latitude\":59.4,\"longitude\":24.7}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.provenance").value("UNDER_REVIEW"));
+        mvc.perform(get("/api/shelters"))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].reviewStatus")
+                        .value(org.hamcrest.Matchers.contains("NEW")));
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // the row is back in the admin's Unconfirmed queue (USER + NEW +
+        // ACTIVE) — the operational surface for the re-verification
+        mvc.perform(get("/admin/shelters").param("source", "USER").param("status", "ACTIVE")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(jsonPath("$[?(@.id == " + id + ")].reviewStatus")
+                        .value(org.hamcrest.Matchers.contains("NEW")));
+
+        // the edit itself writes no moderation audit row (it is an owner
+        // edit, not a moderation action — it shows in the shelter's edit
+        // history): the trail holds only the CONFIRM
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM moderation_actions WHERE shelter_id = ?",
+                        Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT action FROM moderation_actions WHERE shelter_id = ?",
+                        String.class, id)).isEqualTo("CONFIRM");
+
+        // and a verification AFTER the edit clears the pending state
+        mvc.perform(post("/admin/shelters/" + id + "/review")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"CONFIRM\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"));
+    }
+
+    @Test
+    void aCommunityConfirmationAfterAnEditClearsThePendingState() throws Exception {
+        String author = verifiedToken("Autor", "autor-m5b-2@example.ee");
+        long id = createShelterViaApi(author, "M5b kinnitus");
+        String first = verifiedToken("Kinnitaja", "kinnitaja-m5b-1@example.ee");
+
+        // a community confirmation verifies the row (NEW → CONFIRMED)
+        mvc.perform(post("/api/shelters/" + id + "/reports")
+                        .header("Authorization", "Bearer " + first)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
+                String.class, id)).isEqualTo("CONFIRMED");
+
+        // the owner's edit voids the verification again — the data
+        // changed, so the previous stamp no longer covers it
+        mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"M5b kinnitus 2\",\"latitude\":59.4,\"longitude\":24.7}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
+                String.class, id)).isEqualTo("NEW");
+
+        // a SECOND community confirmation clears it (one report per user
+        // per shelter per type — a different user confirms)
+        mvc.perform(post("/api/shelters/" + id + "/reports")
+                        .header("Authorization",
+                                "Bearer " + verifiedToken("Kinnitaja2", "kinnitaja-m5b-2@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"OPEN_CONFIRMED\"}"))
+                .andExpect(status().isOk());
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
+                String.class, id)).isEqualTo("CONFIRMED");
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"));
+    }
+
+    @Test
+    void anEditByANonOwnerIsStillRefusedAndChangesNothing() throws Exception {
+        String author = verifiedToken("Autor", "autor-m5b-3@example.ee");
+        long id = createShelterViaApi(author, "M5b oma");
+        mvc.perform(post("/admin/shelters/" + id + "/review")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"CONFIRM\"}"))
+                .andExpect(status().isOk());
+
+        expectError(mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization",
+                                "Bearer " + verifiedToken("Vooris", "vooris-m5b@example.ee"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Varastatud\",\"latitude\":59.4,\"longitude\":24.7}")),
+                403, "Forbidden");
+
+        // nothing moved: name, trust state and status untouched
+        mvc.perform(get("/api/shelters/" + id))
+                .andExpect(jsonPath("$.name").value("M5b oma"))
+                .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void theClientCannotSetTheTrustStateThroughTheEditBody() throws Exception {
+        String author = verifiedToken("Autor", "autor-m5b-4@example.ee");
+        long id = createShelterViaApi(author, "M5b usaldus");
+        mvc.perform(post("/admin/shelters/" + id + "/review")
+                        .header("Authorization", "Bearer " + adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"action\":\"CONFIRM\"}"))
+                .andExpect(status().isOk());
+
+        // the body tries to ride the trust state through. No such fields
+        // exist on the request (UpdateShelterRequest) — the unknowns are
+        // ignored, and the owner-edit trust reset decides the state
+        mvc.perform(put("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + author)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"M5b usaldus 2\",\"latitude\":59.4,\"longitude\":24.7,"
+                                + "\"reviewStatus\":\"CONFIRMED\",\"provenance\":\"OFFICIAL\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("NEW"))
+                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.provenance").value("UNDER_REVIEW"));
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT review_status FROM shelters WHERE id = ?",
+                String.class, id)).isEqualTo("NEW");
     }
 }

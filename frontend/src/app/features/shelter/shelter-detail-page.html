@@ -173,6 +173,23 @@
            redirect vocabulary. -->
       <section class="detail-section" aria-labelledby="occupancy-heading">
         <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
+        <!-- Community pulse (M9): the how-full gauge — the weighted
+             empty→full share (server-derived) drives the needle; the
+             visible count line is the accessible equivalent (the angle
+             is never the only carrier of meaning). Rendered for EVERY
+             viewer (guests included) — read-only. The empty state is
+             explicit: no fresh bands, no neutral arrow. -->
+        @if (occupancyPulse(); as occPulse) {
+          <app-report-gauge
+            [leftLabel]="'detail.pulse.kind.space' | t"
+            [rightLabel]="'detail.pulse.kind.full' | t"
+            [share]="occPulse.fullness"
+            [text]="occupancyPulseText(occPulse)"
+            [emptyText]="'detail.pulse.emptyOccupancy' | t"
+          />
+        } @else {
+          <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
+        }
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div class="band-picker" role="group" [attr.aria-label]="'detail.occupancy.aria' | t">
@@ -220,6 +237,21 @@
            picker is where the signal lives. -->
       <section class="detail-section" aria-labelledby="open-status-heading">
         <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
+        <!-- Community pulse (M9): the open/closed gauge — the weighted
+             share drives the needle (50/50 → straight up). The existing
+             instant status flip + the "Reported closed" hedge stay — the
+             gauge shows the SPLIT, not a single latest tap. -->
+        @if (openPulse(); as openPulse) {
+          <app-report-gauge
+            [leftLabel]="'detail.pulse.kind.closed' | t"
+            [rightLabel]="'detail.pulse.kind.open' | t"
+            [share]="openPulse.openShare"
+            [text]="openPulseText(openPulse)"
+            [emptyText]="'detail.pulse.emptyOpen' | t"
+          />
+        } @else {
+          <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
+        }
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div
@@ -341,6 +373,25 @@
           <div class="report-gate-prompt">
             <p>{{ 'detail.login.report' | t }}</p>
           </div>
+        }
+      </section>
+
+      <!-- Recent reports (M9 community pulse): the merged fresh log —
+           what was reported + when, NO reporter identity (privacy: "a
+           community member"). Read-only for every viewer. -->
+      <section class="detail-section" aria-labelledby="recent-reports-heading">
+        <h2 class="section-title" id="recent-reports-heading">{{ 'detail.pulse.recent' | t }}</h2>
+        @if (recentReports().length) {
+          <ul class="recent-reports">
+            @for (entry of recentReports(); track $index) {
+              <li class="recent-reports__entry">
+                <span class="recent-reports__time num-tabular">{{ recentReportTime(entry) }}</span>
+                <span class="recent-reports__kind">{{ recentReportKind(entry) }}</span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="pulse-empty">{{ 'detail.pulse.recentEmpty' | t }}</p>
         }
       </section>
 

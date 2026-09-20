@@ -19,6 +19,9 @@ import type { MessageKey } from '../../core/i18n/messages';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import type {
+  CommunityPulseOccupancy,
+  CommunityPulseOpenClosed,
+  CommunityPulseRecentReport,
   OccupancyBand,
   OpenState,
   ReportShelterRequest,
@@ -30,6 +33,7 @@ import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
+import { ReportGauge } from '../../shared/report-gauge';
 import {
   COMMUNITY_UNVERIFIED_WARNING,
   INACCURATE_WARNING,
@@ -41,6 +45,7 @@ import {
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
   occupancyText as occupancyTextShared,
+  recencyText as recencyTextShared,
   sourceTrustLabel as sourceTrustLabelShared,
   communityBadgeClass as communityBadgeClassShared,
   shelterStatusText as shelterStatusTextShared,
@@ -77,6 +82,17 @@ const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
   unsupported: 'Your browser does not support location access. Check your browser settings.',
   unavailable: 'Your location could not be determined right now. Try again in a moment.',
   insecure: 'Location access needs a secure (https) connection.',
+};
+
+/** The recent-log kind → localized state-noun key (M9 community pulse).
+ *  The lookup is total over the 5-value kind union; the fallback is
+ *  defensive only (a kind outside the union cannot arrive from the BE). */
+const RECENT_KIND_KEYS: Record<CommunityPulseRecentReport['kind'], MessageKey> = {
+  OPEN: 'detail.pulse.kind.open',
+  CLOSED: 'detail.pulse.kind.closed',
+  SPACE: 'detail.pulse.kind.space',
+  GETTING_FULL: 'detail.pulse.kind.gettingFull',
+  FULL: 'detail.pulse.kind.full',
 };
 
 /**
@@ -118,6 +134,7 @@ const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
     ReactiveFormsModule,
     BannerComponent,
     LoadingIndicator,
+    ReportGauge,
     TranslatePipe,
   ],
   providers: [LeafletService],
@@ -174,6 +191,61 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  map rows + this page's distance line consume the same honesty format). */
   protected readonly straightLineText = straightLineTextShared;
   protected readonly hasCommunityReports = hasCommunityReportsShared;
+
+  // ---- community pulse (M9 — report aggregation UI) -----------------------
+  /**
+   * The how-full gauge's aggregate (M9): the fresh (≤ 2 h) band counts +
+   * the trust-weighted empty→full share. null = nothing fresh → the
+   * explicit empty state (never a neutral arrow). Detail-read only — an
+   * older BE omits the field (undefined → null, the FE-ships-ahead rule).
+   */
+  protected occupancyPulse(): CommunityPulseOccupancy | null {
+    return this.shelter()?.communityPulse?.occupancy ?? null;
+  }
+
+  /** The open/closed gauge's aggregate (M9) — same rules as {@link occupancyPulse}. */
+  protected openPulse(): CommunityPulseOpenClosed | null {
+    return this.shelter()?.communityPulse?.openClosed ?? null;
+  }
+
+  /** The merged recent-report log (M9): newest first, capped server-side.
+   *  Empty → the section's empty state. */
+  protected recentReports(): CommunityPulseRecentReport[] {
+    return this.shelter()?.communityPulse?.recentReports ?? [];
+  }
+
+  /**
+   * The open/closed gauge's visible + accessible count line (the PLAIN
+   * fresh counts — the angle is never the only carrier of meaning).
+   */
+  protected openPulseText(pulse: CommunityPulseOpenClosed): string {
+    return this.i18n.t('detail.pulse.openClosedText', {
+      open: pulse.openReports,
+      closed: pulse.closedReports,
+    });
+  }
+
+  /** The how-full gauge's visible + accessible count line. */
+  protected occupancyPulseText(pulse: CommunityPulseOccupancy): string {
+    return this.i18n.t('detail.pulse.occupancyText', {
+      space: pulse.spaceReports,
+      gettingFull: pulse.gettingFullReports,
+      full: pulse.fullReports,
+    });
+  }
+
+  /** The log entry's relative time (the shared recency formatter — the
+   *  occupancy badge's "12 min ago" vocabulary). */
+  protected recentReportTime(entry: CommunityPulseRecentReport): string {
+    return recencyTextShared(entry.reportedAt);
+  }
+
+  /** The log entry's "a community member reported: {kind}" line — NO
+   *  reporter identity (privacy: the log says what + when, never who). */
+  protected recentReportKind(entry: CommunityPulseRecentReport): string {
+    const kindKey: MessageKey = RECENT_KIND_KEYS[entry.kind] ?? 'detail.pulse.kind.full';
+    return this.i18n.t('detail.pulse.recentEntry', { kind: this.i18n.t(kindKey) });
+  }
 
   // ---- distance from you (location-navigation) ---------------------------
   /** True while the geolocation request for the distance is in flight. */
