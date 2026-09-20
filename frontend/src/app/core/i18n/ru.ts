@@ -564,8 +564,6 @@ export const RU: Messages = {
 
   'admin.settings.tab': 'Настройки',
 
-  'admin.subtitle':
-    'Модерация: очередь проверки сообщества, видимость укрытий, очереди сообщений, M3-предупреждения о злоупотреблениях и журнал аудита.',
   'admin.tabs.aria': 'Разделы администрирования',
   'admin.tabs.unconfirmed': 'Не подтверждено',
   'admin.tabs.shelters': 'Укрытия',

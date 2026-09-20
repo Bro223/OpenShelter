@@ -542,8 +542,6 @@ export const EN: Messages = {
 
   'admin.settings.tab': 'Settings',
 
-  'admin.subtitle':
-    'Moderation: the community review queue, shelter visibility, the report queues, the M3 abuse alerts and the audit trail.',
   'admin.tabs.aria': 'Admin sections',
   'admin.tabs.unconfirmed': 'Unconfirmed',
   'admin.tabs.shelters': 'Shelters',

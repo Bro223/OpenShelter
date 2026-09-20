@@ -551,8 +551,6 @@ export const ET: Messages = {
 
   'admin.settings.tab': 'Sätted',
 
-  'admin.subtitle':
-    'Modereerimine: kogukonna ülevaatejärjekord, varjupaikade nähtavus, teatiste järjekorrad, M3 väärkasutuse hoiatused ja auditeerimislogi.',
   'admin.tabs.aria': 'Haldus jaotised',
   'admin.tabs.unconfirmed': 'Kinnitamata',
   'admin.tabs.shelters': 'Varjupaikad',

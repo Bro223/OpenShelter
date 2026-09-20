@@ -593,7 +593,6 @@ export interface Messages {
   // action copy, and the per-tab loading/empty states, table columns and
   // row actions.
   /** The subtitle under the page H1. */
-  'admin.subtitle': string;
   /** The tab switcher group aria-label. */
   'admin.tabs.aria': string;
   'admin.tabs.unconfirmed': string;
