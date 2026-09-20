@@ -30,7 +30,12 @@
   --color-bg-surface: #ffffff; /* cards, rows, list items, text on primary */
   --color-bg-subtle: #eaf0f4; /* the muted surface (inset notes, map placeholder) */
   --color-surface-hover: #dbe4eb; /* ghost button hover fill — a slightly darker tint of bg-subtle */
-  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay — white card, neutral on the new background */
+  --color-surface-overlay: rgba(
+    255,
+    255,
+    255,
+    0.92
+  ); /* map legend overlay — white card, neutral on the new background */
   --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
 
   /* Brand */
@@ -263,7 +268,9 @@
      success #7fd49a       on success-bg / soft / srf  8.6 /  9.1 / 10.3
      badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
      badge green #7ac98a   on badge-user #11301d       7.2
-     same pairs            on the map row's 12% color-mix fills 7.1 / 7.5
+     same pairs            on the map row's 8% color-mix fills  7.7 / 8.1 (the
+                                   mixed fill is audit-enforced in
+                                   design-tokens.spec.ts MIXED_PAIRS)
      accent/pick #4dd0c4   on bg / surface / subtle    10.5 /  9.8 /  8.7 (the pick pin;
      the keyboard focus ring stays the primary blue — the component-scoped
      rings hardcode it, so a mixed focus colour was deliberately avoided)
@@ -300,10 +307,16 @@
      it ever serves as text (the 2px border + the teal hue keep the pin
      identifiable on the light tiles). --color-map-placeholder
      stays light: it IS the map surface (tiles about to paint).
-     Leaflet's own core literals (attribution rgba(255,255,255,0.8), zoom
-     buttons #fff, container #ddd) sit ON the light tiles — or are overridden
-     by the component container backgrounds — so they stay readable in both
-     themes and need no .leaflet-... override here. */
+     Leaflet's own core TEXT literals (the attribution #333 on its
+     rgba(255,255,255,0.8) strip, the zoom buttons' black glyphs on #fff)
+     sit ON the light tiles and stay readable in both themes — but LINKS
+     and the FOCUS RING are not core literals: the black-and-yellow
+     page-wide a rule repaints the map's links (zoom glyphs + the OSM
+     attribution link) at 1.30:1 on the white chrome, and the global
+     --color-primary focus ring measures 2.05:1 (B&Y) / 2.10:1 (HC) on
+     the light surface. Those scoped .leaflet-... overrides live in the
+     theme layer (accessibility-dialog.component.scss, ViewEncapsulation
+     None). */
   /* Text & surfaces */
   --color-text: #ffffff;
   --color-muted: #cfcfcf;

@@ -314,6 +314,36 @@ describe('AccountPage', () => {
     expect(text(fixture)).toContain('Your current password is required.');
   });
 
+  it('wires field errors to the controls (aria-invalid + describedby + alert, WCAG 4.1.3)', async () => {
+    const { page, element, fixture } = await open();
+    page.startEdit();
+    page.editName.setValue('');
+    page.editPassword.setValue('');
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    await page.saveProfile();
+    fixture.detectChanges();
+
+    for (const id of ['profile-name', 'profile-password']) {
+      const input = element.querySelector(`input#${id}`) as HTMLInputElement;
+      expect(input.getAttribute('aria-invalid'), id).toBe('true');
+      expect(input.getAttribute('aria-describedby'), id).toBe(`${id}-error`);
+      const error = root.querySelector(`#${id}-error`);
+      expect(error, id).not.toBeNull();
+      expect(error?.getAttribute('role'), id).toBe('alert');
+    }
+
+    // The change-panel fields wire the same way (touched + invalid).
+    const newEmail = element.querySelector('input#change-email-new') as HTMLInputElement;
+    expect(newEmail.getAttribute('aria-invalid')).toBeNull(); // pristine
+    page.newEmail.markAsTouched();
+    fixture.detectChanges();
+    expect(newEmail.getAttribute('aria-invalid')).toBe('true');
+    expect(newEmail.getAttribute('aria-describedby')).toBe('change-email-new-error');
+    expect(root.querySelector('#change-email-new-error')?.getAttribute('role')).toBe('alert');
+  });
+
   it('successful edit persists via updateProfile, re-fetches, and shows the new values', async () => {
     const { page, element, fixture } = await open();
     page.startEdit();

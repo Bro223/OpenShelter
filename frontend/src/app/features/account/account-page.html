@@ -48,24 +48,44 @@
           </button>
         </div>
       } @else {
+        <!-- a11y (WCAG 2.1 4.1.3, the /submit convention): every field error
+             on this page is a live region (role=alert) wired to its control
+             via aria-invalid + aria-describedby. @let holds the single
+             condition the @if renders on, so the bindings can never
+             disagree. -->
         <div class="field">
           <label for="profile-name">{{ 'account.name' | t }}</label>
-          <input id="profile-name" type="text" [formControl]="editName" autocomplete="name" />
-          @if (editName.touched && editName.invalid) {
-            <p class="field-error">{{ 'account.nameRequired' | t }}</p>
+          @let nameInvalid = editName.touched && editName.invalid;
+          <input
+            id="profile-name"
+            type="text"
+            [formControl]="editName"
+            autocomplete="name"
+            [attr.aria-invalid]="nameInvalid ? 'true' : null"
+            [attr.aria-describedby]="nameInvalid ? 'profile-name-error' : null"
+          />
+          @if (nameInvalid) {
+            <p class="field-error" id="profile-name-error" role="alert">
+              {{ 'account.nameRequired' | t }}
+            </p>
           }
         </div>
 
         <div class="field">
           <label for="profile-password">{{ 'account.currentPassword' | t }}</label>
+          @let currentPasswordInvalid = editPassword.touched && editPassword.invalid;
           <input
             id="profile-password"
             type="password"
             [formControl]="editPassword"
             autocomplete="current-password"
+            [attr.aria-invalid]="currentPasswordInvalid ? 'true' : null"
+            [attr.aria-describedby]="currentPasswordInvalid ? 'profile-password-error' : null"
           />
-          @if (editPassword.touched && editPassword.invalid) {
-            <p class="field-error">{{ 'account.passwordRequired' | t }}</p>
+          @if (currentPasswordInvalid) {
+            <p class="field-error" id="profile-password-error" role="alert">
+              {{ 'account.passwordRequired' | t }}
+            </p>
           }
         </div>
 
@@ -136,6 +156,7 @@
           <!-- The target locks in the code phase via the control's own
                disabled state (emailSend) — FormControlDirective swallows a
                [disabled] property binding, so the control state IS the DOM. -->
+          @let newEmailInvalid = newEmail.touched && newEmail.invalid;
           <input
             id="change-email-new"
             type="email"
@@ -143,9 +164,11 @@
             maxlength="255"
             autocomplete="email"
             [placeholder]="'account.newEmailPlaceholder' | t"
+            [attr.aria-invalid]="newEmailInvalid ? 'true' : null"
+            [attr.aria-describedby]="newEmailInvalid ? 'change-email-new-error' : null"
           />
-          @if (newEmail.touched && newEmail.invalid) {
-            <p class="field-error">
+          @if (newEmailInvalid) {
+            <p class="field-error" id="change-email-new-error" role="alert">
               {{
                 newEmail.errors?.['maxlength']
                   ? ('account.emailTooLong' | t)
@@ -160,6 +183,7 @@
         @if (emailPhase() === 'code') {
           <div class="field">
             <label for="change-email-code">{{ 'account.smsCode' | t }}</label>
+            @let emailCodeInvalid = emailCode.touched && emailCode.invalid;
             <input
               id="change-email-code"
               type="text"
@@ -167,9 +191,13 @@
               autocomplete="one-time-code"
               inputmode="numeric"
               [placeholder]="'account.codePlaceholder' | t"
+              [attr.aria-invalid]="emailCodeInvalid ? 'true' : null"
+              [attr.aria-describedby]="emailCodeInvalid ? 'change-email-code-error' : null"
             />
-            @if (emailCode.touched && emailCode.invalid) {
-              <p class="field-error">{{ 'account.smsCodeRequired' | t }}</p>
+            @if (emailCodeInvalid) {
+              <p class="field-error" id="change-email-code-error" role="alert">
+                {{ 'account.smsCodeRequired' | t }}
+              </p>
             }
             <p class="field-note">{{ 'account.smsSentHint' | t }}</p>
           </div>
@@ -239,6 +267,7 @@
         <div class="field">
           <label for="change-phone-new">{{ 'account.newPhone' | t }}</label>
           <!-- Locked in the code phase via the control's disabled state (phoneSend). -->
+          @let newPhoneInvalid = newPhone.touched && newPhone.invalid;
           <input
             id="change-phone-new"
             type="tel"
@@ -246,9 +275,11 @@
             maxlength="64"
             autocomplete="tel"
             [placeholder]="'account.newPhonePlaceholder' | t"
+            [attr.aria-invalid]="newPhoneInvalid ? 'true' : null"
+            [attr.aria-describedby]="newPhoneInvalid ? 'change-phone-new-error' : null"
           />
-          @if (newPhone.touched && newPhone.invalid) {
-            <p class="field-error">
+          @if (newPhoneInvalid) {
+            <p class="field-error" id="change-phone-new-error" role="alert">
               {{
                 newPhone.errors?.['maxlength']
                   ? ('account.phoneTooLong' | t)
@@ -263,6 +294,7 @@
         @if (phonePhase() === 'code') {
           <div class="field">
             <label for="change-phone-code">{{ 'account.emailCode' | t }}</label>
+            @let phoneCodeInvalid = phoneCode.touched && phoneCode.invalid;
             <input
               id="change-phone-code"
               type="text"
@@ -270,9 +302,13 @@
               autocomplete="one-time-code"
               inputmode="numeric"
               [placeholder]="'account.codePlaceholder' | t"
+              [attr.aria-invalid]="phoneCodeInvalid ? 'true' : null"
+              [attr.aria-describedby]="phoneCodeInvalid ? 'change-phone-code-error' : null"
             />
-            @if (phoneCode.touched && phoneCode.invalid) {
-              <p class="field-error">{{ 'account.emailCodeRequired' | t }}</p>
+            @if (phoneCodeInvalid) {
+              <p class="field-error" id="change-phone-code-error" role="alert">
+                {{ 'account.emailCodeRequired' | t }}
+              </p>
             }
             <p class="field-note">{{ 'account.emailCodeSentHint' | t }}</p>
           </div>

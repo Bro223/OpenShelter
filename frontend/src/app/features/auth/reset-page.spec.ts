@@ -179,6 +179,60 @@ describe('ResetPage', () => {
       );
     });
 
+    it('exposes field errors to assistive tech (aria-invalid + describedby + alert, WCAG 4.1.3)', async () => {
+      const { page, fixture } = await open('/reset');
+      const root = fixture.nativeElement as HTMLElement;
+
+      // Request step: the empty email is wired to its error line.
+      await page.requestReset();
+      fixture.detectChanges();
+      const requestEmail = root.querySelector('input#reset-email') as HTMLInputElement;
+      expect(requestEmail.getAttribute('aria-invalid')).toBe('true');
+      expect(requestEmail.getAttribute('aria-describedby')).toBe('reset-email-error');
+      expect(root.querySelector('#reset-email-error')?.getAttribute('role')).toBe('alert');
+
+      // Sent step: the field NOTE is the description while the code is valid.
+      await request(page, fixture);
+      page.confirmForm.setValue({
+        code: '123456',
+        password: 'one-secret',
+        passwordAgain: 'one-secret',
+      });
+      fixture.detectChanges();
+      const code = root.querySelector('input#reset-code') as HTMLInputElement;
+      expect(code.getAttribute('aria-invalid')).toBeNull();
+      expect(code.getAttribute('aria-describedby')).toBe('reset-code-note');
+
+      // Mismatch (both filled, different): the alert region carries it.
+      // setValue + FIRST markAllAsTouched mirrors the real input-event flow
+      // that drives change detection on this OnPush page.
+      page.confirmForm.setValue({
+        code: '123456',
+        password: 'one-secret',
+        passwordAgain: 'other-secret',
+      });
+      page.confirmForm.markAllAsTouched();
+      await page.confirmReset();
+      fixture.detectChanges();
+      const again = root.querySelector('input#reset-password-again') as HTMLInputElement;
+      expect(again.getAttribute('aria-invalid')).toBe('true');
+      expect(again.getAttribute('aria-describedby')).toBe('reset-password-again-error');
+      const region = root.querySelector('#reset-password-again-error');
+      expect(region?.getAttribute('role')).toBe('alert');
+      expect(region?.textContent).toContain('The passwords do not match.');
+      expect(region?.textContent).not.toContain('Please repeat the password.');
+
+      // Empty repeat field: BOTH errors are visible at once — ONE region
+      // holds both, and the input still points at it.
+      page.confirmForm.controls.passwordAgain.setValue('');
+      await page.confirmReset();
+      fixture.detectChanges();
+      expect(region?.textContent).toContain('Please repeat the password.');
+      expect(region?.textContent).toContain('The passwords do not match.');
+      expect(again.getAttribute('aria-invalid')).toBe('true');
+      expect(again.getAttribute('aria-describedby')).toBe('reset-password-again-error');
+    });
+
     it('blocks a non-6-digit code without calling the gateway', async () => {
       const { page, fixture } = await open('/reset');
       await request(page, fixture);

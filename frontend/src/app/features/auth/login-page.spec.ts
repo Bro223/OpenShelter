@@ -115,6 +115,44 @@ describe('LoginPage', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Password is required.');
   });
 
+  it('exposes invalid fields to assistive tech (aria-invalid + describedby + alert, WCAG 4.1.3)', async () => {
+    const { page, element, fixture } = await open('/login');
+    const root = fixture.nativeElement as HTMLElement;
+
+    // A fresh form carries no error markers at all (no stale aria state).
+    for (const id of ['login-contact', 'login-password']) {
+      const input = element.querySelector(`input#${id}`) as HTMLInputElement;
+      expect(input.getAttribute('aria-invalid'), id).toBeNull();
+      expect(input.getAttribute('aria-describedby'), id).toBeNull();
+    }
+
+    await page.submit();
+    fixture.detectChanges();
+
+    // Both empty fields now carry the programmatic markers...
+    for (const id of ['login-contact', 'login-password']) {
+      const input = element.querySelector(`input#${id}`) as HTMLInputElement;
+      expect(input.getAttribute('aria-invalid'), id).toBe('true');
+      expect(input.getAttribute('aria-describedby'), id).toBe(`${id}-error`);
+      // ...and the referenced element IS the error line — a live region.
+      const error = root.querySelector(`#${id}-error`);
+      expect(error, id).not.toBeNull();
+      expect(error?.getAttribute('role'), id).toBe('alert');
+      expect(error?.classList.contains('field-error'), id).toBe(true);
+    }
+    expect(root.querySelector('#login-contact-error')?.textContent).toContain(
+      'Email or phone is required.',
+    );
+
+    // Fixing a field clears its markers and removes the error line.
+    page.form.controls.emailOrPhone.setValue('user@example.ee');
+    fixture.detectChanges();
+    const contact = element.querySelector('input#login-contact') as HTMLInputElement;
+    expect(contact.getAttribute('aria-invalid')).toBeNull();
+    expect(contact.getAttribute('aria-describedby')).toBeNull();
+    expect(root.querySelector('#login-contact-error')).toBeNull();
+  });
+
   it('logs in and returns to the map', async () => {
     const { page, fixture } = await open('/login');
     page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });

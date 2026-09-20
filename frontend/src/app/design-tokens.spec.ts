@@ -216,6 +216,29 @@ describe('design tokens (M6)', () => {
     return (hi + 0.05) / (lo + 0.05);
   }
 
+  /** CSS color-mix(in srgb, A p%, B): the per-channel sRGB blend the
+   *  browser computes, rounded to 8-bit per channel (the browser paints
+   *  8-bit sRGB, so the spec models the painted value, not the float). */
+  function colorMix(a: string, b: string, pct: number): string {
+    const expand = (hex: string): string => {
+      let v = hex.replace('#', '');
+      if (v.length === 3)
+        v = v
+          .split('')
+          .map((c) => c + c)
+          .join('');
+      return v;
+    };
+    const A = expand(a);
+    const B = expand(b);
+    const channel = (i: number): number =>
+      Math.round(
+        (parseInt(A.slice(i, i + 2), 16) * pct) / 100 +
+          (parseInt(B.slice(i, i + 2), 16) * (100 - pct)) / 100,
+      );
+    return '#' + [0, 2, 4].map((i) => channel(i).toString(16).padStart(2, '0')).join('');
+  }
+
   /** --color* token name -> literal value, from one token block's lines. */
   function colorTokens(lines: Set<number>): Map<string, string> {
     const out = new Map<string, string>();
@@ -249,9 +272,7 @@ describe('design tokens (M6)', () => {
   // — the audit keeps hex literals out of SCSS, so this theme has no SCSS
   // block to parse). Parse the TS map into the same name -> literal shape
   // and hold it to the same contrast math + the same name-set rule.
-  const byTokens = tsColorTokens(
-    readFileSync(`${SRC_DIR}/app/core/theme-tokens.ts`, 'utf8'),
-  );
+  const byTokens = tsColorTokens(readFileSync(`${SRC_DIR}/app/core/theme-tokens.ts`, 'utf8'));
 
   type ContrastPair = {
     theme: 'light' | 'high-contrast' | 'black-and-yellow';
@@ -287,9 +308,10 @@ describe('design tokens (M6)', () => {
     ['--color-bg-surface', '--color-primary'],
     ['--color-bg-surface', '--color-cta'],
     ['--color-bg-surface', '--color-reported'],
-    // Source/trust badge text on its fill (shelter-detail-page .badge). The
-    // map rows use the same pair over a 12% color-mix — that computed fill
-    // is covered by the styles.scss D1 note, not this literal-based check.
+    // Source/trust badge text on its fill (shelter-detail-page .badge).
+    // The map rows use the same pair over a color-mix TINT — that computed
+    // fill is a different surface and is enforced separately (MIXED_PAIRS
+    // below re-derives the mix and checks the pair per theme).
     ['--color-shelter-registry', '--color-badge-registry'],
     ['--color-shelter-user', '--color-badge-user'],
     // Trust-state badge text on its fill (community-review-queue D5):
@@ -315,6 +337,14 @@ describe('design tokens (M6)', () => {
     ['--color-shelter-pick', '--color-bg-surface'],
     ['--color-shelter-pick', '--color-bg-subtle'],
   ];
+
+  /** --color-link × the B&Y surface (B&Y-only — the other two themes have
+   *  no link token; their links ride on --color-primary, already checked
+   *  as the btn--primary text pair above). The map's OSM attribution link
+   *  renders on the black B&Y attribution strip (the theme-layer override)
+   *  and the chrome-band links on the black band — both are this pair
+   *  (16.11:1). */
+  const BY_ONLY_TEXT_PAIRS: [string, string][] = [['--color-link', '--color-bg-surface']];
 
   const CONTRAST_CHECKS: ContrastPair[] = [
     // Text: WCAG AA 4.5:1, every theme.
@@ -369,6 +399,13 @@ describe('design tokens (M6)', () => {
     // the "form controls and links" test below).
     ...HC_ONLY_TEXT_PAIRS.map(([fg, bg]) => ({
       theme: 'high-contrast' as const,
+      fg,
+      bg,
+      min: 4.5,
+    })),
+    // Black-and-yellow-only text pairs (the theme's own --color-link token).
+    ...BY_ONLY_TEXT_PAIRS.map(([fg, bg]) => ({
+      theme: 'black-and-yellow' as const,
       fg,
       bg,
       min: 4.5,
@@ -453,6 +490,34 @@ describe('design tokens (M6)', () => {
     },
   ];
 
+  /** Computed mix pairs — the surfaces the literal-token audit CANNOT see.
+   *  A `background: color-mix(in srgb, var(--fg) P%, var(--base))` +
+   *  `color: var(--fg)` rule renders the fg token on a COMPUTED fill; the
+   *  token pairs above pass while the mix can still fail (the 12% user
+   *  badge measured 4.36:1 in the light theme — found only by review).
+   *  Each entry mirrors one such rule in a component stylesheet; the
+   *  percentage is re-parsed from that stylesheet at test time, so
+   *  editing the scss changes what this check computes (it can never
+   *  silently keep auditing a stale value). The companion test below
+   *  fails if a NEW color-mix background appears without a declared
+   *  entry, so a computed fill cannot hide a failure again. */
+  const MIXED_PAIRS: { file: string; fg: string; base: string; min: number }[] = [
+    // The /map row's source badges (map-page.scss .badge / .badge--user):
+    // the registry/user token as text on its own tinted fill.
+    {
+      file: 'app/features/map/map-page.scss',
+      fg: '--color-shelter-registry',
+      base: '--color-bg-surface',
+      min: 4.5,
+    },
+    {
+      file: 'app/features/map/map-page.scss',
+      fg: '--color-shelter-user',
+      base: '--color-bg-surface',
+      min: 4.5,
+    },
+  ];
+
   const isPlainHex = (v: string): boolean => /^#[0-9a-fA-F]{3}$|^#[0-9a-fA-F]{6}$/.test(v);
 
   it('the high-contrast block overrides the SAME --color* name set as :root (both directions)', () => {
@@ -469,10 +534,9 @@ describe('design tokens (M6)', () => {
     // surviving in the black-and-yellow theme is exactly this failure
     // mode). --color-link is the documented third-theme addition (the
     // other two themes colour links with --color-primary).
-    expect(
-      byTokens.size,
-      'black-and-yellow token set unexpectedly small',
-    ).toBeGreaterThanOrEqual(40);
+    expect(byTokens.size, 'black-and-yellow token set unexpectedly small').toBeGreaterThanOrEqual(
+      40,
+    );
     const missing = [...rootTokens.keys()].filter((t) => !byTokens.has(t));
     const extra = [...byTokens.keys()].filter((t) => !rootTokens.has(t) && t !== '--color-link');
     expect(missing, ':root tokens missing from the black-and-yellow map').toEqual([]);
@@ -527,6 +591,118 @@ describe('design tokens (M6)', () => {
       }
     }
     expect(stale).toEqual([]);
+  });
+
+  it('computed color-mix fills hold their floor with the text token, every theme', () => {
+    const offenders: string[] = [];
+    for (const pair of MIXED_PAIRS) {
+      const css = readFileSync(`${SRC_DIR}/${pair.file}`, 'utf8');
+      // Re-parse the percentage from the stylesheet itself (see the
+      // MIXED_PAIRS note) — the check follows the shipped CSS.
+      const match = css.match(
+        new RegExp(
+          `color-mix\\(in srgb,\\s*var\\(${pair.fg}\\)\\s*(\\d+(?:\\.\\d+)?)%,\\s*var\\(${pair.base}\\)\\)`,
+        ),
+      );
+      if (match === null) {
+        offenders.push(
+          `${pair.file}: the ${pair.fg} color-mix fill is gone — update or remove the MIXED_PAIRS entry`,
+        );
+        continue;
+      }
+      const pct = Number(match[1]);
+      for (const theme of ['light', 'high-contrast', 'black-and-yellow'] as const) {
+        const tokens =
+          theme === 'light' ? rootTokens : theme === 'high-contrast' ? themeTokens : byTokens;
+        const fg = tokens.get(pair.fg);
+        const base = tokens.get(pair.base);
+        if (fg === undefined || base === undefined || !isPlainHex(fg) || !isPlainHex(base)) {
+          offenders.push(
+            `${theme}: ${pair.file} — ${pair.fg}/${pair.base} missing or not plain hex`,
+          );
+          continue;
+        }
+        const ratio = contrast(fg, colorMix(fg, base, pct));
+        if (ratio < pair.min) {
+          offenders.push(
+            `${theme}: ${pair.fg} on its ${pct}% mix of ${pair.base} = ${ratio.toFixed(2)}:1 (< ${pair.min}:1)`,
+          );
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('no color-mix background escapes the mixed-pair audit', () => {
+    // Every `background(-color): color-mix(in srgb, var(--a) P%, var(--b))`
+    // in the app's stylesheets must be a declared MIXED_PAIRS entry — a
+    // new computed fill is contrast-checked from its first commit instead
+    // of hiding behind the literal-token audit until the next review.
+    const declared = new Set(MIXED_PAIRS.map((p) => `${p.file}|${p.fg}|${p.base}`));
+    const unguarded: string[] = [];
+    for (const [name, css] of audited) {
+      if (name === 'styles.scss') continue; // the token blocks, not component fills
+      for (const m of css.matchAll(
+        /background(?:-color)?:\s*color-mix\(in srgb,\s*var\((--color-[\w-]+)\)\s*(\d+(?:\.\d+)?)%,\s*var\((--color-[\w-]+)\)\);/g,
+      )) {
+        if (!declared.has(`${name}|${m[1]}|${m[3]}`)) {
+          unguarded.push(`${name}: ${m[1]} ${m[2]}% on ${m[3]} — add it to MIXED_PAIRS`);
+        }
+      }
+    }
+    expect(unguarded).toEqual([]);
+  });
+
+  it('the theme layer keeps its Leaflet map-chrome overrides (light-surface links + focus ring)', () => {
+    // The map is unthemed (light tiles + Leaflet's own white chrome) while
+    // the page-wide theme rules target LINKS and FOCUS RINGS everywhere —
+    // without these scoped .leaflet-... overrides the black-and-yellow a
+    // rule repaints the zoom glyphs + the OSM attribution link at 1.30:1
+    // on the white chrome, and the --color-primary focus ring sits at
+    // 2.05:1 (B&Y) / 2.10:1 (HC) on the light surface (below the 3:1
+    // UI floor). Mechanism assertion — jsdom cannot measure computed
+    // style (the repo's established pattern); the token pairs the rules
+    // rest on are contrast-checked in the tests above.
+    const themeScss = readFileSync(
+      `${SRC_DIR}/app/shared/accessibility-dialog.component.scss`,
+      'utf8',
+    );
+    expect(themeScss).toContain("[data-theme='black-and-yellow'] .leaflet-bar a {");
+    expect(themeScss).toContain(
+      "[data-theme='black-and-yellow'] .leaflet-container .leaflet-control-attribution {",
+    );
+    expect(themeScss).toContain(
+      "[data-theme='black-and-yellow'] .leaflet-container .leaflet-control-attribution a {",
+    );
+    expect(themeScss).toMatch(
+      /\[data-theme='black-and-yellow'\] \.leaflet-bar a:focus-visible,\s*\[data-theme='high-contrast'\] \.leaflet-bar a:focus-visible \{\s*outline-color: var\(--color-bg-surface\);/s,
+    );
+    expect(themeScss).toMatch(
+      /\[data-theme='high-contrast'\] \.leaflet-container \.leaflet-control-attribution a:focus-visible \{\s*outline-color: var\(--color-bg-surface\);/s,
+    );
+    expect(themeScss).toMatch(
+      /\[data-theme='black-and-yellow'\] \.leaflet-container \.leaflet-control-attribution a:focus-visible \{\s*outline-color: var\(--color-text\);/s,
+    );
+  });
+
+  it('the theme layer keeps the black-and-yellow uniform badge override', () => {
+    // Owner ruling: in black-and-yellow ALL badges are black with a yellow
+    // border and yellow text (the uniform colour means the badge TEXT
+    // carries the meaning — an explicit owner choice). One page-wide rule
+    // must cover every badge surface (admin tables, map rows, shelter
+    // detail, account, contributions): the base .badge / .contrib-badge
+    // selectors at (0,3,1), above the component-scoped modifier rules.
+    const themeScss = readFileSync(
+      `${SRC_DIR}/app/shared/accessibility-dialog.component.scss`,
+      'utf8',
+    );
+    expect(themeScss).toContain("html[data-theme='black-and-yellow'] .badge.badge,");
+    expect(themeScss).toContain(
+      "html[data-theme='black-and-yellow'] .contrib-badge.contrib-badge {",
+    );
+    expect(themeScss).toMatch(
+      /\.contrib-badge\.contrib-badge \{\s*background: var\(--color-bg-surface\);\s*border: 1px solid var\(--color-text\);\s*color: var\(--color-text\);\s*\}/s,
+    );
   });
 
   it.each(audited)('%s — no literal colour values', (_name, css, isGlobal) => {
@@ -595,75 +771,57 @@ describe('design tokens (M6)', () => {
     expect(media).toContain('flex-direction: column');
   });
 
-  it(
-    'admin tables — the row separator is ONE continuous rule: no class on a <td> may declare a display (a flex td stops its border-bottom at the box content height, so a taller sibling splits the row line into staggered segments)',
-    () => {
-      // The separator is the shared th,td border-bottom fused by
-      // border-collapse: collapse — one solid line across the whole row at
-      // every width, but ONLY while every td/th is still a real table
-      // cell. display:flex on a td demotes it to a block-level flex box:
-      // its border is then painted at the box's content height instead of
-      // the row bottom, so a taller sibling cell splits the line (owner-
-      // reported: the rule breaking near the middle of the row). The flex
-      // layout must therefore stay on the inner .admin-cell__*-body
-      // wrapper, never on the td itself.
-      const adminScss = withoutCssComments(
-        readFileSync(`${SRC_DIR}/app/features/admin/admin-page.scss`, 'utf8'),
-      );
-      const adminHtml = readFileSync(
-        `${SRC_DIR}/app/features/admin/admin-page.html`,
-        'utf8',
-      );
+  it('admin tables — the row separator is ONE continuous rule: no class on a <td> may declare a display (a flex td stops its border-bottom at the box content height, so a taller sibling splits the row line into staggered segments)', () => {
+    // The separator is the shared th,td border-bottom fused by
+    // border-collapse: collapse — one solid line across the whole row at
+    // every width, but ONLY while every td/th is still a real table
+    // cell. display:flex on a td demotes it to a block-level flex box:
+    // its border is then painted at the box's content height instead of
+    // the row bottom, so a taller sibling cell splits the line (owner-
+    // reported: the rule breaking near the middle of the row). The flex
+    // layout must therefore stay on the inner .admin-cell__*-body
+    // wrapper, never on the td itself.
+    const adminScss = withoutCssComments(
+      readFileSync(`${SRC_DIR}/app/features/admin/admin-page.scss`, 'utf8'),
+    );
+    const adminHtml = readFileSync(`${SRC_DIR}/app/features/admin/admin-page.html`, 'utf8');
 
-      // Each rule extracted by brace balancing, comments stripped: the
-      // old unbounded regexes matched outside the rule they claimed to
-      // check — the explanatory comment's "border-collapse: collapse" and
-      // the .admin-queue-row rule's identical border-bottom satisfied
-      // them after the real declarations were deleted.
-      const tableRule = balancedBlock(adminScss, /^\.admin-table \{$/);
-      expect(
-        tableRule,
-        'admin-page.scss must collapse the .admin-table borders',
-      ).not.toBeNull();
-      expect(
-        tableRule,
-        'admin-page.scss must collapse the .admin-table borders',
-      ).toContain('border-collapse: collapse');
-      const cellRule = balancedBlock(tableRule!, /^\s*th,\s*$/);
-      expect(
-        cellRule,
-        'the row separator must live in the shared th,td rule',
-      ).not.toBeNull();
-      expect(cellRule, 'the row separator must live in the shared th,td rule').toContain(
-        'td {',
-      );
-      expect(
-        cellRule,
-        'the row separator must stay the shared th,td border-bottom (one declaration, not per-column rules that could gap or step)',
-      ).toContain('border-bottom: 1px solid var(--color-border-subtle)');
+    // Each rule extracted by brace balancing, comments stripped: the
+    // old unbounded regexes matched outside the rule they claimed to
+    // check — the explanatory comment's "border-collapse: collapse" and
+    // the .admin-queue-row rule's identical border-bottom satisfied
+    // them after the real declarations were deleted.
+    const tableRule = balancedBlock(adminScss, /^\.admin-table \{$/);
+    expect(tableRule, 'admin-page.scss must collapse the .admin-table borders').not.toBeNull();
+    expect(tableRule, 'admin-page.scss must collapse the .admin-table borders').toContain(
+      'border-collapse: collapse',
+    );
+    const cellRule = balancedBlock(tableRule!, /^\s*th,\s*$/);
+    expect(cellRule, 'the row separator must live in the shared th,td rule').not.toBeNull();
+    expect(cellRule, 'the row separator must live in the shared th,td rule').toContain('td {');
+    expect(
+      cellRule,
+      'the row separator must stay the shared th,td border-bottom (one declaration, not per-column rules that could gap or step)',
+    ).toContain('border-bottom: 1px solid var(--color-border-subtle)');
 
-      // Every class the markup puts on a <td> must keep the cell a real
-      // table cell: its top-level rule must not declare a display at all.
-      const tdClasses = new Set<string>();
-      for (const m of adminHtml.matchAll(/<td\b[^>]*class="([^"]*)"/g)) {
-        for (const c of m[1].split(/\s+/)) if (c) tdClasses.add(c);
-      }
+    // Every class the markup puts on a <td> must keep the cell a real
+    // table cell: its top-level rule must not declare a display at all.
+    const tdClasses = new Set<string>();
+    for (const m of adminHtml.matchAll(/<td\b[^>]*class="([^"]*)"/g)) {
+      for (const c of m[1].split(/\s+/)) if (c) tdClasses.add(c);
+    }
+    expect([...tdClasses], 'expected the classed <td> cells in admin-page.html').toEqual(
+      expect.arrayContaining(['admin-cell--name', 'admin-cell--actions']),
+    );
+    for (const c of tdClasses) {
+      const block = adminScss.match(new RegExp(`\\.${c} \\{[\\s\\S]*?\\n\\}`));
+      if (!block) continue;
       expect(
-        [...tdClasses],
-        'expected the classed <td> cells in admin-page.html',
-      ).toEqual(
-        expect.arrayContaining(['admin-cell--name', 'admin-cell--actions']),
-      );
-      for (const c of tdClasses) {
-        const block = adminScss.match(new RegExp(`\\.${c} \\{[\\s\\S]*?\\n\\}`));
-        if (!block) continue;
-        expect(
-          block[0],
-          `.${c} is carried by a <td>; a display declaration there demotes the cell and splits the row separator`,
-        ).not.toMatch(/display\s*:/);
-      }
-    },
-  );
+        block[0],
+        `.${c} is carried by a <td>; a display declaration there demotes the cell and splits the row separator`,
+      ).not.toMatch(/display\s*:/);
+    }
+  });
 
   it('the /blog index is a self-adjusting four-up card grid (guidance-list-page.scss)', () => {
     // Regression guard for the row -> card grid: the <ul> must be a CSS
@@ -688,26 +846,23 @@ describe('design tokens (M6)', () => {
     expect(header![0]).toContain('flex-wrap: wrap');
   });
 
-  it(
-    "page-shell.scss — .shell-body gives router-outlet no flex-grow (the routed component is the outlet's sibling, so a growing outlet pushes every page to the bottom)",
-    () => {
-      // Regression guard for the /blog list-sits-low bug: Angular inserts
-      // the routed component AFTER <router-outlet> as a SIBLING — the
-      // outlet is an empty placeholder. A flex-growing placeholder
-      // absorbs all the free vertical space in .shell-body and pushes
-      // every page's content down (owner-reported: the post list floating
-      // low with empty space above it). The growth belongs on each page's
-      // own host instead (map-page.scss :host, login-page.scss :host).
-      const shell = readFileSync(`${SRC_DIR}/app/shared/page-shell.scss`, 'utf8');
-      const outlet = shell.match(/router-outlet \{[\s\S]*?\n {2}\}/);
-      expect(
-        outlet,
-        'page-shell.scss must keep an explicit router-outlet rule in .shell-body',
-      ).not.toBeNull();
-      expect(outlet![0]).not.toMatch(/flex-grow\s*:\s*1/);
-      expect(outlet![0]).not.toMatch(/flex\s*:\s*1/);
-    },
-  );
+  it("page-shell.scss — .shell-body gives router-outlet no flex-grow (the routed component is the outlet's sibling, so a growing outlet pushes every page to the bottom)", () => {
+    // Regression guard for the /blog list-sits-low bug: Angular inserts
+    // the routed component AFTER <router-outlet> as a SIBLING — the
+    // outlet is an empty placeholder. A flex-growing placeholder
+    // absorbs all the free vertical space in .shell-body and pushes
+    // every page's content down (owner-reported: the post list floating
+    // low with empty space above it). The growth belongs on each page's
+    // own host instead (map-page.scss :host, login-page.scss :host).
+    const shell = readFileSync(`${SRC_DIR}/app/shared/page-shell.scss`, 'utf8');
+    const outlet = shell.match(/router-outlet \{[\s\S]*?\n {2}\}/);
+    expect(
+      outlet,
+      'page-shell.scss must keep an explicit router-outlet rule in .shell-body',
+    ).not.toBeNull();
+    expect(outlet![0]).not.toMatch(/flex-grow\s*:\s*1/);
+    expect(outlet![0]).not.toMatch(/flex\s*:\s*1/);
+  });
 
   it('the /submit private-home checkbox keeps its native glyph size (M13 mobile-responsive-polish)', () => {
     // Regression guard: the global `.field input { width: 100% }` form rule

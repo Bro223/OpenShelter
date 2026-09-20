@@ -124,6 +124,57 @@ describe('RegisterPage', () => {
     expect(text).toContain('A valid email is required.');
   });
 
+  it('exposes invalid + 409 fields to assistive tech (aria-invalid + describedby + alert)', async () => {
+    const { page, element, fixture } = await open();
+    const root = fixture.nativeElement as HTMLElement;
+
+    // The field NOTE is always part of the email/phone description (it
+    // explains why the value is collected); no error markers while valid.
+    const email = element.querySelector('input#register-email') as HTMLInputElement;
+    expect(email.getAttribute('aria-invalid')).toBeNull();
+    expect(email.getAttribute('aria-describedby')).toBe('register-email-note');
+
+    // Empty submit: every field is wired to its error line.
+    await page.submit();
+    fixture.detectChanges();
+    expect(gateway.register).not.toHaveBeenCalled();
+    for (const [id, note] of [
+      ['register-name', null],
+      ['register-email', 'register-email-note'],
+      ['register-phone', 'register-phone-note'],
+      ['register-password', null],
+    ] as const) {
+      const input = element.querySelector(`input#${id}`) as HTMLInputElement;
+      expect(input.getAttribute('aria-invalid'), id).toBe('true');
+      expect(input.getAttribute('aria-describedby'), id).toBe(
+        note ? `${note} ${id}-error` : `${id}-error`,
+      );
+      const error = root.querySelector(`#${id}-error`);
+      expect(error, id).not.toBeNull();
+      expect(error?.getAttribute('role'), id).toBe('alert');
+    }
+
+    // A 409 duplicate re-uses the SAME error id with the backend message.
+    fillValid(page);
+    gateway.register.mockRejectedValue(
+      ApiError.fromHttp(409, {
+        timestamp: 't',
+        status: 409,
+        error: 'Conflict',
+        message: 'an account with this email already exists',
+        path: '/auth/register',
+      }),
+    );
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(email.getAttribute('aria-invalid')).toBe('true');
+    expect(email.getAttribute('aria-describedby')).toBe('register-email-note register-email-error');
+    expect(root.querySelector('#register-email-error')?.textContent).toContain(
+      'an account with this email already exists',
+    );
+  });
+
   it('normalises email before sending the register request', async () => {
     const { page } = await open();
     page.form.setValue({

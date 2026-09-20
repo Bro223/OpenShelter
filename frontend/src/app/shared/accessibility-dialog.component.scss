@@ -185,3 +185,107 @@
   text-decoration-line: underline;
   text-underline-offset: 4px;
 }
+
+/* ==================================================================
+   Leaflet map chrome — page-wide overrides for the accessibility
+   themes. The map surface is NOT themed (OSM tiles stay light, and
+   Leaflet ships its own white control chrome ON that light surface),
+   so the THEME rules above must not leak onto the light controls:
+
+   - the black-and-yellow page-wide `a` rule (specificity (0,1,1) — a
+     tie with Leaflet's `.leaflet-bar a` / `.leaflet-container a`, won
+     by runtime <style> order) repaints the zoom +/- glyphs AND the OSM
+     attribution link with --color-link on white: 1.30:1 (measured,
+     ≈1.14:1 on typical light tiles).
+   - the global :focus-visible ring is --color-primary on the light
+     surface: 2.05:1 (black-and-yellow) / 2.10:1 (high-contrast) — both
+     below the 3:1 UI-component floor.
+
+   The overrides below bring the controls onto the theme palette and
+   the ring to a colour that holds 3:1 on the light surface in BOTH
+   themes. Each selector outscores its Leaflet counterpart on
+   specificity ((0,2,1)+ vs Leaflet's (0,1,1)–(0,2,1)), so the order of
+   the injected <style> tags cannot flip them back. design-tokens.
+   spec.ts guards the rules' presence; the token pairs they rest on are
+   contrast-checked there.
+   ================================================================== */
+
+/* Zoom buttons (black-and-yellow): black fill + yellow glyph — the
+   theme itself. Resting 14.67:1 (--color-text on --color-bg-surface),
+   hover/focus 10.83:1 (--color-text on --color-surface-hover), the
+   disabled state 10.47:1 (--color-muted on --color-bg-surface). */
+[data-theme='black-and-yellow'] .leaflet-bar a {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+[data-theme='black-and-yellow'] .leaflet-bar a:hover,
+[data-theme='black-and-yellow'] .leaflet-bar a:focus {
+  background-color: var(--color-surface-hover);
+}
+
+[data-theme='black-and-yellow'] .leaflet-bar a.leaflet-disabled {
+  background-color: var(--color-bg-surface);
+  color: var(--color-muted);
+}
+
+/* OSM attribution (black-and-yellow): the white strip is a LIGHT-
+   surface literal — on it, the page-wide a rule leaves the OSM link at
+   1.30:1. The strip goes black with the theme: yellow text 14.67:1,
+   the OSM link --color-link 16.11:1 + underlined (WCAG 1.4.1). The
+   attribution stays visible — the tile usage policy requires it
+   (leaflet-service.ts). */
+[data-theme='black-and-yellow'] .leaflet-container .leaflet-control-attribution {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+[data-theme='black-and-yellow'] .leaflet-container .leaflet-control-attribution a {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+
+/* Focus ring on the LIGHT map surface: --color-primary measures
+   2.05:1 (black-and-yellow) / 2.10:1 (high-contrast) on white — below
+   the 3:1 floor. The ring takes the theme's darkest surface token
+   instead: black 21.00:1 (B&Y), 18.42:1 (HC), on the light
+   chrome/tiles. Inside the black-and-yellow attribution strip (now
+   black) the ring flips to the yellow text token: 14.67:1 on the
+   strip. outline style/width/offset stay the global rule's; only the
+   colour changes. */
+[data-theme='black-and-yellow'] .leaflet-bar a:focus-visible,
+[data-theme='high-contrast'] .leaflet-bar a:focus-visible {
+  outline-color: var(--color-bg-surface);
+}
+
+[data-theme='high-contrast'] .leaflet-container .leaflet-control-attribution a:focus-visible {
+  outline-color: var(--color-bg-surface);
+}
+
+[data-theme='black-and-yellow'] .leaflet-container .leaflet-control-attribution a:focus-visible {
+  outline-color: var(--color-text);
+}
+
+/* ==================================================================
+   ALL BADGES (owner ruling): in black-and-yellow every badge is black
+   with a yellow border and yellow text — one uniform badge language
+   across every surface (admin tables, map rows, shelter detail,
+   account, contributions panel). Because the colour is uniform, the
+   badge TEXT carries the meaning — an explicit owner choice, not an
+   accident. The duplicated class is deliberate specificity: the
+   component-scoped modifier rules (.badge.badge--user[_ngcontent],
+   (0,3,0)) must not beat the theme — (0,3,1) holds regardless of
+   <style> injection order, and the base .badge selector covers every
+   current and future modifier (they all keep the base class).
+   Text + border: --color-text on --color-bg-surface = 14.67:1
+   (design-tokens.spec.ts enforces the pair). The
+   legend's marker SWATCHES are deliberately not badges: they are the
+   map's colour key (aria-hidden, single-sourced from the marker
+   classes) and must keep matching the real markers on the light
+   tiles. */
+html[data-theme='black-and-yellow'] .badge.badge,
+html[data-theme='black-and-yellow'] .contrib-badge.contrib-badge {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-text);
+  color: var(--color-text);
+}

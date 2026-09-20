@@ -464,11 +464,17 @@
   border-radius: var(--radius-full);
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);
-  background: color-mix(in srgb, var(--color-shelter-registry) 12%, var(--color-bg-surface));
+  /* The COMPUTED 8% tint is the contrast surface, not the token — it is
+     audit-enforced: design-tokens.spec.ts MIXED_PAIRS re-derives the mix
+     and requires >= 4.5:1 in every theme. 12% measured 4.36:1 for the
+     user pair (below AA); note RAISING the tint makes the pair WORSE
+     (the text is the same hue as its own tint), so the percentage is
+     pinned by the spec, not by this comment. */
+  background: color-mix(in srgb, var(--color-shelter-registry) 8%, var(--color-bg-surface));
   color: var(--color-shelter-registry);
 
   &.badge--user {
-    background: color-mix(in srgb, var(--color-shelter-user) 12%, var(--color-bg-surface));
+    background: color-mix(in srgb, var(--color-shelter-user) 8%, var(--color-bg-surface));
     color: var(--color-shelter-user);
   }
 
