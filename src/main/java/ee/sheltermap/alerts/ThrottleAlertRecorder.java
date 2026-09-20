@@ -71,6 +71,21 @@ public class ThrottleAlertRecorder {
                 null, clock.instant()));
     }
 
+    /**
+     * A verification-code delivery was REFUSED by the channel (the relay
+     * or gateway failed — the sender logged the error). No HTTP error went
+     * out: the request still answered its plain ack, NO pending code was
+     * persisted and NO daily slot was consumed — this alert exists so an
+     * operator notices the channel outage in the admin ring instead of
+     * only in the log.
+     */
+    public void codeSendFailure(String contact, String channel) {
+        record(new ThrottleAlert(nextId(), ThrottleAlert.KIND_CODE_SEND_FAILURE,
+                "contact:" + normalize(contact),
+                "Code send refused by the " + channel + " channel (no 429 — delivery failed)",
+                null, clock.instant()));
+    }
+
     /** Appends one alert, evicting the oldest row past {@code retained}. */
     public void record(ThrottleAlert alert) {
         if (retained <= 0) {

@@ -535,18 +535,25 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
 
   /**
    * The hero-import copy keys (guidance-hero-import's admin surface).
-   * The i18n lane owns the catalogs (en/et/ru + the Messages contract)
-   * and lands these entries in the same wave — until they do, `t()`
-   * renders nothing for them and the `MessageKey` casts keep this file
-   * compiling against the contract without touching the catalog files.
+   * Every key is a real `Messages` member (en/et/ru catalogs, parity-
+   * guarded in core/i18n/i18n.spec.ts): the property type keeps each
+   * literal checked against the contract, so a renamed or removed key
+   * fails the build here instead of rendering a blank label (the
+   * `as MessageKey` cast that hid the 2026-09 hero-key gap is gone).
    */
-  protected readonly i18nKeys = {
-    heroImportLabel: 'admin.guidance.editor.hero.importLabel' as MessageKey,
-    heroImportHint: 'admin.guidance.editor.hero.importHint' as MessageKey,
-    heroImportInvalid: 'admin.guidance.editor.hero.importInvalid' as MessageKey,
-    heroNone: 'admin.guidance.editor.hero.none' as MessageKey,
-    heroImportNote: 'admin.guidance.editor.hero.importNote' as MessageKey,
-  } as const;
+  protected readonly i18nKeys: {
+    readonly heroImportLabel: MessageKey;
+    readonly heroImportHint: MessageKey;
+    readonly heroImportInvalid: MessageKey;
+    readonly heroNone: MessageKey;
+    readonly heroImportNote: MessageKey;
+  } = {
+    heroImportLabel: 'admin.guidance.editor.hero.importLabel',
+    heroImportHint: 'admin.guidance.editor.hero.importHint',
+    heroImportInvalid: 'admin.guidance.editor.hero.importInvalid',
+    heroNone: 'admin.guidance.editor.hero.none',
+    heroImportNote: 'admin.guidance.editor.hero.importNote',
+  };
 
   private readonly admin = inject(AdminGateway);
   private readonly i18n = inject(I18nService);

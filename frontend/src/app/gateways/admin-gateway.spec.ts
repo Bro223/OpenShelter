@@ -18,7 +18,7 @@ const SHELTER_ROW: AdminShelterDto = {
   source: 'USER',
   status: 'INACTIVE',
   nonexistentReports: 3,
-  occupancy: { band: 'FULL', reportedAt: '2025-09-01T08:00:00Z', reportCount: 2 },
+  occupancy: { band: 'FULL', lastReportedAt: '2025-09-01T08:00:00Z', reportCount: 2 },
   capacity: 12,
   submitter: 'Kaja K.',
   reviewStatus: 'NEW',

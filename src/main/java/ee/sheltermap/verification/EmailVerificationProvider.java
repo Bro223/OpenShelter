@@ -52,7 +52,12 @@ public class EmailVerificationProvider implements VerificationProvider {
     public PendingVerification request(RegisteredUser user) {
         String email = user.getData().email();
         String token = randomToken();
-        sender.send(email, AppInfo.APP_DISPLAY_NAME + " verification code: " + token);
+        // A channel refusal is an exception on purpose: the service catches
+        // it to keep the anti-enumeration ack while persisting NO pending
+        // code and consuming NO daily slot (see CodeSendFailedException).
+        if (!sender.send(email, AppInfo.APP_DISPLAY_NAME + " verification code: " + token)) {
+            throw new CodeSendFailedException("e-mail");
+        }
         return new PendingVerification(
                 user.getId(),
                 VerificationLevel.EMAIL,

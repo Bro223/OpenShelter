@@ -31,7 +31,6 @@ import type {
   AdminUserDto,
   GuidanceStatus,
   MediaAssetDto,
-  ShelterOccupancy,
   ShelterReportType,
   ShelterStatus,
 } from '../../core/models';
@@ -421,18 +420,14 @@ export class AdminPage implements OnInit, OnDestroy {
   protected readonly inaccurateWarning = INACCURATE_WARNING;
   protected readonly inaccurateBadge = INACCURATE_BADGE;
 
-  /** The admin occupancy block into the shared occupancy copy (its shape
-   *  differs only in the field name: reportedAt vs lastReportedAt). */
+  /** The admin occupancy block into the shared occupancy copy — the SAME
+   *  wire shape as the public list's block (`lastReportedAt` included),
+   *  so no remapping. */
   protected occupancyText(occ: AdminOccupancy | null, now: number = Date.now()): string | null {
     if (occ === null) {
       return null;
     }
-    const publicShape: ShelterOccupancy = {
-      band: occ.band,
-      reportCount: occ.reportCount,
-      lastReportedAt: occ.reportedAt,
-    };
-    return occupancyTextShared(publicShape, now);
+    return occupancyTextShared(occ, now);
   }
 
   /** Queue-row age ("12 min ago") — the shared recency copy. */

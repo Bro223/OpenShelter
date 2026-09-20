@@ -319,7 +319,24 @@ class CommunityReviewIT extends AbstractPersistenceIT {
                         org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("Keeldatud"))));
         mvc.perform(get("/api/shelters/" + id))
                 .andExpect(jsonPath("$.status").value("INACTIVE"))
-                .andExpect(jsonPath("$.reviewStatus").value("REJECTED"));
+                .andExpect(jsonPath("$.reviewStatus").value("REJECTED"))
+                // OWNER-SCOPED: the anonymous detail read must NOT carry the
+                // moderator's REJECT reason (ids are sequential — an unscoped
+                // note would be enumerable)
+                .andExpect(jsonPath("$.reviewNote").doesNotExist());
+
+        // the owner-scoped surfaces DO carry it: the submitter's own detail
+        // read…
+        mvc.perform(get("/api/shelters/" + id).header("Authorization", "Bearer " + author))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.reviewNote").value("Pole varjend"));
+        // …and an authenticated NON-owner still gets nothing
+        mvc.perform(get("/api/shelters/" + id)
+                        .header("Authorization", "Bearer " + verifiedToken("Teine", "teine@example.ee")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.reviewNote").doesNotExist());
         entityManager.flush();
         assertThat(jdbc.queryForObject("SELECT review_note FROM shelters WHERE id = ?",
                 String.class, id)).isEqualTo("Pole varjend");

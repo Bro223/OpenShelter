@@ -51,12 +51,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.TransactionSystemException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Clock;
@@ -93,9 +96,23 @@ public class ApiErrorHandler {
             ConstraintViolationException.class,
             HttpMessageNotReadableException.class,
             MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class,
             MethodArgumentTypeMismatchException.class})
     ResponseEntity<ErrorResponse> malformed(Exception ex, HttpServletRequest request) {
         return error(HttpStatus.BAD_REQUEST, "Malformed request", request);
+    }
+
+    /**
+     * A body in a Content-Type the endpoint does not consume (e.g. JSON on
+     * {@code POST /admin/media}, which consumes multipart/form-data): the
+     * rejection happens before any handler code runs, and without this
+     * handler the catch-all below would turn a plain client mistake into a
+     * 500. 415 is the honest answer — the same precedent as the 405 below.
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    ResponseEntity<ErrorResponse> mediaTypeNotSupported(HttpMediaTypeNotSupportedException ex,
+                                                        HttpServletRequest request) {
+        return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type", request);
     }
 
     /**
@@ -104,8 +121,7 @@ public class ApiErrorHandler {
      * before any controller runs, and without this handler the catch-all
      * below would turn a plain client mistake into a 500. 405 is the
      * honest answer.
-     */
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+     */    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<ErrorResponse> methodNotSupported(HttpRequestMethodNotSupportedException ex,
                                                      HttpServletRequest request) {
         return error(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed", request);
@@ -264,6 +280,25 @@ public class ApiErrorHandler {
     @ExceptionHandler(MediaTooLargeException.class)
     ResponseEntity<ErrorResponse> mediaTooLarge(MediaTooLargeException ex, HttpServletRequest request) {
         return error(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage(), request);
+    }
+
+    /**
+     * An upload over the SERVLET-CONTAINER cap (spring.servlet.multipart
+     * .max-file-size — deliberately ABOVE the app cap, see application.yml):
+     * the container throws while parsing the body, before the controller
+     * runs, and without this handler the catch-all below would answer 500
+     * where the documented contract is the SAME 413 the app-level
+     * {@code MediaTooLargeException} answers — same vocabulary, the cap
+     * named.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ErrorResponse> uploadSizeExceeded(MaxUploadSizeExceededException ex,
+                                                     HttpServletRequest request) {
+        long maxBytes = ex.getMaxUploadSize();
+        String message = maxBytes >= 0
+                ? "The uploaded file exceeds the maximum size of " + maxBytes + " bytes"
+                : "The uploaded file exceeds the maximum size";
+        return error(HttpStatus.PAYLOAD_TOO_LARGE, message, request);
     }
 
     /**

@@ -774,6 +774,27 @@ export const ET: Messages = {
    *  uuesti proovida sõnum. */
   'admin.guidance.editor.hero.uploadError.generic':
     'Pildi üleslaadimine ebaõnnestus. Palun proovi uuesti.',
+  /** Pealtpildi impordi URL-i silt (guidance-hero-import): mustandiga
+   *  salvestatav ootav import, mille server laadib avaldamisel alla. */
+  'admin.guidance.editor.hero.importLabel': 'Impordi URL-ist (valikuline)',
+  /** Alati nähtav vihje: pilti ei laadita toimetamise ajal — server
+   *  laadib pildi alla, kontrollib ja salvestab selle, kui post
+   *  avaldatakse. */
+  'admin.guidance.editor.hero.importHint':
+    'Pilti ei laadita toimetamise ajal — URL salvestatakse mustandiga ja server laadib, kontrollib ja salvestab selle, kui post avaldatakse.',
+  /** URL ei läbinud kuju kontrolli (peegeldab serveri salvestusaja 400
+   *  vea): pole täielik http(s)-aadress või sisaldab volitusandmeid. */
+  'admin.guidance.editor.hero.importInvalid':
+    'Kasuta täielikku http:// või https:// aadressi (URL-is ei tohi olla kasutajat ega parooli). Jäta tühjaks, kui pilti ei impordi.',
+  /** Selge "ilma pildita" märk: tõmmatud = pole ega kogumiku varrast
+   *  ega ootavat import-URL-i (pealtpildi valimise kontrollid on
+   *  keelatud). */
+  'admin.guidance.editor.hero.none': 'Ilma pildita',
+  /** Nähtav, kui ootavat import-URL-i on salvestatud: alla laadimine
+   *  toimub avaldamisel, ebaõnnestunud allalaadimine jättab
+   *  avaldamise tegemata (mustand hoiab URL-i puutumatuna). */
+  'admin.guidance.editor.hero.importNote':
+    'Midagi pole veel alla laetud. Avaldamisel laadib server pildi alla — kui allalaadimine ebaõnnestub, avaldamine jääb ära ja see mustand hoiab URL-i.',
   'admin.guidance.editor.altLabel': 'Pealtpildi alt-tekst (valikuga)',
   'admin.guidance.editor.altRequired': 'Kui pealtpilt on valitud, on alt-tekst kohustuslik.',
   'admin.guidance.editor.altForbidden': 'Eemalda alt-tekst või vali pealtpilt.',

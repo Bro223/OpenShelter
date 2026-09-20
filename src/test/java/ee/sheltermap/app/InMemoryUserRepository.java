@@ -84,6 +84,11 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public boolean existsById(long userId) {
+        return store.containsKey(userId);
+    }
+
+    @Override
     public List<User> findAll() {
         return List.copyOf(store.values());
     }

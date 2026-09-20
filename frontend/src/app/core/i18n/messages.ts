@@ -903,6 +903,23 @@ export interface Messages {
   'admin.guidance.editor.hero.uploadError.unsupported': string;
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': string;
+  /** The hero-import URL input's label (guidance-hero-import): a PENDING
+   *  import stored with the draft, fetched by the server at publish. */
+  'admin.guidance.editor.hero.importLabel': string;
+  /** Always-on hint under the URL input: the image is not fetched at
+   *  edit time — the server fetches, validates and stores it when the
+   *  post is published. */
+  'admin.guidance.editor.hero.importHint': string;
+  /** The URL failed the shape check (mirrors the backend's write-time
+   *  400s): not a full http(s) address, or it embeds credentials. */
+  'admin.guidance.editor.hero.importInvalid': string;
+  /** The explicit "no image" tick: checked = no library asset AND no
+   *  pending import URL (the hero choice controls are disabled). */
+  'admin.guidance.editor.hero.none': string;
+  /** Shown while a pending import URL is stored: the fetch happens at
+   *  publish, and a failed fetch fails the publish (the draft keeps the
+   *  URL intact). */
+  'admin.guidance.editor.hero.importNote': string;
   /** The alt's label; the cross-field rule (mandatory iff a hero is set)
    *  is enforced in the UI with the two errors below, mirroring the
    *  server's 400 so a pointless round trip never happens. */

@@ -21,7 +21,8 @@ public class DevSmtpSender implements SmtpSender {
     private static final Logger log = LoggerFactory.getLogger(DevSmtpSender.class);
 
     @Override
-    public void send(String email, String message) {
+    public boolean send(String email, String message) {
         log.info("[DEV SMTP] to {}: {}", email, message);
+        return true;
     }
 }

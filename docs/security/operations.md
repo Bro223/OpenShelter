@@ -36,6 +36,16 @@ Profile usage:
   env var surfaces as a boot failure or a safe default, never a silent
   weak config.
 
+**`.env` must not reach production.** `spring-dotenv` auto-loads a
+repo-root `.env` in **every** profile, so any variable the production
+environment does not set silently takes the local dev value from the
+file — the boot guards catch the dev console senders, the dev
+diagnostics and springdoc, but not, e.g., the dev SMTP
+relay/credentials or a localhost `DB_URL`. Deploy without a `.env` (or
+remove it from the deploy directory) and set every variable explicitly
+in the environment/secret store; a shell-exported variable wins over a
+`.env` value either way.
+
 ## 2. Secrets — env-only matrix
 
 Everything sensitive is an environment variable (or secret-store value).

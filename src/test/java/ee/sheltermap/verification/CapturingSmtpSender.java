@@ -11,10 +11,11 @@ public class CapturingSmtpSender implements SmtpSender {
     private String lastMessage;
 
     @Override
-    public void send(String email, String message) {
+    public boolean send(String email, String message) {
         this.lastEmail = email;
         this.lastMessage = message;
         messages.add(message);
+        return true;
     }
 
     public String getLastEmail() {

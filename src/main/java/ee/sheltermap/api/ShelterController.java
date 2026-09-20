@@ -10,7 +10,6 @@ import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
-import ee.sheltermap.domain.GuestUser;
 import ee.sheltermap.domain.LocationKind;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.Provenance;
@@ -232,7 +231,7 @@ public class ShelterController {
     })
     @SecurityRequirements({})
     public ShelterDto get(@PathVariable long id) {
-        return queryService.findById(id, callerOrGuest()).orElseThrow(() -> new ShelterNotFoundException(id));
+        return queryService.findById(id, callerIdOrNull()).orElseThrow(() -> new ShelterNotFoundException(id));
     }
 
     @PostMapping
@@ -452,7 +451,10 @@ public class ShelterController {
         updated.setLocationKind(request.locationKind() == null
                 ? shelter.getLocationKind() : request.locationKind());
         shelterService.updatePlace(updated);
-        return queryService.findById(id)
+        // The caller IS the author (requireOwnedShelter) — pass the id so
+        // the owner-scoped reviewNote stays on the owner's own response
+        // (a rejected row keeps its reason through the owner's edit).
+        return queryService.findById(id, user.getId())
                 .orElseThrow(() -> new IllegalStateException("shelter was not persisted"));
     }
 
@@ -574,19 +576,25 @@ public class ShelterController {
     }
 
     /**
-     * The authenticated caller, or a fresh guest for anonymous reads —
+     * The authenticated caller's id, or {@code null} for anonymous reads —
      * the detail projection's {@code yourOccupancyBand} is null for a
-     * guest (id {@code null}), so this never throws on public GETs.
+     * {@code null} caller, so this never throws on public GETs.
+     *
+     * <p>COLUMN-ONLY on purpose (the {@code JwtAuthenticationFilter}
+     * convention): the public detail read runs per request and the
+     * projection only ever needs the caller's id — it must not pay the
+     * caller's full domain mapping (PII decrypt of the e-mail/phone
+     * envelopes + the claims query) for a read. A token-valid caller
+     * whose row was DELETED keeps the erasure contract (legal-recovery):
+     * unknown ids degrade to the guest projection, exactly the behavior
+     * the old {@code findById}-and-{@code null-check} had.
      */
-    private User callerOrGuest() {
+    private Long callerIdOrNull() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof Long userId) {
-            User user = userRepository.findById(userId);
-            if (user != null) {
-                return user;
-            }
+            return userRepository.existsById(userId) ? userId : null;
         }
-        return new GuestUser();
+        return null;
     }
 
     private User currentUser() {

@@ -65,6 +65,17 @@ public interface UserRepository {
     boolean isSuspended(long userId);
 
     /**
+     * Whether a row with {@code userId} exists —
+     * the COLUMN-ONLY read the PUBLIC detail read uses per token-bearing
+     * request (no domain mapping, no PII decrypt, no claims load — the
+     * projection only ever needs the caller's id). Unknown ids are
+     * {@code false}, the same convention as {@link #isSuspended} — a
+     * deleted account's token keeps authenticating (legal-recovery), and
+     * the read degrades to the guest projection for it.
+     */
+    boolean existsById(long userId);
+
+    /**
      * Every user row (moderation-dashboard-completion — the
      * admin Users tab lists REGISTERED + ADMIN accounts; the projection
      * filters the kinds, the seam returns all of them so the "the list is

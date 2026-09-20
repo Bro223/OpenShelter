@@ -89,6 +89,45 @@ function blockLines(css: string, selector: RegExp): Set<number> {
   return inside;
 }
 
+/**
+ * Blank out CSS block comments (keep every newline) — line numbers and
+ * brace balance stay intact, and a guard below can only be satisfied by
+ * a real declaration, never by prose.
+ */
+function withoutCssComments(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+}
+
+/**
+ * The brace-balanced block that opens at the first line matching
+ * `selector` (a selector that spans lines — `th,` / `td {` — may match a
+ * line without the opening brace). Unlike an unbounded regex, which
+ * over-runs the rule into the rest of the file (a comment or a later
+ * rule then satisfies the assertion), the scan stops at the matching
+ * close. The same idiom page-shell.spec.ts' narrowBlock() uses.
+ */
+function balancedBlock(css: string, selector: RegExp): string | null {
+  const lines = css.split('\n');
+  for (let start = 0; start < lines.length; start++) {
+    if (!selector.test(lines[start])) continue;
+    let depth = 0;
+    let opened = false;
+    for (let i = start; i < lines.length; i++) {
+      const opens = (lines[i].match(/\{/g) ?? []).length;
+      const closes = (lines[i].match(/\}/g) ?? []).length;
+      if (!opened) {
+        if (closes > 0) return null; // something closed before our block opened
+        if (opens === 0) continue;
+        opened = true;
+      }
+      depth += opens - closes;
+      if (depth <= 0) return lines.slice(start, i + 1).join('\n');
+    }
+    return null; // opened but never closed
+  }
+  return null;
+}
+
 describe('design tokens (M6)', () => {
   const stylesCss = readFileSync(STYLES_FILE ?? '', 'utf8');
   const rootLines = blockLines(stylesCss, /^\s*:root\s*\{/);
@@ -545,10 +584,15 @@ describe('design tokens (M6)', () => {
    * overflowing. The real narrow-width check is a manual E2E step.
    */
   it('map page re-stacks map + sidebar at the narrow breakpoint', () => {
-    const map = readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8');
-    const media = map.match(/@media \(max-width: 900px\) \{[\s\S]*\n\}/);
+    const map = withoutCssComments(
+      readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8'),
+    );
+    // Extracted by brace balancing, comments stripped: an unbounded regex
+    // over-ran to the file tail, so any rule appended later would have
+    // satisfied the assertion — and a comment could satisfy it.
+    const media = balancedBlock(map, /^@media \(max-width: 900px\) \{$/);
     expect(media, 'map-page.scss must contain a narrow-width @media block').not.toBeNull();
-    expect(media![0]).toContain('flex-direction: column');
+    expect(media).toContain('flex-direction: column');
   });
 
   it(
@@ -563,25 +607,40 @@ describe('design tokens (M6)', () => {
       // reported: the rule breaking near the middle of the row). The flex
       // layout must therefore stay on the inner .admin-cell__*-body
       // wrapper, never on the td itself.
-      const adminScss = readFileSync(
-        `${SRC_DIR}/app/features/admin/admin-page.scss`,
-        'utf8',
+      const adminScss = withoutCssComments(
+        readFileSync(`${SRC_DIR}/app/features/admin/admin-page.scss`, 'utf8'),
       );
       const adminHtml = readFileSync(
         `${SRC_DIR}/app/features/admin/admin-page.html`,
         'utf8',
       );
 
+      // Each rule extracted by brace balancing, comments stripped: the
+      // old unbounded regexes matched outside the rule they claimed to
+      // check — the explanatory comment's "border-collapse: collapse" and
+      // the .admin-queue-row rule's identical border-bottom satisfied
+      // them after the real declarations were deleted.
+      const tableRule = balancedBlock(adminScss, /^\.admin-table \{$/);
       expect(
-        adminScss,
+        tableRule,
         'admin-page.scss must collapse the .admin-table borders',
-      ).toMatch(/\.admin-table \{[\s\S]*?border-collapse: collapse/);
+      ).not.toBeNull();
       expect(
-        adminScss,
-        'the row separator must stay the shared th,td border-bottom (one declaration, not per-column rules that could gap or step)',
-      ).toMatch(
-        /th,\s*\n\s*td \{[\s\S]*?border-bottom: 1px solid var\(--color-border-subtle\)/,
+        tableRule,
+        'admin-page.scss must collapse the .admin-table borders',
+      ).toContain('border-collapse: collapse');
+      const cellRule = balancedBlock(tableRule!, /^\s*th,\s*$/);
+      expect(
+        cellRule,
+        'the row separator must live in the shared th,td rule',
+      ).not.toBeNull();
+      expect(cellRule, 'the row separator must live in the shared th,td rule').toContain(
+        'td {',
       );
+      expect(
+        cellRule,
+        'the row separator must stay the shared th,td border-bottom (one declaration, not per-column rules that could gap or step)',
+      ).toContain('border-bottom: 1px solid var(--color-border-subtle)');
 
       // Every class the markup puts on a <td> must keep the cell a real
       // table cell: its top-level rule must not declare a display at all.

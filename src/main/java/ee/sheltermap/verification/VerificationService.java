@@ -77,6 +77,19 @@ public class VerificationService {
      * the code, the service persists the pending verification. Any previous
      * active code for the same user+level is invalidated (one code at a time).
      *
+     * <p>The durable daily slot is consumed ONLY when the channel ACCEPTS
+     * the send (throwaway-then-record): the cooldown/cap decision below is
+     * a read-only check, the {@link VerificationSendLog#record record}
+     * happens after the provider's send succeeds. A channel outage must
+     * not burn a slot the user never gets a code for — and the pattern
+     * stays safe because the check is bounded by the ATOMIC per-contact
+     * rolling cap (the hard burst valve on real sends): a concurrent
+     * burst that slips past the unrecorded reads can overcount the daily
+     * cap by at most the in-flight window, and every ACCEPTED send is
+     * recorded, so a failing channel can never be used to bypass the cap
+     * (refused sends are never recorded, accepted ones always are — the
+     * daily cap still bounds real, costing deliveries).
+     *
      * @throws VerificationThrottledException when the cooldown has not elapsed
      *                                        or the daily cap is reached (→ 429,
      *                                        with {@code Retry-After} when computable)
@@ -90,15 +103,24 @@ public class VerificationService {
         VerificationProvider provider = providerFor(level);
         long userId = Objects.requireNonNull(user, "user").getId();
         Instant now = clock.instant();
+        String contact = contactFor(user, level);
 
-        // ONE atomic check-and-record on the send log: a read-read-record
-        // across separately-synchronized methods would let a burst pass both
-        // reads before either recorded. A
-        // throttled decision records nothing; an OK decision has ALREADY
-        // recorded the send (so there is no trailing record() call).
-        VerificationSendLog.SendDecision decision = sendLog.tryRecord(
-                userId, level, contactFor(user, level), now,
-                properties.cooldownSeconds(), properties.maxPerDay());
+        // Read-only check (the same decision and silent-skip rules as the
+        // send log's atomic tryRecord — cooldown first, then the per-UTC-day
+        // cap): a throttled decision records nothing, and an allowed one
+        // records only AFTER the channel accepts the send (below).
+        Instant lastSentAt = sendLog.lastSentAt(userId, level);
+        VerificationSendLog.SendDecision decision;
+        if (properties.cooldownSeconds() > 0
+                && lastSentAt != null
+                && now.isBefore(lastSentAt.plusSeconds(properties.cooldownSeconds()))) {
+            decision = VerificationSendLog.SendDecision.COOLDOWN;
+        } else if (properties.maxPerDay() > 0
+                && sendLog.countToday(userId, level) >= properties.maxPerDay()) {
+            decision = VerificationSendLog.SendDecision.DAILY_CAP;
+        } else {
+            decision = VerificationSendLog.SendDecision.OK;
+        }
         if (decision != VerificationSendLog.SendDecision.OK) {
             // Same generic message as before (which throttle fired is never
             // revealed); the numeric retry-after is the new part — the client
@@ -115,16 +137,36 @@ public class VerificationService {
         // if THIS cap fires, the user-level send-log entry stays (bounded
         // over-count — e-mail and phone are unique per user, so the
         // contact's budget was spent by this same user's real sends).
-        RollingContactOtpLimiter.Result contact = contactLimiter.tryAcquire("verify:" + contactFor(user, level));
-        if (contact.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
+        // ATOMIC check-and-acquire — the burst valve that keeps the
+        // throwaway-then-record pattern above from amplifying concurrent
+        // sends past the per-contact window.
+        RollingContactOtpLimiter.Result contactResult = contactLimiter.tryAcquire("verify:" + contact);
+        if (contactResult.decision() == RollingContactOtpLimiter.Decision.THROTTLED) {
             // The throttled contact lands in the admin alert ring
             // (in-memory) before the 429 goes out.
-            alerts.otpContactCap(contactFor(user, level), contact.retryAfterSeconds());
+            alerts.otpContactCap(contact, contactResult.retryAfterSeconds());
             throw new VerificationThrottledException(VerificationThrottledException.DEFAULT_MESSAGE,
-                    contact.retryAfterSeconds());
+                    contactResult.retryAfterSeconds());
         }
 
-        PendingVerification pending = provider.request(user);
+        PendingVerification pending;
+        try {
+            pending = provider.request(user);
+        } catch (CodeSendFailedException channelRefused) {
+            // The channel did not accept the message (the sender logged it).
+            // Anti-enumeration: the endpoint still answers its plain ack —
+            // nothing about the outcome may reach the client. Honesty: no
+            // pending code is persisted for a code nobody received, no daily
+            // slot is consumed (the outage is not the user's fault), and the
+            // operator sees it in the alert ring.
+            alerts.codeSendFailure(contact, provider.providerCode());
+            return;
+        }
+
+        // The channel accepted the send — it is REAL now (it costs
+        // Twilio/SMTP money), so the durable record is made for it: the
+        // daily cap counts sends that happened.
+        sendLog.record(userId, level, contact, now);
         pendingRepository.findActiveByUserAndLevel(userId, level, now)
                 .ifPresent(pendingRepository::delete);
         pendingRepository.save(pending);

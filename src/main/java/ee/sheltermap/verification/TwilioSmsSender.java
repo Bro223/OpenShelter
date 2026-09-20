@@ -81,15 +81,20 @@ public class TwilioSmsSender implements SmsSender {
     }
 
     @Override
-    public void send(String phone, String message) {
+    public boolean send(String phone, String message) {
         String toE164 = PhoneNumbers.normalizeE164(phone);
         try {
             api.send(toE164, messagingServiceSid, fromNumber, message);
             log.info("Twilio SMS sent to {} ({} chars)", maskPhone(toE164), message.length());
+            return true;
         } catch (RuntimeException ex) {
             // Logged, never thrown: callers must not be able to distinguish
             // "delivery failed" from "request accepted" (anti-enumeration).
+            // The FALSE return value is the honest signal — the
+            // verification flow consumes no daily slot for a refused
+            // send (the contact-change flow ignores it by design).
             log.error("Twilio SMS delivery failed to {}: {}", maskPhone(toE164), ex.getMessage());
+            return false;
         }
     }
 

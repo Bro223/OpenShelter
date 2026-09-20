@@ -445,12 +445,24 @@ explicit CSRF tokens on both sides (deferred cross-stack change).
 6. **Admin e-mail provisioning** (A11): the admin password lives in the
    environment — rotate on suspected exposure (`operations.md`).
 7. **Volumetric DoS / provider compromise**: out of app scope by design.
-8. **DNS rebinding / resolve–connect TOCTOU** (A13): the address is
-   checked at resolve time; a resolver-level rebinding (public at
-   check, private at connect) is not covered — the JDK client
-   connects to the address of the lookup the policy saw (no second
-   lookup in between), which closes the app-level window; the
-   resolver-level window is accepted and noted.
+8. **DNS rebinding / resolve–connect TOCTOU** (A13): `DnsHeroAddressResolver`
+   classifies every resolved address of the host, and
+   `JdkHeroImageFetchClient` then connects to the HOSTNAME — the JDK
+   performs its own DNS lookup at connect time, so an attacker who
+   controls that zone (or its answers) can flip the record between
+   check and connect (public at check, loopback / RFC 1918 /
+   169.254.169.254 at connect). Bounded, not closed: the endpoint is
+   ADMIN-ONLY (the admin is the insider of record — A11), the body is
+   read against `app.media.max-bytes` WHILE reading (a flipped
+   connection yields at most one capped, sniffed-as-image response,
+   never an unbounded read), the per-hop scheme/credentials/shape
+   re-validation + address re-check still kill a rebinding that
+   announces itself as a redirect target, and the connect/read
+   timeouts + walk budget bound the thread. Accepted rather than
+   fixed: `java.net.http.HttpClient` exposes no public API to pin a
+   pre-resolved address, and connecting to the checked IP literal with
+   a `Host` header would break SNI / virtual hosting for legitimate
+   image hosts — the fix costs more surface than the residual gives.
 9. **Third-party content trust** (A13): an imported image is
    third-party bytes served from our origin; the sniff + pixel cap
    bound what it can BE, not whether the content is appropriate

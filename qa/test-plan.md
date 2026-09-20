@@ -1,6 +1,6 @@
 # OpenShelter — QA Test Plan (mapped to existing automation)
 
-Read-only QA pass, 2026-07-08. For every feature in `feature-matrix.md`: positive (+) and
+Read-only QA pass, 2026-09-14. For every feature in `feature-matrix.md`: positive (+) and
 negative (−) cases, the role(s) to run under, and the existing test file(s) that already cover
 the case. Cases with **no** existing automated test are marked **NEEDS MANUAL TEST**.
 

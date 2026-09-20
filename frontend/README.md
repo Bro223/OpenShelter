@@ -19,8 +19,8 @@ plan M0–M6, all milestones complete). OpenSpec change history: `openspec/chang
 - **TypeScript** (strict) · **SCSS**
 - **Leaflet 1.9** (plain CSS import, no `ng-leaflet`) for the map
 - **Vitest + @angular/build:unit-test** (Karma-style specs, `fakeAsync`-free: explicit
-  tick/polling against real async timing) — the suite is **1026 tests across 49 spec
-  files** (counted 2026-09-16 with `npx ng test --watch=false`)
+  tick/polling against real async timing) — the suite is green on this tree; run
+  `npx ng test --watch=false` to see the current test and spec-file counts
 - No state library, no UI kit, no e2e framework in v1 (see [Deferrals](#deferrals))
 
 ## Quick start (dev)

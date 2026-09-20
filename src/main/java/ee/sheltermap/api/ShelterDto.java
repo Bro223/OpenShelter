@@ -48,7 +48,9 @@ import java.util.List;
  * visible in /mine and the admin list) — and {@code locationKind}, the
  * submitter's private-home declaration (PRIVATE rows are public results
  * with the "Private location" badge). {@code reviewNote} is the admin's
- * REJECT reason, {@code null} while nothing is said.
+ * REJECT reason, {@code null} while nothing is said — and OWNER-scoped on
+ * the public surfaces: it is carried only by the /mine projection and the
+ * submitter's own detail read, never by an anonymous or other-user read.
  *
  * <p>Provenance taxonomy (shelter-provenance-taxonomy): {@code provenance}
  * is the server-derived single answer to "where does this row come from"

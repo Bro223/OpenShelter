@@ -239,8 +239,9 @@ app:
     max-retries: 3
     politeness-delay: 250ms
     # Which client impl to use: 'csv' (official open-data bulk CSV —
-    # default), 'paasteamet' (legacy WFS client, kept as an alternate) or
-    # 'dev' (local fixture)
+    # default) or 'dev' (local fixture). Any other value fails the boot
+    # (fail-closed — the legacy 'paasteamet' WFS client was removed with
+    # its dead upstream).
     client: ${REGISTRY_CLIENT:csv}
     # The publisher's open-data page — surfaced on the UI provenance line
     # (GET /api/data-source). Licence wording stays unasserted by owner

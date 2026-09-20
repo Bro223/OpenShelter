@@ -74,8 +74,18 @@ public class SmsTestController {
         }
         log.info("[sms-test] provider={} to={} toE164={}", provider, request.to(), toE164);
         try {
-            activeSmsSender.send(request.to(), request.message());
-            return new SmsTestResult(provider, request.to(), toE164, true, null);
+            // The sender's contract is "false on failure, never throws"
+            // (the production senders log the provider error themselves) —
+            // so the boolean IS the delivery report: a test endpoint must
+            // propagate it, not hardcode success (the mail mirror's
+            // contract — sent:false + the reason is the diagnostic).
+            boolean sent = activeSmsSender.send(request.to(), request.message());
+            if (sent) {
+                return new SmsTestResult(provider, request.to(), toE164, true, null);
+            }
+            log.warn("[sms-test] the {} channel did not accept the message to {}", provider, request.to());
+            return new SmsTestResult(provider, request.to(), toE164, false,
+                    "the sms channel did not accept the message (the provider error is in the app log)");
         } catch (RuntimeException ex) {
             log.error("[sms-test] send threw for {}: {}", request.to(), ex.getMessage());
             return new SmsTestResult(provider, request.to(), toE164, false, ex.getMessage());

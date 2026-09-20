@@ -214,7 +214,7 @@ class CommunityPulseTest {
                 .isNotNull();
         RegisteredUser caller = new RegisteredUser("Caller", "caller@example.ee", "+3725101");
         users.save(caller);
-        assertThat(service.findById(shelter.getId(), caller).orElseThrow().communityPulse())
+        assertThat(service.findById(shelter.getId(), caller.getId()).orElseThrow().communityPulse())
                 .isNotNull();
     }
 

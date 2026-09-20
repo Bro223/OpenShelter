@@ -52,7 +52,12 @@ public class PhoneVerificationProvider implements VerificationProvider {
         // as-registered. Lenient normalization never throws.
         String phone = PhoneNumbers.normalizeE164(user.getData().phone());
         String otp = String.format("%0" + OTP_DIGITS + "d", random.nextInt(1_000_000));
-        sender.send(phone, AppInfo.APP_DISPLAY_NAME + " OTP: " + otp);
+        // A channel refusal is an exception on purpose: the service catches
+        // it to keep the anti-enumeration ack while persisting NO pending
+        // code and consuming NO daily slot (see CodeSendFailedException).
+        if (!sender.send(phone, AppInfo.APP_DISPLAY_NAME + " OTP: " + otp)) {
+            throw new CodeSendFailedException("sms");
+        }
         return new PendingVerification(
                 user.getId(),
                 VerificationLevel.PHONE,

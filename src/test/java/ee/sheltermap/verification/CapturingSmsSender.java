@@ -11,10 +11,11 @@ public class CapturingSmsSender implements SmsSender {
     private String lastMessage;
 
     @Override
-    public void send(String phone, String message) {
+    public boolean send(String phone, String message) {
         this.lastPhone = phone;
         this.lastMessage = message;
         messages.add(message);
+        return true;
     }
 
     public String getLastPhone() {

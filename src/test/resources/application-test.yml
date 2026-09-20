@@ -1,0 +1,47 @@
+# Shelter Map backend — TEST-profile overlay (test classpath).
+#
+# MODEL: OVERLAY, not mirror. This file exists as `application-test.yml`,
+# which Spring loads ONLY for the "test" profile — the profile
+# AbstractPersistenceIT (the one and only @SpringBootTest base) activates
+# via @ActiveProfiles("test") — layered ON TOP of
+# src/main/resources/application.yml. Every default in the main file
+# (app.* limiter defaults included) therefore reaches every test context
+# automatically; a new key added to main can no longer go silently
+# missing from tests.
+#
+# There must be NO same-named `application.yml` on the test classpath:
+# a same-named file does not merge, it SHADOWS the main one for every
+# context, and the shadow that used to live here had already drifted
+# (reset-confirm bucket 5/0.084 vs main's 10/0.2, OTP cap 100 vs 5,
+# retention and media-import blocks missing) before the 2026-09-21
+# review caught it (reviews/01-architecture.md F2,
+# reviews/11-integration-devops.md F5).
+#
+# Content rules — enforced by config/TestConfigOverlayTest (it fails the
+# build on a violation, so this header cannot rot):
+#   1. This file carries ONLY deltas a test context must have — a value
+#      equal to main's is dead weight here; it belongs in main.
+#   2. Every delta must appear in the test's DOCUMENTED_DELTAS allow-list
+#      with its exact value and its reason.
+#   3. Where a SINGLE test (not the suite) needs a different value it
+#      pins it itself with @TestPropertySource (the AuthApiIT idiom) —
+#      never by widening this file.
+
+app:
+  admin:
+    # DELTA (main: ${ADMIN_EMAIL:} / ${ADMIN_PASSWORD:}): pinned EMPTY.
+    # spring-dotenv loads the developer's local .env into the test
+    # environment and this repository's .env carries both keys, so a
+    # plain test context must never seed an admin. ITs that exercise
+    # the env-provisioned admin pin their own values per class
+    # (AdminSeederIT, AuthApiIT).
+    email:
+    password:
+  limits:
+    # DELTA (main: 5): raised for the whole suite. The IT harnesses
+    # reuse fixed e-mails across many tests within ONE shared context
+    # (e.g. AccountControllerIT registers kontakt@example.ee 15x) and
+    # the in-memory per-contact rolling window would 429 them at the
+    # production cap. Cap-under-test ITs pin the production value
+    # themselves (OtpContactCapIT, AdminAlertsIT).
+    otp-per-contact-max: 100

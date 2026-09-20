@@ -12,6 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EmailVerificationProviderTest {
 
@@ -49,6 +50,20 @@ class EmailVerificationProviderTest {
         // stored hashed, never plaintext
         assertThat(pending.getCodeHash()).isEqualTo(PendingVerification.sha256(token));
         assertThat(pending.getCodeHash()).doesNotContain(token);
+    }
+
+    @Test
+    void aChannelRefusalSurfacesAsCodeSendFailedNotAPending() {
+        // The channel refused the delivery (the sender logged it): the
+        // provider must signal it so the service persists NO pending code
+        // and consumes NO daily slot — never fabricate a pending for a
+        // code nobody received.
+        EmailVerificationProvider refusing =
+                new EmailVerificationProvider((email, message) -> false, clock);
+
+        assertThatThrownBy(() -> refusing.request(user))
+                .isInstanceOf(CodeSendFailedException.class)
+                .hasMessageContaining("e-mail");
     }
 
     @Test

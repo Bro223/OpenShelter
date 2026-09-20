@@ -14,8 +14,9 @@ public class RecordingSmtpSender implements SmtpSender {
     private final List<Sent> sent = new ArrayList<>();
 
     @Override
-    public void send(String email, String message) {
+    public boolean send(String email, String message) {
         sent.add(new Sent(email, message));
+        return true;
     }
 
     public List<Sent> sent() {

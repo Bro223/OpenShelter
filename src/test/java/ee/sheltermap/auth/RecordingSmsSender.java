@@ -14,8 +14,9 @@ public class RecordingSmsSender implements SmsSender {
     private final List<Sent> sent = new ArrayList<>();
 
     @Override
-    public void send(String phone, String message) {
+    public boolean send(String phone, String message) {
         sent.add(new Sent(phone, message));
+        return true;
     }
 
     public List<Sent> sent() {

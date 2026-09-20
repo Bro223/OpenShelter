@@ -765,6 +765,25 @@ export const EN: Messages = {
     'That file is not a supported image (JPEG, PNG or WebP), or its type does not match.',
   /** Any other upload failure (5xx, network): the generic retry copy. */
   'admin.guidance.editor.hero.uploadError.generic': 'The image upload failed. Please try again.',
+  /** The hero-import URL input's label: a PENDING import stored with the
+   *  draft, fetched by the server at publish. */
+  'admin.guidance.editor.hero.importLabel': 'Import from URL (optional)',
+  /** Always-on hint: nothing is fetched at edit time — the server
+   *  fetches, validates and stores the image at the next publish. */
+  'admin.guidance.editor.hero.importHint':
+    'The image is not fetched while you edit — the URL is stored with the draft, and the server fetches, validates and stores it when the post is published.',
+  /** The URL failed the shape check (mirrors the backend's write-time
+   *  400s): not a full http(s) address, or it embeds credentials. */
+  'admin.guidance.editor.hero.importInvalid':
+    'Use a full http:// or https:// address without a username or password. Leave it blank for no import.',
+  /** The explicit "no image" tick (checked = no library asset AND no
+   *  pending import URL; the hero choice controls are disabled). */
+  'admin.guidance.editor.hero.none': 'No image',
+  /** Shown while a pending import URL is stored: the fetch happens at
+   *  publish, and a failed fetch fails the publish (the draft keeps the
+   *  URL intact). */
+  'admin.guidance.editor.hero.importNote':
+    'Nothing has been fetched yet. On publish the server downloads the image — if the fetch fails, the publish fails and this draft keeps the URL.',
   'admin.guidance.editor.altLabel': 'Hero image alt text (optional)',
   'admin.guidance.editor.altRequired': 'Alt text is required when a hero image is chosen.',
   'admin.guidance.editor.altForbidden': 'Remove the alt text or choose a hero image.',

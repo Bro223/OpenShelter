@@ -61,6 +61,9 @@ class TwilioSmsSenderTest {
         TwilioSmsSender sender = new TwilioSmsSender(new ThrowingTwilioApi(), "MG123", null);
 
         assertThatCode(() -> sender.send("+37251234567", "OTP")).doesNotThrowAnyException();
+        // The FALSE return value is the honest signal the verification flow
+        // uses to skip the daily-slot record for a refused send.
+        assertThat(sender.send("+37251234567", "OTP")).isFalse();
     }
 
     @Test

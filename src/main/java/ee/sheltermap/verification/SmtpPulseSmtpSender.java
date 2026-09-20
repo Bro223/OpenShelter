@@ -42,7 +42,7 @@ public class SmtpPulseSmtpSender implements SmtpSender {
     }
 
     @Override
-    public void send(String email, String message) {
+    public boolean send(String email, String message) {
         try {
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setFrom(from);
@@ -51,10 +51,15 @@ public class SmtpPulseSmtpSender implements SmtpSender {
             mail.setText(message);
             mailSender.send(mail);
             log.info("SMTP e-mail sent to {} (subject '{}')", maskEmail(email), AppInfo.APP_DISPLAY_NAME);
+            return true;
         } catch (MailException ex) {
-            // Never surface delivery problems to callers: the API contract is
+            // Never surfaced to callers: the API contract is
             // "reset/verify always succeeds" (anti-enumeration, no 500s).
+            // The FALSE return value is the honest signal — the
+            // verification flow consumes no daily slot for a refused
+            // send (the other flows ignore it by design).
             log.error("SMTP delivery to {} failed: {}", maskEmail(email), ex.getMessage());
+            return false;
         }
     }
 

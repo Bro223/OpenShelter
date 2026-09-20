@@ -23,7 +23,7 @@ import {
   communityReportsText,
   hasCommunityReports,
 } from './shelter-copy';
-import type { ShelterOccupancy } from '../core/models';
+import type { OpenStatusDto, ShelterOccupancy } from '../core/models';
 
 /**
  * The source/trust labels are PINNED copy (community-review-queue D5):
@@ -190,6 +190,66 @@ describe('isOpenRow (the map\u2019s "Open" chip predicate)', () => {
 
   it('drops lifecycle INACTIVE rows (never public, but the rule covers them)', () => {
     expect(isOpenRow({ status: 'INACTIVE', openStatus: null })).toBe(false);
+  });
+});
+
+/**
+ * The derived display status no longer has a ROW on the public detail page
+ * (owner decision — its Info section shows the last-reported rows instead,
+ * pinned in shelter-detail-page.spec.ts). The LIVE public consumers of the
+ * rule are the map's "Open" chip (isOpenRow) and the amber badge
+ * (openStatusBadgeText) — these cross-pins keep the shared helper and its
+ * two consumers following the same rule, and fail loudly if the helper is
+ * deleted (the import) or either consumer drifts from it.
+ */
+describe('the derived-status rule stays single-sourced (chip + badge follow the text)', () => {
+  const T = '2026-09-11T12:00:00Z';
+  const closed = (reportCount: number) => ({
+    state: 'CLOSED' as const,
+    reportedAt: T,
+    reportCount,
+  });
+  const open = (reportCount: number) => ({ state: 'OPEN' as const, reportedAt: T, reportCount });
+
+  // The whole ACTIVE matrix (the public list) + every INACTIVE corner.
+  const rows: { status: 'ACTIVE' | 'INACTIVE'; openStatus: OpenStatusDto | null }[] = [
+    { status: 'ACTIVE', openStatus: open(1) },
+    { status: 'ACTIVE', openStatus: open(3) },
+    { status: 'ACTIVE', openStatus: closed(1) },
+    { status: 'ACTIVE', openStatus: closed(2) },
+    { status: 'ACTIVE', openStatus: closed(4) },
+    { status: 'ACTIVE', openStatus: null },
+    { status: 'INACTIVE', openStatus: null },
+    { status: 'INACTIVE', openStatus: open(1) },
+    { status: 'INACTIVE', openStatus: closed(1) },
+    { status: 'INACTIVE', openStatus: closed(2) },
+  ];
+
+  it('the map chip keeps exactly the ACTIVE rows whose derived text reads OPEN, and drops every INACTIVE row', () => {
+    for (const row of rows) {
+      if (row.status === 'ACTIVE') {
+        const text = shelterStatusText(row);
+        expect(
+          isOpenRow(row),
+          `chip vs text for ${JSON.stringify(row)} (derived text "${text}")`,
+        ).toBe(text.startsWith('Open'));
+      } else {
+        // INACTIVE never reaches the public list — the chip drops it
+        // regardless of a fresh report.
+        expect(isOpenRow(row), `chip must drop ${JSON.stringify(row)}`).toBe(false);
+      }
+    }
+  });
+
+  it('the amber badge carries the derived text itself on fresh-CLOSED rows, and nothing otherwise', () => {
+    for (const row of rows) {
+      const badge = openStatusBadgeText(row.openStatus);
+      if (row.openStatus === null || row.openStatus.state === 'OPEN') {
+        expect(badge, `badge for ${JSON.stringify(row)}`).toBeNull();
+      } else {
+        expect(badge, `badge for ${JSON.stringify(row)}`).toBe(shelterStatusText(row));
+      }
+    }
   });
 });
 
@@ -372,7 +432,12 @@ describe('lastVerifiedText (M8)', () => {
   it('a verified community row keeps the plain form (no registry attribution)', () => {
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: at(120), reviewStatus: 'CONFIRMED', createdAt: at(60 * 24 * 400), source: 'USER' },
+        {
+          lastVerifiedAt: at(120),
+          reviewStatus: 'CONFIRMED',
+          createdAt: at(60 * 24 * 400),
+          source: 'USER',
+        },
         NOW,
       ),
     ).toBe('Last verified 2 h ago');

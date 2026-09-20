@@ -25,4 +25,8 @@ public record ThrottleAlert(long id, String kind, String subject, String detail,
 
     /** A near-duplicate shelter submission was rejected (409). */
     public static final String KIND_NEAR_DUPLICATE = "near-duplicate";
+
+    /** A verification-code delivery was refused by the channel (no HTTP
+     *  error, no slot consumed — operator visibility for channel outages). */
+    public static final String KIND_CODE_SEND_FAILURE = "code-send-failure";
 }

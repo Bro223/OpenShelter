@@ -218,6 +218,16 @@ public class JpaUserRepository implements UserRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean existsById(long userId) {
+        // Column-only on purpose (the isSuspended convention): the public
+        // detail read runs per request and the projection only needs the
+        // caller's id — it must not pay the domain mapping (PII decrypt,
+        // claims load) for a read.
+        return users.existsById(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<User> findAll() {
         List<UserEntity> entities = users.findAllByOrderByIdAsc();
         // One batched claims query for all users — no per-user N+1 (the

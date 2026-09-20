@@ -1,5 +1,6 @@
 package ee.sheltermap.verification;
 
+import ee.sheltermap.alerts.ThrottleAlert;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
@@ -232,6 +233,87 @@ class VerificationServiceTest {
                 .extracting(ex -> ((VerificationThrottledException) ex).retryAfterSeconds())
                 .isEqualTo(24 * 60 * 60);
         assertThat(sms.getMessages()).hasSize(1);
+    }
+
+    // ---- Refused sends: no slot burned, no pending, no bypass (outage honesty) ----
+
+    /** A sender fake whose acceptance can be flipped — the channel-outage stand-in. */
+    private static final class FlakySmsSender implements SmsSender {
+        boolean accepts = true;
+        int calls;
+
+        @Override
+        public boolean send(String phone, String message) {
+            calls++;
+            return accepts;
+        }
+    }
+
+    private VerificationService serviceWith(FlakySmsSender flaky, VerificationProperties properties) {
+        Map<VerificationLevel, VerificationProvider> providers = new EnumMap<>(VerificationLevel.class);
+        providers.put(VerificationLevel.PHONE, new PhoneVerificationProvider(flaky, clock));
+        providers.put(VerificationLevel.EMAIL, new EmailVerificationProvider(new CapturingSmtpSender(), clock));
+        return new VerificationService(providers, pendingRepo, sendLog, disabledContactLimiter(),
+                properties, clock, alerts);
+    }
+
+    @Test
+    void aSendTheChannelRefusedConsumesNoSlotPersistsNoPendingAndAlerts() {
+        FlakySmsSender flaky = new FlakySmsSender();
+        VerificationService svc = serviceWith(flaky, new VerificationProperties(60, 5, "unused"));
+
+        // The relay is down: the send is refused (the sender logged it)…
+        flaky.accepts = false;
+        svc.requestVerification(user, VerificationLevel.PHONE); // …and the service still acks (no throw)
+
+        assertThat(flaky.calls).isEqualTo(1);
+        assertThat(pendingRepo.findAll())
+                .as("no pending code may be persisted for a code nobody received")
+                .isEmpty();
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE))
+                .as("a refused send must not burn one of the 5 daily slots")
+                .isZero();
+        assertThat(sendLog.lastSentAt(user.getId(), VerificationLevel.PHONE))
+                .as("a refused send must not start the cooldown clock")
+                .isNull();
+        // …and the operator notices the outage in the admin alert ring.
+        assertThat(alerts.recent(10)).hasSize(1);
+        var alert = alerts.recent(10).get(0);
+        assertThat(alert.kind()).isEqualTo(ThrottleAlert.KIND_CODE_SEND_FAILURE);
+        assertThat(alert.subject()).isEqualTo("contact:+37250000000");
+
+        // The user may retry immediately — the outage cost them nothing —
+        // and once the channel accepts, exactly ONE slot is consumed.
+        flaky.accepts = true;
+        svc.requestVerification(user, VerificationLevel.PHONE); // no cooldown: the failed send set none
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(1);
+        assertThat(pendingRepo.findAll()).hasSize(1);
+    }
+
+    @Test
+    void aFailingChannelCannotBeUsedToBypassTheDailyCap() {
+        FlakySmsSender flaky = new FlakySmsSender();
+        VerificationService svc = serviceWith(flaky, new VerificationProperties(0, 2, "unused"));
+
+        // While the channel is down: unlimited REFUSED attempts, zero slots —
+        // a failing channel cannot be used to spin the throttle for free.
+        flaky.accepts = false;
+        for (int i = 0; i < 10; i++) {
+            svc.requestVerification(user, VerificationLevel.PHONE); // all ack, none deliver
+        }
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isZero();
+
+        // The channel recovers: real sends count against the cap again, and
+        // the cap still holds after the outage (accepted sends are recorded).
+        flaky.accepts = true;
+        svc.requestVerification(user, VerificationLevel.PHONE);
+        svc.requestVerification(user, VerificationLevel.PHONE);
+        assertThat(sendLog.countToday(user.getId(), VerificationLevel.PHONE)).isEqualTo(2);
+
+        assertThatThrownBy(() -> svc.requestVerification(user, VerificationLevel.PHONE))
+                .isInstanceOf(VerificationThrottledException.class);
+        // and the throttled attempt is never even offered to the channel
+        assertThat(flaky.calls).isEqualTo(12);
     }
 
     @Test

@@ -4,18 +4,13 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Base64;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,10 +38,6 @@ class JdkHeroImageFetchClientTest {
     static int port;
     /** The User-Agent of the last request (politeness guard). */
     static final AtomicReference<String> lastUserAgent = new AtomicReference<>();
-    /** How many bytes the oversized handler actually managed to write. */
-    static final AtomicInteger bigBytesWritten = new AtomicInteger();
-    /** Whether the oversized handler saw the client drop the connection. */
-    static final AtomicBoolean bigWriteAborted = new AtomicBoolean();
 
     @BeforeAll
     static void startServer() throws Exception {
@@ -85,6 +76,8 @@ class JdkHeroImageFetchClientTest {
         // quirk. Streaming is preserved: the handler flushes in chunks,
         // so the client still has to read progressively.
         server.createContext("/big.png", exchange -> {
+            // The client aborts mid-stream when the cap is hit — the
+            // IOException is the expected outcome, not a server failure.
             int total = 64 * 4096;
             exchange.getResponseHeaders().add("Content-Type", "image/png");
             exchange.sendResponseHeaders(200, total); // 256 KiB total
@@ -93,18 +86,27 @@ class JdkHeroImageFetchClientTest {
                 for (int i = 0; i < 64; i++) {
                     out.write(chunk);
                     out.flush();
-                    bigBytesWritten.addAndGet(chunk.length);
                 }
-            } catch (IOException e) {
-                // The client aborting mid-stream — the expected outcome
-                // when the cap is hit well before the end.
-                bigWriteAborted.set(true);
+            } catch (IOException ignored) {
+                // The client dropping the connection at the cap.
             }
         });
         server.createContext("/stall.png", exchange -> {
             // Response head declares a body, then SILENCE: a hanging host.
             exchange.getResponseHeaders().add("Content-Type", "image/png");
             exchange.sendResponseHeaders(200, 100);
+            OutputStream out = exchange.getResponseBody();
+            // ONE body byte before the silence. Without it the test is
+            // JVM-version coupled: on JDK 21 the sendAsync future for an
+            // InputStream body completes at the head alone, but on JDK 27
+            // it waits for at least one body byte (a head-then-silence
+            // host looks, to the client, exactly like a host that never
+            // answers), so the client's head-deadline branch fires there
+            // instead of the stall watchdog. With the byte, both JDKs
+            // complete the head, pull it, and hang on the missing rest —
+            // the SAME observable condition, asserted below.
+            out.write(new byte[] {0});
+            out.flush();
             try {
                 Thread.sleep(15_000);
             } catch (InterruptedException e) {
@@ -217,7 +219,5 @@ class JdkHeroImageFetchClientTest {
                         .fetch("http://127.0.0.1:1/none.png", 1024))
                 .isInstanceOf(HeroImportUnreachableException.class);
     }
-
-    @TempDir
-    Path unused; // (kept for a future fixture; the fixtures here are inline)
 }
+

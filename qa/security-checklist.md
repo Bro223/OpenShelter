@@ -1,6 +1,6 @@
 # OpenShelter — Security Checklist (implemented controls, with evidence)
 
-Read-only QA pass, 2026-07-08. Every claim cites the implementing file (and the symbol where useful) in the current tree — line numbers are deliberately omitted, they drift.
+Read-only QA pass, 2026-09-14. Every claim cites the implementing file (and the symbol where useful) in the current tree — line numbers are deliberately omitted, they drift.
 Secrets are referenced by **env-var name only** — no values. Verdicts: **implemented** / **partial** / **missing**.
 
 Legend for paths: backend = `src/main/java/ee/sheltermap/`, frontend = `frontend/src/app/`, config = `src/main/resources/`.

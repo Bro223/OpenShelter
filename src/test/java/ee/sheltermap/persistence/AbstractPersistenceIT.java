@@ -6,6 +6,7 @@ import ee.sheltermap.security.PiiCrypto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -27,8 +28,19 @@ import java.util.Base64;
  * <p><strong>No-Docker fallback</strong> (CI sandboxes): pass
  * {@code -Dit.db.url=jdbc:postgresql://host:port/db -Dit.db.username=u -Dit.db.password=p}
  * to run the identical tests against an external PostgreSQL 16.
+ *
+ * <p><strong>The "test" profile</strong> is activated here, on the one and
+ * only {@code @SpringBootTest} base, so every IT context gets it without
+ * repeating the annotation: (a) the fail-closed boot guards (ProdJwtGuard)
+ * accept the dev-default JWT secret only on exactly "dev" or "test",
+ * and (b) it activates {@code src/test/resources/application-test.yml} —
+ * the test-profile OVERLAY of the main {@code application.yml} (a few
+ * documented deltas; no same-named application.yml may reappear on the
+ * test classpath, it would shadow the main file —
+ * {@code config/TestConfigOverlayTest} fails the build if it does).
  */
 @SpringBootTest
+@ActiveProfiles("test")
 public abstract class AbstractPersistenceIT {
 
     /**

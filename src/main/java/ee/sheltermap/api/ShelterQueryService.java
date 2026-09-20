@@ -204,39 +204,58 @@ public class ShelterQueryService {
      * by id exactly as any other INACTIVE row (ids are public); no trust
      * rule blocks a detail read.
      *
+     * <p>Caller id, not a caller object: the projection uses ONLY the id
+     * (the two indexed caller-scoped lookups), so the read path never pays
+     * a domain mapping for the caller (PII decrypt, claims load) — the
+     * {@code JwtAuthenticationFilter} column-only rule applied to reads.
+     * The id also gates the OWNER-scoped {@code reviewNote}: the
+     * moderator's REJECT reason reaches the submitter's own detail read
+     * only — an anonymous or other-user detail read gets null (ids are
+     * sequential, so an unscoped note would be enumerable).
+     *
      * <p>M9 community pulse: the detail read is ALSO the only projection
      * that carries {@code communityPulse} (the fresh-window aggregates +
      * recent log behind the detail page's gauges) — it is public (guests
      * read it too) and is NOT caller-scoped.
      */
-    public Optional<ShelterDto> findById(long id, User caller) {
+    public Optional<ShelterDto> findById(long id, Long callerId) {
         Shelter shelter = shelterRepository.findById(id).orElse(null);
         if (shelter == null) {
             return Optional.empty();
         }
-        return Optional.of(toDtos(List.of(shelter), caller, true).get(0));
+        return Optional.of(toDtos(List.of(shelter), callerId, true).get(0));
     }
 
     /** The caller's own shelters, all statuses and all review states (D5: the owner list keeps hidden rows).
      *  The /mine projection additionally carries each row's moderator→submitter
-     *  information request — the exchange is private, so the
-     *  public list and detail reads never fetch it. */
+     *  information request and the moderator's REJECT reason ({@code reviewNote})
+     *  — both are owner-only, so the
+     *  public list and detail reads never fetch them (the detail read gates
+     *  the note on the caller being the submitter). */
     public List<ShelterDto> findByCreatedBy(long userId) {
-        return toDtos(shelterRepository.findByCreatedBy(userId), null, true, false);
+        return toDtos(shelterRepository.findByCreatedBy(userId), null, true, false, true);
     }
 
     /** Maps a batch of shelters in ONE aggregate pass (no N+1). */
-    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller) {
-        return toDtos(shelters, caller, false, false);
+    private List<ShelterDto> toDtos(List<Shelter> shelters, Long callerId) {
+        return toDtos(shelters, callerId, false, false, false);
     }
 
     /** The detail read: the shared projection + the community pulse (M9). */
-    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withPulse) {
-        return toDtos(shelters, caller, false, withPulse);
+    private List<ShelterDto> toDtos(List<Shelter> shelters, Long callerId, boolean withPulse) {
+        return toDtos(shelters, callerId, false, withPulse, false);
     }
 
-    private List<ShelterDto> toDtos(List<Shelter> shelters, User caller, boolean withInfoRequests,
-                                    boolean withPulse) {
+    /**
+     * {@code ownSurface}: the projection is the caller's OWN surface (the
+     * {@code /mine} list — every row there is the caller's, so the
+     * owner-only {@code reviewNote} is emitted unconditionally). The
+     * public list and the detail read pass {@code false} and the note is
+     * gated per row on {@code callerId == createdBy} (the detail read
+     * only, where the caller may or may not be the submitter).
+     */
+    private List<ShelterDto> toDtos(List<Shelter> shelters, Long callerId, boolean withInfoRequests,
+                                    boolean withPulse, boolean ownSurface) {
         if (shelters.isEmpty()) {
             return List.of();
         }
@@ -245,11 +264,11 @@ public class ShelterQueryService {
         // indexed lookup each, and only for the single-shelter read — the
         // list paths (public + /mine) pass a null caller and stay pure
         // batch queries.
-        Map<Long, OccupancyBand> callerBands = callerBands(shelters, caller);
-        Map<Long, String> callerOpenStatuses = callerOpenStatuses(shelters, caller);
+        Map<Long, OccupancyBand> callerBands = callerBands(shelters, callerId);
+        Map<Long, String> callerOpenStatuses = callerOpenStatuses(shelters, callerId);
         return shelters.stream()
                 .map(shelter -> toDto(shelter, batches, callerBands.get(shelter.getId()),
-                        callerOpenStatuses.get(shelter.getId())))
+                        callerOpenStatuses.get(shelter.getId()), callerId, ownSurface))
                 .toList();
     }
 
@@ -398,8 +417,7 @@ public class ShelterQueryService {
     }
 
     /** Detail-only: the caller's live band for the single shelter, if any. */
-    private Map<Long, OccupancyBand> callerBands(List<Shelter> shelters, User caller) {
-        Long callerId = caller == null ? null : caller.getId();
+    private Map<Long, OccupancyBand> callerBands(List<Shelter> shelters, Long callerId) {
         if (callerId == null || shelters.size() != 1) {
             return Map.of();
         }
@@ -411,8 +429,7 @@ public class ShelterQueryService {
     }
 
     /** Detail-only: the caller's own live open/closed state for the single shelter, if any. */
-    private Map<Long, String> callerOpenStatuses(List<Shelter> shelters, User caller) {
-        Long callerId = caller == null ? null : caller.getId();
+    private Map<Long, String> callerOpenStatuses(List<Shelter> shelters, Long callerId) {
         if (callerId == null || shelters.size() != 1) {
             return Map.of();
         }
@@ -424,7 +441,7 @@ public class ShelterQueryService {
     }
 
     private ShelterDto toDto(Shelter shelter, Batches batches, OccupancyBand yourOccupancyBand,
-                             String yourOpenStatus) {
+                             String yourOpenStatus, Long callerId, boolean ownSurface) {
         // null key: registry row / pre-V7 legacy row — no author lookup
         Long createdById = shelter.getCreatedBy();
         User author = createdById == null ? null : batches.authors().get(createdById);
@@ -435,6 +452,15 @@ public class ShelterQueryService {
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
         int reportTotal = typeCounts.values().stream().mapToInt(Long::intValue).sum();
+        // OWNER-SCOPED (the DTO contract): the moderator's REJECT reason
+        // reaches the submitter's surfaces only — the /mine list
+        // (ownSurface — every row is the caller's) and the submitter's own
+        // detail read (callerId == the row's submitter). The public list
+        // and every other caller's detail read get null: ids are
+        // sequential, so an unscoped note would be enumerable.
+        String reviewNote = ownSurface || (callerId != null && callerId.equals(createdById))
+                ? shelter.getReviewNote()
+                : null;
         return new ShelterDto(
                 shelter.getId(),
                 shelter.getName(),
@@ -453,7 +479,7 @@ public class ShelterQueryService {
                 yourOccupancyBand,
                 yourOpenStatus,
                 shelter.getReviewStatus(),
-                shelter.getReviewNote(),
+                reviewNote,
                 shelter.getLocationKind(),
                 Provenance.of(shelter.getSource(), shelter.getReviewStatus(),
                         shelter.getStatus(), nonExistent),

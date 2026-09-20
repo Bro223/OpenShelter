@@ -77,7 +77,7 @@ const REGISTRY_ROW: AdminShelterDto = {
   source: 'PAASETEAMET',
   status: 'ACTIVE',
   nonexistentReports: 2,
-  occupancy: { band: 'FULL', reportedAt: ago(12 * 60_000), reportCount: 2 },
+  occupancy: { band: 'FULL', lastReportedAt: ago(12 * 60_000), reportCount: 2 },
   capacity: 50,
   submitter: null,
   reviewStatus: 'CONFIRMED', // registry backfill (D3)
@@ -487,7 +487,8 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('Lossi 2, Tartu');
     expect(element.textContent).toContain('Päästeamet registry');
     expect(element.textContent).toContain('Kaja K.');
-    // Occupancy: firm band + recency (the shared copy, reportedAt mapped).
+    // Occupancy: firm band + recency (the shared copy; same wire shape as
+    // the public list — lastReportedAt, pinned in models-contract.spec.ts).
     expect(element.textContent).toContain('Full · 12 min ago');
   });
 

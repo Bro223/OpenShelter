@@ -507,11 +507,9 @@
             <dd class="fact-list__value">
               @if (lastOpenClosedReport(); as entry) {
                 {{ lastReportText(entry) }}
-                <time
-                  class="fact-list__time num-tabular"
-                  [attr.datetime]="entry.reportedAt"
-                  >{{ entry.reportedAt | date: 'medium': undefined: uiLocale() }}</time
-                >
+                <time class="fact-list__time num-tabular" [attr.datetime]="entry.reportedAt">{{
+                  entry.reportedAt | date: 'medium' : undefined : uiLocale()
+                }}</time>
               } @else {
                 {{ 'detail.statusEmpty' | t }}
               }
@@ -522,11 +520,9 @@
             <dd class="fact-list__value">
               @if (lastCapacityReport(); as entry) {
                 {{ lastReportText(entry) }}
-                <time
-                  class="fact-list__time num-tabular"
-                  [attr.datetime]="entry.reportedAt"
-                  >{{ entry.reportedAt | date: 'medium': undefined: uiLocale() }}</time
-                >
+                <time class="fact-list__time num-tabular" [attr.datetime]="entry.reportedAt">{{
+                  entry.reportedAt | date: 'medium' : undefined : uiLocale()
+                }}</time>
               } @else {
                 {{ 'detail.capacityEmpty' | t }}
               }

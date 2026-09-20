@@ -303,10 +303,10 @@ class ShelterQueryServiceTest {
                 userShelter.getId(), reporterId, OpenStatusState.CLOSED, NOW.minus(Duration.ofMinutes(1))));
 
         // detail for the reporter: their live state
-        assertThat(service.findById(userShelter.getId(), users.findById(reporterId)).orElseThrow()
+        assertThat(service.findById(userShelter.getId(), reporterId).orElseThrow()
                 .yourOpenStatus()).isEqualTo("CLOSED");
         // the same read for another user / nobody: null
-        assertThat(service.findById(userShelter.getId(), users.findById(saveUser("Jaan", "jaan@example.ee", true)))
+        assertThat(service.findById(userShelter.getId(), saveUser("Jaan", "jaan@example.ee", true))
                 .orElseThrow().yourOpenStatus()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().yourOpenStatus()).isNull();
         // the list projection never carries it (detail-only field)
@@ -321,10 +321,10 @@ class ShelterQueryServiceTest {
                 userShelter.getId(), reporterId, OccupancyBand.GETTING_FULL, NOW.minus(Duration.ofMinutes(1))));
 
         // detail for the reporter: their live band (even though it alone is fresh)
-        assertThat(service.findById(userShelter.getId(), users.findById(reporterId)).orElseThrow()
+        assertThat(service.findById(userShelter.getId(), reporterId).orElseThrow()
                 .yourOccupancyBand()).isEqualTo(OccupancyBand.GETTING_FULL);
         // the same read for another user / nobody: null
-        assertThat(service.findById(userShelter.getId(), users.findById(saveUser("Jaan", "jaan@example.ee", true)))
+        assertThat(service.findById(userShelter.getId(), saveUser("Jaan", "jaan@example.ee", true))
                 .orElseThrow().yourOccupancyBand()).isNull();
         assertThat(service.findById(userShelter.getId()).orElseThrow().yourOccupancyBand()).isNull();
         // the list projection never carries it (detail-only field)

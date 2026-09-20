@@ -21,7 +21,8 @@ public class DevSmsSender implements SmsSender {
     private static final Logger log = LoggerFactory.getLogger(DevSmsSender.class);
 
     @Override
-    public void send(String phone, String message) {
+    public boolean send(String phone, String message) {
         log.info("[DEV SMS] to {}: {}", phone, message);
+        return true;
     }
 }

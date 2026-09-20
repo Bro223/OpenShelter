@@ -503,15 +503,20 @@ export interface AdminInfoRequestDto extends InfoRequestDto {
 // ---------------------------------------------------------------------------
 
 /**
- * Fresh-occupancy block of the admin shelter list — the contract's
- * `{band, reportedAt, reportCount}` shape (`reportedAt` is what the public
- * ShelterOccupancy calls `lastReportedAt`; same 2 h window, same semantics:
- * reportCount 1 = hedged copy, >= 2 = firm).
+ * Fresh-occupancy block of the admin shelter list — the SAME wire record
+ * as the public list's `ShelterOccupancy` (`ShelterDto.Occupancy`:
+ * `{band, reportCount, lastReportedAt}`), same 2 h window, same semantics
+ * (reportCount 1 = hedged copy, >= 2 = firm). The field names must match
+ * the API byte for byte: this block used to read a `reportedAt` the API
+ * never sends, so every row rendered "just now" (reviews/11 F1) —
+ * `core/models-contract.spec.ts` now pins the field set against the
+ * OpenAPI snapshot so the drift cannot return.
  */
 export interface AdminOccupancy {
   band: OccupancyBand;
-  /** ISO-8601 instant of the latest report in the window. */
-  reportedAt: string;
+  /** ISO-8601 instant of the latest report in the window (wire field
+   *  `lastReportedAt` — the API sends no `reportedAt`). */
+  lastReportedAt: string;
   reportCount: number;
 }
 
