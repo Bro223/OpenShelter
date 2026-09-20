@@ -1930,14 +1930,15 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         'the window line precedes the gauges row',
       ).toBe(element.querySelector('.pulse-gauges__arrows'));
 
-      // The log is a CHRONOLOGICAL log, not the 2-hour tally: its heading
-      // presents it as a log (newest first) and makes no window claim of
-      // its own — the window belongs to the gauges, not the log.
+      // The log is the LAST 10 reports (newest first, capped server-side),
+      // not the 2-hour tally: its heading says so and makes no window claim
+      // of its own — the window belongs to the gauges, not the log.
       const heading = element.querySelector('#recent-reports-heading');
       expect(heading, 'the log heading must render').not.toBeNull();
-      expect(heading!.textContent, 'the heading presents a chronological log').toContain(
-        'Report log',
-      );
+      expect(
+        heading!.textContent,
+        'the heading presents the last 10 reports (no time-window framing)',
+      ).toContain('Last 10 reports');
       expect(
         heading!.textContent,
         'the log heading makes no window claim',

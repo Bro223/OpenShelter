@@ -223,6 +223,20 @@
      list never clip at mid widths. */
   --bp-narrow: 900px;
   --content-max-width: 1080px; /* shell-body page width cap */
+  /* Deliberate EXCEPTION (owner-reported): the admin queue tables need
+     more than the public 1080px cap — the guidance list's 8 columns
+     (two nowrap date cells at ~215px each, the 244px actions column,
+     the 204px title column, RU-locale header/badge floors) sum to a
+     ~1230px column-floor worst case, so at 1040px of content the
+     guidance table overflowed and scrolled horizontally on desktops.
+     Only the /admin route's shell-body takes this wider cap
+     (.shell-body--admin in page-shell.scss); every public reading page
+     keeps --content-max-width. 1440px = 1400px of content: the table
+     fits in all three languages with ~170px of headroom, and a 1440px-
+     wide screen fills exactly. Below 1440px the viewport bounds the
+     width as before, so narrow-viewport behaviour is untouched and
+     .admin-table-wrap's overflow-x: auto stays the fallback. */
+  --content-max-width-wide: 1440px;
 }
 
 /* High-contrast theme (accessibility-and-provenance D1/D2): a token

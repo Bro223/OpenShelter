@@ -287,7 +287,7 @@ export const RU: Messages = {
   'detail.pulse.kind.gettingFull': 'Заполняется',
   'detail.pulse.kind.full': 'Мест нет',
   'detail.pulse.recentEntry': 'кто-то из сообщества сообщил: {kind}',
-  'detail.pulse.recent': 'Журнал сообщений (сначала новые)',
+  'detail.pulse.recent': 'Последние 10 сообщений',
   'detail.pulse.recentEmpty': 'Сообщений пока нет',
   'detail.pulse.emptyOpen': 'За последние 2 часа нет сообщений об открытости',
   'detail.pulse.emptyOccupancy': 'За последние 2 часа нет сообщений о заполненности',

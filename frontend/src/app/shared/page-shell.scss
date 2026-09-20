@@ -161,6 +161,20 @@
   }
 }
 
+/* Deliberate exception to the 1080px cap (owner-reported, see the
+   --content-max-width-wide token in styles.scss): the /admin route's
+   queue tables — the guidance list's 8 columns (~1230px of column
+   floors worst case, RU locale) — overflowed the public content width
+   on desktops and scrolled horizontally inside .admin-table-wrap. The
+   shell-body of /admin alone takes the wider cap; every public reading
+   page keeps --content-max-width. No @media: below the viewport the
+   max-width cannot bind, so narrow-viewport layout is byte-identical,
+   and .admin-table-wrap keeps overflow-x: auto as the fallback for
+   viewports between this cap and the table's column floors. */
+.shell-body--admin {
+  max-width: var(--content-max-width-wide);
+}
+
 /* App-wide safety-notice footer (see page-shell.html): secondary text,
    never crisis orange; the footer hugs the bottom of the page flow
    (min-height keeps it below the body). The footer is the SAME chrome

@@ -288,9 +288,10 @@ export interface Messages {
   'detail.pulse.kind.full': string;
   /** {kind} is the localized state noun (a detail.pulse.kind.* value). */
   'detail.pulse.recentEntry': string;
-  /** The report-log section heading: a CHRONOLOGICAL log of reports
-   *  (newest first, capped server-side) — explicitly NOT the 2-hour
-   *  tally the gauges above show (the window line states that one). */
+  /** The report-log section heading: the LAST 10 reports — a
+   *  CHRONOLOGICAL log (newest first, capped at 10 server-side) —
+   *  explicitly NOT the 2-hour tally the gauges above show (the window
+   *  line states that one). */
   'detail.pulse.recent': string;
   'detail.pulse.recentEmpty': string;
   /** The open/closed gauge's explicit empty state (no fresh taps — the

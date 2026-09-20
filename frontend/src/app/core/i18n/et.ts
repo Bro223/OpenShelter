@@ -272,7 +272,7 @@ export const ET: Messages = {
   'detail.pulse.kind.gettingFull': 'Täitumas',
   'detail.pulse.kind.full': 'Täis',
   'detail.pulse.recentEntry': 'kogukonnaliige teatas: {kind}',
-  'detail.pulse.recent': 'Teatete logi (uusim esimesena)',
+  'detail.pulse.recent': 'Viimased 10 teadet',
   'detail.pulse.recentEmpty': 'Teateid pole',
   'detail.pulse.emptyOpen': 'Viimase 2 tunni jooksul pole avatud/suletud teateid',
   'detail.pulse.emptyOccupancy': 'Viimase 2 tunni jooksul pole täitumisteateid',

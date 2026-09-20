@@ -267,7 +267,7 @@ export const EN: Messages = {
   'detail.pulse.kind.gettingFull': 'Getting full',
   'detail.pulse.kind.full': 'Full',
   'detail.pulse.recentEntry': 'a community member reported: {kind}',
-  'detail.pulse.recent': 'Report log (newest first)',
+  'detail.pulse.recent': 'Last 10 reports',
   'detail.pulse.recentEmpty': 'No reports yet',
   'detail.pulse.emptyOpen': 'No open/closed reports in the last 2 hours',
   'detail.pulse.emptyOccupancy': 'No how-full reports in the last 2 hours',

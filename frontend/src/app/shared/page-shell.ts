@@ -48,6 +48,13 @@ export class PageShell implements OnDestroy {
       burger is hidden at desktop widths). */
   readonly menuOpen = signal(false);
 
+  /** The /admin route renders the queue tables (the guidance list's 8
+      columns), which need the wider content column — its shell-body takes
+      --content-max-width-wide instead of the public --content-max-width
+      (deliberate exception, see page-shell.scss / styles.scss). Every
+      other route keeps the public cap. */
+  readonly adminWide = signal(this.router.url.startsWith('/admin'));
+
   /** Data provenance for the footer line (official-dataset-csv):
       publisher + official link + last import. Stays null while loading or
       when the API fails — the line is non-critical and hides itself. */
@@ -100,6 +107,7 @@ export class PageShell implements OnDestroy {
   private readonly routerClose = this.router.events.subscribe((event) => {
     if (event instanceof NavigationEnd) {
       this.menuOpen.set(false);
+      this.adminWide.set(event.urlAfterRedirects.startsWith('/admin'));
       this.focusMainOnRouteChange();
     }
   });
