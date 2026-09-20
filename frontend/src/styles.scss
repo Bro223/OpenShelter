@@ -30,12 +30,7 @@
   --color-bg-surface: #ffffff; /* cards, rows, list items, text on primary */
   --color-bg-subtle: #eaf0f4; /* the muted surface (inset notes, map placeholder) */
   --color-surface-hover: #dbe4eb; /* ghost button hover fill — a slightly darker tint of bg-subtle */
-  --color-surface-overlay: rgba(
-    255,
-    255,
-    255,
-    0.92
-  ); /* map legend overlay — white card, neutral on the new background */
+  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay — white card, neutral on the new background */
   --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
 
   /* Brand */

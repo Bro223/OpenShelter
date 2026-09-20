@@ -1576,6 +1576,7 @@ describe('AdminPage', () => {
 
     // The admin UI language flips to et (the header switcher's path).
     i18nService.setLocale('et');
+    await i18nService.ensureCatalog('et');
     await settle(fixture);
 
     // The chrome follows the UI language: the tab label is re-translated.
@@ -1597,6 +1598,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('No guidance posts in en yet.');
 
     i18nService.setLocale('et');
+    await i18nService.ensureCatalog('et');
     await settle(fixture);
 
     // The empty-state COPY is chrome (re-translated to et), but its {locale}
@@ -1646,6 +1648,7 @@ describe('AdminPage', () => {
     i18nService.setContentLocale('ru');
     await settle(fixture);
     i18nService.setLocale('et');
+    await i18nService.ensureCatalog('et');
     await settle(fixture);
 
     const rows = element.querySelectorAll('tbody tr');
@@ -1687,6 +1690,7 @@ describe('AdminPage', () => {
     expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('et');
     // …and the UI language flips too (chrome only — no re-fetch)…
     i18nService.setLocale('ru');
+    await i18nService.ensureCatalog('ru');
     await settle(fixture);
     expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
 
@@ -1718,6 +1722,7 @@ describe('AdminPage', () => {
     // …then the header switcher's path (I18nService.setLocale): the chrome
     // follows (tab labels re-translate, <html lang> + the persisted key)…
     i18nService.setLocale('et');
+    await i18nService.ensureCatalog('et');
     await settle(fixture);
 
     expect(buttonByText(element, 'Guidance')).toBeNull();
