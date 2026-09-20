@@ -484,6 +484,32 @@ textarea {
       outline-offset: 1px;
     }
   }
+
+  /* The ONE textarea idiom (M10): every form textarea — the submit form's
+     description, the contributions info reply, the detail page's report
+     detail — takes the SAME tokens as .field input above. The UA default
+     textarea (monospace, both-axis grabber, `rows`-sized) is replaced:
+     full column width, the input's border/padding/font/radius, the body
+     text's line-height, a CSS min-height (the `rows` attribute no longer
+     decides it — the placeholder sits above the fold), and a
+     vertical-only resize. The 2px is the line-weight exception (borders). */
+  textarea {
+    width: 100%;
+    padding: var(--space-8) var(--space-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-family: inherit; /* the UA default is monospace */
+    font-size: var(--text-lg);
+    line-height: 1.5; /* the body text's line-height */
+    /* 5 lines of body text + the input's padding + the border. */
+    min-height: calc(5 * 1.5em + 2 * var(--space-8) + 2px);
+    resize: vertical;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 1px;
+    }
+  }
 }
 
 .field-error {
@@ -619,10 +645,16 @@ textarea {
 }
 
 /* Browse anchor pin on /map (location-navigation, leaflet-service
- * setAnchor): the searched address the per-row distances are measured
- * from. The user-picked-spot family — it is where the user asked, not a
- * shelter, so it shares the pick tone (one token, two pin classes). */
+ * setAnchor): the ORIGIN the per-row distances are measured from — the
+ * searched address. Distinct from shelter markers on SHAPE, not colour
+ * alone (accessibility): shelters are circles, the origin is a 12px
+ * diamond in the user-picked-spot teal. The map legend reuses this exact
+ * class for its swatch (single-sourced visual). Shelters outrank the pin
+ * in z-order (their markers carry zIndexOffset 1000), so the diamond can
+ * never obscure a shelter at the same point. */
 .shelter-marker--anchor {
   background: var(--color-shelter-pick);
   border-color: var(--color-bg-surface);
+  border-radius: 2px; /* not a circle — the shape IS the distinction */
+  transform: rotate(45deg);
 }

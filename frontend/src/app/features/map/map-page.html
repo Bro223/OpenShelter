@@ -34,6 +34,20 @@
           ></span>
           {{ 'map.legend.reported' | t }}
         </span>
+        <!-- The origin marker (M8): the searched address the per-row
+             "≈ N m straight line" distances are measured from. The
+             diamond shape (not a circle) is the non-colour-only
+             distinction from shelter markers; the swatch reuses the
+             exact pin class. The label reuses the existing `map.searched`
+             key — a dedicated `map.legend.anchor` key is requested from
+             the i18n lane (see the M8 report). -->
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--anchor legend-swatch"
+            aria-hidden="true"
+          ></span>
+          {{ 'map.searched' | t }}
+        </span>
       </div>
     </div>
 

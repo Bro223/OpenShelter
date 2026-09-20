@@ -198,9 +198,9 @@ describe('report-submitted notices (D6; dampened variant M9)', () => {
     expect(REPORT_SUBMITTED).toBe('Your report was submitted.');
   });
 
-  it('dampened notice says the vote was recorded with reduced weight (M9)', () => {
+  it('dampened notice says the report was recorded but weighted 0, and why (M8)', () => {
     expect(REPORT_SUBMITTED_DAMPED).toBe(
-      'Your report was recorded with reduced weight — you have your own listing of a similar location.',
+      'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.',
     );
   });
 
@@ -353,10 +353,26 @@ describe('lastVerifiedText (M8)', () => {
   const NOW = Date.parse('2026-09-13T12:00:00Z');
   const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
 
-  it('a verified row reads "Last verified {ago}"', () => {
+  it('a verified registry row names the registry the stamp came from', () => {
+    for (const source of ['PAASETEAMET', 'MUNICIPALITY'] as const) {
+      expect(
+        lastVerifiedText(
+          {
+            lastVerifiedAt: at(120),
+            reviewStatus: 'CONFIRMED',
+            createdAt: at(60 * 24 * 400),
+            source,
+          },
+          NOW,
+        ),
+      ).toBe('Last verified against the registry 2 h ago');
+    }
+  });
+
+  it('a verified community row keeps the plain form (no registry attribution)', () => {
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: at(120), reviewStatus: 'CONFIRMED', createdAt: at(60 * 24 * 400) },
+        { lastVerifiedAt: at(120), reviewStatus: 'CONFIRMED', createdAt: at(60 * 24 * 400), source: 'USER' },
         NOW,
       ),
     ).toBe('Last verified 2 h ago');
@@ -365,7 +381,7 @@ describe('lastVerifiedText (M8)', () => {
   it('a NEW community row is the not-yet-verified signal: submission age + no check', () => {
     expect(
       lastVerifiedText(
-        { lastVerifiedAt: null, reviewStatus: 'NEW', createdAt: at(60 * 24 * 3) },
+        { lastVerifiedAt: null, reviewStatus: 'NEW', createdAt: at(60 * 24 * 3), source: 'USER' },
         NOW,
       ),
     ).toBe('Newly added 3 d ago — not yet verified');
@@ -374,16 +390,19 @@ describe('lastVerifiedText (M8)', () => {
   it('a non-NEW row without a record says so plainly', () => {
     for (const reviewStatus of ['CONFIRMED', 'REJECTED'] as const) {
       expect(
-        lastVerifiedText({ lastVerifiedAt: null, reviewStatus, createdAt: at(60 * 24 * 400) }, NOW),
+        lastVerifiedText(
+          { lastVerifiedAt: null, reviewStatus, createdAt: at(60 * 24 * 400), source: 'USER' },
+          NOW,
+        ),
       ).toBe('No verification record yet');
     }
   });
 });
 
 describe('communityReportsText (M8)', () => {
-  it('singular/plural over the TOTAL report count', () => {
-    expect(communityReportsText(1)).toBe('1 community report');
-    expect(communityReportsText(3)).toBe('3 community reports');
+  it('labels the count as the labeled TOTAL over all types — never a live tally', () => {
+    expect(communityReportsText(1)).toBe('Community reports: 1 (total, all types)');
+    expect(communityReportsText(3)).toBe('Community reports: 3 (total, all types)');
   });
 
   it('hasCommunityReports: > 0 of any type', () => {

@@ -107,7 +107,11 @@ const ANCHOR_ZOOM = 14;
  *  shelter's street. Same scale as the anchor fly, separate intent. */
 const AROUND_ZOOM = 14;
 
-/** The closest row to a point (or null for an empty list) + its distance. */
+/** The closest row to a point (or null for an empty list) + its distance.
+ *  The point is an ORIGIN — the user's geolocation fix or the geocoded
+ *  address anchor — and the distance is the Haversine straight line to the
+ *  row's coordinates. See the component doc comment's "Distance numbers"
+ *  section for the full rule (two points / formula / zoom / meaning). */
 function nearestShelterAt(
   latitude: number,
   longitude: number,
@@ -140,6 +144,38 @@ function nearestShelterAt(
  * page-scoped (one instance per visit, design decision 3) and destroyed in
  * ngOnDestroy so no map or listener leaks between visits (zoneless has no
  * safety net).
+ *
+ * Distance numbers (M8 — the "≈ N m / km straight line" figures):
+ * WHICH TWO POINTS —
+ *   1. Around-you ("Show shelters around you" CTA): the user's BROWSER
+ *      geolocation fix (one-shot high-accuracy request, shared/
+ *      geolocation.ts) and the coordinates of each listed shelter (the
+ *      DTO's WGS84 decimal degrees). The one-line result measures to the
+ *      NEAREST loaded row.
+ *   2. Address anchor ("Find shelters near an address" search): the
+ *      GEODECODED address point (the selected Nominatim result) and each
+ *      shelter's coordinates — every row's "≈ N m straight line" figure
+ *      is anchor → that row. "≈ 222 m" therefore answers "from what":
+ *      the origin (the searched address) carries its own marker on the
+ *      map — the teal diamond (`.shelter-marker--anchor`, 12 px, legend
+ *      entry, accessible name "Searched address"), distinct from the
+ *      circle shelter markers on shape, not colour alone — and the rows
+ *      measure from it.
+ * FORMULA — Haversine great-circle distance between the two WGS84
+ *   points, Earth radius 6371 km (`haversineKm`, shared/geolocation.ts),
+ *   computed CLIENT-SIDE over the already-loaded rows: no backend call,
+ *   no IP geolocation, the points never leave the device.
+ * ZOOM — the number is a property of the two points, not of the view: it
+ *   does not change with zoom. The camera flies to the ORIGIN (the user
+ *   fix / the searched address) at neighbourhood scale (AROUND_ZOOM /
+ *   ANCHOR_ZOOM 14) — never to a shelter; selecting a row is a separate
+ *   step that flies to that shelter at SHELTER_ZOOM 16.
+ * WHAT THE NUMBER MEANS TO THE USER — an approximate STRAIGHT LINE over
+ *   the earth's surface: never a walking/driving route, never an official
+ *   distance (D6 distance honesty). The "≈" is the honesty marker; at a
+ *   few hundred metres the route-vs-line difference is negligible, but
+ *   the copy never claims a route. Canonical write-up: frontend/docs/
+ *   agent/05-CONTEXT-MAP.md, "Distance numbers" section.
  *
  * Filters: the source chips refetch server-side (`?source=`); the
  * practical chips are "Open" (client-side — the BE has no open/closed

@@ -229,13 +229,15 @@ export function hasTrustBadges(shelter: {
 export const REPORT_SUBMITTED = 'Your report was submitted.';
 
 /**
- * Dampened report notice (community-self-moderation D3/D4): the report was
- * recorded with reduced weight because the reporter has their own other
- * listing of a similar location — a self-interested vote that counts zero
- * toward the hide.
+ * Dampened report notice (community-self-moderation D3/D4; M8 honesty):
+ * the report was STORED but the server weighted it 0 — the reporter has
+ * their own other listing of a similar location, a self-interested vote
+ * that contributes 0 to the trust-weighted hide tally. The copy says
+ * plainly what "weighted 0" means for the user (it does not count toward
+ * hiding the shelter) and why — the damping rule is no longer silent.
  */
 export const REPORT_SUBMITTED_DAMPED =
-  'Your report was recorded with reduced weight — you have your own listing of a similar location.';
+  'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.';
 
 /** Firm band copy (D4) — >= 2 fresh reports agreeing with the latest band. */
 export const OCCUPANCY_FIRM_COPY: Record<OccupancyBand, string> = {
@@ -346,16 +348,25 @@ export function verifiedAgoText(iso: string, now: number = Date.now()): string {
 
 /**
  * The per-entry "last verified" line: a verified row reads
- * "Last verified {ago}"; a NEW community row is never verified — its line
- * IS the not-yet-verified signal, pairing the submission age with the
- * missing check; any other row without a verification record (e.g. a dev
- * DB before the first import) reads "No verification record yet".
+ * "Last verified {ago}" — and, for registry rows, says WHAT the check was
+ * against ("against the registry": the newest non-failed import of the
+ * row's source) so the stamp cannot be read as a community-sourced fact.
+ * Community (USER) rows keep the plain form — their verification is a
+ * community check or a moderator confirm, and neither attribution is safe
+ * to hard-code. A NEW community row is never verified — its line IS the
+ * not-yet-verified signal, pairing the submission age with the missing
+ * check; any other row without a verification record (e.g. a dev DB before
+ * the first import) reads "No verification record yet". M8: this line is
+ * rendered SEPARATELY from the community report count — the two facts are
+ * never joined into one string (the detail header renders them as two
+ * lines, each self-contained).
  */
 export function lastVerifiedText(
   shelter: {
     lastVerifiedAt: string | null;
     reviewStatus: ReviewStatus;
     createdAt: string;
+    source: ShelterSource;
   },
   now: number = Date.now(),
 ): string {
@@ -364,16 +375,23 @@ export function lastVerifiedText(
       ? `Newly added ${verifiedAgoText(shelter.createdAt, now)} — not yet verified`
       : 'No verification record yet';
   }
-  return `Last verified ${verifiedAgoText(shelter.lastVerifiedAt, now)}`;
+  const ago = verifiedAgoText(shelter.lastVerifiedAt, now);
+  return shelter.source === 'USER'
+    ? `Last verified ${ago}`
+    : `Last verified against the registry ${ago}`;
 }
 
 /**
- * The community report count line: "1 community report" /
- * "N community reports" — the TOTAL over all report types (the badge's
- * "Reported (n)" stays the NON_EXISTENT subset).
+ * The community report count line: "Community reports: N (total, all
+ * types)" — the LIFETIME TOTAL over all report types, labeled as such so
+ * it cannot be read as a live tally: the open/closed and how-full taps are
+ * live states (one per user, latest wins) and do not change this count, and
+ * the count does not move the verification stamp on the line above. (The
+ * badge's "Reported (n)" stays the NON_EXISTENT subset.) M8: a separate
+ * line from the verification stamp — never spliced onto it.
  */
 export function communityReportsText(reportCount: number): string {
-  return `${reportCount} community report${reportCount === 1 ? '' : 's'}`;
+  return `Community reports: ${reportCount} (total, all types)`;
 }
 
 /** True when the DTO carries at least one community report of any type. */

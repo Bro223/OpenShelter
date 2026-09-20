@@ -155,7 +155,7 @@ export interface CreateShelterRequest {
  * PUT /api/shelters/{id} (user-contributions): the author's edit of their
  * OWN USER-source shelter. Constraints are field-for-field identical to
  * CreateShelterRequest — the backend keeps them in one shared validation
- * path so create/update cannot drift. Only these five fields are writable;
+ * path so create/update cannot drift. Only these fields are writable;
  * status/source/registry fields/createdAt/createdBy are never.
  */
 export interface UpdateShelterRequest {
@@ -164,6 +164,13 @@ export interface UpdateShelterRequest {
   longitude: number;
   description?: string;
   capacity?: number;
+  /**
+   * The private-home declaration (community-review-queue D7): absent/null
+   * keeps the row's current value (backend contract). The shared form
+   * (M5) always sends it explicitly — checked = PRIVATE, unchecked =
+   * PUBLIC — exactly like the create payload.
+   */
+  locationKind?: LocationKind;
 }
 
 // ---------------------------------------------------------------------------

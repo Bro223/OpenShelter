@@ -170,15 +170,10 @@
   }
 }
 
-.contrib-edit {
-  margin-top: var(--space-12);
-  padding: var(--space-12);
-  background: var(--color-bg-subtle);
-  border-radius: var(--radius-md);
-}
-
 /* Info-request panel: the moderator's question + the reply
-   form / stored reply — the same subtle card as the edit form. */
+   form / stored reply — a subtle card. (The inline edit form's card is
+   gone with the form — M5 moved shelter editing to the shared /submit
+   form in edit mode.) */
 .contrib-info {
   margin-top: var(--space-12);
   padding: var(--space-12);
@@ -203,26 +198,9 @@
   }
 }
 
-.contrib-edit__coords {
-  display: flex;
-  gap: var(--space-12);
-  flex-wrap: wrap;
-
-  .field {
-    flex: 1 1 10rem;
-    min-width: 10rem;
-  }
-}
-
 .field-label {
   display: block;
   font-size: var(--text-md);
   font-weight: var(--font-weight-medium);
   margin-bottom: var(--space-4);
-}
-
-.field-note {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-  margin: var(--space-6) 0 0;
 }

@@ -159,6 +159,7 @@ export const EN: Messages = {
   'authPage.reset.codeNote': 'The code is valid for 15 minutes.',
   'authPage.reset.newPasswordLabel': 'New password',
   'authPage.reset.newPasswordRequired': 'Password is required.',
+  'authPage.reset.newPasswordTooShort': 'Password must be at least 8 characters long.',
   'authPage.reset.repeatLabel': 'Repeat new password',
   'authPage.reset.repeatRequired': 'Please repeat the password.',
   'authPage.reset.mismatch': 'The passwords do not match.',
@@ -663,4 +664,277 @@ export const EN: Messages = {
   'admin.media.delete.cancel': 'Cancel',
   'admin.media.success.uploaded': 'Image uploaded.',
   'admin.media.success.deleted': 'Image deleted.',
+
+  // --- legal pages (legal-i18n M4): one key per paragraph/heading, splice
+  // segments around the inline emphasis/links. The section heading keys
+  // double as the TOC link labels. EN values are verbatim from the old
+  // static templates (the page specs assert on them).
+  'legal.toc.aria': 'Table of contents',
+  // privacy policy (/privacy)
+  'legal.privacy.title': 'Privacy policy',
+  'legal.privacy.updated': 'Last updated: 16 September 2026',
+  'legal.privacy.who': 'Who operates OpenShelter',
+  'legal.privacy.scope': 'Scope of this policy',
+  'legal.privacy.collect': 'What personal data we collect',
+  'legal.privacy.why': 'Why we process each category',
+  'legal.privacy.verification': 'Account creation and verification',
+  'legal.privacy.location': 'Location and geolocation',
+  'legal.privacy.content': 'User-generated content',
+  'legal.privacy.cookies': 'Cookies and browser storage',
+  'legal.privacy.thirdParties': 'Third-party service providers',
+  'legal.privacy.sharing': 'Data sharing',
+  'legal.privacy.retention': 'Data retention',
+  'legal.privacy.rights': 'Your rights under the GDPR',
+  'legal.privacy.security': 'Data security',
+  'legal.privacy.children': 'Children',
+  'legal.privacy.changes': 'Changes to this policy',
+  'legal.privacy.contact': 'Contact',
+  'legal.privacy.who.p1':
+    'OpenShelter is an open-source, community-maintained map of shelters and safe places in Estonia. It is operated by [OPERATOR LEGAL NAME], [POSTAL ADDRESS]. The data protection contact is [DATA PROTECTION CONTACT].',
+  'legal.privacy.who.p2.before': 'OpenShelter is ',
+  'legal.privacy.who.p2.strong': 'not an official government service',
+  'legal.privacy.who.p2.after':
+    ' and not an emergency service. Official shelter data shown in the application is imported from the Estonian Rescue Board (Päästeamet) open data, but the application itself is operated independently.',
+  'legal.privacy.scope.p1':
+    "This policy describes how OpenShelter collects, uses, stores and deletes personal data when you use the web application. It is intended to describe the application's actual behaviour. It does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and OpenStreetMap).",
+
+  'legal.privacy.collect.p1':
+    'We collect only what the application needs to work. When you create an account we store:',
+  'legal.privacy.collect.li1.before': 'your ',
+  'legal.privacy.collect.li1.strong': 'full name',
+  'legal.privacy.collect.li1.after': ';',
+  'legal.privacy.collect.li2.before': 'your ',
+  'legal.privacy.collect.li2.strong': 'e-mail address',
+  'legal.privacy.collect.li2.after': ';',
+  'legal.privacy.collect.li3.before': 'your ',
+  'legal.privacy.collect.li3.strong': 'phone number',
+  'legal.privacy.collect.li3.after': ';',
+  'legal.privacy.collect.li4.before': 'your ',
+  'legal.privacy.collect.li4.strong': 'password',
+  'legal.privacy.collect.li4.after': ', stored only as a one-way hash.',
+  'legal.privacy.collect.p2.before': 'We do ',
+  'legal.privacy.collect.p2.strong': 'not',
+  'legal.privacy.collect.p2.middle':
+    ' collect a national identification code, and we do not use advertising, analytics or cross-site tracking. When you contribute to the map we store the content you submit (shelters and reports), as described under ',
+  'legal.privacy.collect.p2.link': 'user-generated content',
+  'legal.privacy.collect.p2.after': '.',
+
+  'legal.privacy.why.p1': 'Each category is processed for a specific purpose, and for no other purpose:',
+  'legal.privacy.why.li1.strong': 'Name',
+  'legal.privacy.why.li1.after': ' - shown on your account and, for public submissions, on the map.',
+  'legal.privacy.why.li2.strong': 'E-mail address',
+  'legal.privacy.why.li2.after':
+    ' - account verification, password resets and cross-channel confirmation when you change your phone number.',
+  'legal.privacy.why.li3.strong': 'Phone number',
+  'legal.privacy.why.li3.after':
+    ' - account verification, sign-in and cross-channel confirmation when you change your e-mail address.',
+  'legal.privacy.why.li4.strong': 'Password',
+  'legal.privacy.why.li4.after':
+    ' - authentication. It is stored only as a one-way hash, so it can never be read back.',
+  'legal.privacy.why.li5.strong': 'Submitted content',
+  'legal.privacy.why.li5.after':
+    ' - shown on the public map and used by administrators for moderation and abuse prevention.',
+  'legal.privacy.why.p2':
+    'The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED]. This document is intended to describe the processing; it is not a legal opinion.',
+  'legal.privacy.verification.p1':
+    'You may browse the map without an account. To submit shelters or reports you must create an account and verify both your e-mail address and your phone number. Verification works by sending a one-time code to each contact; until both are verified you can sign in but cannot contribute.',
+  'legal.privacy.verification.p2':
+    'Password resets are performed by a one-time code sent to your e-mail address. Changing your e-mail address is confirmed with a code sent to your current phone number, and changing your phone number is confirmed with a code sent to your current e-mail address.',
+  'legal.privacy.verification.p3':
+    'To prevent abuse, the application applies rate limits on code requests and on shelter submissions, and detects near-duplicate submissions. Exceeding a limit produces an error, not a ban.',
+  'legal.privacy.location.p1.before': 'We only ever see your location when ',
+  'legal.privacy.location.p1.em': 'you',
+  'legal.privacy.location.p1.after':
+    ' ask for it. The "Show shelters around you" button and the "Use my location" option on the submit form first show your browser\'s own permission prompt. If you decline, nothing changes.',
+
+  'legal.privacy.location.p2.before': 'On the map, the nearest shelter is worked out ',
+  'legal.privacy.location.p2.strong': 'inside your browser',
+  'legal.privacy.location.p2.after':
+    '; your live position is never sent to our servers. If you submit a shelter at your position, only the coordinate you choose is stored, as part of that submission.',
+  'legal.privacy.location.p3.before': 'We ',
+  'legal.privacy.location.p3.strong': 'never',
+  'legal.privacy.location.p3.after':
+    " infer your location from your IP address. Address search uses the OpenStreetMap Nominatim service; a search request is sent only when you deliberately search for an address.",
+  'legal.privacy.content.p1.before':
+    'When you contribute, the application stores your shelters and your reports (for example, that a location is closed, inaccurate, or no longer exists). This content becomes part of the public community map. You can edit or remove your own shelters from the ',
+  'legal.privacy.content.p1.after': '; reports are reviewed by administrators.',
+  'legal.privacy.content.p2':
+    'Moderators can review, hide, correct or remove user-submitted content. The application keeps a moderation record so decisions can be audited.',
+  'legal.privacy.cookies.p1':
+    "OpenShelter does not use advertising cookies. It stores only the following items in your browser's local storage, each of which is technically necessary:",
+  'legal.privacy.cookies.li1.before': 'a ',
+  'legal.privacy.cookies.li1.strong': 'sign-in token',
+  'legal.privacy.cookies.li1.after': ' that keeps you logged in across page reloads;',
+  'legal.privacy.cookies.li2.before': 'your ',
+  'legal.privacy.cookies.li2.strong': 'language preference',
+  'legal.privacy.cookies.li2.after': ' (Estonian or English);',
+  'legal.privacy.cookies.li3.before': 'your ',
+  'legal.privacy.cookies.li3.strong': 'display preference',
+  'legal.privacy.cookies.li3.after': ' (high-contrast mode).',
+  'legal.privacy.cookies.p2':
+    'Your access token is held in memory only and is discarded when you close the tab. No third party receives these items, and there are no optional analytics or tracking technologies to accept or reject.',
+
+  'legal.privacy.thirdParties.p1':
+    'We use a small number of third-party services, each only to deliver a specific function:',
+  'legal.privacy.thirdParties.li1.before': 'an ',
+  'legal.privacy.thirdParties.li1.strong': 'e-mail delivery service',
+  'legal.privacy.thirdParties.li1.after':
+    ' (SendPulse, via SMTP) to send verification and password-reset codes. It receives the destination e-mail address to deliver the message.',
+  'legal.privacy.thirdParties.li2.before': 'a ',
+  'legal.privacy.thirdParties.li2.strong': 'text-message service',
+  'legal.privacy.thirdParties.li2.after':
+    ' (Twilio) to send verification codes. It receives the destination phone number to deliver the message.',
+  'legal.privacy.thirdParties.li3.strong': 'OpenStreetMap',
+  'legal.privacy.thirdParties.li3.after':
+    ' map tiles and the Nominatim geocoding service, which receive the map area you view or the address you search for.',
+  'legal.privacy.thirdParties.p2':
+    'The official shelter data is imported from the Estonian Rescue Board (Päästeamet) open data; that is an inbound data source, not a service we send your data to. Whether any of these providers involves an international transfer is [TO BE CONFIRMED].',
+  'legal.privacy.sharing.p1':
+    'We do not sell your personal data and do not share it for advertising or any other commercial purpose. The only disclosures are to the service providers listed above, in order to deliver the messages you request. Shelter data you submit becomes part of the public community list; after you delete your account, public submissions remain on the map without attribution.',
+  'legal.privacy.retention.p1':
+    'Your account data is kept for as long as your account exists. Deleting your account removes your personal data immediately: shelters you declared as a private home are removed, and public shelters you submitted stay on the map without a submitter.',
+  'legal.privacy.retention.p2.before':
+    'We also apply fixed retention periods: an account with no sign-in activity (registration, login, or session refresh) for ',
+  'legal.privacy.retention.p2.strong': '24 months',
+  'legal.privacy.retention.p2.middle':
+    ' is deleted with the same erasure rule as account deletion, and moderation and audit records older than ',
+  'legal.privacy.retention.p2.strong2': '24 months',
+  'legal.privacy.retention.p2.after': ' are removed.',
+  'legal.privacy.retention.p3.before':
+    "Those periods are the app's retention rule. The scheduled job that enforces them is a deployment-level switch (",
+  'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
+  'legal.privacy.retention.p3.after':
+    "): it is off in this repository's development setup, and it is enabled by whoever operates a deployment. In a deployment where the job is off, inactive accounts and old audit records are simply kept.",
+  'legal.privacy.retention.p4':
+    'Public community submissions are never removed automatically: they stay on the map without attribution until a moderator removes them.',
+
+  'legal.privacy.rights.p1': 'If you are in the European Economic Area, you have the right to:',
+  'legal.privacy.rights.li1.strong': 'Access',
+  'legal.privacy.rights.li1.and': ' and ',
+  'legal.privacy.rights.li1.strong2': 'portability',
+  'legal.privacy.rights.li1.middle':
+    ' - download a JSON export of your profile and everything you submitted from the ',
+  'legal.privacy.rights.li1.after': '.',
+  'legal.privacy.rights.li2.strong': 'Rectification',
+  'legal.privacy.rights.li2.after':
+    ' - correct your name, or change your e-mail address or phone number (each confirmed with a code).',
+  'legal.privacy.rights.li3.strong': 'Erasure',
+  'legal.privacy.rights.li3.middle': ' - delete your account from the ',
+  'legal.privacy.rights.li3.after':
+    '. Public submissions are orphaned rather than deleted, as described above.',
+  'legal.privacy.rights.li4.strong': 'Restriction',
+  'legal.privacy.rights.li4.and': ' and ',
+  'legal.privacy.rights.li4.strong2': 'objection',
+  'legal.privacy.rights.li4.after': ' - contact the data protection contact below.',
+  'legal.privacy.rights.p2':
+    'You can also complain to the Estonian Data Protection Inspectorate (Andmekaitse Inspektsioon).',
+  'legal.privacy.security.p1.before': 'Your e-mail address and phone number are ',
+  'legal.privacy.security.p1.strong': 'encrypted at rest',
+  'legal.privacy.security.p1.after':
+    ' (AES-256-GCM). Lookups such as sign-in and duplicate checks run on a separate one-way index that cannot be turned back into your contact. Your password is stored as a one-way Argon2 hash. The encryption keys are kept outside the database and are never written into code or logs.',
+  'legal.privacy.security.p2':
+    'The application applies rate limits on verification codes, password resets and submissions, sends security headers on every response, and requires HTTPS for location access. No security measure can guarantee absolute safety, but these measures reduce common risks.',
+
+  'legal.privacy.children.p1':
+    "OpenShelter is not directed at children and does not knowingly collect the personal data of children. The application does not currently check a user's age.",
+  'legal.privacy.changes.p1':
+    'We may update this policy as the application evolves. The version on this page is the one in force when you read it. Material changes will be reflected in the "Last updated" date above.',
+  'legal.privacy.contact.p1.before':
+    'Questions about this policy or about your data can be sent to [CONTACT EMAIL], or to the data protection contact at [DATA PROTECTION CONTACT]. OpenShelter is also governed by the ',
+  'legal.privacy.contact.p1.after': '.',
+  'legal.privacy.link.accountPage': 'account page',
+  'legal.privacy.link.terms': 'terms of use',
+  // terms of use (/terms)
+  'legal.terms.title': 'Terms of use',
+  'legal.terms.updated': 'Last updated: 13 September 2026',
+  'legal.terms.emergencyNumber': '112',
+  'legal.terms.acceptance': 'Acceptance of these terms',
+  'legal.terms.service': 'What OpenShelter is',
+  'legal.terms.eligibility': 'Eligibility and accounts',
+  'legal.terms.security': 'Account security',
+  'legal.terms.rules': 'Rules for contributions',
+  'legal.terms.prohibited': 'Prohibited content and behaviour',
+  'legal.terms.license': 'Intellectual property and your license',
+  'legal.terms.moderation': 'Moderation and removal',
+  'legal.terms.official': 'Official versus community information',
+  'legal.terms.emergency': 'Emergency disclaimer',
+  'legal.terms.warranty': 'No warranty',
+  'legal.terms.liability': 'Limitation of responsibility',
+  'legal.terms.thirdParty': 'Third-party links and services',
+  'legal.terms.availability': 'Service availability and changes',
+  'legal.terms.source': 'Open-source license',
+  'legal.terms.law': 'Applicable law and disputes',
+  'legal.terms.contact': 'Contact',
+
+  'legal.terms.acceptance.p1':
+    'By using OpenShelter, you agree to these terms of use. If you do not agree, do not use the application. Continuing to use the application after a change means you accept the updated terms.',
+  'legal.terms.service.p1':
+    'OpenShelter is an independent, community-maintained map of shelters and safe places in Estonia. It combines official open data from the Estonian Rescue Board (Päästeamet) with locations submitted by community members.',
+  'legal.terms.service.p2.before': 'OpenShelter is ',
+  'legal.terms.service.p2.strong': 'not an official emergency service',
+  'legal.terms.service.p2.middle': ' and not a government service. In an emergency, call ',
+  'legal.terms.service.p2.after':
+    ' and follow the instructions of the Estonian Rescue Board, local authorities and emergency services.',
+  'legal.terms.eligibility.p1':
+    'You may browse the map without an account. To submit shelters or reports you need an account, and the account becomes contributing after you verify both your e-mail address and your phone number with one-time codes. You are responsible for the accuracy of the contacts you register.',
+  'legal.terms.security.p1':
+    'You are responsible for keeping your password safe and for everything done through your account. Do not share your password or your one-time verification codes. If you believe your account has been compromised, reset your password.',
+  'legal.terms.rules.li1':
+    'Submit only places you know to exist, with details accurate to the best of your knowledge.',
+  'legal.terms.rules.li2':
+    'Report locations (as closed, inaccurate, or no longer existing) truthfully and only from what you actually know.',
+  'legal.terms.rules.li3':
+    'Do not submit a private home as a public shelter. If you submit a location that is a private home, declare it as such.',
+  'legal.terms.rules.li4':
+    'The application applies limits to keep the list usable: a daily cap on submissions, a cap on how often one-time codes may be requested, and detection of near-duplicate submissions. Exceeding a limit produces an error and a suggested wait; it is not a ban.',
+
+  'legal.terms.prohibited.p1': 'You must not:',
+  'legal.terms.prohibited.li1':
+    'submit false, misleading, unsafe or malicious shelter data or reports;',
+  'legal.terms.prohibited.li2':
+    'submit private homes as public shelters without declaring them as private;',
+  'legal.terms.prohibited.li3':
+    'spam, automate access, or attempt to attack or overload the application;',
+  'legal.terms.prohibited.li4':
+    "attempt to access another user's account or the administrator functions;",
+  'legal.terms.prohibited.li5':
+    "submit content that is unlawful, defamatory, or that exposes someone's private data.",
+  'legal.terms.prohibited.p2':
+    'Deliberately false or misleading shelter data is abuse of the service and may lead to removal of content or suspension of your account.',
+  'legal.terms.license.p1':
+    'By submitting a shelter or report, you grant OpenShelter a non-exclusive, worldwide, royalty-free license to store, display and modify that content for the purpose of operating the map and moderating it. You keep ownership of what you submit, and you can edit or remove your own shelters.',
+  'legal.terms.moderation.p1':
+    'Submissions enter the list as community reports. Moderators can review, hide, correct or remove user-submitted content, and can suspend accounts that abuse the service. A submission can therefore be reviewed, hidden or rejected.',
+  'legal.terms.official.p1.before':
+    'The application distinguishes between information sources. Locations marked as "Registry" come from official open data. Locations marked "Newly added" or "Community-checked" were submitted by community members. A ',
+  'legal.terms.official.p1.em': 'verified user',
+  'legal.terms.official.p1.middle':
+    ' has proved ownership of an e-mail address and a phone number; that says nothing about the accuracy of what they submit. ',
+  'legal.terms.official.p1.strong': 'A verified user is not a verified shelter.',
+  'legal.terms.official.p2':
+    'A community-submitted location is not automatically a safe, legal, accessible, public or operational shelter. Treat community submissions with caution, especially during an emergency.',
+
+  'legal.terms.emergency.p1.before':
+    'OpenShelter is not an emergency service and must not be your only source of emergency information. Official instructions from the Estonian Rescue Board, local authorities and emergency services always take priority over anything shown in this application. In an emergency, call ',
+  'legal.terms.emergency.p1.after': '.',
+  'legal.terms.emergency.p2':
+    'Do not enter private property or abandoned buildings based only on information shown by OpenShelter.',
+  'legal.terms.warranty.p1':
+    'The list is provided as-is, for community benefit, without warranty of any kind. We do not guarantee that any location is open, safe, accessible, available, suitable or still operational.',
+  'legal.terms.liability.p1':
+    'To the extent permitted by law, OpenShelter accepts no liability for decisions made in reliance on the list. This paragraph is intended to be reasonable and is subject to legal review; it does not attempt to exclude liability that cannot be excluded by law.',
+  'legal.terms.thirdParty.p1.before':
+    'The application links to external services, including the Estonian Rescue Board, Maa-amet and OpenStreetMap. We are not responsible for the content or availability of those services. How personal data is shared with service providers is described in the ',
+  'legal.terms.thirdParty.p1.link': 'privacy policy',
+  'legal.terms.thirdParty.p1.after': '.',
+  'legal.terms.availability.p1':
+    'The application is provided free of charge and may change or be unavailable at any time without notice. We may add, change or remove features.',
+  'legal.terms.source.p1':
+    'The OpenShelter source code is available under the MIT License. This governs the source code, not the shelter data, which remains subject to its own sources and to these terms.',
+  'legal.terms.law.p1':
+    'These terms are governed by [APPLICABLE LAW TO BE CONFIRMED]. Disputes will be resolved in [DISPUTE RESOLUTION TO BE CONFIRMED].',
+  'legal.terms.contact.p1.before':
+    'Questions about these terms can be sent to [CONTACT EMAIL]. OpenShelter is also governed by the ',
+  'legal.terms.contact.p1.link': 'privacy policy',
+  'legal.terms.contact.p1.after': '.',
 };

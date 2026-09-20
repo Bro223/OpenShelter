@@ -1,12 +1,14 @@
 import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { PrivacyPolicyPage } from './privacy-policy-page';
 
 @Component({ imports: [PrivacyPolicyPage], template: '<app-privacy-policy-page />' })
 class Host {}
 
 describe('PrivacyPolicyPage', () => {
+  let fixture: ComponentFixture<Host>;
   let element: HTMLElement;
 
   beforeEach(async () => {
@@ -14,7 +16,7 @@ describe('PrivacyPolicyPage', () => {
       imports: [Host],
       providers: [provideRouter([])],
     }).compileComponents();
-    const fixture = TestBed.createComponent(Host);
+    fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     element = fixture.nativeElement as HTMLElement;
   });
@@ -105,5 +107,20 @@ describe('PrivacyPolicyPage', () => {
     );
     expect(links).toContain('/account');
     expect(links).toContain('/terms');
+  });
+
+  it('re-renders on a language switch (fully catalog-driven, i18n M4)', () => {
+    expect(text()).toContain('Privacy policy');
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('et');
+    fixture.detectChanges();
+    expect(text()).toContain('Privaatsuspoliitika');
+    expect(text()).toContain('Kes käitab OpenShelterit');
+    expect(text()).toContain('Mida isikuandmeid me kogume');
+    // The switch persists to localStorage — restore the default locale so
+    // the EN assertions in the other tests hold regardless of order.
+    i18n.setLocale('en');
+    fixture.detectChanges();
+    expect(text()).toContain('Privacy policy');
   });
 });

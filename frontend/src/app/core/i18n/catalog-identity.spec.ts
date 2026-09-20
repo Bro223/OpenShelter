@@ -42,6 +42,29 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   // bare period in every supported locale) — same rationale as agreeTail.
   'account.phoneDone.after': '.',
   'account.legal.tail': '.',
+  // Legal pages (legal-i18n M4): punctuation-only splice tails. A semicolon
+  // or a period is a semicolon/period in every supported locale; the
+  // translated sentence around them carries the language.
+  'legal.privacy.collect.li1.after': ';',
+  'legal.privacy.collect.li2.after': ';',
+  'legal.privacy.collect.li3.after': ';',
+  'legal.privacy.collect.p2.after': '.',
+  'legal.privacy.rights.li1.after': '.',
+  'legal.privacy.contact.p1.after': '.',
+  // Proper noun as a WHOLE value (the emphasized service name); it is not
+  // translated in any locale.
+  'legal.privacy.thirdParties.li3.strong': 'OpenStreetMap',
+  // The env-var name is code, not copy (quoted from the backend config).
+  'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
+  // The emergency number — a literal in every locale.
+  'legal.terms.emergencyNumber': '112',
+  // Punctuation-only splice tail after the "call 112" sentence — the
+  // period is a period in every supported locale.
+  'legal.terms.emergency.p1.after': '.',
+  // Terms contact/third-party sentence tails — punctuation only, same
+  // rationale as the privacy splice tails above.
+  'legal.terms.thirdParty.p1.after': '.',
+  'legal.terms.contact.p1.after': '.',
 };
 
 function identicalToEn(catalog: Messages, locale: string): string[] {

@@ -113,17 +113,23 @@
         <p class="shelter-detail__distance-error" role="alert">{{ msg }}</p>
       }
       @if (shelter(); as s) {
-        <!-- Last verified: the per-entry server-derived stamp. For
-             NEW community rows the line IS the not-yet-verified signal
-             ("Newly added X d ago — not yet verified"); the community
-             report count rides on the same line when present.
-             .num-tabular keeps the figures from shifting. -->
-        <p class="shelter-detail__verified num-tabular">
-          {{ lastVerifiedText(s) }}
-          @if (hasCommunityReports(s)) {
-            <span>&middot; {{ communityReportsText(s.reportCount) }}</span>
-          }
-        </p>
+        <!-- Last verified: the per-entry server-derived stamp (M8:
+             registry rows name the registry the check came from). For NEW
+             community rows the line IS the not-yet-verified signal ("Newly
+             added X d ago — not yet verified"). .num-tabular keeps the
+             figures from shifting. The community report count is the
+             SEPARATE line below — the two facts (when this entry was
+             verified against its source / how many community reports
+             exist) are never joined into one string. -->
+        <p class="shelter-detail__verified num-tabular">{{ lastVerifiedText(s) }}</p>
+        @if (hasCommunityReports(s)) {
+          <!-- The labeled lifetime total over all report types — a
+               self-contained fact, independent of the line above (the
+               open/closed and how-full taps do not change it). -->
+          <p class="shelter-detail__reports num-tabular">{{
+            communityReportsText(s.reportCount)
+          }}</p>
+        }
       }
     </header>
 
@@ -289,7 +295,6 @@
                     <label for="report-detail">{{ 'detail.reportDetailLabel' | t }}</label>
                     <textarea
                       id="report-detail"
-                      rows="2"
                       maxlength="500"
                       [formControl]="reportDetail"
                       [placeholder]="placeholder"

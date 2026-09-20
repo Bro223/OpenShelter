@@ -86,16 +86,15 @@
                 {{ infoFor() === row.id ? ('account.contrib.infoClose' | t) : ('account.contrib.info' | t) }}
               </button>
             }
-            @if (editingShelterId() !== row.id) {
-              <button
-                type="button"
-                class="btn btn--ghost"
-                (click)="startEditShelter(row)"
-                [disabled]="busy()"
-              >
-                {{ 'account.edit' | t }}
-              </button>
-            }
+            <!-- M5: Edit opens the SHARED /submit form in edit mode — the
+                 full creation form (same fields, same location capture
+                 modes) prefilled with this row's values. The account area
+                 no longer hosts a reduced inline edit form. String form
+                 (not the array form): row.id is a numeric primary key, so
+                 no encoding concerns. -->
+            <a [routerLink]="editLink(row.id)" class="btn btn--ghost">
+              {{ 'account.edit' | t }}
+            </a>
             @if (!shelterDeleteConfirm.isArmed(row.id)) {
               <button
                 type="button"
@@ -142,90 +141,6 @@
             </div>
           }
 
-          <!-- inline edit form -->
-          @if (editingShelterId() === row.id) {
-            <div class="contrib-edit">
-              <div class="field">
-                <label for="contrib-name">{{ 'account.contrib.nameLabel' | t }}</label>
-                <input id="contrib-name" type="text" [formControl]="editName" autocomplete="off" />
-                @if (editName.touched && editName.invalid) {
-                  <p class="field-error">{{ 'account.contrib.nameRequired' | t }}</p>
-                }
-              </div>
-
-              <div class="field">
-                <label for="contrib-description">{{ 'account.contrib.descriptionLabel' | t }}</label>
-                <textarea
-                  id="contrib-description"
-                  rows="2"
-                  maxlength="2000"
-                  [formControl]="editDescription"
-                ></textarea>
-                @if (editDescription.touched && editDescription.invalid) {
-                  <p class="field-error">{{ 'account.contrib.descriptionTooLong' | t }}</p>
-                }
-              </div>
-
-              <div class="contrib-edit__coords">
-                <div class="field">
-                  <label for="contrib-capacity">{{ 'submit.capacityLabel' | t }}</label>
-                  <!-- The range is its OWN hint line (submit.capacityHint) so a
-                       narrow column can never break it mid-range. The label and
-                       hint are shared with the /submit form (same field). -->
-                  <p class="field-note">{{ 'submit.capacityHint' | t }}</p>
-                  <input id="contrib-capacity" type="number" [formControl]="editCapacity" />
-                  @if (editCapacity.touched && editCapacity.invalid) {
-                    <p class="field-error">{{ 'submit.capacity.invalid' | t }}</p>
-                  }
-                </div>
-                <div class="field">
-                  <label for="contrib-latitude">{{ 'account.contrib.latitudeLabel' | t }}</label>
-                  <input
-                    id="contrib-latitude"
-                    type="number"
-                    step="any"
-                    [formControl]="editLatitude"
-                  />
-                  @if (editLatitude.touched && editLatitude.invalid) {
-                    <p class="field-error">{{ 'account.contrib.latitudeError' | t }}</p>
-                  }
-                </div>
-                <div class="field">
-                  <label for="contrib-longitude">{{ 'account.contrib.longitudeLabel' | t }}</label>
-                  <input
-                    id="contrib-longitude"
-                    type="number"
-                    step="any"
-                    [formControl]="editLongitude"
-                  />
-                  @if (editLongitude.touched && editLongitude.invalid) {
-                    <p class="field-error">{{ 'account.contrib.longitudeError' | t }}</p>
-                  }
-                </div>
-              </div>
-              <p class="field-note">{{ 'account.contrib.estoniaNote' | t }}</p>
-
-              <div class="contrib-actions">
-                <button
-                  type="button"
-                  class="btn btn--primary"
-                  (click)="saveShelterEdit()"
-                  [disabled]="busy() || !shelterFormValid()"
-                >
-                  {{ busy() ? ('account.saving' | t) : ('account.save' | t) }}
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--ghost"
-                  (click)="cancelEditShelter()"
-                  [disabled]="busy()"
-                >
-                  {{ 'account.cancel' | t }}
-                </button>
-              </div>
-            </div>
-          }
-
           <!-- Info request: the moderator's question + the
                one-time reply (open) or the stored reply (answered — the row
                is kept after the reply, audit posture). -->
@@ -242,7 +157,6 @@
                     <label for="contrib-info-reply">{{ 'account.contrib.replyLabel' | t }}</label>
                     <textarea
                       id="contrib-info-reply"
-                      rows="2"
                       maxlength="2000"
                       [formControl]="replyMessage"
                     ></textarea>

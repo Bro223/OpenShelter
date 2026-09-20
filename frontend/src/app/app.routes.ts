@@ -18,6 +18,16 @@ import { AccountPage } from './features/account/account-page';
  *  - /map is the Leaflet browse map; /shelters/:id the public detail page
  *    (marker/row navigation lands there; the trust-layer controls branch on
  *    auth/verification in-component), /submit (AuthGuard + VerifiedGuard)
+ *    — and /submit?edit=<id> (M5, shelter editing reuses the add form):
+ *    the SAME form in an explicit edit mode. A query param, not a new
+ *    route, keeps ONE route entry + ONE lazy chunk + the same guards, and
+ *    the creation path /submit is literally unchanged (no param). The
+ *    account panel's Edit opens /submit?edit=<id>; the page prefills from
+ *    GET /api/shelters/mine (owner-scoped) and saves with
+ *    PUT /api/shelters/{id} — the edit publishes immediately (the row's
+ *    status is untouched, so a published shelter never leaves the map)
+ *    and carries the pending-verification (NEW) trust state a new
+ *    submission gets.
  *  - every route carries `data.title` + titleGuard — the browser tab
  *    shows "<Page> — OpenShelter" (core/title.ts, tested in title.spec.ts).
  *    /shelters/:id and /submit are loadComponent-lazy (bundle budget —
@@ -105,6 +115,9 @@ export const routes: Routes = [
     canActivate: [titleGuard],
   },
   // Verified accounts only — mirrors the backend 403 (design decision 5).
+  // /submit?edit=<id> (M5): this same component in edit mode — see the
+  // route-map comment above; the ?edit param is read by the page itself
+  // (ActivatedRoute), no route change.
   {
     path: 'submit',
     // Lazy (bundle budget): form + mini-map code defers until a verified

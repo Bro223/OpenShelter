@@ -1,213 +1,154 @@
 <article class="legal-page">
-  <h1 class="page-title">Terms of use</h1>
-  <p class="legal-page__updated">Last updated: 13 September 2026</p>
+  <h1 class="page-title">{{ 'legal.terms.title' | t }}</h1>
+  <p class="legal-page__updated">{{ 'legal.terms.updated' | t }}</p>
 
-  <nav class="legal-page__toc" aria-label="Table of contents">
+  <nav class="legal-page__toc" [attr.aria-label]="'legal.toc.aria' | t">
     <ol>
-      <li><a routerLink="/terms" fragment="acceptance">Acceptance of these terms</a></li>
-      <li><a routerLink="/terms" fragment="service">What OpenShelter is</a></li>
-      <li><a routerLink="/terms" fragment="eligibility">Eligibility and accounts</a></li>
-      <li><a routerLink="/terms" fragment="security">Account security</a></li>
-      <li><a routerLink="/terms" fragment="rules">Rules for contributions</a></li>
-      <li><a routerLink="/terms" fragment="prohibited">Prohibited content and behaviour</a></li>
-      <li><a routerLink="/terms" fragment="license">Intellectual property and your license</a></li>
-      <li><a routerLink="/terms" fragment="moderation">Moderation and removal</a></li>
-      <li><a routerLink="/terms" fragment="official">Official versus community information</a></li>
-      <li><a routerLink="/terms" fragment="emergency">Emergency disclaimer</a></li>
-      <li><a routerLink="/terms" fragment="warranty">No warranty</a></li>
-      <li><a routerLink="/terms" fragment="liability">Limitation of responsibility</a></li>
-      <li><a routerLink="/terms" fragment="third-party">Third-party links and services</a></li>
-      <li><a routerLink="/terms" fragment="availability">Service availability and changes</a></li>
-      <li><a routerLink="/terms" fragment="source">Open-source license</a></li>
-      <li><a routerLink="/terms" fragment="law">Applicable law and disputes</a></li>
-      <li><a routerLink="/terms" fragment="contact">Contact</a></li>
+      <li><a routerLink="/terms" fragment="acceptance">{{ 'legal.terms.acceptance' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="service">{{ 'legal.terms.service' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="eligibility">{{ 'legal.terms.eligibility' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="security">{{ 'legal.terms.security' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="rules">{{ 'legal.terms.rules' | t }}</a></li>
+      <li>
+        <a routerLink="/terms" fragment="prohibited">{{ 'legal.terms.prohibited' | t }}</a>
+      </li>
+      <li><a routerLink="/terms" fragment="license">{{ 'legal.terms.license' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="moderation">{{ 'legal.terms.moderation' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="official">{{ 'legal.terms.official' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="emergency">{{ 'legal.terms.emergency' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="warranty">{{ 'legal.terms.warranty' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="liability">{{ 'legal.terms.liability' | t }}</a></li>
+      <li>
+        <a routerLink="/terms" fragment="third-party">{{ 'legal.terms.thirdParty' | t }}</a>
+      </li>
+      <li>
+        <a routerLink="/terms" fragment="availability">{{ 'legal.terms.availability' | t }}</a>
+      </li>
+      <li><a routerLink="/terms" fragment="source">{{ 'legal.terms.source' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="law">{{ 'legal.terms.law' | t }}</a></li>
+      <li><a routerLink="/terms" fragment="contact">{{ 'legal.terms.contact' | t }}</a></li>
     </ol>
   </nav>
 
   <section id="acceptance">
-    <h2>Acceptance of these terms</h2>
-    <p>
-      By using OpenShelter, you agree to these terms of use. If you do not agree, do not use the
-      application. Continuing to use the application after a change means you accept the updated
-      terms.
-    </p>
+    <h2>{{ 'legal.terms.acceptance' | t }}</h2>
+    <p>{{ 'legal.terms.acceptance.p1' | t }}</p>
   </section>
 
   <section id="service">
-    <h2>What OpenShelter is</h2>
+    <h2>{{ 'legal.terms.service' | t }}</h2>
+    <p>{{ 'legal.terms.service.p1' | t }}</p>
     <p>
-      OpenShelter is an independent, community-maintained map of shelters and safe places in
-      Estonia. It combines official open data from the Estonian Rescue Board (Päästeamet) with
-      locations submitted by community members.
-    </p>
-    <p>
-      OpenShelter is <strong>not an official emergency service</strong> and not a government
-      service. In an emergency, call <strong>112</strong> and follow the instructions of the
-      Estonian Rescue Board, local authorities and emergency services.
+      {{ 'legal.terms.service.p2.before' | t }}<strong>{{ 'legal.terms.service.p2.strong' | t
+      }}</strong>{{ 'legal.terms.service.p2.middle' | t
+      }}<strong>{{ 'legal.terms.emergencyNumber' | t }}</strong
+      >{{ 'legal.terms.service.p2.after' | t }}
     </p>
   </section>
 
   <section id="eligibility">
-    <h2>Eligibility and accounts</h2>
-    <p>
-      You may browse the map without an account. To submit shelters or reports you need an account,
-      and the account becomes contributing after you verify both your e-mail address and your phone
-      number with one-time codes. You are responsible for the accuracy of the contacts you register.
-    </p>
+    <h2>{{ 'legal.terms.eligibility' | t }}</h2>
+    <p>{{ 'legal.terms.eligibility.p1' | t }}</p>
   </section>
 
   <section id="security">
-    <h2>Account security</h2>
-    <p>
-      You are responsible for keeping your password safe and for everything done through your
-      account. Do not share your password or your one-time verification codes. If you believe your
-      account has been compromised, reset your password.
-    </p>
+    <h2>{{ 'legal.terms.security' | t }}</h2>
+    <p>{{ 'legal.terms.security.p1' | t }}</p>
   </section>
 
   <section id="rules">
-    <h2>Rules for contributions</h2>
+    <h2>{{ 'legal.terms.rules' | t }}</h2>
     <ul>
-      <li>
-        Submit only places you know to exist, with details accurate to the best of your knowledge.
-      </li>
-      <li>
-        Report locations (as closed, inaccurate, or no longer existing) truthfully and only from
-        what you actually know.
-      </li>
-      <li>
-        Do not submit a private home as a public shelter. If you submit a location that is a private
-        home, declare it as such.
-      </li>
-      <li>
-        The application applies limits to keep the list usable: a daily cap on submissions, a cap on
-        how often one-time codes may be requested, and detection of near-duplicate submissions.
-        Exceeding a limit produces an error and a suggested wait; it is not a ban.
-      </li>
+      <li>{{ 'legal.terms.rules.li1' | t }}</li>
+      <li>{{ 'legal.terms.rules.li2' | t }}</li>
+      <li>{{ 'legal.terms.rules.li3' | t }}</li>
+      <li>{{ 'legal.terms.rules.li4' | t }}</li>
     </ul>
   </section>
 
   <section id="prohibited">
-    <h2>Prohibited content and behaviour</h2>
-    <p>You must not:</p>
+    <h2>{{ 'legal.terms.prohibited' | t }}</h2>
+    <p>{{ 'legal.terms.prohibited.p1' | t }}</p>
     <ul>
-      <li>submit false, misleading, unsafe or malicious shelter data or reports;</li>
-      <li>submit private homes as public shelters without declaring them as private;</li>
-      <li>spam, automate access, or attempt to attack or overload the application;</li>
-      <li>attempt to access another user's account or the administrator functions;</li>
-      <li>submit content that is unlawful, defamatory, or that exposes someone's private data.</li>
+      <li>{{ 'legal.terms.prohibited.li1' | t }}</li>
+      <li>{{ 'legal.terms.prohibited.li2' | t }}</li>
+      <li>{{ 'legal.terms.prohibited.li3' | t }}</li>
+      <li>{{ 'legal.terms.prohibited.li4' | t }}</li>
+      <li>{{ 'legal.terms.prohibited.li5' | t }}</li>
     </ul>
-    <p>
-      Deliberately false or misleading shelter data is abuse of the service and may lead to removal
-      of content or suspension of your account.
-    </p>
+    <p>{{ 'legal.terms.prohibited.p2' | t }}</p>
   </section>
 
   <section id="license">
-    <h2>Intellectual property and your license</h2>
-    <p>
-      By submitting a shelter or report, you grant OpenShelter a non-exclusive, worldwide,
-      royalty-free license to store, display and modify that content for the purpose of operating
-      the map and moderating it. You keep ownership of what you submit, and you can edit or remove
-      your own shelters.
-    </p>
+    <h2>{{ 'legal.terms.license' | t }}</h2>
+    <p>{{ 'legal.terms.license.p1' | t }}</p>
   </section>
 
   <section id="moderation">
-    <h2>Moderation and removal</h2>
-    <p>
-      Submissions enter the list as community reports. Moderators can review, hide, correct or
-      remove user-submitted content, and can suspend accounts that abuse the service. A submission
-      can therefore be reviewed, hidden or rejected.
-    </p>
+    <h2>{{ 'legal.terms.moderation' | t }}</h2>
+    <p>{{ 'legal.terms.moderation.p1' | t }}</p>
   </section>
 
   <section id="official">
-    <h2>Official versus community information</h2>
+    <h2>{{ 'legal.terms.official' | t }}</h2>
     <p>
-      The application distinguishes between information sources. Locations marked as "Registry" come
-      from official open data. Locations marked "Newly added" or "Community-checked" were submitted
-      by community members. A <em>verified user</em> has proved ownership of an e-mail address and a
-      phone number; that says nothing about the accuracy of what they submit.
-      <strong>A verified user is not a verified shelter.</strong>
+      {{ 'legal.terms.official.p1.before' | t }}<em>{{ 'legal.terms.official.p1.em' | t
+      }}</em>{{ 'legal.terms.official.p1.middle' | t
+      }}<strong>{{ 'legal.terms.official.p1.strong' | t }}</strong>
     </p>
-    <p>
-      A community-submitted location is not automatically a safe, legal, accessible, public or
-      operational shelter. Treat community submissions with caution, especially during an emergency.
-    </p>
+    <p>{{ 'legal.terms.official.p2' | t }}</p>
   </section>
 
   <section id="emergency">
-    <h2>Emergency disclaimer</h2>
+    <h2>{{ 'legal.terms.emergency' | t }}</h2>
     <p>
-      OpenShelter is not an emergency service and must not be your only source of emergency
-      information. Official instructions from the Estonian Rescue Board, local authorities and
-      emergency services always take priority over anything shown in this application. In an
-      emergency, call <strong>112</strong>.
+      {{ 'legal.terms.emergency.p1.before' | t
+      }}<strong>{{ 'legal.terms.emergencyNumber' | t }}</strong
+      >{{ 'legal.terms.emergency.p1.after' | t }}
     </p>
-    <p>
-      Do not enter private property or abandoned buildings based only on information shown by
-      OpenShelter.
-    </p>
+    <p>{{ 'legal.terms.emergency.p2' | t }}</p>
   </section>
 
   <section id="warranty">
-    <h2>No warranty</h2>
-    <p>
-      The list is provided as-is, for community benefit, without warranty of any kind. We do not
-      guarantee that any location is open, safe, accessible, available, suitable or still
-      operational.
-    </p>
+    <h2>{{ 'legal.terms.warranty' | t }}</h2>
+    <p>{{ 'legal.terms.warranty.p1' | t }}</p>
   </section>
 
   <section id="liability">
-    <h2>Limitation of responsibility</h2>
-    <p>
-      To the extent permitted by law, OpenShelter accepts no liability for decisions made in
-      reliance on the list. This paragraph is intended to be reasonable and is subject to legal
-      review; it does not attempt to exclude liability that cannot be excluded by law.
-    </p>
+    <h2>{{ 'legal.terms.liability' | t }}</h2>
+    <p>{{ 'legal.terms.liability.p1' | t }}</p>
   </section>
 
   <section id="third-party">
-    <h2>Third-party links and services</h2>
+    <h2>{{ 'legal.terms.thirdParty' | t }}</h2>
     <p>
-      The application links to external services, including the Estonian Rescue Board, Maa-amet and
-      OpenStreetMap. We are not responsible for the content or availability of those services. How
-      personal data is shared with service providers is described in the
-      <a routerLink="/privacy">privacy policy</a>.
+      {{ 'legal.terms.thirdParty.p1.before' | t
+      }}<a routerLink="/privacy">{{ 'legal.terms.thirdParty.p1.link' | t }}</a
+      >{{ 'legal.terms.thirdParty.p1.after' | t }}
     </p>
   </section>
 
   <section id="availability">
-    <h2>Service availability and changes</h2>
-    <p>
-      The application is provided free of charge and may change or be unavailable at any time
-      without notice. We may add, change or remove features.
-    </p>
+    <h2>{{ 'legal.terms.availability' | t }}</h2>
+    <p>{{ 'legal.terms.availability.p1' | t }}</p>
   </section>
 
   <section id="source">
-    <h2>Open-source license</h2>
-    <p>
-      The OpenShelter source code is available under the MIT License. This governs the source code,
-      not the shelter data, which remains subject to its own sources and to these terms.
-    </p>
+    <h2>{{ 'legal.terms.source' | t }}</h2>
+    <p>{{ 'legal.terms.source.p1' | t }}</p>
   </section>
 
   <section id="law">
-    <h2>Applicable law and disputes</h2>
-    <p>
-      These terms are governed by [APPLICABLE LAW TO BE CONFIRMED]. Disputes will be resolved in
-      [DISPUTE RESOLUTION TO BE CONFIRMED].
-    </p>
+    <h2>{{ 'legal.terms.law' | t }}</h2>
+    <p>{{ 'legal.terms.law.p1' | t }}</p>
   </section>
 
   <section id="contact">
-    <h2>Contact</h2>
+    <h2>{{ 'legal.terms.contact' | t }}</h2>
     <p>
-      Questions about these terms can be sent to [CONTACT EMAIL]. OpenShelter is also governed by
-      the <a routerLink="/privacy">privacy policy</a>.
+      {{ 'legal.terms.contact.p1.before' | t
+      }}<a routerLink="/privacy">{{ 'legal.terms.contact.p1.link' | t }}</a
+      >{{ 'legal.terms.contact.p1.after' | t }}
     </p>
   </section>
 </article>

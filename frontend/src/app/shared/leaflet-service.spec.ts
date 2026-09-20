@@ -426,8 +426,32 @@ describe('LeafletService', () => {
     // enter the tab order (it is a reference point, not a control).
     expect(el?.getAttribute('tabindex')).toBeNull();
     expect(el?.getAttribute('role')).toBeNull();
-    // The tooltip text (the native title) names what the pin is.
+    // The tooltip text (the native title) names what the pin is — its
+    // accessible name (M8: the origin marker).
     expect(el?.getAttribute('title')).toBe('Searched address');
+    // Smaller than the 14px shelter dots (M8): the origin is a reference
+    // point, not a data point — and it must not cover a co-located shelter.
+    expect(el?.style.width).toBe('12px');
+    expect(el?.style.height).toBe('12px');
+  });
+
+  it('a shelter at the anchor point is never obscured — shelters outrank the origin pin in z-order (M8)', () => {
+    // Same coordinates for shelter and anchor: the shelter marker (the
+    // DATA) must draw above the origin pin at the zooms the app uses.
+    service.renderShelters([TALLINN]);
+    service.setAnchor(TALLINN.latitude, TALLINN.longitude);
+    const shelterEl = container.querySelector<HTMLElement>('.shelter-marker--registry');
+    const anchorEl = container.querySelector<HTMLElement>('.shelter-marker--anchor');
+    expect(shelterEl).not.toBeNull();
+    expect(anchorEl).not.toBeNull();
+    expect(parseInt(shelterEl!.style.zIndex, 10) > parseInt(anchorEl!.style.zIndex, 10)).toBe(true);
+    // True in BOTH orderings — the anchor set after a re-render still
+    // stays under the shelter (the z-order comes from the shelter's
+    // zIndexOffset, not from DOM order).
+    service.renderShelters([TALLINN]);
+    const shelterEl2 = container.querySelector<HTMLElement>('.shelter-marker--registry');
+    const anchorEl2 = container.querySelector<HTMLElement>('.shelter-marker--anchor');
+    expect(parseInt(shelterEl2!.style.zIndex, 10) > parseInt(anchorEl2!.style.zIndex, 10)).toBe(true);
   });
 
   it('setAnchor is a safe no-op before create and destroy clears the pin (M12)', () => {

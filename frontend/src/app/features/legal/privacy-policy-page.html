@@ -1,295 +1,256 @@
 <article class="legal-page">
-  <h1 class="page-title">Privacy policy</h1>
-  <p class="legal-page__updated">Last updated: 16 September 2026</p>
+  <h1 class="page-title">{{ 'legal.privacy.title' | t }}</h1>
+  <p class="legal-page__updated">{{ 'legal.privacy.updated' | t }}</p>
 
-  <nav class="legal-page__toc" aria-label="Table of contents">
+  <nav class="legal-page__toc" [attr.aria-label]="'legal.toc.aria' | t">
     <ol>
-      <li><a routerLink="/privacy" fragment="who">Who operates OpenShelter</a></li>
-      <li><a routerLink="/privacy" fragment="scope">Scope of this policy</a></li>
-      <li><a routerLink="/privacy" fragment="collect">What personal data we collect</a></li>
-      <li><a routerLink="/privacy" fragment="why">Why we process each category</a></li>
+      <li><a routerLink="/privacy" fragment="who">{{ 'legal.privacy.who' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="scope">{{ 'legal.privacy.scope' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="collect">{{ 'legal.privacy.collect' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="why">{{ 'legal.privacy.why' | t }}</a></li>
       <li>
-        <a routerLink="/privacy" fragment="verification">Account creation and verification</a>
+        <a routerLink="/privacy" fragment="verification">{{ 'legal.privacy.verification' | t }}</a>
       </li>
-      <li><a routerLink="/privacy" fragment="location">Location and geolocation</a></li>
-      <li><a routerLink="/privacy" fragment="content">User-generated content</a></li>
-      <li><a routerLink="/privacy" fragment="cookies">Cookies and browser storage</a></li>
-      <li><a routerLink="/privacy" fragment="third-parties">Third-party service providers</a></li>
-      <li><a routerLink="/privacy" fragment="sharing">Data sharing</a></li>
-      <li><a routerLink="/privacy" fragment="retention">Data retention</a></li>
-      <li><a routerLink="/privacy" fragment="rights">Your rights under the GDPR</a></li>
-      <li><a routerLink="/privacy" fragment="security">Data security</a></li>
-      <li><a routerLink="/privacy" fragment="children">Children</a></li>
-      <li><a routerLink="/privacy" fragment="changes">Changes to this policy</a></li>
-      <li><a routerLink="/privacy" fragment="contact">Contact</a></li>
+      <li><a routerLink="/privacy" fragment="location">{{ 'legal.privacy.location' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="content">{{ 'legal.privacy.content' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="cookies">{{ 'legal.privacy.cookies' | t }}</a></li>
+      <li>
+        <a routerLink="/privacy" fragment="third-parties">{{ 'legal.privacy.thirdParties' | t }}</a>
+      </li>
+      <li><a routerLink="/privacy" fragment="sharing">{{ 'legal.privacy.sharing' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="retention">{{ 'legal.privacy.retention' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="rights">{{ 'legal.privacy.rights' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="security">{{ 'legal.privacy.security' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="children">{{ 'legal.privacy.children' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="changes">{{ 'legal.privacy.changes' | t }}</a></li>
+      <li><a routerLink="/privacy" fragment="contact">{{ 'legal.privacy.contact' | t }}</a></li>
     </ol>
   </nav>
 
   <section id="who">
-    <h2>Who operates OpenShelter</h2>
+    <h2>{{ 'legal.privacy.who' | t }}</h2>
+    <p>{{ 'legal.privacy.who.p1' | t }}</p>
     <p>
-      OpenShelter is an open-source, community-maintained map of shelters and safe places in
-      Estonia. It is operated by [OPERATOR LEGAL NAME], [POSTAL ADDRESS]. The data protection
-      contact is [DATA PROTECTION CONTACT].
-    </p>
-    <p>
-      OpenShelter is <strong>not an official government service</strong> and not an emergency
-      service. Official shelter data shown in the application is imported from the Estonian Rescue
-      Board (Päästeamet) open data, but the application itself is operated independently.
+      {{ 'legal.privacy.who.p2.before' | t }}<strong>{{ 'legal.privacy.who.p2.strong' | t
+      }}</strong>{{ 'legal.privacy.who.p2.after' | t }}
     </p>
   </section>
 
   <section id="scope">
-    <h2>Scope of this policy</h2>
-    <p>
-      This policy describes how OpenShelter collects, uses, stores and deletes personal data when
-      you use the web application. It is intended to describe the application's actual behaviour. It
-      does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and
-      OpenStreetMap).
-    </p>
+    <h2>{{ 'legal.privacy.scope' | t }}</h2>
+    <p>{{ 'legal.privacy.scope.p1' | t }}</p>
   </section>
 
   <section id="collect">
-    <h2>What personal data we collect</h2>
-    <p>We collect only what the application needs to work. When you create an account we store:</p>
+    <h2>{{ 'legal.privacy.collect' | t }}</h2>
+    <p>{{ 'legal.privacy.collect.p1' | t }}</p>
     <ul>
-      <li>your <strong>full name</strong>;</li>
-      <li>your <strong>e-mail address</strong>;</li>
-      <li>your <strong>phone number</strong>;</li>
-      <li>your <strong>password</strong>, stored only as a one-way hash.</li>
+      <li>
+        {{ 'legal.privacy.collect.li1.before' | t }}<strong>{{ 'legal.privacy.collect.li1.strong' | t
+        }}</strong>{{ 'legal.privacy.collect.li1.after' | t }}
+      </li>
+      <li>
+        {{ 'legal.privacy.collect.li2.before' | t }}<strong>{{ 'legal.privacy.collect.li2.strong' | t
+        }}</strong>{{ 'legal.privacy.collect.li2.after' | t }}
+      </li>
+      <li>
+        {{ 'legal.privacy.collect.li3.before' | t }}<strong>{{ 'legal.privacy.collect.li3.strong' | t
+        }}</strong>{{ 'legal.privacy.collect.li3.after' | t }}
+      </li>
+      <li>
+        {{ 'legal.privacy.collect.li4.before' | t }}<strong>{{ 'legal.privacy.collect.li4.strong' | t
+        }}</strong>{{ 'legal.privacy.collect.li4.after' | t }}
+      </li>
     </ul>
     <p>
-      We do <strong>not</strong> collect a national identification code, and we do not use
-      advertising, analytics or cross-site tracking. When you contribute to the map we store the
-      content you submit (shelters and reports), as described under
-      <a routerLink="/privacy" fragment="content">user-generated content</a>.
+      {{ 'legal.privacy.collect.p2.before' | t }}<strong>{{ 'legal.privacy.collect.p2.strong' | t
+      }}</strong>{{ 'legal.privacy.collect.p2.middle' | t
+      }}<a routerLink="/privacy" fragment="content">{{ 'legal.privacy.collect.p2.link' | t }}</a
+      >{{ 'legal.privacy.collect.p2.after' | t }}
     </p>
   </section>
 
   <section id="why">
-    <h2>Why we process each category</h2>
-    <p>Each category is processed for a specific purpose, and for no other purpose:</p>
+    <h2>{{ 'legal.privacy.why' | t }}</h2>
+    <p>{{ 'legal.privacy.why.p1' | t }}</p>
     <ul>
       <li>
-        <strong>Name</strong> - shown on your account and, for public submissions, on the map.
+        <strong>{{ 'legal.privacy.why.li1.strong' | t }}</strong
+        >{{ 'legal.privacy.why.li1.after' | t }}
       </li>
       <li>
-        <strong>E-mail address</strong> - account verification, password resets and cross-channel
-        confirmation when you change your phone number.
+        <strong>{{ 'legal.privacy.why.li2.strong' | t }}</strong
+        >{{ 'legal.privacy.why.li2.after' | t }}
       </li>
       <li>
-        <strong>Phone number</strong> - account verification, sign-in and cross-channel confirmation
-        when you change your e-mail address.
+        <strong>{{ 'legal.privacy.why.li3.strong' | t }}</strong
+        >{{ 'legal.privacy.why.li3.after' | t }}
       </li>
       <li>
-        <strong>Password</strong> - authentication. It is stored only as a one-way hash, so it can
-        never be read back.
+        <strong>{{ 'legal.privacy.why.li4.strong' | t }}</strong
+        >{{ 'legal.privacy.why.li4.after' | t }}
       </li>
       <li>
-        <strong>Submitted content</strong> - shown on the public map and used by administrators for
-        moderation and abuse prevention.
+        <strong>{{ 'legal.privacy.why.li5.strong' | t }}</strong
+        >{{ 'legal.privacy.why.li5.after' | t }}
       </li>
     </ul>
-    <p>
-      The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED]. This document is intended
-      to describe the processing; it is not a legal opinion.
-    </p>
+    <p>{{ 'legal.privacy.why.p2' | t }}</p>
   </section>
 
   <section id="verification">
-    <h2>Account creation and verification</h2>
-    <p>
-      You may browse the map without an account. To submit shelters or reports you must create an
-      account and verify both your e-mail address and your phone number. Verification works by
-      sending a one-time code to each contact; until both are verified you can sign in but cannot
-      contribute.
-    </p>
-    <p>
-      Password resets are performed by a one-time code sent to your e-mail address. Changing your
-      e-mail address is confirmed with a code sent to your current phone number, and changing your
-      phone number is confirmed with a code sent to your current e-mail address.
-    </p>
-    <p>
-      To prevent abuse, the application applies rate limits on code requests and on shelter
-      submissions, and detects near-duplicate submissions. Exceeding a limit produces an error, not
-      a ban.
-    </p>
+    <h2>{{ 'legal.privacy.verification' | t }}</h2>
+    <p>{{ 'legal.privacy.verification.p1' | t }}</p>
+    <p>{{ 'legal.privacy.verification.p2' | t }}</p>
+    <p>{{ 'legal.privacy.verification.p3' | t }}</p>
   </section>
 
   <section id="location">
-    <h2>Location and geolocation</h2>
+    <h2>{{ 'legal.privacy.location' | t }}</h2>
     <p>
-      We only ever see your location when <em>you</em> ask for it. The "Show shelters around you"
-      button and the "Use my location" option on the submit form first show your browser's own
-      permission prompt. If you decline, nothing changes.
+      {{ 'legal.privacy.location.p1.before' | t }}<em>{{ 'legal.privacy.location.p1.em' | t
+      }}</em>{{ 'legal.privacy.location.p1.after' | t }}
     </p>
     <p>
-      On the map, the nearest shelter is worked out <strong>inside your browser</strong>; your live
-      position is never sent to our servers. If you submit a shelter at your position, only the
-      coordinate you choose is stored, as part of that submission.
+      {{ 'legal.privacy.location.p2.before' | t }}<strong>{{ 'legal.privacy.location.p2.strong' | t
+      }}</strong>{{ 'legal.privacy.location.p2.after' | t }}
     </p>
     <p>
-      We <strong>never</strong> infer your location from your IP address. Address search uses the
-      OpenStreetMap Nominatim service; a search request is sent only when you deliberately search
-      for an address.
+      {{ 'legal.privacy.location.p3.before' | t }}<strong>{{ 'legal.privacy.location.p3.strong' | t
+      }}</strong>{{ 'legal.privacy.location.p3.after' | t }}
     </p>
   </section>
 
   <section id="content">
-    <h2>User-generated content</h2>
+    <h2>{{ 'legal.privacy.content' | t }}</h2>
     <p>
-      When you contribute, the application stores your shelters and your reports (for example, that
-      a location is closed, inaccurate, or no longer exists). This content becomes part of the
-      public community map. You can edit or remove your own shelters from the
-      <a routerLink="/account">account page</a>; reports are reviewed by administrators.
+      {{ 'legal.privacy.content.p1.before' | t
+      }}<a routerLink="/account">{{ 'legal.privacy.link.accountPage' | t }}</a
+      >{{ 'legal.privacy.content.p1.after' | t }}
     </p>
-    <p>
-      Moderators can review, hide, correct or remove user-submitted content. The application keeps a
-      moderation record so decisions can be audited.
-    </p>
+    <p>{{ 'legal.privacy.content.p2' | t }}</p>
   </section>
 
   <section id="cookies">
-    <h2>Cookies and browser storage</h2>
-    <p>
-      OpenShelter does not use advertising cookies. It stores only the following items in your
-      browser's local storage, each of which is technically necessary:
-    </p>
+    <h2>{{ 'legal.privacy.cookies' | t }}</h2>
+    <p>{{ 'legal.privacy.cookies.p1' | t }}</p>
     <ul>
-      <li>a <strong>sign-in token</strong> that keeps you logged in across page reloads;</li>
-      <li>your <strong>language preference</strong> (Estonian or English);</li>
-      <li>your <strong>display preference</strong> (high-contrast mode).</li>
+      <li>
+        {{ 'legal.privacy.cookies.li1.before' | t }}<strong>{{ 'legal.privacy.cookies.li1.strong' | t
+        }}</strong>{{ 'legal.privacy.cookies.li1.after' | t }}
+      </li>
+      <li>
+        {{ 'legal.privacy.cookies.li2.before' | t }}<strong>{{ 'legal.privacy.cookies.li2.strong' | t
+        }}</strong>{{ 'legal.privacy.cookies.li2.after' | t }}
+      </li>
+      <li>
+        {{ 'legal.privacy.cookies.li3.before' | t }}<strong>{{ 'legal.privacy.cookies.li3.strong' | t
+        }}</strong>{{ 'legal.privacy.cookies.li3.after' | t }}
+      </li>
     </ul>
-    <p>
-      Your access token is held in memory only and is discarded when you close the tab. No third
-      party receives these items, and there are no optional analytics or tracking technologies to
-      accept or reject.
-    </p>
+    <p>{{ 'legal.privacy.cookies.p2' | t }}</p>
   </section>
 
   <section id="third-parties">
-    <h2>Third-party service providers</h2>
-    <p>We use a small number of third-party services, each only to deliver a specific function:</p>
+    <h2>{{ 'legal.privacy.thirdParties' | t }}</h2>
+    <p>{{ 'legal.privacy.thirdParties.p1' | t }}</p>
     <ul>
       <li>
-        an <strong>e-mail delivery service</strong> (SendPulse, via SMTP) to send verification and
-        password-reset codes. It receives the destination e-mail address to deliver the message.
+        {{ 'legal.privacy.thirdParties.li1.before' | t
+        }}<strong>{{ 'legal.privacy.thirdParties.li1.strong' | t }}</strong
+        >{{ 'legal.privacy.thirdParties.li1.after' | t }}
       </li>
       <li>
-        a <strong>text-message service</strong> (Twilio) to send verification codes. It receives the
-        destination phone number to deliver the message.
+        {{ 'legal.privacy.thirdParties.li2.before' | t
+        }}<strong>{{ 'legal.privacy.thirdParties.li2.strong' | t }}</strong
+        >{{ 'legal.privacy.thirdParties.li2.after' | t }}
       </li>
       <li>
-        <strong>OpenStreetMap</strong> map tiles and the Nominatim geocoding service, which receive
-        the map area you view or the address you search for.
+        <strong>{{ 'legal.privacy.thirdParties.li3.strong' | t }}</strong
+        >{{ 'legal.privacy.thirdParties.li3.after' | t }}
       </li>
     </ul>
-    <p>
-      The official shelter data is imported from the Estonian Rescue Board (Päästeamet) open data;
-      that is an inbound data source, not a service we send your data to. Whether any of these
-      providers involves an international transfer is [TO BE CONFIRMED].
-    </p>
+    <p>{{ 'legal.privacy.thirdParties.p2' | t }}</p>
   </section>
 
   <section id="sharing">
-    <h2>Data sharing</h2>
-    <p>
-      We do not sell your personal data and do not share it for advertising or any other commercial
-      purpose. The only disclosures are to the service providers listed above, in order to deliver
-      the messages you request. Shelter data you submit becomes part of the public community list;
-      after you delete your account, public submissions remain on the map without attribution.
-    </p>
+    <h2>{{ 'legal.privacy.sharing' | t }}</h2>
+    <p>{{ 'legal.privacy.sharing.p1' | t }}</p>
   </section>
 
   <section id="retention">
-    <h2>Data retention</h2>
+    <h2>{{ 'legal.privacy.retention' | t }}</h2>
+    <p>{{ 'legal.privacy.retention.p1' | t }}</p>
     <p>
-      Your account data is kept for as long as your account exists. Deleting your account removes
-      your personal data immediately: shelters you declared as a private home are removed, and
-      public shelters you submitted stay on the map without a submitter.
+      {{ 'legal.privacy.retention.p2.before' | t }}<strong>{{ 'legal.privacy.retention.p2.strong' | t
+      }}</strong>{{ 'legal.privacy.retention.p2.middle' | t
+      }}<strong>{{ 'legal.privacy.retention.p2.strong2' | t }}</strong
+      >{{ 'legal.privacy.retention.p2.after' | t }}
     </p>
     <p>
-      We also apply fixed retention periods: an account with no sign-in activity (registration,
-      login, or session refresh) for <strong>24 months</strong> is deleted with the same erasure
-      rule as account deletion, and moderation and audit records older than
-      <strong>24 months</strong> are removed.
+      {{ 'legal.privacy.retention.p3.before' | t
+      }}<code>{{ 'legal.privacy.retention.p3.code' | t }}</code
+      >{{ 'legal.privacy.retention.p3.after' | t }}
     </p>
-    <p>
-      Those periods are the app's retention rule. The scheduled job that enforces them is a
-      deployment-level switch (<code>RETENTION_ENABLED</code>): it is off in this repository's
-      development setup, and it is enabled by whoever operates a deployment. In a deployment where
-      the job is off, inactive accounts and old audit records are simply kept.
-    </p>
-    <p>
-      Public community submissions are never removed automatically: they stay on the map without
-      attribution until a moderator removes them.
-    </p>
+    <p>{{ 'legal.privacy.retention.p4' | t }}</p>
   </section>
 
   <section id="rights">
-    <h2>Your rights under the GDPR</h2>
-    <p>If you are in the European Economic Area, you have the right to:</p>
+    <h2>{{ 'legal.privacy.rights' | t }}</h2>
+    <p>{{ 'legal.privacy.rights.p1' | t }}</p>
     <ul>
       <li>
-        <strong>Access</strong> and <strong>portability</strong> - download a JSON export of your
-        profile and everything you submitted from the <a routerLink="/account">account page</a>.
+        <strong>{{ 'legal.privacy.rights.li1.strong' | t }}</strong
+        >{{ 'legal.privacy.rights.li1.and' | t }}<strong>{{ 'legal.privacy.rights.li1.strong2' | t
+        }}</strong>{{ 'legal.privacy.rights.li1.middle' | t
+        }}<a routerLink="/account">{{ 'legal.privacy.link.accountPage' | t }}</a
+        >{{ 'legal.privacy.rights.li1.after' | t }}
       </li>
       <li>
-        <strong>Rectification</strong> - correct your name, or change your e-mail address or phone
-        number (each confirmed with a code).
+        <strong>{{ 'legal.privacy.rights.li2.strong' | t }}</strong
+        >{{ 'legal.privacy.rights.li2.after' | t }}
       </li>
       <li>
-        <strong>Erasure</strong> - delete your account from the
-        <a routerLink="/account">account page</a>. Public submissions are orphaned rather than
-        deleted, as described above.
+        <strong>{{ 'legal.privacy.rights.li3.strong' | t }}</strong
+        >{{ 'legal.privacy.rights.li3.middle' | t
+        }}<a routerLink="/account">{{ 'legal.privacy.link.accountPage' | t }}</a
+        >{{ 'legal.privacy.rights.li3.after' | t }}
       </li>
       <li>
-        <strong>Restriction</strong> and <strong>objection</strong> - contact the data protection
-        contact below.
+        <strong>{{ 'legal.privacy.rights.li4.strong' | t }}</strong
+        >{{ 'legal.privacy.rights.li4.and' | t }}<strong>{{ 'legal.privacy.rights.li4.strong2' | t
+        }}</strong>{{ 'legal.privacy.rights.li4.after' | t }}
       </li>
     </ul>
-    <p>
-      You can also complain to the Estonian Data Protection Inspectorate (Andmekaitse Inspektsioon).
-    </p>
+    <p>{{ 'legal.privacy.rights.p2' | t }}</p>
   </section>
 
   <section id="security">
-    <h2>Data security</h2>
+    <h2>{{ 'legal.privacy.security' | t }}</h2>
     <p>
-      Your e-mail address and phone number are <strong>encrypted at rest</strong> (AES-256-GCM).
-      Lookups such as sign-in and duplicate checks run on a separate one-way index that cannot be
-      turned back into your contact. Your password is stored as a one-way Argon2 hash. The
-      encryption keys are kept outside the database and are never written into code or logs.
+      {{ 'legal.privacy.security.p1.before' | t
+      }}<strong>{{ 'legal.privacy.security.p1.strong' | t }}</strong
+      >{{ 'legal.privacy.security.p1.after' | t }}
     </p>
-    <p>
-      The application applies rate limits on verification codes, password resets and submissions,
-      sends security headers on every response, and requires HTTPS for location access. No security
-      measure can guarantee absolute safety, but these measures reduce common risks.
-    </p>
+    <p>{{ 'legal.privacy.security.p2' | t }}</p>
   </section>
 
   <section id="children">
-    <h2>Children</h2>
-    <p>
-      OpenShelter is not directed at children and does not knowingly collect the personal data of
-      children. The application does not currently check a user's age.
-    </p>
+    <h2>{{ 'legal.privacy.children' | t }}</h2>
+    <p>{{ 'legal.privacy.children.p1' | t }}</p>
   </section>
 
   <section id="changes">
-    <h2>Changes to this policy</h2>
-    <p>
-      We may update this policy as the application evolves. The version on this page is the one in
-      force when you read it. Material changes will be reflected in the "Last updated" date above.
-    </p>
+    <h2>{{ 'legal.privacy.changes' | t }}</h2>
+    <p>{{ 'legal.privacy.changes.p1' | t }}</p>
   </section>
 
   <section id="contact">
-    <h2>Contact</h2>
+    <h2>{{ 'legal.privacy.contact' | t }}</h2>
     <p>
-      Questions about this policy or about your data can be sent to [CONTACT EMAIL], or to the data
-      protection contact at [DATA PROTECTION CONTACT]. OpenShelter is also governed by the
-      <a routerLink="/terms">terms of use</a>.
+      {{ 'legal.privacy.contact.p1.before' | t
+      }}<a routerLink="/terms">{{ 'legal.privacy.link.terms' | t }}</a
+      >{{ 'legal.privacy.contact.p1.after' | t }}
     </p>
   </section>
 </article>

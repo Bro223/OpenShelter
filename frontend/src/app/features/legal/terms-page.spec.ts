@@ -1,12 +1,14 @@
 import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TermsPage } from './terms-page';
 
 @Component({ imports: [TermsPage], template: '<app-terms-page />' })
 class Host {}
 
 describe('TermsPage', () => {
+  let fixture: ComponentFixture<Host>;
   let element: HTMLElement;
 
   beforeEach(async () => {
@@ -14,7 +16,7 @@ describe('TermsPage', () => {
       imports: [Host],
       providers: [provideRouter([])],
     }).compileComponents();
-    const fixture = TestBed.createComponent(Host);
+    fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     element = fixture.nativeElement as HTMLElement;
   });
@@ -81,5 +83,20 @@ describe('TermsPage', () => {
       a.getAttribute('href'),
     );
     expect(links).toContain('/privacy');
+  });
+
+  it('re-renders on a language switch (fully catalog-driven, i18n M4)', () => {
+    expect(text()).toContain('Terms of use');
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('et');
+    fixture.detectChanges();
+    expect(text()).toContain('Kasutustingimused');
+    expect(text()).toContain('Mis on OpenShelter');
+    expect(text()).toContain('Hädaolukorras helista 112');
+    // The switch persists to localStorage — restore the default locale so
+    // the EN assertions in the other tests hold regardless of order.
+    i18n.setLocale('en');
+    fixture.detectChanges();
+    expect(text()).toContain('Terms of use');
   });
 });

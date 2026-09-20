@@ -387,25 +387,44 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
     // ----- last-verified meta --------------------------------------------
 
-    it('a verified row shows the last-verified line from the server stamp', async () => {
+    it('a verified registry row shows the last-verified line naming the registry (M8)', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
       shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2) }));
       const { element } = await open('/shelters/1');
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
-      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Last verified 2 h ago');
-      // No report-count suffix while the row has no community reports.
-      expect(element.textContent).not.toContain('community reports');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Last verified against the registry 2 h ago',
+      );
+      // No report-count line while the row has no community reports.
+      expect(element.querySelector('.shelter-detail__reports')).toBeNull();
+      expect(element.textContent).not.toContain('community report');
     });
 
-    it('the community report count rides on the verified line when present', async () => {
+    it('a verified community row keeps the plain verified line (no registry attribution)', async () => {
+      const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
+      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED', lastVerifiedAt: hoursAgo(2) }));
+      const { element } = await open('/shelters/8');
+
+      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe('Last verified 2 h ago');
+    });
+
+    it('the community report count is a SEPARATE labeled line, never spliced onto the verified line (M8)', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
       shelterGateway.rows.set(1, registryShelter({ lastVerifiedAt: hoursAgo(2), reportCount: 3 }));
       const { element } = await open('/shelters/1');
 
-      const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
-      expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
-        'Last verified 2 h ago · 3 community reports',
+      // Two self-contained facts on two lines — the verified line alone
+      // cannot be read as the report fact (or vice versa).
+      const verified = element.querySelector<HTMLElement>('.shelter-detail__verified');
+      const reports = element.querySelector<HTMLElement>('.shelter-detail__reports');
+      expect((verified?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Last verified against the registry 2 h ago',
+      );
+      expect(verified?.textContent).not.toContain('Community reports');
+      expect((reports?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Community reports: 3 (total, all types)',
       );
     });
 
@@ -440,7 +459,12 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
       expect((line?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
-        'Newly added 1 Sep 2025 — not yet verified · 1 community report',
+        'Newly added 1 Sep 2025 — not yet verified',
+      );
+      // The report count is its own line, never spliced onto the signal line.
+      const reports = element.querySelector<HTMLElement>('.shelter-detail__reports');
+      expect((reports?.textContent ?? '').replace(/\s+/g, ' ').trim()).toBe(
+        'Community reports: 1 (total, all types)',
       );
     });
 
@@ -1091,8 +1115,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       await settle(fixture);
 
       expect(shelterGateway.report).toHaveBeenCalledTimes(1);
+      // M8: the notice says the report was recorded but WEIGHTED 0 — the
+      // server's damped=true answers exactly that, with the why.
       expect(text(fixture)).toContain(
-        'Your report was recorded with reduced weight — you have your own listing of a similar location.',
+        'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.',
       );
       expect(text(fixture)).not.toContain('Your report was submitted.');
       expect(section.querySelector('form')).toBeNull(); // picker closed

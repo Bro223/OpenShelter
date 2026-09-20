@@ -162,6 +162,11 @@ export class LeafletService {
           className: `shelter-marker shelter-marker--${tone}`,
           iconSize: [14, 14],
         }),
+        // Shelters are the DATA: the browse anchor pin (a reference point)
+        // must never obscure a shelter marker at the same point, at any
+        // zoom the app uses (country 7 / neighbourhood 14 / street 16).
+        // The anchor keeps the default offset; shelters outrank it.
+        zIndexOffset: 1000,
         title: shelter.name,
       });
       marker.on('click', () => this.markerClick?.(shelter.id));
@@ -272,15 +277,20 @@ export class LeafletService {
 
   /**
    * Drops (or moves) the single BROWSE ANCHOR pin (location-navigation,
-   * /map address search): the searched address the per-row
-   * distances are measured from. NON-draggable and non-interactive —
-   * unlike the /submit pick marker, the anchor is derived from a geocoded
-   * address, not freehand: dragging it would move the reference point to
-   * a place with no data behind it, so the pin is fixed and the anchor is
-   * removed by its Clear action instead. Tone: the user-picked-spot family
-   * (`.shelter-marker--anchor`, the `--color-shelter-pick` token). Null
-   * args remove the pin. No-ops before create / after destroy; NEVER
-   * touches the shelter markers layer group.
+   * /map address search): the ORIGIN the per-row distances are measured
+   * from. NON-draggable and non-interactive — unlike the /submit pick
+   * marker, the anchor is derived from a geocoded address, not freehand:
+   * dragging it would move the reference point to a place with no data
+   * behind it, so the pin is fixed and the anchor is removed by its Clear
+   * action instead. Distinct from shelter markers on SHAPE, not colour
+   * alone: shelters are 14px circles, the origin is a smaller (12px)
+   * diamond (`.shelter-marker--anchor`) in the user-picked-spot teal
+   * (`--color-shelter-pick`) — the map legend carries a matching entry, and
+   * the title attribute is its accessible name. Shelters outrank the pin in
+   * z-order (their markers carry a higher zIndexOffset), so a shelter at
+   * the anchor point is never obscured. Null args remove the pin. No-ops
+   * before create / after destroy; NEVER touches the shelter markers layer
+   * group.
    */
   setAnchor(latitude: number | null, longitude: number | null): void {
     if (!this.map) {
@@ -294,7 +304,7 @@ export class LeafletService {
       this.anchorMarker = L.marker([latitude, longitude], {
         icon: L.divIcon({
           className: 'shelter-marker shelter-marker--anchor',
-          iconSize: [14, 14],
+          iconSize: [12, 12],
         }),
         // The pin is a fixed reference point: interactive:false attaches
         // no click handler (a click must not fight the shelter markers'),

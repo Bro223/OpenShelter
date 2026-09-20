@@ -4,7 +4,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
-import type { GeocodeResult, ShelterDto } from '../../core/models';
+import type { GeocodeResult, MineShelterDto, ShelterDto } from '../../core/models';
 import { authGuard, verifiedGuard } from '../../core/guards';
 import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
@@ -15,6 +15,12 @@ import { SubmitShelterPage } from './submit-shelter-page';
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
 class FakeShelterGateway {
   create = vi.fn();
+  update = vi.fn();
+  mine = vi.fn();
+  constructor() {
+    // Edit mode (M5) loads the row from /mine; creation never calls it.
+    this.mine.mockResolvedValue([]);
+  }
 }
 
 class FakeGeoGateway {
@@ -1190,5 +1196,234 @@ describe('SubmitShelterPage (/submit)', () => {
     await router.navigateByUrl('/map');
     await settle(fixture);
     expect(leaflet.destroyed).toBe(1);
+  });
+
+  // ---------------------------------------------------------------------
+  // Edit mode (M5): /submit?edit=<id> — the SAME form, prefilled
+  // ---------------------------------------------------------------------
+
+  const EDIT_ROW: MineShelterDto = {
+    id: 7,
+    address: null,
+    name: 'Community Cellar',
+    latitude: 59.437,
+    longitude: 24.754,
+    status: 'ACTIVE',
+    source: 'USER',
+    createdAt: '2025-09-01T08:00:00Z',
+    description: 'Neighbourhood basement',
+    capacity: 12,
+    submitterVerified: true,
+    nonexistentReports: 0,
+    reportCount: 0,
+    openStatus: null,
+    occupancy: null,
+    reviewStatus: 'CONFIRMED',
+    reviewNote: null,
+    locationKind: 'PUBLIC',
+    lastVerifiedAt: null,
+    inaccurate: false,
+    infoRequest: null,
+  };
+
+  async function openEdit(editParam: string): Promise<{
+    page: SubmitShelterPage;
+    element: HTMLElement;
+    fixture: ReturnType<typeof TestBed.createComponent>;
+  }> {
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await router.navigateByUrl(`/submit?edit=${editParam}`);
+    for (let i = 0; i < 5; i++) {
+      await settle(fixture);
+    }
+    const debug: DebugElement = fixture.debugElement.query(By.directive(SubmitShelterPage));
+    if (!debug) {
+      throw new Error('SubmitShelterPage not rendered');
+    }
+    return { page: debug.componentInstance, element: debug.nativeElement as HTMLElement, fixture };
+  }
+
+  it('edit mode prefills the SAME form from the row (fetched via /mine) and pins the saved location', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    const { element } = await openEdit('7');
+
+    // The heading + button carry the edit/save copy, not the submission copy.
+    expect(element.querySelector('.page-title')?.textContent?.trim()).toBe('Edit');
+    expect(element.textContent).not.toContain('Submit a shelter');
+    expect(button(element, 'Save changes')).toBeDefined();
+
+    // Every field prefilled with the row's current values.
+    expect(input(element, 'shelter-name').value).toBe('Community Cellar');
+    const desc = element.querySelector<HTMLTextAreaElement>('#shelter-description');
+    expect(desc?.value).toBe('Neighbourhood basement');
+    expect(input(element, 'shelter-capacity').value).toBe('12');
+    // The declaration mirrors the row's locationKind (PUBLIC = unchecked).
+    expect(element.querySelector<HTMLInputElement>('#shelter-private')?.checked).toBe(false);
+    // The smart input shows the saved pair (the same text its parser accepts).
+    expect(input(element, 'shelter-location-input').value).toBe('59.437, 24.754');
+    // The pin sits on the saved point — and the prefill names no capture
+    // mode, so the "Location from …" hint line stays off.
+    expect(leaflet.pickCalls.at(-1)).toEqual([59.437, 24.754]);
+    expect(element.textContent).toContain('59.43700, 24.75400');
+    expect(element.textContent).not.toContain('Location from');
+  });
+
+  it('a PRIVATE row prefills the declaration checkbox', async () => {
+    gateway.mine.mockResolvedValue([{ ...EDIT_ROW, locationKind: 'PRIVATE' }]);
+    const { element } = await openEdit('7');
+
+    expect(element.querySelector<HTMLInputElement>('#shelter-private')?.checked).toBe(true);
+  });
+
+  it('saving an edit PUTs the same payload shape as create (locationKind explicit) and stays on the page', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    gateway.update.mockResolvedValue({ ...EDIT_ROW });
+    const { element, fixture } = await openEdit('7');
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    for (let i = 0; i < 10; i++) {
+      await settle(fixture);
+    }
+
+    expect(gateway.update).toHaveBeenCalledTimes(1);
+    expect(gateway.update).toHaveBeenCalledWith(7, {
+      name: 'Community Cellar',
+      latitude: 59.437,
+      longitude: 24.754,
+      description: 'Neighbourhood basement',
+      capacity: 12,
+      locationKind: 'PUBLIC',
+    });
+    expect(gateway.create).not.toHaveBeenCalled();
+    // No navigation: the edit publishes immediately — the success panel is
+    // the save confirmation (the row carries the NEW pending-verification
+    // state a new submission gets).
+    expect(router.url).toBe('/submit?edit=7');
+    expect(element.textContent).toContain(
+      'Your location is now listed and marked as newly added. Community reports confirm it.',
+    );
+    expect(element.querySelector('.submit-success a[href="/shelters/7"]')).not.toBeNull();
+  });
+
+  it('a PRIVATE edit sends locationKind PRIVATE on the PUT', async () => {
+    gateway.mine.mockResolvedValue([{ ...EDIT_ROW, locationKind: 'PRIVATE' }]);
+    gateway.update.mockResolvedValue({ ...EDIT_ROW, locationKind: 'PRIVATE' });
+    const { element, fixture } = await openEdit('7');
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    for (let i = 0; i < 10; i++) {
+      await settle(fixture);
+    }
+
+    expect(gateway.update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ locationKind: 'PRIVATE' }),
+    );
+  });
+
+  it('the edit form keeps the full location capabilities: a re-capture supersedes the prefill', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    const { element, fixture } = await openEdit('7');
+
+    typeLocation(element, '58.9, 25.2');
+    pressEnterIn(element, 'shelter-location-input');
+    fixture.detectChanges();
+
+    // The typed capture replaces the saved pin and takes its source copy.
+    expect(leaflet.pickCalls.at(-1)).toEqual([58.9, 25.2]);
+    expect(element.textContent).toContain('58.90000, 25.20000');
+    expect(element.textContent).toContain('Location from typed coordinates');
+  });
+
+  it('an id the caller does not own (absent from /mine) shows the not-found state, no form', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]); // only row 7 is the caller's
+    const { element } = await openEdit('99');
+
+    expect(element.textContent).toContain('Shelter not found');
+    expect(element.textContent).toContain(
+      'No shelter with this ID exists — it may have been removed.',
+    );
+    expect(element.querySelector('form')).toBeNull();
+    // The way back to the owner's list.
+    expect(element.querySelector('.edit-not-found a[href="/account"]')).not.toBeNull();
+  });
+
+  it('a malformed ?edit param is a not-found state, never a prefill', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    const { element } = await openEdit('abc');
+
+    expect(element.textContent).toContain('Shelter not found');
+    expect(element.querySelector('form')).toBeNull();
+    // /mine was never even called (the param is invalid before any fetch).
+    expect(gateway.mine).not.toHaveBeenCalled();
+  });
+
+  it('a failed /mine load shows the banner and no form', async () => {
+    gateway.mine.mockRejectedValue(ApiError.fromNetwork());
+    const { element } = await openEdit('7');
+
+    expect(element.textContent).toContain('Cannot reach the backend');
+    expect(element.querySelector('form')).toBeNull();
+    expect(element.querySelector('.edit-not-found')).toBeNull(); // not a not-found
+  });
+
+  it('shows the loading line while the edit row is being fetched', async () => {
+    let resolveMine!: (rows: MineShelterDto[]) => void;
+    gateway.mine.mockReturnValue(
+      new Promise<MineShelterDto[]>((resolve) => {
+        resolveMine = resolve;
+      }),
+    );
+    const fixture = TestBed.createComponent(Host);
+    fixture.detectChanges();
+    await router.navigateByUrl('/submit?edit=7');
+    fixture.detectChanges();
+
+    const debug: DebugElement = fixture.debugElement.query(By.directive(SubmitShelterPage));
+    if (!debug) {
+      throw new Error('SubmitShelterPage not rendered');
+    }
+    const element = debug.nativeElement as HTMLElement;
+    expect(element.querySelector('form')).toBeNull();
+    expect(element.textContent).toContain('Loading your shelters…');
+
+    resolveMine([EDIT_ROW]);
+    for (let i = 0; i < 10; i++) {
+      await settle(fixture);
+    }
+    expect(element.querySelector('form')).not.toBeNull();
+    expect(input(element, 'shelter-name').value).toBe('Community Cellar');
+  });
+
+  it('a rejected edit (403) shows the banner, the verify hint, and keeps the input', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    gateway.update.mockRejectedValue(
+      ApiError.fromHttp(
+        403,
+        {
+          timestamp: 't',
+          status: 403,
+          error: 'Forbidden',
+          message: 'a verified account is required to modify shelters',
+          path: '/api/shelters/7',
+        },
+        '/api/shelters/7',
+      ),
+    );
+    const { element, fixture } = await openEdit('7');
+
+    (element.querySelector('form') as HTMLFormElement).requestSubmit();
+    for (let i = 0; i < 10; i++) {
+      await settle(fixture);
+    }
+
+    expect(element.querySelector('.banner--error')?.textContent).toContain(
+      'a verified account is required to modify shelters',
+    );
+    expect(element.textContent).toContain('Go to verification');
+    // Input preserved — the user can retry.
+    expect(input(element, 'shelter-name').value).toBe('Community Cellar');
+    expect(router.url).toBe('/submit?edit=7');
   });
 });

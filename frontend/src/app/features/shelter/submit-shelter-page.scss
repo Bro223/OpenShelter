@@ -83,6 +83,40 @@
   }
 }
 
+/* Edit mode (M5): the loading line while the ?edit row is fetched. */
+.submit-state {
+  margin: 0;
+  font-size: var(--text-base);
+  color: var(--color-muted);
+}
+
+/* Edit mode (M5): the not-found state (stale or foreign ?edit id) — a
+   neutral card, not the success tint: nothing was saved here. */
+.edit-not-found {
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+
+  p {
+    margin: 0;
+  }
+
+  &__title {
+    margin: 0 0 var(--space-8);
+    font-size: var(--text-lg);
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__links {
+    margin-top: var(--space-8);
+
+    a {
+      color: var(--color-primary);
+    }
+  }
+}
+
 .location-field {
   margin: 0;
   padding: var(--space-12) var(--space-14) var(--space-14);

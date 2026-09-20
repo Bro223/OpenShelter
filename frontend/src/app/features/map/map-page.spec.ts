@@ -441,7 +441,7 @@ describe('MapPage', () => {
       ]);
     });
 
-    it('renders the four-entry legend: registry, new community, confirmed community, reported', async () => {
+    it('renders the five-entry legend: registry, new community, confirmed community, reported, searched address (M8)', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
@@ -450,12 +450,17 @@ describe('MapPage', () => {
       expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull(); // NEW amber
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull(); // CONFIRMED green
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
+      // The origin marker (M8): the searched address the per-row
+      // distances are measured from — its own swatch + label, so
+      // "222 m from WHAT" is answerable at a glance.
+      expect(legend?.querySelector('.shelter-marker--anchor')).not.toBeNull();
       expect(legend?.textContent).toContain('Registry');
       expect(legend?.textContent).toContain('New by community');
       expect(legend?.textContent).toContain('Confirmed by community');
       expect(legend?.textContent).toContain('Reported');
-      // Exactly four entries — no partner/official/proposed wording.
-      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(4);
+      expect(legend?.textContent).toContain('Searched:');
+      // Exactly five entries — no partner/official/proposed wording.
+      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(5);
       expect(legend?.textContent).not.toContain('Official');
       expect(legend?.textContent).not.toContain('Partner');
       expect(legend?.textContent).not.toContain('Proposed');

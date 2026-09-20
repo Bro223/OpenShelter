@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, RouterOutlet } from '@angular/router';
 import { ApiError } from '../../core/api-error';
-import type { MineShelterDto, ShelterDto } from '../../core/models';
+import type { MineShelterDto } from '../../core/models';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { ContributionsPanel } from './contributions-panel';
@@ -36,7 +36,6 @@ class FakeShelterGateway {
   get = vi.fn();
   create = vi.fn();
   mine = vi.fn();
-  update = vi.fn();
   remove = vi.fn();
   replyInfoRequest = vi.fn();
   constructor() {
@@ -158,80 +157,31 @@ describe('ContributionsPanel', () => {
     expect(element.textContent).toContain('Community Cellar');
   });
 
-  // ---- shelter rows: edit ----------------------------------------------------
+  // ---- shelter rows: edit (M5 — the shared /submit form) --------------------
 
-  it('Edit pre-fills the inline form from the row', async () => {
+  it('Edit is a link to the shared /submit form in edit mode (?edit=<id>) — no inline form', async () => {
     shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    const { page, element, fixture } = await open();
+    const { element } = await open();
 
-    page.startEditShelter(SHELTER_ROW);
-    fixture.detectChanges();
-
-    expect(page.editName.value).toBe('Community Cellar');
-    expect(page.editDescription.value).toBe('Neighbourhood basement');
-    expect(page.editCapacity.value).toBe(12);
-    expect(page.editLatitude.value).toBe(59.437);
-    expect(page.editLongitude.value).toBe(24.754);
-    expect(element.querySelector('#contrib-name')).not.toBeNull();
+    // The inline edit form is gone (M5): no form inputs, no Save/Cancel.
+    expect(element.querySelector('#contrib-name')).toBeNull();
+    expect(element.querySelector('.contrib-edit')).toBeNull();
+    // The Edit entry opens the SAME creation form prefilled with the row —
+    // one link per row, carrying the row's id as the ?edit query param.
+    const editLink = element.querySelector<HTMLAnchorElement>('a[href="/submit?edit=7"]');
+    expect(editLink).not.toBeNull();
+    expect((editLink?.textContent ?? '').trim()).toBe('Edit');
   });
 
-  it('saving a valid shelter edit calls the gateway and updates the row in place', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    const updated: ShelterDto = { ...SHELTER_ROW, name: 'Renamed Cellar', capacity: 20 };
-    shelters.update.mockResolvedValue(updated);
-    const { page, element, fixture } = await open();
+  it("the Edit link carries each row's own id", async () => {
+    shelters.mine.mockResolvedValue([
+      SHELTER_ROW,
+      { ...SHELTER_ROW, id: 11, name: 'Second Cellar' },
+    ]);
+    const { element } = await open();
 
-    page.startEditShelter(SHELTER_ROW);
-    page.editName.setValue('Renamed Cellar');
-    page.editCapacity.setValue(20);
-
-    await page.saveShelterEdit();
-    fixture.detectChanges();
-
-    expect(shelters.update).toHaveBeenCalledTimes(1);
-    expect(shelters.update).toHaveBeenCalledWith(7, {
-      name: 'Renamed Cellar',
-      latitude: 59.437,
-      longitude: 24.754,
-      description: 'Neighbourhood basement',
-      capacity: 20,
-    });
-    // the row moved in place (no refetch: mine was only called once)
-    expect(shelters.mine).toHaveBeenCalledTimes(1);
-    expect(element.textContent).toContain('Renamed Cellar');
-    expect(element.querySelector('#contrib-name')).toBeNull(); // form closed
-  });
-
-  it('does not save an invalid shelter edit and shows the field errors', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    const { page, element, fixture } = await open();
-
-    page.startEditShelter(SHELTER_ROW);
-    page.editName.setValue('   '); // whitespace-only fails the @NotBlank mirror
-    await page.saveShelterEdit();
-    fixture.detectChanges();
-
-    expect(shelters.update).not.toHaveBeenCalled();
-    expect(element.textContent).toContain('A name (up to 200 characters) is required.');
-    expect(element.querySelector('#contrib-name')).not.toBeNull(); // still open
-  });
-
-  it('a rejected shelter edit (403) shows a row error and keeps the row', async () => {
-    shelters.mine.mockResolvedValue([SHELTER_ROW]);
-    shelters.update.mockRejectedValue(
-      apiError(403, 'only the author may modify this shelter', '/api/shelters/7'),
-    );
-    const { page, element, fixture } = await open();
-
-    page.startEditShelter(SHELTER_ROW);
-    page.editName.setValue('Varastatud');
-    await page.saveShelterEdit();
-    fixture.detectChanges();
-
-    expect(element.textContent).toContain('only the author may modify this shelter');
-    // row unchanged and still present, form still open
-    expect(element.textContent).toContain('Community Cellar');
-    expect(element.querySelector('#contrib-name')).not.toBeNull();
+    expect(element.querySelector('a[href="/submit?edit=7"]')).not.toBeNull();
+    expect(element.querySelector('a[href="/submit?edit=11"]')).not.toBeNull();
   });
 
   // ---- info request -----------------------------------------------------------
@@ -409,8 +359,9 @@ describe('ContributionsPanel', () => {
     // No restore action anywhere in the panel (admin-only restore).
     expect(element.textContent).not.toContain('Restore');
     expect(buttonByText(element, 'Restore')).toBeUndefined();
-    // The row itself stays manageable: View/Edit/Delete are still offered.
-    expect(buttonByText(element, 'Edit')).toBeDefined();
+    // The row itself stays manageable: View/Edit (shared form)/Delete are
+    // still offered.
+    expect(element.querySelector('a[href="/submit?edit=7"]')).not.toBeNull();
     expect(buttonByText(element, 'Delete')).toBeDefined();
     expect(element.querySelector('a[href="/shelters/7"]')).not.toBeNull();
   });

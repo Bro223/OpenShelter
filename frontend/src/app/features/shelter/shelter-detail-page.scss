@@ -185,10 +185,13 @@
   font-size: var(--text-sm);
 }
 
-/* The last-verified line — the same muted meta language as the
-   coordinate line: a fact about the row's freshness, not a caveat (the
-   unverified caveat already lives in .community-warning above). */
-.shelter-detail__verified {
+/* The last-verified line + the community report count line (M8: two
+   separate, self-contained facts — never one string). The same muted meta
+   language as the coordinate line: facts about the row's freshness and its
+   report history, not caveats (the unverified caveat already lives in
+   .community-warning above). */
+.shelter-detail__verified,
+.shelter-detail__reports {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--text-sm);

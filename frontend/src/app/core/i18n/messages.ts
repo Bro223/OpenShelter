@@ -164,6 +164,11 @@ export interface Messages {
   'authPage.reset.codeNote': string;
   'authPage.reset.newPasswordLabel': string;
   'authPage.reset.newPasswordRequired': string;
+  /** The length-rule field error (mirrors the server's @Size(min = 8)).
+   *  The register page has no length rule, so there was no existing copy
+   *  to reuse — plain equivalent of "Password must be at least 8
+   *  characters." (the reset-page spec pins this EN wording). */
+  'authPage.reset.newPasswordTooShort': string;
   'authPage.reset.repeatLabel': string;
   'authPage.reset.repeatRequired': string;
   'authPage.reset.mismatch': string;
@@ -708,6 +713,280 @@ export interface Messages {
   'admin.media.delete.cancel': string;
   'admin.media.success.uploaded': string;
   'admin.media.success.deleted': string;
+
+  // --- legal pages (legal-i18n M4): /privacy + /terms were English-only
+  // static text; every paragraph/heading is now a catalog key, one key
+  // per block, with splice segments around the inline <strong>/<em>/
+  // <code> and cross-page links (the account-area pattern).
+  //
+  // The 187 legal.* keys below are appended in batches (B2..B11, legal
+  // text in backup order); each batch lands in ALL FOUR files together
+  // (messages.ts + en.ts + et.ts + ru.ts) and the build is re-run after
+  // every batch, so the key sets never drift.
+  //
+  // Convention: the section heading keys (legal.privacy.<section> /
+  // legal.terms.<section>) are used BOTH for the table-of-contents link
+  // label and the section <h2>, so the two can never drift apart. The
+  // cross-page link labels are case-fitted to their sentence in each
+  // locale (e.g. ET "kontolehelt" = "from the account page") because they
+  // are spliced mid-sentence.
+  //
+  // These are legal texts: translated faithfully and conservatively, NOT
+  // reviewed by a lawyer or a native speaker — the owner's review list
+  // is docs/i18n-review.md ("Legal pages (M4)"). The bracket
+  // placeholders ([OPERATOR LEGAL NAME], …) are fill-in tokens, kept
+  // verbatim in all locales.
+  /** Shared table-of-contents aria-label (both legal pages). */
+  'legal.toc.aria': string;
+  // privacy policy (/privacy)
+  'legal.privacy.title': string;
+  /** "Last updated: 16 September 2026" — the date is locale-formatted. */
+  'legal.privacy.updated': string;
+  // Section headings (TOC link + <h2> share the key).
+  'legal.privacy.who': string;
+  'legal.privacy.scope': string;
+  'legal.privacy.collect': string;
+  'legal.privacy.why': string;
+  'legal.privacy.verification': string;
+  'legal.privacy.location': string;
+  'legal.privacy.content': string;
+  'legal.privacy.cookies': string;
+  'legal.privacy.thirdParties': string;
+  'legal.privacy.sharing': string;
+  'legal.privacy.retention': string;
+  'legal.privacy.rights': string;
+  'legal.privacy.security': string;
+  'legal.privacy.children': string;
+  'legal.privacy.changes': string;
+  'legal.privacy.contact': string;
+  // who
+  'legal.privacy.who.p1': string;
+  'legal.privacy.who.p2.before': string;
+  'legal.privacy.who.p2.strong': string;
+  'legal.privacy.who.p2.after': string;
+  // scope
+  'legal.privacy.scope.p1': string;
+
+  // collect
+  'legal.privacy.collect.p1': string;
+  'legal.privacy.collect.li1.before': string;
+  'legal.privacy.collect.li1.strong': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.collect.li1.after': string;
+  'legal.privacy.collect.li2.before': string;
+  'legal.privacy.collect.li2.strong': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.collect.li2.after': string;
+  'legal.privacy.collect.li3.before': string;
+  'legal.privacy.collect.li3.strong': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.collect.li3.after': string;
+  'legal.privacy.collect.li4.before': string;
+  'legal.privacy.collect.li4.strong': string;
+  'legal.privacy.collect.li4.after': string;
+  'legal.privacy.collect.p2.before': string;
+  'legal.privacy.collect.p2.strong': string;
+  'legal.privacy.collect.p2.middle': string;
+  /** In-sentence form of the content section name (the heading key
+   *  capitalizes; this one sits mid-sentence). */
+  'legal.privacy.collect.p2.link': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.collect.p2.after': string;
+
+  // why
+  'legal.privacy.why.p1': string;
+  'legal.privacy.why.li1.strong': string;
+  'legal.privacy.why.li1.after': string;
+  'legal.privacy.why.li2.strong': string;
+  'legal.privacy.why.li2.after': string;
+  'legal.privacy.why.li3.strong': string;
+  'legal.privacy.why.li3.after': string;
+  'legal.privacy.why.li4.strong': string;
+  'legal.privacy.why.li4.after': string;
+  'legal.privacy.why.li5.strong': string;
+  'legal.privacy.why.li5.after': string;
+  'legal.privacy.why.p2': string;
+  // verification
+  'legal.privacy.verification.p1': string;
+  'legal.privacy.verification.p2': string;
+  'legal.privacy.verification.p3': string;
+  // location
+  'legal.privacy.location.p1.before': string;
+  'legal.privacy.location.p1.em': string;
+  'legal.privacy.location.p1.after': string;
+
+  'legal.privacy.location.p2.before': string;
+  'legal.privacy.location.p2.strong': string;
+  'legal.privacy.location.p2.after': string;
+  'legal.privacy.location.p3.before': string;
+  'legal.privacy.location.p3.strong': string;
+  'legal.privacy.location.p3.after': string;
+  // content
+  'legal.privacy.content.p1.before': string;
+  'legal.privacy.content.p1.after': string;
+  'legal.privacy.content.p2': string;
+  // cookies
+  'legal.privacy.cookies.p1': string;
+  'legal.privacy.cookies.li1.before': string;
+  'legal.privacy.cookies.li1.strong': string;
+  'legal.privacy.cookies.li1.after': string;
+  'legal.privacy.cookies.li2.before': string;
+  'legal.privacy.cookies.li2.strong': string;
+  'legal.privacy.cookies.li2.after': string;
+  'legal.privacy.cookies.li3.before': string;
+  'legal.privacy.cookies.li3.strong': string;
+  'legal.privacy.cookies.li3.after': string;
+  'legal.privacy.cookies.p2': string;
+
+  // third-party service providers
+  'legal.privacy.thirdParties.p1': string;
+  'legal.privacy.thirdParties.li1.before': string;
+  'legal.privacy.thirdParties.li1.strong': string;
+  'legal.privacy.thirdParties.li1.after': string;
+  'legal.privacy.thirdParties.li2.before': string;
+  'legal.privacy.thirdParties.li2.strong': string;
+  'legal.privacy.thirdParties.li2.after': string;
+  /** Proper noun as a whole value (identity allow-list). */
+  'legal.privacy.thirdParties.li3.strong': string;
+  'legal.privacy.thirdParties.li3.after': string;
+  'legal.privacy.thirdParties.p2': string;
+  // data sharing
+  'legal.privacy.sharing.p1': string;
+  // data retention
+  'legal.privacy.retention.p1': string;
+  'legal.privacy.retention.p2.before': string;
+  'legal.privacy.retention.p2.strong': string;
+  'legal.privacy.retention.p2.middle': string;
+  'legal.privacy.retention.p2.strong2': string;
+  'legal.privacy.retention.p2.after': string;
+  'legal.privacy.retention.p3.before': string;
+  /** The env-var name is code, not copy (identity allow-list). */
+  'legal.privacy.retention.p3.code': string;
+  'legal.privacy.retention.p3.after': string;
+  'legal.privacy.retention.p4': string;
+
+  // GDPR rights
+  'legal.privacy.rights.p1': string;
+  'legal.privacy.rights.li1.strong': string;
+  'legal.privacy.rights.li1.and': string;
+  'legal.privacy.rights.li1.strong2': string;
+  'legal.privacy.rights.li1.middle': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.rights.li1.after': string;
+  'legal.privacy.rights.li2.strong': string;
+  'legal.privacy.rights.li2.after': string;
+  'legal.privacy.rights.li3.strong': string;
+  'legal.privacy.rights.li3.middle': string;
+  'legal.privacy.rights.li3.after': string;
+  'legal.privacy.rights.li4.strong': string;
+  'legal.privacy.rights.li4.and': string;
+  'legal.privacy.rights.li4.strong2': string;
+  'legal.privacy.rights.li4.after': string;
+  'legal.privacy.rights.p2': string;
+  // data security
+  'legal.privacy.security.p1.before': string;
+  'legal.privacy.security.p1.strong': string;
+  'legal.privacy.security.p1.after': string;
+  'legal.privacy.security.p2': string;
+
+  // children / changes / contact
+  'legal.privacy.children.p1': string;
+  'legal.privacy.changes.p1': string;
+  'legal.privacy.contact.p1.before': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.privacy.contact.p1.after': string;
+  // cross-page link labels (case-fitted to their sentence per locale)
+  /** "account page" — the /account links in the content + rights sections. */
+  'legal.privacy.link.accountPage': string;
+  /** "terms of use" — the /terms link in the contact section. */
+  'legal.privacy.link.terms': string;
+  // terms of use (/terms)
+  'legal.terms.title': string;
+  /** "Last updated: 13 September 2026" — the date is locale-formatted. */
+  'legal.terms.updated': string;
+  /** The emergency number — a literal in every locale (identity
+   *  allow-list); used by the service + emergency sections. */
+  'legal.terms.emergencyNumber': string;
+  // Section headings (TOC link + <h2> share the key).
+  'legal.terms.acceptance': string;
+  'legal.terms.service': string;
+  'legal.terms.eligibility': string;
+  'legal.terms.security': string;
+  'legal.terms.rules': string;
+  'legal.terms.prohibited': string;
+  'legal.terms.license': string;
+  'legal.terms.moderation': string;
+  'legal.terms.official': string;
+  'legal.terms.emergency': string;
+  'legal.terms.warranty': string;
+  'legal.terms.liability': string;
+  'legal.terms.thirdParty': string;
+  'legal.terms.availability': string;
+  'legal.terms.source': string;
+  'legal.terms.law': string;
+  'legal.terms.contact': string;
+
+  // acceptance
+  'legal.terms.acceptance.p1': string;
+  // what OpenShelter is
+  'legal.terms.service.p1': string;
+  'legal.terms.service.p2.before': string;
+  'legal.terms.service.p2.strong': string;
+  'legal.terms.service.p2.middle': string;
+  'legal.terms.service.p2.after': string;
+  // eligibility
+  'legal.terms.eligibility.p1': string;
+  // account security
+  'legal.terms.security.p1': string;
+  // rules for contributions
+  'legal.terms.rules.li1': string;
+  'legal.terms.rules.li2': string;
+  'legal.terms.rules.li3': string;
+  'legal.terms.rules.li4': string;
+
+  // prohibited content and behaviour
+  'legal.terms.prohibited.p1': string;
+  'legal.terms.prohibited.li1': string;
+  'legal.terms.prohibited.li2': string;
+  'legal.terms.prohibited.li3': string;
+  'legal.terms.prohibited.li4': string;
+  'legal.terms.prohibited.li5': string;
+  'legal.terms.prohibited.p2': string;
+  // intellectual property
+  'legal.terms.license.p1': string;
+  // moderation
+  'legal.terms.moderation.p1': string;
+  // official vs community
+  'legal.terms.official.p1.before': string;
+  'legal.terms.official.p1.em': string;
+  'legal.terms.official.p1.middle': string;
+  'legal.terms.official.p1.strong': string;
+  'legal.terms.official.p2': string;
+
+  // emergency disclaimer
+  'legal.terms.emergency.p1.before': string;
+  /** Punctuation-only splice tail (identity allow-list). */
+  'legal.terms.emergency.p1.after': string;
+  'legal.terms.emergency.p2': string;
+  // no warranty / liability
+  'legal.terms.warranty.p1': string;
+  'legal.terms.liability.p1': string;
+  // third-party links and services
+  'legal.terms.thirdParty.p1.before': string;
+  /** "privacy policy", prepositional case ("described in the …"). */
+  'legal.terms.thirdParty.p1.link': string;
+  'legal.terms.thirdParty.p1.after': string;
+  // availability
+  'legal.terms.availability.p1': string;
+  // open-source license
+  'legal.terms.source.p1': string;
+  // applicable law
+  'legal.terms.law.p1': string;
+  // contact
+  'legal.terms.contact.p1.before': string;
+  /** "privacy policy", instrumental case ("governed by the …"). */
+  'legal.terms.contact.p1.link': string;
+  'legal.terms.contact.p1.after': string;
 }
 
 /** A catalog key — templates/guards pass these to `t()` / the `t` pipe. */

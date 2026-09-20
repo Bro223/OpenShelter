@@ -2,15 +2,27 @@
   <a routerLink="/map" class="back-link">&larr; {{ 'submit.backToMap' | t }}</a>
 
   <header>
-    <h1 class="page-title">{{ 'submit.title' | t }}</h1>
-    <p class="page-subtitle">{{ 'submit.subtitle' | t }}</p>
+    @if (editMode()) {
+      <!-- Edit mode (M5): the heading names the mode — this is a save of an
+           existing shelter, not a new submission. 'account.edit' ('Edit') is
+           the existing catalog key; a dedicated 'submit.editTitle' would be
+           the better fit once the i18n lane lands it (reported, not added).
+           The subtitle is create-mode copy ("Add …") — hidden in edit. -->
+      <h1 class="page-title">{{ 'account.edit' | t }}</h1>
+    } @else {
+      <h1 class="page-title">{{ 'submit.title' | t }}</h1>
+      <p class="page-subtitle">{{ 'submit.subtitle' | t }}</p>
+    }
   </header>
 
   <app-banner severity="error" [message]="error()" />
 
   <!-- Success panel (community-review-queue): the row is public NOW (NEW
        state) — no "awaiting review"; the panel links to the live detail
-       page. The form stays for a second submission. -->
+       page. The form stays for a second submission. In edit mode (M5) the
+       same panel IS the save confirmation: the edit publishes immediately
+       and carries the same NEW (pending-verification) state a new
+       submission gets. -->
   @if (submitted(); as created) {
     <div class="submit-success" role="status">
       <p>{{ 'submit.successBody' | t }}</p>
@@ -27,6 +39,22 @@
     </p>
   }
 
+  <!-- Edit-mode states (M5): while the ?edit row loads; when the id is not
+       the caller's (or the param is malformed) — the not-found state, never
+       a prefill of someone else's shelter. (A /mine LOAD FAILURE renders
+       neither — the error banner above carries the message and no form can
+       PUT without the row's id.) -->
+  @if (editMode() && editLoading()) {
+    <app-loading-indicator class="submit-state" [message]="'account.contrib.loading' | t" />
+  } @else if (editMode() && editMissing()) {
+    <div class="edit-not-found" role="status">
+      <h2 class="edit-not-found__title">{{ 'detail.notFoundTitle' | t }}</h2>
+      <p>{{ 'detail.notFoundBody' | t }}</p>
+      <p class="edit-not-found__links">
+        <a routerLink="/account">{{ 'submit.success.viewContributions' | t }}</a>
+      </p>
+    </div>
+  } @else if (showForm()) {
   <form class="submit-form" [formGroup]="form" (ngSubmit)="submit()">
     <div class="field">
       <label for="shelter-name">{{ 'submit.nameLabel' | t }}</label>
@@ -54,7 +82,6 @@
       <label for="shelter-description">{{ 'submit.descriptionLabel' | t }}</label>
       <textarea
         id="shelter-description"
-        rows="4"
         formControlName="description"
         maxlength="2000"
         [placeholder]="'submit.descriptionPlaceholder' | t"
@@ -198,8 +225,16 @@
       }
     </fieldset>
 
-    <button type="submit" class="btn btn--primary" [disabled]="pending()">
-      {{ pending() ? ('submit.submitting' | t) : ('submit.submit' | t) }}
+    <!-- The submit button: create mode says "Submit shelter" (a new row);
+         edit mode (M5) says "Save changes" — this is a save, not a new
+         submission. The pending copy matches the mode ('Saving…'). -->
+    <button type="submit" class="btn btn--primary" [disabled]="pending() || editLoading()">
+      {{
+        pending()
+          ? (editMode() ? ('account.saving' | t) : ('submit.submitting' | t))
+          : (editMode() ? ('account.save' | t) : ('submit.submit' | t))
+      }}
     </button>
   </form>
+  }
 </section>
