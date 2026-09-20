@@ -2565,4 +2565,30 @@ describe('AdminPage', () => {
     expect(rows[0]!.textContent).toContain('Guidance published');
     expect(rows[1]!.textContent).toContain('Media asset deleted');
   });
+
+  // ---- admin table badges: compact, content-sized labels -------------------
+
+  it('the table badges size to their content — no cell stretch, no mid-label wrap (admin-page.scss)', () => {
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+      'utf8',
+    );
+    const badge = scss.match(/\.badge \{[\s\S]*?\n\}/);
+    expect(badge, 'admin-page.scss must keep the .badge rule').not.toBeNull();
+    const rule = badge![0];
+    // The pill is exactly its label's width: the name cell's inner flex
+    // wrapper (.admin-cell__name-body, the table-separator fix) is a
+    // COLUMN flex, so a badge that is a direct child of it inherits the
+    // container's default cross-axis stretch and renders as a FULL-WIDTH
+    // bar (the owner-reported "badges are too long").
+    expect(rule, 'the badge must size to its content').toMatch(/width: fit-content/);
+    // …and a flex item that cannot be squeezed or grown on the main axis
+    // either (row flex contexts: queue titles, action bodies).
+    expect(rule, 'the badge must not stretch or shrink as a flex item').toMatch(
+      /flex: 0 0 auto/,
+    );
+    // The label stays ONE line in every locale — the long ET/RU values are
+    // long, not wrapped mid-label.
+    expect(rule, 'the badge label must never wrap mid-label').toMatch(/white-space: nowrap/);
+  });
 });

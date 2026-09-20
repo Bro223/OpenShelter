@@ -1864,7 +1864,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       expect(element.querySelector('.report-gauge__needle')).toBeNull();
       expect(text(fixture)).toContain('No open/closed reports in the last 2 hours');
       expect(text(fixture)).toContain('No how-full reports in the last 2 hours');
-      expect(text(fixture)).toContain('No recent reports');
+      expect(text(fixture)).toContain('No reports yet');
     });
 
     it('an older BE (no communityPulse field) still renders the empty states', async () => {
@@ -1875,7 +1875,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
       expect(text(fixture)).toContain('No open/closed reports in the last 2 hours');
       expect(text(fixture)).toContain('No how-full reports in the last 2 hours');
-      expect(text(fixture)).toContain('No recent reports');
+      expect(text(fixture)).toContain('No reports yet');
     });
 
     it('the recent log renders time + the community attribution + the kind — never a reporter identity', async () => {
@@ -1894,6 +1894,72 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // privacy: no user-shaped data anywhere in the log (no names, no ids)
       expect(section!.textContent).not.toMatch(/\buser\b/i);
       expect(text(fixture)).not.toContain('@example.ee');
+    });
+
+    // ---- the two time bases (2-hour tally vs chronological log) -----------
+
+    it('states the 2-hour window where the counts are; the log below is a chronological log (the owner’s “0 space above older entries” puzzle)', async () => {
+      // The owner’s exact puzzle, encoded: NOTHING fresh in the 2-hour
+      // window (zero counts) while the log lists older reports — the page
+      // must state which time base belongs to which block.
+      shelterGateway.rows.set(
+        1,
+        pulseShelter({
+          communityPulse: {
+            openClosed: { openReports: 0, closedReports: 0, openShare: 0 },
+            occupancy: { spaceReports: 0, gettingFullReports: 0, fullReports: 0, fullness: 0 },
+            recentReports: [
+              { kind: 'OPEN', reportedAt: new Date(Date.now() - 6 * 24 * 3600_000).toISOString() },
+              { kind: 'FULL', reportedAt: new Date(Date.now() - 6 * 24 * 3600_000).toISOString() },
+            ],
+          },
+        }),
+      );
+      const { element } = await open('/shelters/1');
+
+      // The window line: inside the pulse block, FIRST (a screen reader
+      // hears the window before the numbers it qualifies) and naming the
+      // 2-hour basis of the gauges/counts.
+      const hint = element.querySelector('.pulse-gauges > .pulse-gauges__hint');
+      expect(hint, 'the pulse block must state its 2-hour window').not.toBeNull();
+      expect(hint!.textContent, 'the window line names the 2-hour window').toContain(
+        'last 2 hours',
+      );
+      expect(
+        hint!.nextElementSibling,
+        'the window line precedes the gauges row',
+      ).toBe(element.querySelector('.pulse-gauges__arrows'));
+
+      // The log is a CHRONOLOGICAL log, not the 2-hour tally: its heading
+      // presents it as a log (newest first) and makes no window claim of
+      // its own — the window belongs to the gauges, not the log.
+      const heading = element.querySelector('#recent-reports-heading');
+      expect(heading, 'the log heading must render').not.toBeNull();
+      expect(heading!.textContent, 'the heading presents a chronological log').toContain(
+        'Report log',
+      );
+      expect(
+        heading!.textContent,
+        'the log heading makes no window claim',
+      ).not.toContain('2 hours');
+
+      // …and the window-free log still lists the older entries that the
+      // 2-hour counts above do not include.
+      expect(
+        element.querySelectorAll('.recent-reports__entry').length,
+        'the log lists the older reports the gauges do not count',
+      ).toBe(2);
+
+      // The hint is muted secondary text (shelter-detail-page.scss).
+      const detailScss = readFileSync(
+        `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
+        'utf8',
+      );
+      const hintCss = detailScss.match(/\.pulse-gauges__hint \{[\s\S]*?\n\}/);
+      expect(hintCss, 'shelter-detail-page.scss must style .pulse-gauges__hint').not.toBeNull();
+      expect(hintCss![0], 'the hint is muted secondary text').toMatch(
+        /color: var\(--color-muted\)/,
+      );
     });
   });
 });

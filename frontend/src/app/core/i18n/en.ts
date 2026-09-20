@@ -267,12 +267,13 @@ export const EN: Messages = {
   'detail.pulse.kind.gettingFull': 'Getting full',
   'detail.pulse.kind.full': 'Full',
   'detail.pulse.recentEntry': 'a community member reported: {kind}',
-  'detail.pulse.recent': 'Recent reports',
-  'detail.pulse.recentEmpty': 'No recent reports',
+  'detail.pulse.recent': 'Report log (newest first)',
+  'detail.pulse.recentEmpty': 'No reports yet',
   'detail.pulse.emptyOpen': 'No open/closed reports in the last 2 hours',
   'detail.pulse.emptyOccupancy': 'No how-full reports in the last 2 hours',
   'detail.pulse.openClosedText': 'Reports: {open} open, {closed} closed',
   'detail.pulse.occupancyText': 'Reports: {space} space available, {gettingFull} getting full, {full} full',
+  'detail.pulse.windowHint': 'Reflects reports from the last 2 hours',
 
   // --- submit shelter page (the contribute surface).
   'submit.backToMap': 'Back to the map',

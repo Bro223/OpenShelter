@@ -272,12 +272,13 @@ export const ET: Messages = {
   'detail.pulse.kind.gettingFull': 'Täitumas',
   'detail.pulse.kind.full': 'Täis',
   'detail.pulse.recentEntry': 'kogukonnaliige teatas: {kind}',
-  'detail.pulse.recent': 'Viimased teated',
-  'detail.pulse.recentEmpty': 'Viimaseid teateid pole',
+  'detail.pulse.recent': 'Teatete logi (uusim esimesena)',
+  'detail.pulse.recentEmpty': 'Teateid pole',
   'detail.pulse.emptyOpen': 'Viimase 2 tunni jooksul pole avatud/suletud teateid',
   'detail.pulse.emptyOccupancy': 'Viimase 2 tunni jooksul pole täitumisteateid',
   'detail.pulse.openClosedText': 'Teated: {open} avatud, {closed} suletud',
   'detail.pulse.occupancyText': 'Teated: {space} vaba mahtu, {gettingFull} täitumas, {full} täis',
+  'detail.pulse.windowHint': 'Peegeldab viimase 2 tunni jooksul saadud teateid',
 
   // --- submit shelter page. Quoted button labels use the
   // Estonian label (the button is translated on this page).

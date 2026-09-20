@@ -370,6 +370,15 @@
            lines — a screen reader meets the summary before the log
            below. -->
       <div class="pulse-gauges">
+        <!-- The window line: the gauges/counts are a FRESHNESS tally over
+             the last two hours (the BE's OCCUPANCY_FRESHNESS_WINDOW) while
+             the log below is a CHRONOLOGICAL log with no such window. The
+             two time bases are stated right where the reader meets the
+             counts — without it, "0 space available" reads as a
+             contradiction of the (older) log entries. First in the DOM:
+             a screen reader hears the window before the numbers it
+             qualifies. -->
+        <p class="pulse-gauges__hint">{{ 'detail.pulse.windowHint' | t }}</p>
         <div class="pulse-gauges__arrows">
           @if (occupancyPulse(); as occPulse) {
             <app-report-gauge
@@ -412,9 +421,12 @@
         }
       </div>
 
-      <!-- Recent reports (M9 community pulse): the merged fresh log —
-           what was reported + when, NO reporter identity (privacy: "a
-           community member"). Read-only for every viewer. -->
+      <!-- Report log (M9 community pulse): the merged CHRONOLOGICAL log —
+           what was reported + when, newest first, capped server-side,
+           with NO 2-hour window (the gauges above are the windowed
+           tally; the heading + the window line say so). NO reporter
+           identity (privacy: "a community member"). Read-only for every
+           viewer. -->
       <section class="detail-section" aria-labelledby="recent-reports-heading">
         <h2 class="section-title" id="recent-reports-heading">{{ 'detail.pulse.recent' | t }}</h2>
         @if (recentReports().length) {

@@ -408,6 +408,16 @@
   color: var(--color-muted);
 }
 
+/* The window line: the gauges/counts are a 2-hour freshness tally while
+   the log below is chronological — the hint states that beside the counts
+   so the two readings stop contradicting each other. Muted secondary
+   text, the .pulse-empty vocabulary. */
+.pulse-gauges__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
 /* The pulse block (M9 community pulse, layout pass): a COLUMN — the
    arrows row, then the captions column below it. The owner's overlay
    fix: the count lines (the captions — each gauge's accessible text,

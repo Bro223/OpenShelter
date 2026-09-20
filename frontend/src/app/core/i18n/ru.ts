@@ -287,12 +287,13 @@ export const RU: Messages = {
   'detail.pulse.kind.gettingFull': 'Заполняется',
   'detail.pulse.kind.full': 'Мест нет',
   'detail.pulse.recentEntry': 'кто-то из сообщества сообщил: {kind}',
-  'detail.pulse.recent': 'Последние сообщения',
-  'detail.pulse.recentEmpty': 'Последних сообщений нет',
+  'detail.pulse.recent': 'Журнал сообщений (сначала новые)',
+  'detail.pulse.recentEmpty': 'Сообщений пока нет',
   'detail.pulse.emptyOpen': 'За последние 2 часа нет сообщений об открытости',
   'detail.pulse.emptyOccupancy': 'За последние 2 часа нет сообщений о заполненности',
   'detail.pulse.openClosedText': 'Сообщения: {open} открыто, {closed} закрыто',
   'detail.pulse.occupancyText': 'Сообщения: {space} есть места, {gettingFull} заполняется, {full} мест нет',
+  'detail.pulse.windowHint': 'Отражает сообщения за последние 2 часа',
 
   // --- страница добавления укрытия (поверхность вклада сообщества).
   'submit.backToMap': 'Назад к карте',

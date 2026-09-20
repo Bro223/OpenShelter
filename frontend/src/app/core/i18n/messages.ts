@@ -288,7 +288,9 @@ export interface Messages {
   'detail.pulse.kind.full': string;
   /** {kind} is the localized state noun (a detail.pulse.kind.* value). */
   'detail.pulse.recentEntry': string;
-  /** The recent-reports section heading (the merged fresh log). */
+  /** The report-log section heading: a CHRONOLOGICAL log of reports
+   *  (newest first, capped server-side) — explicitly NOT the 2-hour
+   *  tally the gauges above show (the window line states that one). */
   'detail.pulse.recent': string;
   'detail.pulse.recentEmpty': string;
   /** The open/closed gauge's explicit empty state (no fresh taps — the
@@ -303,6 +305,12 @@ export interface Messages {
   /** The how-full gauge's visible + accessible count line. {space}/
    *  {gettingFull}/{full} are the plain fresh counts. */
   'detail.pulse.occupancyText': string;
+  /** The window line at the top of the pulse block: the gauges/counts
+   *  are a FRESHNESS tally over the last two hours (the BE's
+   *  OCCUPANCY_FRESHNESS_WINDOW) while the log below is a chronological
+   *  log with no such window — stated where the reader meets the counts,
+   *  or the counts read as a contradiction of the (older) log entries. */
+  'detail.pulse.windowHint': string;
 
   // --- submit shelter page (i18n-et-en: the contribute surface).
   'submit.backToMap': string;

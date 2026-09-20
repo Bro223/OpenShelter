@@ -280,9 +280,22 @@
 
 /* ---- source/trust badges ------------------------------------------------
    The same pill vocabulary as the map rows / shelter-detail header (which
-   duplicate the block per feature); the tokens are the app-wide ones. */
+   duplicate the block per feature); the tokens are the app-wide ones.
+   Content-sized in EVERY admin context: the name cell's inner flex wrapper
+   (.admin-cell__name-body, the table-separator fix) is a COLUMN flex, so
+   a badge that is a direct child of it would inherit the container's
+   default cross-axis stretch and render as a FULL-WIDTH bar (the
+   owner-reported "badges are too long" — e.g. the private-home badge in
+   the unconfirmed queue's name cell). width: fit-content sizes the pill
+   to its label and disables that stretch; flex: 0 0 auto keeps it
+   content-sized on the main axis in the row flex contexts (queue titles,
+   action bodies); white-space: nowrap keeps the label on one line (the
+   long ET/RU values stay one line — long, not wrapped). */
 .badge {
   display: inline-block;
+  width: fit-content;
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);
   padding: var(--space-2) var(--space-4);
