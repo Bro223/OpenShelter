@@ -352,6 +352,15 @@
   border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-16);
+
+  /* The freshly opened form must be findable: the reveal scrolls it into
+     view AND focuses the first field, and while the admin is IN the form
+     the panel takes the primary accent border — the focus-ring convention
+     from .admin-table-wrap. The cue is presence, not motion: no
+     transition, so there is nothing to guard for reduced motion. */
+  &:focus-within {
+    border-color: var(--color-primary);
+  }
 }
 
 /* The list's title cell: hero thumbnail (only when the post has one) +
@@ -474,37 +483,28 @@
   opacity: 0.6;
 }
 
-/* Languages (admin-locale-split): the two independent language controls
-   on the Settings tab — the admin UI language (the chrome) and the
-   guidance content language. */
-.admin-languages {
-  display: grid;
-  gap: var(--space-8);
-  margin-bottom: var(--space-16);
-}
-
-.admin-languages__heading {
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-semibold);
-}
-
-.admin-languages__field {
+/* admin-locale-split: the content-language control — it lives WITH the
+   content (the top of the Guidance tab) and scopes the list, the editor
+   prefill, saves and reorders. The chrome's language is the header
+   switcher's domain — the admin page has no UI-language control. */
+.admin-guidance-language {
   display: grid;
   gap: var(--space-2);
   max-width: 420px;
+  margin-bottom: var(--space-8);
+
+  select {
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    font: inherit;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-surface);
+    color: inherit;
+  }
 }
 
-.admin-languages__field select {
-  min-height: 48px;
-  padding: 0 var(--space-4);
-  font: inherit;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  color: inherit;
-}
-
-.admin-languages__hint {
+.admin-guidance-language__hint {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--text-sm);

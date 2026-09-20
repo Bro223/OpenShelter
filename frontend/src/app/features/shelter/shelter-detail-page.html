@@ -173,23 +173,9 @@
            redirect vocabulary. -->
       <section class="detail-section" aria-labelledby="occupancy-heading">
         <h2 class="section-title" id="occupancy-heading">{{ 'detail.reportOccupancy' | t }}</h2>
-        <!-- Community pulse (M9): the how-full gauge — the weighted
-             empty→full share (server-derived) drives the needle; the
-             visible count line is the accessible equivalent (the angle
-             is never the only carrier of meaning). Rendered for EVERY
-             viewer (guests included) — read-only. The empty state is
-             explicit: no fresh bands, no neutral arrow. -->
-        @if (occupancyPulse(); as occPulse) {
-          <app-report-gauge
-            [leftLabel]="'detail.pulse.kind.space' | t"
-            [rightLabel]="'detail.pulse.kind.full' | t"
-            [share]="occPulse.fullness"
-            [text]="occupancyPulseText(occPulse)"
-            [emptyText]="'detail.pulse.emptyOccupancy' | t"
-          />
-        } @else {
-          <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
-        }
+        <!-- Community pulse (M9): the how-full gauge moved to the shared
+             bottom container directly above the recent log (placement
+             pass) — this section keeps the band picker. -->
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div class="band-picker" role="group" [attr.aria-label]="'detail.occupancy.aria' | t">
@@ -237,21 +223,9 @@
            picker is where the signal lives. -->
       <section class="detail-section" aria-labelledby="open-status-heading">
         <h2 class="section-title" id="open-status-heading">{{ 'detail.reportOpen' | t }}</h2>
-        <!-- Community pulse (M9): the open/closed gauge — the weighted
-             share drives the needle (50/50 → straight up). The existing
-             instant status flip + the "Reported closed" hedge stay — the
-             gauge shows the SPLIT, not a single latest tap. -->
-        @if (openPulse(); as openPulse) {
-          <app-report-gauge
-            [leftLabel]="'detail.pulse.kind.closed' | t"
-            [rightLabel]="'detail.pulse.kind.open' | t"
-            [share]="openPulse.openShare"
-            [text]="openPulseText(openPulse)"
-            [emptyText]="'detail.pulse.emptyOpen' | t"
-          />
-        } @else {
-          <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
-        }
+        <!-- Community pulse (M9): the open/closed gauge moved to the
+             shared bottom container directly above the recent log
+             (placement pass) — this section keeps the state picker. -->
         @if (auth.initialized() && auth.authenticated()) {
           @if (auth.isVerified()) {
             <div
@@ -375,6 +349,43 @@
           </div>
         }
       </section>
+
+      <!-- Community pulse (M9): the two gauges, moved to the bottom of
+           the page — DIRECTLY above the recent log they summarise
+           (owner placement decision; the pickers stay in their own
+           sections above). The weighted shares (server-derived) drive
+           the needles; the visible count line is the accessible
+           equivalent (the angle is never the only carrier of meaning).
+           Rendered for EVERY viewer (guests included) — read-only; the
+           empty state is explicit (no fresh reports → no neutral
+           arrow). DOM order: both gauges first, then the log — a screen
+           reader meets the summary before the detail. .pulse-gauges
+           lays the pair out inline (side by side) whenever both gauges
+           fit and stacks them below that. -->
+      <div class="pulse-gauges">
+        @if (occupancyPulse(); as occPulse) {
+          <app-report-gauge
+            [leftLabel]="'detail.pulse.kind.space' | t"
+            [rightLabel]="'detail.pulse.kind.full' | t"
+            [share]="occPulse.fullness"
+            [text]="occupancyPulseText(occPulse)"
+            [emptyText]="'detail.pulse.emptyOccupancy' | t"
+          />
+        } @else {
+          <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
+        }
+        @if (openPulse(); as openPulse) {
+          <app-report-gauge
+            [leftLabel]="'detail.pulse.kind.closed' | t"
+            [rightLabel]="'detail.pulse.kind.open' | t"
+            [share]="openPulse.openShare"
+            [text]="openPulseText(openPulse)"
+            [emptyText]="'detail.pulse.emptyOpen' | t"
+          />
+        } @else {
+          <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
+        }
+      </div>
 
       <!-- Recent reports (M9 community pulse): the merged fresh log —
            what was reported + when, NO reporter identity (privacy: "a

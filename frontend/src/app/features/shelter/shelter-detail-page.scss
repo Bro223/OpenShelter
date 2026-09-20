@@ -399,11 +399,38 @@
 }
 
 /* Community pulse (M9 — report aggregation UI): the explicit empty state
-   line (no fresh reports → NO neutral gauge) and the recent-report log. */
+   line (no fresh reports → NO neutral gauge) and the recent-report log.
+   The gauges themselves sit in .pulse-gauges directly above the log. */
 .pulse-empty {
   margin: var(--space-8) 0 0;
   font-size: var(--text-sm);
   color: var(--color-muted);
+}
+
+/* The two community-pulse gauges, moved to the bottom of the page
+   directly above the recent log (owner placement pass). A wrapping flex
+   row: side by side whenever both 240px gauges fit (wide viewports), one
+   per line below that — the wrap point is the fit itself, so there is no
+   breakpoint to drift and nothing to overflow (at 360px the 320px of
+   content takes the two 240px gauges stacked). DOM order inside: the
+   how-full gauge first, then open/closed — the page's old section order,
+   kept for screen readers. */
+.pulse-gauges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-20) var(--space-16);
+
+  app-report-gauge {
+    flex: 0 1 auto;
+    max-width: 240px; /* matches .report-gauge's own cap (report-gauge.scss) */
+  }
+
+  /* The explicit empty-state sentences keep stacking (the old
+     per-section look) — two empty sentences side by side would read as
+     one line. */
+  .pulse-empty {
+    flex: 0 0 100%;
+  }
 }
 
 .recent-reports {
@@ -412,21 +439,28 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-8);
+  /* A bit bigger / more present than a cramped list (owner placement
+     pass): ~6 comfortable rows visible before it scrolls — the BE caps
+     recent reports at 10, so a full list scrolls inside the box instead
+     of stretching the page (page-specific layout dimension, documented
+     exception, not spacing). */
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .recent-reports__entry {
   display: flex;
   align-items: baseline;
   gap: var(--space-12);
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
 }
 
 .recent-reports__time {
   flex: 0 0 auto;
   min-width: 88px; /* "2 h ago" — keeps the kind column aligned */
   color: var(--color-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .recent-reports__kind {

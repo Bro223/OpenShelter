@@ -624,7 +624,7 @@ export const ET: Messages = {
   'admin.reports.loading': 'Laen teatisi…',
   'admin.reports.empty': 'Teatisi pole.',
   'admin.reports.dismissed': 'Arveldatud',
-  'admin.reports.dampened': 'Mõnitatud',
+  'admin.reports.dampened': 'Hõivendatud',
   'admin.reports.restore': 'Taasta varjupaik',
   'admin.reports.dismiss': 'Arvelda',
 
@@ -666,16 +666,9 @@ export const ET: Messages = {
   'admin.audit.col.change': 'Muutus',
   'admin.audit.col.reason': 'Põhjus',
 
-  'admin.settings.languages.title': 'Keel',
-  'admin.settings.languages.adminLabel': 'Admin keel',
-  'admin.settings.languages.adminHint':
-    'Selle haldusliidese keel (vahekaardid, nupud, veeru pealkirjad). Selle muutmine ei muuda juhiste sisu.',
-  'admin.settings.languages.contentLabel': 'Sisu keel',
-  'admin.settings.languages.contentHint':
-    'Juhistepostituste keel, mida Juhised vahekaardil loetletakse ja muudetakse. Esimesel kasutamisel järgib admin keelt; seejärel on sõltumatu.',
   'admin.siteTexts.loading': 'Laen saidi tekste…',
   'admin.siteTexts.hint1':
-    'Jäta väli tühjaks, et kasutada kaasaantud vaikimisi (näidatud kaoaiana). Tühjendatud väli salvestamine eemaldab ülekirjutuse. Lingi aadressid peavad algama ',
+    'Jäta väli tühjaks, et kasutada kaasaantud vaikimisi (näidatud kaaplasolderina). Tühjendatud väli salvestamine eemaldab ülekirjutuse. Lingi aadressid peavad algama ',
   'admin.siteTexts.hint2': ' ja on ühised kõigi kolme keele jaoks.',
   'admin.siteTexts.linkLabel': 'Link (https, kõik keeled)',
   'admin.siteTexts.saving': 'Salvestatakse…',
@@ -692,6 +685,9 @@ export const ET: Messages = {
   'admin.guidance.empty': 'Juhisteposte pole veel.',
   'admin.guidance.emptyLocale': 'Keeles {locale} juhiseid pole veel.',
   'admin.guidance.shownIn': 'Postitused keeles {locale} — teisi keeli muudetakse nende enda loenditest.',
+  'admin.guidance.language.label': 'Sisu keel',
+  'admin.guidance.language.hint':
+    'Juhistepostituste keel, mida siin loetletakse ja muudetakse. Esimesel kasutamisel järgib liidese keelt; seejärel on sõltumatu.',
   'admin.guidance.create': 'Uus post',
   'admin.guidance.col.title': 'Pealkiri',
   'admin.guidance.col.position': 'Asukoht',
@@ -702,7 +698,7 @@ export const ET: Messages = {
   'admin.guidance.col.updated': 'Muudetud',
   'admin.guidance.col.actions': 'Tegevused',
   'admin.guidance.order.hint':
-    'Postid näevad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
+    'Postid ilmuvad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
   'admin.guidance.move.top': 'Üles otsa',
   'admin.guidance.move.up': 'Üles',
   'admin.guidance.move.down': 'Alla',

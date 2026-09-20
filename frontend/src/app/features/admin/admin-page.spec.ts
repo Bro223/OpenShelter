@@ -1,4 +1,5 @@
 import { Component, type DebugElement } from '@angular/core';
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router, RouterOutlet } from '@angular/router';
@@ -1691,41 +1692,25 @@ describe('AdminPage', () => {
     expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 11, 12], 'et');
   });
 
-  it('the Settings tab offers the two labeled language controls (admin-locale-split)', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
-    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Settings', element, fixture);
-
-    // Both controls are present, with the distinguishable labels…
-    expect(element.textContent).toContain('Admin language');
-    expect(element.textContent).toContain('Content language');
-    const adminSel = element.querySelector<HTMLSelectElement>('#admin-language-select');
-    const contentSel = element.querySelector<HTMLSelectElement>('#content-language-select');
-    expect(adminSel).not.toBeNull();
-    expect(contentSel).not.toBeNull();
-    // …each reflecting its own language (both default to the UI locale).
-    expect(adminSel!.value).toBe('en');
-    expect(contentSel!.value).toBe('en');
-  });
-
-  it('the "Admin language" control switches the chrome only (the content locale is untouched, admin-locale-split)', async () => {
+  it('the admin-language select is gone and the header switcher still changes the chrome (admin-locale-split)', async () => {
     admin.listShelters.mockResolvedValue([]);
     const i18nService = TestBed.inject(I18nService);
     const { element, fixture } = await openAdmin();
     await switchTab('Settings', element, fixture);
 
+    // The redundant select is gone: no #admin-language-select, no "Admin
+    // language" label — the header language switcher IS the chrome control.
+    expect(element.querySelector('#admin-language-select')).toBeNull();
+    expect(element.textContent).not.toContain('Admin language');
+
     // A non-default content choice first (so the independence is real)…
     i18nService.setContentLocale('ru');
     await settle(fixture);
-
-    const adminSel = element.querySelector<HTMLSelectElement>('#admin-language-select')!;
-    adminSel.value = 'et';
-    adminSel.dispatchEvent(new Event('change'));
+    // …then the header switcher's path (I18nService.setLocale): the chrome
+    // follows (tab labels re-translate, <html lang> + the persisted key)…
+    i18nService.setLocale('et');
     await settle(fixture);
 
-    // The chrome follows the admin language (the tab labels re-translate)…
     expect(buttonByText(element, 'Guidance')).toBeNull();
     expect(element.textContent).toContain('Juhised'); // et catalog's label
     expect(document.documentElement.lang).toBe('et');
@@ -1735,31 +1720,39 @@ describe('AdminPage', () => {
     expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
   });
 
-  it('the "Content language" control re-scopes the list on the next Guidance visit (admin-locale-split)', async () => {
+  it('the content-language control sits on the Guidance tab, re-scopes the list there, and leaves the chrome untouched (admin-locale-split)', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue([GUIDANCE_PUBLISHED]);
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
     const i18nService = TestBed.inject(I18nService);
     const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
 
-    // From the Settings tab (where the controls live)…
+    // The control is no longer on the Settings tab…
     await switchTab('Settings', element, fixture);
+    expect(element.querySelector('#content-language-select')).toBeNull();
+    // …it is on the Guidance tab (with the content it scopes), reflecting
+    // the current content locale…
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
     const contentSel = element.querySelector<HTMLSelectElement>('#content-language-select')!;
+    expect(contentSel).not.toBeNull();
+    expect(contentSel.value).toBe('en');
+
+    // …and switching it THERE re-fetches the list in the new content locale
+    // immediately (the cached rows are invalidated — no stale-locale rows
+    // can render on the Guidance tab)…
     contentSel.value = 'ru';
     contentSel.dispatchEvent(new Event('change'));
     await settle(fixture);
-
-    // …the choice persists under the content key, the chrome is untouched…
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(2);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('ru');
+    // …while the chrome is untouched (the en tab labels and <html lang>
+    // stay) and the choice persists under the content key.
+    expect(buttonByText(element, 'Guidance')).not.toBeNull();
+    expect(document.documentElement.lang).toBe('en');
     expect(i18nService.contentLocale()).toBe('ru');
     expect(localStorage.getItem('openshelter-admin-content-locale')).toBe('ru');
-    expect(document.documentElement.lang).toBe('en');
-    expect(buttonByText(element, 'Guidance')).not.toBeNull(); // still en chrome
-    // …and the cached list is invalidated: the next Guidance visit
-    // re-fetches in the new content locale.
-    await switchTab('Guidance', element, fixture);
-    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('ru');
   });
 
   it('the guidance list error state shows the banner with Retry; Retry re-loads', async () => {
@@ -2016,6 +2009,197 @@ describe('AdminPage', () => {
     expect(admin.deleteGuidancePost).toHaveBeenCalledWith(12);
     expect(element.querySelectorAll('tbody tr').length).toBe(1);
     expect(element.textContent).toContain('Post deleted.');
+  });
+
+  // ---- editor reveal: the form is found, not hunted (scroll + focus) -------
+  //
+  // The editor opens at the TOP of the Guidance tab while the row that
+  // triggered it may sit at the BOTTOM of a long list. An explicit
+  // Edit/New therefore REVEALS the freshly rendered editor: it scrolls the
+  // editor region into view and moves focus to the form's first field —
+  // only AFTER the row's data is loaded and the form has rendered (edit
+  // mode fetches the detail first), never on the click, and never on an
+  // unrelated re-render. The scroll honours prefers-reduced-motion (the
+  // repo's motion policy — page-shell.scss: the OS reduce request removes
+  // the motion, the state still flips): an instant jump instead of a
+  // smooth one. The open editor is visually obvious via the accent border
+  // while the form has focus (the .admin-editor :focus-within rule).
+
+  describe('editor reveal (scroll + focus after data load)', () => {
+    let scrollSpy: ReturnType<typeof vi.fn>;
+    /** The element a reveal scrolled — the spy's `this` (scrollIntoView is
+     *  a METHOD: the receiver is not among the recorded arguments). */
+    let scrolledElement: Element | null;
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+    beforeEach(() => {
+      // jsdom does not implement scrollIntoView — stub it (and restore
+      // after): the reveal specs spy on it (map-page's convention).
+      scrolledElement = null;
+      scrollSpy = vi.fn(function (this: Element) {
+        scrolledElement = this;
+      });
+      Element.prototype.scrollIntoView = scrollSpy as unknown as Element['scrollIntoView'];
+    });
+
+    afterEach(() => {
+      const proto = Element.prototype as { scrollIntoView?: unknown };
+      if (originalScrollIntoView) {
+        proto.scrollIntoView = originalScrollIntoView;
+      } else {
+        delete proto.scrollIntoView;
+      }
+      // jsdom itself has no matchMedia — remove the reduced-motion spec's
+      // seam so it cannot leak into another test.
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    });
+
+    /** The motion seam: jsdom has NO matchMedia at all, so the test defines
+     *  the property explicitly (a spy would need it to exist). */
+    function stubReducedMotion(reduced: boolean): void {
+      const mql = {
+        matches: reduced,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      };
+      Object.defineProperty(window, 'matchMedia', {
+        value: vi.fn().mockReturnValue(mql),
+        configurable: true,
+        writable: true,
+      });
+    }
+
+    it('an Edit on the LAST row brings the editor into view and focuses it (the form is not a hunt)', async () => {
+      admin.listShelters.mockResolvedValue([]);
+      admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS); // 11, 13, 12
+      publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT); // id 12's detail
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+
+      // Nothing has scrolled or taken focus yet…
+      expect(scrollSpy).not.toHaveBeenCalled();
+
+      // The LAST row (id 12 — the bottom of the list) is the edit target.
+      const rows = element.querySelectorAll('tbody tr');
+      expect(rows.length).toBe(3);
+      buttonByText(rows[2]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+
+      // The editor shows its LOADING state first (the detail fetch); the
+      // reveal may only run AFTER the detail landed and the form rendered.
+      await settle(fixture);
+      expect(admin.getGuidancePost).toHaveBeenCalledTimes(1);
+      expect(admin.getGuidancePost).toHaveBeenCalledWith(12, 'en');
+
+      // The editor region is scrolled into view (smooth — motion is on)…
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      const region = element.querySelector('.admin-editor')!;
+      expect(scrolledElement).toBe(region);
+      expect(scrollSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ block: 'start', behavior: 'smooth' }),
+      );
+      // …and focus lands on the form's FIRST field (the title) — a
+      // keyboard user starts inside the form, not somewhere arbitrary.
+      expect(document.activeElement).toBe(element.querySelector<HTMLInputElement>('#ge-title')!);
+    });
+
+    it('"New post" reveals the create editor the same way (no fetch to wait for)', async () => {
+      admin.listShelters.mockResolvedValue([]);
+      admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+      publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+
+      buttonByText(element, 'New post')!.click();
+      await settle(fixture);
+
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      const region = element.querySelector('.admin-editor')!;
+      expect(scrolledElement).toBe(region);
+      expect(scrollSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ block: 'start', behavior: 'smooth' }),
+      );
+      expect(document.activeElement).toBe(element.querySelector<HTMLInputElement>('#ge-title')!);
+    });
+
+    it('an unrelated re-render (a row patch with the editor open) scrolls nothing and steals no focus', async () => {
+      admin.listShelters.mockResolvedValue([]);
+      admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+      publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
+      admin.unpublishGuidancePost.mockResolvedValue(undefined);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+
+      // Open the editor on the last row — the ONE legitimate reveal…
+      const rows = element.querySelectorAll('tbody tr');
+      buttonByText(rows[2]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      const titleInput = element.querySelector<HTMLInputElement>('#ge-title')!;
+      expect(document.activeElement).toBe(titleInput);
+
+      // …now an UNRELATED re-render: unpublish the FIRST row (id 11) — the
+      // row patches in place, the whole Guidance tab re-renders, the open
+      // editor re-renders with its already-loaded post.
+      const firstRow = element.querySelectorAll('tbody tr')[0]!;
+      buttonByText(firstRow.querySelector('td.admin-cell--actions')!, 'Unpublish')!.click();
+      await settle(fixture);
+
+      expect(admin.unpublishGuidancePost).toHaveBeenCalledTimes(1);
+      expect(admin.unpublishGuidancePost).toHaveBeenCalledWith(11);
+      // No new scroll, no focus change — the form stays exactly where the
+      // admin left it.
+      expect(scrollSpy).toHaveBeenCalledTimes(1); // still exactly one
+      expect(document.activeElement).toBe(titleInput);
+    });
+
+    it('the reveal scroll is instant under prefers-reduced-motion (the repo motion policy)', async () => {
+      stubReducedMotion(true);
+      admin.listShelters.mockResolvedValue([]);
+      admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
+      publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
+      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+
+      const rows = element.querySelectorAll('tbody tr');
+      buttonByText(rows[2]!.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      // The state still flips — the editor lands in view — but without
+      // motion: 'instant', not 'smooth'.
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      expect(scrolledElement).toBe(element.querySelector('.admin-editor')!);
+      expect(scrollSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ block: 'start', behavior: 'instant' }),
+      );
+      // …and focus still lands on the form.
+      expect(document.activeElement).toBe(element.querySelector<HTMLInputElement>('#ge-title')!);
+    });
+
+    it('the open editor is visually obvious while in focus (the accent border, admin-page.scss)', () => {
+      const scss = readFileSync(
+        `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+        'utf8',
+      );
+      const block = scss.match(/\.admin-editor \{[\s\S]*?\n\}/);
+      expect(block, 'admin-page.scss must keep the .admin-editor rule').not.toBeNull();
+      expect(
+        block![0],
+        'the editor must take the primary accent border while the form has focus',
+      ).toContain(':focus-within');
+      expect(block![0]).toMatch(/border-color: var\(--color-primary\)/);
+    });
   });
 
   // ---- guidance manual ordering (guidance-manual-order D6) ------------------

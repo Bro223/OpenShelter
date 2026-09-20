@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { Component, type DebugElement, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -233,10 +234,6 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
   function text(fixture: ReturnType<typeof TestBed.createComponent<PageShell>>): string {
     return (fixture.nativeElement as HTMLElement).textContent ?? '';
-  }
-
-  function elText(el: HTMLElement | null): string {
-    return el?.textContent ?? '';
   }
 
   describe('reading (public)', () => {
@@ -491,7 +488,7 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
             resolveGet = resolve;
           }),
       ) as never;
-      const { element, fixture } = await open('/shelters/1');
+      const { fixture } = await open('/shelters/1');
       expect(text(fixture)).toContain('Loading shelter…');
 
       resolveGet(registryShelter());
@@ -1485,16 +1482,31 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       });
     }
 
+    /** The gauges live in one shared bottom container (placement pass);
+     *  find one by a snippet of its count line. */
+    function gaugeByText(element: HTMLElement, countSnippet: string): HTMLElement | null {
+      const wrap = element.querySelector('.pulse-gauges');
+      if (!wrap) return null;
+      return (
+        [...wrap.querySelectorAll<HTMLElement>('app-report-gauge')].find((g) =>
+          (g.textContent ?? '').includes(countSnippet),
+        ) ?? null
+      );
+    }
+
     it('an equal weighted split points the open/closed needle straight up (50/50 → 90°)', async () => {
       shelterGateway.rows.set(1, pulseShelter());
       const { element } = await open('/shelters/1');
 
-      const section = element.querySelector('#open-status-heading')?.closest('section');
-      const needle = section?.querySelector('.report-gauge__needle') as SVGElement | null;
+      // The gauge moved to the shared bottom container (placement pass) —
+      // find the open/closed one by its count line.
+      const gauge = gaugeByText(element, 'Reports: 3 open, 2 closed');
+      expect(gauge, 'the open/closed gauge must render in the gauges container').not.toBeNull();
+      const needle = gauge!.querySelector('.report-gauge__needle') as SVGElement | null;
       expect(needle).not.toBeNull();
       expect(needle!.getAttribute('transform')).toBe('rotate(90 100 100)');
       // the accessible count line is visible (the angle is never the only carrier)
-      expect(section?.querySelector('.report-gauge__text')?.textContent).toContain(
+      expect(gauge!.querySelector('.report-gauge__text')?.textContent).toContain(
         'Reports: 3 open, 2 closed',
       );
     });
@@ -1503,16 +1515,171 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       shelterGateway.rows.set(1, pulseShelter());
       const { element } = await open('/shelters/1');
 
-      const section = element.querySelector('#occupancy-heading')?.closest('section');
-      const needle = section?.querySelector('.report-gauge__needle') as SVGElement | null;
+      // The gauge moved to the shared bottom container (placement pass).
+      const gauge = gaugeByText(element, 'Reports: 0 space available');
+      expect(gauge, 'the how-full gauge must render in the gauges container').not.toBeNull();
+      const needle = gauge!.querySelector('.report-gauge__needle') as SVGElement | null;
       expect(needle).not.toBeNull();
       expect(needle!.getAttribute('transform')).toBe('rotate(180 100 100)');
-      expect(section?.querySelector('.report-gauge__text')?.textContent).toContain(
+      expect(gauge!.querySelector('.report-gauge__text')?.textContent).toContain(
         'Reports: 0 space available, 0 getting full, 4 full',
       );
       // the end labels frame the semicircle (not colour-only)
-      expect(section?.textContent).toContain('Space available');
-      expect(section?.textContent).toContain('Full');
+      expect(gauge!.textContent).toContain('Space available');
+      expect(gauge!.textContent).toContain('Full');
+    });
+
+    it('both gauges moved to the bottom of the page, directly above the recent log — DOM order: gauges, then the log they summarise', async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const wrap = element.querySelector('.pulse-gauges');
+      expect(wrap, 'the two gauges must live in one shared container').not.toBeNull();
+      expect(wrap!.querySelectorAll('app-report-gauge').length).toBe(2);
+      // moved OUT of the old report sections (the pickers stay there)
+      expect(
+        element.querySelector('#occupancy-heading')
+          ?.closest('section')
+          ?.querySelector('app-report-gauge'),
+        'the occupancy gauge is no longer in the "Report how full" section',
+      ).toBeNull();
+      expect(
+        element.querySelector('#open-status-heading')
+          ?.closest('section')
+          ?.querySelector('app-report-gauge'),
+        'the open/closed gauge is no longer in the "Report open/closed" section',
+      ).toBeNull();
+      // DIRECTLY above the log: the recent-reports section is the
+      // container's next sibling — a screen reader meets the gauges
+      // before the log they summarise (summary → detail).
+      const logSection = element.querySelector('#recent-reports-heading')?.closest('section');
+      expect(logSection, 'the recent log section must render').not.toBeNull();
+      expect(logSection!.previousElementSibling, 'the log section follows the gauges container').toBe(
+        wrap,
+      );
+    });
+
+    it('the gauge pair is inline at wide widths — a wrapping flex row, side by side whenever both 240px gauges fit (mechanism)', () => {
+      // jsdom cannot measure widths, so — the repo's mechanism-assertion
+      // idiom (page-shell.spec.ts) — the stylesheet content is the
+      // acceptance: the pair sits side by side by CONSTRUCTION (a
+      // wrapping row) instead of at a breakpoint the gauges could drift
+      // from.
+      const detailScss = readFileSync(
+        `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
+        'utf8',
+      );
+      const block = detailScss.match(/\.pulse-gauges \{[\s\S]*?\n\}/);
+      expect(block, 'shelter-detail-page.scss must style .pulse-gauges').not.toBeNull();
+      expect(block![0], 'the pair is a flex row').toContain('display: flex');
+      expect(
+        block![0],
+        'the row wraps: one gauge per line when both do not fit',
+      ).toContain('flex-wrap: wrap');
+      expect(block![0], 'the base direction is a row (no column rule)').not.toMatch(
+        /flex-direction:\s*column/,
+      );
+      const item = block![0].match(/app-report-gauge \{[\s\S]*?\n {2}\}/);
+      expect(item, 'the gauge hosts must be capped at the gauge width').not.toBeNull();
+      expect(
+        item![0],
+        'each gauge keeps its natural 240px size (no grow, no fixed slot)',
+      ).not.toMatch(/flex:\s*1|flex-grow/);
+      expect(item![0], 'the host matches .report-gauge\'s 240px cap').toMatch(/max-width: 240px/);
+    });
+
+    it('the counts line cannot break mid-phrase: one unbreakable token per count, the line wraps BETWEEN tokens', async () => {
+      // Mechanism (report-gauge.scss): each token is one unbreakable
+      // inline unit — the line may only break at the boundary BETWEEN
+      // tokens (after a comma), never inside a phrase.
+      const gaugeScss = readFileSync(`${process.cwd()}/src/app/shared/report-gauge.scss`, 'utf8');
+      const token = gaugeScss.match(/\.report-gauge__token \{[\s\S]*?\n\}/);
+      expect(token, 'report-gauge.scss must style .report-gauge__token').not.toBeNull();
+      expect(token![0], 'a token must never break mid-phrase').toContain('white-space: nowrap');
+
+      // Structure: the figcaption is one span per comma-separated count
+      // phrase, and the tokens concatenate byte-identical to the count
+      // text (the split is structural — the visible + accessible text
+      // is unchanged).
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const gauge = gaugeByText(element, '0 getting full');
+      expect(gauge, 'the how-full gauge must render').not.toBeNull();
+      const caption = gauge!.querySelector('.report-gauge__text');
+      expect(caption, 'the count line must render').not.toBeNull();
+      const tokens = [...caption!.querySelectorAll<HTMLElement>('.report-gauge__token')];
+      expect(tokens.length, 'three counts → three tokens (the label rides the first)').toBe(3);
+      expect(
+        tokens.map((t) => t.textContent).join(''),
+        'the tokens are the count text verbatim',
+      ).toBe('Reports: 0 space available, 0 getting full, 4 full');
+      for (const t of tokens) {
+        const text = t.textContent ?? '';
+        const firstComma = text.indexOf(', ');
+        // A comma (the phrase separator) may sit only at a token's VERY
+        // end — never inside it (that would be a phrase boundary the
+        // token crosses).
+        expect(
+          firstComma === -1 || firstComma === text.length - 2,
+          `a token must not carry a phrase boundary inside: ${text}`,
+        ).toBe(true);
+      }
+    });
+
+    it('no page-level horizontal overflow at 360px (mechanism): the counts line wraps between tokens, the gauge pair wraps, the log scrolls', () => {
+      // jsdom cannot measure a 360px viewport, so the mechanisms that
+      // make overflow impossible are pinned here (the repo's 360px
+      // standard):
+      //  1. the counts line wraps BETWEEN nowrap tokens — no token is
+      //     wider than the 320px of content at 360px, and the line
+      //     itself stays wrappable (no nowrap on it);
+      //  2. the gauge pair wraps to one gauge per line below the fit
+      //     (two 240px gauges inside 320px of content);
+      //  3. the log is height-bounded + scrolling (the BE's 10-entry cap
+      //     scrolls inside the box — it cannot stretch the page).
+      const gaugeScss = readFileSync(`${process.cwd()}/src/app/shared/report-gauge.scss`, 'utf8');
+      expect(
+        gaugeScss.match(/\.report-gauge__token \{[\s\S]*?\n\}/)?.[0],
+        'the count tokens must be unbreakable',
+      ).toContain('white-space: nowrap');
+      expect(
+        gaugeScss.match(/\.report-gauge__text \{[\s\S]*?\n\}/)?.[0] ?? '',
+        'the count line itself must stay wrappable (breaks BETWEEN tokens)',
+      ).not.toMatch(/nowrap/);
+
+      const detailScss = readFileSync(
+        `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
+        'utf8',
+      );
+      const pair = detailScss.match(/\.pulse-gauges \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(pair, 'the gauge pair must wrap instead of overflowing').toContain('flex-wrap: wrap');
+      expect(pair, 'each gauge stays 240px wide (≤ 320px of content at 360px)').toMatch(
+        /max-width: 240px/,
+      );
+
+      const log = detailScss.match(/\.recent-reports \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(log, 'the log must be height-bounded').toMatch(/max-height: \d+px/);
+      expect(log, 'a long log scrolls instead of stretching').toContain('overflow-y: auto');
+    });
+
+    it("the gauges' accessible count text still renders after the move (the visible text is the meaning, the angle is decoration)", async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const wrap = element.querySelector('.pulse-gauges');
+      expect(wrap, 'the gauges container must render').not.toBeNull();
+      expect(wrap!.textContent).toContain('Reports: 3 open, 2 closed');
+      expect(wrap!.textContent).toContain('Reports: 0 space available, 0 getting full, 4 full');
+      // the SVGs stay aria-hidden decoration behind the text
+      const svgs = wrap!.querySelectorAll('svg');
+      expect(svgs.length, 'both gauges render their semicircle').toBe(2);
+      for (const svg of svgs) {
+        expect(svg.getAttribute('aria-hidden')).toBe('true');
+      }
+      // the end labels stay visible text too (not colour-only)
+      expect(wrap!.textContent).toContain('Space available');
+      expect(wrap!.textContent).toContain('Full');
     });
 
     it('zero fresh reports render the explicit empty states — no gauge, no neutral arrow', async () => {

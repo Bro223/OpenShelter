@@ -3,8 +3,10 @@ import {
   Component,
   ElementRef,
   inject,
+  Injector,
   OnInit,
   OnDestroy,
+  afterNextRender,
   computed,
   signal,
 } from '@angular/core';
@@ -215,6 +217,10 @@ export class AdminPage implements OnInit, OnDestroy {
   private readonly publicGuidance = inject(GuidanceGateway);
   private readonly i18n = inject(I18nService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** The component's own injector — afterNextRender's injection context
+   *  (the map-page's scrollRowIntoView idiom) and the destroy handle for
+   *  its callbacks. */
+  private readonly injector = inject(Injector);
 
   // ---- tabs ----------------------------------------------------------------
   protected readonly tab = signal<AdminTab>('unconfirmed');
@@ -303,10 +309,6 @@ export class AdminPage implements OnInit, OnDestroy {
   );
 
   // ---- guidance tab (crisis-guidance D8) -------------------------------------
-  /** The admin's UI language (the chrome — the Settings panel's "Admin
-   *  language" select renders it). admin-locale-split: it does NOT drive
-   *  the guidance list — that is the content locale below. */
-  protected readonly uiLanguage = this.i18n.locale;
   /** The admin's CONTENT language (admin-locale-scope + admin-locale-
    *  split): the guidance list, detail fetches, saves and reorders all
    *  scope to it — the template renders it in the "posts in {locale}"
@@ -314,9 +316,10 @@ export class AdminPage implements OnInit, OnDestroy {
    *  language" select renders it. It defaults to the UI language on
    *  first entry, then persists independently. */
   protected readonly contentLocale = this.i18n.contentLocale;
-  /** The supported locales — the Settings panel's two language selects
-   *  render from this list (the language codes are the labels, the
-   *  public switcher's convention). */
+  /** The supported locales — the content-language select renders from this
+   *  list (the language codes are the labels, the public switcher's
+   *  convention). The chrome's language is the header switcher's domain —
+   *  the admin page has no UI-language control of its own. */
   protected readonly locales = LOCALES;
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
    *  SCOPEd to the active UI language (admin-locale-scope): only the posts
@@ -351,8 +354,14 @@ export class AdminPage implements OnInit, OnDestroy {
   private guidanceFetchSeq = 0;
   /** The monotonic editor-detail fetch sequence (same guard). */
   private editorFetchSeq = 0;
-  /** The content-language switcher sets I18nService.contentLocale (the
-   *  admin Settings panel's "Content language" control): the guidance
+  /** The monotonic editor-reveal sequence: a superseded open (a newer
+   *  Edit/New) or a close cancels a pending reveal, so a stale callback
+   *  can never scroll or focus after the editor it belongs to is gone.
+   *  A re-render WITHOUT an open bumps nothing — no scroll, no focus
+   *  steal. */
+  private editorRevealSeq = 0;
+  /** The content-language switcher (the Guidance tab's "Content language"
+   *  control) sets I18nService.contentLocale: the guidance
    *  list is scoped to it, so a switch re-fetches it (the
    *  guidance-list-page's idiom). A UI-language switch (I18nService.
    *  locale) deliberately does NOT re-fetch (admin-locale-split: the
@@ -367,7 +376,13 @@ export class AdminPage implements OnInit, OnDestroy {
     .pipe(skip(1))
     .subscribe(() => {
       this.closeGuidanceEditor();
-      if (this.tab() === 'guidance' && this.guidanceRows() !== null) {
+      // The list (if live) is the OLD locale's: invalidate the cached
+      // rows and re-fetch in the new one. Guarded on the ERROR state, not
+      // on rows: the switch's own invalidation (or a just-started load)
+      // may already have nulled them, and the error state keeps its Retry
+      // (a failed load stays failed until the admin retries).
+      if (this.tab() === 'guidance' && this.guidanceLoadError() === null) {
+        this.guidanceRows.set(null);
         this.loadGuidance();
       }
     });
@@ -472,34 +487,29 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   // -------------------------------------------------------------------------
-  // Settings tab: the language controls (admin-locale-split)
+  // Language control (admin-locale-split)
   // -------------------------------------------------------------------------
 
   /**
-   * "Admin language" select: the admin UI language (the chrome). The same
-   *  path as the public header switcher (I18nService.setLocale — persists
-   *  under its own key, flips <html lang>). It NEVER touches the content
-   *  locale: the guidance list/detail/save/reorder keep scoping to the
-   *  content language (admin-locale-split).
-   */
-  onAdminLanguageChange(event: Event): void {
-    this.i18n.setLocale((event.target as HTMLSelectElement).value as Locale);
-  }
-
-  /**
-   * "Content language" select: the guidance content language. Persists
-   *  under its own key (I18nService.setContentLocale — the UI language is
-   *  untouched). From the Settings tab the open-list refetch cannot run
-   *  (the list is only live on the Guidance tab), so the cached rows are
-   *  invalidated: they belong to the previous content language, and the
-   *  Guidance tab's lazy-load rule re-fetches them in the new locale on
-   *  the next visit. On the Guidance tab itself the content-locale
-   *  subscription re-fetches immediately (the editor closes on the
-   *  switch, as before the split).
+   * "Content language" select (the Guidance tab — with the content it
+   *  scopes): the guidance content language. Persists under its own key
+   *  (I18nService.setContentLocale — the UI language is untouched).
+   *
+   *  The cached rows are invalidated here: they belong to the previous
+   *  content language and must never render as stale-locale rows. On the
+   *  Guidance tab (the select's only home) the content-locale
+   *  subscription re-fetches the list immediately after the invalidation
+   *  (its guard keys off the error state, so the nulled rows don't skip
+   *  it); a switch made from elsewhere (a programmatic setContentLocale)
+   *  leaves the rows nulled, and the Guidance tab's lazy-load rule
+   *  re-fetches them in the new locale on the next visit. An open editor
+   *  is CLOSED by the switch (the subscription, on both paths) — its
+   *  unsaved edits are DISCARDED (they belong to the previous
+   *  language's rows).
    */
   onContentLanguageChange(event: Event): void {
     this.i18n.setContentLocale((event.target as HTMLSelectElement).value as Locale);
-    this.guidanceRows.set(null);
+    this.guidanceRows.set(null); // the cached rows are the old locale's
   }
 
   ngOnInit(): void {
@@ -1117,6 +1127,9 @@ export class AdminPage implements OnInit, OnDestroy {
     this.ensureMediaLoaded();
     if (post === null) {
       this.guidanceEditor.set('new');
+      // Create mode: the form renders immediately from this write — the
+      // reveal waits for that render (afterNextRender), not the click.
+      this.revealEditor();
       return;
     }
     const seq = ++this.editorFetchSeq;
@@ -1130,6 +1143,10 @@ export class AdminPage implements OnInit, OnDestroy {
         }
         this.guidanceEditor.set(fetched);
         this.guidanceEditorLoading.set(false);
+        // EDIT MODE: the reveal only runs once the row's data is loaded
+        // AND this write has rendered the real form — never on the click
+        // (when only the loading placeholder exists).
+        this.revealEditor();
       })
       .catch((error: unknown) => {
         if (seq !== this.editorFetchSeq) {
@@ -1144,12 +1161,59 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   /** Close the editor (tab switch, cancel, a successful save). Bumps the
-   *  fetch sequence so an in-flight edit detail cannot land late. */
+   *  fetch sequence so an in-flight edit detail cannot land late, and the
+   *  reveal sequence so a pending scroll+focus is cancelled with the
+   *  editor. */
   closeGuidanceEditor(): void {
     this.editorFetchSeq++;
+    this.editorRevealSeq++;
     this.guidanceEditor.set(null);
     this.guidanceEditorLoading.set(false);
     this.guidanceEditorError.set(null);
+  }
+
+  /**
+   * The explicit-open reveal (Edit / New post — the ONLY triggers): once
+   *  the editor's data is loaded and the form has RENDERED, scroll the
+   *  editor region into view and move focus to the form's first field
+   *  (the title). The admin who clicked Edit on a row at the BOTTOM of a
+   *  long list must not hunt for the form — the form comes to them, and a
+   *  keyboard user lands inside it, not somewhere arbitrary.
+   *
+   *  Deferred to afterNextRender (the map-page's scrollRowIntoView idiom):
+   *  the signal write re-renders the form first, so the scroll measures
+   *  the final layout — never the click-time placeholder. A re-render
+   *  without an explicit open (a row patch, a refetch) never calls this,
+   *  and a superseded/closed open is dropped by the reveal sequence.
+   *
+   *  The scroll honours prefers-reduced-motion — the repo's motion policy
+   *  (page-shell.scss): the OS reduce request removes the motion, the
+   *  state still flips. Under reduce the jump is INSTANT, not smooth.
+   *  jsdom has no matchMedia at all (and it would be the only place to
+   *  miss it) — the typeof guard keeps the default (smooth) there.
+   */
+  private revealEditor(): void {
+    const seq = ++this.editorRevealSeq;
+    afterNextRender(
+      () => {
+        if (seq !== this.editorRevealSeq) {
+          return; // superseded (a newer open) or cancelled (a close)
+        }
+        const region = this.host.nativeElement.querySelector<HTMLElement>('.admin-editor');
+        if (region === null) {
+          return; // the editor is gone (destroyed mid-flight) — no reveal
+        }
+        const reducedMotion =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        region.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'instant' : 'smooth' });
+        // The form's first field — the title input (the Quill body comes
+        // after it and must not be the focus target).
+        const firstField = this.host.nativeElement.querySelector<HTMLInputElement>('#ge-title');
+        firstField?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   /** The post the editor is bound to: null = create mode, the fetched post

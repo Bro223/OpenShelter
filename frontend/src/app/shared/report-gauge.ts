@@ -29,6 +29,19 @@ export class ReportGauge {
   readonly share = input<number | null>(null);
   /** The visible + accessible count text ("Reports: 3 open, 2 closed"). */
   readonly text = input<string>('');
+  /**
+   * The count line's wrap units (placement pass): one per comma-separated
+   * count phrase ("Reports: 3 open, 2 closed" → ["Reports: 3 open, ",
+   * "2 closed"]). Each token renders as one unbreakable inline unit, so
+   * the line wraps BETWEEN counts — never inside a phrase ("0 space
+   * available" can't split) — while the concatenated text stays the
+   * string verbatim (the visible + accessible text is unchanged).
+   */
+  readonly textTokens = computed<string[]>(() => {
+    const text = this.text();
+    if (text === '') return [];
+    return text.split(', ').map((part, i, parts) => (i < parts.length - 1 ? `${part}, ` : part));
+  });
   /** The left end's label (e.g. "Closed" / "Space available"). */
   readonly leftLabel = input<string>('');
   /** The right end's label (e.g. "Open" / "Full"). */

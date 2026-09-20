@@ -679,13 +679,6 @@ export const RU: Messages = {
   'admin.audit.col.change': 'Изменение',
   'admin.audit.col.reason': 'Причина',
 
-  'admin.settings.languages.title': 'Языки',
-  'admin.settings.languages.adminLabel': 'Язык админ-панели',
-  'admin.settings.languages.adminHint':
-    'Язык этого административного интерфейса (вкладки, кнопки, заголовки столбцов). Изменение не затрагивает контент материалов.',
-  'admin.settings.languages.contentLabel': 'Язык контента',
-  'admin.settings.languages.contentHint':
-    'Язык материалов, которые отображаются и редактируются во вкладке «Руководство». При первом использовании совпадает с языком админ-панели, затем независим.',
   'admin.siteTexts.loading': 'Загружаем тексты сайта…',
   'admin.siteTexts.hint1':
     'Оставьте поле пустым, чтобы использовать поставляемое значение по умолчанию (показано как плейсхолдер). Сохранение очищенного поля удаляет переопределение. Адреса ссылок должны начинаться с ',
@@ -705,6 +698,9 @@ export const RU: Messages = {
   'admin.guidance.empty': 'Материалов пока нет.',
   'admin.guidance.emptyLocale': 'Статей на языке {locale} пока нет.',
   'admin.guidance.shownIn': 'Материалы на языке {locale} — остальные языки редактируются из своих списков.',
+  'admin.guidance.language.label': 'Язык контента',
+  'admin.guidance.language.hint':
+    'Язык материалов, которые отображаются и редактируются здесь. При первом использовании совпадает с языком интерфейса, затем независим.',
   'admin.guidance.create': 'Новый материал',
   'admin.guidance.col.title': 'Название',
   'admin.guidance.col.position': 'Позиция',

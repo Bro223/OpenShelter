@@ -51,6 +51,16 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* The count line's wrap units (one span per comma-separated count
+   phrase): each token is one unbreakable inline unit — the line may
+   break ONLY at the boundary between tokens (after a comma), never
+   inside a phrase ("0 space available" can't split). No token is wider
+   than the narrowest page (320px of content at 360px), so the counts
+   wrap instead of overflowing. */
+.report-gauge__token {
+  white-space: nowrap;
+}
+
 .report-gauge__empty {
   margin: 0;
   color: var(--color-muted);

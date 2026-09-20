@@ -17,7 +17,11 @@
       <span class="report-gauge__end report-gauge__end--left">{{ leftLabel() }}</span>
       <span class="report-gauge__end report-gauge__end--right">{{ rightLabel() }}</span>
     </div>
-    <figcaption class="report-gauge__text">{{ text() }}</figcaption>
+    <figcaption class="report-gauge__text">
+      @for (token of textTokens(); track $index) {
+        <span class="report-gauge__token">{{ token }}</span>
+      }
+    </figcaption>
   </figure>
 } @else {
   <p class="report-gauge__empty" role="status">{{ emptyText() }}</p>
