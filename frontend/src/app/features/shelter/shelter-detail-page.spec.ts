@@ -400,7 +400,10 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
 
     it('a verified community row keeps the plain verified line (no registry attribution)', async () => {
       const hoursAgo = (h: number): string => new Date(Date.now() - h * 3600000).toISOString();
-      shelterGateway.rows.set(8, userShelter({ id: 8, reviewStatus: 'CONFIRMED', lastVerifiedAt: hoursAgo(2) }));
+      shelterGateway.rows.set(
+        8,
+        userShelter({ id: 8, reviewStatus: 'CONFIRMED', lastVerifiedAt: hoursAgo(2) }),
+      );
       const { element } = await open('/shelters/8');
 
       const line = element.querySelector<HTMLElement>('.shelter-detail__verified');
@@ -1482,14 +1485,26 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       });
     }
 
-    /** The gauges live in one shared bottom container (placement pass);
-     *  find one by a snippet of its count line. */
-    function gaugeByText(element: HTMLElement, countSnippet: string): HTMLElement | null {
-      const wrap = element.querySelector('.pulse-gauges');
-      if (!wrap) return null;
+    /** The arrows live in .pulse-gauges__arrows (layout pass); find one
+     *  by the caption id its figure's aria-describedby points at. */
+    function arrowGauge(element: HTMLElement, captionId: string): HTMLElement | null {
+      const arrows = element.querySelector('.pulse-gauges__arrows');
+      if (!arrows) return null;
       return (
-        [...wrap.querySelectorAll<HTMLElement>('app-report-gauge')].find((g) =>
-          (g.textContent ?? '').includes(countSnippet),
+        [...arrows.querySelectorAll<HTMLElement>('app-report-gauge')].find(
+          (g) => g.querySelector(`figure[aria-describedby="${captionId}"]`) !== null,
+        ) ?? null
+      );
+    }
+
+    /** The count lines (captions) live in the .pulse-gauges__captions
+     *  column (layout pass); find one by a snippet of its text. */
+    function captionByText(element: HTMLElement, countSnippet: string): HTMLElement | null {
+      const captions = element.querySelector('.pulse-gauges__captions');
+      if (!captions) return null;
+      return (
+        [...captions.querySelectorAll<HTMLElement>('.report-gauge__text')].find((c) =>
+          (c.textContent ?? '').includes(countSnippet),
         ) ?? null
       );
     }
@@ -1498,15 +1513,16 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       shelterGateway.rows.set(1, pulseShelter());
       const { element } = await open('/shelters/1');
 
-      // The gauge moved to the shared bottom container (placement pass) —
-      // find the open/closed one by its count line.
-      const gauge = gaugeByText(element, 'Reports: 3 open, 2 closed');
-      expect(gauge, 'the open/closed gauge must render in the gauges container').not.toBeNull();
+      // The arrow lives in the arrows row (layout pass) — find the
+      // open/closed one by the caption id its figure points at.
+      const gauge = arrowGauge(element, 'pulse-open-caption');
+      expect(gauge, 'the open/closed arrow must render in the arrows row').not.toBeNull();
       const needle = gauge!.querySelector('.report-gauge__needle') as SVGElement | null;
       expect(needle).not.toBeNull();
       expect(needle!.getAttribute('transform')).toBe('rotate(90 100 100)');
-      // the accessible count line is visible (the angle is never the only carrier)
-      expect(gauge!.querySelector('.report-gauge__text')?.textContent).toContain(
+      // the accessible count line (its caption, in the captions column) is
+      // visible (the angle is never the only carrier)
+      expect(captionByText(element, 'Reports: 3 open, 2 closed')?.textContent).toContain(
         'Reports: 3 open, 2 closed',
       );
     });
@@ -1515,13 +1531,13 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       shelterGateway.rows.set(1, pulseShelter());
       const { element } = await open('/shelters/1');
 
-      // The gauge moved to the shared bottom container (placement pass).
-      const gauge = gaugeByText(element, 'Reports: 0 space available');
-      expect(gauge, 'the how-full gauge must render in the gauges container').not.toBeNull();
+      // The arrow lives in the arrows row (layout pass).
+      const gauge = arrowGauge(element, 'pulse-occupancy-caption');
+      expect(gauge, 'the how-full arrow must render in the arrows row').not.toBeNull();
       const needle = gauge!.querySelector('.report-gauge__needle') as SVGElement | null;
       expect(needle).not.toBeNull();
       expect(needle!.getAttribute('transform')).toBe('rotate(180 100 100)');
-      expect(gauge!.querySelector('.report-gauge__text')?.textContent).toContain(
+      expect(captionByText(element, 'Reports: 0 space available')?.textContent).toContain(
         'Reports: 0 space available, 0 getting full, 4 full',
       );
       // the end labels frame the semicircle (not colour-only)
@@ -1534,17 +1550,32 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const { element } = await open('/shelters/1');
 
       const wrap = element.querySelector('.pulse-gauges');
-      expect(wrap, 'the two gauges must live in one shared container').not.toBeNull();
-      expect(wrap!.querySelectorAll('app-report-gauge').length).toBe(2);
+      expect(wrap, 'the pulse block must live in one shared container').not.toBeNull();
+      const arrows = wrap!.querySelector('.pulse-gauges__arrows');
+      expect(arrows, 'the arrows row must render').not.toBeNull();
+      const captions = wrap!.querySelector('.pulse-gauges__captions');
+      expect(captions, 'the captions column must render').not.toBeNull();
+      expect(arrows!.querySelectorAll('app-report-gauge').length, 'two arrows in the row').toBe(2);
+      expect(
+        captions!.querySelectorAll('app-report-gauge').length,
+        'two count lines in the column',
+      ).toBe(2);
+      // arrows first, then their count lines — a screen reader meets the
+      // summary before the log below (summary → detail).
+      expect(captions!.previousElementSibling, 'the captions column follows the arrows row').toBe(
+        arrows,
+      );
       // moved OUT of the old report sections (the pickers stay there)
       expect(
-        element.querySelector('#occupancy-heading')
+        element
+          .querySelector('#occupancy-heading')
           ?.closest('section')
           ?.querySelector('app-report-gauge'),
         'the occupancy gauge is no longer in the "Report how full" section',
       ).toBeNull();
       expect(
-        element.querySelector('#open-status-heading')
+        element
+          .querySelector('#open-status-heading')
           ?.closest('section')
           ?.querySelector('app-report-gauge'),
         'the open/closed gauge is no longer in the "Report open/closed" section',
@@ -1554,60 +1585,129 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // before the log they summarise (summary → detail).
       const logSection = element.querySelector('#recent-reports-heading')?.closest('section');
       expect(logSection, 'the recent log section must render').not.toBeNull();
-      expect(logSection!.previousElementSibling, 'the log section follows the gauges container').toBe(
-        wrap,
-      );
+      expect(
+        logSection!.previousElementSibling,
+        'the log section follows the gauges container',
+      ).toBe(wrap);
     });
 
-    it('the gauge pair is inline at wide widths — a wrapping flex row, side by side whenever both 240px gauges fit (mechanism)', () => {
+    it('the arrow pair is inline at wide widths — a wrapping flex row, side by side whenever both 240px gauges fit (mechanism)', () => {
       // jsdom cannot measure widths, so — the repo's mechanism-assertion
       // idiom (page-shell.spec.ts) — the stylesheet content is the
-      // acceptance: the pair sits side by side by CONSTRUCTION (a
+      // acceptance: the arrows sit side by side by CONSTRUCTION (a
       // wrapping row) instead of at a breakpoint the gauges could drift
       // from.
       const detailScss = readFileSync(
         `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
         'utf8',
       );
-      const block = detailScss.match(/\.pulse-gauges \{[\s\S]*?\n\}/);
-      expect(block, 'shelter-detail-page.scss must style .pulse-gauges').not.toBeNull();
-      expect(block![0], 'the pair is a flex row').toContain('display: flex');
-      expect(
-        block![0],
-        'the row wraps: one gauge per line when both do not fit',
-      ).toContain('flex-wrap: wrap');
-      expect(block![0], 'the base direction is a row (no column rule)').not.toMatch(
+      const arrows = detailScss.match(/\.pulse-gauges__arrows \{[\s\S]*?\n\}/);
+      expect(arrows, 'shelter-detail-page.scss must style .pulse-gauges__arrows').not.toBeNull();
+      expect(arrows![0], 'the arrow row is a flex row').toContain('display: flex');
+      expect(arrows![0], 'the row wraps: one gauge per line when both do not fit').toContain(
+        'flex-wrap: wrap',
+      );
+      expect(arrows![0], 'the base direction is a row (no column rule)').not.toMatch(
         /flex-direction:\s*column/,
       );
-      const item = block![0].match(/app-report-gauge \{[\s\S]*?\n {2}\}/);
+      const item = arrows![0].match(/app-report-gauge \{[\s\S]*?\n {2}\}/);
       expect(item, 'the gauge hosts must be capped at the gauge width').not.toBeNull();
       expect(
         item![0],
         'each gauge keeps its natural 240px size (no grow, no fixed slot)',
       ).not.toMatch(/flex:\s*1|flex-grow/);
-      expect(item![0], 'the host matches .report-gauge\'s 240px cap').toMatch(/max-width: 240px/);
+      expect(item![0], "the host matches .report-gauge's 240px cap").toMatch(/max-width: 240px/);
+      // The outer pulse block is a COLUMN: the arrows row, then the
+      // captions column below it — the captions are never side by side
+      // with (or under) the arrows.
+      const outer = detailScss.match(/\.pulse-gauges \{[\s\S]*?\n\}/);
+      expect(outer, 'shelter-detail-page.scss must style .pulse-gauges').not.toBeNull();
+      expect(outer![0], 'the pulse block stacks the arrows row above the captions column').toMatch(
+        /flex-direction:\s*column/,
+      );
     });
 
-    it('the counts line cannot break mid-phrase: one unbreakable token per count, the line wraps BETWEEN tokens', async () => {
+    it('the count lines sit in one column below the arrows — normal flow, no overlay (structure + mechanism)', async () => {
+      // The layout fix for the overlapping inline captions: the count
+      // lines (the captions — each gauge's accessible text) are NOT
+      // under their arrows any more. They sit in .pulse-gauges__captions,
+      // a single normal-flow column BELOW the arrows row — the two lines
+      // stacked one under the other, the container growing with its
+      // content. The inline captions overflowed their 240px boxes (the
+      // count line's nowrap tokens carried no break opportunities) and
+      // painted over each other; normal flow in a column makes that
+      // impossible.
+      const detailScss = readFileSync(
+        `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
+        'utf8',
+      );
+      // Mechanism: a column (one line per row), normal flow — the owner's
+      // required arrangement: the two lines stacked, never overlaying.
+      const captions = detailScss.match(/\.pulse-gauges__captions \{[\s\S]*?\n\}/);
+      expect(
+        captions,
+        'shelter-detail-page.scss must style .pulse-gauges__captions',
+      ).not.toBeNull();
+      expect(captions![0], 'the captions form a column (stacked, one under the other)').toMatch(
+        /flex-direction:\s*column/,
+      );
+      expect(
+        captions![0],
+        'no absolute positioning or transform on the captions (normal flow)',
+      ).not.toMatch(/position:\s*(absolute|fixed|sticky)|transform/);
+
+      // Structure: both count lines render in the column; the arrows row
+      // carries NO caption (nothing left under the arrows).
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+      const wrap = element.querySelector('.pulse-gauges');
+      expect(wrap, 'the pulse block must render').not.toBeNull();
+      const arrows = wrap!.querySelector('.pulse-gauges__arrows');
+      const captionColumn = wrap!.querySelector('.pulse-gauges__captions');
+      expect(arrows, 'the arrows row must render').not.toBeNull();
+      expect(captionColumn, 'the captions column must render').not.toBeNull();
+      // the column sits BELOW the arrows row (stacked, not side by side)
+      expect(
+        captionColumn!.previousElementSibling,
+        'the captions column follows the arrows row',
+      ).toBe(arrows);
+      expect(
+        captionColumn!.querySelectorAll('.report-gauge__text').length,
+        'both count lines render in the captions column',
+      ).toBe(2);
+      expect(
+        arrows!.querySelectorAll('.report-gauge__text').length,
+        'no caption remains under an arrow',
+      ).toBe(0);
+      expect(
+        arrows!.querySelectorAll('figcaption').length,
+        'no figcaption left in the arrows row',
+      ).toBe(0);
+    });
+
+    it("the counts line cannot break mid-phrase: one unbreakable token per count, a wbr between every token pair is the line's break opportunity", async () => {
       // Mechanism (report-gauge.scss): each token is one unbreakable
       // inline unit — the line may only break at the boundary BETWEEN
-      // tokens (after a comma), never inside a phrase.
+      // tokens (after a comma), never inside a phrase. The break
+      // opportunity itself is a <wbr> between the tokens: the tokens are
+      // adjacent in the markup (Angular control flow strips the loop's
+      // whitespace) and each is nowrap, so without the wbr the whole
+      // line would be unbreakable and overflow its box instead of
+      // wrapping (the overlapping-inline-captions defect).
       const gaugeScss = readFileSync(`${process.cwd()}/src/app/shared/report-gauge.scss`, 'utf8');
       const token = gaugeScss.match(/\.report-gauge__token \{[\s\S]*?\n\}/);
       expect(token, 'report-gauge.scss must style .report-gauge__token').not.toBeNull();
       expect(token![0], 'a token must never break mid-phrase').toContain('white-space: nowrap');
 
-      // Structure: the figcaption is one span per comma-separated count
+      // Structure: the caption is one span per comma-separated count
       // phrase, and the tokens concatenate byte-identical to the count
       // text (the split is structural — the visible + accessible text
       // is unchanged).
       shelterGateway.rows.set(1, pulseShelter());
       const { element } = await open('/shelters/1');
 
-      const gauge = gaugeByText(element, '0 getting full');
-      expect(gauge, 'the how-full gauge must render').not.toBeNull();
-      const caption = gauge!.querySelector('.report-gauge__text');
-      expect(caption, 'the count line must render').not.toBeNull();
+      const caption = captionByText(element, '0 getting full');
+      expect(caption, 'the how-full caption must render in the captions column').not.toBeNull();
       const tokens = [...caption!.querySelectorAll<HTMLElement>('.report-gauge__token')];
       expect(tokens.length, 'three counts → three tokens (the label rides the first)').toBe(3);
       expect(
@@ -1625,16 +1725,27 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
           `a token must not carry a phrase boundary inside: ${text}`,
         ).toBe(true);
       }
+      // The <wbr> between every token pair is the line's break
+      // opportunity (the tokens themselves stay unbreakable).
+      expect(
+        caption!.querySelectorAll('wbr').length,
+        'a break opportunity between every pair of tokens',
+      ).toBe(tokens.length - 1);
     });
 
-    it('no page-level horizontal overflow at 360px (mechanism): the counts line wraps between tokens, the gauge pair wraps, the log scrolls', () => {
+    it('no page-level horizontal overflow at 360px (mechanism): the count lines wrap between their wbr opportunities in the full-width column, the arrow pair wraps, the log scrolls', () => {
       // jsdom cannot measure a 360px viewport, so the mechanisms that
       // make overflow impossible are pinned here (the repo's 360px
       // standard):
-      //  1. the counts line wraps BETWEEN nowrap tokens — no token is
-      //     wider than the 320px of content at 360px, and the line
-      //     itself stays wrappable (no nowrap on it);
-      //  2. the gauge pair wraps to one gauge per line below the fit
+      //  1. the count lines are full-width blocks in the captions
+      //     column and wrap BETWEEN their nowrap tokens (a <wbr> between
+      //     every token pair — no token is wider than the 320px of
+      //     content at 360px, and the line itself stays wrappable, no
+      //     nowrap on it). The old inline arrangement crammed the same
+      //     line into a 240px box where it was unbreakable (the nowrap
+      //     tokens carried no break opportunities) and overflowed the
+      //     page at 360px;
+      //  2. the arrow pair wraps to one gauge per line below the fit
       //     (two 240px gauges inside 320px of content);
       //  3. the log is height-bounded + scrolling (the BE's 10-entry cap
       //     scrolls inside the box — it cannot stretch the page).
@@ -1652,11 +1763,30 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
         `${process.cwd()}/src/app/features/shelter/shelter-detail-page.scss`,
         'utf8',
       );
-      const pair = detailScss.match(/\.pulse-gauges \{[\s\S]*?\n\}/)?.[0] ?? '';
-      expect(pair, 'the gauge pair must wrap instead of overflowing').toContain('flex-wrap: wrap');
-      expect(pair, 'each gauge stays 240px wide (≤ 320px of content at 360px)').toMatch(
+      const arrows = detailScss.match(/\.pulse-gauges__arrows \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(arrows, 'the arrow pair must wrap instead of overflowing').toContain(
+        'flex-wrap: wrap',
+      );
+      expect(arrows, 'each gauge stays 240px wide (≤ 320px of content at 360px)').toMatch(
         /max-width: 240px/,
       );
+
+      // The captions column: full-width normal-flow blocks, the column
+      // grows with its content — the lines wrap (between their wbr
+      // opportunities) instead of overflowing the page.
+      const captions = detailScss.match(/\.pulse-gauges__captions \{[\s\S]*?\n\}/)?.[0] ?? '';
+      expect(
+        captions,
+        'the captions column must exist (the lines live there, not under the arrows)',
+      ).not.toEqual('');
+      expect(
+        captions,
+        'the caption hosts are full-width blocks (the line wraps instead of overflowing)',
+      ).toContain('display: block');
+      expect(
+        captions,
+        'the captions column is normal flow (no absolute positioning, no fixed height)',
+      ).not.toMatch(/position:\s*(absolute|fixed|sticky)|height:\s*\d/);
 
       const log = detailScss.match(/\.recent-reports \{[\s\S]*?\n\}/)?.[0] ?? '';
       expect(log, 'the log must be height-bounded').toMatch(/max-height: \d+px/);
@@ -1668,9 +1798,12 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       const { element } = await open('/shelters/1');
 
       const wrap = element.querySelector('.pulse-gauges');
-      expect(wrap, 'the gauges container must render').not.toBeNull();
-      expect(wrap!.textContent).toContain('Reports: 3 open, 2 closed');
-      expect(wrap!.textContent).toContain('Reports: 0 space available, 0 getting full, 4 full');
+      expect(wrap, 'the pulse block must render').not.toBeNull();
+      // the count lines (the captions) render in the captions column
+      const captions = wrap!.querySelector('.pulse-gauges__captions');
+      expect(captions, 'the captions column must render').not.toBeNull();
+      expect(captions!.textContent).toContain('Reports: 3 open, 2 closed');
+      expect(captions!.textContent).toContain('Reports: 0 space available, 0 getting full, 4 full');
       // the SVGs stay aria-hidden decoration behind the text
       const svgs = wrap!.querySelectorAll('svg');
       expect(svgs.length, 'both gauges render their semicircle').toBe(2);
@@ -1680,6 +1813,42 @@ describe('ShelterDetailPage (/shelters/:id)', () => {
       // the end labels stay visible text too (not colour-only)
       expect(wrap!.textContent).toContain('Space available');
       expect(wrap!.textContent).toContain('Full');
+    });
+
+    it("each count line is its gauge's accessible text, exposed exactly once — the arrow figure references its caption via aria-describedby, no duplicate anywhere", async () => {
+      shelterGateway.rows.set(1, pulseShelter());
+      const { element } = await open('/shelters/1');
+
+      const wrap = element.querySelector('.pulse-gauges');
+      expect(wrap, 'the pulse block must render').not.toBeNull();
+
+      // Association: each arrow figure points (aria-describedby) at the
+      // element carrying its count line — the caption stays the gauge's
+      // accessible text, now living in the captions column.
+      const pairs: [string, string][] = [
+        ['pulse-occupancy-caption', 'Reports: 0 space available, 0 getting full, 4 full'],
+        ['pulse-open-caption', 'Reports: 3 open, 2 closed'],
+      ];
+      for (const [id, text] of pairs) {
+        const figure = wrap!.querySelector(`figure[aria-describedby="${id}"]`);
+        expect(figure, `an arrow figure must reference #${id}`).not.toBeNull();
+        const caption = wrap!.querySelector<HTMLElement>(`#${id}`);
+        expect(caption, `the caption #${id} must render`).not.toBeNull();
+        expect(caption!.textContent, `#${id} carries its count line`).toContain(text);
+      }
+
+      // Exactly once: each count line appears exactly once in the
+      // block's rendered text — no visually-hidden duplicate, no
+      // figcaption left behind announcing the numbers a second time.
+      for (const [, text] of pairs) {
+        const occurrences = (wrap!.textContent ?? '').split(text).length - 1;
+        expect(occurrences, `"${text}" must be exposed exactly once`).toBe(1);
+      }
+      // No figcaption remains anywhere in the pulse block (the arrows
+      // row is arrow-only).
+      expect(wrap!.querySelectorAll('figcaption').length, 'no figcaption in the pulse block').toBe(
+        0,
+      );
     });
 
     it('zero fresh reports render the explicit empty states — no gauge, no neutral arrow', async () => {

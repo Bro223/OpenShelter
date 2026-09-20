@@ -199,7 +199,7 @@ export const ET: Messages = {
   'map.addShelter': 'Lisa varjupaik',
   'map.nearestEmpty': 'Sinu ümbruses pole veel ühtegi loetletud asukohta.',
   'map.nearestEmpty.addFirst': 'Saad lisada esimese.',
-  'map.searched': 'Otsitud:',
+  'map.searched': 'Otsitud aadress',
   'map.clear': 'Kustuta',
   'map.filter.all': 'Kõik',
   'map.filter.registry': 'Register',

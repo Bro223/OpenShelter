@@ -458,7 +458,7 @@ describe('MapPage', () => {
       expect(legend?.textContent).toContain('New by community');
       expect(legend?.textContent).toContain('Confirmed by community');
       expect(legend?.textContent).toContain('Reported');
-      expect(legend?.textContent).toContain('Searched:');
+      expect(legend?.textContent).toContain('Searched address');
       // Exactly five entries — no partner/official/proposed wording.
       expect(legend?.querySelectorAll('.legend-item')).toHaveLength(5);
       expect(legend?.textContent).not.toContain('Official');

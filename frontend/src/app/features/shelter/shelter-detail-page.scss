@@ -37,7 +37,7 @@
 .badge {
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-8);
+  padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-full);
   background: var(--color-badge-registry);
   color: var(--color-shelter-registry);
@@ -400,22 +400,38 @@
 
 /* Community pulse (M9 — report aggregation UI): the explicit empty state
    line (no fresh reports → NO neutral gauge) and the recent-report log.
-   The gauges themselves sit in .pulse-gauges directly above the log. */
+   The pulse block itself stacks (layout pass): the arrows row, then the
+   captions column below it. */
 .pulse-empty {
   margin: var(--space-8) 0 0;
   font-size: var(--text-sm);
   color: var(--color-muted);
 }
 
-/* The two community-pulse gauges, moved to the bottom of the page
-   directly above the recent log (owner placement pass). A wrapping flex
-   row: side by side whenever both 240px gauges fit (wide viewports), one
-   per line below that — the wrap point is the fit itself, so there is no
-   breakpoint to drift and nothing to overflow (at 360px the 320px of
-   content takes the two 240px gauges stacked). DOM order inside: the
-   how-full gauge first, then open/closed — the page's old section order,
-   kept for screen readers. */
+/* The pulse block (M9 community pulse, layout pass): a COLUMN — the
+   arrows row, then the captions column below it. The owner's overlay
+   fix: the count lines (the captions — each gauge's accessible text,
+   associated via aria-describedby) used to sit under their arrows in
+   the inline row; the count line's nowrap tokens carry no break
+   opportunities, so the line overflowed its 240px box and painted over
+   the neighbour's caption. Now the lines sit in one normal-flow column
+   below the arrows — stacked one under the other, the container grows
+   with its content, so they can never overlay. */
 .pulse-gauges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* The two community-pulse ARROWS, moved to the bottom of the page
+   directly above the recent log (owner placement pass). A wrapping
+   flex row: side by side whenever both 240px gauges fit (wide
+   viewports), one per line below that — the wrap point is the fit
+   itself, so there is no breakpoint to drift and nothing to overflow
+   (at 360px the 320px of content takes the two 240px gauges stacked).
+   DOM order inside: the how-full gauge first, then open/closed — the
+   page's old section order, kept for screen readers. */
+.pulse-gauges__arrows {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-20) var(--space-16);
@@ -430,6 +446,21 @@
      one line. */
   .pulse-empty {
     flex: 0 0 100%;
+  }
+}
+
+/* The captions' column: one count line per gauge, stacked one under the
+   other, normal flow — the column grows with its content (no absolute
+   positioning, no fixed height), so the lines can never overlay. The
+   hosts are full-width blocks: a line wider than 240px now wraps
+   between its tokens (the wbr opportunities) instead of overflowing. */
+.pulse-gauges__captions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+
+  app-report-gauge {
+    display: block;
   }
 }
 

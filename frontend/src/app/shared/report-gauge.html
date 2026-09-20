@@ -1,10 +1,36 @@
-@if (share() !== null) {
-  <figure class="report-gauge">
+@if (captionOnly()) {
+  <!-- Caption-only mode: the count line rendered on its own (the page's
+       captions column). The arrow's figure points at this element via
+       aria-describedby (its describedBy input = this captionId) — the
+       line is the gauge's accessible text, kept exactly one copy in the
+       DOM. The <wbr> between every pair of tokens is the line's break
+       opportunity: the tokens are adjacent in the markup (Angular
+       control flow strips the loop's whitespace) and each is nowrap, so
+       without the wbr the whole line would be unbreakable and overflow
+       its box instead of wrapping between the counts. -->
+  <p class="report-gauge__text report-gauge__text--standalone" [id]="captionId()">
+    @for (token of textTokens(); track $index; let last = $last) {
+      <span class="report-gauge__token">{{ token }}</span>
+      @if (!last) {
+        <wbr />
+      }
+    }
+  </p>
+} @else if (share() !== null) {
+  <!-- Detached mode (describedBy set): the arrow only — no figcaption;
+       the figure references the external caption with aria-describedby,
+       which keeps the caption the gauge's accessible text (one copy). -->
+  <figure
+    class="report-gauge"
+    [class.report-gauge--arrow]="describedBy() !== null"
+    [attr.aria-describedby]="describedBy()"
+  >
     <!-- The semicircle: the arc from the left end (20,100) over the top
          to the right end (180,100); the needle starts pointing LEFT
          (0°) and rotates clockwise around the hub (100,100) — 90° is
          straight up, 180° points right. Decorative: the meaning is the
-         visible text below (the count line) + the end labels. -->
+         count line (the figcaption below in attached mode, the external
+         caption in detached mode) + the end labels. -->
     <svg class="report-gauge__svg" viewBox="0 0 200 112" aria-hidden="true" focusable="false">
       <path class="report-gauge__arc" d="M 20 100 A 80 80 0 0 1 180 100" />
       <g class="report-gauge__needle" [attr.transform]="'rotate(' + angle() + ' 100 100)'">
@@ -17,11 +43,16 @@
       <span class="report-gauge__end report-gauge__end--left">{{ leftLabel() }}</span>
       <span class="report-gauge__end report-gauge__end--right">{{ rightLabel() }}</span>
     </div>
-    <figcaption class="report-gauge__text">
-      @for (token of textTokens(); track $index) {
-        <span class="report-gauge__token">{{ token }}</span>
-      }
-    </figcaption>
+    @if (describedBy() === null) {
+      <figcaption class="report-gauge__text">
+        @for (token of textTokens(); track $index; let last = $last) {
+          <span class="report-gauge__token">{{ token }}</span>
+          @if (!last) {
+            <wbr />
+          }
+        }
+      </figcaption>
+    }
   </figure>
 } @else {
   <p class="report-gauge__empty" role="status">{{ emptyText() }}</p>

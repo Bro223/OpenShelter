@@ -5,11 +5,26 @@
  * LEFT (0°) and the group rotates clockwise around the hub — 90° is
  * straight up, 180° points right. All colours are design tokens (the
  * token audit polices literals); line weights are the documented
- * literal exceptions. */
+ * literal exceptions.
+ *
+ * Caption placement (layout pass): attached mode keeps the count line as
+ * the figure's figcaption; --arrow (detached mode) renders the arrow
+ * only — its surrounding row's gap owns the spacing, so no bottom
+ * margin; --standalone (caption-only mode) is the count line on its own,
+ * the surrounding column's gap owning its spacing. The count line's
+ * break opportunities live in a <wbr> between every pair of tokens (the
+ * tokens are adjacent + nowrap, so without it the line would be
+ * unbreakable and overflow its box). */
 
 .report-gauge {
   margin: 0 0 var(--space-12);
   max-width: 240px;
+
+  /* Detached (arrow-only) mode: the arrows row's gap owns the spacing —
+     no bottom margin of its own. */
+  &--arrow {
+    margin: 0;
+  }
 }
 
 .report-gauge__svg {
@@ -49,14 +64,25 @@
 .report-gauge__text {
   margin: var(--space-4) 0 0;
   font-weight: var(--font-weight-medium);
+
+  /* Standalone (caption-only) mode: the surrounding column's gap owns
+     the spacing — no margin of its own. */
+  &--standalone {
+    margin: 0;
+  }
 }
 
 /* The count line's wrap units (one span per comma-separated count
    phrase): each token is one unbreakable inline unit — the line may
    break ONLY at the boundary between tokens (after a comma), never
-   inside a phrase ("0 space available" can't split). No token is wider
-   than the narrowest page (320px of content at 360px), so the counts
-   wrap instead of overflowing. */
+   inside a phrase ("0 space available" can't split). The break
+   opportunity between two tokens is the <wbr> the template renders
+   between every token pair (the tokens are adjacent in the markup —
+   Angular control flow strips the loop's whitespace — and each is
+   nowrap, so without the wbr the line's break opportunities would all
+   be suppressed and the line would overflow its box). No token is
+   wider than the narrowest page (320px of content at 360px), so the
+   counts wrap instead of overflowing. */
 .report-gauge__token {
   white-space: nowrap;
 }

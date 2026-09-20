@@ -211,7 +211,7 @@ export const RU: Messages = {
   'map.addShelter': 'Добавить укрытие',
   'map.nearestEmpty': 'Рядом с вами пока нет указанных мест.',
   'map.nearestEmpty.addFirst': 'Вы можете добавить первое.',
-  'map.searched': 'Поиск:',
+  'map.searched': 'Поисковый адрес',
   'map.clear': 'Сбросить',
   'map.filter.all': 'Все',
   'map.filter.registry': 'Реестр',

@@ -194,7 +194,7 @@ export const EN: Messages = {
   'map.addShelter': 'Add shelter',
   'map.nearestEmpty': 'No listed locations around you yet.',
   'map.nearestEmpty.addFirst': 'You can add the first one.',
-  'map.searched': 'Searched:',
+  'map.searched': 'Searched address',
   'map.clear': 'Clear',
   'map.filter.all': 'All',
   'map.filter.registry': 'Registry',

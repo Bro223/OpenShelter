@@ -126,9 +126,9 @@
           <!-- The labeled lifetime total over all report types — a
                self-contained fact, independent of the line above (the
                open/closed and how-full taps do not change it). -->
-          <p class="shelter-detail__reports num-tabular">{{
-            communityReportsText(s.reportCount)
-          }}</p>
+          <p class="shelter-detail__reports num-tabular">
+            {{ communityReportsText(s.reportCount) }}
+          </p>
         }
       }
     </header>
@@ -354,36 +354,61 @@
            the page — DIRECTLY above the recent log they summarise
            (owner placement decision; the pickers stay in their own
            sections above). The weighted shares (server-derived) drive
-           the needles; the visible count line is the accessible
-           equivalent (the angle is never the only carrier of meaning).
-           Rendered for EVERY viewer (guests included) — read-only; the
-           empty state is explicit (no fresh reports → no neutral
-           arrow). DOM order: both gauges first, then the log — a screen
-           reader meets the summary before the detail. .pulse-gauges
-           lays the pair out inline (side by side) whenever both gauges
-           fit and stacks them below that. -->
+           the needles. Layout (owner overlay fix): the ARROWS sit in
+           .pulse-gauges__arrows — a wrapping row, side by side whenever
+           both 240px gauges fit, stacked below that; the COUNT LINES
+           (the captions — each gauge's accessible text, associated via
+           aria-describedby) sit in .pulse-gauges__captions, ONE
+           normal-flow column below the arrows, stacked one under the
+           other. The inline captions used to overflow their 240px boxes
+           (the count line's nowrap tokens carried no break
+           opportunities) and paint over each other; the column + the
+           wbr between the tokens keeps both lines always fully
+           readable. Rendered for EVERY viewer (guests included) —
+           read-only; the empty state is explicit (no fresh reports →
+           no neutral arrow). DOM order: the arrows, then their count
+           lines — a screen reader meets the summary before the log
+           below. -->
       <div class="pulse-gauges">
-        @if (occupancyPulse(); as occPulse) {
-          <app-report-gauge
-            [leftLabel]="'detail.pulse.kind.space' | t"
-            [rightLabel]="'detail.pulse.kind.full' | t"
-            [share]="occPulse.fullness"
-            [text]="occupancyPulseText(occPulse)"
-            [emptyText]="'detail.pulse.emptyOccupancy' | t"
-          />
-        } @else {
-          <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
-        }
-        @if (openPulse(); as openPulse) {
-          <app-report-gauge
-            [leftLabel]="'detail.pulse.kind.closed' | t"
-            [rightLabel]="'detail.pulse.kind.open' | t"
-            [share]="openPulse.openShare"
-            [text]="openPulseText(openPulse)"
-            [emptyText]="'detail.pulse.emptyOpen' | t"
-          />
-        } @else {
-          <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
+        <div class="pulse-gauges__arrows">
+          @if (occupancyPulse(); as occPulse) {
+            <app-report-gauge
+              [leftLabel]="'detail.pulse.kind.space' | t"
+              [rightLabel]="'detail.pulse.kind.full' | t"
+              [share]="occPulse.fullness"
+              [describedBy]="'pulse-occupancy-caption'"
+            />
+          } @else {
+            <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
+          }
+          @if (openPulse(); as openPulse) {
+            <app-report-gauge
+              [leftLabel]="'detail.pulse.kind.closed' | t"
+              [rightLabel]="'detail.pulse.kind.open' | t"
+              [share]="openPulse.openShare"
+              [describedBy]="'pulse-open-caption'"
+            />
+          } @else {
+            <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
+          }
+        </div>
+        @if (occupancyPulse() || openPulse()) {
+          <div class="pulse-gauges__captions">
+            @if (occupancyPulse(); as occPulse) {
+              <app-report-gauge
+                [captionOnly]="true"
+                [captionId]="'pulse-occupancy-caption'"
+                [text]="occupancyPulseText(occPulse)"
+              />
+            }
+            @if (openPulse(); as openPulse) {
+              <app-report-gauge
+                [captionOnly]="true"
+                [captionId]="'pulse-open-caption'"
+                [text]="openPulseText(openPulse)"
+              />
+            }
+          </div>
         }
       </div>
 
