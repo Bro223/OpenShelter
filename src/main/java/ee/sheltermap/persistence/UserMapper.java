@@ -50,6 +50,12 @@ final class UserMapper {
         // Last-activity stamp round-trips the same way — a profile save
         // must never clobber the retention clock with a stale/null value.
         entity.setLastActivityAt(user.getLastActivityAt());
+        // Optimistic-lock stamp round-trips the same way (V29): a loaded
+        // aggregate saves with the version it was read at, so a row that
+        // moved underneath it fails the @Version UPDATE instead of being
+        // clobbered. A fresh aggregate (registration) carries null —
+        // Hibernate initialises the INSERT to 0.
+        entity.setVersion(user.getVersion());
         return entity;
     }
 
@@ -72,6 +78,10 @@ final class UserMapper {
         user.setId(entity.getId());
         user.setSuspendedAt(entity.getSuspendedAt());
         user.setLastActivityAt(entity.getLastActivityAt());
+        // The optimistic-lock stamp rides with the snapshot (V29): every
+        // read path populates it, and save() copies the fresh value back
+        // after the write.
+        user.setVersion(entity.getVersion());
         if (user instanceof RegisteredUser registered) {
             for (VerificationClaimEntity ce : claimEntities) {
                 VerificationClaim claim = new VerificationClaim(

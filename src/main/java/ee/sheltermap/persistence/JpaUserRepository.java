@@ -65,6 +65,14 @@ public class JpaUserRepository implements UserRepository {
         }
         UserEntity saved = users.save(entity);
         user.setId(saved.getId());
+        // Version copy-back (mirrors the id copy-back above): a loaded
+        // aggregate keeps its optimistic-lock stamp current across saves in
+        // the same flow, and a STALE stamp — the row was committed by a
+        // concurrent writer (e.g. an admin suspension) after this object
+        // was read — makes the @Version UPDATE match zero rows and the
+        // flush raise an optimistic-lock failure (→ the API layer's 409)
+        // instead of silently reverting that write (V29 users.version).
+        user.setVersion(saved.getVersion());
         if (user instanceof RegisteredUser registered) {
             saveClaims(saved.getId(), registered);
         }
@@ -249,6 +257,18 @@ public class JpaUserRepository implements UserRepository {
         // paths call this on every credential use, so it must not pay a
         // domain mapping (PII decrypt, claims load).
         users.markLastActivityById(userId, at);
+    }
+
+    @Override
+    @Transactional
+    public void lockForUpdate(long userId) {
+        // PESSIMISTIC_WRITE row lock; the lock (not the result) is the
+        // effect — it is held until the caller's transaction ends, which
+        // is what serializes the caller's read-check-write. No domain
+        // mapping (column-only, like markActive): the submit path must not
+        // pay a PII decrypt for the lock. Unknown ids are a no-op (the
+        // seam convention — the row is gone, nothing to serialize).
+        users.findByIdForUpdate(userId);
     }
 
     @Override

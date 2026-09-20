@@ -1,0 +1,25 @@
+-- Shelter Map — V29 (write-path-integrity: optimistic locking for users).
+--
+-- users.version: optimistic-lock counter for concurrent whole-row user
+-- saves (the request-snapshot clobber, reviews finding 4): an in-flight
+-- save loaded BEFORE a concurrent commit — the material case, an admin
+-- suspension — used to write the whole row back from its snapshot with
+-- suspended_at NULL, silently un-suspending the account.
+--
+-- Mechanism: the domain User carries the stamp across the request (the
+-- mapper round-trips it on load and save copies the fresh value back),
+-- so the save's UPDATE ... WHERE id = ? AND version = <read-time value>
+-- matches ZERO rows against a concurrently committed write, and the
+-- flush raises an optimistic-lock failure — the API layer's EXISTING
+-- 409 vocabulary ("The resource changed under you; reload and retry"),
+-- the same mapping V8 shelters.version uses for concurrent author edits.
+--
+-- The column-only last_activity_at stamps (markActive) do NOT bump the
+-- version: the version guards whole-row saves, not column stamps — the
+-- same trade-off the codebase already makes around shelters.version.
+--
+-- DEFAULT 0 backfills the existing rows (they are all "unmodified");
+-- ddl-auto=validate must stay green against this definition (the same
+-- BIGINT NOT NULL shape as shelters.version, V8).
+
+ALTER TABLE users ADD COLUMN version BIGINT NOT NULL DEFAULT 0;

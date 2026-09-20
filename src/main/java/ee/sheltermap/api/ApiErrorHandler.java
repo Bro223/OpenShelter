@@ -365,8 +365,11 @@ public class ApiErrorHandler {
 
     /**
      * Optimistic-lock conflict on a concurrent update (@Version, V8
-     * {@code shelters.version}) → 409 so the client can re-read and retry.
-     * Both the raw JPA exception (thrown at commit) and the Spring
+     * {@code shelters.version}, V29 {@code users.version}) → 409 so the
+     * client can re-read and retry. The users mapping is what stops a
+     * request-snapshot whole-row save from silently reverting a
+     * concurrently committed write (e.g. an admin suspension). Both the
+     * raw JPA exception (thrown at commit) and the Spring
      * DataAccessException form (thrown inside a repository call) are mapped.
      */
     @ExceptionHandler({

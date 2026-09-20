@@ -102,6 +102,13 @@ public class InMemoryUserRepository implements UserRepository {
     }
 
     @Override
+    public void lockForUpdate(long userId) {
+        // The lock is a DB-level serialization (SELECT ... FOR UPDATE held
+        // until the caller's transaction commits); the in-memory fake has
+        // no concurrency to serialize — no-op.
+    }
+
+    @Override
     public List<User> findInactiveBefore(Instant cutoff) {
         // Mirrors the JPA query: REGISTERED-kind only (AdminUser is-a
         // RegisteredUser — it is the domain mirror of the kind column and

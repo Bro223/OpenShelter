@@ -94,6 +94,22 @@ public interface UserRepository {
     void markActive(long userId, Instant at);
 
     /**
+     * Acquires a row-level lock on the user row for the duration of the
+     * CALLER's transaction (the per-user serialization seam for the
+     * read-check-write shelter caps in {@code ShelterService.addPlace}).
+     * The JPA implementation is {@code SELECT ... FOR UPDATE}: a concurrent
+     * submission by the same user blocks until the first one's transaction
+     * commits, then its cap checks run against the committed row — exactly
+     * one winner. A count cap (and the fuzzy 100 m near-duplicate rule)
+     * cannot be expressed as a DB constraint, so the row lock is the guard.
+     * Must be called from a {@code @Transactional} method — outside a
+     * transaction the lock is released immediately and serializes nothing.
+     * Unknown ids are a no-op (the row is gone; nothing to serialize
+     * against), the same convention as the column-only writes.
+     */
+    void lockForUpdate(long userId);
+
+    /**
      * The REGISTERED-kind accounts whose last sign-in activity is
      * strictly before {@code cutoff} — the retention job's prune
      * candidates. ADMIN rows never qualify (the job must NEVER prune an

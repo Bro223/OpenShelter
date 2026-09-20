@@ -1,6 +1,8 @@
 package ee.sheltermap.persistence;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -36,4 +38,14 @@ public interface SpringDataUserRepository extends JpaRepository<UserEntity, Long
     @Modifying
     @Query("update UserEntity u set u.lastActivityAt = :at where u.id = :id")
     int markLastActivityById(@Param("id") Long id, @Param("at") Instant at);
+
+    /**
+     * PESSIMISTIC_WRITE ({@code SELECT ... FOR UPDATE}) on the user row —
+     * the per-user submission serialization lock (see
+     * {@code UserRepository.lockForUpdate}). The result is not needed by
+     * the caller; the lock itself is the effect. Empty for unknown ids.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from UserEntity u where u.id = :id")
+    Optional<UserEntity> findByIdForUpdate(@Param("id") Long id);
 }

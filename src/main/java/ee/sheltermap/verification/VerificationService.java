@@ -4,6 +4,7 @@ import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -93,7 +94,15 @@ public class VerificationService {
      * @throws VerificationThrottledException when the cooldown has not elapsed
      *                                        or the daily cap is reached (→ 429,
      *                                        with {@code Retry-After} when computable)
+     *
+     * <p>Transaction boundary (reviews F1): the invalidation pair at the end
+     * ({@code findActive…delete} + {@code save}) is ONE transaction — before
+     * it was three, and a failure between them left the old code alive under
+     * the new one. The channel send and the file-based send log happen
+     * BEFORE any database work in this method, so the lazy connection is
+     * only held for the final read-delete-save — not for the network call.
      */
+    @Transactional
     public void requestVerification(RegisteredUser user, VerificationLevel level) {
         if (user.levels().contains(level)) {
             // Requesting a level that is already verified is a conflict
@@ -220,7 +229,16 @@ public class VerificationService {
      * {@link VerificationClaim}, attaches it to the user and consumes the
      * one-time pending code. Returns {@code false} on wrong/expired/exhausted
      * code or when no active code exists — never reveals which.
+     *
+     * <p>Transaction boundary (reviews F1): the attempt-count save (wrong
+     * code) and the consuming delete (right code) run in ONE transaction
+     * with the pending read. The read degrades on a legacy duplicate pair
+     * (a pre-fix double send; the table's (user_id, level) index is
+     * non-unique) — {@code findFirst}, the {@code PasswordResetService}
+     * idiom — instead of 500-ing with
+     * {@code IncorrectResultSizeDataAccessException}.
      */
+    @Transactional
     public boolean confirmVerification(RegisteredUser user, VerificationLevel level, String code) {
         if (user.levels().contains(level)) {
             // Re-confirming an already-verified level is an idempotent

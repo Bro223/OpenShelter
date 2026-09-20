@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Instant;
 
@@ -63,6 +64,22 @@ public class UserEntity {
      */
     @Column(name = "last_activity_at", nullable = false)
     private Instant lastActivityAt;
+
+    /**
+     * Optimistic-lock counter (V29): the whole-row save from a
+     * request-time snapshot carries the version the snapshot was read
+     * with, so a row committed in the meantime (the material case: an
+     * admin suspension) makes the UPDATE match zero rows and the flush
+     * raise an optimistic-lock failure (→ the API layer's existing 409)
+     * instead of silently reverting that write. The domain
+     * {@code User} carries the stamp across the request (the mapper
+     * round-trips it) — unlike {@code Shelter}, where the domain stays
+     * version-free and the save mutates the managed row in place. The
+     * column-only last_activity_at stamps do NOT bump this.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     public Long getId() {
         return id;
@@ -138,5 +155,13 @@ public class UserEntity {
 
     public void setLastActivityAt(Instant lastActivityAt) {
         this.lastActivityAt = lastActivityAt;
+    }
+
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

@@ -34,6 +34,20 @@ public abstract class User {
      */
     private Instant lastActivityAt;
 
+    /**
+     * Optimistic-lock stamp (V29 users.version) — persistence boundary
+     * ONLY, exactly like {@code suspendedAt} / {@code lastActivityAt}:
+     * the mapper restores the stored value on load, the repository copies
+     * the fresh value back after a save, and no business code reads it.
+     * A save carrying a STALE stamp (the row was committed by a
+     * concurrent writer after this snapshot was read — the material case:
+     * an admin suspension landing mid-request) fails with an
+     * optimistic-lock error (→ the API layer's 409) instead of silently
+     * reverting that write. {@code null} until first persisted (the
+     * insert initialises the column to 0).
+     */
+    private Long version;
+
 
     public Long getId() {
         return id;
@@ -101,5 +115,21 @@ public abstract class User {
      */
     public void markActive(Instant when) {
         this.lastActivityAt = Objects.requireNonNull(when, "when");
+    }
+
+    /**
+     * The optimistic-lock stamp; {@code null} until first persisted.
+     */
+    public Long getVersion() {
+        return version;
+    }
+
+    /**
+     * Persistence boundary only (the mapper restores the stored stamp on
+     * load, the repository copies the fresh one back after a save); no
+     * business code writes it.
+     */
+    public void setVersion(Long version) {
+        this.version = version;
     }
 }

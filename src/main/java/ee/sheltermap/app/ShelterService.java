@@ -9,6 +9,7 @@ import ee.sheltermap.domain.ShelterStatus;
 import ee.sheltermap.domain.User;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -33,6 +34,18 @@ import java.util.Optional;
  * other than the submitter promotes NEW→CONFIRMED, audited
  * AUTO_CONFIRM) or via the rare admin CONFIRM; REJECT (admin) hides the
  * row via status INACTIVE.
+ *
+ * <p>Write-path transaction boundary (reviews F1): the three write
+ * methods are {@code @Transactional} — the audit contract documented by
+ * {@code JpaShelterHistoryLog} / {@code V18__shelter_history.sql} (the
+ * history row commits or rolls back WITH the event it records) is real
+ * for the user-facing endpoints too. The anti-abuse caps in
+ * {@link #addPlace} are read-check-write, so that method additionally
+ * serializes per user with a row lock ({@code UserRepository
+ * .lockForUpdate}) — a count cap is not expressible as a DB constraint,
+ * and without the lock two concurrent submissions by one user could
+ * both pass the check (reviewed-and-proven race, see
+ * {@code ShelterSubmissionCapRaceIT}).
  */
 @Service
 public class ShelterService {
@@ -112,6 +125,7 @@ public class ShelterService {
      *                                  {@code ACTIVE}/{@code USER} — user submissions must be
      *                                  created ACTIVE immediately, never imported as USER
      */
+    @Transactional
     public void addPlace(User user, Shelter place) {
         Objects.requireNonNull(user, "user");
         Objects.requireNonNull(place, "place");
@@ -122,11 +136,24 @@ public class ShelterService {
             throw new IllegalArgumentException(
                     "user-submitted shelters must be ACTIVE with source USER");
         }
-        if (!userRepository.isAdmin(user.getId())
-                && shelterRepository.countByCreatedByAndSourceAndStatus(
-                        user.getId(), ShelterSource.USER, ShelterStatus.ACTIVE)
-                >= MAX_ACTIVE_SHELTERS_PER_USER) {
-            throw new ShelterLimitExceededException();
+        if (!userRepository.isAdmin(user.getId())) {
+            // Per-user serialization of the read-check-write below (the
+            // anti-abuse race): lock the user row BEFORE the cap check so
+            // two concurrent submissions by the same user cannot both pass
+            // the count — the loser blocks on the row lock until the
+            // winner's transaction commits, then sees the winner's row and
+            // gets the same 409 the sequential path documents. The lock is
+            // held until this transaction commits (the insert), which is
+            // what makes check-then-write atomic. A count cap (and the
+            // fuzzy 100 m near-duplicate rule) is not expressible as a DB
+            // constraint, so the row lock is the guard — no migration, no
+            // new error shape.
+            userRepository.lockForUpdate(user.getId());
+            if (shelterRepository.countByCreatedByAndSourceAndStatus(
+                    user.getId(), ShelterSource.USER, ShelterStatus.ACTIVE)
+                    >= MAX_ACTIVE_SHELTERS_PER_USER) {
+                throw new ShelterLimitExceededException();
+            }
         }
         // Daily rate cap (abuse-limits): sliding 24 h window on the
         // SUBMITTING act, independent of the active count. Deleting a row
@@ -284,6 +311,7 @@ public class ShelterService {
      * values but records nothing (no edit-spam history). The actor is the
      * author link (legacy rows have none — the actor renders "Unknown").
      */
+    @Transactional
     public void updatePlace(Shelter place) {
         Objects.requireNonNull(place, "place");
         Shelter current = shelterRepository.findById(place.getId())
@@ -342,17 +370,23 @@ public class ShelterService {
     /**
      * Deletes a shelter row; its reports and occupancy cascade via the DB constraints.
      *
-     * <p>Edit history: a DELETED row is appended BEFORE
-     * the delete in the same transaction (the moderation-audit convention
-     * — the row is written first, then its shelter_id dangles legally via
-     * the no-FK column, so the deleted shelter's history stays findable).
-     * {@code actorUserId} is the acting account — the submitter for the
-     * author route, the moderating admin for the admin hard delete.
+     * <p>Edit history: a DELETED row is appended AFTER the delete, in the
+     * SAME transaction — both commit or roll back together, so a failed
+     * or rolled-back delete leaves NO DELETED row (the V18 audit
+     * contract: "a rolled-back or failed event leaves no row"). The name
+     * is read first because the history row needs it. The no-FK
+     * {@code shelter_id} dangles legally after the commit, so the deleted
+     * shelter's history stays findable. {@code actorUserId} is the acting
+     * account — the submitter for the author route, the moderating admin
+     * for the admin hard delete.
      */
+    @Transactional
     public void deletePlace(long shelterId, Long actorUserId) {
-        shelterRepository.findById(shelterId)
-                .ifPresent(existing -> history.record(shelterId, existing.getName(), actorUserId,
-                        ShelterHistoryLog.Action.DELETED, null));
+        Shelter existing = shelterRepository.findById(shelterId).orElse(null);
         shelterRepository.deleteById(shelterId);
+        if (existing != null) {
+            history.record(shelterId, existing.getName(), actorUserId,
+                    ShelterHistoryLog.Action.DELETED, null);
+        }
     }
 }

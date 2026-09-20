@@ -41,7 +41,7 @@ public class JpaPendingVerificationRepository implements PendingVerificationRepo
     @Transactional(readOnly = true)
     public Optional<PendingVerification> findActiveByUserAndLevel(Long userId, VerificationLevel level,
                                                                   Instant now) {
-        return pendings.findByUserIdAndLevelAndExpiresAtGreaterThan(userId, level, now)
+        return pendings.findFirstByUserIdAndLevelAndExpiresAtGreaterThanOrderByExpiresAtDescIdDesc(userId, level, now)
                 .map(this::toDomain);
     }
 
