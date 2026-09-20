@@ -81,7 +81,7 @@ export const EN: Messages = {
   'how.what':
     'OpenShelter is an independent, community-maintained map of shelters in Estonia. It is not an emergency service or an official government system. In an emergency, call 112 and follow official instructions.',
   'how.sources':
-    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue "Registry" marker. Community locations are submitted by verified users and show as "Newly added" until other users confirm them ("Community-checked"). A community submission is never automatically official.',
+    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue "Registry" marker. Community locations are submitted by verified users and show as "New by community" until other users confirm them ("Confirmed by community"). A community submission is never automatically official.',
   'how.report':
     'Verified users can submit a shelter or report a listed location as closed, inaccurate, or no longer existing. Reports go to administrators, who review them and may hide or correct a location.',
   'how.nearest':
@@ -91,7 +91,7 @@ export const EN: Messages = {
   'how.exampleTitle': 'Example',
   'how.example.1': 'An official location appears with a blue marker and a "Registry" label.',
   'how.example.2':
-    'A user submits a possible location; it appears as "Newly added" and unverified.',
+    'A user submits a possible location; it appears as "New by community" and unverified.',
   'how.example.3': 'Another user reports that the location is closed or inaccessible.',
   'how.example.4': 'An administrator reviews the report.',
   'how.example.5': 'The location is updated or hidden.',
@@ -919,7 +919,7 @@ export const EN: Messages = {
   'legal.terms.moderation.p1':
     'Submissions enter the list as community reports. Moderators can review, hide, correct or remove user-submitted content, and can suspend accounts that abuse the service. A submission can therefore be reviewed, hidden or rejected.',
   'legal.terms.official.p1.before':
-    'The application distinguishes between information sources. Locations marked as "Registry" come from official open data. Locations marked "Newly added" or "Community-checked" were submitted by community members. A ',
+    'The application distinguishes between information sources. Locations marked as "Registry" come from official open data. Locations marked "New by community" or "Confirmed by community" were submitted by community members. A ',
   'legal.terms.official.p1.em': 'verified user',
   'legal.terms.official.p1.middle':
     ' has proved ownership of an e-mail address and a phone number; that says nothing about the accuracy of what they submit. ',

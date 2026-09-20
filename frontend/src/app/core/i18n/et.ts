@@ -64,7 +64,7 @@ export const ET: Messages = {
   'title.shelterDetail': 'Varjupaiga detailid',
   'title.submit': 'Varjupaiga lisamine',
   'title.admin': 'Haldus',
-  'title.guidance': 'Kriisijuhtimine',
+  'title.guidance': 'Kriisijuhised',
   'title.guidanceDetail': 'Juhise artikkel',
 
   // --- consent banner (first-level data-usage notice). The app has no
@@ -73,19 +73,18 @@ export const ET: Messages = {
   'consent.aria': 'Küpsiste ja salvestusruumi teade',
   'consent.title': 'Küpsistest ja brauseri salvestusruumist',
   'consent.body':
-    'OpenShelter salvestab ainult seda, mida ta toimimiseks vajab: sisselogimist hoidev seansitunnus ning sinu keele- ja kuvamiseelistused. Me ei kasuta reklaami, analüütikat ega ristsaidi jälgimist ega müü sinu andmeid. Need salvestatakse sinu brauseri kohalikku salvestusruumi, mitte reklaamiküpsistesse, ja on vajalikud selleks, et rakendus töötaks.',
+    'OpenShelter salvestab ainult seda, mida ta toimimiseks vajab: sisselogimistunnus ning sinu keele- ja kuvamiseelistused. Me ei kasuta reklaami, analüütikat ega saitidevahelist jälgimist ega müü sinu andmeid. Need salvestatakse sinu brauseri kohalikku salvestusruumi, mitte reklaamiküpsistesse, ja on vajalikud selleks, et rakendus töötaks.',
   'consent.acknowledge': 'Sain aru',
   'consent.privacyLink': 'Loe privaatsuspoliitikat',
 
-  // --- "Kuidas OpenShelter töötab" block (map page). The button quotes
-  // follow the active-locale labels (the around-you CTA is translated);
-  // the map BADGES (shared shelter-copy) are still English, so the
-  // badge-word quotes keep the English word + the Estonian gloss.
+  // --- "Kuidas OpenShelter töötab" block (map page). The button and
+  // marker quotes follow the active-locale labels: they quote the map
+  // legend (map.legend.*), which is what the UI actually shows here.
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
   'how.sources':
-    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis "Registry" (register). Kogukonna asukohad lisavad kinnitatud kontoga kasutajad; need kuvatakse märgisega "Newly added" (uus) seni, kuni teised kasutajad on need kinnitanud ("Community-checked" ehk kogukonna kinnitatud). Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
+    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis "Register". Kogukonna asukohad lisavad kinnitatud kontoga kasutajad; need kuvatakse märgisega "Uus kogukonnalt" seni, kuni teised kasutajad on need kinnitanud ("Kogukonna poolt kinnitatud"). Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
   'how.report':
     'Kinnitatud kontoga kasutajad saavad lisada varjupaiga või teatada, et loetletud asukoht on suletud, ebatäpne või kadunud. Teated lähevad administraatoritele, kes need üle vaatavad ning võivad asukoha peita või parandada.',
   'how.nearest':
@@ -93,9 +92,9 @@ export const ET: Messages = {
   'how.guarantee':
     'OpenShelter ei saa tagada, et loetletud asukoht on avatud, turvaline, ligipääsetav, vaba või endiselt töökorras. Hädaolukorras järgi alati esmalt ametlikke juhiseid.',
   'how.exampleTitle': 'Näide',
-  'how.example.1': 'Ametlik asukoht kuvatakse sinise märgise ja sildiga "Registry".',
+  'how.example.1': 'Ametlik asukoht kuvatakse sinise märgisega ja sildiga "Register".',
   'how.example.2':
-    'Kasutaja lisab võimaliku asukoha; see kuvatakse märgisega "Newly added" ja kinnitamata.',
+    'Kasutaja lisab võimaliku asukoha; see kuvatakse märgisega "Uus kogukonnalt" ja kinnitamata.',
   'how.example.3': 'Teine kasutaja teatab, et asukoht on suletud või ligipääsmatu.',
   'how.example.4': 'Administraator vaatab teate üle.',
   'how.example.5': 'Asukoht uuendatakse või peidetakse.',
@@ -157,7 +156,7 @@ export const ET: Messages = {
   'authPage.reset.sending': 'Saadetakse…',
   'authPage.reset.sendIn': 'Saada saad {time} pärast',
   'authPage.reset.send': 'Saada mulle lähtestuskood',
-  'authPage.reset.sentTitle': 'Kontrolli oma sissetulekut',
+  'authPage.reset.sentTitle': 'Kontrolli oma postkasti',
   'authPage.reset.sentBody':
     'Kui selle e-posti aadressiga konto on olemas, on sinna 6-kohaline kood saadetud.',
   'authPage.reset.codeLabel': 'Lähtestuskood',
@@ -285,7 +284,7 @@ export const ET: Messages = {
   'submit.successBody':
     'Sinu asukoht on nüüd loetletud ja märgitud uue lisandina. Kogukonna teated kinnitavad seda.',
   'submit.success.viewLocation': 'Vaata oma asukohta',
-  'submit.success.viewContributions': 'Vaata oma panuseid',
+  'submit.success.viewContributions': 'Vaata oma esitusi',
   'submit.verifyHint': 'Sellel kontol pole enam kinnitatud omanikku.',
   'submit.verifyHint.link': 'Mine kinnitusele',
   'submit.nameLabel': 'Nimi *',
@@ -300,7 +299,7 @@ export const ET: Messages = {
   'submit.capacityPlaceholder': 'nt 40',
   'submit.capacity.invalid': 'Mahutavus peab olema täisarv vahemikus 1 kuni 100 000.',
   'submit.privateLabel':
-    'See on privaalaru või privaatne varjupaik (elanik pakub seda varjupaigaks)',
+    'See on erakodu või privaatne varjupaik (elanik pakub seda varjupaigaks)',
   'submit.locationLegend': 'Asukoht *',
   'submit.locationNote':
     'Liimi koordinaadid (59.4370, 24.7535) või kaardi link, otsi Eesti aadressi, kasuta nuppu "Kasuta mu asukohta" või klõpsa kaardil. Asukoht peab jääma Eestisse.',
@@ -328,7 +327,7 @@ export const ET: Messages = {
   'submit.hint.source.map': 'kaart',
   'submit.hint.source.address': 'aadressiotsing',
   'submit.hint.swapped':
-    ' Tuvastati pikkus ja laius, seepärast vahetati väärtused, et asukoht jääks Eesti piiresse.',
+    ' Tuvastati pikkuskraad ja laiuskraad, seepärast vahetati väärtused, et asukoht jääks Eesti piiresse.',
   'submit.hint.accuracy': ' (täpsus umbes {m} m; vajadusel liigu mardikat)',
   'submit.loc.missing':
     'Vali asukoht kaardilt, liimi koordinaadid või link või kasuta "Kasuta mu asukohta".',
@@ -439,7 +438,7 @@ export const ET: Messages = {
   'account.preparing': 'Valmistatakse…',
   'account.downloadData': 'Laadi alla minu andmed (JSON)',
   'account.deleting': 'Kustutatakse…',
-  'account.delete': 'Konta kustutamine',
+  'account.delete': 'Konto kustutamine',
   'account.delete.adminCopy':
     'See konto loodi deploy-keskkonna poolt, seega ei saa seda rakendusest kustutada. Keskkonnast eemaldamine on operaatori toime (keskkonnamuutujate ADMIN_EMAIL ja ADMIN_PASSWORD eemaldamine) — server keeldub kustutamisel igal juhul.',
   'account.delete.copy':
@@ -457,7 +456,7 @@ export const ET: Messages = {
   'account.success.exportDownloaded': 'Sinu andmete eksport on alla laaditud.',
   'account.error.sameValue': 'See on juba sinu kontol olev väärtus — uus peab olema erinev.',
 
-  // --- konto: minu panused panel (kasutaja enda varjupaikad).
+  // --- konto: minu esitused panel (kasutaja enda varjupaikad).
   'account.contrib.shelters': 'Varjupaikad',
   'account.contrib.loading': 'Sinu varjupaiku laetakse…',
   'account.contrib.empty': 'Sa pole veel ühtegi varjupaika esitanud.',
@@ -530,9 +529,9 @@ export const ET: Messages = {
   'verify.alreadyVerified': 'Sinu {noun} on juba kinnitatud.',
   'verify.verifiedNotice': 'Sinu {noun} on kinnitatud.',
 
-  // --- kriisijuhtimine (/blog — crisis-guidance D4/D6). Artikli pealkiri ja
+  // --- kriisijuhised (/blog — crisis-guidance D4/D6). Artikli pealkiri ja
   // keha on administraatori tekst (kuvatakse muutmatuna), mitte sõnastiku võtmed.
-  'guidance.title': 'Kriisijuhtimine',
+  'guidance.title': 'Kriisijuhised',
   'guidance.subtitle': 'Praktilised juhised kriisiseisundiks.',
   'guidance.loading': 'Juhiseid laetakse…',
   'guidance.loadingDetail': 'Juhise artiklit laetakse…',
@@ -543,14 +542,14 @@ export const ET: Messages = {
     'Sellist juhisteposti ei ole — see on tõenäoliselt eemaldatud või avaldamata.',
   'guidance.published': 'Avaldatud',
 
-  // --- administraator: juhisepostid + toimetaja + meediakogumik (crisis-guidance D8).
+  // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance D8).
   'admin.retry': 'Proovi uuesti',
 
   'admin.settings.tab': 'Sätted',
 
   'admin.guidance.tab': 'Juhised',
-  'admin.guidance.loading': 'Juhiseposte laetakse…',
-  'admin.guidance.empty': 'Juhiseposte pole veel.',
+  'admin.guidance.loading': 'Juhisteposte laetakse…',
+  'admin.guidance.empty': 'Juhisteposte pole veel.',
   'admin.guidance.emptyLocale': 'Keeles {locale} juhiseid pole veel.',
   'admin.guidance.shownIn': 'Postitused keeles {locale} — teisi keeli muudetakse nende enda loenditest.',
   'admin.guidance.create': 'Uus post',
@@ -589,8 +588,8 @@ export const ET: Messages = {
   'admin.guidance.success.deleted': 'Post kustutatud.',
   'admin.guidance.success.reordered': 'Järjestus salvestatud.',
 
-  'admin.guidance.editor.createTitle': 'Uus juhisepost',
-  'admin.guidance.editor.editTitle': 'Juhiseposti muutmine',
+  'admin.guidance.editor.createTitle': 'Uus juhistepost',
+  'admin.guidance.editor.editTitle': 'Juhisteposti muutmine',
   'admin.guidance.editor.loading': 'Posti laetakse…',
   'admin.guidance.editor.titleLabel': 'Pealkiri *',
   'admin.guidance.editor.titleRequired': 'Pealkiri on kohustuslik.',
@@ -642,7 +641,7 @@ export const ET: Messages = {
   'admin.guidance.editor.creatingIn': 'Post luuakse keeles {locale}.',
   'admin.guidance.editor.homeLocaleNote':
     'Posti kodukeel on {home}. Salvestamine muudab ainult {locale} sisu — teised keeled jäävad puutumata.',
-  'admin.guidance.editor.pinnedLabel': 'Kinnita see post juhiseliste tippu',
+  'admin.guidance.editor.pinnedLabel': 'Kinnita see post juhistepostide tippu',
   'admin.guidance.editor.statusLabel': 'Avaldamine',
   'admin.guidance.editor.status.draft': 'Salvesta mustandina',
   'admin.guidance.editor.status.publish': 'Salvesta ja avalda',
@@ -681,7 +680,7 @@ export const ET: Messages = {
   'admin.media.delete': 'Kusta',
   'admin.media.delete.working': 'Kontrollin…',
   'admin.media.delete.inUse':
-    'Seda pilti kasutab siiski juhisepost. Kustutamine eemaldab mõjutatud postidelt pealtpildi.',
+    'Seda pilti kasutab siiski juhistepost. Kustutamine eemaldab mõjutatud postidelt pealtpildi.',
   'admin.media.delete.confirmButton': 'Kustuta siiski',
   'admin.media.delete.cancel': 'Tühista',
   'admin.media.success.uploaded': 'Pilt üles laaditud.',
@@ -697,7 +696,7 @@ export const ET: Messages = {
   'legal.privacy.verification': 'Konto loomine ja kinnitamine',
   'legal.privacy.location': 'Asukoht ja geolokatsioon',
   'legal.privacy.content': 'Kasutajalt pärinev sisu',
-  'legal.privacy.cookies': 'Cookied ja brauseri salvestusruum',
+  'legal.privacy.cookies': 'Küpsised ja brauseri salvestusruum',
   'legal.privacy.thirdParties': 'Kolmandate isikute teenusepakkujad',
   'legal.privacy.sharing': 'Andmete edastamine',
   'legal.privacy.retention': 'Andmete säilitamine',
@@ -727,7 +726,7 @@ export const ET: Messages = {
   'legal.privacy.collect.li4.after': ', salvestatud ainult ühesuunalise rätina.',
   'legal.privacy.collect.p2.before': 'Me ',
   'legal.privacy.collect.p2.strong': 'ei',
-  'legal.privacy.collect.p2.middle': 'kogume isikutunnuskoodi, ega kasuta reklaami, analüütikat ega saitidevahelist jälgimist. Kui panustad kaardile, salvestame sinu esitatud sisu (varjupaikad ja teated), nagu on kirjeldatud osas ',
+  'legal.privacy.collect.p2.middle': 'kogu isikutunnuskoodi, ega kasuta reklaami, analüütikat ega saitidevahelist jälgimist. Kui esitad kaardile, salvestame sinu esitatud sisu (varjupaikad ja teated), nagu on kirjeldatud osas ',
   'legal.privacy.collect.p2.link': 'kasutajalt pärinev sisu',
   'legal.privacy.collect.p2.after': '.',
 
@@ -745,7 +744,7 @@ export const ET: Messages = {
   'legal.privacy.why.p2': 'Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED]. See dokument on mõeldud töötlemise kirjeldamiseks; see ei ole õigusarvamus.',
   'legal.privacy.verification.p1': 'Kaarti saab vaadata ilma kontota. Varjupaiku või teateid esitamiseks pead looma konto ja kinnitama nii oma e-posti aadressi kui ka telefoninumbri. Kinnitamine toimib nii, et igale kontaktile saadetakse ühekordne kood; seni, kuni mõlemad on kinnitatud, saad sisse logida, kuid ei saa sisu esitada.',
   'legal.privacy.verification.p2': 'Parooli lähtestamine toimub ühekordse koodiga, mis saadetakse sinu e-posti aadressile. E-posti aadressi muutmine kinnitatakse koodiga, mis saadetakse sinu praegusele telefoninumbrile, ja telefoninumbri muutmine kinnitatakse koodiga, mis saadetakse sinu praegusele e-posti aadressile.',
-  'legal.privacy.verification.p3': 'Kuritarvituste vältimiseks rakendab rakendus piiranguid koodide taotlustele ja varjupaikade esitamisele ning tuvastab peaaegu dubleeruvaid esitusi. Piirangu ületamine annab vea, mitte keeluse.',
+  'legal.privacy.verification.p3': 'Kuritarvituste vältimiseks rakendab rakendus piiranguid koodide taotlustele ja varjupaikade esitamisele ning tuvastab peaaegu dubleeruvaid esitusi. Piirangu ületamine annab vea, mitte keelust.',
   'legal.privacy.location.p1.before': 'Me näeme su asukohta ainult siis, kui ',
   'legal.privacy.location.p1.em': 'sina',
   'legal.privacy.location.p1.after': ' seda küsid. Nupp "Näita varjupaiku minu ümbruses" ja lisamisvormi valik "Kasuta mu asukohta" näitavad esmalt sinu brauseri enda lubatamispalvet. Kui lükad tagasi, siis midagi ei muutu.',
@@ -756,10 +755,10 @@ export const ET: Messages = {
   'legal.privacy.location.p3.before': 'Me ',
   'legal.privacy.location.p3.strong': 'mitmugi',
   'legal.privacy.location.p3.after': 'järeldame su asukohta sinu IP-aadressi põhjal. Aadressi otsing kasutab OpenStreetMapi Nominatim-teenust; otsingupäring saadetakse ainult siis, kui sa tahtlikult aadressi otsid.',
-  'legal.privacy.content.p1.before': 'Kui panustad, salvestab rakendus sinu varjupaikad ja sinu teated (näiteks, et asukoht on suletud, ebatäpne või enam ei eksisteeri). See sisu muutub osaks avalikku kogukonna kaarti. Oma varjupaiku saad muuta või eemaldada ',
+  'legal.privacy.content.p1.before': 'Kui esitad, salvestab rakendus sinu varjupaikad ja sinu teated (näiteks, et asukoht on suletud, ebatäpne või enam ei eksisteeri). See sisu muutub osaks avalikku kogukonna kaarti. Oma varjupaiku saad muuta või eemaldada ',
   'legal.privacy.content.p1.after': '; teateid vaadatakse üle haldurite poolt.',
   'legal.privacy.content.p2': 'Moderaatorid saavad kasutajate esitatud sisu vaadata, peita, parandada või eemaldada. Rakendus hoiab modereerimise logi, et otsuseid oleks võimalik kontrollida.',
-  'legal.privacy.cookies.p1': 'OpenShelter ei kasuta reklaamikooge. Ta salvestab sinu brauseri kohalikus salvestusruumis ainult järgmised üksused, igaüks neist on tehniliselt vajalik:',
+  'legal.privacy.cookies.p1': 'OpenShelter ei kasuta reklaamiküpsiseid. Ta salvestab sinu brauseri kohalikus salvestusruumis ainult järgmised üksused, igaüks neist on tehniliselt vajalik:',
   'legal.privacy.cookies.li1.before': 'üks ',
   'legal.privacy.cookies.li1.strong': 'sisselogimistunnus',
   'legal.privacy.cookies.li1.after': ', mis hoiab sind lehe uuendamiste vältel sisselogituna;',
@@ -781,8 +780,8 @@ export const ET: Messages = {
   'legal.privacy.thirdParties.li3.strong': 'OpenStreetMap',
   'legal.privacy.thirdParties.li3.after': ' kaardiplaadid ja Nominatimi geokodeerimisteenus – need saavad kaardi ala, mida sa vaatad, või aadressi, mida sa otsid.',
   'legal.privacy.thirdParties.p2': 'Ametlikud varjupaikade andmed on importitud Eesti Päästeameti (Päästeamet) avandmetest; see on sisenev andmeallikas, mitte teenus, kuhu me sinu andmeid saadame. Kas mõni neist teenusepakkujatest hõlmab andmete rahvusvahelist edastamist, on [TO BE CONFIRMED].',
-  'legal.privacy.sharing.p1': 'Me ei müü sinu isikuandmeid ega jaga neid reklaamieesmärkideks ega muul komertslikul eesmärgil. Ainsad edastamised on ülalnimetatud teenusepakkujatele, et viia sulle sõnumid, mida sa palud. Sinu esitatud varjupaikade andmed muutuvad osaks avalikku kogukonna nimekiku; pärast konto kustutamist jäävad avalikud esitused kaardile ilma esitaja mainimiseta.',
-  'legal.privacy.retention.p1': 'Sinu kontoandmeid hoitakse seni, kuni sinu konto eksisteerib. Kontu kustutamine eemaldab sinu isikuandmed kohe: sinu eraomana märgitud varjupaikad eemaldatakse, ja avalikud varjupaikad, mida sa esitasid, jäävad kaardile ilma esitajata.',
+  'legal.privacy.sharing.p1': 'Me ei müü sinu isikuandmeid ega jaga neid reklaamieesmärkideks ega muul komertslikul eesmärgil. Ainsad edastamised on ülalnimetatud teenusepakkujatele, et viia sulle sõnumid, mida sa palud. Sinu esitatud varjupaikade andmed muutuvad osaks avalikku kogukonna nimekirja; pärast konto kustutamist jäävad avalikud esitused kaardile ilma esitaja mainimiseta.',
+  'legal.privacy.retention.p1': 'Sinu kontoandmeid hoitakse seni, kuni sinu konto eksisteerib. Kontu kustutamine eemaldab sinu isikuandmed kohe: sinu eraomandina märgitud varjupaikad eemaldatakse, ja avalikud varjupaikad, mida sa esitasid, jäävad kaardile ilma esitajata.',
   'legal.privacy.retention.p2.before': 'Me rakendame ka fikseeritud säilitamisperioode: konto, millel pole sisselogimistegevust (registreerimine, sisselogimine või sessiooni uuendamine) ',
   'legal.privacy.retention.p2.strong': '24 kuud',
   'legal.privacy.retention.p2.middle': 'kustutatakse sama kustutusreegli järgi, mis kehtib konto kustutamisel, ja modereerimise ning auditeerimise kirjed, mis on vanemad kui ',
@@ -827,7 +826,7 @@ export const ET: Messages = {
   'legal.terms.service': 'Mis on OpenShelter',
   'legal.terms.eligibility': 'Kasutamisvõimalus ja kontod',
   'legal.terms.security': 'Konto turvalisus',
-  'legal.terms.rules': 'Panuste reeglid',
+  'legal.terms.rules': 'Esituste reeglid',
   'legal.terms.prohibited': 'Keelatud sisu ja käitumine',
   'legal.terms.license': 'Intellektuaalomand ja sinu litsents',
   'legal.terms.moderation': 'Modereerimine ja eemaldamine',
@@ -852,18 +851,18 @@ export const ET: Messages = {
   'legal.terms.rules.li1': 'Esita ainult kohti, mille olemasolest sa tead, detailidega, mis on parima teadmise järgi täpsed.',
   'legal.terms.rules.li2': 'Teata asukohtadest (suletud, ebatäpne või enam olemasolematu) ausalt ja ainult selle põhjal, mida sa tegelikult tead.',
   'legal.terms.rules.li3': 'Ära esita erakodu avaliku varjupaigana. Kui sa esitad asukoha, mis on erakodu, märki seda.',
-  'legal.terms.rules.li4': 'Rakendus rakendab piiranguid, et nimekik jääks kasutatavaks: päevane piirang esitustele, piirang sellele, kui sageli ühekordseid koodid on võimalik taotleda, ja sarnaste dubleerivate esituste tuvastamine. Piirangu ületamine annab vea ja soovituse, kui kaua oodata; see ei ole keel.',
+  'legal.terms.rules.li4': 'Rakendus rakendab piiranguid, et nimekiri jääks kasutatavaks: päevane piirang esitustele, piirang sellele, kui sageli ühekordseid koodid on võimalik taotleda, ja sarnaste dubleerivate esituste tuvastamine. Piirangu ületamine annab vea ja soovituse, kui kaua oodata; see ei ole keel.',
 
   'legal.terms.prohibited.p1': 'Sul ei tohi:',
   'legal.terms.prohibited.li1': 'esitada valelikku, eksitavat, ohtlikku või pahatahtlikku varjupaikade andmeid või teateid;',
-  'legal.terms.prohibited.li2': 'esitada erakoju avaliku varjupaigana, ilma et oleks neid eraomanina deklareeritud;',
+  'legal.terms.prohibited.li2': 'esitada erakodu avaliku varjupaigana, ilma et oleks neid eraomanikuna deklareeritud;',
   'legal.terms.prohibited.li3': 'spämmida, automatiseerida ligipääsu või püüda rünnata või üle koormata rakendust;',
   'legal.terms.prohibited.li4': 'püüda ligipääseda teise kasutaja kontole või haldurifunktsioonidele;',
   'legal.terms.prohibited.li5': 'esitada sisu, mis on seadusvastane, hävastav või mis paljastab kellegi isikuandmeid.',
   'legal.terms.prohibited.p2': 'Tahtlikult valelik või eksitav varjupaikade andmed on teenuse kuritarvitamine ja võivad viia sisu eemaldamiseni või sinu konto peatamiseni.',
   'legal.terms.license.p1': 'Esitades varjupaiga või teatamise, annad sa OpenShelterile mittesäraliku, maailmalaadse, tasuta litsentsi salvestada, kuvada ja muuta seda sisu kaardi haldamise ja modereerimise eesmärgil. Sa hoiad omandiõiguse esitatule, ja saad oma varjupaiku muuta või eemaldada.',
-  'legal.terms.moderation.p1': 'Esitused sisenevad nimekikku kogukonna teatamisena. Moderaatorid saavad kasutajate esitatud sisu vaadata, peita, parandada või eemaldada, ja saavad peatada kontosid, mis kuritarvitavad teenust. Seega võib esitust vaadata üle, peita või tagasi lükata.',
-  'legal.terms.official.p1.before': 'Rakendus eristab informatsiooniallikaid. Asukohad, millel on märge "Registry" (register), pärinevad ametlikest avandmetest. Asukohad märgetega "Newly added" (uus) või "Community-checked" (kogukonna poolt kinnitatud) on esitanud kogukonnaliikmete poolt. ',
+  'legal.terms.moderation.p1': 'Esitused sisenevad nimekirja kogukonna teatamisena. Moderaatorid saavad kasutajate esitatud sisu vaadata, peita, parandada või eemaldada, ja saavad peatada kontosid, mis kuritarvitavad teenust. Seega võib esitust vaadata üle, peita või tagasi lükata.',
+  'legal.terms.official.p1.before': 'Rakendus eristab informatsiooniallikaid. Asukohad, millel on märge "Register", pärinevad ametlikest avandmetest. Asukohad märgetega "Uus kogukonnalt" või "Kogukonna poolt kinnitatud" on esitanud kogukonnaliikmete poolt. ',
   'legal.terms.official.p1.em': 'kinnitatud kasutaja',
   'legal.terms.official.p1.middle': 'on tõestanud, et on e-posti aadressi ja telefoninumbri omanik; see midagi ei ütle selle täpsuse kohta, mida ta esitab. ',
   'legal.terms.official.p1.strong': 'Kinnitatud kasutaja ei ole kinnitatud varjupaik.',
@@ -871,9 +870,9 @@ export const ET: Messages = {
 
   'legal.terms.emergency.p1.before': 'OpenShelter ei ole hädaabiteenus ega tohi olla sinu ainus hädaolukorra infoallikas. Eesti Päästeameti, kohalike võimude ja hädaabiteenuste ametlikud juhised on alati olulisemad kui miski, mida see rakendus näitab. Hädaolukorras helista ',
   'legal.terms.emergency.p1.after': '.',
-  'legal.terms.emergency.p2': 'Ära siseni eraomandisse või hülgatud hoone ainult OpenShelteri poolt näidatud teabe põhjal.',
-  'legal.terms.warranty.p1': 'Nimekik esitatakse sellisena, nagu see on, kogukonna heaks, ilma igasuguse garantiita. Me ei garanteeri, et ükski asukoht on avatud, turvaline, ligipääsetav, olemas, sobiv või endiselt töös.',
-  'legal.terms.liability.p1': 'Selles ulatuses, mida õigus lubab, ei võta OpenShelter vastutust otsuste eest, mille tehakse nimekikule tuginedes. See lõik on mõeldud olema mõistlik ja on õigusliku läbivaatamise all; see ei püüa välistada vastutust, mida õigus ei lase välistada.',
+  'legal.terms.emergency.p2': 'Ära siseni eraomandisse või hülgatud hoonesse ainult OpenShelteri poolt näidatud teabe põhjal.',
+  'legal.terms.warranty.p1': 'Nimekiri esitatakse sellisena, nagu see on, kogukonna heaks, ilma igasuguse garantiita. Me ei garanteeri, et ükski asukoht on avatud, turvaline, ligipääsetav, olemas, sobiv või endiselt töös.',
+  'legal.terms.liability.p1': 'Selles ulatuses, mida õigus lubab, ei võta OpenShelter vastutust otsuste eest, mille tehakse nimekirjale tuginedes. See lõik on mõeldud olema mõistlik ja on õigusliku läbivaatamise all; see ei püüa välistada vastutust, mida õigus ei lase välistada.',
   'legal.terms.thirdParty.p1.before': 'Rakendus viitab välistele teenustele, sealhulgas Eesti Päästeamet, Maa-amet ja OpenStreetMap. Me ei vastuta nende teenuste sisu ega kättesaadavuse eest. Kuidas isikuandmeid teenusepakkujatega jagatakse, on kirjeldatud ',
   'legal.terms.thirdParty.p1.link': 'privaatsuspoliitikas',
   'legal.terms.thirdParty.p1.after': '.',
