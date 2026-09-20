@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.3.13</version>
+        <version>3.5.16</version>
         <relativePath/>
     </parent>
 
@@ -21,9 +21,12 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.7</jjwt.version>
         <testcontainers.version>2.0.5</testcontainers.version>
-        <!-- 2.6.x is the springdoc line aligned to Boot 3.3.x / Java 21.
-             2.7+ targets Boot 3.4+ — do not bump without review (SW-A1). -->
-        <springdoc.version>2.6.0</springdoc.version>
+        <!-- 2.8.x is the springdoc line aligned to Boot 3.4.x/3.5.x / Java 21.
+             2.6.x is binary-incompatible with Spring 6.2 (it calls the
+             ControllerAdviceBean(Object) constructor removed in 6.2 —
+             NoSuchMethodError from GenericResponseService, /v3/api-docs 500s),
+             so the 3.4+ parent forces the move (SW-A1). -->
+        <springdoc.version>2.8.17</springdoc.version>
         <!-- HTML sanitizer for admin-authored guidance bodies
              (crisis-guidance D2). Bumps need review: the parser behaviour
              is part of the security boundary, not just a version number. -->

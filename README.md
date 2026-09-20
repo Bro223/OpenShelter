@@ -224,7 +224,7 @@ auth, verification, shelter submission, community reports); run/build docs in
 
 ## Stack
 
-- Java 21 · Maven · Spring Boot 3.3.x (web, validation, data-jpa, security, actuator)
+- Java 21 · Maven · Spring Boot 3.5.x (web, validation, data-jpa, security, actuator)
 - PostgreSQL 16 (Docker Compose) · Flyway migrations `V1`–`V28` (SQL, `src/main/resources/db/migration/`) — plus the index-only dotted `V23.1__shelter_bbox_index.sql` (the composite B-tree on the shelter coordinate columns; no PostGIS) — and the Java-based `V13` (`V13PiiEncryptionMigration` — PII-at-rest encryption + blind-index backfill, M2)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests

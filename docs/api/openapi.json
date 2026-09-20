@@ -175,7 +175,8 @@
             "type" : "boolean"
           },
           "infoRequest" : {
-            "$ref" : "#/components/schemas/InfoRequest"
+            "$ref" : "#/components/schemas/InfoRequest",
+            "description" : "The moderator→submitter information exchange for this row; null when none exists. The admin sees the request together with the submitter's reply here (the row is kept after the reply — audit posture), with the requesting admin's profile name ('Unknown' after erasure — no FK on requested_by)."
           },
           "locationKind" : {
             "description" : "The private-home declaration (the 'Private location' badge renders on this surface too).",
@@ -367,6 +368,7 @@
       "ChangeEmailRequest" : {
         "properties" : {
           "newEmail" : {
+            "format" : "email",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
@@ -401,10 +403,12 @@
         "description" : "The detail-read fresh (≤ 2 h) report aggregates: the plain fresh counts, the trust-weighted shares (the gauge arrow's position — 0.5 is an exact equal split) and the anonymized recent-report log (no reporter identity). Null sub-blocks = nothing fresh (the UI's explicit empty state, never a neutral gauge). Detail-read only — null on every other projection.",
         "properties" : {
           "occupancy" : {
-            "$ref" : "#/components/schemas/OccupancyBands"
+            "$ref" : "#/components/schemas/OccupancyBands",
+            "description" : "The fresh how-full aggregate; null when no fresh occupancy report exists."
           },
           "openClosed" : {
-            "$ref" : "#/components/schemas/OpenClosed"
+            "$ref" : "#/components/schemas/OpenClosed",
+            "description" : "The fresh open/closed aggregate; null when no fresh tap exists."
           },
           "recentReports" : {
             "description" : "The recent-report log — the merged fresh open/closed taps + occupancy bands, newest first, capped at 10. Each entry carries what was reported and when — NO reporter identity (the UI says 'a community member').",
@@ -432,6 +436,7 @@
       "CreateGuidancePostRequest" : {
         "properties" : {
           "body" : {
+            "minLength" : 1,
             "type" : "string"
           },
           "heroImageAlt" : {
@@ -477,6 +482,7 @@
       "CreateGuidanceTranslationRequest" : {
         "properties" : {
           "body" : {
+            "minLength" : 1,
             "type" : "string"
           },
           "heroImageAlt" : {
@@ -517,8 +523,6 @@
             "type" : "string"
           },
           "latitude" : {
-            "exclusiveMaximum" : false,
-            "exclusiveMinimum" : false,
             "format" : "double",
             "maximum" : 90,
             "minimum" : -90,
@@ -529,8 +533,6 @@
             "type" : "string"
           },
           "longitude" : {
-            "exclusiveMaximum" : false,
-            "exclusiveMinimum" : false,
             "format" : "double",
             "maximum" : 180,
             "minimum" : -180,
@@ -563,7 +565,8 @@
         "description" : "Where the map's official shelter data comes from: the publisher, the link to the official open-data page, and when the last import ran.",
         "properties" : {
           "lastImport" : {
-            "$ref" : "#/components/schemas/LastImport"
+            "$ref" : "#/components/schemas/LastImport",
+            "description" : "The newest data_imports audit row, or null when no import has run yet."
           },
           "officialUrl" : {
             "description" : "The publisher's open-data page.",
@@ -666,7 +669,6 @@
         "type" : "object"
       },
       "FieldChange" : {
-        "description" : "The server-parsed {field, from, to} list of an EDITED row (the frontend renders, never parses the stored JSON); empty for CREATED/DELETED.",
         "properties" : {
           "field" : {
             "type" : "string"
@@ -760,7 +762,6 @@
         "type" : "object"
       },
       "InfoRequest" : {
-        "description" : "The moderator→submitter information exchange for this row; null when none exists. The admin sees the request together with the submitter's reply here (the row is kept after the reply — audit posture), with the requesting admin's profile name ('Unknown' after erasure — no FK on requested_by).",
         "properties" : {
           "message" : {
             "type" : "string"
@@ -878,7 +879,6 @@
           "levels" : {
             "description" : "Exactly the levels that are actually verified for this account (non-revoked claims), in enum order for a stable body — the frontend's single source of truth for its verification labels.",
             "items" : {
-              "description" : "Exactly the levels that are actually verified for this account (non-revoked claims), in enum order for a stable body — the frontend's single source of truth for its verification labels.",
               "enum" : [ "EMAIL", "PHONE", "SMART_ID" ],
               "type" : "string"
             },
@@ -1043,6 +1043,7 @@
           },
           "email" : {
             "description" : "The address the reset code was sent to.",
+            "format" : "email",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
@@ -1060,6 +1061,8 @@
       "PasswordResetRequest" : {
         "properties" : {
           "email" : {
+            "format" : "email",
+            "minLength" : 1,
             "type" : "string"
           }
         },
@@ -1116,6 +1119,7 @@
         "properties" : {
           "email" : {
             "description" : "The account e-mail — a login contact and the e-mail verification channel.",
+            "format" : "email",
             "maxLength" : 255,
             "minLength" : 0,
             "type" : "string"
@@ -1167,7 +1171,8 @@
             "type" : "integer"
           },
           "communityPulse" : {
-            "$ref" : "#/components/schemas/CommunityPulse"
+            "$ref" : "#/components/schemas/CommunityPulse",
+            "description" : "DETAIL-read only (M9 community pulse): the fresh (≤ 2 h) report aggregates behind the detail page's gauges + recent log — the plain fresh counts, the trust-weighted shares (the gauge arrow's position) and the anonymized recent-report log. Null on every other projection (public list, /mine, admin)."
           },
           "createdAt" : {
             "format" : "date-time",
@@ -1187,7 +1192,8 @@
             "type" : "boolean"
           },
           "infoRequest" : {
-            "$ref" : "#/components/schemas/InfoRequest"
+            "$ref" : "#/components/schemas/InfoRequest",
+            "description" : "CALLER-scoped: the moderator→submitter information exchange for this row — set on the /mine projection ONLY (the submitter's own surface); null on the public list and detail reads (the exchange is private between the admin and the author)."
           },
           "lastVerifiedAt" : {
             "description" : "The per-entry verification stamp: registry rows — the newest non-failed import of their source (a NOT_MODIFIED 304 re-check verifies; FAILED/SKIPPED do not); community rows — the newest non-submitter OPEN_CONFIRMED report or CONFIRM/AUTO_CONFIRM moderation action. null = never verified (the UNDER_REVIEW 'not yet verified' signal).",
@@ -1325,6 +1331,7 @@
       "UpdateGuidancePostRequest" : {
         "properties" : {
           "body" : {
+            "minLength" : 1,
             "type" : "string"
           },
           "heroImageAlt" : {
@@ -1366,6 +1373,7 @@
       "UpdateGuidanceTranslationRequest" : {
         "properties" : {
           "body" : {
+            "minLength" : 1,
             "type" : "string"
           },
           "heroImageAlt" : {
@@ -1401,8 +1409,6 @@
             "type" : "string"
           },
           "latitude" : {
-            "exclusiveMaximum" : false,
-            "exclusiveMinimum" : false,
             "format" : "double",
             "maximum" : 90,
             "minimum" : -90,
@@ -1413,8 +1419,6 @@
             "type" : "string"
           },
           "longitude" : {
-            "exclusiveMaximum" : false,
-            "exclusiveMinimum" : false,
             "format" : "double",
             "maximum" : 180,
             "minimum" : -180,
@@ -1491,7 +1495,7 @@
     "title" : "OpenShelter API",
     "version" : "0.0.1-SNAPSHOT"
   },
-  "openapi" : "3.0.1",
+  "openapi" : "3.1.0",
   "paths" : {
     "/account" : {
       "delete" : {
@@ -2456,7 +2460,7 @@
     "/admin/guidance" : {
       "get" : {
         "description" : "Every post, drafts included, in the stored manual order. With ?locale= (admin-locale-scope) only the posts that have content in that locale are returned — a translation row there, or the post's home locale being it — carrying that locale's title/slug/body/alt (the DTO's `locale` names the content locale, `homeLocale` the post's own). The stored (sanitized) bodyHtml is returned — the editor round-trips what is stored. An empty scope is an empty list; a present but blank or over-long locale is 400.",
-        "operationId" : "list_3",
+        "operationId" : "list_2",
         "parameters" : [ {
           "name" : "locale",
           "in" : "query",
@@ -2779,7 +2783,7 @@
     "/admin/guidance/{id}" : {
       "delete" : {
         "description" : "Requires confirm=true (400 without it). The post's media assets stay in the library (uploads are inventory, not garbage) and its audit rows keep their label snapshot. 204; 404 unknown id.",
-        "operationId" : "delete_2",
+        "operationId" : "delete_1",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -2861,7 +2865,7 @@
       },
       "get" : {
         "description" : "Id-keyed (a draft has a slug, but the admin form edits by id). 404 unknown id. With ?locale= the DTO carries that locale's content (a translation row when the post has one, the home columns when the post's home IS the locale); a post without content in the locale answers the same 404 as an unknown id.",
-        "operationId" : "get_2",
+        "operationId" : "get_1",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -3781,7 +3785,7 @@
     "/admin/media" : {
       "get" : {
         "description" : "Every asset newest-first, with serving URL, dimensions, size, upload date and the reused-by-post count (0 for an unused asset — the library is the admin's inventory).",
-        "operationId" : "list_2",
+        "operationId" : "list_1",
         "responses" : {
           "200" : {
             "content" : {
@@ -3998,7 +4002,7 @@
     "/admin/media/{id}" : {
       "delete" : {
         "description" : "Unreferenced: 200, row and file gone. Referenced without confirm=true: 409 naming the affected posts (nothing deleted, no audit row). Referenced with confirm=true: 200 — every referencing post loses BOTH hero_image_id and hero_image_alt in the same transaction and renders without an image. 404 unknown id.",
-        "operationId" : "delete_1",
+        "operationId" : "delete_2",
         "parameters" : [ {
           "name" : "id",
           "in" : "path",
@@ -5722,7 +5726,7 @@
     "/api/guidance" : {
       "get" : {
         "description" : "PUBLISHED only (drafts are invisible), ONE locale, pinned first, then publishedAt descending (id descending tie-break). The index does not carry the post body (bodyHtml is null). 200 with [] when nothing is published in the requested locale.",
-        "operationId" : "list_1",
+        "operationId" : "list_3",
         "parameters" : [ {
           "name" : "locale",
           "in" : "query",
@@ -5828,7 +5832,7 @@
     "/api/guidance/{slug}" : {
       "get" : {
         "description" : "PUBLISHED only, by slug. Serves the requested locale's translation, or the default-locale translation with localeFallback=true when the post has none in the requested locale (a 200, never a 404). Carries the stored (sanitized) bodyHtml and an alternates map (locale -> slug) for the language switcher.",
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "parameters" : [ {
           "name" : "slug",
           "in" : "path",
