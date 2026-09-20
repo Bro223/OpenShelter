@@ -598,13 +598,23 @@
               <span class="admin-queue-row__meta">
                 {{ reportTypeLabel(row.type) }}
                 @if (row.damped) {
-                  <span class="badge badge--hidden">{{ 'admin.reports.dampened' | t }}</span>
+                  <span
+                    class="badge badge--hidden"
+                    [title]="'admin.reports.notCounted.reason' | t"
+                    >{{ 'admin.reports.notCounted' | t }}</span
+                  >
                 }
                 · {{ reporterText(row) }} ·
                 {{ ageText(row.createdAt) }}
               </span>
               @if (row.detail) {
                 <span class="admin-queue-row__detail">“{{ row.detail }}”</span>
+              }
+              @if (row.damped) {
+                <!-- The reason is an always-visible line (touch/keyboard
+                     accessible), not the badge's title tooltip alone; the
+                     tooltip repeats the same key for mouse hover. -->
+                <span class="admin-queue-row__reason">{{ 'admin.reports.notCounted.reason' | t }}</span>
               }
             </div>
             <div class="admin-queue-row__actions">

@@ -624,7 +624,9 @@ export const ET: Messages = {
   'admin.reports.loading': 'Laen teatisi…',
   'admin.reports.empty': 'Teatisi pole.',
   'admin.reports.dismissed': 'Arveldatud',
-  'admin.reports.dampened': 'Hõivendatud',
+  'admin.reports.notCounted': 'Arvestamata',
+  'admin.reports.notCounted.reason':
+    'Arvestamata: teatajal on juba olemas sama nimega varjupaik samas asukohas.',
   'admin.reports.restore': 'Taasta varjupaik',
   'admin.reports.dismiss': 'Arvelda',
 

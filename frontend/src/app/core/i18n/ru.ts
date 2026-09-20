@@ -637,7 +637,9 @@ export const RU: Messages = {
   'admin.reports.loading': 'Загружаем сообщения…',
   'admin.reports.empty': 'Сообщений нет.',
   'admin.reports.dismissed': 'Отклонено',
-  'admin.reports.dampened': 'Приглушено',
+  'admin.reports.notCounted': 'Не учтено',
+  'admin.reports.notCounted.reason':
+    'Не учтено: у заявителя уже есть своё укрытие с тем же названием в том же месте.',
   'admin.reports.restore': 'Восстановить укрытие',
   'admin.reports.dismiss': 'Отклонить',
 

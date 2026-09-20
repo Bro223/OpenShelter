@@ -949,7 +949,7 @@ describe('AdminPage', () => {
     expect(element.textContent).toContain('1 h ago');
   });
 
-  it('a dampened report row (M9) renders the Dampened marker', async () => {
+  it('a dampened report row (M9) renders the "Not counted" badge plus a non-empty reason line', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listShelterReports.mockResolvedValue([{ ...REPORT_ROW, id: 103, damped: true }]);
     const { element, fixture } = await openAdmin();
@@ -960,7 +960,15 @@ describe('AdminPage', () => {
 
     // the row is still fully present (evidence, never deleted) — flagged
     const row = firstRow(element);
-    expect(row.textContent).toContain('Dampened');
+    const badge = [...row.querySelectorAll('.badge')].find((b) =>
+      (b.textContent ?? '').includes('Not counted'),
+    );
+    expect(badge, 'the badge shows the plain-language label').toBeDefined();
+    // the reason is discoverable IN the row (visible to touch/keyboard
+    // users — not a title tooltip alone): present and non-empty
+    const reason = row.querySelector('.admin-queue-row__reason');
+    expect(reason).not.toBeNull();
+    expect((reason?.textContent ?? '').trim()).not.toHaveLength(0);
     expect(row.textContent).toContain('Does not exist');
     expect(buttonByText(row, 'Dismiss')).not.toBeNull(); // dismissable like any row
   });

@@ -672,11 +672,18 @@ export interface Messages {
   'admin.shelters.inaccurate.marking': string;
 
   // shelter-reports tab: the report queue rows (dismiss, restore a
-  // hidden shelter) and the dampened/dismissed badges.
+  // hidden shelter) and the not-counted/dismissed badges.
   'admin.reports.loading': string;
   'admin.reports.empty': string;
   'admin.reports.dismissed': string;
-  'admin.reports.dampened': string;
+  /** The badge on a stored report that counts zero (the damped flag).
+   *  Plain language on purpose: the internal term "dampened" said nothing
+   *  to a reader (the owner read "Dampened" as "shelter full"). */
+  'admin.reports.notCounted': string;
+  /** The row's inline reason line (also the badge's hover title): why the
+   *  report had no effect — the reporter holds a same-named shelter at
+   *  the same location. */
+  'admin.reports.notCounted.reason': string;
   'admin.reports.restore': string;
   'admin.reports.dismiss': string;
 

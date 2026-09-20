@@ -615,7 +615,9 @@ export const EN: Messages = {
   'admin.reports.loading': 'Loading reports…',
   'admin.reports.empty': 'No reports.',
   'admin.reports.dismissed': 'Dismissed',
-  'admin.reports.dampened': 'Dampened',
+  'admin.reports.notCounted': 'Not counted',
+  'admin.reports.notCounted.reason':
+    'Not counted: the reporter already has a shelter with the same name at the same location.',
   'admin.reports.restore': 'Restore shelter',
   'admin.reports.dismiss': 'Dismiss',
 
