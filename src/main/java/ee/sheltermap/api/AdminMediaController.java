@@ -45,7 +45,7 @@ import java.util.List;
                 + "403 (the x-admin-only extension marks these operations "
                 + "machine-readably).")
 @RestController
-@RequestMapping("/admin/media")
+@RequestMapping(value = "/admin/media", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AdminMediaController {
 
     private final MediaService media;

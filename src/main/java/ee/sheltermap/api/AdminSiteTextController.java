@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -31,7 +32,7 @@ import java.util.Objects;
                 + "role claim in the token). Anonymous → 401; non-admin → 403; "
                 + "a disallowed key/locale/value/URL → 400.")
 @RestController
-@RequestMapping("/admin/site-texts")
+@RequestMapping(value = "/admin/site-texts", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AdminSiteTextController {
 
     private final SiteTextsService siteTexts;

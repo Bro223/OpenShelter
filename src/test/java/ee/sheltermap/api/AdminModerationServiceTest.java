@@ -304,8 +304,10 @@ class AdminModerationServiceTest {
         service.reviewShelter(adminId, shelter.getId(), ReviewDecision.CONFIRM, null);
 
         assertThat(service.listAudit(1)).hasSize(1);
-        assertThatThrownBy(() -> service.listAudit(0)).isInstanceOf(InvalidShelterException.class);
-        assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(InvalidShelterException.class);
+        // the shared paging validator (QW4) raises the single paging 400
+        // exception; the client-visible contract (400 + the message) is unchanged
+        assertThatThrownBy(() -> service.listAudit(0)).isInstanceOf(PagingBoundsException.class);
+        assertThatThrownBy(() -> service.listAudit(201)).isInstanceOf(PagingBoundsException.class);
     }
 
     @Test

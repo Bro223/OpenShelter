@@ -45,7 +45,8 @@ class DocumentationFactsTest {
 
     private static final Pattern SQL_MIGRATION = Pattern.compile("^V(\\d+)__.*\\.sql$");
 
-    private static final Pattern CLASS_MAPPING = Pattern.compile("@RequestMapping\\(\"([^\"]*)\"\\)");
+    private static final Pattern CLASS_MAPPING =
+            Pattern.compile("@RequestMapping\\((?:value\\s*=\\s*)?\"([^\"]*)\"");
 
     private static final Pattern METHOD_MAPPING =
             Pattern.compile("@(Get|Post|Put|Delete|Patch)Mapping(?:\\(\"([^\"]*)\")?");

@@ -17,6 +17,7 @@ import ee.sheltermap.domain.VerificationClaim;
 import ee.sheltermap.domain.VerificationLevel;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -154,6 +155,43 @@ class ShelterReportServiceTest {
         // a DIFFERENT type for the same shelter is allowed
         service.reportShelter(verified, shelter.getId(), ShelterReportType.CLOSED, null);
         assertThat(storedReports(shelter.getId(), ShelterReportType.CLOSED)).isEqualTo(1);
+    }
+
+    @Test
+    void aLostRaceOnSaveAnswersTheSame409AsThePreCheck() {
+        // Two concurrent identical reports: the loser's pre-check ran on a
+        // snapshot that predates the winner's row, but the database's
+        // (shelter, user, type) unique constraint still fires at save
+        // time. The constraint is the authority — the client gets the SAME
+        // 409 vocabulary as the pre-check, nothing is stored twice and no
+        // auto-hide side effect runs.
+        InMemoryShelterReportRepository racy = new InMemoryShelterReportRepository() {
+            @Override
+            public boolean existsByShelterIdAndUserIdAndType(long shelterId, long userId,
+                                                             ShelterReportType type) {
+                // The loser's read snapshot predates the winner's row.
+                return false;
+            }
+
+            @Override
+            public void save(ShelterReport report) {
+                // The unique constraint sees the winner's row at commit.
+                throw new DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint");
+            }
+        };
+        ShelterReportService racyService = new ShelterReportService(shelters, racy, occupancy,
+                openStatus, actionLog, audit, new ReporterTrustEvaluator(shelters, audit),
+                FIXED, 100.0);
+
+        assertThatThrownBy(() -> racyService.reportShelter(verified, shelter.getId(),
+                ShelterReportType.NON_EXISTENT, null))
+                .isInstanceOf(DuplicateReportException.class);
+
+        // Nothing leaked from the losing attempt: no report row, the
+        // shelter stayed ACTIVE (no dampening/auto-hide side effects).
+        assertThat(racy.findAll()).isEmpty();
+        assertThat(shelter.getStatus()).isEqualTo(ShelterStatus.ACTIVE);
     }
 
     @Test

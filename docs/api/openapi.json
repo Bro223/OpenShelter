@@ -1531,6 +1531,13 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "No verification claim — or the environment-provisioned administrator account (refused; the message names the env provisioning)"
           },
           "404" : {
@@ -1543,6 +1550,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -1552,6 +1569,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -1636,6 +1663,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -1645,6 +1682,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -1688,7 +1735,7 @@
         "responses" : {
           "202" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -1736,6 +1783,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -1745,6 +1802,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -1778,7 +1845,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/DataExportResponse"
                 }
@@ -1826,6 +1893,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -1835,6 +1912,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -1868,7 +1955,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MeResponse"
                 }
@@ -1916,6 +2003,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -1925,6 +2022,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2009,6 +2116,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2018,6 +2135,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2061,7 +2188,7 @@
         "responses" : {
           "202" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -2109,6 +2236,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2118,6 +2255,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2161,7 +2308,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MeResponse"
                 }
@@ -2181,7 +2328,7 @@
           },
           "401" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MeResponse"
                 }
@@ -2209,6 +2356,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2218,6 +2375,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2261,7 +2428,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminAlertDto"
@@ -2274,7 +2441,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminAlertDto"
@@ -2315,6 +2482,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2324,6 +2501,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2370,7 +2557,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminAuditDto"
@@ -2383,7 +2570,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminAuditDto"
@@ -2424,6 +2611,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2433,6 +2630,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2504,7 +2711,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminGuidancePostDto"
@@ -2527,12 +2734,9 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/AdminGuidancePostDto"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -2550,7 +2754,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminGuidancePostDto"
@@ -2571,6 +2775,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2580,6 +2794,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2624,7 +2848,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2634,7 +2858,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2654,7 +2878,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2664,7 +2888,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2672,9 +2896,19 @@
             },
             "description" : "heroImageId with no such asset"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2684,13 +2918,23 @@
           },
           "413" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
               }
             },
             "description" : "The one-shot hero import exceeded the size cap"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2714,7 +2958,7 @@
           },
           "502" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2758,6 +3002,13 @@
             "description" : "Reordered (or the current order resubmitted — no-op)"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "A blank or over-long locale, an id not visible in the locale, a duplicate id, a missing (stale) list, or an empty list while visible posts exist — nothing changed"
           },
           "401" : {
@@ -2771,6 +3022,13 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated non-admin"
           },
           "404" : {
@@ -2783,6 +3041,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -2792,6 +3060,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2849,6 +3127,13 @@
             "description" : "Deleted"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "confirm=true missing"
           },
           "401" : {
@@ -2862,10 +3147,34 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated non-admin"
           },
           "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Unknown post id"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -2876,6 +3185,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -2927,7 +3246,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2957,7 +3276,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -2967,13 +3286,23 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
               }
             },
             "description" : "Unknown post id (or no content in the requested locale)"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -2984,6 +3313,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3045,7 +3384,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -3055,7 +3394,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -3075,7 +3414,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -3085,7 +3424,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
@@ -3093,15 +3432,35 @@
             },
             "description" : "Unknown post id (or a heroImageId with no such asset; scoped: no translation in the locale)"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AdminGuidancePostDto"
                 }
               }
             },
             "description" : "Slug collision (naming the slug)"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3149,6 +3508,13 @@
             "description" : "Published (or already published — no-op)"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "The pending hero import was refused (URL policy, non-image body) or the URL is broken"
           },
           "401" : {
@@ -3162,10 +3528,34 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated non-admin"
           },
           "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Unknown post id"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -3178,7 +3568,24 @@
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
           "413" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "The pending hero import exceeded the size cap"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3201,6 +3608,13 @@
             "description" : "Unexpected server error — the uniform error body."
           },
           "502" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "The pending hero import could not be fetched (timeout / network / upstream 5xx)"
           }
         },
@@ -3227,7 +3641,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/GuidanceTranslationDto"
@@ -3260,7 +3674,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/GuidanceTranslationDto"
@@ -3273,7 +3687,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/GuidanceTranslationDto"
@@ -3284,6 +3698,16 @@
             },
             "description" : "Unknown post id"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -3293,6 +3717,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3346,7 +3780,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3356,7 +3790,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3376,7 +3810,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3386,7 +3820,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3394,15 +3828,35 @@
             },
             "description" : "Unknown post id"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
               }
             },
             "description" : "The post already has a translation in this locale, or the (locale, slug) pair is taken"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3458,7 +3912,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3468,7 +3922,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3488,7 +3942,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3498,7 +3952,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3506,15 +3960,35 @@
             },
             "description" : "Unknown post id"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
               }
             },
             "description" : "The target already has a translation in the source's locale"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3569,6 +4043,13 @@
             "description" : "Deleted"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Deleting the home-locale translation"
           },
           "401" : {
@@ -3582,10 +4063,34 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated non-admin"
           },
           "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Unknown post or locale"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -3596,6 +4101,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3656,7 +4171,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3666,7 +4181,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3686,7 +4201,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3696,7 +4211,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
@@ -3704,15 +4219,35 @@
             },
             "description" : "Unknown post or locale"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidanceTranslationDto"
                 }
               }
             },
             "description" : "Slug collision within the locale"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3780,10 +4315,34 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated non-admin"
           },
           "404" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Unknown post id"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -3794,6 +4353,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3830,7 +4399,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/MediaAssetDto"
@@ -3863,7 +4432,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/MediaAssetDto"
@@ -3884,6 +4453,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -3893,6 +4472,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -3944,7 +4533,7 @@
         "responses" : {
           "201" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -3954,7 +4543,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -3974,7 +4563,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -3992,6 +4581,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4004,13 +4603,23 @@
           },
           "413" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
               }
             },
             "description" : "Over the size cap (the message names the cap)"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4065,7 +4674,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -4095,7 +4704,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -4105,7 +4714,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
@@ -4113,15 +4722,35 @@
             },
             "description" : "Unknown asset id"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/MediaAssetDto"
                 }
               }
             },
             "description" : "Still referenced, confirm=true missing — the message names the affected posts"
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4177,7 +4806,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminShelterReportDto"
@@ -4190,7 +4819,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminShelterReportDto"
@@ -4231,6 +4860,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4240,6 +4879,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4326,6 +4975,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4335,6 +4994,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4366,7 +5035,7 @@
     },
     "/admin/shelters" : {
       "get" : {
-        "description" : "Every shelter including hidden, with report counts, status flag, occupancy and the submitter's name. status/source exact-match filters, q the case-insensitive name/address substring. Optional limit (1..200) / offset (>= 0) slice the (filtered) list; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
+        "description" : "Every shelter including hidden, with report counts, status flag, occupancy and the submitter's name. status the exact-match filter, source the group filter (REGISTRY = Päästeamet + municipality imports, USER = user submissions, ALL = everything), q the case-insensitive name/address substring. Optional limit (1..200) / offset (>= 0) slice the (filtered) list; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
         "operationId" : "listShelters",
         "parameters" : [ {
           "name" : "status",
@@ -4416,7 +5085,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminShelterDto"
@@ -4439,12 +5108,9 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/AdminShelterDto"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -4462,7 +5128,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminShelterDto"
@@ -4483,6 +5149,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4492,6 +5168,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4578,6 +5264,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4587,6 +5283,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4673,6 +5379,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4682,6 +5398,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4727,7 +5453,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminShelterHistoryDto"
@@ -4778,6 +5504,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4787,6 +5523,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4882,6 +5628,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4891,6 +5647,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -4987,6 +5753,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -4996,6 +5772,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5051,7 +5837,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "additionalProperties" : {
                     "type" : "boolean"
@@ -5102,6 +5888,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5111,6 +5907,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5207,6 +6013,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5216,6 +6032,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5264,12 +6090,33 @@
             "description" : "Saved"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "A disallowed key/locale/value/URL"
           },
           "401" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "No valid token"
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Authenticated but not an admin"
           },
           "404" : {
@@ -5282,6 +6129,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5291,6 +6148,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5327,7 +6194,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/AdminUserDto"
@@ -5378,6 +6245,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5387,6 +6264,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5473,6 +6360,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5482,6 +6379,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5568,6 +6475,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5577,6 +6494,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5613,7 +6540,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/DataSourceDto"
                 }
@@ -5661,6 +6588,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5670,6 +6607,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5714,7 +6661,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/LocationResolvedDto"
                 }
@@ -5724,7 +6671,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/LocationResolvedDto"
                 }
@@ -5762,6 +6709,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5772,9 +6729,19 @@
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/LocationResolvedDto"
                 }
@@ -5794,7 +6761,7 @@
           },
           "502" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/LocationResolvedDto"
                 }
@@ -5841,7 +6808,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/GuidancePostDto"
@@ -5864,12 +6831,9 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/GuidancePostDto"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/ErrorResponse"
                 }
               }
             },
@@ -5905,6 +6869,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -5914,6 +6888,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -5964,7 +6948,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidancePostDto"
                 }
@@ -5974,7 +6958,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidancePostDto"
                 }
@@ -6004,13 +6988,23 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/GuidancePostDto"
                 }
               }
             },
             "description" : "Unknown slug, a draft slug, or a post with neither a requested-locale nor a default-locale translation"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -6021,6 +7015,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6113,6 +7117,16 @@
             },
             "description" : "Unknown name — the uniform error body (traversal and absolute paths answer this too; nothing outside the upload directory is ever read)"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6122,6 +7136,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6237,7 +7261,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/ShelterDto"
@@ -6288,6 +7312,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6297,6 +7331,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6339,7 +7383,7 @@
         "responses" : {
           "201" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6349,7 +7393,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6369,7 +7413,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6387,6 +7431,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6396,6 +7450,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6429,7 +7493,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "items" : {
                     "$ref" : "#/components/schemas/ShelterDto"
@@ -6480,6 +7544,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6489,6 +7563,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6572,6 +7656,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6581,6 +7675,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6621,7 +7725,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6661,13 +7765,23 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
               }
             },
             "description" : "Unknown shelter id"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -6678,6 +7792,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6729,7 +7853,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6759,7 +7883,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
@@ -6769,13 +7893,23 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterDto"
                 }
               }
             },
             "description" : "Unknown shelter"
+          },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
           },
           "409" : {
             "content" : {
@@ -6786,6 +7920,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6879,6 +8023,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6888,6 +8042,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -6981,6 +8145,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -6990,6 +8164,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7083,6 +8267,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7092,6 +8286,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7144,7 +8348,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterReportResult"
                 }
@@ -7174,7 +8378,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterReportResult"
                 }
@@ -7184,7 +8388,7 @@
           },
           "404" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterReportResult"
                 }
@@ -7192,9 +8396,19 @@
             },
             "description" : "Unknown shelter"
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterReportResult"
                 }
@@ -7202,9 +8416,19 @@
             },
             "description" : "The caller already reported that type for this shelter"
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ShelterReportResult"
                 }
@@ -7234,7 +8458,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "type" : "string"
                 }
@@ -7282,6 +8506,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7291,6 +8525,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7335,7 +8579,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TokenResponse"
                 }
@@ -7355,7 +8599,7 @@
           },
           "401" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TokenResponse"
                 }
@@ -7383,6 +8627,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7393,9 +8647,19 @@
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TokenResponse"
                 }
@@ -7477,6 +8741,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7486,6 +8760,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7532,6 +8816,13 @@
             "description" : "Password reset"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "One generic message — never account-existence information"
           },
           "401" : {
@@ -7545,6 +8836,13 @@
             "description" : "Missing/invalid/expired bearer token, or a suspended account whose tokens authenticate nothing."
           },
           "403" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "The provisioned administrator's email — its password is set by the deployment environment"
           },
           "404" : {
@@ -7557,6 +8855,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7567,7 +8875,24 @@
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Anti-guess bucket exceeded — Retry-After in seconds"
           },
           "500" : {
@@ -7603,7 +8928,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -7633,7 +8958,7 @@
           },
           "403" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -7651,6 +8976,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7660,6 +8995,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7704,7 +9049,7 @@
         "responses" : {
           "200" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/TokenResponse"
                 }
@@ -7752,6 +9097,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7761,6 +9116,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7846,10 +9211,44 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "E-mail/phone already registered"
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Per-IP or per-e-mail registration cap exceeded — Retry-After in seconds"
           },
           "500" : {
@@ -7887,6 +9286,13 @@
             "description" : "Level claimed"
           },
           "400" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
             "description" : "Invalid or expired verification code"
           },
           "401" : {
@@ -7919,6 +9325,16 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
               "application/json" : {
@@ -7928,6 +9344,16 @@
               }
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
+          },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
           },
           "429" : {
             "content" : {
@@ -7971,7 +9397,7 @@
         "responses" : {
           "202" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -7981,7 +9407,7 @@
           },
           "400" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -8019,9 +9445,19 @@
             },
             "description" : "Unknown resource id — the uniform error body."
           },
+          "405" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A wrong HTTP method on a mapped path — the uniform error body."
+          },
           "409" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }
@@ -8029,9 +9465,19 @@
             },
             "description" : "The level is already verified"
           },
+          "415" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description" : "A request body in a Content-Type the endpoint does not consume — the uniform error body."
+          },
           "429" : {
             "content" : {
-              "*/*" : {
+              "application/json" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CodeSentDto"
                 }

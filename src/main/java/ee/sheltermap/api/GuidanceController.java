@@ -3,7 +3,6 @@ package ee.sheltermap.api;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.domain.PublicGuidanceView;
 import ee.sheltermap.guidance.GuidanceService;
-import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -55,7 +55,7 @@ import java.util.Map;
                 + "query parameter: absent = the server's default locale; a post "
                 + "in another locale is a 404.")
 @RestController
-@RequestMapping("/api/guidance")
+@RequestMapping(value = "/api/guidance", produces = MediaType.APPLICATION_JSON_VALUE)
 public class GuidanceController {
 
     private final GuidanceService guidance;
@@ -109,7 +109,9 @@ public class GuidanceController {
                     schema = @Schema(implementation = GuidancePostDto.class)))),
             @ApiResponse(responseCode = "400", description = "A blank or over-long "
                     + "locale (the column is VARCHAR(5)), a limit outside 1..200, "
-                    + "or a negative offset")
+                    + "or a negative offset",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
     })
     @SecurityRequirements({})
     public ResponseEntity<List<GuidancePostDto>> list(
@@ -124,11 +126,14 @@ public class GuidanceController {
             @Parameter(description = "Optional offset into the stable index "
                     + "order: >= 0; past the end answers an empty array.")
             @RequestParam(name = "offset", required = false) Integer offset) {
+        // The bounds are checked BEFORE the read: a rejected page never
+        // pays for the (locale's) index load.
+        Pagination.requireLimit(limit);
+        Pagination.requireOffset(offset);
         List<PublicGuidanceView> published = guidance.listPublic(locale);
         int total = published.size();
         // The slice runs LAST, over the stable order (guidance-index-paging).
-        List<PublicGuidanceView> page = GuidanceService.slice(
-                published, requireOffset(offset), requireLimit(limit));
+        List<PublicGuidanceView> page = Pagination.slice(published, offset, limit);
         // ONE library read for the hero URLs (no N+1 over the page).
         Map<Long, MediaAsset> heroes = heroIndex();
         List<GuidancePostDto> dtos = page.stream()
@@ -137,29 +142,6 @@ public class GuidanceController {
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(total))
                 .body(dtos);
-    }
-
-    /** The page-size bound (the shelter list's paging vocabulary, 1..200):
-     *  absent = no paging. */
-    private static Integer requireLimit(Integer limit) {
-        if (limit == null) {
-            return null;
-        }
-        if (limit < 1 || limit > 200) {
-            throw new GuidanceValidationException("limit must be between 1 and 200");
-        }
-        return limit;
-    }
-
-    /** The offset bound: absent = the first page. */
-    private static Integer requireOffset(Integer offset) {
-        if (offset == null) {
-            return null;
-        }
-        if (offset < 0) {
-            throw new GuidanceValidationException("offset must be non-negative");
-        }
-        return offset;
     }
 
     /**

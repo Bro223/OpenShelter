@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -58,7 +59,7 @@ import java.util.Set;
                 + "remaining seconds in Retry-After. SMART_ID is rejected up "
                 + "front with 400 (the provider is a stub in v1).")
 @RestController
-@RequestMapping("/verify")
+@RequestMapping(value = "/verify", produces = MediaType.APPLICATION_JSON_VALUE)
 public class VerificationController {
 
     private final VerificationService verificationService;

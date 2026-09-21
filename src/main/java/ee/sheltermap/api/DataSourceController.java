@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
                 + "and the app says so — source, link to the official open-data "
                 + "page, and when the last import ran. Public (no JWT).")
 @RestController
-@RequestMapping("/api/data-source")
+@RequestMapping(value = "/api/data-source", produces = MediaType.APPLICATION_JSON_VALUE)
 public class DataSourceController {
 
     private final RegistryProperties properties;

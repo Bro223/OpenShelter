@@ -28,6 +28,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -82,7 +83,7 @@ import java.util.List;
                 + "registered account. Note the deliberate split: GET /mine is "
                 + "authenticated even though the rest of /api/shelters/** is public.")
 @RestController
-@RequestMapping("/api/shelters")
+@RequestMapping(value = "/api/shelters", produces = MediaType.APPLICATION_JSON_VALUE)
 public class ShelterController {
 
     /**
@@ -201,9 +202,11 @@ public class ShelterController {
                                          + "id-ascending, filter-applied list: >= 0; past the "
                                          + "end answers an empty array.")
                                  @RequestParam(required = false) Integer offset) {
+        // The argument evaluation runs the bbox + paging bounds BEFORE the
+        // read: a rejected page never pays for the list load.
         return queryService.findAll(source, hasCapacity, provenance,
                 requireBbox(minLat, minLng, maxLat, maxLng),
-                requireLimit(limit), requireOffset(offset));
+                Pagination.requireLimit(limit), Pagination.requireOffset(offset));
     }
 
     /**
@@ -524,28 +527,6 @@ public class ShelterController {
             throw new InvalidShelterException("minLng must be <= maxLng");
         }
         return new BoundingBox(minLat, minLng, maxLat, maxLng);
-    }
-
-    /** The page size bound (shelter-bbox-paging D1): absent = no paging. */
-    private static Integer requireLimit(Integer limit) {
-        if (limit == null) {
-            return null;
-        }
-        if (limit < 1 || limit > ShelterQueryService.MAX_PAGE_SIZE) {
-            throw new InvalidShelterException("limit must be between 1 and " + ShelterQueryService.MAX_PAGE_SIZE);
-        }
-        return limit;
-    }
-
-    /** The offset bound (shelter-bbox-paging D1): absent = the first page. */
-    private static Integer requireOffset(Integer offset) {
-        if (offset == null) {
-            return null;
-        }
-        if (offset < 0) {
-            throw new InvalidShelterException("offset must be non-negative");
-        }
-        return offset;
     }
 
     /** Bearer JWT + verified registered account (author mutations, mirroring the shelter author-mutation convention). */

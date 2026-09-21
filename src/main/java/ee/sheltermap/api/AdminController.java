@@ -3,8 +3,6 @@ package ee.sheltermap.api;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
-import ee.sheltermap.guidance.GuidanceService;
-import ee.sheltermap.guidance.GuidanceValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -16,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -65,12 +64,11 @@ import java.util.Map;
                 + "machine-readably). Reporter identity is served from this API "
                 + "ONLY.")
 @RestController
-@RequestMapping("/admin")
+@RequestMapping(value = "/admin", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AdminController {
 
-    /** {@code GET /admin/alerts} defaults: newest 50, max 200. */
+    /** {@code GET /admin/alerts} defaults: newest 50, max {@link Pagination#MAX_PAGE_SIZE}. */
     static final int ALERTS_DEFAULT_LIMIT = 50;
-    static final int ALERTS_MAX_LIMIT = 200;
 
     private final AdminModerationService moderation;
     private final AdminAccess adminAccess;
@@ -86,8 +84,9 @@ public class AdminController {
     /**
      * The admin shelter list (D3): every shelter including hidden, with
      * report counts, status flag, occupancy and the
-     * submitter's name; {@code status}/{@code source} exact-match filters,
-     * {@code q} the case-insensitive name/address substring. Optional
+     * submitter's name; {@code status} exact-match filter, {@code source}
+     * the group filter (REGISTRY / USER / ALL), {@code q} the
+     * case-insensitive name/address substring. Optional
      * {@code limit} (1..200) / {@code offset} (>= 0) slice the (filtered)
      * list in its stored id order — the same bounds vocabulary as
      * {@code GET /api/guidance}; the {@code X-Total-Count} response header
@@ -97,11 +96,13 @@ public class AdminController {
     @Operation(summary = "The admin shelter list",
             description = "Every shelter including hidden, with report counts, "
                     + "status flag, occupancy and the submitter's name. "
-                    + "status/source exact-match filters, q the case-insensitive "
-                    + "name/address substring. Optional limit (1..200) / offset "
-                    + "(>= 0) slice the (filtered) list; the X-Total-Count "
-                    + "response header is the filter length WITHOUT paging "
-                    + "(always present).")
+                    + "status the exact-match filter, source the group filter "
+                    + "(REGISTRY = Päästeamet + municipality imports, USER = "
+                    + "user submissions, ALL = everything), q the "
+                    + "case-insensitive name/address substring. Optional limit "
+                    + "(1..200) / offset (>= 0) slice the (filtered) list; the "
+                    + "X-Total-Count response header is the filter length "
+                    + "WITHOUT paging (always present).")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The shelter rows "
                     + "(including hidden), search-filtered and paged when "
@@ -114,7 +115,9 @@ public class AdminController {
             }, content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = AdminShelterDto.class)))),
             @ApiResponse(responseCode = "400", description = "A limit outside 1..200, "
-                    + "or a negative offset"),
+                    + "or a negative offset",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Authenticated "
                     + "non-admin")
     })
@@ -136,39 +139,19 @@ public class AdminController {
                     + ">= 0; past the end answers an empty array.")
             @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
+        // The bounds are checked BEFORE the read: a rejected page never
+        // pays for the (filtered) list load.
+        Pagination.requireLimit(limit);
+        Pagination.requireOffset(offset);
         List<AdminShelterDto> filtered = moderation.listShelters(status, source, q);
         int total = filtered.size();
         // The slice runs LAST, over the (filtered) stored order — the
         // public guidance's paging semantics verbatim (nulls = no paging;
         // an offset past the end answers an empty page, never an error).
-        List<AdminShelterDto> paged = GuidanceService.slice(filtered,
-                requireOffset(offset), requireLimit(limit));
+        List<AdminShelterDto> paged = Pagination.slice(filtered, offset, limit);
         return ResponseEntity.ok()
                 .header("X-Total-Count", String.valueOf(total))
                 .body(paged);
-    }
-
-    /** The page-size bound (the public guidance's paging vocabulary, 1..200):
-     *  absent = no paging. */
-    private static Integer requireLimit(Integer limit) {
-        if (limit == null) {
-            return null;
-        }
-        if (limit < 1 || limit > 200) {
-            throw new GuidanceValidationException("limit must be between 1 and 200");
-        }
-        return limit;
-    }
-
-    /** The offset bound: absent = the first page. */
-    private static Integer requireOffset(Integer offset) {
-        if (offset == null) {
-            return null;
-        }
-        if (offset < 0) {
-            throw new GuidanceValidationException("offset must be non-negative");
-        }
-        return offset;
     }
 
     /** Manual hide/restore; a restore disarms auto-hide (D3). 204; 404 unknown; 409 registry rows. */
@@ -344,10 +327,7 @@ public class AdminController {
                     + "anything else 400).")
             @RequestParam(required = false) Integer limit) {
         adminAccess.requireAdmin();
-        int size = limit == null ? ALERTS_DEFAULT_LIMIT : limit;
-        if (size < 1 || size > ALERTS_MAX_LIMIT) {
-            throw new InvalidShelterException("limit must be between 1 and 200");
-        }
+        int size = Pagination.requireDefaultedLimit(limit, ALERTS_DEFAULT_LIMIT);
         return alerts.recent(size).stream()
                 .map(a -> new AdminAlertDto(a.id(), a.kind(), a.subject(), a.detail(),
                         a.retryAfterSeconds(), a.at()))

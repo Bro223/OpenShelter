@@ -20,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -76,7 +77,7 @@ import java.util.Map;
                 + "403 (the x-admin-only extension marks these operations "
                 + "machine-readably).")
 @RestController
-@RequestMapping("/admin/guidance")
+@RequestMapping(value = "/admin/guidance", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AdminGuidanceController {
 
     private final GuidanceService guidance;
@@ -126,7 +127,9 @@ public class AdminGuidanceController {
             }, content = @Content(array =
                     @ArraySchema(schema = @Schema(implementation = AdminGuidancePostDto.class)))),
             @ApiResponse(responseCode = "400", description = "A present but blank or over-long "
-                    + "locale, an over-long q, a limit outside 1..200, or a negative offset"),
+                    + "locale, an over-long q, a limit outside 1..200, or a negative offset",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public ResponseEntity<List<AdminGuidancePostDto>> list(
@@ -147,6 +150,10 @@ public class AdminGuidanceController {
                     + "order: >= 0; past the end answers an empty array.")
             @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
+        // The bounds are checked BEFORE the read: a rejected page never
+        // pays for the list load.
+        Pagination.requireLimit(limit);
+        Pagination.requireOffset(offset);
         String resolved = guidance.optionalAdminLocale(locale);
         String query = requireSearch(q);
         boolean scoped = resolved != null;
@@ -172,8 +179,7 @@ public class AdminGuidanceController {
                 .toList();
         int total = filtered.size();
         // The slice runs LAST, over the (filtered) stored manual order.
-        List<GuidancePost> paged = GuidanceService.slice(filtered,
-                requireOffset(offset), requireLimit(limit));
+        List<GuidancePost> paged = Pagination.slice(filtered, offset, limit);
         List<AdminGuidancePostDto> dtos = paged.stream()
                 .map(post -> toAdminDto(post, heroes, content.get(post.getId())))
                 .toList();
@@ -224,29 +230,6 @@ public class AdminGuidanceController {
                     + GuidanceService.MAX_SEARCH_LENGTH + " characters");
         }
         return trimmed;
-    }
-
-    /** The page-size bound (the public guidance's paging vocabulary, 1..200):
-     *  absent = no paging. */
-    private static Integer requireLimit(Integer limit) {
-        if (limit == null) {
-            return null;
-        }
-        if (limit < 1 || limit > 200) {
-            throw new GuidanceValidationException("limit must be between 1 and 200");
-        }
-        return limit;
-    }
-
-    /** The offset bound: absent = the first page. */
-    private static Integer requireOffset(Integer offset) {
-        if (offset == null) {
-            return null;
-        }
-        if (offset < 0) {
-            throw new GuidanceValidationException("offset must be non-negative");
-        }
-        return offset;
     }
 
     /**

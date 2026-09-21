@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,7 +52,7 @@ import java.util.Set;
                 + "and rate-limited per client IP (5 requests/minute) — 429 "
                 + "above it.")
 @RestController
-@RequestMapping("/api/geo")
+@RequestMapping(value = "/api/geo", produces = MediaType.APPLICATION_JSON_VALUE)
 public class LocationController {
 
     private final LocationResolveService resolveService;

@@ -1,8 +1,12 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.LocationResolveException;
+import ee.sheltermap.app.LocationUpstreamException;
+import ee.sheltermap.guidance.HeroImportUnreachableException;
 import jakarta.persistence.OptimisticLockException;
 import org.hibernate.StaleStateException;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -144,5 +148,46 @@ class ApiErrorHandlerTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(500);
         assertThat(response.getBody().message()).isEqualTo("Internal server error");
+    }
+
+    @Test
+    void dataIntegrityViolationMapsTo400() {
+        // a duplicate/invalid-input violation is a client error, not a 500
+        DataIntegrityViolationException ex = new DataIntegrityViolationException("duplicate key");
+
+        ResponseEntity<ErrorResponse> response = handler.dataIntegrity(ex, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody().message()).isEqualTo("Request failed due to invalid input");
+    }
+
+    @Test
+    void heroImportUnreachableMapsTo502WithTheReason() {
+        HeroImportUnreachableException ex = new HeroImportUnreachableException("connection refused");
+
+        ResponseEntity<ErrorResponse> response = handler.heroImportUnreachable(ex, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(502);
+        assertThat(response.getBody().message()).isEqualTo("connection refused");
+    }
+
+    @Test
+    void locationUpstreamExceptionMapsTo502WithTheReason() {
+        LocationUpstreamException ex = new LocationUpstreamException("maps host failed");
+
+        ResponseEntity<ErrorResponse> response = handler.locationUpstream(ex, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(502);
+        assertThat(response.getBody().message()).isEqualTo("maps host failed");
+    }
+
+    @Test
+    void locationResolveExceptionMapsTo400WithTheReason() {
+        LocationResolveException ex = new LocationResolveException("no coordinates in page");
+
+        ResponseEntity<ErrorResponse> response = handler.locationResolve(ex, request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody().message()).isEqualTo("no coordinates in page");
     }
 }

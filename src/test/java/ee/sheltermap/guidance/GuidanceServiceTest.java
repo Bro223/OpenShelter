@@ -1,5 +1,6 @@
 package ee.sheltermap.guidance;
 
+import ee.sheltermap.api.Pagination;
 import ee.sheltermap.app.InMemoryModerationAuditLog;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.auth.MutableClock;
@@ -1287,7 +1288,7 @@ class GuidanceServiceTest {
     @Test
     void sliceWithNoPagingParamsAnswersTheWholeList() {
         List<PublicGuidanceView> rows = threeViews();
-        assertThat(GuidanceService.slice(rows, null, null))
+        assertThat(Pagination.slice(rows, null, null))
                 .extracting(PublicGuidanceView::getId)
                 .containsExactlyElementsOf(rows.stream().map(PublicGuidanceView::getId).toList());
     }
@@ -1295,13 +1296,13 @@ class GuidanceServiceTest {
     @Test
     void slicePagesTheStableOrderAndTilesWithoutOverlapOrSkips() {
         List<PublicGuidanceView> rows = threeViews();
-        assertThat(GuidanceService.slice(rows, 0, 2))
+        assertThat(Pagination.slice(rows, 0, 2))
                 .extracting(PublicGuidanceView::getId)
                 .containsExactly(rows.get(0).getId(), rows.get(1).getId());
-        assertThat(GuidanceService.slice(rows, 2, 2))
+        assertThat(Pagination.slice(rows, 2, 2))
                 .extracting(PublicGuidanceView::getId)
                 .containsExactly(rows.get(2).getId());
-        assertThat(GuidanceService.slice(rows, 1, null))
+        assertThat(Pagination.slice(rows, 1, null))
                 .extracting(PublicGuidanceView::getId)
                 .containsExactly(rows.get(1).getId(), rows.get(2).getId());
     }
@@ -1309,17 +1310,17 @@ class GuidanceServiceTest {
     @Test
     void sliceWithAnOffsetPastTheEndAnswersEmptyNeverAnError() {
         List<PublicGuidanceView> rows = threeViews();
-        assertThat(GuidanceService.slice(rows, 3, 10)).isEmpty();
-        assertThat(GuidanceService.slice(rows, 100, null)).isEmpty();
+        assertThat(Pagination.slice(rows, 3, 10)).isEmpty();
+        assertThat(Pagination.slice(rows, 100, null)).isEmpty();
         // (no explicit type argument: target typing infers it, and the
         // explicit form trips javac's parser in argument position)
-        assertThat(GuidanceService.slice(List.of(), 0, 10)).isEmpty();
+        assertThat(Pagination.slice(List.of(), 0, 10)).isEmpty();
     }
 
     @Test
     void sliceWithALimitPastTheEndAnswersTheRemainder() {
         List<PublicGuidanceView> rows = threeViews();
-        assertThat(GuidanceService.slice(rows, 0, 99))
+        assertThat(Pagination.slice(rows, 0, 99))
                 .extracting(PublicGuidanceView::getId)
                 .containsExactly(rows.get(0).getId(), rows.get(1).getId(), rows.get(2).getId());
     }

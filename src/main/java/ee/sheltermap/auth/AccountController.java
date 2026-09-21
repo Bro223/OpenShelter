@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -71,7 +72,7 @@ import java.util.Set;
                 + "endpoints ack with CodeSentDto — the cooldown a client should "
                 + "count down before resending.")
 @RestController
-@RequestMapping("/account")
+@RequestMapping(value = "/account", produces = MediaType.APPLICATION_JSON_VALUE)
 public class AccountController {
 
     private final ContactChangeService contactChangeService;

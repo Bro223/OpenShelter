@@ -76,9 +76,8 @@ public class AdminModerationService {
     public static final String IMPORT_OWNED_MESSAGE =
             "Registry shelters are import-owned and cannot be moderated here";
 
-    /** The audit list's page size: 1..{@link #AUDIT_MAX_LIMIT}, default {@link #AUDIT_DEFAULT_LIMIT}. */
+    /** The audit list's page default (the cap is the shared {@link Pagination#MAX_PAGE_SIZE}). */
     public static final int AUDIT_DEFAULT_LIMIT = 100;
-    public static final int AUDIT_MAX_LIMIT = 200;
 
     /** The read-time rendering of a gone shelter's name in the audit trail (D4). */
     public static final String DELETED_SHELTER_NAME = "Deleted shelter";
@@ -272,8 +271,8 @@ public class AdminModerationService {
     /**
      * GET /admin/reports — the shelter report queue, newest first. With
      * {@code shelterId} that shelter's queue (unknown shelter → 404);
-     * without, the global queue. {@code limit} is 1..{@value
-     * #AUDIT_MAX_LIMIT} (default {@value #AUDIT_DEFAULT_LIMIT}, anything
+     * without, the global queue. {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
+     * (default {@value #AUDIT_DEFAULT_LIMIT}, anything
      * else a 400) — the same bound as the audit trail's list: the table
      * is append-only (nothing deletes rows except the shelter cascade),
      * so the queue must stay bounded in SQL (the bound is the LIMIT
@@ -285,10 +284,7 @@ public class AdminModerationService {
      */
     @Transactional(readOnly = true)
     public List<AdminShelterReportDto> listShelterReports(Long shelterId, Integer limit) {
-        int size = limit == null ? AUDIT_DEFAULT_LIMIT : limit;
-        if (size < 1 || size > AUDIT_MAX_LIMIT) {
-            throw new InvalidShelterException("limit must be between 1 and 200");
-        }
+        int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         if (shelterId != null) {
             requireShelter(shelterId);
         }
@@ -390,19 +386,16 @@ public class AdminModerationService {
 
     /**
      * GET /admin/audit — the moderation audit trail, newest first
-     * (community-review-queue D4). {@code limit} is 1..{@value
-     * #AUDIT_MAX_LIMIT} (default {@value #AUDIT_DEFAULT_LIMIT}); anything
-     * else is a 400 (the 1..200 bound vocabulary). Shelter names and
+     * (community-review-queue D4). {@code limit} is 1..{@link Pagination#MAX_PAGE_SIZE}
+     * (default {@value #AUDIT_DEFAULT_LIMIT}); anything
+     * else is a 400 (the shared paging bound vocabulary). Shelter names and
      * moderator names resolve in ONE batched lookup each (no N+1); a
      * gone shelter renders {@link #DELETED_SHELTER_NAME} (the row
      * outlives a hard delete).
      */
     @Transactional(readOnly = true)
     public List<AdminAuditDto> listAudit(Integer limit) {
-        int size = limit == null ? AUDIT_DEFAULT_LIMIT : limit;
-        if (size < 1 || size > AUDIT_MAX_LIMIT) {
-            throw new InvalidShelterException("limit must be between 1 and 200");
-        }
+        int size = Pagination.requireDefaultedLimit(limit, AUDIT_DEFAULT_LIMIT);
         List<ModerationAuditLog.Row> rows = audit.findLatest(size);
         if (rows.isEmpty()) {
             return List.of();

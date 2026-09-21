@@ -148,6 +148,16 @@ public class ApiErrorHandler {
     }
 
     /**
+     * A paging bound violation (limit outside 1..200, a negative offset)
+     * on any of the paged reads — the uniform 400, the one message
+     * ({@link Pagination} is the single source of both).
+     */
+    @ExceptionHandler(PagingBoundsException.class)
+    ResponseEntity<ErrorResponse> pagingBounds(PagingBoundsException ex, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+    }
+
+    /**
      * A rejected guidance/media write (crisis-guidance D4/D5/D8) — the
      * cross-field 400 vocabulary: missing/oversized title or body, a
      * malformed admin-supplied slug, alt without a hero (or a hero

@@ -128,6 +128,12 @@ public class OpenApiConfig {
      * precise wording. Deliberately a superset: the point is the shared
      * SHAPE, and per-operation {@code @ApiResponse} entries (which are never
      * overwritten) carry the endpoint-specific meaning.
+     *
+     * <p>415 and 405 are attached too: the runtime answers BOTH with the
+     * uniform body (the dedicated {@code ApiErrorHandler} handlers — a wrong
+     * Content-Type and a wrong method on a mapped path are plain client
+     * mistakes, not 500s) although no operation declares them, so without
+     * the attachment the document would miss two live answers.
      */
     @Bean
     public OpenApiCustomizer uniformErrorResponseCustomizer() {
@@ -143,12 +149,48 @@ public class OpenApiConfig {
                                     + "or authorship).");
                     attachIfAbsent(operation, "404",
                             "Unknown resource id — the uniform error body.");
+                    attachIfAbsent(operation, "405",
+                            "A wrong HTTP method on a mapped path — the uniform error body.");
                     attachIfAbsent(operation, "409",
                             "Conflict (duplicate or forbidden state) — the uniform error body.");
+                    attachIfAbsent(operation, "415",
+                            "A request body in a Content-Type the endpoint does not consume "
+                                    + "— the uniform error body.");
                     attachIfAbsent(operation, "429",
                             "Rate limit / report throttle exceeded — Retry-After in seconds.");
                     attachIfAbsent(operation, "500",
                             "Unexpected server error — the uniform error body.");
+                }));
+    }
+
+    /**
+     * Declared error responses carry the body they answer: every 4xx/5xx
+     * response an operation declares WITHOUT a content block is the uniform
+     * {@code ErrorResponse} — the two writers of error bodies in the app are
+     * the one {@code @RestControllerAdvice} and the security entry point,
+     * and both write that record. Without this pass springdoc falls back to
+     * the operation's return type for a declared-but-contentless code, so
+     * a paged read's 400 documented itself as "an array of the rows" while
+     * the live body was the uniform error (backend review 06 F9 / 11 M2).
+     * Explicit per-operation content is never touched.
+     */
+    @Bean
+    public OpenApiCustomizer uniformErrorContentCustomizer() {
+        return openApi -> openApi.getPaths().forEach((path, pathItem) ->
+                pathItem.readOperationsMap().forEach((method, operation) -> {
+                    if (operation.getResponses() == null) {
+                        return;
+                    }
+                    operation.getResponses().forEach((code, response) -> {
+                        if (!code.matches("[45]\\d\\d")) {
+                            return;
+                        }
+                        if (response.getContent() == null || response.getContent().isEmpty()) {
+                            response.setContent(new Content().addMediaType("application/json",
+                                    new MediaType().schema(new Schema<>()
+                                            .$ref("#/components/schemas/ErrorResponse"))));
+                        }
+                    });
                 }));
     }
 
