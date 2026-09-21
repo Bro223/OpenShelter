@@ -441,6 +441,7 @@ export const RU: Messages = {
   'error.verifyBadCode': 'Код недействителен или истёк. Проверьте и повторите.',
   'error.accountRateLimited': 'Слишком много запросов. Подождите немного и повторите.',
   'error.accountBadCode': 'Код недействителен или истёк. Запросите новый.',
+  'error.network': 'Не удалось подключиться к серверу. Возможно, нет соединения — повторите попытку позже.',
 
   // --- страница аккаунта (/account). EN — верbatim-копия текущего
   // интерфейса; RU — спокойные гражданские формулировки.
@@ -615,6 +616,15 @@ export const RU: Messages = {
     'Показана версия на языке {locale} — этот материал недоступен на языке {reader}.',
   'guidance.localeFallback.alternate': 'Читать версию на языке {locale}',
 
+  // --- пагинация списков (list-page-paging: общий контрол «назад/вперёд» + размер).
+  'pagination.aria': 'Страницы',
+  'pagination.previous': 'Предыдущая',
+  'pagination.next': 'Следующая',
+  'pagination.pageOf': 'Страница {page} из {pages}',
+  'pagination.size': 'На странице',
+  'guidance.pageOutOfRange': 'Страницы {page} не существует — список заканчивается на странице {pages}.',
+  'guidance.pageFirst': 'Показать первую страницу',
+
   // --- администрирование: вкладка рекомендаций + редактор +
   // медиабиблиотека.
   'admin.retry': 'Повторить',
@@ -657,7 +667,6 @@ export const RU: Messages = {
   'admin.shelters.col.occupancy': 'Занятость',
   'admin.shelters.col.submitter': 'Отправитель',
   'admin.shelters.col.actions': 'Действия',
-  'admin.shelters.source.registry': 'из реестра',
   'admin.shelters.status.hidden': 'Скрыто',
   'admin.shelters.status.active': 'Активно',
   'admin.shelters.history': 'История',
@@ -768,6 +777,7 @@ export const RU: Messages = {
   'admin.guidance.col.published': 'Опубликован',
   'admin.guidance.col.updated': 'Обновлён',
   'admin.guidance.col.actions': 'Действия',
+  'admin.guidance.posts.aria': 'Рекомендации',
   'admin.guidance.order.hint':
     'Материалы отображаются посетителям в этом порядке — перетащите строку или используйте кнопки.',
   'admin.guidance.move.top': 'Наверх',
@@ -952,6 +962,7 @@ export const RU: Messages = {
   'admin.media.col.uploaded': 'Загружено',
   'admin.media.col.usedBy': 'Используется в',
   'admin.media.col.actions': 'Действия',
+  'admin.media.library.aria': 'Медиабиблиотека',
   'admin.media.delete': 'Удалить',
   /** Первый клик — запрос в пути (решил API: 200 удалено / 409 в
    *  использовании). */

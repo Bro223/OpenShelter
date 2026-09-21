@@ -1,0 +1,212 @@
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.guidance.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">
+    {{ 'admin.retry' | t }}
+  </button>
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">
+    {{ 'admin.guidance.emptyLocale' | t: { locale: contentLocale() } }}
+  </p>
+} @else {
+  <!-- admin-locale-scope + admin-locale-split: the list is the CONTENT
+       language's — the line names the language being managed (the
+       other languages' posts are edited from their own lists). -->
+  <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}</p>
+  <!-- guidance-manual-order D6: the list order IS the public order —
+       the hint names the two mechanisms (PRIMARY: the keyboard-
+       reachable move buttons; SECONDARY: drag & drop). -->
+  <p class="admin-guidance-hint">{{ 'admin.guidance.order.hint' | t }}</p>
+  <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.guidance.posts.aria' | t">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.guidance.col.title' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.position' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.status' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.locale' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.pinned' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.published' | t }}</th>
+          <th scope="col">{{ 'admin.guidance.col.updated' | t }}</th>
+          <th scope="col" class="admin-table__actions-head">
+            {{ 'admin.guidance.col.actions' | t }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr
+            class="admin-row"
+            [class.admin-row--hidden]="row.status === 'DRAFT'"
+            [class.admin-row--drag-over]="dropTarget() === row.id"
+            draggable="true"
+            (dragstart)="onDragStart($event, row)"
+            (dragover)="onDragOver($event, row)"
+            (drop)="onDrop($event, row)"
+            (dragend)="onDragEnd()"
+          >
+            <td>
+              <div class="admin-guidance-title">
+                <!-- The hero thumbnail, only when the post has one. -->
+                @if (row.heroImageUrl; as heroUrl) {
+                  <img
+                    class="admin-guidance-thumb"
+                    [src]="heroUrl"
+                    [alt]="row.heroImageAlt ?? ''"
+                    width="40"
+                    height="40"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                }
+                <div class="admin-guidance-title__text">
+                  <span class="admin-guidance-title__name">{{ row.title }}</span>
+                  <span class="admin-muted">{{ row.slug }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="admin-cell--nowrap">{{ row.sortOrder }}</td>
+            <td>
+              @if (row.status === 'PUBLISHED') {
+                <span class="badge badge--published">{{
+                  'admin.guidance.status.published' | t
+                }}</span>
+              } @else {
+                <span class="badge badge--draft">{{ 'admin.guidance.status.draft' | t }}</span>
+              }
+            </td>
+            <td class="admin-cell--nowrap">{{ row.locale }}</td>
+            <td class="admin-cell--nowrap">
+              {{
+                row.pinned
+                  ? ('admin.guidance.pinned.yes' | t)
+                  : ('admin.guidance.pinned.no' | t)
+              }}
+            </td>
+            <td class="admin-cell--nowrap">
+              @if (publishedAtFor(row); as publishedAt) {
+                {{ publishedAt | date: 'medium' }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
+            <td class="admin-cell--actions">
+              <div class="admin-cell__actions-body">
+                <!-- guidance-manual-order D6: PRIMARY mechanism — the
+                     keyboard-reachable 48px move buttons. Disabled at
+                     the boundaries (top/up at the first row, down at
+                     the last); the accessible names name the post and
+                     the direction. -->
+                <div class="admin-guidance-move">
+                  <button
+                    type="button"
+                    class="btn btn--ghost admin-guidance-move__btn"
+                    [disabled]="busy() || index(row) <= 0"
+                    (click)="movePost(row.id, 'top')"
+                    [attr.aria-label]="'admin.guidance.move.top.aria' | t: { title: row.title }"
+                  >
+                    {{ 'admin.guidance.move.top' | t }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost admin-guidance-move__btn"
+                    [disabled]="busy() || index(row) <= 0"
+                    (click)="movePost(row.id, 'up')"
+                    [attr.aria-label]="'admin.guidance.move.up.aria' | t: { title: row.title }"
+                  >
+                    {{ 'admin.guidance.move.up' | t }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost admin-guidance-move__btn"
+                    [disabled]="busy() || index(row) >= (rows() ?? []).length - 1"
+                    (click)="movePost(row.id, 'down')"
+                    [attr.aria-label]="
+                      'admin.guidance.move.down.aria' | t: { title: row.title }
+                    "
+                  >
+                    {{ 'admin.guidance.move.down' | t }}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="onEdit(row)"
+                  [disabled]="busy()"
+                >
+                  {{ 'admin.guidance.edit' | t }}
+                </button>
+                @if (!armed(row.id)) {
+                  @if (row.status === 'PUBLISHED') {
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onUnpublish(row)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.guidance.working' | t)
+                          : ('admin.guidance.unpublish' | t)
+                      }}
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onPublish(row)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
+                      }}
+                    </button>
+                  }
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--danger"
+                    [attr.data-confirm-trigger]="row.id"
+                    (click)="onRequestDelete(row.id)"
+                    [disabled]="busy()"
+                  >
+                    {{ 'admin.guidance.delete' | t }}
+                  </button>
+                } @else {
+                  <!-- two-tap confirm (no window.confirm, the app's inline
+                       style). The gateway sends confirm=true — the server
+                       400s without it. -->
+                  <span class="admin-confirm" role="status">
+                    {{ 'admin.guidance.delete.confirm' | t }}
+                  </span>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--danger"
+                    [attr.data-confirm-focus]="row.id"
+                    (click)="onConfirmDelete(row.id)"
+                    [disabled]="busy()"
+                  >
+                    {{
+                      busy()
+                        ? ('admin.guidance.working' | t)
+                        : ('admin.guidance.delete.confirmButton' | t)
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="onCancelDelete()"
+                    [disabled]="busy()"
+                  >
+                    {{ 'admin.guidance.delete.cancel' | t }}
+                  </button>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

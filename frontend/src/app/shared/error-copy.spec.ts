@@ -247,5 +247,20 @@ describe('bannerMessage — status × kind matrix', () => {
         expect(bannerMessage(new Error('boom'), kind)).toBe(offline.message);
       }
     });
+
+    it('the network branch serves client copy through the translate callback (i18n-aware)', () => {
+      // The network state is CLIENT copy — the backend never answered, so
+      // there is no backend message to echo — and the i18n seam must reach
+      // it: the callback is called with the catalog key, never the raw
+      // fromNetwork() string.
+      const offline = ApiError.fromNetwork();
+      for (const kind of KINDS) {
+        expect(bannerMessage(offline, kind, (key) => `[tr:${key}]`)).toBe('[tr:error.network]');
+      }
+      // The non-ApiError throw funnels into the same branch (toApiError).
+      expect(bannerMessage(new Error('boom'), 'shelter', (key) => `[tr:${key}]`)).toBe(
+        '[tr:error.network]',
+      );
+    });
   });
 });

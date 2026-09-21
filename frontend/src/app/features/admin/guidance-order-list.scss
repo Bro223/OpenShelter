@@ -1,0 +1,65 @@
+@use './admin-shared';
+
+/* The hint above the guidance table (guidance-manual-order D6): muted
+   secondary text, same tokens as .admin-muted. */
+.admin-guidance-hint {
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+/* admin-locale-scope: the language line above the table — the posts shown
+   are the CONTENT language's (the other languages have their own lists). */
+.admin-guidance-scope {
+  margin: 0 0 var(--space-4, 0.5rem);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text, inherit);
+}
+
+/* The per-row move buttons (PRIMARY ordering mechanism). The buttons are
+   plain .btn — the 48px minimum-height global rule applies, so each is a
+   keyboard-reachable ≥48px target; they wrap on narrow screens (the
+   table already scrolls horizontally inside .admin-table-wrap). */
+.admin-guidance-move {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* The drag & drop target highlight (SECONDARY mechanism — a visual cue
+   only; the drop itself submits the same full list as the buttons). */
+.admin-row--drag-over {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* The list's title cell: hero thumbnail (only when the post has one) +
+   title/slug text. Draft rows are dimmed (the .admin-row--hidden rule). */
+.admin-guidance-title {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+  min-width: 180px;
+}
+
+.admin-guidance-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.admin-guidance-title__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.admin-guidance-title__name {
+  font-weight: var(--font-weight-semibold);
+}

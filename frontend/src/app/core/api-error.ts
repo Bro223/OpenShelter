@@ -131,7 +131,13 @@ export class ApiError extends Error {
     );
   }
 
-  /** Build for a network failure — the backend is unreachable (dev backend may be off). */
+  /** Build for a network failure — the backend is unreachable (dev backend
+   *  may be off). This message is a WIRE-LEVEL placeholder, not user copy:
+   *  the user-facing banner for this state is the `error.network` catalog
+   *  key, served by bannerMessage() (shared/error-copy.ts) through the
+   *  i18n seam. NOTE: one state on purpose — status 0 covers offline,
+   *  unreachable AND timeout alike (toApiError discards the raw
+   *  HttpErrorResponse reason), so do not branch on it for copy. */
   static fromNetwork(): ApiError {
     return new ApiError({
       timestamp: new Date().toISOString(),

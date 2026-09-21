@@ -66,6 +66,8 @@ const EXPECTED_TEMPLATES = [
   'src/app/features/account/verify-page.html',
   'src/app/features/admin/admin-page.html',
   'src/app/features/admin/guidance-editor.html',
+  'src/app/features/admin/guidance-order-list.html',
+  'src/app/features/admin/guidance-translations.html',
   'src/app/features/admin/site-texts-panel.html',
   'src/app/features/auth/login-page.html',
   'src/app/features/auth/register-page.html',
@@ -82,6 +84,7 @@ const EXPECTED_TEMPLATES = [
   'src/app/shared/consent-banner.component.html',
   'src/app/shared/loading-indicator.html',
   'src/app/shared/page-shell.html',
+  'src/app/shared/pagination.html',
   'src/app/shared/report-gauge.html',
 ];
 
@@ -91,12 +94,6 @@ const EXPECTED_TEMPLATES = [
  * staleness test below fails when an entry stops matching, so the list
  * cannot grow stale (a fixed file keeps its entry = hidden future
  * regressions).
- *
- * TEMP ADMIN ENTRIES (2026-09-21, N7 i18n-completeness): the admin lane
- * owns admin-page.ts/.html and was still mid-rewrite. Its two
- * aria-labels are untranslated copy this guard holds for that lane; the
- * moment that lane routes them through the t pipe (or removes them), the
- * staleness test fails and demands the entries' removal.
  */
 const ALLOWED_TEXT: Record<string, Record<string, string>> = {
   'features/account/verify-page.html': {
@@ -122,6 +119,10 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
     ':': 'punctuation spliced after the translated footer.dataSource label',
     '.': 'sentence-final period after the last footer link (like account.legal.tail)',
   },
+  'shared/pagination.html': {
+    '&larr;&nbsp;': 'decorative prev-arrow entity (punctuation, not copy)',
+    '&nbsp;&rarr;': 'decorative next-arrow entity (punctuation, not copy)',
+  },
   'features/map/map-page.html': {
     '·': 'nearest-line separator glyph (punctuation, not copy)',
     ':': 'punctuation spliced after the translated map.aroundYou label',
@@ -134,6 +135,9 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
     '”': 'closing quote glyph around the moderator note (punctuation, not copy)',
     '×': 'dimension separator between width/height figures (punctuation, not copy)',
   },
+  'features/admin/guidance-order-list.html': {
+    '—': 'empty-cell placeholder glyph (data absence, not copy)',
+  },
   'features/admin/site-texts-panel.html': {
     'https://': 'ASCII URL prefix spliced between the translated hint segments',
   },
@@ -143,13 +147,6 @@ const ALLOWED_ATTRS: Record<string, Record<string, string>> = {
   'features/account/account-page.html': {
     'placeholder="DELETE"':
       'arming word, not copy — the destructive confirm requires typing the English literal (the review decision: no key for an input arming word; pinned by the account lane)',
-  },
-  // TEMP — admin lane (see header): untranslated copy held for that lane.
-  'features/admin/admin-page.html': {
-    'aria-label="Guidance posts"':
-      'TEMP admin lane: untranslated copy; route through a t-pipe key and remove this entry (N7 i18n-completeness report)',
-    'aria-label="Media library"':
-      'TEMP admin lane: untranslated copy; route through a t-pipe key and remove this entry (N7 i18n-completeness report)',
   },
 };
 

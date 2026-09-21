@@ -421,6 +421,7 @@ export const EN: Messages = {
   'error.verifyBadCode': 'That code is invalid or has expired. Check it and try again.',
   'error.accountRateLimited': 'Too many requests. Please wait a moment and then try again.',
   'error.accountBadCode': 'That code is invalid or has expired. Please request a new one.',
+  'error.network': 'Cannot reach the backend. It may be offline — please try again later.',
 
   // --- account page (/account). Same verbatim rule: the EN strings ARE the
   // current committed account-surface template copy.
@@ -592,6 +593,15 @@ export const EN: Messages = {
   'guidance.localeFallback': 'This post is shown in {locale} — it is not available in {reader}.',
   'guidance.localeFallback.alternate': 'Read the {locale} version',
 
+  // --- list paging (list-page-paging: the shared prev/next + size control).
+  'pagination.aria': 'Pages',
+  'pagination.previous': 'Previous',
+  'pagination.next': 'Next',
+  'pagination.pageOf': 'Page {page} of {pages}',
+  'pagination.size': 'Per page',
+  'guidance.pageOutOfRange': 'Page {page} does not exist — the index ends at page {pages}.',
+  'guidance.pageFirst': 'Show the first page',
+
   // --- admin: guidance tab + editor + media library (crisis-guidance D8).
   'admin.retry': 'Retry',
 
@@ -633,7 +643,6 @@ export const EN: Messages = {
   'admin.shelters.col.occupancy': 'Occupancy',
   'admin.shelters.col.submitter': 'Submitter',
   'admin.shelters.col.actions': 'Actions',
-  'admin.shelters.source.registry': 'registry',
   'admin.shelters.status.hidden': 'Hidden',
   'admin.shelters.status.active': 'Active',
   'admin.shelters.history': 'History',
@@ -744,6 +753,7 @@ export const EN: Messages = {
   'admin.guidance.col.published': 'Published',
   'admin.guidance.col.updated': 'Updated',
   'admin.guidance.col.actions': 'Actions',
+  'admin.guidance.posts.aria': 'Guidance posts',
   'admin.guidance.order.hint':
     'The posts appear to visitors in this order — drag a row or use the move buttons.',
   'admin.guidance.move.top': 'To top',
@@ -893,6 +903,7 @@ export const EN: Messages = {
   'admin.media.col.uploaded': 'Uploaded',
   'admin.media.col.usedBy': 'Used by',
   'admin.media.col.actions': 'Actions',
+  'admin.media.library.aria': 'Media library',
   'admin.media.delete': 'Delete',
   'admin.media.delete.working': 'Checking…',
   'admin.media.delete.inUse':

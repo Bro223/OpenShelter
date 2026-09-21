@@ -2103,6 +2103,44 @@ describe('AdminPage', () => {
   // never offered the trigger).
 
 describe('translations (bilingual-guidance)', () => {
+  it('the section shows the loading state while the rows load', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    // The rows load is deliberately pending — the section stays in its
+    // loading state.
+    admin.listGuidanceTranslations.mockReturnValue(new Promise(() => {}));
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+
+    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
+      'Loading translations',
+    );
+  });
+
+  it('the section shows the empty state for a shell post with no translation rows', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.listGuidanceTranslations.mockResolvedValue([]);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+
+    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
+      'No translations yet',
+    );
+  });
+
   it('opening a post in edit mode loads its translation rows and offers only the missing locales', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
@@ -2458,50 +2496,10 @@ describe('translations (bilingual-guidance)', () => {
     return Array.from(row.querySelectorAll<HTMLButtonElement>('.admin-guidance-move button'));
   }
 
-  it('each row has three keyboard-reachable 48px move buttons, disabled at the boundaries', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
-    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-
-    const rows = element.querySelectorAll('tbody tr');
-    // Native <button>s (keyboard-reachable), each carrying the global .btn
-    // 48px minimum-height class.
-    for (const row of Array.from(rows)) {
-      const buttons = moveButtons(row);
-      expect(buttons.length).toBe(3);
-      for (const b of buttons) {
-        expect(b).toBeInstanceOf(HTMLButtonElement);
-        expect(b.classList.contains('btn')).toBe(true);
-      }
-    }
-    // First row: top AND up are disabled (nothing above it).
-    const first = moveButtons(rows[0]!);
-    expect(first[0]!.disabled).toBe(true);
-    expect(first[1]!.disabled).toBe(true);
-    expect(first[2]!.disabled).toBe(false);
-    // Last row: down is disabled (nothing below it).
-    const last = moveButtons(rows[2]!);
-    expect(last[0]!.disabled).toBe(false);
-    expect(last[1]!.disabled).toBe(false);
-    expect(last[2]!.disabled).toBe(true);
-  });
-
-  it('the move buttons announce the post and the direction (accessible names)', async () => {
-    admin.listShelters.mockResolvedValue([]);
-    admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
-    publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-
-    const rows = element.querySelectorAll('tbody tr');
-    const [top, up, down] = moveButtons(rows[1]!);
-    // Row 2 is 'Kolmas juhis' (id 13).
-    expect(top!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" to the top');
-    expect(up!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" up');
-    expect(down!.getAttribute('aria-label')).toBe('Move "Kolmas juhis" down');
-  });
+  // (The move buttons' PRESENTATION — the three 48px buttons, the
+  //  boundary disable-states, the accessible names — is pinned in
+  //  guidance-order-list.spec.ts, the panel that renders them; this
+  //  spec covers the same buttons through the page's DOM + gateway.)
 
   it('"Up" moves the row one step up, submits the FULL list, reorders in place — no reload', async () => {
     admin.listShelters.mockResolvedValue([]);
@@ -2546,19 +2544,19 @@ describe('translations (bilingual-guidance)', () => {
     expect(after[0]!.textContent).toContain('Uus juhis (mustand)');
   });
 
-  it('drag & drop: dragstart/dragover/drop submit the full list with the dragged row at the target position; dragend clears the highlight', async () => {
+  it('drag & drop: dragging a row onto another submits the full list with the dragged row at the target position; dragend clears the highlight', async () => {
     admin.listShelters.mockResolvedValue([]);
     admin.listGuidancePosts.mockResolvedValue(ORDERED_ROWS);
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
     admin.reorderGuidanceOrder.mockResolvedValue(undefined);
-    const { element, fixture, page: component } = await openAdmin();
+    const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
 
-    // jsdom cannot fully simulate a native drag, so the component handlers
-    // are driven directly with plain DragEvents carrying a fake dataTransfer
-    // (the row handlers wrap them one-to-one in the template).
-    const dragEvent = (): DragEvent => {
-      const e = new Event('dragstart', { bubbles: true, cancelable: true }) as DragEvent;
+    // jsdom cannot start a native drag, so plain DragEvents carrying a
+    // fake dataTransfer are dispatched at the ROWS — the panel's row
+    // bindings handle them one-to-one, exactly as in a real browser.
+    const dragEvent = (type: string): DragEvent => {
+      const e = new Event(type, { bubbles: true, cancelable: true }) as DragEvent;
       Object.defineProperty(e, 'dataTransfer', {
         value: { effectAllowed: '', dropEffect: '', setData: vi.fn() },
       });
@@ -2566,28 +2564,24 @@ describe('translations (bilingual-guidance)', () => {
     };
 
     // Drag row 1 (id 11) onto row 3 (id 12).
-    component.onGuidanceDragStart(dragEvent(), GUIDANCE_PUBLISHED);
-    expect(component.guidanceDragId).toBe(11);
-    component.onGuidanceDragOver(dragEvent(), GUIDANCE_DRAFT);
+    const rows = element.querySelectorAll('tbody tr');
+    rows[0]!.dispatchEvent(dragEvent('dragstart'));
+    rows[2]!.dispatchEvent(dragEvent('dragover'));
     fixture.detectChanges();
     // The drop target is highlighted.
-    expect(
-      element.querySelectorAll('tbody tr')[2]!.classList.contains('admin-row--drag-over'),
-    ).toBe(true);
+    expect(rows[2]!.classList.contains('admin-row--drag-over')).toBe(true);
 
-    component.onGuidanceDrop(dragEvent(), GUIDANCE_DRAFT);
+    rows[2]!.dispatchEvent(dragEvent('drop'));
     await settle(fixture);
-    // 11 moved to the last position: [13, 12, 11].
+    // 11 moved to the last position: [13, 12, 11] — and the table
+    // reordered in place from the confirmed list (no reload).
     expect(admin.reorderGuidanceOrder).toHaveBeenCalledWith([13, 12, 11], 'en');
+    expect(admin.listGuidancePosts).toHaveBeenCalledTimes(1);
 
-    component.onGuidanceDragEnd();
+    rows[0]!.dispatchEvent(dragEvent('dragend'));
     fixture.detectChanges();
-    expect(component.guidanceDragId).toBeNull();
-    // The highlight is gone again (the signal is protected — the class is
-    // the observable state).
-    expect(
-      element.querySelectorAll('tbody tr')[2]!.classList.contains('admin-row--drag-over'),
-    ).toBe(false);
+    // The highlight is gone again (the class is the observable state).
+    expect(rows[2]!.classList.contains('admin-row--drag-over')).toBe(false);
   });
 
   it('a rejected reorder (400) keeps the last confirmed order and shows the error', async () => {
@@ -2793,13 +2787,16 @@ describe('translations (bilingual-guidance)', () => {
 
   // ---- admin table badges: compact, content-sized labels -------------------
 
-  it('the table badges size to their content — no cell stretch, no mid-label wrap (admin-page.scss)', () => {
+  it('the table badges size to their content — no cell stretch, no mid-label wrap (_admin-shared.scss)', () => {
+    // The .badge rule is the shared admin surface: the single source is
+    // the _admin-shared.scss partial (@used by the page and every tab
+    // panel that renders badges), so the pin reads the partial.
     const scss = readFileSync(
-      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+      `${process.cwd()}/src/app/features/admin/_admin-shared.scss`,
       'utf8',
     );
     const badge = scss.match(/\.badge \{[\s\S]*?\n\}/);
-    expect(badge, 'admin-page.scss must keep the .badge rule').not.toBeNull();
+    expect(badge, '_admin-shared.scss must keep the .badge rule').not.toBeNull();
     const rule = badge![0];
     // The pill is exactly its label's width: the name cell's inner flex
     // wrapper (.admin-cell__name-body, the table-separator fix) is a

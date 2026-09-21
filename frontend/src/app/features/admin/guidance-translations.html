@@ -1,0 +1,81 @@
+<section class="admin-guidance-translations">
+  <h3 class="admin-guidance-translations__heading">{{
+    'admin.guidance.editor.translations.title' | t
+  }}</h3>
+  @if (rows() === null) {
+    <p class="admin-guidance-translations__state">{{
+      'admin.guidance.editor.translations.loading' | t
+    }}</p>
+  } @else if ((rows() ?? []).length === 0) {
+    <p class="admin-guidance-translations__state">{{
+      'admin.guidance.editor.translations.empty' | t
+    }}</p>
+  } @else {
+    <ul class="admin-guidance-translations__list" role="list">
+      @for (tr of rows() ?? []; track tr.locale) {
+        <li class="admin-guidance-translations__row">
+          <span class="admin-guidance-translations__locale">{{ tr.locale }}</span>
+          @if (tr.locale === homeLocale) {
+            <span class="badge badge--draft">{{
+              'admin.guidance.editor.translations.home' | t
+            }}</span>
+          }
+          <span class="admin-guidance-translations__slug">{{ tr.slug }}</span>
+          @if (translationTarget() === null && tr.locale !== homeLocale) {
+            @if (!armed(tr.locale)) {
+              <button
+                type="button"
+                class="btn btn--ghost"
+                [attr.data-confirm-trigger]="tr.locale"
+                (click)="onRequestDelete(tr.locale)"
+                [disabled]="busy()"
+              >
+                {{ 'admin.guidance.editor.translations.delete' | t }}
+              </button>
+            } @else {
+              <!-- two-tap confirm (no window.confirm, the app's
+                   inline style). The shared ConfirmAction owns
+                   the state machine, the focus move onto
+                   Confirm and the focus return on Cancel. -->
+              <span class="admin-confirm" role="status">{{
+                'admin.guidance.editor.translations.delete.confirm' | t
+                  : { locale: tr.locale }
+              }}</span>
+              <button
+                type="button"
+                class="btn btn--danger"
+                [attr.data-confirm-focus]="tr.locale"
+                (click)="onConfirmDelete(tr.locale)"
+                [disabled]="busy()"
+              >
+                {{
+                  busy()
+                    ? ('admin.guidance.working' | t)
+                    : ('admin.guidance.delete.confirmButton' | t)
+                }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--ghost"
+                (click)="onCancelDelete()"
+                [disabled]="busy()"
+              >
+                {{ 'admin.guidance.delete.cancel' | t }}
+              </button>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+  @for (l of addableLocales(); track l) {
+    <button
+      type="button"
+      class="btn btn--ghost admin-guidance-translations__add"
+      (click)="onStart(l)"
+      [disabled]="busy() || translationTarget() !== null"
+    >
+      {{ 'admin.guidance.editor.translations.add' | t: { locale: l } }}
+    </button>
+  }
+</section>

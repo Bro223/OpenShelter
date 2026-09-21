@@ -7,6 +7,7 @@ import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { ET } from '../../core/i18n/et';
+import { RU } from '../../core/i18n/ru';
 import type { MeResponse, TokenResponse } from '../../core/models';
 import { LoginPage } from './login-page';
 
@@ -300,6 +301,49 @@ describe('LoginPage', () => {
 
     expect(bannerText(element).trim()).toBe(ET['error.serverError']);
     expect(bannerText(element).trim()).toBe('Midagi läks valesti. Palun proovi uuesti.');
+  });
+
+  it('renders the network-error banner in the active locale (et) — the offline state is a catalog key', async () => {
+    // Proof the status-0 (network) branch is catalog-reachable: before the
+    // fix bannerMessage() echoed ApiError.message verbatim and that message
+    // is a hardcoded EN string built in ApiError.fromNetwork() — so this
+    // banner could never render in Estonian (or Russian).
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('et');
+    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockRejectedValue(ApiError.fromNetwork());
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(bannerText(element).trim()).toBe(ET['error.network']);
+    expect(bannerText(element).trim()).toBe(
+      'Serveriga ei õnnestu ühendust luua. Võib-olla puudub võrguühendus — proovi hiljem uuesti.',
+    );
+  });
+
+  it('renders the network-error banner in the active locale (ru) — the offline state is a catalog key', async () => {
+    // Same proof for the third locale (ru); one offline state, one key —
+    // ApiError does not distinguish offline / unreachable / timeout, so
+    // there is one translated line for all of them.
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('ru');
+    await i18n.ensureCatalog('ru'); // bundle-lazy-i18n: the ru chunk is on demand
+
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    gateway.login.mockRejectedValue(ApiError.fromNetwork());
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(bannerText(element).trim()).toBe(RU['error.network']);
+    expect(bannerText(element).trim()).toBe(
+      'Не удалось подключиться к серверу. Возможно, нет соединения — повторите попытку позже.',
+    );
   });
 
   it('shows an info note when bounced here with ?session=expired', async () => {

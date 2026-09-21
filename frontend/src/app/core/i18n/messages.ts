@@ -520,6 +520,13 @@ export interface Messages {
   'error.verifyBadCode': string;
   'error.accountRateLimited': string;
   'error.accountBadCode': string;
+  /** The network/transport-failure banner (ApiError.isNetworkError,
+   *  status 0): the backend never answered at all. ONE state on purpose —
+   *  ApiError does not distinguish offline / unreachable / timeout (all
+   *  arrive as status 0 with one message), so one honest key, not three.
+   *  The backend cannot have authored this copy — there was no response —
+   *  so it is client copy and a catalog key, like the other error.* lines. */
+  'error.network': string;
 
   // --- account page (/account, AuthGuard): identity, contacts, the
   // cross-channel change flows, your data, delete + legal links.
@@ -711,6 +718,15 @@ export interface Messages {
    *  `{locale}` is the reader's locale code. */
   'guidance.localeFallback.alternate': string;
 
+  // --- list paging (list-page-paging: the shared prev/next + size control).
+  'pagination.aria': string;
+  'pagination.previous': string;
+  'pagination.next': string;
+  'pagination.pageOf': string;
+  'pagination.size': string;
+  'guidance.pageOutOfRange': string;
+  'guidance.pageFirst': string;
+
   // --- admin: guidance tab + editor + media library (crisis-guidance D8).
   // The admin surface is i18n'd from the guidance tabs on: every string
   // below runs through the `t` pipe; post TITLES/BODIES are admin copy
@@ -776,7 +792,6 @@ export interface Messages {
   'admin.shelters.col.submitter': string;
   'admin.shelters.col.actions': string;
   /** The muted hint on registry (import-owned) rows. */
-  'admin.shelters.source.registry': string;
   'admin.shelters.status.hidden': string;
   'admin.shelters.status.active': string;
   'admin.shelters.history': string;
@@ -920,6 +935,8 @@ export interface Messages {
   'admin.guidance.col.published': string;
   'admin.guidance.col.updated': string;
   'admin.guidance.col.actions': string;
+  /** Accessible name of the keyboard-focusable posts table region. */
+  'admin.guidance.posts.aria': string;
   // Manual ordering (guidance-manual-order D6): the hint above the list
   // and the per-row move buttons (visible labels + the accessible names
   // that name the post and the direction — a screen reader announces
@@ -1104,6 +1121,8 @@ export interface Messages {
   'admin.media.col.uploaded': string;
   'admin.media.col.usedBy': string;
   'admin.media.col.actions': string;
+  /** Accessible name of the keyboard-focusable media table region. */
+  'admin.media.library.aria': string;
   'admin.media.delete': string;
   /** The first tap is in flight (the API decides: 200 gone / 409 in-use). */
   'admin.media.delete.working': string;

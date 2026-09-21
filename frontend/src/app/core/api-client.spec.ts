@@ -90,6 +90,41 @@ describe('ApiClient', () => {
       expect(deleteReq.request.method).toBe('DELETE');
       deleteReq.flush(null);
     });
+
+    it('getWithHeaders delivers the body AND the response headers (the paging seam)', () => {
+      const results: Array<{ body: unknown; headers: unknown }> = [];
+      client.getWithHeaders<{ ok: boolean }>('/api/guidance').subscribe((value) => {
+        results.push(value);
+      });
+      const req = httpMock.expectOne(`${environment.apiUrl}/api/guidance`);
+      req.flush({ ok: true }, { status: 200, statusText: 'OK', headers: { 'X-Total-Count': '27' } });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].body).toEqual({ ok: true });
+      // The header is readable by name — the X-Total-Count contract.
+      const headers = results[0].headers as { get(name: string): string | null };
+      expect(headers.get('X-Total-Count')).toBe('27');
+      expect(headers.get('X-Absent')).toBeNull();
+    });
+
+    it('getWithHeaders maps failures to the SAME ApiError as get', () => {
+      let error: unknown;
+      client.getWithHeaders<void>('/boom').subscribe({ error: (e) => (error = e) });
+      const req = httpMock.expectOne(`${environment.apiUrl}/boom`);
+      req.flush(
+        {
+          timestamp: 't',
+          status: 400,
+          error: 'Bad Request',
+          message: 'limit must be between 1 and 200',
+          path: '/boom',
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).status).toBe(400);
+      expect((error as ApiError).message).toBe('limit must be between 1 and 200');
+    });
   });
 
   describe('network failures', () => {

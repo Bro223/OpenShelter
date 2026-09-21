@@ -428,6 +428,7 @@ export const ET: Messages = {
   'error.verifyBadCode': 'See kood on kehtetu või aegunud. Kontrolli ja proovi uuesti.',
   'error.accountRateLimited': 'Liiga palju taotlusi. Palun oota hetke ja proovi uuesti.',
   'error.accountBadCode': 'See kood on kehtetu või aegunud. Palun taotle uus.',
+  'error.network': 'Serveriga ei õnnestu ühendust luua. Võib-olla puudub võrguühendus — proovi hiljem uuesti.',
 
   // --- konto leht (/account). Brand name ja ametlikud asutused jäävad
   // niisama nagu kogu sõnastikus.
@@ -603,6 +604,15 @@ export const ET: Messages = {
     'Näidatud on {locale} keele versioon — see juhistepost ei ole saadaval {reader} keeles.',
   'guidance.localeFallback.alternate': 'Loe {locale} keele versioon',
 
+  // --- nimekirjakuju (list-page-paging: jagatud eelnev/järgnev + suuruse valik).
+  'pagination.aria': 'Leheküljed',
+  'pagination.previous': 'Eelmine',
+  'pagination.next': 'Järgmine',
+  'pagination.pageOf': 'Leht {page} / {pages}',
+  'pagination.size': 'Ühel lehel',
+  'guidance.pageOutOfRange': 'Lehe {page} ei ole — nimestik lõppeb lehel {pages}.',
+  'guidance.pageFirst': 'Näita esimest lehte',
+
   // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance D8).
   'admin.retry': 'Proovi uuesti',
 
@@ -644,7 +654,6 @@ export const ET: Messages = {
   'admin.shelters.col.occupancy': 'Täitumus',
   'admin.shelters.col.submitter': 'Esitaja',
   'admin.shelters.col.actions': 'Tegevused',
-  'admin.shelters.source.registry': 'registrist',
   'admin.shelters.status.hidden': 'Peidetud',
   'admin.shelters.status.active': 'Aktiivne',
   'admin.shelters.history': 'Ajalugu',
@@ -755,6 +764,7 @@ export const ET: Messages = {
   'admin.guidance.col.published': 'Avaldatud',
   'admin.guidance.col.updated': 'Muudetud',
   'admin.guidance.col.actions': 'Tegevused',
+  'admin.guidance.posts.aria': 'Juhised',
   'admin.guidance.order.hint':
     'Postid ilmuvad külastajatele selles järjekorras — lohista rida või kasuta nuppe.',
   'admin.guidance.move.top': 'Üles otsa',
@@ -905,6 +915,7 @@ export const ET: Messages = {
   'admin.media.col.uploaded': 'Üles laaditud',
   'admin.media.col.usedBy': 'Kasutavad',
   'admin.media.col.actions': 'Tegevused',
+  'admin.media.library.aria': 'Meediakogumik',
   'admin.media.delete': 'Kusta',
   'admin.media.delete.working': 'Kontrollin…',
   'admin.media.delete.inUse':

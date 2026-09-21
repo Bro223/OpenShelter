@@ -34,6 +34,13 @@ export const COPY = {
   // body (e.g. a reverse-proxy HTML error page) must never be echoed into
   // the banner verbatim.
   serverError: 'Something went wrong. Please try again.',
+  // Network/transport failure (ApiError.isNetworkError, status 0): the
+  // backend NEVER answered — there is no backend message to echo. This is
+  // CLIENT copy, so it is a catalog key like the other client-authored
+  // lines (error.network). ONE string on purpose: ApiError does not
+  // distinguish offline / unreachable / timeout (all arrive as status 0
+  // with this one message — see ApiError.fromNetwork), so one honest line.
+  network: 'Cannot reach the backend. It may be offline — please try again later.',
 } as const;
 
 export type ErrorKind =
@@ -83,9 +90,12 @@ function isFieldValidation400(kind: ErrorKind, message: string): boolean {
  * the i18n-aware seam for bannerMessage(). When a translate callback is
  * passed, the client copy is served through it (the active locale); server-
  * provided messages (ApiError.message) are still echoed as-is — they are
- * backend copy and not catalog keys. Callers that pass no callback get the
- * legacy English constants (behavior unchanged — the auth pages, map, etc.
- * keep their current banner copy).
+ * backend copy and not catalog keys. The NETWORK branch is the one
+ * exception to the echo rule: a status-0 error has no backend message at
+ * all (the hardcoded fromNetwork() line is a placeholder, not copy), so it
+ * is served through the seam too, as error.network. Callers that pass no
+ * callback get the legacy English constants (behavior unchanged — the auth
+ * pages, map, etc. keep their current banner copy).
  */
 export type ErrorCopyKey =
   | 'error.rateLimited'
@@ -96,7 +106,8 @@ export type ErrorCopyKey =
   | 'error.verifyRateLimited'
   | 'error.verifyBadCode'
   | 'error.accountRateLimited'
-  | 'error.accountBadCode';
+  | 'error.accountBadCode'
+  | 'error.network';
 
 /** The legacy English copy behind each key (the default when no callback). */
 const CLIENT_COPY: Record<ErrorCopyKey, string> = {
@@ -109,6 +120,7 @@ const CLIENT_COPY: Record<ErrorCopyKey, string> = {
   'error.verifyBadCode': COPY.verifyBadCode,
   'error.accountRateLimited': COPY.accountRateLimited,
   'error.accountBadCode': COPY.accountBadCode,
+  'error.network': COPY.network,
 };
 
 export function bannerMessage(
@@ -120,7 +132,13 @@ export function bannerMessage(
     translate === undefined ? CLIENT_COPY[key] : translate(key);
   const api = error instanceof ApiError ? error : toApiError(error);
   if (api.isNetworkError) {
-    return api.message;
+    // Client copy, not a backend message: the backend never answered (no
+    // HTTP response at all — offline / unreachable / timeout, one state in
+    // ApiError), so there is nothing to echo. Served through the seam; a
+    // caller with no callback gets the legacy English constant (COPY.network
+    // is byte-identical to ApiError.fromNetwork's message, so behavior is
+    // unchanged for them).
+    return tr('error.network');
   }
   switch (api.status) {
     case 429:

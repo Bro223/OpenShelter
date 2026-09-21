@@ -1,0 +1,278 @@
+/* ==========================================================================
+   SHARED ADMIN SURFACE — the table / badge / confirm / reason / history
+   rules every admin tab panel renders (admin-page + the extracted admin
+   panels). The single source: each consumer @uses this partial, so a
+   change lands in every admin context at once — no per-file forks.
+
+   All action targets use the global .btn (48px min-height); the token
+   set is the app-wide one.
+   ========================================================================== */
+
+/* ---- loading / empty / load-error states ---------------------------------- */
+.admin-state {
+  color: var(--color-muted);
+  margin: var(--space-8) 0;
+  font-size: var(--text-md);
+
+  &--error {
+    color: var(--color-danger);
+  }
+}
+
+/* ---- admin tables ---------------------------------------------------------- */
+/* Keyboard handle for the horizontally scrollable tables (WCAG 2.1.1):
+   each wrapper is a labelled, focusable region (tabindex="0" +
+   role="region" in the template), so a keyboard user can scroll it and the
+   focus ring shows which table has focus. */
+.admin-table-wrap {
+  overflow-x: auto;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-md);
+
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: var(--space-8) var(--space-12);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  th {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .admin-table__actions-head {
+    white-space: nowrap;
+  }
+}
+
+/* The width hints live on the real table cell (the column's floor).
+   The flex LAYOUT lives on the inner __*-body wrapper div, never on the
+   td itself: display:flex on a td demotes it from table-cell to a
+   block-level flex box, so the border-bottom from the .admin-table
+   th,td rule is then painted at the box's content height instead of the
+   row's bottom — whenever a sibling cell is taller, the row separator
+   splits into two segments at different heights (the owner-reported
+   staggered line breaking near the middle of the row). With every td a
+   real table cell, border-collapse: collapse fuses the per-cell rules
+   into ONE continuous line across the whole row, at every width. */
+.admin-cell--name {
+  min-width: 180px;
+
+  a {
+    font-weight: var(--font-weight-semibold);
+  }
+}
+
+.admin-cell--actions {
+  min-width: 220px;
+}
+
+.admin-cell__name-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-cell__actions-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* The timestamp/status columns never wrap (the row stays one line tall). */
+.admin-cell--nowrap {
+  white-space: nowrap;
+}
+
+/* Hidden (INACTIVE) rows: dimmed — the badge says WHY, the row shows it's
+   not on the public list. (Reported/closed flag badges keep their colour.) */
+.admin-row--hidden td {
+  opacity: 0.65;
+}
+
+/* Muted secondary text (addresses, "—", "Active"). */
+.admin-muted {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+/* The registry marker next to the source badge (D4: import-owned rows). */
+.admin-hint {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  margin-left: var(--space-4);
+}
+
+/* Two-tap delete confirm strip (the contributions panel's inline style). */
+.admin-confirm {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+/* The inline reason editors (reject / info question / mark-inaccurate):
+   the form vocabulary from the rest of the app — label + textarea +
+   error line, the 48px-minimum buttons from the global .btn. */
+.admin-reason {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: min(320px, 100%);
+
+  label {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  textarea {
+    min-height: var(--space-96);
+    resize: vertical;
+    font-size: var(--text-base);
+  }
+
+  &__error {
+    font-size: var(--text-sm);
+    color: var(--color-error);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-8);
+  }
+}
+
+/* Inline shelter-row panels: a muted, small, read-only
+   expansion under the row — one line per event, the field
+   changes wrap under their event on narrow widths. */
+.admin-history {
+  background: var(--color-bg-subtle);
+  padding: var(--space-4);
+}
+
+.admin-history__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-history__event {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  padding: var(--space-2) 0;
+}
+
+.admin-history__event + .admin-history__event {
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-history__action {
+  font-weight: var(--font-weight-medium);
+}
+
+.admin-history__actor,
+.admin-history__time {
+  color: var(--color-muted);
+}
+
+.admin-history__change {
+  flex-basis: 100%;
+  color: var(--color-muted);
+}
+
+/* ---- source/trust badges ------------------------------------------------
+   The same pill vocabulary as the map rows / shelter-detail header (which
+   duplicate the block per feature); the tokens are the app-wide ones.
+   Content-sized in EVERY admin context: the name cell's inner flex wrapper
+   (.admin-cell__name-body, the table-separator fix) is a COLUMN flex, so
+   a badge that is a direct child of it would inherit the container's
+   default cross-axis stretch and render as a FULL-WIDTH bar (the
+   owner-reported "badges are too long" — e.g. the private-home badge in
+   the unconfirmed queue's name cell). width: fit-content sizes the pill
+   to its label and disables that stretch; flex: 0 0 auto keeps it
+   content-sized on the main axis in the row flex contexts (queue titles,
+   action bodies); white-space: nowrap keeps the label on one line (the
+   long ET/RU values stay one line — long, not wrapped). */
+.badge {
+  display: inline-block;
+  width: fit-content;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-badge-registry);
+  color: var(--color-shelter-registry);
+  margin-right: var(--space-4);
+  /* Breathing room below the pill (owner fix): the badge must not sit
+     flush against the row's other content; --space-2 is exactly 2px. */
+  margin-bottom: var(--space-2);
+
+  &.badge--user {
+    background: var(--color-badge-user);
+    color: var(--color-shelter-user);
+  }
+
+  /* New community state (community-review-queue D5): the amber trust badge —
+     the --color-badge-new fill with the dark-amber --color-warning text
+     (contrast pair pinned in design-tokens.spec.ts). */
+  &.badge--new {
+    background: var(--color-badge-new);
+    color: var(--color-warning);
+  }
+
+  /* Private-home declaration (D7): the NEUTRAL chip — a description of
+     what the location is, not a state. */
+  &.badge--private {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* "Hidden" / "Dismissed": the NEUTRAL chip (occupancy language) —
+     visibility state, not an alarm. */
+  &.badge--hidden {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+
+  /* "Inaccurate": the moderator flag — the warning token
+     pair (the same amber the public UI uses for the fresh-CLOSED badge). */
+  &.badge--inaccurate {
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
+    color: var(--color-warning);
+  }
+
+  /* Guidance status (crisis-guidance D8): PUBLISHED = the green
+     source-badge pair (a live state, the badge--user language); DRAFT =
+     the neutral visibility chip (badge--hidden language — a state, not an
+     alarm). */
+  &.badge--published {
+    background: var(--color-badge-user);
+    color: var(--color-shelter-user);
+  }
+
+  &.badge--draft {
+    background: var(--color-bg-subtle);
+    border: 1px solid var(--color-border);
+    color: var(--color-muted);
+  }
+}

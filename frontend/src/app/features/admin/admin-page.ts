@@ -38,6 +38,12 @@ import type {
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
+import {
+  ALERT_KIND_LABEL,
+  AUDIT_ACTION_LABEL,
+  SHELTER_HISTORY_ACTION_LABEL,
+  SHELTER_REPORT_TYPE_LABEL,
+} from '../../shared/admin-copy';
 import { nameBlankValidator } from '../../shared/form-helpers';
 import {
   occupancyText as occupancyTextShared,
@@ -58,6 +64,8 @@ import type { Locale } from '../../core/i18n/locale';
 import { LOCALES } from '../../core/i18n/locale';
 import { ApiError } from '../../core/api-error';
 import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
+import { GuidanceOrderList } from './guidance-order-list';
+import { GuidanceTranslations } from './guidance-translations';
 import { SiteTextsPanel } from './site-texts-panel';
 
 registerLocaleData(localeEnGB, 'en-GB');
@@ -84,57 +92,6 @@ export const REJECT_REASON_MAX = 500;
 /** The info-request question's hard limit — mirrored by the backend
  *  contract (V19 column bound): required, at most 2000. */
 export const INFO_REQUEST_MAX = 2000;
-
-/** Shelter-report type labels (queue column + row meta). OPEN_CONFIRMED
- *  stays mapped for historical rows — the detail-page picker no longer
- *  offers it (server-side deprecation), the queue renders it read-only. */
-export const SHELTER_REPORT_TYPE_LABEL: Record<ShelterReportType, string> = {
-  NON_EXISTENT: 'Does not exist',
-  CLOSED: 'Reported closed',
-  OPEN_CONFIRMED: 'Confirmed open',
-  WRONG_LOCATION: 'Wrong location',
-  OTHER: 'Other',
-};
-
-/** Audit-log action labels (community-review-queue): human copy for the
- *  machine action values. */
-export const AUDIT_ACTION_LABEL: Record<AdminAuditAction, string> = {
-  STATUS_CHANGE: 'Status change',
-  DELETE: 'Delete',
-  REPORT_DISMISS: 'Report dismissed',
-  REVIEW_HIDE: 'Review hidden',
-  REVIEW_RESTORE: 'Review restored',
-  CONFIRM: 'Confirmed',
-  AUTO_CONFIRM: 'Auto-confirmed',
-  REJECT: 'Rejected',
-  USER_SUSPEND: 'User suspended',
-  USER_UNSUSPEND: 'User unsuspended',
-  MARK_INACCURATE: 'Marked inaccurate',
-  CLEAR_INACCURATE: 'Inaccurate cleared',
-  // Guidance/media rows (crisis-guidance D12): the subject is the row's
-  // subjectLabel snapshot ("Guidance post \"…\" (slug)" / "Media asset
-  // \"…\" (stored)") — the tab's Subject column renders it verbatim.
-  GUIDANCE_PUBLISH: 'Guidance published',
-  GUIDANCE_UNPUBLISH: 'Guidance unpublished',
-  GUIDANCE_DELETE: 'Guidance post deleted',
-  GUIDANCE_REORDER: 'Guidance order changed',
-  MEDIA_DELETE: 'Media asset deleted',
-};
-
-/** Shelter-history action labels (the Shelters-tab panel). */
-export const SHELTER_HISTORY_ACTION_LABEL: Record<AdminShelterHistoryEvent['action'], string> = {
-  CREATED: 'Created',
-  EDITED: 'Edited',
-  DELETED: 'Deleted',
-};
-
-/** Alert kind labels (abuse-limits): human copy for the
- *  machine kind values. */
-export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
-  'submission-daily-cap': 'Daily submission cap',
-  'otp-contact-cap': 'OTP contact cap',
-  'near-duplicate': 'Near-duplicate submission',
-};
 
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
@@ -206,6 +163,8 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
     LoadingIndicator,
     TranslatePipe,
     GuidanceEditor,
+    GuidanceOrderList,
+    GuidanceTranslations,
     SiteTextsPanel,
   ],
   templateUrl: './admin-page.html',
@@ -327,17 +286,10 @@ export class AdminPage implements OnInit, OnDestroy {
    *  each carrying that locale's content, in the stored global manual order. */
   protected readonly guidanceRows = signal<AdminGuidancePostDto[] | null>(null);
   protected readonly guidanceLoadError = signal<string | null>(null);
-  /** The drag-&-drop target row (guidance-manual-order D6, SECONDARY
-   *  mechanism — the PRIMARY is the always-available move buttons); null
-   *  while nothing is being dragged. */
-  protected readonly guidanceDropTarget = signal<number | null>(null);
-  /** The row being dragged (null otherwise). A field, not a signal: it
-   *  only feeds the drop computation, nothing is rendered from it. */
-  guidanceDragId: number | null = null;
   /** The Published column's instants (slug -> publishedAt). The admin DTO
    *  carries NO publishedAt — the instants live in the permit-all public
    *  index, which this map merges (a failed merge degrades the column to
-   *  "—", never the list). */
+   *  "—", never the list). The order-list panel renders it. */
   protected readonly publishedAtBySlug = signal<Map<string, string>>(new Map());
   /** The open editor: null = closed; 'new' = create mode; a post = edit
    *  mode (the id-keyed GET result — the row's copy may be stale). */
@@ -1115,15 +1067,6 @@ export class AdminPage implements OnInit, OnDestroy {
       .catch(() => this.publishedAtBySlug.set(new Map()));
   }
 
-  /** The Published column's instant (PUBLISHED rows only; null = the merge
-   *  has no entry for the slug yet — the column renders "—"). */
-  protected publishedAtFor(row: AdminGuidancePostDto): string | null {
-    if (row.status !== 'PUBLISHED') {
-      return null;
-    }
-    return this.publishedAtBySlug().get(row.slug) ?? null;
-  }
-
   /**
    * Open the editor. Create mode opens directly (the form is prefilled
    * with the CONTENT language — the post is created in it); edit mode
@@ -1465,14 +1408,6 @@ export class AdminPage implements OnInit, OnDestroy {
       });
   }
 
-  /** The locales the add-buttons offer: every supported locale minus the
-   *  ones the post already has a translation row in (the list loads
-   *  locale-ordered; an empty list offers every locale). */
-  protected translationAddableLocales(): string[] {
-    const rows = this.guidanceTranslations() ?? [];
-    return LOCALES.filter((l) => !rows.some((t) => t.locale === l));
-  }
-
   /** Arm the editor for a NEW translation in `locale`: the template's
    *  branch switch recreates it in translation-authoring mode, prefilled
    *  from the on-screen row (the admin translates from what they see).
@@ -1534,89 +1469,11 @@ export class AdminPage implements OnInit, OnDestroy {
 
   // ---- Manual ordering (guidance-manual-order D6) ------------------------------
   //
-  // PRIMARY: the keyboard-reachable move buttons (top/up/down — 48px, the
-  // global .btn); SECONDARY: native HTML5 drag & drop on the rows. BOTH
-  // submit the same FULL ordered id list via PUT /admin/guidance/order;
-  // the server renumbers 1..N and the table reorders in place from the
-  // submitted list (no reload). A rejected (400) submission leaves the
-  // last confirmed order untouched and shows the error banner.
-
-  /** The row index for a move-button disable-state (boundary). */
-  protected guidanceIndex(row: AdminGuidancePostDto): number {
-    return (this.guidanceRows() ?? []).findIndex((r) => r.id === row.id);
-  }
-
-  /** Move one post to the top / one step up / one step down (PRIMARY
-   *  mechanism). The boundary buttons are disabled in the template; the
-   *  guards here are the same bounds as a safety net. */
-  moveGuidancePost(id: number, direction: 'top' | 'up' | 'down'): void {
-    const rows = this.guidanceRows() ?? [];
-    const index = rows.findIndex((r) => r.id === id);
-    if (index < 0 || this.busy()) {
-      return;
-    }
-    const target = direction === 'top' ? 0 : direction === 'up' ? index - 1 : index + 1;
-    if (target < 0 || target >= rows.length) {
-      return;
-    }
-    const next = [...rows];
-    const [moved] = next.splice(index, 1);
-    next.splice(target, 0, moved);
-    void this.submitGuidanceOrder(next);
-  }
-
-  /** dragstart: remember which row the drag started on. */
-  onGuidanceDragStart(event: DragEvent, row: AdminGuidancePostDto): void {
-    this.guidanceDragId = row.id;
-    // Without a dataTransfer payload some browsers do not start the drag.
-    // (jsdom leaves dataTransfer UNDEFINED — the truthy guard covers both
-    // null and undefined.)
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', String(row.id));
-    }
-  }
-
-  /** dragover: allow the drop (prevents the browser's default navigation)
-   *  and mark the row the cursor is over as the drop target. */
-  onGuidanceDragOver(event: DragEvent, row: AdminGuidancePostDto): void {
-    if (this.guidanceDragId === null) {
-      return;
-    }
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-    this.guidanceDropTarget.set(row.id);
-  }
-
-  /** drop: the dragged row takes the target's position; submit the new
-   *  full list (SECONDARY mechanism — the same endpoint as the buttons). */
-  onGuidanceDrop(event: DragEvent, targetRow: AdminGuidancePostDto): void {
-    event.preventDefault();
-    const draggedId = this.guidanceDragId;
-    this.guidanceDragId = null;
-    this.guidanceDropTarget.set(null);
-    if (draggedId === null || draggedId === targetRow.id || this.busy()) {
-      return;
-    }
-    const rows = this.guidanceRows() ?? [];
-    const from = rows.findIndex((r) => r.id === draggedId);
-    const to = rows.findIndex((r) => r.id === targetRow.id);
-    if (from < 0 || to < 0) {
-      return; // stale list (a concurrent change) — nothing to submit
-    }
-    const next = [...rows];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    void this.submitGuidanceOrder(next);
-  }
-
-  /** dragend: the drag finished (anywhere) — clear the highlight. */
-  onGuidanceDragEnd(): void {
-    this.guidanceDragId = null;
-    this.guidanceDropTarget.set(null);
-  }
+  // The interaction (move buttons, drag & drop, the drop-target
+  // highlight, the per-row reorder computation) lives in
+  // GuidanceOrderList; it emits the FULL ordered list and the page
+  // submits it below. The list order IS the public order; the server
+  // renumbers 1..N and the table reorders in place (no reload).
 
   /** The shared submission: PUT /admin/guidance/order with the FULL
    *  submitted order — SCOPEd to the CONTENT language (admin-locale-scope
@@ -1627,7 +1484,7 @@ export class AdminPage implements OnInit, OnDestroy {
    *  204 is the confirmation); a failure (400 stale / unknown /
    *  not-visible-in-the-locale list, or the network) KEEPS the last
    *  confirmed order and shows the error banner. */
-  private async submitGuidanceOrder(nextRows: AdminGuidancePostDto[]): Promise<void> {
+  async submitGuidanceOrder(nextRows: AdminGuidancePostDto[]): Promise<void> {
     if (this.busy()) {
       return;
     }

@@ -279,11 +279,6 @@
                   @if (isPrivateLocation(row)) {
                     <span class="badge badge--private">{{ privateLocationBadge }}</span>
                   }
-                  <!-- D4: registry rows are import-owned — no actions, the
-                       hint is the muted "registry" marker. -->
-                  @if (row.source !== 'USER') {
-                    <span class="admin-hint">{{ 'admin.shelters.source.registry' | t }}</span>
-                  }
                 </td>
                 <td>
                   @if (row.status === 'INACTIVE') {
@@ -898,305 +893,37 @@
              the trigger). Editing an existing one is the ordinary scoped
              edit (the content-language select). -->
         @if (guidanceEditorPost(); as p) {
-          <section class="admin-guidance-translations">
-            <h3 class="admin-guidance-translations__heading">{{
-              'admin.guidance.editor.translations.title' | t
-            }}</h3>
-            @if (guidanceTranslations() === null) {
-              <p class="admin-guidance-translations__state">{{
-                'admin.guidance.editor.translations.loading' | t
-              }}</p>
-            } @else if ((guidanceTranslations() ?? []).length === 0) {
-              <p class="admin-guidance-translations__state">{{
-                'admin.guidance.editor.translations.empty' | t
-              }}</p>
-            } @else {
-              <ul class="admin-guidance-translations__list" role="list">
-                @for (t of guidanceTranslations() ?? []; track t.locale) {
-                  <li class="admin-guidance-translations__row">
-                    <span class="admin-guidance-translations__locale">{{ t.locale }}</span>
-                    @if (t.locale === p.homeLocale) {
-                      <span class="badge badge--draft">{{
-                        'admin.guidance.editor.translations.home' | t
-                      }}</span>
-                    }
-                    <span class="admin-guidance-translations__slug">{{ t.slug }}</span>
-                    @if (translationTarget() === null && t.locale !== p.homeLocale) {
-                      @if (!translationDeleteConfirm.isArmed(t.locale)) {
-                        <button
-                          type="button"
-                          class="btn btn--ghost"
-                          [attr.data-confirm-trigger]="t.locale"
-                          (click)="requestDeleteTranslation(t.locale)"
-                          [disabled]="busy()"
-                        >
-                          {{ 'admin.guidance.editor.translations.delete' | t }}
-                        </button>
-                      } @else {
-                        <!-- two-tap confirm (no window.confirm, the app's
-                             inline style). The shared ConfirmAction owns
-                             the state machine, the focus move onto
-                             Confirm and the focus return on Cancel. -->
-                        <span class="admin-confirm" role="status">{{
-                          'admin.guidance.editor.translations.delete.confirm' | t
-                            : { locale: t.locale }
-                        }}</span>
-                        <button
-                          type="button"
-                          class="btn btn--danger"
-                          [attr.data-confirm-focus]="t.locale"
-                          (click)="confirmDeleteTranslation(t.locale)"
-                          [disabled]="busy()"
-                        >
-                          {{
-                            busy()
-                              ? ('admin.guidance.working' | t)
-                              : ('admin.guidance.delete.confirmButton' | t)
-                          }}
-                        </button>
-                        <button
-                          type="button"
-                          class="btn btn--ghost"
-                          (click)="cancelDeleteTranslation()"
-                          [disabled]="busy()"
-                        >
-                          {{ 'admin.guidance.delete.cancel' | t }}
-                        </button>
-                      }
-                    }
-                  </li>
-                }
-              </ul>
-            }
-            @for (l of translationAddableLocales(); track l) {
-              <button
-                type="button"
-                class="btn btn--ghost admin-guidance-translations__add"
-                (click)="startTranslation(l)"
-                [disabled]="busy() || translationTarget() !== null"
-              >
-                {{ 'admin.guidance.editor.translations.add' | t: { locale: l } }}
-              </button>
-            }
-          </section>
+          <app-guidance-translations
+            [post]="p"
+            [rows]="guidanceTranslations()"
+            [busy]="busy()"
+            [translationTarget]="translationTarget()"
+            [deleteConfirm]="translationDeleteConfirm"
+            (start)="startTranslation($event)"
+            (requestDelete)="requestDeleteTranslation($event)"
+            (cancelDelete)="cancelDeleteTranslation()"
+            (confirmDelete)="confirmDeleteTranslation($event)"
+          />
         }
       </div>
     }
 
-    @if (guidanceRows() === null && guidanceLoadError() === null) {
-      <app-loading-indicator class="admin-state" [message]="'admin.guidance.loading' | t" />
-    } @else if (guidanceLoadError(); as loadErr) {
-      <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadGuidance()">
-        {{ 'admin.retry' | t }}
-      </button>
-    } @else if ((guidanceRows() ?? []).length === 0) {
-      <p class="admin-state">
-        {{ 'admin.guidance.emptyLocale' | t: { locale: contentLocale() } }}
-      </p>
-    } @else {
-      <!-- admin-locale-scope + admin-locale-split: the list is the CONTENT
-           language's — the line names the language being managed (the
-           other languages' posts are edited from their own lists). -->
-      <p class="admin-guidance-scope">{{ 'admin.guidance.shownIn' | t: { locale: contentLocale() } }}</p>
-      <!-- guidance-manual-order D6: the list order IS the public order —
-           the hint names the two mechanisms (PRIMARY: the keyboard-
-           reachable move buttons; SECONDARY: drag & drop). -->
-      <p class="admin-guidance-hint">{{ 'admin.guidance.order.hint' | t }}</p>
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Guidance posts">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th scope="col">{{ 'admin.guidance.col.title' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.position' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.status' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.locale' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.pinned' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.published' | t }}</th>
-              <th scope="col">{{ 'admin.guidance.col.updated' | t }}</th>
-              <th scope="col" class="admin-table__actions-head">
-                {{ 'admin.guidance.col.actions' | t }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of guidanceRows() ?? []; track row.id) {
-              <tr
-                class="admin-row"
-                [class.admin-row--hidden]="row.status === 'DRAFT'"
-                [class.admin-row--drag-over]="guidanceDropTarget() === row.id"
-                draggable="true"
-                (dragstart)="onGuidanceDragStart($event, row)"
-                (dragover)="onGuidanceDragOver($event, row)"
-                (drop)="onGuidanceDrop($event, row)"
-                (dragend)="onGuidanceDragEnd()"
-              >
-                <td>
-                  <div class="admin-guidance-title">
-                    <!-- The hero thumbnail, only when the post has one. -->
-                    @if (row.heroImageUrl; as heroUrl) {
-                      <img
-                        class="admin-guidance-thumb"
-                        [src]="heroUrl"
-                        [alt]="row.heroImageAlt ?? ''"
-                        width="40"
-                        height="40"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    }
-                    <div class="admin-guidance-title__text">
-                      <span class="admin-guidance-title__name">{{ row.title }}</span>
-                      <span class="admin-muted">{{ row.slug }}</span>
-                    </div>
-                  </div>
-                </td>
-                <td class="admin-cell--nowrap">{{ row.sortOrder }}</td>
-                <td>
-                  @if (row.status === 'PUBLISHED') {
-                    <span class="badge badge--published">{{
-                      'admin.guidance.status.published' | t
-                    }}</span>
-                  } @else {
-                    <span class="badge badge--draft">{{ 'admin.guidance.status.draft' | t }}</span>
-                  }
-                </td>
-                <td class="admin-cell--nowrap">{{ row.locale }}</td>
-                <td class="admin-cell--nowrap">
-                  {{
-                    row.pinned
-                      ? ('admin.guidance.pinned.yes' | t)
-                      : ('admin.guidance.pinned.no' | t)
-                  }}
-                </td>
-                <td class="admin-cell--nowrap">
-                  @if (publishedAtFor(row); as publishedAt) {
-                    {{ publishedAt | date: 'medium' }}
-                  } @else {
-                    <span class="admin-muted">—</span>
-                  }
-                </td>
-                <td class="admin-cell--nowrap">{{ row.updatedAt | date: 'medium' }}</td>
-                <td class="admin-cell--actions">
-                  <div class="admin-cell__actions-body">
-                    <!-- guidance-manual-order D6: PRIMARY mechanism — the
-                         keyboard-reachable 48px move buttons. Disabled at
-                         the boundaries (top/up at the first row, down at
-                         the last); the accessible names name the post and
-                         the direction. -->
-                    <div class="admin-guidance-move">
-                      <button
-                        type="button"
-                        class="btn btn--ghost admin-guidance-move__btn"
-                        [disabled]="busy() || guidanceIndex(row) <= 0"
-                        (click)="moveGuidancePost(row.id, 'top')"
-                        [attr.aria-label]="'admin.guidance.move.top.aria' | t: { title: row.title }"
-                      >
-                        {{ 'admin.guidance.move.top' | t }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost admin-guidance-move__btn"
-                        [disabled]="busy() || guidanceIndex(row) <= 0"
-                        (click)="moveGuidancePost(row.id, 'up')"
-                        [attr.aria-label]="'admin.guidance.move.up.aria' | t: { title: row.title }"
-                      >
-                        {{ 'admin.guidance.move.up' | t }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost admin-guidance-move__btn"
-                        [disabled]="
-                          busy() || guidanceIndex(row) >= (guidanceRows() ?? []).length - 1
-                        "
-                        (click)="moveGuidancePost(row.id, 'down')"
-                        [attr.aria-label]="
-                          'admin.guidance.move.down.aria' | t: { title: row.title }
-                        "
-                      >
-                        {{ 'admin.guidance.move.down' | t }}
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      class="btn btn--ghost"
-                      (click)="openGuidanceEditor(row)"
-                      [disabled]="busy()"
-                    >
-                      {{ 'admin.guidance.edit' | t }}
-                    </button>
-                    @if (!guidanceDeleteConfirm.isArmed(row.id)) {
-                      @if (row.status === 'PUBLISHED') {
-                        <button
-                          type="button"
-                          class="btn btn--ghost"
-                          (click)="unpublishGuidancePost(row)"
-                          [disabled]="busy()"
-                        >
-                          {{
-                            busy()
-                              ? ('admin.guidance.working' | t)
-                              : ('admin.guidance.unpublish' | t)
-                          }}
-                        </button>
-                      } @else {
-                        <button
-                          type="button"
-                          class="btn btn--ghost"
-                          (click)="publishGuidancePost(row)"
-                          [disabled]="busy()"
-                        >
-                          {{
-                            busy() ? ('admin.guidance.working' | t) : ('admin.guidance.publish' | t)
-                          }}
-                        </button>
-                      }
-                      <button
-                        type="button"
-                        class="btn btn--ghost btn--danger"
-                        [attr.data-confirm-trigger]="row.id"
-                        (click)="requestDeleteGuidance(row.id)"
-                        [disabled]="busy()"
-                      >
-                        {{ 'admin.guidance.delete' | t }}
-                      </button>
-                    } @else {
-                      <!-- two-tap confirm (no window.confirm, the app's inline
-                         style). The gateway sends confirm=true — the server
-                         400s without it. -->
-                      <span class="admin-confirm" role="status">
-                        {{ 'admin.guidance.delete.confirm' | t }}
-                      </span>
-                      <button
-                        type="button"
-                        class="btn btn--ghost btn--danger"
-                        [attr.data-confirm-focus]="row.id"
-                        (click)="confirmDeleteGuidance(row.id)"
-                        [disabled]="busy()"
-                      >
-                        {{
-                          busy()
-                            ? ('admin.guidance.working' | t)
-                            : ('admin.guidance.delete.confirmButton' | t)
-                        }}
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn--ghost"
-                        (click)="cancelDeleteGuidance()"
-                        [disabled]="busy()"
-                      >
-                        {{ 'admin.guidance.delete.cancel' | t }}
-                      </button>
-                    }
-                  </div>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
+    <app-guidance-order-list
+      [rows]="guidanceRows()"
+      [loadError]="guidanceLoadError()"
+      [busy]="busy()"
+      [contentLocale]="contentLocale()"
+      [publishedAt]="publishedAtBySlug()"
+      [deleteConfirm]="guidanceDeleteConfirm"
+      (retry)="loadGuidance()"
+      (edit)="openGuidanceEditor($event)"
+      (publish)="publishGuidancePost($event)"
+      (unpublish)="unpublishGuidancePost($event)"
+      (requestDelete)="requestDeleteGuidance($event)"
+      (confirmDelete)="confirmDeleteGuidance($event)"
+      (cancelDelete)="cancelDeleteGuidance()"
+      (reorder)="submitGuidanceOrder($event)"
+    />
   }
 
   <!-- ========================= Media library ========================= -->
@@ -1231,7 +958,7 @@
     } @else if ((mediaRows() ?? []).length === 0) {
       <p class="admin-state">{{ 'admin.media.empty' | t }}</p>
     } @else {
-      <div class="admin-table-wrap" tabindex="0" role="region" aria-label="Media library">
+      <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.media.library.aria' | t">
         <table class="admin-table">
           <thead>
             <tr>

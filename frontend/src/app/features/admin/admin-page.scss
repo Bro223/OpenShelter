@@ -1,588 +1,191 @@
-/* /admin (admin-moderation D5): three tabbed queues. All action targets use
-   the global .btn (48px min-height); the token set is the app-wide one. */
+/* ==========================================================================
+   ADMIN (shelter-admin-scope) — the moderation page's local surface.
+   The shared vocabulary is the global one: .btn (48px-minimum buttons,
+   --color-bg hover, focus ring), the .token set, the .badge pills, the
+   global form elements; this file only carries the page-specific
+   structure (the tab row, search, editor card, media, queue rows).
+
+   The TABLE / badge / confirm / reason / history rules shared by the
+   tab panels live in _admin-shared.scss (@used above and by each panel)
+   — the single source, no per-file forks.
+   ========================================================================== */
+@use './admin-shared';
 
 .admin {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
+  padding: var(--space-8) var(--space-16);
+  max-width: var(--content-width);
+  margin: 0 auto;
 }
 
-/* ---- tabs ---------------------------------------------------------------- */
+/* The tab row: a scrollable row of chips (mobile: the tabs scroll, the
+   page doesn't wrap). The active tab is the primary fill. */
 .admin-tabs {
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-8);
+  overflow-x: auto;
+  padding-bottom: var(--space-8);
+  margin-bottom: var(--space-16);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
-/* The selected tab takes the primary fill (ghost by default) — the same
-   two-state language as the nav's routerLinkActive. */
 .admin-tab--active {
   background: var(--color-primary);
-  border-color: transparent;
-  color: var(--color-bg-surface);
+  color: var(--color-text-inverse);
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--color-primary-hover);
+    color: var(--color-text-inverse);
   }
 }
 
-/* ---- search (shelters tab) ------------------------------------------------ */
+/* The search input (unconfirmed tab). The global input styling applies;
+   width is capped and it grows to fill on wide screens. */
 .admin-search {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-8);
-
-  .admin-search__field {
-    min-width: 240px;
-    flex: 1 1 320px;
-    margin-bottom: 0;
-  }
-}
-
-/* ---- loading / empty / load-error states ---------------------------------- */
-.admin-state {
-  color: var(--color-muted);
-  margin: var(--space-8) 0;
-  font-size: var(--text-md);
-
-  &--error {
-    color: var(--color-danger);
-  }
-}
-
-/* ---- shelters table -------------------------------------------------------- */
-/* Keyboard handle for the horizontally scrollable tables (WCAG 2.1.1):
-   each wrapper is a labelled, focusable region (tabindex="0" +
-   role="region" in the template), so a keyboard user can scroll it and the
-   focus ring shows which table has focus. */
-.admin-table-wrap {
-  overflow-x: auto;
-
-  &:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
-  }
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-md);
-
-  th,
-  td {
-    text-align: left;
-    vertical-align: top;
-    padding: var(--space-8) var(--space-12);
-    border-bottom: 1px solid var(--color-border-subtle);
-  }
-
-  th {
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-muted);
-    white-space: nowrap;
-  }
-
-  .admin-table__actions-head {
-    white-space: nowrap;
-  }
-}
-
-/* The width hints live on the real table cell (the column's floor).
-   The flex LAYOUT lives on the inner __*-body wrapper div, never on the
-   td itself: display:flex on a td demotes it from table-cell to a
-   block-level flex box, so the border-bottom from the .admin-table
-   th,td rule is then painted at the box's content height instead of the
-   row's bottom — whenever a sibling cell is taller, the row separator
-   splits into two segments at different heights (the owner-reported
-   staggered line breaking near the middle of the row). With every td a
-   real table cell, border-collapse: collapse fuses the per-cell rules
-   into ONE continuous line across the whole row, at every width. */
-.admin-cell--name {
-  min-width: 180px;
-
-  a {
-    font-weight: var(--font-weight-semibold);
-  }
-}
-
-.admin-cell--actions {
-  min-width: 220px;
-}
-
-.admin-cell__name-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.admin-cell__actions-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  align-items: center;
-}
-
-/* guidance-manual-order D6: the hint above the guidance table (muted
-   secondary text, same tokens as .admin-muted). */
-.admin-guidance-hint {
-  margin: 0 0 var(--space-8);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-}
-
-/* admin-locale-scope: the language line above the table — the posts shown
-   are the active UI language's (the other languages have their own lists). */
-.admin-guidance-scope {
-  margin: 0 0 var(--space-4, 0.5rem);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text, inherit);
-}
-
-/* The per-row move buttons (PRIMARY ordering mechanism). The buttons are
-   plain .btn — the 48px minimum-height global rule applies, so each is a
-   keyboard-reachable ≥48px target; they wrap on narrow screens (the
-   table already scrolls horizontally inside .admin-table-wrap). */
-.admin-guidance-move {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-8);
-  align-items: center;
-}
-
-/* The drag & drop target highlight (SECONDARY mechanism — a visual cue
-   only; the drop itself submits the same full list as the buttons). */
-.admin-row--drag-over {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
-}
-
-/* The translations section (bilingual-guidance): the open post's
-   per-locale rows under the editor form. One row per translation — the
-   locale code, the home marker (that row is the post itself and is never
-   offered the delete), the public slug, and the foreign row's two-tap
-   delete. Rows wrap on narrow screens; the buttons are plain .btn (the
-   48px global minimum applies). */
-.admin-guidance-translations {
-  margin-top: var(--space-20);
-  padding-top: var(--space-16);
-  border-top: 1px solid var(--color-border-subtle);
-}
-
-.admin-guidance-translations__heading {
-  margin: 0 0 var(--space-12);
-  font-size: var(--text-md);
-}
-
-.admin-guidance-translations__state {
-  margin: 0 0 var(--space-12);
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-}
-
-.admin-guidance-translations__list {
-  margin: 0 0 var(--space-12);
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-}
-
-.admin-guidance-translations__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-8);
-}
-
-.admin-guidance-translations__locale {
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-semibold);
-  min-width: 2.5ch;
-}
-
-.admin-guidance-translations__slug {
-  font-size: var(--text-sm);
-  color: var(--color-muted);
-  word-break: break-all;
-}
-
-.admin-guidance-translations__add {
-  margin-top: var(--space-8);
-}
-
-/* Hidden (INACTIVE) rows: dimmed — the badge says WHY, the row shows it's
-   not on the public list. (Reported/closed flag badges keep their colour.) */
-.admin-row--hidden td {
-  opacity: 0.65;
-}
-
-/* Muted secondary text (addresses, "—", "Active"). */
-.admin-muted {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
-/* The registry marker next to the source badge (D4: import-owned rows). */
-.admin-hint {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-  margin-left: var(--space-4);
-}
-
-/* Marked-inaccurate line under the row name: the single-
-   sourced warning sentence in the warning tone — a caveat, not the crisis
-   orange (the same token pair as the badge). */
-.admin-inaccurate {
+  width: min(420px, 100%);
+  margin-bottom: var(--space-16);
   display: block;
+}
+
+/* The "marked inaccurate" flag (community-corrections D4): the warning
+   token pair (amber) — the same language as the public UI's fresh-CLOSED
+   badge, NOT the red error color: inaccuracy is a flag to review, not a
+   confirmed bad record. */
+.admin-inaccurate {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
   color: var(--color-warning);
-  font-size: var(--text-xs);
-}
-
-/* Two-tap delete confirm strip (the contributions panel's inline style). */
-.admin-confirm {
   font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-/* Inline edit-history panel: a muted, small, read-only
-   expansion under the shelter row — one line per event, the field
-   changes wrap under their event on narrow widths. */
-.admin-history {
-  background: var(--color-bg-subtle);
-  padding: var(--space-4);
-}
-
-.admin-history__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.admin-history__event {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-  padding: var(--space-2) 0;
-}
-
-.admin-history__event + .admin-history__event {
-  border-top: 1px solid var(--color-border);
-}
-
-.admin-history__action {
-  font-weight: var(--font-weight-medium);
-}
-
-.admin-history__actor,
-.admin-history__time {
-  color: var(--color-muted);
-}
-
-.admin-history__change {
-  flex-basis: 100%;
-  color: var(--color-muted);
-}
-
-/* Audit table: the timestamp column never wraps (the row stays one line
-   tall next to the reason cell). */
-.admin-cell--nowrap {
-  white-space: nowrap;
 }
 
 /* Review-queue row actions: wrap on narrow widths so the buttons keep
-   their 48px touch targets instead of shrinking. */
+   their 48px touch targets instead of shrinking. (The class rides on the
+   <td> AND its inner flex wrapper — it must never declare a display on
+   the td itself: that demotes the cell and splits the row separator, the
+   invariant pinned in design-tokens.spec.ts.) */
 .admin-cell--actions-review {
   flex-wrap: wrap;
 }
 
-/* The inline reject-reason editor (community-review-queue): the form
-   vocabulary from the rest of the app — label + textarea + error line, the
-   48px-minimum buttons from the global .btn. */
-.admin-reason {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  min-width: min(320px, 100%);
-
-  label {
-    font-size: var(--text-sm);
-    font-weight: var(--font-weight-medium);
-  }
-
-  textarea {
-    min-height: var(--space-96);
-    resize: vertical;
-    font-size: var(--text-base);
-  }
-
-  &__error {
-    font-size: var(--text-sm);
-    color: var(--color-error);
-  }
-
-  &__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-8);
-  }
-}
-
-/* ---- source/trust badges ------------------------------------------------
-   The same pill vocabulary as the map rows / shelter-detail header (which
-   duplicate the block per feature); the tokens are the app-wide ones.
-   Content-sized in EVERY admin context: the name cell's inner flex wrapper
-   (.admin-cell__name-body, the table-separator fix) is a COLUMN flex, so
-   a badge that is a direct child of it would inherit the container's
-   default cross-axis stretch and render as a FULL-WIDTH bar (the
-   owner-reported "badges are too long" — e.g. the private-home badge in
-   the unconfirmed queue's name cell). width: fit-content sizes the pill
-   to its label and disables that stretch; flex: 0 0 auto keeps it
-   content-sized on the main axis in the row flex contexts (queue titles,
-   action bodies); white-space: nowrap keeps the label on one line (the
-   long ET/RU values stay one line — long, not wrapped). */
-.badge {
-  display: inline-block;
-  width: fit-content;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  background: var(--color-badge-registry);
-  color: var(--color-shelter-registry);
-  margin-right: var(--space-4);
-
-  &.badge--user {
-    background: var(--color-badge-user);
-    color: var(--color-shelter-user);
-  }
-
-  /* New community state (community-review-queue D5): the amber trust badge —
-     the --color-badge-new fill with the dark-amber --color-warning text
-     (contrast pair pinned in design-tokens.spec.ts). */
-  &.badge--new {
-    background: var(--color-badge-new);
-    color: var(--color-warning);
-  }
-
-  /* Private-home declaration (D7): the NEUTRAL chip — a description of
-     what the location is, not a state. */
-  &.badge--private {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* "Hidden" / "Dismissed": the NEUTRAL chip (occupancy language) —
-     visibility state, not an alarm. */
-  &.badge--hidden {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* "Inaccurate": the moderator flag — the warning token
-     pair (the same amber the public UI uses for the fresh-CLOSED badge). */
-  &.badge--inaccurate {
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-warning);
-  }
-
-  /* Guidance status (crisis-guidance D8): PUBLISHED = the green
-     source-badge pair (a live state, the badge--user language); DRAFT =
-     the neutral visibility chip (badge--hidden language — a state, not an
-     alarm). */
-  &.badge--published {
-    background: var(--color-badge-user);
-    color: var(--color-shelter-user);
-  }
-
-  &.badge--draft {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-}
-
-/* ---- guidance tab (crisis-guidance D8) ---------------------------------- */
-/* The inline editor container: a muted panel above the list (the form's
-   own vocabulary lives in guidance-editor.scss). */
+/* The guidance editor container (crisis-guidance D8): a bordered, padded
+   card distinct from the page background; the global form elements
+   (inputs/labels) style its fields. The primary border on :focus-within
+   is the app-wide form-focus language (the same as .map-cta__form). */
 .admin-editor {
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border-subtle);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--space-16);
+  margin-bottom: var(--space-16);
 
-  /* The freshly opened form must be findable: the reveal scrolls it into
-     view AND focuses the first field, and while the admin is IN the form
-     the panel takes the primary accent border — the focus-ring convention
-     from .admin-table-wrap. The cue is presence, not motion: no
-     transition, so there is nothing to guard for reduced motion. */
   &:focus-within {
     border-color: var(--color-primary);
   }
 }
 
-/* The list's title cell: hero thumbnail (only when the post has one) +
-   title/slug text. Draft rows are dimmed (the admin-row--hidden rule). */
-.admin-guidance-title {
+/* The media library (crisis-guidance D8): a two-column grid on desktop
+   (upload card + the asset table), one column on mobile (upload first,
+   then the inventory). The upload card is a DROPPABLE zone — dashed
+   primary border, hover/focus state when a drag hovers over it (the
+   drag handlers are in the page's (dragover)/(dragleave)/(drop)). */
+.admin-media-upload {
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-12);
-  min-width: 180px;
+  flex-direction: column;
+  gap: var(--space-8);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+
+  &:hover,
+  &--drag {
+    background: var(--color-primary-bg);
+  }
 }
 
-.admin-guidance-thumb {
-  width: 40px;
-  height: 40px;
+.admin-media-thumb {
+  width: 48px;
+  height: 48px;
   object-fit: cover;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
-.admin-guidance-title__text {
+.admin-media-name {
+  word-break: break-all;
+}
+
+/* The review row: a stacked card (title + meta + detail + reason +
+   actions) — a list item, not a table row, since the content is uneven. */
+.admin-queue {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.admin-guidance-title__name {
-  font-weight: var(--font-weight-semibold);
-}
-
-/* ---- media library tab (crisis-guidance D8) ------------------------------ */
-/* The upload row: the file field reuses the search field's width rule.
-   The accepted-types hint sits beside it (a muted line). */
-.admin-media-upload {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-8);
-
-  input[type='file'] {
-    width: 100%;
-    font-size: var(--text-sm);
-  }
-
-  &__hint {
-    margin: 0 0 var(--space-8);
-  }
-}
-
-/* The listing's thumbnail (the grid the editor picker draws from). */
-.admin-media-thumb {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-}
-
-.admin-media-name {
-  font-weight: var(--font-weight-semibold);
-  overflow-wrap: anywhere;
-}
-
-/* ---- queue rows (shelter reports) ------------------------------------------ */
-.admin-queue {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  gap: var(--space-12);
 }
 
 .admin-queue-row {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-12);
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-12) var(--space-16);
-  padding: var(--space-12) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-
-  &:last-child {
-    border-bottom: none;
-  }
+  flex-direction: column;
+  gap: var(--space-8);
 }
 
 .admin-queue-row__info {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
 }
 
 .admin-queue-row__title {
-  display: inline-flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  font-size: var(--text-base);
+  font-size: var(--text-md);
   font-weight: var(--font-weight-semibold);
 }
 
 .admin-queue-row__meta {
-  color: var(--color-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
   font-size: var(--text-sm);
+  color: var(--color-muted);
 }
 
 .admin-queue-row__detail {
-  font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  font-size: var(--text-md);
+  white-space: pre-wrap;
 }
 
-/* The not-counted (damped-flag) reason line under the row: muted text
-   like the meta line. It is the accessible surface for the badge's title
-   tooltip — the tooltip carries nothing the line does not. */
 .admin-queue-row__reason {
-  color: var(--color-muted);
   font-size: var(--text-sm);
-  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font-style: italic;
 }
 
 .admin-queue-row__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-8);
+  margin-top: var(--space-4);
 }
 
-/* Dismissed rows stay in the queue (audit trail) but are dimmed. */
+/* A dismissed row: dimmed — the badge says WHY, the row shows it's out
+   of the queue. (Occupancy language: DISMISSED, not deleted/rejected.) */
 .admin-row--dismissed {
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
-/* admin-locale-split: the content-language control — it lives WITH the
-   content (the top of the Guidance tab) and scopes the list, the editor
-   prefill, saves and reorders. The chrome's language is the header
-   switcher's domain — the admin page has no UI-language control. */
+/* The content-language select's scope note (admin-locale-scope): a muted
+   hint under the select — the chosen language scopes the whole tab,
+   not just this form. */
 .admin-guidance-language {
-  display: grid;
-  gap: var(--space-2);
-  max-width: 420px;
-  margin-bottom: var(--space-8);
-
-  select {
-    min-height: 48px;
-    padding: 0 var(--space-4);
-    font: inherit;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius);
-    background: var(--color-surface);
-    color: inherit;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .admin-guidance-language__hint {
-  margin: 0;
+  font-size: var(--text-xs);
   color: var(--color-muted);
-  font-size: var(--text-sm);
 }
