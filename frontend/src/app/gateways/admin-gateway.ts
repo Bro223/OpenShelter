@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { HttpHeaders } from '@angular/common/http';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
 import type {
@@ -14,6 +15,7 @@ import type {
   CreateGuidanceTranslationRequest,
   GuidanceTranslationDto,
   MediaAssetDto,
+  PagedRows,
   ReviewShelterRequest,
   ReviewShelterResponse,
   ReorderGuidanceRequest,
@@ -33,7 +35,7 @@ import type {
  *
  * The twenty-nine endpoints, 1:1:
  *
- *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
+ *   GET    /admin/shelters?status=&source=&q=&limit=&offset= -> AdminShelterDto[] (+ X-Total-Count)
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/review         -> 200 {ok} (USER rows only)
  *   DELETE /admin/shelters/{id}                -> 204 (USER rows only)
@@ -49,6 +51,7 @@ import type {
  *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
  *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
  *   GET    /admin/guidance                     -> AdminGuidancePostDto[] (drafts incl.)
+ *   GET    /admin/guidance?locale=&q=&limit=&offset= -> AdminGuidancePostDto[] (+ X-Total-Count)
  *   GET    /admin/guidance/{id}                -> AdminGuidancePostDto
  *   POST   /admin/guidance                     -> AdminGuidancePostDto (200)
  *   PUT    /admin/guidance/{id}                -> AdminGuidancePostDto (200)
@@ -71,10 +74,16 @@ export class AdminGateway {
   /**
    * GET /admin/shelters — ALL rows incl. hidden (INACTIVE). `filters` are
    * optional; absent fields are omitted from the query string entirely
-   * (the bare call is exactly `/admin/shelters`).
+   * (the bare call is exactly `/admin/shelters`). `source` is the
+   * frontend-facing grouping the backend speaks (REGISTRY = the Päästeamet
+   * + municipality imports, USER = community submissions); `limit` (1..200)
+   * and `offset` (>= 0) page the (filtered) list server-side. Returns the
+   * page's rows PLUS the un-paged total (the X-Total-Count header).
    */
-  listShelters(filters?: AdminShelterFilters): Promise<AdminShelterDto[]> {
-    return lastValueFrom(this.api.get<AdminShelterDto[]>(adminSheltersPath(filters)));
+  listShelters(filters?: AdminShelterFilters): Promise<PagedRows<AdminShelterDto>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<AdminShelterDto[]>(adminSheltersPath(filters)),
+    ).then(result => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -243,6 +252,24 @@ export class AdminGateway {
    */
   listGuidancePosts(locale?: string): Promise<AdminGuidancePostDto[]> {
     return lastValueFrom(this.api.get<AdminGuidancePostDto[]>(guidanceListPath(locale)));
+  }
+
+  /**
+   * GET /admin/guidance?locale=&q=&limit=&offset= -> PagedRows — the paged,
+   * searched admin list (admin-guidance-search / admin-page-size). The
+   * search filter runs over the RENDERED content (scoped: the locale's
+   * row or the home columns; unscoped: ANY locale content), and
+   * limit/offset then slice the FILTERED stored manual order — the order
+   * is never re-sorted by the search. The un-paged total (the filtered
+   * length) comes back as the X-Total-Count header; the bounds are the
+   * public guidance's (limit 1..200, offset >= 0 — a 400 outside).
+   */
+  listGuidancePostsPage(
+    options: GuidanceAdminListOptions,
+  ): Promise<PagedRows<AdminGuidancePostDto>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<AdminGuidancePostDto[]>(guidanceListPagePath(options)),
+    ).then(result => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -497,6 +524,49 @@ function guidanceListPath(locale?: string): string {
   return `/admin/guidance${localeQuery(locale)}`;
 }
 
+/** The paged admin guidance list's options (absent = omitted from the URL). */
+export interface GuidanceAdminListOptions {
+  locale?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * GET /admin/guidance?locale=&q=&limit=&offset= — fixed param order
+ * (locale, q, limit, offset), only the fields actually set appear.
+ */
+function guidanceListPagePath(options: GuidanceAdminListOptions): string {
+  const params: string[] = [];
+  if (options.locale) {
+    params.push(`locale=${encodeURIComponent(options.locale)}`);
+  }
+  if (options.q !== undefined && options.q !== '') {
+    params.push(`q=${encodeURIComponent(options.q)}`);
+  }
+  if (options.limit !== undefined) {
+    params.push(`limit=${options.limit}`);
+  }
+  if (options.offset !== undefined) {
+    params.push(`offset=${options.offset}`);
+  }
+  return params.length > 0 ? `/admin/guidance?${params.join('&')}` : '/admin/guidance';
+}
+
+/**
+ * The page body + X-Total-Count header -> PagedRows. A missing/blank
+ * header degrades to the page's own length (the public guidance gateway's
+ * rule) — out-of-range detection stays honest (such a page IS empty).
+ */
+function pagedResult<T>(body: T[], headers: HttpHeaders): PagedRows<T> {
+  const raw = headers.get('X-Total-Count');
+  const parsed = raw === null ? NaN : Number(raw);
+  return {
+    rows: body,
+    total: Number.isInteger(parsed) && parsed >= 0 ? parsed : body.length,
+  };
+}
+
 function adminSheltersPath(filters?: AdminShelterFilters): string {
   const params: string[] = [];
   if (filters?.status !== undefined) {
@@ -507,6 +577,12 @@ function adminSheltersPath(filters?: AdminShelterFilters): string {
   }
   if (filters?.q !== undefined && filters.q !== '') {
     params.push(`q=${encodeURIComponent(filters.q)}`);
+  }
+  if (filters?.limit !== undefined) {
+    params.push(`limit=${filters.limit}`);
+  }
+  if (filters?.offset !== undefined) {
+    params.push(`offset=${filters.offset}`);
   }
   return params.length > 0 ? `/admin/shelters?${params.join('&')}` : '/admin/shelters';
 }

@@ -30,7 +30,11 @@
   --color-bg-surface: #ffffff; /* cards, rows, list items, text on primary */
   --color-bg-subtle: #eaf0f4; /* the muted surface (inset notes, map placeholder) */
   --color-surface-hover: #dbe4eb; /* ghost button hover fill — a slightly darker tint of bg-subtle */
-  --color-surface-overlay: rgba(255, 255, 255, 0.92); /* map legend overlay — white card, neutral on the new background */
+  /* map legend overlay — white card, neutral on the new background. The comment
+     stays ABOVE the declaration on purpose: appended to it, the line exceeds the
+     formatter's width and gets re-wrapped, and design-tokens.spec.ts parses the
+     :root block one line at a time — so a wrapped value reads as a missing token. */
+  --color-surface-overlay: rgba(255, 255, 255, 0.92);
   --color-backdrop: rgba(0, 0, 0, 0.5); /* modal overlay behind the consent dialog */
 
   /* Brand */
@@ -98,6 +102,11 @@
      badge (its text uses the same token, 3.6:1 on white — a graphical
      badge, not body text; the legend swatch reuses the marker class). */
   --color-new: #f59f00;
+  /* Submitter-verified marker fill (submitter-verification-badge): the yellow
+     family, shared by BOTH verification shapes — the depth is carried by the
+     shape, not by a second colour. One value on purpose: Leaflet renders OSM
+     tiles, which are light in every app theme. */
+  --color-verified: #ffd400;
 
   /* Borders — quiet by design, below 3:1 on purpose (the documented
      exemption in design-tokens.spec.ts: the control is identified by its
@@ -352,6 +361,10 @@
   /* New community state — bright gold on the dark map surfaces, kept
      clearly yellow-ward of the brightened reported/CTA oranges. */
   --color-new: #ffd43b;
+  /* Submitter-verified marker fill (submitter-verification-badge): the same
+     token NAME as :root — the theme layers must override the same set (the
+     parity guard in design-tokens.spec asserts both directions). */
+  --color-verified: #ffd400;
 
   /* Borders */
   --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
@@ -410,9 +423,36 @@ body {
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+select:focus-visible,
+.admin-table-wrap:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* OWNER DECISION (2026-09-21): the browser-default (UA) focus ring is
+   suppressed everywhere. Chromium's ring painted a dark box on any focused
+   element that had no project rule — the shell containers focused
+   programmatically on a route change / dialog open, the `tabindex="0"`
+   scroll regions and the <select> controls — which read as a stray black
+   border.
+
+   Specificity note (why this removes ONLY the UA ring): an AUTHOR rule
+   always beats the UA stylesheet, and this one is (0,1,0), while
+   `a|button|input|textarea:focus-visible` is (0,1,1) and the chrome, dialog
+   and Leaflet rings sit inside component/shell scopes above that. So the
+   token rings still render; only the browser default disappears. No
+   `*:focus-visible` companion is needed — the UA ring is matched through
+   `:focus-visible`, and every such element also matches `:focus`.
+
+   KNOWN DEVIATION — WCAG 2.4.7 Focus Visible (AA): the controls this rule
+   strips (today: the six `tabindex="0"` admin table regions and the two
+   `<select>`s) show NO visible keyboard-focus indicator. Reviewed and
+   accepted by the owner, recorded in `qa/accessibility-checklist.md` §3 and
+   pinned by `design-tokens.spec.ts`. To retire the deviation, delete this
+   block — nothing else depends on it. */
+*:focus {
+  outline: none;
 }
 
 /* Skip link (WCAG 2.4.1): the shell renders it as its
@@ -637,6 +677,64 @@ textarea {
 
 .shelter-marker--user {
   background: var(--color-shelter-user);
+}
+
+/* Submitter verification depth (submitter-verification-badge, owner decision):
+   the SHAPE carries the depth — a triangle at exactly one confirmed channel, a
+   circle at two or more — so the distinction never rests on colour alone
+   (WCAG 1.4.1; the anchor diamond below uses the same rationale). The yellow
+   family is the second cue, and BOTH shapes carry the SAME 2px edge token as
+   every other pin, so the map and the legend read identically (an earlier dark
+   outline here read as a black border in the legend — owner report). Rows
+   without a reported depth keep the trust tones above. */
+.shelter-marker--full {
+  background: var(--color-verified);
+}
+
+.shelter-marker--partial {
+  /* The triangle needs its edge drawn by pseudo-elements: `clip-path` on the
+     element itself clips the border away on the diagonal edges, which is why a
+     clipped triangle renders with no visible outline. Two clipped triangles —
+     the edge token behind, the fill in front, inset by scale() — reproduce the
+     circle's 2px border exactly.
+
+     REQUIRES A POSITIONED ANCESTOR: the pseudo-elements are absolute, so a
+     static host would resolve them against the nearest positioned ancestor
+     instead (map-page.scss .legend-swatch sets position: relative for exactly
+     this reason; Leaflet's own .leaflet-marker-icon is absolute). */
+  background: none;
+  border: none;
+  border-radius: 0;
+  /* The inherited base shadow is a BOX shadow: it follows the element's square
+     box, so it painted a square halo behind the triangle (owner report: a
+     triangle sitting in a white square). drop-shadow() follows the RENDERED
+     shape instead — including the pseudo-element triangles below — and takes
+     the same token the circles use, so the depth cue stays consistent. */
+  box-shadow: none;
+  filter: drop-shadow(var(--shadow-marker));
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -2px; /* the circle's border box: the element is 14px, its edge is 18px */
+    clip-path: polygon(50% 4%, 96% 96%, 4% 96%);
+  }
+
+  &::before {
+    background: var(--color-bg-surface); /* the same edge token as the circle's border */
+  }
+
+  &::after {
+    /* The fill is inset from the OUTER triangle's edges by the same distance on
+       every side (a perpendicular offset, computed once and expressed in
+       percentages, so it holds at the map size and at the smaller legend
+       swatch). Scaling about the bounding box centre — the first attempt — left
+       an uneven gap, because a triangle's visual centre is not its box centre
+       (owner report: the yellow triangle looked off-centre inside the edge). */
+    background: var(--color-verified);
+    clip-path: polygon(50% 26.4%, 79.8% 86%, 20.2% 86%);
+  }
 }
 
 /* New community state (community-review-queue D5): USER rows in

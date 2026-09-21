@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpHeaders } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
@@ -36,6 +37,7 @@ const SHELTER_ROW: AdminShelterDto = {
 /** Hand-written fake ApiClient — the gateway must only pick paths/bodies (01-TASK.md §8). */
 class FakeApiClient {
   get = vi.fn();
+  getWithHeaders = vi.fn();
   post = vi.fn();
   put = vi.fn();
   delete = vi.fn();
@@ -55,34 +57,48 @@ describe('AdminGateway', () => {
 
   // ---- GET /admin/shelters -----------------------------------------------------
 
-  it('listShelters GETs the bare /admin/shelters without filters', async () => {
-    api.get.mockReturnValue(of([SHELTER_ROW]));
+  it('listShelters GETs the bare /admin/shelters and reads the total from the header', async () => {
+    // The header says 25 even though the page carries one row — the total
+    // must come from X-Total-Count, not the page length.
+    api.getWithHeaders.mockReturnValue(
+      of({ body: [SHELTER_ROW], headers: new HttpHeaders({ 'X-Total-Count': '25' }) }),
+    );
 
-    const rows = await gateway.listShelters();
+    const paged = await gateway.listShelters();
 
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/shelters');
-    expect(rows).toEqual([SHELTER_ROW]);
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/shelters');
+    expect(paged).toEqual({ rows: [SHELTER_ROW], total: 25 });
   });
 
-  it('listShelters appends only the filters that are set, in a fixed order', async () => {
-    api.get.mockReturnValue(of([]));
+  it('listShelters appends only the filters that are set, in a fixed order (page params last)', async () => {
+    api.getWithHeaders.mockReturnValue(of({ body: [], headers: new HttpHeaders() }));
 
-    await gateway.listShelters({ status: 'INACTIVE', source: 'USER', q: 'kelder' });
+    await gateway.listShelters({ status: 'INACTIVE', source: 'USER', q: 'kelder', limit: 10, offset: 20 });
 
-    expect(api.get).toHaveBeenCalledWith('/admin/shelters?status=INACTIVE&source=USER&q=kelder');
+    expect(api.getWithHeaders).toHaveBeenCalledWith(
+      '/admin/shelters?status=INACTIVE&source=USER&q=kelder&limit=10&offset=20',
+    );
   });
 
   it('listShelters URL-encodes the q substring and skips empty values', async () => {
-    api.get.mockReturnValue(of([]));
+    api.getWithHeaders.mockReturnValue(of({ body: [], headers: new HttpHeaders() }));
 
     await gateway.listShelters({ q: 'a b & c' });
 
-    expect(api.get).toHaveBeenCalledWith('/admin/shelters?q=a%20b%20%26%20c');
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/shelters?q=a%20b%20%26%20c');
 
-    api.get.mockClear();
+    api.getWithHeaders.mockClear();
     await gateway.listShelters({ q: '' });
-    expect(api.get).toHaveBeenCalledWith('/admin/shelters');
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/shelters');
+  });
+
+  it('listShelters falls back to the page length when the total header is absent', async () => {
+    api.getWithHeaders.mockReturnValue(of({ body: [SHELTER_ROW], headers: new HttpHeaders() }));
+
+    const paged = await gateway.listShelters();
+
+    expect(paged).toEqual({ rows: [SHELTER_ROW], total: 1 });
   });
 
   it('listShelters rejects with ApiError when the caller is not admin (403)', async () => {
@@ -97,7 +113,7 @@ describe('AdminGateway', () => {
       },
       '/admin/shelters',
     );
-    api.get.mockReturnValue(throwError(() => failure));
+    api.getWithHeaders.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.listShelters()).rejects.toBe(failure);
   });
