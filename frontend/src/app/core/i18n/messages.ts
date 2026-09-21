@@ -20,6 +20,8 @@ export interface Messages {
   'nav.admin': string;
   /** Skip-to-content link, the shell's first element. */
   'nav.skip': string;
+  /** The main navigation's landmark name (announced by screen readers). */
+  'nav.primaryAria': string;
 
   // --- header: actions
   /** The Accessibility button (replaces the high-contrast toggle): it
@@ -68,6 +70,8 @@ export interface Messages {
   'footer.dataSource': string;
   'footer.lastImport': string;
   'footer.officialOpenData': string;
+  /** The footer legal-links group's landmark name. */
+  'footer.legalAria': string;
 
   // --- route titles (app.routes.ts data.title → titleGuard)
   'title.map': string;
@@ -138,6 +142,8 @@ export interface Messages {
   'authPage.register.phoneRequired': string;
   'authPage.register.passwordLabel': string;
   'authPage.register.passwordRequired': string;
+  /** Mirrors the backend's @Size(min = 8) on RegisterRequest.password. */
+  'authPage.register.passwordTooShort': string;
   'authPage.register.submitting': string;
   'authPage.register.submit': string;
   'authPage.register.agreeLead': string;
@@ -214,6 +220,14 @@ export interface Messages {
   'map.filter.user': string;
   /** The filter-chips group aria-label. */
   'map.filterSourcesAria': string;
+  /** The marker legend group's aria-label. */
+  'map.legendAria': string;
+  /** The address-result list's aria-label. */
+  'map.addressResultsAria': string;
+  /** The practical filter-chips group's aria-label. */
+  'map.trustFiltersAria': string;
+  /** The sidebar shelter list's aria-label. */
+  'map.shelterListAria': string;
   'map.chipOpen': string;
   'map.chipHasCapacity': string;
   'map.emptyFilter': string;
@@ -240,6 +254,14 @@ export interface Messages {
   'detail.locationHeading': string;
   /** The initial load state. */
   'detail.loading': string;
+  /** The page <h1> fallback while the shelter name is still in flight
+   *  (or the DTO omits it) — the template's `??` fallback, keyed so the
+   *  heading is translated in every locale. */
+  'detail.titleFallback': string;
+  /** The "Distance from you" action button's label (location-navigation). */
+  'detail.distance.cta': string;
+  /** The action button's in-flight state while geolocation is resolving. */
+  'detail.distance.pending': string;
   /** The straight-line distance line; `{distance}` is the shared
    *  straightLineText() format ("≈ 1.1 km straight line"). */
   'detail.distance.fromYou': string;
@@ -351,6 +373,71 @@ export interface Messages {
    *  GETTING_FULL 0.5, FULL 1), not a likelihood. The single phrase must
    *  stay accurate for both — never re-introduce "probability" here. */
   'detail.pulse.estimateNote': string;
+
+  // --- shared shelter copy (shared/shelter-copy.ts: the map rows, the
+  // detail header, the /mine badges and the admin list all render through
+  // these keys). The NINE values that already had catalog twins (the
+  // trust-state labels, the registry labels, the inaccurate warning and
+  // the FIRM band heads) reuse their existing keys — account.contrib.*
+  // and detail.band.* — so one fact can never read in two languages in
+  // one view. Everything else in this block is new.
+  // Derived display status (shelterStatusText / openStatusBadgeText):
+  // the FRESH open/closed reports outrank the lifecycle status.
+  'shelter.status.reportedClosed': string;
+  'shelter.status.closed': string;
+  'shelter.status.open': string;
+  'shelter.status.openNoReports': string;
+  /** Hedged band heads (D4) — exactly one fresh report (a lone claim).
+   *  The FIRM heads (two+) are detail.band.* above, byte-identical EN. */
+  'shelter.occupancy.hedged.space': string;
+  'shelter.occupancy.hedged.gettingFull': string;
+  'shelter.occupancy.hedged.full': string;
+  // Recency vocabulary ("12 min ago"): the occupancy badge suffix and the
+  // verification-stamp relative text share these; the stamps add days and
+  // the concrete-date fallback. `{minutes}`/`{hours}`/`{days}` are whole
+  // counts; the concrete date's `{day}`/`{month}`/`{year}` are UTC parts
+  // and `{month}` is a localized month abbreviation (locale data, not copy).
+  'shelter.recency.justNow': string;
+  'shelter.recency.minutes': string;
+  'shelter.recency.hours': string;
+  'shelter.recency.days': string;
+  'shelter.recency.date': string;
+  /** {count} is the NON_EXISTENT report subset that drives the badge. */
+  'shelter.reportedBadge': string;
+  /** The private-home declaration badge (community-review-queue D7). */
+  'shelter.privateBadge': string;
+  /** The detail-page note for PRIVATE rows: resident-offered, not an
+   *  official facility. */
+  'shelter.privateNote': string;
+  /** The unverified warning for NEW community rows (community-review-queue).
+   *  A caveat, not the crisis orange. */
+  'shelter.unverifiedWarning': string;
+  // Last-verified meta (last-verified-meta): `{ago}` is a verifiedAgoText()
+  // relative phrase (shelter.recency.*).
+  'shelter.lastVerified': string;
+  /** The registry-row variant: names WHAT the check was against.
+   *  Community (USER) rows keep the plain form. */
+  'shelter.lastVerifiedRegistry': string;
+  /** A NEW community row: submission age + the missing check. */
+  'shelter.newlyAddedUnverified': string;
+  /** A non-NEW row without a verification record. */
+  'shelter.noVerificationRecord': string;
+  /** {count} is the LIFETIME total over all report types — labeled as
+   *  such so it cannot be read as a live tally. */
+  'shelter.communityReports': string;
+  /** {distance} is the shared straightLineText() figure (1 decimal km /
+   *  whole metres). Never a walking-route or official-status claim. */
+  'shelter.distance.meters': string;
+  'shelter.distance.kilometers': string;
+  // Report-flow notices (shelter-trust-and-reports D6; the dampened
+  // variant is community-self-moderation).
+  'shelter.notice.reportSubmitted': string;
+  'shelter.notice.reportSubmittedDamped': string;
+  'shelter.notice.occupancySaved': string;
+  'shelter.notice.openClosedSaved': string;
+  /** The 409 duplicate-report line (the fallback when the server's body
+   *  is empty). */
+  'shelter.notice.reportDuplicate': string;
 
   // --- submit shelter page (i18n-et-en: the contribute surface).
   'submit.backToMap': string;

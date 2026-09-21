@@ -286,13 +286,14 @@ export class LeafletService {
    * alone: shelters are 14px circles, the origin is a smaller (12px)
    * diamond (`.shelter-marker--anchor`) in the user-picked-spot teal
    * (`--color-shelter-pick`) — the map legend carries a matching entry, and
-   * the title attribute is its accessible name. Shelters outrank the pin in
-   * z-order (their markers carry a higher zIndexOffset), so a shelter at
-   * the anchor point is never obscured. Null args remove the pin. No-ops
-   * before create / after destroy; NEVER touches the shelter markers layer
-   * group.
+   * the title attribute is its accessible name. The title is a REQUIRED
+   * caller argument: the service is locale-agnostic and the label is the
+   * caller's localized `map.searched` copy (N7 i18n-completeness — the
+   * hardcoded English is gone from the shared service). Null args remove
+   * the pin. No-ops before create / after destroy; NEVER touches the
+   * shelter markers layer group.
    */
-  setAnchor(latitude: number | null, longitude: number | null): void {
+  setAnchor(latitude: number | null, longitude: number | null, title: string): void {
     if (!this.map) {
       return;
     }
@@ -312,7 +313,7 @@ export class LeafletService {
         // attribute still renders as the native browser tooltip.
         interactive: false,
         keyboard: false,
-        title: 'Searched address',
+        title,
       });
       this.anchorMarker.addTo(this.map);
     } else {

@@ -24,10 +24,14 @@ import type {
   CommunityPulseRecentReport,
   OccupancyBand,
   OpenState,
+  OpenStatusDto,
   ReportShelterRequest,
+  ReviewStatus,
   ShelterDetailDto,
   ShelterDto,
+  ShelterOccupancy,
   ShelterReportType,
+  ShelterSource,
 } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
@@ -35,12 +39,6 @@ import { bannerMessage } from '../../shared/error-copy';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import { ReportGauge } from '../../shared/report-gauge';
 import {
-  COMMUNITY_UNVERIFIED_WARNING,
-  INACCURATE_WARNING,
-  PRIVATE_LOCATION_BADGE,
-  PRIVATE_LOCATION_NOTE,
-  REPORT_SUBMITTED,
-  REPORT_SUBMITTED_DAMPED,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
@@ -67,20 +65,21 @@ import {
   type GeolocationFailureKind,
   haversineKm,
 } from '../../shared/geolocation';
+import { MONTH_ABBREVS } from '../../core/i18n/locale';
 
 /**
- * Per-error copy for the "Distance from you" action (location-navigation) —
- * the map page's NEAREST_COPY vocabulary mirrored here rather than
- * shared: the two pages keep their own copy on purpose. The trailing
- * alternatives differ — the detail page has no retry-of-a-list: its
- * alternatives are the two deep links beside the action.
+ * Per-error keys for the "Distance from you" action (location-navigation).
+ * N7 i18n-completeness: the map page's NEAREST_KEY vocabulary, REUSED —
+ * the EN values are byte-identical to the old page-local DISTANCE_COPY
+ * (verified character-for-character), and the ET/RU translations exist
+ * exactly once in the catalog instead of twice.
  */
-const DISTANCE_COPY: Record<GeolocationFailureKind, string> = {
-  denied: 'Location permission is off. Allow location access in your browser, then try again.',
-  timeout: 'Finding your location timed out. Try again in a moment.',
-  unsupported: 'Your browser does not support location access. Check your browser settings.',
-  unavailable: 'Your location could not be determined right now. Try again in a moment.',
-  insecure: 'Location access needs a secure (https) connection.',
+const DISTANCE_KEY: Record<GeolocationFailureKind, MessageKey> = {
+  denied: 'map.nearest.denied',
+  timeout: 'map.nearest.timeout',
+  unsupported: 'map.nearest.unsupported',
+  unavailable: 'map.nearest.unavailable',
+  insecure: 'map.nearest.insecure',
 };
 
 /** The recent-log kind → localized state-noun key (M9 community pulse).
@@ -151,8 +150,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly store = inject(AuthStore);
   private readonly route = inject(ActivatedRoute);
   private readonly leaflet = inject(LeafletService);
-  /** Resolves the report detail field's per-type placeholder (i18n-et-en). */
+  /** Resolves the report detail field's per-type placeholder (i18n-et-en).
+   *  Also the seam for the shared shelter-copy helpers (N7 i18n-
+   *  completeness): they resolve their copy through the active locale. */
   private readonly i18n = inject(I18nService);
+  /** The active-locale resolver passed to the shared copy helpers. */
+  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
+    this.i18n.t(key, params);
   /** The active UI locale, exposed to the template so the Info section's
    *  <time> stamps format in the VIEWER'S language (not the content
    *  language) — the same seam the t pipe and the account panel use. */
@@ -177,23 +181,38 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  template scope is the component class). The header badge shows the
    *  source label (registry rows) or the trust-state label (USER rows,
    *  community-review-queue D5) and, from shelter-trust-and-reports, the
-   *  trust badges (D6). */
-  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+   *  trust badges (D6). Each wrapper injects the i18n seam so the badge
+   *  reads in the active locale — the catalog keys are the same ones the
+   *  band picker and the /mine panel already render (one word per fact). */
+  protected readonly sourceTrustLabel = (s: {
+    source: ShelterSource;
+    reviewStatus: ReviewStatus;
+  }): string => sourceTrustLabelShared(s, this.translate);
   protected readonly communityBadgeClass = communityBadgeClassShared;
   /** The list row's fresh-CLOSED badge — the same copy the status row uses;
    *  fresh OPEN rows render no badge. */
-  protected readonly openStatusBadgeText = openStatusBadgeTextShared;
-  protected readonly occupancyText = occupancyTextShared;
+  protected readonly openStatusBadgeText = (openStatus: OpenStatusDto | null) =>
+    openStatusBadgeTextShared(openStatus, this.translate);
+  protected readonly occupancyText = (occupancy: ShelterOccupancy) =>
+    occupancyTextShared(occupancy, Date.now(), this.translate);
   protected readonly hasReports = hasReportsShared;
   protected readonly hasTrustBadges = hasTrustBadgesShared;
   /** Last-verified meta: the reported badge with its count, the per-
-   *  entry verification line and the community report count line. */
-  protected readonly reportedBadgeText = reportedBadgeTextShared;
-  protected readonly lastVerifiedText = lastVerifiedTextShared;
-  protected readonly communityReportsText = communityReportsTextShared;
+   *  entry verification line and the community report count line. The
+   *  month-abbreviation param follows the active locale (locale data). */
+  protected readonly reportedBadgeText = (nonexistentReports: number) =>
+    reportedBadgeTextShared(nonexistentReports, this.translate);
+  protected readonly lastVerifiedText = (s: {
+    lastVerifiedAt: string | null;
+    reviewStatus: ReviewStatus;
+    createdAt: string;
+    source: ShelterSource;
+  }): string => lastVerifiedTextShared(s, Date.now(), this.translate, MONTH_ABBREVS[this.i18n.locale()]);
+  protected readonly communityReportsText = (reportCount: number) =>
+    communityReportsTextShared(reportCount, this.translate);
   /** The shared straight-line distance formatter (location-navigation: the
    *  map rows + this page's distance line consume the same honesty format). */
-  protected readonly straightLineText = straightLineTextShared;
+  protected readonly straightLineText = (km: number) => straightLineTextShared(km, this.translate);
   protected readonly hasCommunityReports = hasCommunityReportsShared;
 
   // ---- community pulse (M9 — report aggregation UI) -----------------------
@@ -239,9 +258,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /** The log entry's relative time (the shared recency formatter — the
-   *  occupancy badge's "12 min ago" vocabulary). */
+   *  occupancy badge's "12 min ago" vocabulary), through the i18n seam. */
   protected recentReportTime(entry: CommunityPulseRecentReport): string {
-    return recencyTextShared(entry.reportedAt);
+    return recencyTextShared(entry.reportedAt, Date.now(), this.translate);
   }
 
   /** The log entry's "a community member reported: {kind}" line — NO
@@ -302,20 +321,13 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
   protected readonly distanceKm = signal<number | null>(null);
   /** The last locate failure's per-error copy (null = none). A failure
    *  renders the error line and NO distance line (the success line clears
-   *  up front, the same convention as the map CTA). */
+   *  up front, the same convention as the map CTA). Resolved from the
+   *  map.nearest.* catalog keys (the map CTA's vocabulary — see
+   *  DISTANCE_KEY). */
   protected readonly distanceError = signal<string | null>(null);
-  /** The unverified warning for NEW community rows (community-review-
-   *  queue): rendered in the header next to the trust-state badge. */
-  protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
-  /** The single-sourced "reported inaccurate" warning:
-   *  rendered in the header for a moderator-marked row — independent of
-   *  the review state, the row stays visible. */
-  protected readonly inaccurateWarning = INACCURATE_WARNING;
-  /** The private-home declaration copy (D7): badge + the resident-offered
-   *  detail note. */
-  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
-  protected readonly privateLocationNote = PRIVATE_LOCATION_NOTE;
-  /** The private-location predicate (D7) — the template stays branch-free. */
+  /** The private-location predicate (D7) — the template stays branch-free.
+   *  The badge + note + warnings render through the t pipe in the template
+   *  (shelter.* / account.contrib.inaccurate keys). */
   protected readonly isPrivateLocation = isPrivateLocation;
 
   // ---- trust layer (shelter-trust-and-reports D1/D4/D6) ----------------------
@@ -551,7 +563,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
           this.loading.set(false);
           return;
         }
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
         // The error state keeps the container mounted (placeholder) — if a
         // prior not-found flip destroyed the map, re-create it here;
         // a no-op when the instance is still alive.
@@ -635,8 +647,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.distanceError.set(null);
     this.distancePending.set(true);
     // The mechanism (secure-context + API guards, the request options, the
-    // error-code mapping) is shared/geolocation.ts; the per-kind
-    // COPY stays page-local and mirrored per kind (DISTANCE_COPY).
+    // error-code mapping) is shared/geolocation.ts; the per-kind COPY is
+    // the map CTA's vocabulary, keyed (DISTANCE_KEY) — one translation per
+    // failure kind, shared by both pages.
     void getCurrentPositionHighAccuracy().then(
       (coords) => {
         this.distancePending.set(false);
@@ -647,7 +660,7 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       (failure: unknown) => {
         this.distancePending.set(false);
         const kind = failure instanceof GeolocationError ? failure.kind : 'unavailable';
-        this.distanceError.set(DISTANCE_COPY[kind]);
+        this.distanceError.set(this.i18n.t(DISTANCE_KEY[kind]));
       },
     );
   }
@@ -670,10 +683,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.notice.set(null);
     try {
       await this.gateway.reportOccupancy(id, band);
-      this.notice.set({ severity: 'success', text: 'Your occupancy report was saved.' });
+      this.notice.set({ severity: 'success', text: this.i18n.t('shelter.notice.occupancySaved') });
       await this.load();
     } catch (failure: unknown) {
-      this.error.set(bannerMessage(failure, 'shelter'));
+      this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.reporting.set(false);
     }
@@ -712,12 +725,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     this.notice.set(null);
     try {
       await this.gateway.putOpenStatus(id, state);
-      this.notice.set({ severity: 'success', text: 'Your open/closed report was saved.' });
+      this.notice.set({ severity: 'success', text: this.i18n.t('shelter.notice.openClosedSaved') });
       await this.load();
     } catch (failure: unknown) {
       // The finally below reverts the optimistic pressed state (the failed
       // tap must not stay lit); the shared banner copy surfaces the error.
-      this.error.set(bannerMessage(failure, 'shelter'));
+      this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.reporting.set(false);
       this.openStatusPending.set(null);
@@ -789,10 +802,12 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       this.closeReport();
       // The damp flag picks the notice: a self-interested rival vote
       // (the reporter's own similar listing) is recorded with reduced
-      // weight and says so — single-sourced copy.
+      // weight and says so — single-sourced copy (shelter.notice.*).
       this.notice.set({
         severity: 'success',
-        text: result?.damped ? REPORT_SUBMITTED_DAMPED : REPORT_SUBMITTED,
+        text: this.i18n.t(
+          result?.damped ? 'shelter.notice.reportSubmittedDamped' : 'shelter.notice.reportSubmitted',
+        ),
       });
       // The derived state (nonexistentReports, openStatus) moved server-
       // side — refetch so the header badges reflect it (design decision 7).
@@ -802,11 +817,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
         // The server's standard duplicate message is the source of truth
         // (map-browse delta: duplicate → the standard 409 message); the
         // fixed line is only the fallback for an empty body.
-        this.reportDuplicate.set(
-          failure.message || 'You have already reported this shelter with this report type.',
-        );
+        this.reportDuplicate.set(failure.message || this.i18n.t('shelter.notice.reportDuplicate'));
       } else {
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       }
     } finally {
       this.reporting.set(false);

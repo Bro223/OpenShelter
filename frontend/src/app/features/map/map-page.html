@@ -7,7 +7,7 @@
   <div class="map-page__layout">
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
-      <div class="map-legend" role="group" aria-label="Marker legend">
+      <div class="map-legend" role="group" [attr.aria-label]="'map.legendAria' | t">
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--registry legend-swatch"
@@ -122,7 +122,7 @@
             }
           }
           @if (anchorResults().length) {
-            <ul class="anchor-search__results" aria-label="Address results">
+            <ul class="anchor-search__results" [attr.aria-label]="'map.addressResultsAria' | t">
               @for (result of anchorResults(); track $index) {
                 <li>
                   <button
@@ -160,12 +160,12 @@
         @if (n.source === 'USER') {
           <!-- The unverified warning line: when the highlighted row is a
                community row (any review status — map-browse delta). -->
-          <p class="nearest-line nearest-line--warning">{{ communityUnverifiedWarning }}</p>
+          <p class="nearest-line nearest-line--warning">{{ 'shelter.unverifiedWarning' | t }}</p>
         }
         @if (n.inaccurate) {
           <!-- Marked inaccurate: the single-sourced warning —
                the flag is the treatment, the row stays visible. -->
-          <p class="nearest-line nearest-line--warning">{{ inaccurateWarning }}</p>
+          <p class="nearest-line nearest-line--warning">{{ 'account.contrib.inaccurate' | t }}</p>
         }
       } @else if (nearestEmpty()) {
         <p class="nearest-line">
@@ -207,7 +207,7 @@
            open/closed param, it filters the loaded list and re-renders the
            markers) and "Has capacity" (server-side `?hasCapacity=`). Both
            are composable with the source chips above. -->
-      <div class="filter-trust" role="group" aria-label="Shelter filters">
+      <div class="filter-trust" role="group" [attr.aria-label]="'map.trustFiltersAria' | t">
         <button
           type="button"
           class="trust-chip"
@@ -237,7 +237,7 @@
       } @else if (showEmpty()) {
         <p class="sidebar-state">{{ 'map.emptyFilter' | t }}</p>
       } @else if (sorted().length) {
-        <ul #listEl class="shelter-list" aria-label="Shelters">
+        <ul #listEl class="shelter-list" [attr.aria-label]="'map.shelterListAria' | t">
           @for (shelter of sorted(); track shelter.id) {
             <!-- The li is the per-shelter row element: the scroll-snap
                  target (map-page.scss) and the row scrollRowIntoView looks
@@ -267,7 +267,7 @@
                     {{ sourceTrustLabel(shelter) }}
                   </span>
                   @if (isPrivateLocation(shelter)) {
-                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                    <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
                   }
                   <!-- Address-anchor distance (location-navigation):
                        the straight-line distance from the searched point —

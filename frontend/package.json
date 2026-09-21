@@ -6,6 +6,7 @@
     "start": "ng serve --port 5173 --proxy-config proxy.conf.json",
     "start:host": "ng serve --port 5173 --host 0.0.0.0 --proxy-config proxy.conf.json",
     "build": "ng build",
+    "postbuild": "node scripts/postbuild-csp.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },

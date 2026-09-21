@@ -10,7 +10,7 @@
 
     <header class="shelter-detail__header">
       <div class="shelter-detail__title-row">
-        <h1 class="page-title">{{ shelter()?.name ?? 'Shelter details' }}</h1>
+        <h1 class="page-title">{{ shelter()?.name ?? ('detail.titleFallback' | t) }}</h1>
         @if (shelter(); as s) {
           <!-- Source/trust badge (community-review-queue D5): registry rows
                say which registry; USER rows say their trust state (NEW =
@@ -19,7 +19,7 @@
             {{ sourceTrustLabel(s) }}
           </span>
           @if (isPrivateLocation(s)) {
-            <span class="badge badge--private">{{ privateLocationBadge }}</span>
+            <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
           }
           <!-- Trust badges (shelter-trust-and-reports D6): same copy rules
                as the map list row — reported /
@@ -49,18 +49,18 @@
                "Community-checked" badge and NO warning. Subtle muted
                styling next to the trust-state badge — a caveat, NOT the
                crisis orange. -->
-          <p class="community-warning">{{ communityUnverifiedWarning }}</p>
+          <p class="community-warning">{{ 'shelter.unverifiedWarning' | t }}</p>
         }
         @if (s.inaccurate) {
           <!-- Marked inaccurate: the single-sourced warning —
                the flag is the treatment, the row stays visible (status and
                trust state untouched). Independent of the review state. -->
-          <p class="community-warning">{{ inaccurateWarning }}</p>
+          <p class="community-warning">{{ 'account.contrib.inaccurate' | t }}</p>
         }
         @if (isPrivateLocation(s)) {
           <!-- The private-home declaration (D7): resident-offered, not an
                official facility. Every PRIVATE row, on every visit. -->
-          <p class="private-note">{{ privateLocationNote }}</p>
+          <p class="private-note">{{ 'shelter.privateNote' | t }}</p>
         }
       }
       @if (shelter(); as s) {
@@ -100,7 +100,7 @@
               [disabled]="distancePending()"
               [attr.aria-busy]="distancePending()"
             >
-              {{ distancePending() ? 'Measuring…' : 'Distance from you' }}
+              {{ distancePending() ? ('detail.distance.pending' | t) : ('detail.distance.cta' | t) }}
             </button>
           </div>
         }

@@ -8,6 +8,7 @@ import {
   inEstonia,
 } from './leaflet-service';
 import type { ShelterDto } from '../core/models';
+import { EN } from '../core/i18n/en';
 
 function shelter(overrides: Partial<ShelterDto> & Pick<ShelterDto, 'id' | 'name'>): ShelterDto {
   return {
@@ -397,7 +398,7 @@ describe('LeafletService', () => {
     // Coexists with the shelter markers — its own field, never the
     // markers layer group (renderShelters keeps the anchor alive).
     service.renderShelters([TALLINN, PERNU]);
-    service.setAnchor(58.8, 25.0);
+    service.setAnchor(58.8, 25.0, EN['map.searched']);
     const anchor = () => container.querySelectorAll<HTMLElement>('.shelter-marker--anchor');
     expect(anchor()).toHaveLength(1);
     expect(anchor()[0].classList.contains('leaflet-marker-icon')).toBe(true);
@@ -405,7 +406,7 @@ describe('LeafletService', () => {
     expect(renderedMarkers(container)).toHaveLength(3);
 
     // Moving the anchor never duplicates the pin…
-    service.setAnchor(59.1, 26.1);
+    service.setAnchor(59.1, 26.1, EN['map.searched']);
     expect(anchor()).toHaveLength(1);
     // …and re-rendering the shelters never removes it either.
     service.renderShelters([TALLINN]);
@@ -414,12 +415,12 @@ describe('LeafletService', () => {
     expect(renderedMarkers(container)).toHaveLength(2);
 
     // null args remove it.
-    service.setAnchor(null, null);
+    service.setAnchor(null, null, '');
     expect(anchor()).toHaveLength(0);
   });
 
   it('the anchor pin is fixed and non-interactive — no drag, no click handler, out of the tab order (M12)', () => {
-    service.setAnchor(58.8, 25.0);
+    service.setAnchor(58.8, 25.0, EN['map.searched']);
     const el = container.querySelector<HTMLElement>('.shelter-marker--anchor');
     expect(el).not.toBeNull();
     // interactive:false → leaflet adds no tabindex/role; the pin must not
@@ -428,7 +429,7 @@ describe('LeafletService', () => {
     expect(el?.getAttribute('role')).toBeNull();
     // The tooltip text (the native title) names what the pin is — its
     // accessible name (M8: the origin marker).
-    expect(el?.getAttribute('title')).toBe('Searched address');
+    expect(el?.getAttribute('title')).toBe(EN['map.searched']);
     // Smaller than the 14px shelter dots (M8): the origin is a reference
     // point, not a data point — and it must not cover a co-located shelter.
     expect(el?.style.width).toBe('12px');
@@ -439,7 +440,7 @@ describe('LeafletService', () => {
     // Same coordinates for shelter and anchor: the shelter marker (the
     // DATA) must draw above the origin pin at the zooms the app uses.
     service.renderShelters([TALLINN]);
-    service.setAnchor(TALLINN.latitude, TALLINN.longitude);
+    service.setAnchor(TALLINN.latitude, TALLINN.longitude, EN['map.searched']);
     const shelterEl = container.querySelector<HTMLElement>('.shelter-marker--registry');
     const anchorEl = container.querySelector<HTMLElement>('.shelter-marker--anchor');
     expect(shelterEl).not.toBeNull();
@@ -456,9 +457,9 @@ describe('LeafletService', () => {
 
   it('setAnchor is a safe no-op before create and destroy clears the pin (M12)', () => {
     const uncreated = new LeafletService();
-    expect(() => uncreated.setAnchor(58.8, 25.0)).not.toThrow();
+    expect(() => uncreated.setAnchor(58.8, 25.0, EN['map.searched'])).not.toThrow();
 
-    service.setAnchor(58.8, 25.0);
+    service.setAnchor(58.8, 25.0, EN['map.searched']);
     expect(container.querySelector('.shelter-marker--anchor')).not.toBeNull();
     service.destroy();
     expect(container.querySelector('.shelter-marker--anchor')).toBeNull();

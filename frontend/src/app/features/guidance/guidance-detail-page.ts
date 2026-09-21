@@ -179,7 +179,7 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
           this.notFound.set(true);
           return;
         }
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       },
     );
   }

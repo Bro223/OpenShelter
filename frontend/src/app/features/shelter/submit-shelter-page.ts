@@ -332,7 +332,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
         this.editingId.set(row.id);
       })
       .catch((failure: unknown) => {
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       })
       .finally(() => this.editLoading.set(false));
   }
@@ -677,7 +677,7 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       // Input preserved on purpose — the user fixes the backend's complaint
       // and retries. 403 (claim lapsed since the guard ran) gets a /verify link.
       const api = toApiError(failure);
-      this.error.set(bannerMessage(failure, 'shelter'));
+      this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
       this.verifyLink.set(api.status === 403);
     } finally {
       this.pending.set(false);

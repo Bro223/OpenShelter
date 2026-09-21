@@ -15,9 +15,10 @@ import type { MessageKey, Messages } from './messages';
  * a locale value stops differing from EN, unless the key is on the
  * documented allow-list below.
  *
- * Companion guard: the account-surface template guard
- * (features/account/account-i18n-guard.spec.ts) catches the sibling failure
- * class — user-visible text hardcoded in a template outside `| t`.
+ * Companion guard: the app-wide template guard
+ * (core/i18n/i18n-template-guard.spec.ts) catches the sibling failure
+ * class — user-visible text hardcoded in a template outside `| t` (text
+ * nodes, literal attributes and interpolation literals, every template).
  */
 
 /**
@@ -61,6 +62,11 @@ const IDENTICAL_TO_EN_OK: Partial<Record<MessageKey, string>> = {
   'detail.appleMaps': 'Apple Maps',
   // The env-var name is code, not copy (quoted from the backend config).
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
+  // The concrete-date skeleton of the verification stamp: RU keeps EN's
+  // "{day} {month} {year}" word order — the {month} PARAM carries the
+  // Russian month name (locale data, locale.ts), so the rendered date is
+  // localized even though the template is not. (ET adds the day dot: "12. sept 2026".)
+  'shelter.recency.date': '{day} {month} {year}',
   // The emergency number — a literal in every locale.
   'legal.terms.emergencyNumber': '112',
   // Punctuation-only splice tail after the "call 112" sentence — the

@@ -225,7 +225,7 @@ auth, verification, shelter submission, community reports); run/build docs in
 ## Stack
 
 - Java 21 · Maven · Spring Boot 3.5.x (web, validation, data-jpa, security, actuator)
-- PostgreSQL 16 (Docker Compose) · Flyway migrations `V1`–`V29` (SQL, `src/main/resources/db/migration/`) — plus the index-only dotted `V23.1__shelter_bbox_index.sql` (the composite B-tree on the shelter coordinate columns; no PostGIS) — and the Java-based `V13` (`V13PiiEncryptionMigration` — PII-at-rest encryption + blind-index backfill, M2)
+- PostgreSQL 16 (Docker Compose) · Flyway migrations `V1`–`V30` (SQL, `src/main/resources/db/migration/`) — plus the index-only dotted `V23.1__shelter_bbox_index.sql` (the composite B-tree on the shelter coordinate columns; no PostGIS) and the index-only `V30__index_cleanup_and_queue_indexes.sql` (the moderation-actions reporter index + the report-queue ordering index, minus four unused/redundant indexes) — and the Java-based `V13` (`V13PiiEncryptionMigration` — PII-at-rest encryption + blind-index backfill, M2)
 - jjwt 0.12.x (JWT access/refresh) · spring-security-crypto (Argon2id) · proj4j (coordinate transform)
 - Testcontainers 2.0.x (Postgres) + JUnit 5 + AssertJ for tests
 - No Lombok — records replace the boilerplate
@@ -739,11 +739,15 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
    re-issue counter are **in-memory, per process**. This app must run as ONE instance; behind
    multiple replicas each has its own buckets (limits weaken by the replica count) and the
    reset daily cap is per-instance. Run one, or move to a shared store first.
-7. **Content-Security-Policy at the proxy.** Add the CSP
-   `Content-Security-Policy` header in the reverse proxy in front of the SPA
-   — that is the UI's real enforcement point (the frontend's prod build is
-   same-origin by default, so a `default-src 'self'`-style policy at the
-   proxy). The API has sent its own hardening headers, including a
+7. **Content-Security-Policy at the proxy.** Set the ready-to-use CSP header
+   from [`docs/deploy/spa-csp.md`](docs/deploy/spa-csp.md) in the reverse proxy in front of the SPA
+   — that is the UI's real enforcement point. The shipped header is derived
+   from what the built SPA actually loads (own bundle, the two hashed
+   pre-paint scripts, OSM tiles + Nominatim geocoder); `python3 scripts/spa-csp.py
+   frontend/dist/frontend/browser/index.html` recomputes it after every
+   frontend rebuild (the doc also covers the nginx/caddy/ingress forms and
+   why it is a proxy header, not a `<meta>` tag). The API has sent its own
+   hardening headers, including a
    defense-in-depth CSP, on every response since the M3 slice 5 hardening
    pass (`SecurityHeadersFilter`).
 8. **Trusted proxies for rate-limit keys.** If the app sits behind a reverse proxy/LB, set
@@ -802,7 +806,7 @@ Checklist for a non-dev deploy (the 2026-09-08 campaign hardened all of these se
   PostGIS and no spatial extension (Estonia-scale data does not justify the deployment
   surface; the scale-up path is recorded in the change's `design.md`); "nearest shelter"
   remains a client-side ranking of the loaded list
-- Persistence (Flyway `V1`–`V29` + the Java `V13`, JPA, `ddl-auto=validate`), uniform error handling
+- Persistence (Flyway `V1`–`V30` + the Java `V13`, JPA, `ddl-auto=validate`), uniform error handling
 - Fail-closed JWT secret guard + fail-fast dev-endpoint guard (refuse to boot misconfigured)
 
 **Configured integrations (working — not gaps):**

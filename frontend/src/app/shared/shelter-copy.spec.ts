@@ -1,7 +1,9 @@
 import {
   COMMUNITY_UNVERIFIED_WARNING,
-  OCCUPANCY_FIRM_COPY,
-  OCCUPANCY_HEDGED_COPY,
+  INACCURATE_BADGE,
+  INACCURATE_WARNING,
+  OCCUPANCY_FIRM_KEY,
+  OCCUPANCY_HEDGED_KEY,
   PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
   REPORT_SUBMITTED,
@@ -22,8 +24,14 @@ import {
   lastVerifiedText,
   communityReportsText,
   hasCommunityReports,
+  straightLineText,
+  type ShelterTranslate,
 } from './shelter-copy';
 import type { OpenStatusDto, ShelterOccupancy } from '../core/models';
+import { EN } from '../core/i18n/en';
+import { ET } from '../core/i18n/et';
+import { MONTH_ABBREVS } from '../core/i18n/locale';
+import { interpolate } from '../core/i18n/i18n.service';
 
 /**
  * The source/trust labels are PINNED copy (community-review-queue D5):
@@ -301,17 +309,25 @@ describe('occupancy copy (D4: hedged at one, firm at two+)', () => {
     );
   });
 
-  it('the band heads are the pinned D4 vocabulary', () => {
-    expect(OCCUPANCY_FIRM_COPY).toEqual({
-      SPACE: 'Space available',
-      GETTING_FULL: 'Getting full',
-      FULL: 'Full',
+  it('the band heads are catalog keys — the firm set REUSES the band picker\u2019s detail.band.* (N7 i18n-completeness)', () => {
+    expect(OCCUPANCY_FIRM_KEY).toEqual({
+      SPACE: 'detail.band.space',
+      GETTING_FULL: 'detail.band.gettingFull',
+      FULL: 'detail.band.full',
     });
-    expect(OCCUPANCY_HEDGED_COPY).toEqual({
-      SPACE: 'Reported space available',
-      GETTING_FULL: 'Reported getting full',
-      FULL: 'Reported full',
+    expect(OCCUPANCY_HEDGED_KEY).toEqual({
+      SPACE: 'shelter.occupancy.hedged.space',
+      GETTING_FULL: 'shelter.occupancy.hedged.gettingFull',
+      FULL: 'shelter.occupancy.hedged.full',
     });
+    // The EN catalog values are byte-identical to the old pinned copy —
+    // the routing changed the mechanism, not the words.
+    expect(EN[OCCUPANCY_FIRM_KEY.SPACE]).toBe('Space available');
+    expect(EN[OCCUPANCY_FIRM_KEY.GETTING_FULL]).toBe('Getting full');
+    expect(EN[OCCUPANCY_FIRM_KEY.FULL]).toBe('Full');
+    expect(EN[OCCUPANCY_HEDGED_KEY.SPACE]).toBe('Reported space available');
+    expect(EN[OCCUPANCY_HEDGED_KEY.GETTING_FULL]).toBe('Reported getting full');
+    expect(EN[OCCUPANCY_HEDGED_KEY.FULL]).toBe('Reported full');
   });
 });
 
@@ -473,5 +489,117 @@ describe('communityReportsText (M8)', () => {
   it('hasCommunityReports: > 0 of any type', () => {
     expect(hasCommunityReports({ reportCount: 0 })).toBe(false);
     expect(hasCommunityReports({ reportCount: 1 })).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Locale seam (N7 i18n-completeness): the same facts, resolved through a
+// translate callback — the ET proofs below assert the ET catalog value
+// flows through (interpolate(ET[key], params)), i.e. the seam renders the
+// active locale and one fact has exactly one translation. The EN fallback
+// (no callback) is already pinned everywhere above — byte-identical.
+// ---------------------------------------------------------------------------
+
+describe('locale seam (N7 i18n-completeness)', () => {
+  const et: ShelterTranslate = (key, params) => interpolate(ET[key], params ?? {});
+
+  const NOW = Date.parse('2026-09-11T12:12:00Z');
+  const at = (minutesAgo: number): string => new Date(NOW - minutesAgo * 60000).toISOString();
+  const occ = (
+    band: ShelterOccupancy['band'],
+    reportCount: number,
+    lastReportedAt: string,
+  ): ShelterOccupancy => ({ band, reportCount, lastReportedAt });
+
+  it('the no-callback path IS the EN catalog (admin call sites keep their copy)', () => {
+    expect(COMMUNITY_UNVERIFIED_WARNING).toBe(EN['shelter.unverifiedWarning']);
+    expect(INACCURATE_WARNING).toBe(EN['account.contrib.inaccurate']); // one of the 9 twins
+    expect(PRIVATE_LOCATION_BADGE).toBe(EN['shelter.privateBadge']);
+    expect(INACCURATE_BADGE).toBe('Inaccurate'); // admin-only literal (no key on purpose)
+  });
+
+  it('sourceTrustLabel resolves the account.contrib.* twins in the active locale', () => {
+    expect(sourceTrustLabel({ source: 'PAASETEAMET', reviewStatus: 'CONFIRMED' }, et)).toBe(
+      ET['account.contrib.source.paasteamet'],
+    );
+    expect(sourceTrustLabel({ source: 'MUNICIPALITY', reviewStatus: 'CONFIRMED' }, et)).toBe(
+      ET['account.contrib.source.municipality'],
+    );
+    expect(sourceTrustLabel({ source: 'USER', reviewStatus: 'NEW' }, et)).toBe(
+      ET['account.contrib.badge.new'],
+    );
+    expect(communityTrustLabel('CONFIRMED', et)).toBe(ET['account.contrib.badge.confirmed']);
+  });
+
+  it('the badge heads and recency render in ET (the seam reaches the catalog)', () => {
+    expect(occupancyText(occ('FULL', 2, at(12)), NOW, et)).toBe(
+      `${ET['detail.band.full']} \u00b7 ${interpolate(ET['shelter.recency.minutes'], { minutes: 12 })}`,
+    );
+    // Locale proof: the ET render is NOT the EN string.
+    expect(occupancyText(occ('FULL', 2, at(12)), NOW, et)).not.toBe('Full \u00b7 12 min ago');
+    expect(recencyText(at(12), NOW, et)).toBe(interpolate(ET['shelter.recency.minutes'], { minutes: 12 }));
+    expect(openStatusBadgeText({ state: 'CLOSED', reportedAt: at(0), reportCount: 1 }, et)).toBe(
+      ET['shelter.status.reportedClosed'],
+    );
+    expect(shelterStatusText({ status: 'ACTIVE', openStatus: null }, et)).toBe(
+      ET['shelter.status.openNoReports'],
+    );
+  });
+
+  it('the meta lines render in ET, with the month data from the active locale', () => {
+    const NOW2 = Date.parse('2026-09-13T12:00:00Z');
+    const at2 = (minutesAgo: number): string => new Date(NOW2 - minutesAgo * 60000).toISOString();
+    const weekAgo = at2(60 * 24 * 7); // 6 Sep 2026
+    expect(verifiedAgoText(weekAgo, NOW2, et, MONTH_ABBREVS.et)).toBe(
+      interpolate(ET['shelter.recency.date'], {
+        day: 6,
+        month: MONTH_ABBREVS.et[8],
+        year: 2026,
+      }),
+    );
+    expect(
+      lastVerifiedText(
+        { lastVerifiedAt: at2(120), reviewStatus: 'CONFIRMED', createdAt: at2(60 * 24 * 400), source: 'USER' },
+        NOW2,
+        et,
+        MONTH_ABBREVS.et,
+      ),
+    ).toBe(interpolate(ET['shelter.lastVerified'], { ago: interpolate(ET['shelter.recency.hours'], { hours: 2 }) }));
+    expect(
+      lastVerifiedText(
+        { lastVerifiedAt: null, reviewStatus: 'NEW', createdAt: at2(60 * 24 * 3), source: 'USER' },
+        NOW2,
+        et,
+        MONTH_ABBREVS.et,
+      ),
+    ).toBe(
+      interpolate(ET['shelter.newlyAddedUnverified'], {
+        ago: interpolate(ET['shelter.recency.days'], { days: 3 }),
+      }),
+    );
+    expect(
+      lastVerifiedText(
+        { lastVerifiedAt: null, reviewStatus: 'REJECTED', createdAt: at2(60 * 24 * 400), source: 'USER' },
+        NOW2,
+        et,
+        MONTH_ABBREVS.et,
+      ),
+    ).toBe(ET['shelter.noVerificationRecord']);
+    expect(reportedBadgeText(3, et)).toBe(interpolate(ET['shelter.reportedBadge'], { count: 3 }));
+    expect(communityReportsText(3, et)).toBe(
+      interpolate(ET['shelter.communityReports'], { count: 3 }),
+    );
+  });
+
+  it('straightLineText renders the distance honesty copy in ET', () => {
+    expect(straightLineText(0.4, et)).toBe(
+      interpolate(ET['shelter.distance.meters'], { distance: 400 }),
+    );
+    expect(straightLineText(1.456, et)).toBe(
+      interpolate(ET['shelter.distance.kilometers'], { distance: '1.5' }),
+    );
+    // EN fallback stays the pinned honesty wording.
+    expect(straightLineText(0.4)).toBe('\u2248 400 m straight line');
+    expect(straightLineText(1.456)).toBe('\u2248 1.5 km straight line');
   });
 });

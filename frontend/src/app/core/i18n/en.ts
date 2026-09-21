@@ -14,6 +14,7 @@ export const EN: Messages = {
   'nav.account': 'Account',
   'nav.admin': 'Admin',
   'nav.skip': 'Skip to content',
+  'nav.primaryAria': 'Primary',
 
   'a11y.button': 'Accessibility',
   'lang.label': 'Language',
@@ -50,6 +51,7 @@ export const EN: Messages = {
   'footer.dataSource': 'Shelter data',
   'footer.lastImport': 'last import',
   'footer.officialOpenData': 'official open data',
+  'footer.legalAria': 'Legal',
 
   'title.map': 'Shelter map',
   'title.login': 'Log in',
@@ -133,6 +135,7 @@ export const EN: Messages = {
   'authPage.register.phoneRequired': 'Phone is required.',
   'authPage.register.passwordLabel': 'Password',
   'authPage.register.passwordRequired': 'Password is required.',
+  'authPage.register.passwordTooShort': 'Password must be at least 8 characters long.',
   'authPage.register.submitting': 'Creating account…',
   'authPage.register.submit': 'Create account',
   'authPage.register.agreeLead': 'By creating an account you agree to the',
@@ -200,6 +203,10 @@ export const EN: Messages = {
   'map.filter.registry': 'Registry',
   'map.filter.user': 'User',
   'map.filterSourcesAria': 'Filter shelters by source',
+  'map.legendAria': 'Marker legend',
+  'map.addressResultsAria': 'Address results',
+  'map.trustFiltersAria': 'Shelter filters',
+  'map.shelterListAria': 'Shelters',
   'map.chipOpen': 'Open',
   'map.chipHasCapacity': 'Has capacity',
   'map.emptyFilter': 'No shelters match this filter.',
@@ -226,6 +233,9 @@ export const EN: Messages = {
   'detail.notFoundBody': 'No shelter with this ID exists — it may have been removed.',
   'detail.locationHeading': 'Location',
   'detail.loading': 'Loading shelter…',
+  'detail.titleFallback': 'Shelter details',
+  'detail.distance.cta': 'Distance from you',
+  'detail.distance.pending': 'Measuring…',
   'detail.distance.fromYou': '{distance} from you',
   'detail.detailsHeading': 'Details',
   'detail.infoHeading': 'Info',
@@ -282,6 +292,41 @@ export const EN: Messages = {
   'detail.pulse.occupancyText': 'Reports: {space} space available, {gettingFull} getting full, {full} full',
   'detail.pulse.windowHint': 'Reflects reports from the last 2 hours',
   'detail.pulse.estimateNote': 'The arrows show a calculated estimate, not confirmed data.',
+
+  // --- shared shelter copy (shared/shelter-copy.ts). The nine values with
+  // pre-existing twins (trust-state labels, registry labels, inaccurate
+  // warning, firm band heads) REUSE account.contrib.* / detail.band.* —
+  // they are NOT duplicated here; only the rest of the module's copy is new.
+  'shelter.status.reportedClosed': 'Reported closed',
+  'shelter.status.closed': 'Closed',
+  'shelter.status.open': 'Open',
+  'shelter.status.openNoReports': 'Open (no recent reports)',
+  'shelter.occupancy.hedged.space': 'Reported space available',
+  'shelter.occupancy.hedged.gettingFull': 'Reported getting full',
+  'shelter.occupancy.hedged.full': 'Reported full',
+  'shelter.recency.justNow': 'just now',
+  'shelter.recency.minutes': '{minutes} min ago',
+  'shelter.recency.hours': '{hours} h ago',
+  'shelter.recency.days': '{days} d ago',
+  'shelter.recency.date': '{day} {month} {year}',
+  'shelter.reportedBadge': 'Reported ({count})',
+  'shelter.privateBadge': 'Private home (declared)',
+  'shelter.privateNote': 'This is a resident-offered location, not an official facility.',
+  'shelter.unverifiedWarning':
+    'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
+  'shelter.lastVerified': 'Last verified {ago}',
+  'shelter.lastVerifiedRegistry': 'Last verified against the registry {ago}',
+  'shelter.newlyAddedUnverified': 'Newly added {ago} — not yet verified',
+  'shelter.noVerificationRecord': 'No verification record yet',
+  'shelter.communityReports': 'Community reports: {count} (total, all types)',
+  'shelter.distance.meters': '≈ {distance} m straight line',
+  'shelter.distance.kilometers': '≈ {distance} km straight line',
+  'shelter.notice.reportSubmitted': 'Your report was submitted.',
+  'shelter.notice.reportSubmittedDamped':
+    'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.',
+  'shelter.notice.occupancySaved': 'Your occupancy report was saved.',
+  'shelter.notice.openClosedSaved': 'Your open/closed report was saved.',
+  'shelter.notice.reportDuplicate': 'You have already reported this shelter with this report type.',
 
   // --- submit shelter page (the contribute surface).
   'submit.backToMap': 'Back to the map',

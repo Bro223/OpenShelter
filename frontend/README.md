@@ -115,6 +115,14 @@ every interactive element keyboard-visible.
 npm run build     # → dist/frontend/browser/ (outputHashing: all, relative asset paths)
 ```
 
+`npm run build` runs a `postbuild` hook (`scripts/postbuild-csp.mjs`) after `ng
+build`: it rewrites the builder's critical-CSS `print`/`onload` stylesheet swap
+into a plain `<link rel="stylesheet">`, because the swap's inline **event
+handler** would be blocked by the hash-based proxy CSP (event handlers cannot be
+allow-listed by hash — a blocked swap leaves the SPA unstyled). Build with
+`ng build` directly only when you do not need the CSP-safe output — the policy
+itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-csp.md).
+
 - **Deploy**: serve `dist/frontend/browser/` from any static host. `index.html` uses
   relative asset paths and `<base href="/">`, so it works at the domain root as-is;
   for a sub-path use `ng build --base-href /path/`. Point the browser's API origin at

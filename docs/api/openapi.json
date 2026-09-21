@@ -4112,7 +4112,7 @@
     },
     "/admin/reports" : {
       "get" : {
-        "description" : "Newest first; optional shelterId narrows to one shelter. Carries the reporter's profile name + email — admin-only data, served from /admin/* only.",
+        "description" : "Newest first; optional shelterId narrows to one shelter. Carries the reporter's profile name + email — admin-only data, served from /admin/* only. limit is 1..200, default 100 (anything else 400 — the same bound as /admin/audit; a response of exactly limit rows means the queue was truncated).",
         "operationId" : "listShelterReports",
         "parameters" : [ {
           "name" : "shelterId",
@@ -4122,6 +4122,15 @@
           "schema" : {
             "type" : "integer",
             "format" : "int64"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Rows to return, 1..200 (default 100; anything else 400).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         } ],
         "responses" : {
@@ -4136,17 +4145,20 @@
                 }
               }
             },
-            "description" : "The report rows (newest first)"
+            "description" : "The report rows (newest first, at most limit)"
           },
           "400" : {
             "content" : {
-              "application/json" : {
+              "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterReportDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "limit outside 1..200"
           },
           "401" : {
             "content" : {

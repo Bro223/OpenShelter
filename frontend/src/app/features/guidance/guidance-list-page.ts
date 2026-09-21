@@ -112,7 +112,7 @@ export class GuidanceListPage implements OnInit, OnDestroy {
         if (seq !== this.fetchSeq) {
           return;
         }
-        this.error.set(bannerMessage(failure, 'shelter'));
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
         this.loading.set(false);
       },
     );

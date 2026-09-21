@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnDestroy, signal } from '@
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiError, toApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
 import type { MessageKey } from '../../core/i18n/messages';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthGateway } from '../../gateways/auth-gateway';
@@ -47,6 +48,9 @@ export type ResetMode = 'request' | 'sent';
 export class ResetPage implements OnDestroy {
   private readonly gateway = inject(AuthGateway);
   private readonly router = inject(Router);
+  /** The i18n seam: the banner's client-authored error.* copy resolves in
+   *  the active locale (N7 i18n-completeness). */
+  private readonly i18n = inject(I18nService);
 
   readonly mode = signal<ResetMode>('request');
   protected readonly pending = signal(false);
@@ -120,7 +124,7 @@ export class ResetPage implements OnDestroy {
       this.mode.set('sent');
     } catch (error) {
       this.startCountdownFromThrottle(error);
-      this.error.set(bannerMessage(error, 'reset'));
+      this.error.set(bannerMessage(error, 'reset', (key) => this.i18n.t(key)));
     } finally {
       this.pending.set(false);
     }
@@ -139,7 +143,7 @@ export class ResetPage implements OnDestroy {
       this.countdown.start(ack.resendAvailableAfterSeconds ?? 60);
     } catch (error) {
       this.startCountdownFromThrottle(error);
-      this.error.set(bannerMessage(error, 'reset'));
+      this.error.set(bannerMessage(error, 'reset', (key) => this.i18n.t(key)));
     } finally {
       this.pending.set(false);
     }
@@ -172,7 +176,7 @@ export class ResetPage implements OnDestroy {
       // a bad code: run the live resend countdown, exactly like the
       // send/resend paths do.
       this.startCountdownFromThrottle(error);
-      this.error.set(bannerMessage(error, 'reset'));
+      this.error.set(bannerMessage(error, 'reset', (key) => this.i18n.t(key)));
     } finally {
       this.pending.set(false);
     }

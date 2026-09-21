@@ -107,8 +107,14 @@
           [attr.aria-describedby]="passwordInvalid ? 'register-password-error' : null"
         />
         @if (passwordInvalid) {
+          <!-- One error slot: the message follows the failing rule
+               (required, or the 8-character floor the backend enforces). -->
           <p class="field-error" id="register-password-error" role="alert">
-            {{ 'authPage.register.passwordRequired' | t }}
+            {{
+              form.controls.password.hasError('required')
+                ? ('authPage.register.passwordRequired' | t)
+                : ('authPage.register.passwordTooShort' | t)
+            }}
           </p>
         }
       </div>

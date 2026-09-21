@@ -3,6 +3,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { RouterLink } from '@angular/router';
 import { toApiError } from '../../core/api-error';
 import type { RegisterRequest } from '../../core/models';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
@@ -10,9 +11,11 @@ import { bannerMessage } from '../../shared/error-copy';
 
 /**
  * /register (GuestGuard). Validators mirror the backend RegisterRequest
- * (@NotBlank on every field, @Email on email) — nothing stricter, so a valid
- * backend payload is never blocked client-side. The backend has no password
- * policy beyond non-blank, so the form does not invent one either.
+ * (@NotBlank on every field, @Email on email, @Size(min = 8, max = 200)
+ * on password) — nothing stricter, so a valid backend payload is never
+ * blocked client-side, and the 8-character password floor is a client-
+ * side FIELD ERROR (the authPage.register.passwordTooShort line) instead
+ * of a 400 banner — the same UX /reset already has.
  *
  * 201 -> success view (register != login — no session). 409 (duplicate
  * email/phone) -> inline error with the backend's specific message; 429 ->
@@ -27,6 +30,9 @@ import { bannerMessage } from '../../shared/error-copy';
 })
 export class RegisterPage {
   private readonly store = inject(AuthStore);
+  /** The i18n seam: the banner's client-authored error.* copy resolves in
+   *  the active locale (N7 i18n-completeness). */
+  private readonly i18n = inject(I18nService);
 
   readonly form = new FormGroup({
     name: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -35,7 +41,13 @@ export class RegisterPage {
       validators: [Validators.required, Validators.email],
     }),
     phone: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    password: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    // minLength mirrors the server's @Size(min = 8) on
+    // RegisterRequest.password — a short password is a client-side field
+    // error, not a 400 the banner would have to carry.
+    password: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(8)],
+    }),
   });
 
   protected readonly pending = signal(false);
@@ -78,7 +90,7 @@ export class RegisterPage {
       if (field) {
         this.duplicate.set({ field, message: api.message });
       } else {
-        this.error.set(bannerMessage(error, 'register'));
+        this.error.set(bannerMessage(error, 'register', (key) => this.i18n.t(key)));
       }
     } finally {
       this.pending.set(false);

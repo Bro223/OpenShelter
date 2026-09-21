@@ -33,7 +33,7 @@
     [class.shell-menu--open]="menuOpen()"
     (click)="closeMenu()"
   >
-    <nav class="shell-nav" aria-label="Primary">
+    <nav class="shell-nav" [attr.aria-label]="'nav.primaryAria' | t">
       <a routerLink="/map" routerLinkActive="active">{{ 'nav.map' | t }}</a>
       <!-- Public crisis-guidance index (crisis-guidance D6): permit-all —
            anonymous visitors see it too, like the map. -->
@@ -133,7 +133,7 @@
        Provenance is non-critical: hidden while loading or on API error.
        i18n-et-en: labels + the date stamp follow the active locale. -->
   <div class="shell-footer__meta">
-    <nav class="shell-footer__legal" aria-label="Legal">
+    <nav class="shell-footer__legal" [attr.aria-label]="'footer.legalAria' | t">
       <a routerLink="/privacy">{{ 'footer.privacy' | t }}</a>
       <span aria-hidden="true">&middot;</span>
       <a routerLink="/terms">{{ 'footer.terms' | t }}</a>

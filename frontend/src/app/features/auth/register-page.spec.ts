@@ -85,7 +85,7 @@ describe('RegisterPage', () => {
       name: 'Test User',
       email: 'test@example.ee',
       phone: '+37250000001',
-      password: 's3cret!',
+      password: 's3cret!!',
     });
   }
 
@@ -122,6 +122,27 @@ describe('RegisterPage', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Name is required.');
     expect(text).toContain('A valid email is required.');
+  });
+
+  it('blocks a 7-character password client-side with the too-short error (mirrors the backend @Size(min = 8))', async () => {
+    const { page, fixture } = await open();
+    page.form.setValue({
+      name: 'Test User',
+      email: 'test@example.ee',
+      phone: '+37250000001',
+      password: 's3cret!', // 7 chars — one short of the backend's @Size(min = 8)
+    });
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(gateway.register).not.toHaveBeenCalled();
+    const root = fixture.nativeElement as HTMLElement;
+    // The too-short line (NOT the required line) is the visible error…
+    const error = root.querySelector('#register-password-error');
+    expect(error?.textContent?.trim()).toBe('Password must be at least 8 characters long.');
+    // …and the field is flagged invalid for assistive tech.
+    expect((root.querySelector('input#register-password') as HTMLInputElement).getAttribute('aria-invalid')).toBe('true');
   });
 
   it('exposes invalid + 409 fields to assistive tech (aria-invalid + describedby + alert)', async () => {
@@ -181,7 +202,7 @@ describe('RegisterPage', () => {
       name: ' Test User ',
       email: 'Test@Example.EE',
       phone: ' +37250000001 ',
-      password: 's3cret!',
+      password: 's3cret!!',
     });
     gateway.register.mockResolvedValue(undefined);
 
@@ -191,7 +212,7 @@ describe('RegisterPage', () => {
     expect(request.name).toBe('Test User');
     expect(request.email).toBe('test@example.ee');
     expect(request.phone).toBe('+37250000001');
-    expect(request.password).toBe('s3cret!');
+    expect(request.password).toBe('s3cret!!');
   });
 
   it('shows the success view on 201 — no session is created', async () => {

@@ -28,6 +28,7 @@ export const RU: Messages = {
   'nav.account': 'Аккаунт',
   'nav.admin': 'Админ',
   'nav.skip': 'Перейти к содержимому',
+  'nav.primaryAria': 'Главное меню',
 
   'a11y.button': 'Доступность',
   'lang.label': 'Язык',
@@ -64,6 +65,7 @@ export const RU: Messages = {
   'footer.dataSource': 'Данные об укрытиях',
   'footer.lastImport': 'последний импорт',
   'footer.officialOpenData': 'официальные открытые данные',
+  'footer.legalAria': 'Юридические ссылки',
 
   'title.map': 'Карта укрытий',
   'title.login': 'Вход',
@@ -147,6 +149,7 @@ export const RU: Messages = {
   'authPage.register.phoneRequired': 'Укажите телефон.',
   'authPage.register.passwordLabel': 'Пароль',
   'authPage.register.passwordRequired': 'Введите пароль.',
+  'authPage.register.passwordTooShort': 'Пароль должен быть не короче 8 символов.',
   'authPage.register.submitting': 'Создаём аккаунт…',
   'authPage.register.submit': 'Создать аккаунт',
   // Строка согласия склеивается вокруг двух ссылок; глагол «соглашаться»
@@ -217,6 +220,10 @@ export const RU: Messages = {
   'map.filter.registry': 'Реестр',
   'map.filter.user': 'Пользователь',
   'map.filterSourcesAria': 'Фильтр укрытий по источнику',
+  'map.legendAria': 'Легенда маркеров',
+  'map.addressResultsAria': 'Результаты по адресу',
+  'map.trustFiltersAria': 'Фильтры укрытий',
+  'map.shelterListAria': 'Укрытия',
   'map.chipOpen': 'Открыто',
   'map.chipHasCapacity': 'Есть свободные места',
   'map.emptyFilter': 'Ни одно укрытие не подходит к этому фильтру.',
@@ -245,6 +252,9 @@ export const RU: Messages = {
   'detail.notFoundBody': 'Укрытия с таким идентификатором нет — возможно, оно было удалено.',
   'detail.locationHeading': 'Местоположение',
   'detail.loading': 'Загружаем укрытие…',
+  'detail.titleFallback': 'Сведения об укрытии',
+  'detail.distance.cta': 'Расстояние до вас',
+  'detail.distance.pending': 'Измерение…',
   'detail.distance.fromYou': '{distance} от вас',
   'detail.detailsHeading': 'Детали',
   'detail.infoHeading': 'Информация',
@@ -302,6 +312,42 @@ export const RU: Messages = {
   'detail.pulse.occupancyText': 'Сообщения: {space} есть места, {gettingFull} заполняется, {full} мест нет',
   'detail.pulse.windowHint': 'Отражает сообщения за последние 2 часа',
   'detail.pulse.estimateNote': 'Стрелки показывают рассчитанную оценку, а не подтверждённые данные.',
+
+  // --- Общие формулировки о укрытиях (shared/shelter-copy.ts). Девять
+  // значений, у которых уже были «близнецы» в каталоге (метки
+  // доверия, метки реестров, предупреждение о неточности, УВЕРЕННЫЕ
+  // заголовки заполненности), ПЕРЕИСПОЛЬЗУЮТ существующие ключи
+  // (account.contrib.* / detail.band.*) — без дублирования.
+  'shelter.status.reportedClosed': 'Сообщено, что закрыто',
+  'shelter.status.closed': 'Закрыто',
+  'shelter.status.open': 'Открыто',
+  'shelter.status.openNoReports': 'Открыто (нет недавних сообщений)',
+  'shelter.occupancy.hedged.space': 'Сообщено: есть свободные места',
+  'shelter.occupancy.hedged.gettingFull': 'Сообщено: почти заполнено',
+  'shelter.occupancy.hedged.full': 'Сообщено: заполнено',
+  'shelter.recency.justNow': 'только что',
+  'shelter.recency.minutes': '{minutes} мин назад',
+  'shelter.recency.hours': '{hours} ч назад',
+  'shelter.recency.days': '{days} дн назад',
+  'shelter.recency.date': '{day} {month} {year}',
+  'shelter.reportedBadge': 'Сообщено ({count})',
+  'shelter.privateBadge': 'Частный дом (заявлено)',
+  'shelter.privateNote': 'Это место предложено жителем, а не официальное учреждение.',
+  'shelter.unverifiedWarning':
+    'Это место добавлено участником сообщества и не прошло официальной проверки. В экстренной ситуации на него полагаться не стоит.',
+  'shelter.lastVerified': 'Последняя проверка: {ago}',
+  'shelter.lastVerifiedRegistry': 'Последняя проверка по реестру: {ago}',
+  'shelter.newlyAddedUnverified': 'Новое от сообщества {ago} — ещё не проверено',
+  'shelter.noVerificationRecord': 'Записи о проверке пока нет',
+  'shelter.communityReports': 'Сообщения сообщества: {count} (всего, всех типов)',
+  'shelter.distance.meters': '≈ {distance} м по прямой',
+  'shelter.distance.kilometers': '≈ {distance} км по прямой',
+  'shelter.notice.reportSubmitted': 'Ваше сообщение отправлено.',
+  'shelter.notice.reportSubmittedDamped':
+    'Ваше сообщение записано с весом 0 — у вас есть собственное объявление о похожем месте, поэтому оно не учитывается при скрытии этого укрытия.',
+  'shelter.notice.occupancySaved': 'Ваше сообщение о заполненности сохранено.',
+  'shelter.notice.openClosedSaved': 'Ваше сообщение «открыто/закрыто» сохранено.',
+  'shelter.notice.reportDuplicate': 'Вы уже сообщали об этом укрытии этого типа.',
 
   // --- страница добавления укрытия (поверхность вклада сообщества).
   'submit.backToMap': 'Назад к карте',

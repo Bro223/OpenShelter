@@ -14,6 +14,7 @@ export const ET: Messages = {
   'nav.account': 'Konto',
   'nav.admin': 'Haldus',
   'nav.skip': 'Liigu põhisisu juurde',
+  'nav.primaryAria': 'Peamenüü',
 
   'a11y.button': 'Kättesaadavus',
   'lang.label': 'Keel',
@@ -52,6 +53,7 @@ export const ET: Messages = {
   'footer.dataSource': 'Varjupaikade andmed',
   'footer.lastImport': 'viimane import',
   'footer.officialOpenData': 'ametlikud avandmed',
+  'footer.legalAria': 'Õiguslikud lingid',
 
   'title.map': 'Varjupaikade kaart',
   'title.login': 'Sisse logimine',
@@ -137,6 +139,7 @@ export const ET: Messages = {
   'authPage.register.phoneRequired': 'Telefon on kohustuslik.',
   'authPage.register.passwordLabel': 'Parool',
   'authPage.register.passwordRequired': 'Parool on kohustuslik.',
+  'authPage.register.passwordTooShort': 'Parool peab olema vähemalt 8 tähemärki pikk.',
   'authPage.register.submitting': 'Kontot luuakse…',
   'authPage.register.submit': 'Loo konto',
   // The agreement line splices around the two links; the link labels take
@@ -205,6 +208,10 @@ export const ET: Messages = {
   'map.filter.registry': 'Register',
   'map.filter.user': 'Kasutaja',
   'map.filterSourcesAria': 'Filtreeri varjupaikaid allika järgi',
+  'map.legendAria': 'Märgiste legenda',
+  'map.addressResultsAria': 'Aadressi tulemused',
+  'map.trustFiltersAria': 'Varjupaikade filtrid',
+  'map.shelterListAria': 'Varjupaigad',
   'map.chipOpen': 'Avatud',
   'map.chipHasCapacity': 'On mahtu',
   'map.emptyFilter': 'Ükski varjupaik sellele filtrile ei sobi.',
@@ -230,6 +237,9 @@ export const ET: Messages = {
   'detail.notFoundBody': 'Sellise ID-ga varjupaika ei ole. See on tõenäoliselt eemaldatud.',
   'detail.locationHeading': 'Asukoht',
   'detail.loading': 'Laen varjupaika…',
+  'detail.titleFallback': 'Varjupaika andmed',
+  'detail.distance.cta': 'Kaugus sinust',
+  'detail.distance.pending': 'Mõõtan…',
   'detail.distance.fromYou': '{distance} sinust',
   'detail.detailsHeading': 'Detalid',
   'detail.infoHeading': 'Teave',
@@ -287,6 +297,42 @@ export const ET: Messages = {
   'detail.pulse.occupancyText': 'Teated: {space} vaba mahtu, {gettingFull} täitumas, {full} täis',
   'detail.pulse.windowHint': 'Peegeldab viimase 2 tunni jooksul saadud teateid',
   'detail.pulse.estimateNote': 'Nooled näitavad arvutatud hinnangut, mitte kinnitatud andmeid.',
+
+  // --- Jagatud varjupaika sõnumid (shared/shelter-copy.ts). Üheksa
+  // väärtust, millel oli juba sõnastikus vastane (usalduslabelid,
+  // registlabelid, ebatäpsuse hoiatus ja KINDLAD täitumise pead),
+  // KASUTAB UUESTI olemasolevaid võtmeid (account.contrib.* / detail.band.*)
+  // — ei dubleerita. Ülejäänud mooduli sõnumid on uued.
+  'shelter.status.reportedClosed': 'Teatatud suletud',
+  'shelter.status.closed': 'Suletud',
+  'shelter.status.open': 'Avatud',
+  'shelter.status.openNoReports': 'Avatud (ilma hiljutiste teadeteta)',
+  'shelter.occupancy.hedged.space': 'Teatatud: on vaba mahtu',
+  'shelter.occupancy.hedged.gettingFull': 'Teatatud: täitumas',
+  'shelter.occupancy.hedged.full': 'Teatatud: täis',
+  'shelter.recency.justNow': 'hetke tagasi',
+  'shelter.recency.minutes': '{minutes} min tagasi',
+  'shelter.recency.hours': '{hours} t tagasi',
+  'shelter.recency.days': '{days} päeva tagasi',
+  'shelter.recency.date': '{day}. {month} {year}',
+  'shelter.reportedBadge': 'Teatatud ({count})',
+  'shelter.privateBadge': 'Privaatkodu (deklareeritud)',
+  'shelter.privateNote': 'See on elaniku poolt pakutud asukoht, mitte ametlik objekt.',
+  'shelter.unverifiedWarning':
+    'See asukoht on lisatud kogukonnaliikme poolt ja seda pole ametlikult kinnitatud. Hädaseisundis sellele toetuda ei tohi.',
+  'shelter.lastVerified': 'Viimati kinnitatud {ago}',
+  'shelter.lastVerifiedRegistry': 'Viimati kinnitatud registre järgi {ago}',
+  'shelter.newlyAddedUnverified': 'Uus kogukonnalt {ago} — pole veel kinnitatud',
+  'shelter.noVerificationRecord': 'Kinnituse kirjet pole veel',
+  'shelter.communityReports': 'Kogukonna teated: {count} (kokku, kõik tüübid)',
+  'shelter.distance.meters': '≈ {distance} m otsekirjo',
+  'shelter.distance.kilometers': '≈ {distance} km otsekirjo',
+  'shelter.notice.reportSubmitted': 'Sinu teade esitati.',
+  'shelter.notice.reportSubmittedDamped':
+    'Sinu teade salvestati kaalustusega 0 — kuna sul on sarnase asukoha enda poolt lisatud kirje, ei arvestata seda selle varjupaika peitmise juures.',
+  'shelter.notice.occupancySaved': 'Sinu täitumise teade salvestati.',
+  'shelter.notice.openClosedSaved': 'Sinu avatud/suletud teade salvestati.',
+  'shelter.notice.reportDuplicate': 'Sina oled selle varjupaiga juba selle tüübi kohta teatanud.',
 
   // --- submit shelter page. Quoted button labels use the
   // Estonian label (the button is translated on this page).

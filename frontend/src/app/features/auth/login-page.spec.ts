@@ -5,6 +5,8 @@ import { provideRouter, Router, RouterOutlet } from '@angular/router';
 import { AccountGateway } from '../../gateways/account-gateway';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { ET } from '../../core/i18n/et';
 import type { MeResponse, TokenResponse } from '../../core/models';
 import { LoginPage } from './login-page';
 
@@ -267,6 +269,37 @@ describe('LoginPage', () => {
     fixture.detectChanges();
 
     expect(bannerText(element)).toContain('Cannot reach the backend');
+  });
+
+  it('renders the client-authored error.* banner in the active locale (N7 i18n-completeness)', async () => {
+    // Before this fix the banner callback was never passed, so the nine
+    // error.* keys were unreachable from public pages: every banner was
+    // the hardcoded EN fallback even in the ET locale. Proof: a plain
+    // (non-ApiError) failure resolves error.serverError through the
+    // active-locale catalog.
+    const i18n = TestBed.inject(I18nService);
+    i18n.setLocale('et');
+    await i18n.ensureCatalog('et'); // bundle-lazy-i18n: the et chunk is on demand
+
+    const { page, element, fixture } = await open('/login');
+    page.form.setValue({ emailOrPhone: 'user@example.ee', password: 'secret' });
+    // A 500 resolves the client-authored error.serverError key (fixed
+    // generic copy — never the body) through the translate seam.
+    gateway.login.mockRejectedValue(
+      ApiError.fromHttp(500, {
+        timestamp: 't',
+        status: 500,
+        error: 'Internal Server Error',
+        message: 'boom',
+        path: '/auth/login',
+      }),
+    );
+
+    await page.submit();
+    fixture.detectChanges();
+
+    expect(bannerText(element).trim()).toBe(ET['error.serverError']);
+    expect(bannerText(element).trim()).toBe('Midagi läks valesti. Palun proovi uuesti.');
   });
 
   it('shows an info note when bounced here with ?session=expired', async () => {

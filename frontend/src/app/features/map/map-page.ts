@@ -13,10 +13,15 @@ import {
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { MessageKey } from '../../core/i18n/messages';
 import type {
+  OpenStatusDto,
+  ReviewStatus,
   ShelterDto,
+  ShelterOccupancy,
+  ShelterSource,
   ShelterSourceFilter,
   ShelterTrustFilter,
   GeocodeResult,
@@ -28,9 +33,6 @@ import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
-  COMMUNITY_UNVERIFIED_WARNING,
-  PRIVATE_LOCATION_BADGE,
-  INACCURATE_WARNING,
   isPrivateLocation,
   hasReports as hasReportsShared,
   hasTrustBadges as hasTrustBadgesShared,
@@ -201,6 +203,13 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
   private readonly store = inject(AuthStore);
+  /** The i18n seam: the shared shelter-copy helpers resolve their copy
+   *  through the active locale (N7 i18n-completeness), and the anchor pin
+   *  title is the localized `map.searched` label. */
+  private readonly i18n = inject(I18nService);
+  /** The active-locale resolver passed to the shared copy helpers. */
+  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
+    this.i18n.t(key, params);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
   /** The sidebar's scroll container — the scrollRowIntoView target. Null
@@ -216,23 +225,26 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
    *  source label (registry) or the trust-state label (USER rows);
-   *  the trust badges (D6) reuse the shared openStatus/occupancy copy. */
-  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+   *  the trust badges (D6) reuse the shared openStatus/occupancy copy.
+   *  Each wrapper injects the i18n seam so the badge reads in the active
+   *  locale (the catalog keys behind them are the same ones the /mine
+   *  panel and the band picker already render — one word per fact). */
+  protected readonly sourceTrustLabel = (s: {
+    source: ShelterSource;
+    reviewStatus: ReviewStatus;
+  }): string => sourceTrustLabelShared(s, this.translate);
   protected readonly communityBadgeClass = communityBadgeClassShared;
   /** The row's fresh-CLOSED badge text — fresh OPEN rows render no badge
    *  (open is the default). */
-  protected readonly openStatusBadgeText = openStatusBadgeTextShared;
-  protected readonly occupancyText = occupancyTextShared;
+  protected readonly openStatusBadgeText = (openStatus: OpenStatusDto | null) =>
+    openStatusBadgeTextShared(openStatus, this.translate);
+  protected readonly occupancyText = (occupancy: ShelterOccupancy) =>
+    occupancyTextShared(occupancy, Date.now(), this.translate);
   /** The reported badge with its count (last-verified-meta). */
-  protected readonly reportedBadgeText = reportedBadgeTextShared;
+  protected readonly reportedBadgeText = (nonexistentReports: number) =>
+    reportedBadgeTextShared(nonexistentReports, this.translate);
   /** The nearest result's straight-line distance line (D6 honesty). */
-  protected readonly straightLineText = straightLineText;
-  /** The community unverified warning line (community-review-queue). */
-  protected readonly communityUnverifiedWarning = COMMUNITY_UNVERIFIED_WARNING;
-  /** The single-sourced "reported inaccurate" warning. */
-  protected readonly inaccurateWarning = INACCURATE_WARNING;
-  /** The private-home declaration badge (D7). */
-  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
+  protected readonly straightLineText = (km: number) => straightLineText(km, this.translate);
   /** The private-location predicate (D7) — the template stays branch-free. */
   protected readonly isPrivateLocation = isPrivateLocation;
   /** Trust-badge predicates (D6) — the template keeps the `>` comparisons
@@ -621,7 +633,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
     });
     this.anchorResults.set([]);
     this.anchorError.set(null);
-    this.leaflet.setAnchor(result.latitude, result.longitude);
+    this.leaflet.setAnchor(result.latitude, result.longitude, this.i18n.t('map.searched'));
     this.leaflet.flyTo(result.latitude, result.longitude, ANCHOR_ZOOM);
     const loaded = this.shelters();
     const hit = nearestShelterAt(result.latitude, result.longitude, loaded);
@@ -649,7 +661,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   /** Removes the anchor — pin, per-row distances, and the distance sort. */
   protected clearAnchor(): void {
     this.anchor.set(null);
-    this.leaflet.setAnchor(null, null);
+    this.leaflet.setAnchor(null, null, ''); // removal — the title is unused
   }
 
   /** The straight-line distance from the active anchor to the row (km),
@@ -749,7 +761,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
         this.leaflet.renderShelters([]);
         // Same banner/error-copy path as every other page:
         // e.g. a 429 gets the rate-limited copy, not the raw backend text.
-        this.error.set(bannerMessage(failure, 'shelter'));
+        // The translate callback routes the client-authored error.* copy
+        // through the active locale (N7 i18n-completeness — a 5xx on the
+        // map must not read English to an ET/RU reader).
+        this.error.set(bannerMessage(failure, 'shelter', (key) => this.i18n.t(key)));
         this.loading.set(false);
       },
     );

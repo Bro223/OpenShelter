@@ -3,6 +3,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthStore } from '../../session/auth-store';
 import { safeReturnUrl } from '../../core/guards';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
@@ -26,6 +27,9 @@ export class LoginPage implements OnInit {
   private readonly store = inject(AuthStore);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  /** The i18n seam: the banner's client-authored error.* copy resolves in
+   *  the active locale (N7 i18n-completeness). */
+  private readonly i18n = inject(I18nService);
 
   readonly form = new FormGroup({
     emailOrPhone: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -60,7 +64,7 @@ export class LoginPage implements OnInit {
       await this.store.login(emailOrPhone, password);
       await this.router.navigateByUrl(this.destination);
     } catch (error) {
-      this.error.set(bannerMessage(error, 'login'));
+      this.error.set(bannerMessage(error, 'login', (key) => this.i18n.t(key)));
     } finally {
       this.pending.set(false);
     }
