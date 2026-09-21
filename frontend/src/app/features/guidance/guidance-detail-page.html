@@ -50,6 +50,25 @@
           {{ p.publishedAt | date: 'medium' : undefined : i18n.locale() }}
         </p>
       </header>
+      <!-- Locale-fallback notice (bilingual-guidance): the post has NO
+           translation in the reader's language — the server served the
+           default-locale copy with the flag (a 200, never a 404). The
+           note says plainly which language is shown and that the
+           reader's language is not available; it offers the
+           reader's-language version as a LINK when `alternates` carries
+           that locale (the reader's choice — the URL is never switched
+           silently). When a translation exists in the reader's language
+           the flag is false and nothing extra appears. -->
+      @if (fallbackNotice(); as fb) {
+        <p class="guidance-detail__fallback" role="note">
+          {{ 'guidance.localeFallback' | t: { locale: fb.served, reader: fb.reader } }}
+          @if (fb.alternateSlug; as altSlug) {
+            <a class="guidance-detail__fallback-link" routerLink="/blog/{{ altSlug }}">{{
+              'guidance.localeFallback.alternate' | t: { locale: fb.reader }
+            }}</a>
+          }
+        </p>
+      }
       <!-- Bound through Angular's sanitizer as well as the server's allowlist,
            so this site can never introduce a bypass. -->
       <article class="guidance-detail__body" [innerHTML]="p.bodyHtml ?? ''"></article>

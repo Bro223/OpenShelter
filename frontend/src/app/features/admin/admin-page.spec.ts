@@ -16,6 +16,7 @@ import type {
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
   GuidancePostDto,
+  GuidanceTranslationDto,
   MediaAssetDto,
   MeResponse,
   TokenResponse,
@@ -216,6 +217,61 @@ const PUBLIC_POST: GuidancePostDto = {
   locale: 'et',
   publishedAt: '2026-09-02T12:00:00Z',
   updatedAt: '2026-09-02T09:00:00Z',
+  // The public INDEX shape: alternates is null there (kept lean) and no
+  // fallback (the index lists only the active locale's posts).
+  alternates: null,
+  localeFallback: false,
+};
+
+/** The translations of GUIDANCE_PUBLISHED (id 11): the et home row (the
+ *  post itself) + the en foreign row — ru is missing (the add-button
+ *  offers exactly it). */
+const TRANSLATION_ROWS: GuidanceTranslationDto[] = [
+  {
+    id: 401,
+    postId: 11,
+    locale: 'et',
+    slug: 'varjumine-droonirunnaku-ajal',
+    title: 'Varjumine droonirünnaku ajal',
+    bodyHtml: '<p>Pöördu peavarjendisse.</p>',
+    heroImageAlt: 'Kelder, vaade sissepääsust',
+    createdAt: '2026-09-01T09:00:00Z',
+    updatedAt: '2026-09-02T09:00:00Z',
+  },
+  {
+    id: 402,
+    postId: 11,
+    locale: 'en',
+    slug: 'sheltering-during-a-drone-strike',
+    title: 'Sheltering during a drone strike',
+    bodyHtml: '<p>Move to the shelter.</p>',
+    heroImageAlt: 'Basement, view from the entrance',
+    createdAt: '2026-09-01T10:00:00Z',
+    updatedAt: '2026-09-02T10:00:00Z',
+  },
+];
+
+/** The created-ru row the create endpoint returns (test payloads). */
+const TRANSLATION_ROW_RU: GuidanceTranslationDto = {
+  id: 403,
+  postId: 11,
+  locale: 'ru',
+  slug: 'ukrytie-v-pochode-droonovoy-atakii',
+  title: 'Укрытие во время дроновой атаки',
+  bodyHtml: '<p>Перейдите в убежище.</p>',
+  heroImageAlt: 'Подвал',
+  createdAt: '2026-09-03T09:00:00Z',
+  updatedAt: '2026-09-03T09:00:00Z',
+};
+
+/** The EN-scoped detail of GUIDANCE_PUBLISHED (the foreign-locale edit:
+ *  the on-screen row is en while the post's home locale is et). */
+const GUIDANCE_PUBLISHED_EN: AdminGuidancePostDto = {
+  ...GUIDANCE_PUBLISHED,
+  locale: 'en',
+  slug: 'sheltering-during-a-drone-strike',
+  title: 'Sheltering during a drone strike',
+  bodyHtml: '<p>Move to the shelter.</p>',
 };
 
 const MEDIA_ROW: MediaAssetDto = {
@@ -270,6 +326,12 @@ class FakeAdminGateway {
   unpublishGuidancePost = vi.fn();
   deleteGuidancePost = vi.fn();
   reorderGuidanceOrder = vi.fn();
+  // The translations (bilingual-guidance): the post's per-locale rows —
+  // list/create/delete (the home-locale row is the post itself; the
+  // ordinary scoped edit covers updating an existing row).
+  listGuidanceTranslations = vi.fn();
+  createGuidanceTranslation = vi.fn();
+  deleteGuidanceTranslation = vi.fn();
   listMediaAssets = vi.fn();
   uploadMediaAsset = vi.fn();
   deleteMediaAsset = vi.fn();
@@ -335,6 +397,13 @@ describe('AdminPage', () => {
     admin.listUsers.mockResolvedValue([]);
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
+    // The translations section (bilingual-guidance): open in the ordinary
+    // edit-mode tests without a rows fetch. (A bare un-mocked vi.fn() here
+    // would return undefined and the sync throw would trip the detail
+    // fetch's .catch — which closes the editor by design.)
+    admin.listGuidanceTranslations.mockResolvedValue([]);
+    admin.createGuidanceTranslation.mockResolvedValue(TRANSLATION_ROW_RU);
+    admin.deleteGuidanceTranslation.mockResolvedValue(undefined);
     publicGuidance.list.mockResolvedValue([]);
     TestBed.configureTestingModule({
       imports: [Host],
@@ -2024,6 +2093,156 @@ describe('AdminPage', () => {
     expect(element.querySelectorAll('tbody tr').length).toBe(1);
     expect(element.textContent).toContain('Post deleted.');
   });
+
+  // ---- translations (bilingual-guidance) ---------------------------------
+  //
+  // The open post's per-locale rows live in the section under the
+  // editor: add a missing locale (the editor recreates in
+  // translation-authoring mode — the CREATE endpoint, never update),
+  // delete a foreign one (the two-tap confirm; the home-locale row is
+  // never offered the trigger).
+
+describe('translations (bilingual-guidance)', () => {
+  it('opening a post in edit mode loads its translation rows and offers only the missing locales', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+
+    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(1);
+    expect(admin.listGuidanceTranslations).toHaveBeenCalledWith(11);
+    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    expect(section).not.toBeNull();
+    expect(section.textContent).toContain('Translations');
+    // The home-locale row is marked 'home' and NEVER offered the delete;
+    // the foreign row carries exactly one trigger.
+    expect(section.textContent).toContain('home');
+    expect(section.querySelectorAll('[data-confirm-trigger]').length).toBe(1);
+    // Only the missing locale (ru) is offered for authoring.
+    expect(buttonByText(section, 'Add ru translation')).not.toBeNull();
+    expect(buttonByText(section, 'Add et translation')).toBeNull();
+    expect(buttonByText(section, 'Add en translation')).toBeNull();
+  });
+
+  it('creating a missing translation calls the CREATE endpoint (not the update one), keeps the editor open in the ordinary edit mode, and re-loads the rows', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+
+    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    buttonByText(section(), 'Add ru translation')!.click();
+    await settle(fixture);
+    // The editor re-created in translation-authoring mode (heading swap) …
+    expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+      'Add a translation',
+    );
+    // …the prefill is valid (the shared hero + alt are paired) — save as-is.
+    buttonByText(element, 'Save')!.click();
+    await settle(fixture);
+
+    expect(admin.createGuidanceTranslation).toHaveBeenCalledTimes(1);
+    expect(admin.createGuidanceTranslation.mock.calls[0]![0]).toBe(11);
+    expect(admin.createGuidanceTranslation.mock.calls[0]![1]).toEqual({
+      locale: 'ru',
+      title: GUIDANCE_PUBLISHED.title,
+      body: GUIDANCE_PUBLISHED.bodyHtml,
+      heroImageAlt: GUIDANCE_PUBLISHED.heroImageAlt,
+    });
+    expect(admin.updateGuidancePost).not.toHaveBeenCalled();
+    expect(admin.createGuidancePost).not.toHaveBeenCalled();
+    expect(element.textContent).toContain('Translation created.');
+    // The editor STAYED open, back in the ordinary edit mode …
+    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+    expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+      'Edit guidance post',
+    );
+    // …and the section re-loaded the rows.
+    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+  });
+
+  it('deleting a translation is two-tap: the first tap only arms, Cancel disarms, the confirm sends the DELETE', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+    admin.listGuidanceTranslations
+      .mockResolvedValueOnce(TRANSLATION_ROWS)
+      .mockResolvedValueOnce([TRANSLATION_ROWS[0]!]);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+
+    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    // Tap 1: arm only — the prompt is visible, nothing is sent.
+    buttonByText(section(), 'Delete translation')!.click();
+    fixture.detectChanges();
+    expect(element.textContent).toContain('Delete the en translation of this post?');
+    expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
+    // Cancel: disarm — still nothing sent.
+    buttonByText(section(), 'Cancel')!.click();
+    fixture.detectChanges();
+    expect(element.textContent).not.toContain('Delete the en translation of this post?');
+    expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
+    // Tap 1 + Tap 2: the DELETE goes out (post id + locale), the success
+    // shows and the rows re-load (the en row is gone from the fake).
+    buttonByText(section(), 'Delete translation')!.click();
+    fixture.detectChanges();
+    buttonByText(section(), 'Confirm delete')!.click();
+    await settle(fixture);
+    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledTimes(1);
+    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
+    expect(element.textContent).toContain('Translation deleted.');
+    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+    expect(section().textContent).not.toContain('sheltering-during-a-drone-strike');
+  });
+
+  it('deleting the row the editor is SHOWING (a foreign-locale edit) closes the editor and re-loads the list', async () => {
+    admin.listShelters.mockResolvedValue([]);
+    admin.listGuidancePosts.mockResolvedValue([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]);
+    admin.listMediaAssets.mockResolvedValue([]);
+    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED_EN);
+    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+    // The content language flips to en: the list re-fetches and the
+    // editor will show the EN row (post.locale 'en', homeLocale 'et').
+    i18nService.setContentLocale('en');
+    await settle(fixture);
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+    const row = element.querySelectorAll('tbody tr')[1]!;
+    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+    await settle(fixture);
+    expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'en');
+
+    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+    buttonByText(section(), 'Delete translation')!.click();
+    fixture.detectChanges();
+    buttonByText(section(), 'Confirm delete')!.click();
+    await settle(fixture);
+
+    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
+    // The shown row (the content-locale row) is gone: the editor closes
+    // and the list re-loads in the en scope.
+    expect(element.querySelector('app-guidance-editor')).toBeNull();
+    expect(admin.listGuidancePosts).toHaveBeenLastCalledWith('en');
+  });
+});
 
   // ---- editor reveal: the form is found, not hunted (scroll + focus) -------
   //

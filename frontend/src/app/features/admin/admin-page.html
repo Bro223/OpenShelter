@@ -862,14 +862,123 @@
             (cancel)="closeGuidanceEditor()"
           />
         } @else {
-          <app-guidance-editor
-            [post]="guidanceEditorPost()"
-            [busy]="busy()"
-            [serverError]="guidanceEditorError()"
-            [mediaAssets]="mediaRows()"
-            (save)="saveGuidancePost($event)"
-            (cancel)="closeGuidanceEditor()"
-          />
+          <!-- Translation authoring (bilingual-guidance): the branch
+               switches on the target locale so the editor RECREATES on a
+               switch (the prefill and the save payload pick the mode);
+               the ordinary edit form is the null branch. -->
+          @if (translationTarget() === null) {
+            <app-guidance-editor
+              [post]="guidanceEditorPost()"
+              [translationTarget]="null"
+              [busy]="busy()"
+              [serverError]="guidanceEditorError()"
+              [mediaAssets]="mediaRows()"
+              (save)="saveGuidancePost($event)"
+              (cancel)="closeGuidanceEditor()"
+            />
+          } @else {
+            <app-guidance-editor
+              [post]="guidanceEditorPost()"
+              [translationTarget]="translationTarget()"
+              [busy]="busy()"
+              [serverError]="guidanceEditorError()"
+              [mediaAssets]="mediaRows()"
+              (save)="saveGuidancePost($event)"
+              (cancel)="closeGuidanceEditor()"
+            />
+          }
+        }
+
+        <!-- The translations (bilingual-guidance): the post's per-locale
+             rows under the open editor (edit mode only — a create-mode
+             post has no id yet). Add a missing locale (the editor
+             recreates in translation-authoring mode, prefilled from the
+             on-screen row); delete a foreign one (the two-tap confirm —
+             the home-locale row is the post itself and is never offered
+             the trigger). Editing an existing one is the ordinary scoped
+             edit (the content-language select). -->
+        @if (guidanceEditorPost(); as p) {
+          <section class="admin-guidance-translations">
+            <h3 class="admin-guidance-translations__heading">{{
+              'admin.guidance.editor.translations.title' | t
+            }}</h3>
+            @if (guidanceTranslations() === null) {
+              <p class="admin-guidance-translations__state">{{
+                'admin.guidance.editor.translations.loading' | t
+              }}</p>
+            } @else if ((guidanceTranslations() ?? []).length === 0) {
+              <p class="admin-guidance-translations__state">{{
+                'admin.guidance.editor.translations.empty' | t
+              }}</p>
+            } @else {
+              <ul class="admin-guidance-translations__list" role="list">
+                @for (t of guidanceTranslations() ?? []; track t.locale) {
+                  <li class="admin-guidance-translations__row">
+                    <span class="admin-guidance-translations__locale">{{ t.locale }}</span>
+                    @if (t.locale === p.homeLocale) {
+                      <span class="badge badge--draft">{{
+                        'admin.guidance.editor.translations.home' | t
+                      }}</span>
+                    }
+                    <span class="admin-guidance-translations__slug">{{ t.slug }}</span>
+                    @if (translationTarget() === null && t.locale !== p.homeLocale) {
+                      @if (!translationDeleteConfirm.isArmed(t.locale)) {
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          [attr.data-confirm-trigger]="t.locale"
+                          (click)="requestDeleteTranslation(t.locale)"
+                          [disabled]="busy()"
+                        >
+                          {{ 'admin.guidance.editor.translations.delete' | t }}
+                        </button>
+                      } @else {
+                        <!-- two-tap confirm (no window.confirm, the app's
+                             inline style). The shared ConfirmAction owns
+                             the state machine, the focus move onto
+                             Confirm and the focus return on Cancel. -->
+                        <span class="admin-confirm" role="status">{{
+                          'admin.guidance.editor.translations.delete.confirm' | t
+                            : { locale: t.locale }
+                        }}</span>
+                        <button
+                          type="button"
+                          class="btn btn--danger"
+                          [attr.data-confirm-focus]="t.locale"
+                          (click)="confirmDeleteTranslation(t.locale)"
+                          [disabled]="busy()"
+                        >
+                          {{
+                            busy()
+                              ? ('admin.guidance.working' | t)
+                              : ('admin.guidance.delete.confirmButton' | t)
+                          }}
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn--ghost"
+                          (click)="cancelDeleteTranslation()"
+                          [disabled]="busy()"
+                        >
+                          {{ 'admin.guidance.delete.cancel' | t }}
+                        </button>
+                      }
+                    }
+                  </li>
+                }
+              </ul>
+            }
+            @for (l of translationAddableLocales(); track l) {
+              <button
+                type="button"
+                class="btn btn--ghost admin-guidance-translations__add"
+                (click)="startTranslation(l)"
+                [disabled]="busy() || translationTarget() !== null"
+              >
+                {{ 'admin.guidance.editor.translations.add' | t: { locale: l } }}
+              </button>
+            }
+          </section>
         }
       </div>
     }

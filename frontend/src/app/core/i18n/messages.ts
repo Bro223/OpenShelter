@@ -612,6 +612,17 @@ export interface Messages {
   'guidance.notFoundBody': string;
   /** The date-line label in front of the locale-aware publication date. */
   'guidance.published': string;
+  /** The locale-fallback notice on the public detail (bilingual-guidance):
+   *  the post has NO translation in the reader's language and the server
+   *  served the default-locale one instead (a 200 with the flag). Which
+   *  language is shown — plainly — and that the reader's is not available.
+   *  `{locale}` is the served locale code, `{reader}` the reader's. */
+  'guidance.localeFallback': string;
+  /** The notice's link to the same post in the reader's OWN language —
+   *  offered only when the detail's `alternates` map actually carries the
+   *  reader's locale (never a silent URL switch: the reader's choice).
+   *  `{locale}` is the reader's locale code. */
+  'guidance.localeFallback.alternate': string;
 
   // --- admin: guidance tab + editor + media library (crisis-guidance D8).
   // The admin surface is i18n'd from the guidance tabs on: every string
@@ -856,6 +867,9 @@ export interface Messages {
   'admin.guidance.success.unpublished': string;
   'admin.guidance.success.deleted': string;
   'admin.guidance.success.reordered': string;
+  /** Translation authoring success lines (bilingual-guidance). */
+  'admin.guidance.success.translationCreated': string;
+  'admin.guidance.success.translationDeleted': string;
 
   // guidance editor (the create/edit form). The body is a plain textarea
   // over the stored (sanitized) HTML — no WYSIWYG (crisis-guidance D9 is
@@ -941,6 +955,28 @@ export interface Messages {
    *  scope): the post's home language and the single-language effect of a
    *  save. `{home}` the home locale, `{locale}` the content locale. */
   'admin.guidance.editor.homeLocaleNote': string;
+  /** The editor's language line, translation-authoring mode
+   *  (bilingual-guidance): the locale being ADDED to the post (the form is
+   *  prefilled from the language on screen — translate from what you see).
+   *  `{locale}` is the target locale code. */
+  'admin.guidance.editor.translatingIn': string;
+  /** The editor heading in translation-authoring mode. */
+  'admin.guidance.editor.translationTitle': string;
+  /** The translations section (bilingual-guidance): the post's per-locale
+   *  rows — add a missing one, delete a foreign one (the home-locale row
+   *  is the post itself and cannot be deleted). */
+  'admin.guidance.editor.translations.title': string;
+  'admin.guidance.editor.translations.loading': string;
+  /** The section's empty state — a post with no translation rows at all. */
+  'admin.guidance.editor.translations.empty': string;
+  /** The home-locale row's marker (that row cannot be deleted). */
+  'admin.guidance.editor.translations.home': string;
+  /** The per-locale add button. `{locale}` is the target locale code. */
+  'admin.guidance.editor.translations.add': string;
+  /** The foreign row's delete trigger (the two-tap confirm follows). */
+  'admin.guidance.editor.translations.delete': string;
+  /** The delete's two-tap prompt. `{locale}` is the target locale code. */
+  'admin.guidance.editor.translations.delete.confirm': string;
   'admin.guidance.editor.pinnedLabel': string;
   /** Create mode only: the one-shot write-and-publish choice. */
   'admin.guidance.editor.statusLabel': string;

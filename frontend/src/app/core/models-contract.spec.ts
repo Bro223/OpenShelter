@@ -70,6 +70,7 @@ const PINNED: Record<string, string> = {
   DataSourceDto: 'DataSourceDto',
   GuidancePostDto: 'GuidancePostDto',
   AdminGuidancePostDto: 'AdminGuidancePostDto',
+  GuidanceTranslationDto: 'GuidanceTranslationDto',
   MediaAssetDto: 'MediaAssetDto',
   SiteTextEntryDto: 'SiteTextEntry',
   ShelterReportResult: 'ShelterReportResult',

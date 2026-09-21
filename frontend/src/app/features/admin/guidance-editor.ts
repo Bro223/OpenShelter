@@ -28,6 +28,7 @@ import { ApiError, toApiError } from '../../core/api-error';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import type {
   AdminGuidancePostDto,
+  CreateGuidanceTranslationRequest,
   GuidanceStatus,
   MediaAssetDto,
   UpdateGuidancePostRequest,
@@ -106,7 +107,10 @@ type QuillToolbarControl =
 export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** What Save emits — the page routes `id === null` to the create endpoint
- *  (the POST body) and a given id to the update endpoint (the PUT body). */
+ *  (the POST body) and a given id to the update endpoint (the PUT body).
+ *  Translation authoring (bilingual-guidance) is a third shape: a given id
+ *  with a `createTranslation` payload — the NEW row for that locale (the
+ *  create endpoint, never the update one: the row does not exist yet). */
 export interface GuidanceEditorSave {
   /** null = create (no id yet); the post id for an edit. */
   id: number | null;
@@ -115,6 +119,10 @@ export interface GuidanceEditorSave {
   /** Edit mode: the PUT /admin/guidance/{id} payload. `status` is NOT part
    *  of it — the publication state moves only through publish/unpublish. */
   update?: UpdateGuidancePostRequest;
+  /** Translation-authoring mode (bilingual-guidance): the
+   *  POST /admin/guidance/{id}/translations payload (the target `locale`
+   *  required). */
+  createTranslation?: CreateGuidanceTranslationRequest;
 }
 
 /**
@@ -529,6 +537,17 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
   /** The failed save's server message (echoed in the editor banner); the
    *  editor stays open so the admin keeps the draft. */
   readonly serverError = input<string | null>(null);
+  /**
+   * The locale the post is getting a NEW translation in (bilingual-
+   *  guidance); null = the ordinary create/edit form. Non-null =
+   *  translation-authoring mode (edit mode only): the form is prefilled
+   *  from the on-screen row (the slug blank — the server generates one
+   *  from the translated title), the POST-level fields (pinned, the home-
+   *  locale declaration, the hero choice) are off the form — a translation
+   *  row carries title/slug/body/per-locale alt only — and Save emits the
+   *  create-translation payload for the target locale.
+   */
+  readonly translationTarget = input<string | null>(null);
 
   readonly save = output<GuidanceEditorSave>();
   readonly cancel = output<void>();
@@ -693,8 +712,16 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       this.syncHeroImportDisabled();
       return;
     }
+    // The translation-authoring mode (bilingual-guidance): the form is
+    // prefilled from the ON-SCREEN row (the admin translates from what
+    // they see), but the slug starts blank — the server generates one
+    // from the translated title (reusing the source slug could collide
+    // within the target locale). The hero fields mirror the post's SHARED
+    // state (the pairing rule needs them); only the alt is saved with the
+    // translation (the image reference is post-level, off the form).
+    const translating = this.translationTarget() !== null;
     this.form.get('title')?.setValue(post.title);
-    this.form.get('slug')?.setValue(post.slug);
+    this.form.get('slug')?.setValue(translating ? '' : post.slug);
     // The editor round-trips what is stored (the sanitizer output) —
     // ngAfterViewInit loads it into Quill from this control.
     this.form.get('body')?.setValue(post.bodyHtml);
@@ -1031,10 +1058,14 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    */
   protected localeLine(): string {
     const post = this.post();
+    const target = this.translationTarget();
     if (post === null) {
       return this.i18n.t('admin.guidance.editor.creatingIn', {
         locale: this.i18n.contentLocale(),
       });
+    }
+    if (target !== null) {
+      return this.i18n.t('admin.guidance.editor.translatingIn', { locale: target });
     }
     return this.i18n.t('admin.guidance.editor.editingIn', { locale: post.locale });
   }
@@ -1047,7 +1078,10 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    */
   protected homeLocaleNote(): string | null {
     const post = this.post();
-    if (post === null || post.locale === post.homeLocale) {
+    // Translation authoring replaces the note: the line above already says
+    // the other languages are untouched (and the home declaration is off
+    // the form anyway).
+    if (post === null || this.translationTarget() !== null || post.locale === post.homeLocale) {
       return null;
     }
     return this.i18n.t('admin.guidance.editor.homeLocaleNote', {
@@ -1244,6 +1278,27 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
       ...(importUrl === '' ? {} : { heroImportUrl: importUrl }),
     };
     const post = this.post();
+    const translationTarget = this.translationTarget();
+    if (post !== null && translationTarget !== null) {
+      // Translation authoring (bilingual-guidance): emit the NEW-row
+      // payload for the target locale — the create endpoint, never the
+      // update one (the row does not exist yet; a duplicate would 409
+      // server-side, but the UI must not even offer the other path).
+      // The alt travels only with a hero of EITHER kind (the pairing rule
+      // guarantees: hasHero -> alt non-blank, !hasHero -> alt blank); the
+      // post-level hero fields are deliberately absent from the payload.
+      this.save.emit({
+        id: post.id,
+        createTranslation: {
+          locale: translationTarget,
+          title,
+          ...(slug === '' ? {} : { slug }),
+          body,
+          heroImageAlt: hasHero ? alt : null,
+        },
+      });
+      return;
+    }
     if (post === null) {
       const status = this.form.get('status')?.value ?? 'DRAFT';
       // A create-mode draft save: the consequence notice follows the

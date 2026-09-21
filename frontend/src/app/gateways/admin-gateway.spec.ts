@@ -6,8 +6,11 @@ import type {
   AdminGuidancePostDto,
   AdminShelterDto,
   CreateGuidancePostRequest,
+  CreateGuidanceTranslationRequest,
+  GuidanceTranslationDto,
   MediaAssetDto,
   UpdateGuidancePostRequest,
+  UpdateGuidanceTranslationRequest,
 } from '../core/models';
 import { AdminGateway } from './admin-gateway';
 
@@ -563,6 +566,118 @@ describe('AdminGateway', () => {
 
     expect(api.delete).toHaveBeenCalledTimes(1);
     expect(api.delete).toHaveBeenCalledWith('/admin/guidance/11?confirm=true');
+  });
+
+  // ---- translations (bilingual-guidance) ------------------------------------
+
+  const TRANSLATION_ROW: GuidanceTranslationDto = {
+    id: 401,
+    postId: 11,
+    locale: 'en',
+    slug: 'sheltering-during-a-drone-strike',
+    title: 'Sheltering during a drone strike',
+    bodyHtml: '<p>Move to the main shelter.</p>',
+    heroImageAlt: 'Basement, view from the entrance',
+    createdAt: '2026-09-01T09:00:00Z',
+    updatedAt: '2026-09-02T09:00:00Z',
+  };
+
+  const CREATE_TRANSLATION_REQUEST: CreateGuidanceTranslationRequest = {
+    locale: 'et',
+    title: 'Varjumine droonirünnaku ajal',
+    body: '<p>Pöördu peavarjendisse.</p>',
+    heroImageAlt: 'Kelder, vaade sissepääsust',
+  };
+
+  const UPDATE_TRANSLATION_REQUEST: UpdateGuidanceTranslationRequest = {
+    title: 'Varjumine droonirünnaku ajal – uuendatud',
+    body: '<p>Pöördu peavarjendisse kohe.</p>',
+    heroImageAlt: null,
+  };
+
+  it('listGuidanceTranslations GETs /admin/guidance/{id}/translations (locale order, home row always present)', async () => {
+    api.get.mockReturnValue(of([TRANSLATION_ROW]));
+
+    const rows = await gateway.listGuidanceTranslations(11);
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith('/admin/guidance/11/translations');
+    expect(rows).toEqual([TRANSLATION_ROW]);
+  });
+
+  it('createGuidanceTranslation POSTs the body to /admin/guidance/{id}/translations and resolves with the created row (200)', async () => {
+    api.post.mockReturnValue(of({ ...TRANSLATION_ROW, id: 402, locale: 'et', slug: 'varjumine-droonirunnaku-ajal' }));
+
+    const row = await gateway.createGuidanceTranslation(11, CREATE_TRANSLATION_REQUEST);
+
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/admin/guidance/11/translations', CREATE_TRANSLATION_REQUEST);
+    expect(row.locale).toBe('et');
+  });
+
+  it('createGuidanceTranslation rejects with the 409 when the post already has a translation in the locale', async () => {
+    const failure = ApiError.fromHttp(
+      409,
+      {
+        timestamp: 't',
+        status: 409,
+        error: 'Conflict',
+        message: 'the post already has a translation in locale et',
+        path: '/admin/guidance/11/translations',
+      },
+      '/admin/guidance/11/translations',
+    );
+    api.post.mockReturnValue(throwError(() => failure));
+
+    let caught: unknown = null;
+    try {
+      await gateway.createGuidanceTranslation(11, CREATE_TRANSLATION_REQUEST);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(failure);
+  });
+
+  it('updateGuidanceTranslation PUTs the full-replace body to /admin/guidance/{id}/translations/{locale} (the locale is the path key) and resolves with the updated row (200)', async () => {
+    api.put.mockReturnValue(of({ ...TRANSLATION_ROW, title: UPDATE_TRANSLATION_REQUEST.title }));
+
+    const row = await gateway.updateGuidanceTranslation(11, 'en', UPDATE_TRANSLATION_REQUEST);
+
+    expect(api.put).toHaveBeenCalledTimes(1);
+    expect(api.put).toHaveBeenCalledWith('/admin/guidance/11/translations/en', UPDATE_TRANSLATION_REQUEST);
+    expect(row.title).toBe(UPDATE_TRANSLATION_REQUEST.title);
+  });
+
+  it('deleteGuidanceTranslation DELETEs /admin/guidance/{id}/translations/{locale} and resolves with no body (204; no confirm parameter)', async () => {
+    api.delete.mockReturnValue(of(undefined));
+
+    await gateway.deleteGuidanceTranslation(11, 'et');
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith('/admin/guidance/11/translations/et');
+  });
+
+  it('deleteGuidanceTranslation rejects with the 400 when the locale is the post\'s home locale', async () => {
+    const failure = ApiError.fromHttp(
+      400,
+      {
+        timestamp: 't',
+        status: 400,
+        error: 'Bad Request',
+        message: 'the post\'s own-locale translation cannot be deleted',
+        path: '/admin/guidance/11/translations/en',
+      },
+      '/admin/guidance/11/translations/en',
+    );
+    api.delete.mockReturnValue(throwError(() => failure));
+
+    let caught: unknown = null;
+    try {
+      await gateway.deleteGuidanceTranslation(11, 'en');
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBe(failure);
   });
 
   // ---- GET /admin/media (crisis-guidance D8) --------------------------------

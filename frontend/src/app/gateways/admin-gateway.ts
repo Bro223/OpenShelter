@@ -11,6 +11,8 @@ import type {
   AdminShelterReportDto,
   AdminUserDto,
   CreateGuidancePostRequest,
+  CreateGuidanceTranslationRequest,
+  GuidanceTranslationDto,
   MediaAssetDto,
   ReviewShelterRequest,
   ReviewShelterResponse,
@@ -18,6 +20,7 @@ import type {
   ShelterStatus,
   SiteTextEntryDto,
   UpdateGuidancePostRequest,
+  UpdateGuidanceTranslationRequest,
 } from '../core/models';
 
 /**
@@ -28,7 +31,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The twenty-five endpoints, 1:1:
+ * The twenty-nine endpoints, 1:1:
  *
  *   GET    /admin/shelters?status=&source=&q=  -> AdminShelterDto[]
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -53,6 +56,10 @@ import type {
  *   POST   /admin/guidance/{id}/unpublish      -> 204 (idempotent)
  *   DELETE /admin/guidance/{id}?confirm=true   -> 204 (confirm REQUIRED)
  *   PUT    /admin/guidance/order               -> 204 (manual order, full list)
+ *   GET    /admin/guidance/{id}/translations   -> GuidanceTranslationDto[]
+ *   POST   /admin/guidance/{id}/translations   -> GuidanceTranslationDto (200)
+ *   PUT    /admin/guidance/{id}/translations/{locale} -> GuidanceTranslationDto (200)
+ *   DELETE /admin/guidance/{id}/translations/{locale} -> 204 (no body)
  *   GET    /admin/media                        -> MediaAssetDto[] (newest first)
  *   POST   /admin/media (multipart: file)      -> MediaAssetDto (201)
  *   DELETE /admin/media/{id}[?confirm=true]    -> MediaAssetDto (200; 409 in-use)
@@ -351,6 +358,71 @@ export class AdminGateway {
   reorderGuidanceOrder(postIds: number[], locale?: string): Promise<void> {
     const body: ReorderGuidanceRequest = { postIds };
     return lastValueFrom(this.api.put<void>(`/admin/guidance/order${localeQuery(locale)}`, body));
+  }
+
+  /**
+   * GET /admin/guidance/{id}/translations -> GuidanceTranslationDto[] —
+   * the post's translations in locale order (the admin alternates editor;
+   * the source of the public detail's `alternates` map). The post's
+   * own-locale row is always present. 404 unknown id.
+   */
+  listGuidanceTranslations(id: number): Promise<GuidanceTranslationDto[]> {
+    return lastValueFrom(
+      this.api.get<GuidanceTranslationDto[]>(`/admin/guidance/${id}/translations`),
+    );
+  }
+
+  /**
+   * POST /admin/guidance/{id}/translations -> 200 with the created
+   * translation. Creates a translation of the post in a NEW locale: the
+   * slug is generated from the title when omitted (a given slug must be
+   * free WITHIN the locale). 409 the post already has a translation in
+   * that locale, or the (locale, slug) pair is taken (naming the slug);
+   * 400 validation (title/body required, locale required, the slug shape);
+   * 404 unknown id.
+   */
+  createGuidanceTranslation(
+    id: number,
+    request: CreateGuidanceTranslationRequest,
+  ): Promise<GuidanceTranslationDto> {
+    return lastValueFrom(
+      this.api.post<GuidanceTranslationDto>(`/admin/guidance/${id}/translations`, request),
+    );
+  }
+
+  /**
+   * PUT /admin/guidance/{id}/translations/{locale} -> 200 with the
+   * updated translation. Full replace of the translation named by the PATH
+   * locale (the locale never moves here): the slug is KEPT when omitted
+   * (a given slug another translation in the locale holds → 409 naming
+   * it); the body is re-sanitized server-side (the stored value is the
+   * sanitizer output). 400 validation; 404 unknown post or locale.
+   */
+  updateGuidanceTranslation(
+    id: number,
+    locale: string,
+    request: UpdateGuidanceTranslationRequest,
+  ): Promise<GuidanceTranslationDto> {
+    return lastValueFrom(
+      this.api.put<GuidanceTranslationDto>(
+        `/admin/guidance/${id}/translations/${locale}`,
+        request,
+      ),
+    );
+  }
+
+  /**
+   * DELETE /admin/guidance/{id}/translations/{locale} -> 204 (no body).
+   * Deletes the translation named by the PATH locale. The post's HOME-locale
+   * translation cannot be deleted (400 — unpublish or delete the post
+   * instead); the post itself and its other translations stay. 404 unknown
+   * post or locale. The UI's two-tap confirm precedes the call (there is
+   * no confirm query parameter on this endpoint — the confirm is in the UI).
+   */
+  deleteGuidanceTranslation(id: number, locale: string): Promise<void> {
+    return lastValueFrom(
+      this.api.delete<void>(`/admin/guidance/${id}/translations/${locale}`),
+    );
   }
 
   // ------------------------------------------------------------------

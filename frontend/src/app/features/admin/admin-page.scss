@@ -160,6 +160,61 @@
   outline-offset: -2px;
 }
 
+/* The translations section (bilingual-guidance): the open post's
+   per-locale rows under the editor form. One row per translation — the
+   locale code, the home marker (that row is the post itself and is never
+   offered the delete), the public slug, and the foreign row's two-tap
+   delete. Rows wrap on narrow screens; the buttons are plain .btn (the
+   48px global minimum applies). */
+.admin-guidance-translations {
+  margin-top: var(--space-20);
+  padding-top: var(--space-16);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.admin-guidance-translations__heading {
+  margin: 0 0 var(--space-12);
+  font-size: var(--text-md);
+}
+
+.admin-guidance-translations__state {
+  margin: 0 0 var(--space-12);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.admin-guidance-translations__list {
+  margin: 0 0 var(--space-12);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.admin-guidance-translations__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.admin-guidance-translations__locale {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-semibold);
+  min-width: 2.5ch;
+}
+
+.admin-guidance-translations__slug {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  word-break: break-all;
+}
+
+.admin-guidance-translations__add {
+  margin-top: var(--space-8);
+}
+
 /* Hidden (INACTIVE) rows: dimmed — the badge says WHY, the row shows it's
    not on the public list. (Reported/closed flag badges keep their colour.) */
 .admin-row--hidden td {

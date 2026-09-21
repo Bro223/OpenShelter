@@ -809,12 +809,32 @@ export interface GuidancePostDto {
   heroImageAlt: string | null;
   /** Pinned posts sort first in the public index. */
   pinned: boolean;
-  /** The post's own locale, returned verbatim (v1: no translation workflow). */
+  /**
+   * The SERVED translation's locale (bilingual-guidance): the language the
+   * reader is actually reading. The post's own locale unless the reader
+   * asked for one the post lacks — then the default-locale translation is
+   * served with `localeFallback` set (a 200 with the flag, never a 404).
+   */
   locale: string;
   /** ISO-8601 instant. */
   publishedAt: string;
   /** ISO-8601 instant. */
   updatedAt: string;
+  /**
+   * Each locale that HAS a translation, mapped to that translation's slug
+   * (bilingual-guidance) — the field a language switcher follows to open
+   * the same post in another language. Populated on the detail; `null` on
+   * the index (kept lean). The map only carries locales that have a
+   * translation, so the values are never null.
+   */
+  alternates: Record<string, string> | null;
+  /**
+   * `true` when the reader's requested locale had NO translation and the
+   * server served the default-locale one instead (bilingual-guidance) —
+   * a 200 with the flag, never a 404: a language switch must not dead-end
+   * on a "no such page" error.
+   */
+  localeFallback: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -973,6 +993,74 @@ export interface UpdateGuidancePostRequest {
    * supersedes `heroImageId`.
    */
   heroImportUrl?: string;
+}
+
+/**
+ * One guidance translation (bilingual-guidance, V26) — the row set behind
+ * GET /admin/guidance/{id}/translations (in locale order; the post's
+ * own-locale row is always present — the source of the public detail's
+ * `alternates` map) and the response of the create / update endpoints.
+ * `bodyHtml` is the stored (server-sanitized) HTML — the editor
+ * round-trips exactly what is stored. `heroImageAlt` is the per-locale alt
+ * for the post's SHARED hero image (the image reference itself is
+ * post-level — it is not a translation field).
+ */
+export interface GuidanceTranslationDto {
+  id: number;
+  postId: number;
+  /** The translation's locale (a language code like `en`/`et`). */
+  locale: string;
+  /** The public slug of THIS translation (unique within the locale). */
+  slug: string;
+  /** At most 255 characters. */
+  title: string;
+  /** The stored (sanitized) HTML body. */
+  bodyHtml: string;
+  /** The per-locale hero alt; null when the post has no hero. */
+  heroImageAlt: string | null;
+  /** ISO-8601 instant. */
+  createdAt: string;
+  /** ISO-8601 instant. */
+  updatedAt: string;
+}
+
+/**
+ * POST /admin/guidance/{id}/translations body (bilingual-guidance) —
+ * creates a translation of the post in a NEW locale. `locale` is required
+ * (at most 5 characters; the post must NOT already have a translation
+ * there — 409); `slug` omitted = the server generates one from the title
+ * (a given slug must be free WITHIN the locale — 409 naming it); the alt
+ * is the per-locale alt for the post's shared hero (null = none).
+ */
+export interface CreateGuidanceTranslationRequest {
+  /** Required, at most 5 characters (a language code like `en`/`et`). */
+  locale: string;
+  /** Omitted when blank (the server generates it from the title). */
+  slug?: string;
+  /** Required, at most 255 characters. */
+  title: string;
+  /** Required (the stored value is the sanitizer output). */
+  body: string;
+  /** At most 300 characters; null when there is no hero. */
+  heroImageAlt: string | null;
+}
+
+/**
+ * PUT /admin/guidance/{id}/translations/{locale} body (bilingual-guidance)
+ * — a FULL replace of the translation named by the PATH locale (the locale
+ * never moves here). `slug` omitted = KEEP the current one (a given slug
+ * another translation in the locale holds → 409 naming it); the body is
+ * re-sanitized server-side; `heroImageAlt` null clears the per-locale alt.
+ */
+export interface UpdateGuidanceTranslationRequest {
+  /** Omitted when blank (the translation keeps its current slug). */
+  slug?: string;
+  /** Required, at most 255 characters. */
+  title: string;
+  /** Required (the stored value is the sanitizer output). */
+  body: string;
+  /** At most 300 characters; null clears the per-locale alt. */
+  heroImageAlt: string | null;
 }
 
 /**

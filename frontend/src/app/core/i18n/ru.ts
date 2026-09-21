@@ -565,6 +565,9 @@ export const RU: Messages = {
   'guidance.notFoundTitle': 'Материал не найден',
   'guidance.notFoundBody': 'Такого материала нет — возможно, он был снят с публикации.',
   'guidance.published': 'Опубликовано',
+  'guidance.localeFallback':
+    'Показана версия на языке {locale} — этот материал недоступен на языке {reader}.',
+  'guidance.localeFallback.alternate': 'Читать версию на языке {locale}',
 
   // --- администрирование: вкладка рекомендаций + редактор +
   // медиабиблиотека.
@@ -751,6 +754,8 @@ export const RU: Messages = {
   'admin.guidance.success.unpublished': 'Материал снят с публикации.',
   'admin.guidance.success.deleted': 'Материал удалён.',
   'admin.guidance.success.reordered': 'Порядок сохранён.',
+  'admin.guidance.success.translationCreated': 'Перевод создан.',
+  'admin.guidance.success.translationDeleted': 'Перевод удалён.',
 
   'admin.guidance.editor.createTitle': 'Новый материал',
   'admin.guidance.editor.editTitle': 'Редактирование материала',
@@ -847,6 +852,17 @@ export const RU: Messages = {
   'admin.guidance.editor.creatingIn': 'Пост будет создан на языке {locale}.',
   'admin.guidance.editor.homeLocaleNote':
     'Домашний язык поста — {home}. Сохранение меняет только контент {locale} — у остальных языков свой текст.',
+  'admin.guidance.editor.translatingIn':
+    'Вы добавляете перевод этого материала на язык {locale} — остальные языки не изменятся.',
+  'admin.guidance.editor.translationTitle': 'Добавить перевод',
+  'admin.guidance.editor.translations.title': 'Переводы',
+  'admin.guidance.editor.translations.loading': 'Загрузка переводов…',
+  'admin.guidance.editor.translations.empty': 'Переводов пока нет — только домашний язык материала.',
+  'admin.guidance.editor.translations.home': 'домашний',
+  'admin.guidance.editor.translations.add': 'Добавить перевод на {locale}',
+  'admin.guidance.editor.translations.delete': 'Удалить перевод',
+  'admin.guidance.editor.translations.delete.confirm':
+    'Удалить перевод этого материала на языке {locale}? Текст на этом языке будет удалён; сам материал и остальные языки останутся.',
   'admin.guidance.editor.pinnedLabel': 'Закрепить материал в начале списка рекомендаций',
   /** Только режим создания: одноразовый выбор «записать и опубликовать». */
   'admin.guidance.editor.statusLabel': 'Публикация',

@@ -12,9 +12,13 @@ import type { GuidancePostDto } from '../core/models';
  *
  * Locale scope: the server answers ONE language per call — both methods
  * send the reader's ACTIVE language (the I18nService locale signal, read
- * at call time: never a hard-coded value, never a route parameter), so
- * the index lists only that language's posts and a slug in the other
- * language answers 404 (the page re-fetches on a language switch).
+ * at call time: never a hard-coded value, never a route parameter), so the
+ * index lists only that language's posts. The DETAIL never dead-ends on a
+ * language switch (bilingual-guidance): a slug whose post has no
+ * translation in the active language is served in the default locale with
+ * `localeFallback: true` (a 200 with the flag — the page tells the reader
+ * which language is being shown), and `alternates` names every locale that
+ * has a translation (the reader's own choice to follow).
  */
 @Injectable({ providedIn: 'root' })
 export class GuidanceGateway {
@@ -39,10 +43,12 @@ export class GuidanceGateway {
   /**
    * GET /api/guidance/{slug}?locale=<active> -> one GuidancePostDto —
    * the public detail, PUBLISHED only, fetched by slug (never by id),
-   * carrying the stored (sanitized) bodyHtml. A draft slug, an unknown
-   * slug, and a slug whose post is in ANOTHER locale answer the SAME
-   * 404 (neither a draft's existence nor another language's text is
-   * revealed).
+   * carrying the stored (sanitized) bodyHtml. A draft slug and an unknown
+   * slug answer the SAME 404 (a draft's existence is never revealed).
+   * A post WITHOUT a translation in the active language does NOT 404
+   * (bilingual-guidance): the server serves the default-locale translation
+   * with `localeFallback: true`, and `alternates` maps every locale that
+   * has a translation to its slug (the detail only — the index is null).
    */
   getBySlug(slug: string): Promise<GuidancePostDto> {
     return lastValueFrom(

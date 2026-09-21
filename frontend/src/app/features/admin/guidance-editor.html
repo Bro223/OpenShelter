@@ -1,7 +1,11 @@
 <section class="guidance-editor">
   <h2 class="guidance-editor__heading">
     {{
-      (post() === null ? 'admin.guidance.editor.createTitle' : 'admin.guidance.editor.editTitle')
+      (post() === null
+        ? 'admin.guidance.editor.createTitle'
+        : translationTarget() !== null
+          ? 'admin.guidance.editor.translationTitle'
+          : 'admin.guidance.editor.editTitle')
         | t
     }}
   </h2>
@@ -53,7 +57,7 @@
       <input id="ge-slug" type="text" formControlName="slug" maxlength="200" autocomplete="off" />
       <p class="field-note">
         {{
-          (post() === null
+          (post() === null || translationTarget() !== null
             ? 'admin.guidance.editor.slugHint.create'
             : 'admin.guidance.editor.slugHint.edit'
           ) | t
@@ -110,15 +114,19 @@
       }}</span>
 
       <!-- The explicit "no image" tick: the visible, unambiguous way to
-           say this post has no hero. Visible in BOTH modes, prefilled
-           from the saved state in edit mode (checked = no library asset
-           AND no pending import URL). While checked, the choice controls
-           below are disabled (dimmed); checking it clears the hero
+           say this post has no hero. Visible in create + edit mode
+           (prefilled from the saved state in edit mode). NOT in
+           translation-authoring mode — the hero reference is POST-level
+           (shared by every translation) and is not editable from a
+           translation row. While checked, the choice controls below are
+           disabled (dimmed); checking it clears the hero
            choices, unchecking re-enables the controls. -->
-      <label class="guidance-editor__check-label" for="ge-hero-none">
-        <input id="ge-hero-none" type="checkbox" formControlName="noHero" (change)="onNoHeroChange($event)" />
-        {{ i18nKeys.heroNone | t }}
-      </label>
+      @if (translationTarget() === null) {
+        <label class="guidance-editor__check-label" for="ge-hero-none">
+          <input id="ge-hero-none" type="checkbox" formControlName="noHero" (change)="onNoHeroChange($event)" />
+          {{ i18nKeys.heroNone | t }}
+        </label>
+      }
 
       @if (selectedHero(); as hero) {
         <div class="guidance-editor__hero-current">
@@ -133,19 +141,24 @@
           />
           <div class="guidance-editor__hero-meta">
             <span class="guidance-editor__hero-name">{{ hero.name }}</span>
-            <button
-              type="button"
-              class="btn btn--ghost"
-              (click)="removeHero()"
-              [disabled]="busy() || uploading()"
-            >
-              {{ 'admin.guidance.editor.hero.remove' | t }}
-            </button>
+            <!-- The remove action is edit/create mode only: a translation
+                 row carries no hero reference (it is post-level shared). -->
+            @if (translationTarget() === null) {
+              <button
+                type="button"
+                class="btn btn--ghost"
+                (click)="removeHero()"
+                [disabled]="busy() || uploading()"
+              >
+                {{ 'admin.guidance.editor.hero.remove' | t }}
+              </button>
+            }
           </div>
         </div>
       }
 
-      <div class="guidance-editor__hero-choices" [class.guidance-editor__hero-choices--disabled]="noHero().value">
+      @if (translationTarget() === null) {
+        <div class="guidance-editor__hero-choices" [class.guidance-editor__hero-choices--disabled]="noHero().value">
         <button
           type="button"
           class="btn btn--ghost"
@@ -244,6 +257,7 @@
           }
         </div>
       </div>
+      }
     </div>
 
     <div class="field">
@@ -264,21 +278,25 @@
       }
     </div>
 
-    <div class="field">
-      <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
-      <input id="ge-locale" type="text" formControlName="locale" maxlength="5" autocomplete="off" />
-      <p class="field-note">{{ 'admin.guidance.editor.localeHint' | t }}</p>
-      @if (locale().invalid && locale().touched) {
-        <p class="field-error">{{ 'admin.guidance.editor.localeTooLong' | t }}</p>
-      }
-    </div>
+    @if (translationTarget() === null) {
+      <div class="field">
+        <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
+        <input id="ge-locale" type="text" formControlName="locale" maxlength="5" autocomplete="off" />
+        <p class="field-note">{{ 'admin.guidance.editor.localeHint' | t }}</p>
+        @if (locale().invalid && locale().touched) {
+          <p class="field-error">{{ 'admin.guidance.editor.localeTooLong' | t }}</p>
+        }
+      </div>
+    }
 
-    <div class="field">
-      <label class="guidance-editor__check-label" for="ge-pinned">
-        <input id="ge-pinned" type="checkbox" formControlName="pinned" />
-        {{ 'admin.guidance.editor.pinnedLabel' | t }}
-      </label>
-    </div>
+    @if (translationTarget() === null) {
+      <div class="field">
+        <label class="guidance-editor__check-label" for="ge-pinned">
+          <input id="ge-pinned" type="checkbox" formControlName="pinned" />
+          {{ 'admin.guidance.editor.pinnedLabel' | t }}
+        </label>
+      </div>
+    }
 
     @if (post() === null) {
       <!-- Create mode only: the status travels with the create request, and a later

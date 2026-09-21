@@ -16,6 +16,11 @@ const POST: GuidancePostDto = {
   locale: 'en',
   publishedAt: '2025-09-01T08:00:00Z',
   updatedAt: '2025-09-02T09:00:00Z',
+  // The DETAIL shape: alternates carries every locale that has a
+  // translation (here the post's own only); no fallback (the reader asked
+  // for the locale the post has).
+  alternates: { en: 'water-and-heating' },
+  localeFallback: false,
 };
 
 const POST_NO_BODY: GuidancePostDto = {
@@ -25,6 +30,8 @@ const POST_NO_BODY: GuidancePostDto = {
   title: 'Power outages',
   bodyHtml: null,
   pinned: false,
+  // The index keeps the map lean: null (the detail is where it is populated).
+  alternates: null,
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */

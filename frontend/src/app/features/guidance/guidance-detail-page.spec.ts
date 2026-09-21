@@ -79,6 +79,8 @@ function guidancePost(overrides: Partial<GuidancePostDto> = {}): GuidancePostDto
     locale: 'en',
     publishedAt: '2025-09-01T08:00:00Z',
     updatedAt: '2025-09-02T09:00:00Z',
+    alternates: null,
+    localeFallback: false,
     ...overrides,
   };
 }
@@ -514,6 +516,81 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(guidanceGateway.getBySlug).toHaveBeenCalledTimes(2);
       expect(guidanceGateway.getBySlug).toHaveBeenLastCalledWith('b');
       expect(element.querySelector('h1')?.textContent).toBe('Post B');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Locale fallback (bilingual-guidance): a post without a translation in
+  // the reader's language is served in the default locale with the flag —
+  // the readable notice names the language being shown and, when
+  // `alternates` carries the reader's locale, links that version (the
+  // reader's choice; the URL is never switched silently).
+  // ---------------------------------------------------------------------------
+  describe('locale fallback (bilingual-guidance)', () => {
+    it('a fallback shows the notice naming the served language, with no link when alternates lacks the reader locale', async () => {
+      const i18nService = TestBed.inject(I18nService);
+      i18nService.setLocale('ru');
+      // Wait for the ru catalog: the copy below is the RU one (setLocale
+      // paints the default-locale copy until the chunk lands — asserting
+      // without this wait would be a race).
+      await i18nService.ensureCatalog('ru');
+      // The post has en + et rows and no ru: the ru reader is served the
+      // default-locale (en) copy with the flag (a 200, never a 404).
+      guidanceGateway.set(
+        'water-and-heating-en',
+        guidancePost({
+          slug: 'water-and-heating-en',
+          locale: 'en',
+          localeFallback: true,
+          alternates: { en: 'water-and-heating-en', et: 'vesi-ja-kuumutus' },
+        }),
+        ['ru'],
+      );
+      const { element, fixture } = await open('/blog/water-and-heating-en');
+      fixture.detectChanges();
+
+      const notice = element.querySelector('.guidance-detail__fallback');
+      expect(notice).not.toBeNull();
+      // The RU chrome copy: the served language (en) and the reader's
+      // missing language (ru) are both named.
+      expect(notice!.textContent).toContain('Показана версия на языке en');
+      expect(notice!.textContent).toContain('недоступен на языке ru');
+      // No translation in the reader's language — no link is offered.
+      expect(notice!.querySelector('a')).toBeNull();
+    });
+
+    it('a fallback offers a link to the reader-locale alternate when alternates carries it (never a silent URL switch)', async () => {
+      const i18nService = TestBed.inject(I18nService);
+      i18nService.setLocale('ru');
+      await i18nService.ensureCatalog('ru');
+      guidanceGateway.set(
+        'water-and-heating-en',
+        guidancePost({
+          slug: 'water-and-heating-en',
+          locale: 'en',
+          localeFallback: true,
+          alternates: { en: 'water-and-heating-en', ru: 'voda-i-ogrevanie' },
+        }),
+        ['ru'],
+      );
+      const { element, fixture } = await open('/blog/water-and-heating-en');
+      fixture.detectChanges();
+
+      const link = element.querySelector<HTMLAnchorElement>('.guidance-detail__fallback-link');
+      expect(link).not.toBeNull();
+      expect(link!.textContent).toBe('Читать версию на языке ru');
+      expect(link!.getAttribute('href')).toBe('/blog/voda-i-ogrevanie');
+    });
+
+    it('no notice when a translation exists in the reader language (flag false)', async () => {
+      guidanceGateway.set(
+        'water-and-heating',
+        guidancePost({ alternates: { en: 'water-and-heating' } }),
+        ['en'],
+      );
+      const { element } = await open('/blog/water-and-heating');
+
+      expect(element.querySelector('.guidance-detail__fallback')).toBeNull();
     });
   });
 });

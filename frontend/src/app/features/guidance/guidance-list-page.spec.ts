@@ -55,6 +55,10 @@ function guidancePost(overrides: Partial<GuidancePostDto> = {}): GuidancePostDto
     locale: 'en',
     publishedAt: '2025-09-01T08:00:00Z',
     updatedAt: '2025-09-02T09:00:00Z',
+    // The index never carries alternates (null — kept lean) and never falls
+    // back (it lists only the active locale's posts).
+    alternates: null,
+    localeFallback: false,
     ...overrides,
   };
 }

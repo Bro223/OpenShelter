@@ -553,6 +553,9 @@ export const ET: Messages = {
   'guidance.notFoundBody':
     'Sellist juhisteposti ei ole — see on tõenäoliselt eemaldatud või avaldamata.',
   'guidance.published': 'Avaldatud',
+  'guidance.localeFallback':
+    'Näidatud on {locale} keele versioon — see juhistepost ei ole saadaval {reader} keeles.',
+  'guidance.localeFallback.alternate': 'Loe {locale} keele versioon',
 
   // --- administraator: juhistepostid + toimetaja + meediakogumik (crisis-guidance D8).
   'admin.retry': 'Proovi uuesti',
@@ -732,6 +735,8 @@ export const ET: Messages = {
   'admin.guidance.success.unpublished': 'Posti avaldamine tühistatud.',
   'admin.guidance.success.deleted': 'Post kustutatud.',
   'admin.guidance.success.reordered': 'Järjestus salvestatud.',
+  'admin.guidance.success.translationCreated': 'Tõlge loodud.',
+  'admin.guidance.success.translationDeleted': 'Tõlge kustutatud.',
 
   'admin.guidance.editor.createTitle': 'Uus juhistepost',
   'admin.guidance.editor.editTitle': 'Juhisteposti muutmine',
@@ -807,6 +812,17 @@ export const ET: Messages = {
   'admin.guidance.editor.creatingIn': 'Post luuakse keeles {locale}.',
   'admin.guidance.editor.homeLocaleNote':
     'Posti kodukeel on {home}. Salvestamine muudab ainult {locale} sisu — teised keeled jäävad puutumata.',
+  'admin.guidance.editor.translatingIn':
+    'Lisate selle postituse {locale} keele tõlge — teised keeled jäävad puutumata.',
+  'admin.guidance.editor.translationTitle': 'Lisa tõlge',
+  'admin.guidance.editor.translations.title': 'Tõlged',
+  'admin.guidance.editor.translations.loading': 'Laen tõlge…',
+  'admin.guidance.editor.translations.empty': 'Tõlge pole veel — ainult postituse emakeel.',
+  'admin.guidance.editor.translations.home': 'emakeel',
+  'admin.guidance.editor.translations.add': 'Lisa {locale} keele tõlge',
+  'admin.guidance.editor.translations.delete': 'Kustuta tõlge',
+  'admin.guidance.editor.translations.delete.confirm':
+    'Kustutada selle postituse {locale} keele tõlge? {locale} keele tekst eemaldatakse; postitus ja teised keeled jäävad alles.',
   'admin.guidance.editor.pinnedLabel': 'Kinnita see post juhistepostide tippu',
   'admin.guidance.editor.statusLabel': 'Avaldamine',
   'admin.guidance.editor.status.draft': 'Salvesta mustandina',

@@ -119,6 +119,7 @@ const NEW_ASSET: MediaAssetDto = {
     [mediaAssets]="assets"
     [busy]="busy"
     [serverError]="error()"
+    [translationTarget]="target"
     (save)="onSave($event)"
     (cancel)="cancelled = true"
   />`,
@@ -126,6 +127,10 @@ const NEW_ASSET: MediaAssetDto = {
 class Host {
   post: AdminGuidancePostDto | null = EDIT_POST;
   assets: MediaAssetDto[] | null = MEDIA_ASSETS;
+  /** The translation-authoring locale (bilingual-guidance); null = the
+   *  ordinary create/edit form (set BEFORE the first detectChanges, like
+   *  the page binds it — the branch switch recreates the editor). */
+  target: string | null = null;
   busy = false;
   error = signal<string | null>(null);
   lastSave: GuidanceEditorSave | null = null;
@@ -156,6 +161,7 @@ function apiError(status: number, message: string, path: string): ApiError {
 function createHost(
   post: AdminGuidancePostDto | null = EDIT_POST,
   assets: MediaAssetDto[] | null = MEDIA_ASSETS,
+  target: string | null = null,
 ): EditorHarness {
   const admin = new FakeAdminGateway();
   TestBed.configureTestingModule({
@@ -165,6 +171,7 @@ function createHost(
   const fixture = TestBed.createComponent(Host);
   fixture.componentInstance.post = post;
   fixture.componentInstance.assets = assets;
+  fixture.componentInstance.target = target;
   fixture.detectChanges();
   const debug = fixture.debugElement.query(By.directive(GuidanceEditor))!;
   if (!debug) {
@@ -1573,5 +1580,96 @@ describe('GuidanceEditor', () => {
     expect(slugShapeValidator(ctrl('Minu post!'))).toEqual({ slug: true });
     expect(slugShapeValidator(ctrl('-leading'))).toEqual({ slug: true });
     expect(slugShapeValidator(ctrl('trailing-'))).toEqual({ slug: true });
+  });
+});
+
+// ---- translation authoring (bilingual-guidance) ------------------------------
+//
+// The editor's THIRD mode: the page recreates it (the template branch)
+// with the `translationTarget` locale — the form is prefilled from the
+// on-screen row, the post-level fields are off it, and Save emits the
+// create-translation payload (the CREATE endpoint — never update).
+
+describe('translation authoring (bilingual-guidance)', () => {
+  it('prefills from the on-screen row (title, body, alt; the slug BLANK) and Save emits the create-translation payload — never the update or create-post payloads', () => {
+    const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
+    expect(inputById(h.element, 'ge-title')!.value).toBe(EDIT_POST.title);
+    expect(inputById(h.element, 'ge-slug')!.value).toBe('');
+    expect(inputById(h.element, 'ge-alt')!.value).toBe(EDIT_POST.heroImageAlt);
+    expect(rootOf(h).innerHTML).toContain('Pöördu peavarjendisse');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    const save = h.host.lastSave;
+    expect(save?.id).toBe(EDIT_POST.id);
+    expect(save?.update).toBeUndefined();
+    expect(save?.create).toBeUndefined();
+    expect(save?.createTranslation).toEqual({
+      locale: 'ru',
+      title: EDIT_POST.title,
+      body: EDIT_POST.bodyHtml,
+      heroImageAlt: EDIT_POST.heroImageAlt,
+    });
+  });
+
+  it('a typed slug is carried in the payload; a blank slug is omitted (the server generates one)', () => {
+    const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.host.lastSave?.createTranslation?.slug).toBeUndefined();
+    typeValue(inputById(h.element, 'ge-slug')!, 'varjumine-droonirun', h.fixture);
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.host.lastSave?.createTranslation?.slug).toBe('varjumine-droonirun');
+  });
+
+  it('the post-level fields are off the form (locale, pinned, the hero choice) and the heading names the mode', () => {
+    const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
+    expect(inputById(h.element, 'ge-locale')).toBeNull();
+    expect(inputById(h.element, 'ge-pinned')).toBeNull();
+    expect(inputById(h.element, 'ge-hero-none')).toBeNull();
+    expect(h.element.querySelector('.guidance-editor__hero-choices')).toBeNull();
+    // The shared hero is SHOWN (read-only — the remove action is
+    // post-level and off this form).
+    expect(h.element.querySelector('.guidance-editor__hero-current')).not.toBeNull();
+    expect(buttonByText(h.element, 'Remove image')).toBeNull();
+    expect(h.element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+      'Add a translation',
+    );
+    expect(h.element.textContent).toContain('You are adding the ru translation of this post');
+  });
+
+  it('a foreign-locale row shows no home-locale note in translation mode', () => {
+    const foreign: AdminGuidancePostDto = { ...EDIT_POST, locale: 'ru', homeLocale: 'en' };
+    const h = createHost(foreign, MEDIA_ASSETS, 'et');
+    expect(h.element.textContent).toContain('You are adding the et translation of this post');
+    expect(h.element.textContent).not.toContain('home language');
+  });
+
+  it('a hero post with a CLEARED alt blocks Save (the pairing rule follows the post\'s shared hero)', () => {
+    const h = createHost(EDIT_POST, MEDIA_ASSETS, 'ru');
+    typeValue(inputById(h.element, 'ge-alt')!, '', h.fixture);
+    h.editor.onSave();
+    expect(h.host.lastSave).toBeNull();
+    expect(h.element.textContent).toContain('Alt text is required when a hero image is chosen.');
+  });
+
+  it('a heroless post with a typed alt blocks Save (the forbidden direction)', () => {
+    const h = createHost(NO_HERO_DRAFT, MEDIA_ASSETS, 'en');
+    typeValue(inputById(h.element, 'ge-alt')!, 'Kelder', h.fixture);
+    h.editor.onSave();
+    expect(h.host.lastSave).toBeNull();
+    expect(h.element.textContent).toContain('Remove the alt text or choose a hero image.');
+  });
+
+  it('a heroless post saves with heroImageAlt null (the pair is absent, not missing)', () => {
+    const h = createHost(NO_HERO_DRAFT, MEDIA_ASSETS, 'en');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.host.lastSave?.createTranslation).toEqual({
+      locale: 'en',
+      title: NO_HERO_DRAFT.title,
+      body: NO_HERO_DRAFT.bodyHtml,
+      heroImageAlt: null,
+    });
   });
 });

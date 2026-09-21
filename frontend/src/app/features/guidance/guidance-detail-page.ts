@@ -28,10 +28,13 @@ import { LoadingIndicator } from '../../shared/loading-indicator';
  * banner with the page chrome intact.
  *
  * Locale scope: the server answers ONE language per call (the gateway
- * sends the active locale), and a slug whose post is in ANOTHER locale
- * is a 404 — so a language switcher change re-fetches: a reader who
- * switches into the post's language sees it appear without a reload, and
- * a mismatch lands in the same readable not-found state.
+ * sends the active locale), and a language switch re-fetches. The detail
+ * never dead-ends (bilingual-guidance): a post WITHOUT a translation in
+ * the active language is served in the default locale with
+ * `localeFallback: true` — the readable notice names the language being
+ * shown (and links the reader's-language version when `alternates` has
+ * it). Only a draft slug or an unknown slug still lands in the readable
+ * not-found state.
  */
 @Component({
   selector: 'app-guidance-detail-page',
@@ -83,6 +86,29 @@ export class GuidanceDetailPage implements OnInit, OnDestroy {
   private readonly localeSub = toObservable(this.i18n.locale)
     .pipe(skip(1))
     .subscribe(() => this.load());
+
+  /**
+   * The locale-fallback notice (bilingual-guidance): non-null ONLY when
+   * the server served this post in a language OTHER than the reader's
+   * (the `localeFallback` flag — the post has no translation in the
+   * reader's language). The block then says plainly which language is
+   * being shown and that the reader's is not available; when `alternates`
+   * actually carries the reader's locale it offers a LINK to that
+   * version (the reader's choice — the URL is never switched silently).
+   * Nothing extra appears when a translation exists in the reader's
+   * language (the flag is false then). A plain method (re-evaluated on
+   * each CD pass — `post()` and the locale signal are the inputs).
+   */
+  protected fallbackNotice(): { served: string; reader: string; alternateSlug: string | null } | null {
+    const p = this.post();
+    if (p === null || !p.localeFallback) {
+      return null;
+    }
+    const reader = this.i18n.locale();
+    const alternates = p.alternates ?? {};
+    const alternateSlug = alternates[reader];
+    return { served: p.locale, reader, alternateSlug: alternateSlug ?? null };
+  }
 
   ngOnInit(): void {
     // Re-read the :slug on EVERY navigation to this route — back/forward
