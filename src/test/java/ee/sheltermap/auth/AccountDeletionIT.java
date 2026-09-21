@@ -222,6 +222,11 @@ class AccountDeletionIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$.reviewStatus").value("CONFIRMED"))
                 .andExpect(jsonPath("$.locationKind").value("PUBLIC"))
                 .andExpect(jsonPath("$.submitterVerified").value(false))
+                // Erasure-trust: the depth behind the "verified yellow" marker
+                // is absent too (author gone), and the row keeps its ordinary
+                // community provenance — deletion grants no verified standing.
+                .andExpect(jsonPath("$.submitterVerification").doesNotExist())
+                .andExpect(jsonPath("$.provenance").value("COMMUNITY_REPORTED"))
                 .andExpect(jsonPath("$.address").value(nullValue()));
 
         // 3. b's data is untouched — shelter still authored by b

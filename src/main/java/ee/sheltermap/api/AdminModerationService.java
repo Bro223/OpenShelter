@@ -137,7 +137,7 @@ public class AdminModerationService {
      * name (the trust projection, reused — no N+1).
      */
     @Transactional(readOnly = true)
-    public List<AdminShelterDto> listShelters(ShelterStatus status, ShelterSource source, String q) {
+    public List<AdminShelterDto> listShelters(ShelterStatus status, ShelterSourceFilter source, String q) {
         return queryService.findAllForAdmin(status, source, q);
     }
 

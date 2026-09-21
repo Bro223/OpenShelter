@@ -27,6 +27,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import jakarta.persistence.EntityManager;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -284,6 +286,11 @@ class AdminModerationIT extends AbstractPersistenceIT {
         inactive.setStatus(ShelterStatus.INACTIVE);
         shelters.save(inactive);
         seedRegistryShelter("Registri otsing", "Otsingu 12, Pärnu");
+        // A municipality-import row — the REGISTRY filter's second member
+        // (the frontend-facing filter groups Päästeamet + municipality).
+        Shelter municipality = new Shelter("Linna otsing", new GeoPoint(58.5, 25.9),
+                ShelterStatus.ACTIVE, "ext-muni", ShelterSource.MUNICIPALITY);
+        shelters.save(municipality);
         String token = adminToken();
 
         // status: exact match
@@ -294,12 +301,14 @@ class AdminModerationIT extends AbstractPersistenceIT {
         mvc.perform(get("/admin/shelters").param("status", "ACTIVE")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[*].name")
-                        .value(org.hamcrest.Matchers.containsInAnyOrder("Otsitav A", "Registri otsing")));
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("Otsitav A", "Registri otsing", "Linna otsing")));
 
-        // source: exact match
-        mvc.perform(get("/admin/shelters").param("source", "PAASETEAMET")
+        // source: the frontend-facing filter (REGISTRY = Päästeamet +
+        // municipality imports; USER = user submissions)
+        mvc.perform(get("/admin/shelters").param("source", "REGISTRY")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Registri otsing")));
+                .andExpect(jsonPath("$[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("Registri otsing", "Linna otsing")));
         mvc.perform(get("/admin/shelters").param("source", "USER")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[*].name")
@@ -322,6 +331,73 @@ class AdminModerationIT extends AbstractPersistenceIT {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(jsonPath("$[*].name").value(org.hamcrest.Matchers.contains("Otsitav A")));
         assertThat(active).isNotNull();
+    }
+
+    @Test
+    void theAdminListPagesTheFilteredOrderWithTheTotalHeader() throws Exception {
+        // Five USER rows in creation (id) order + one registry row the
+        // source filter must keep out of the paged scope.
+        long a = seedShelter("Lehek A", ShelterSource.USER);
+        long b = seedShelter("Lehek B", ShelterSource.USER);
+        long c = seedShelter("Lehek C", ShelterSource.USER);
+        long d = seedShelter("Lehek D", ShelterSource.USER);
+        long e = seedShelter("Lehek E", ShelterSource.USER);
+        seedRegistryShelter("Lehek F", "Registri 1, Pärnu");
+        String token = adminToken();
+
+        // Absent params: the whole filtered list + the header (always
+        // present, the un-paged length).
+        mvc.perform(get("/admin/shelters").param("source", "USER")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("X-Total-Count", "5"));
+
+        // Consecutive pages tile the filtered order (id-ascending — the
+        // stored order), no overlap or skips, the header is the FILTERED
+        // length (the registry row never counts).
+        List<Long> tiled = new java.util.ArrayList<>();
+        for (long offset = 0; offset < 5; offset += 2) {
+            com.jayway.jsonpath.DocumentContext pageJson =
+                    com.jayway.jsonpath.JsonPath.parse(mvc.perform(get("/admin/shelters")
+                                    .param("source", "USER")
+                                    .param("limit", "2")
+                                    .param("offset", String.valueOf(offset))
+                                    .header("Authorization", "Bearer " + token))
+                            .andExpect(status().isOk())
+                            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                                    .header().string("X-Total-Count", "5"))
+                            .andReturn().getResponse().getContentAsString());
+            List<?> page = pageJson.read("$[*].id");
+            for (Object id : page) {
+                tiled.add(((Number) id).longValue());
+            }
+        }
+        assertThat(tiled).containsExactly(a, b, c, d, e);
+
+        // Past the end: an empty page, the total intact — never an error.
+        mvc.perform(get("/admin/shelters").param("source", "USER")
+                        .param("limit", "2").param("offset", "5")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("X-Total-Count", "5"));
+
+        // The bounds are the public guidance's vocabulary (uniform 400s).
+        mvc.perform(get("/admin/shelters").param("limit", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("limit must be between 1 and 200"));
+        mvc.perform(get("/admin/shelters").param("limit", "201")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("limit must be between 1 and 200"));
+        mvc.perform(get("/admin/shelters").param("offset", "-1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("offset must be non-negative"));
     }
 
     // ---------- manual hide / restore (D3) ----------

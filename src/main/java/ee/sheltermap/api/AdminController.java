@@ -3,8 +3,11 @@ package ee.sheltermap.api;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
+import ee.sheltermap.guidance.GuidanceService;
+import ee.sheltermap.guidance.GuidanceValidationException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -13,6 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -83,31 +87,88 @@ public class AdminController {
      * The admin shelter list (D3): every shelter including hidden, with
      * report counts, status flag, occupancy and the
      * submitter's name; {@code status}/{@code source} exact-match filters,
-     * {@code q} the case-insensitive name/address substring.
+     * {@code q} the case-insensitive name/address substring. Optional
+     * {@code limit} (1..200) / {@code offset} (>= 0) slice the (filtered)
+     * list in its stored id order — the same bounds vocabulary as
+     * {@code GET /api/guidance}; the {@code X-Total-Count} response header
+     * is the filter length WITHOUT paging (always present).
      */
     @GetMapping("/shelters")
     @Operation(summary = "The admin shelter list",
             description = "Every shelter including hidden, with report counts, "
                     + "status flag, occupancy and the submitter's name. "
                     + "status/source exact-match filters, q the case-insensitive "
-                    + "name/address substring.")
+                    + "name/address substring. Optional limit (1..200) / offset "
+                    + "(>= 0) slice the (filtered) list; the X-Total-Count "
+                    + "response header is the filter length WITHOUT paging "
+                    + "(always present).")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "All shelter rows "
-                    + "(including hidden)", content = @Content(array = @ArraySchema(
+            @ApiResponse(responseCode = "200", description = "The shelter rows "
+                    + "(including hidden), search-filtered and paged when "
+                    + "q/limit/offset are given", headers = {
+                    @Header(name = "X-Total-Count",
+                            description = "The number of shelters in the "
+                                    + "(filtered) scope WITHOUT the paging "
+                                    + "applied.",
+                            schema = @Schema(type = "integer", format = "int32"))
+            }, content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = AdminShelterDto.class)))),
+            @ApiResponse(responseCode = "400", description = "A limit outside 1..200, "
+                    + "or a negative offset"),
             @ApiResponse(responseCode = "403", description = "Authenticated "
                     + "non-admin")
     })
-    public List<AdminShelterDto> listShelters(
+    public ResponseEntity<List<AdminShelterDto>> listShelters(
             @Parameter(description = "Exact status match (optional).")
             @RequestParam(required = false) ShelterStatus status,
-            @Parameter(description = "Exact source match (optional).")
-            @RequestParam(required = false) ShelterSource source,
+            @Parameter(description = "Source filter (optional): REGISTRY (the "
+                    + "Päästeamet + municipality imports) or USER (user "
+                    + "submissions) — the same grouping as the public "
+                    + "list.")
+            @RequestParam(required = false) ShelterSourceFilter source,
             @Parameter(description = "Case-insensitive name/address substring "
                     + "(optional).")
-            @RequestParam(required = false) String q) {
+            @RequestParam(required = false) String q,
+            @Parameter(description = "Optional page size: 1..200; absent = no "
+                    + "paging (the whole filtered list).")
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the (filtered) list: "
+                    + ">= 0; past the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
-        return moderation.listShelters(status, source, q);
+        List<AdminShelterDto> filtered = moderation.listShelters(status, source, q);
+        int total = filtered.size();
+        // The slice runs LAST, over the (filtered) stored order — the
+        // public guidance's paging semantics verbatim (nulls = no paging;
+        // an offset past the end answers an empty page, never an error).
+        List<AdminShelterDto> paged = GuidanceService.slice(filtered,
+                requireOffset(offset), requireLimit(limit));
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(total))
+                .body(paged);
+    }
+
+    /** The page-size bound (the public guidance's paging vocabulary, 1..200):
+     *  absent = no paging. */
+    private static Integer requireLimit(Integer limit) {
+        if (limit == null) {
+            return null;
+        }
+        if (limit < 1 || limit > 200) {
+            throw new GuidanceValidationException("limit must be between 1 and 200");
+        }
+        return limit;
+    }
+
+    /** The offset bound: absent = the first page. */
+    private static Integer requireOffset(Integer offset) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset < 0) {
+            throw new GuidanceValidationException("offset must be non-negative");
+        }
+        return offset;
     }
 
     /** Manual hide/restore; a restore disarms auto-hide (D3). 204; 404 unknown; 409 registry rows. */

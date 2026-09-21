@@ -1324,6 +1324,51 @@ class GuidanceServiceTest {
                 .containsExactly(rows.get(0).getId(), rows.get(1).getId(), rows.get(2).getId());
     }
 
+    // ------------------------------------------------ admin search (admin-guidance-search)
+
+    @Test
+    void searchableBodyStripsEveryTagAndCollapsesWhitespace() {
+        assertThat(GuidanceService.searchableBody("<p>hello</p>"))
+                .isEqualTo("hello");
+        assertThat(GuidanceService.searchableBody("<p><b>Bold</b> and   spaced</p><p>more</p>"))
+                .isEqualTo("Bold and spaced more");
+        // Null-safe (a missing body is empty text, not an NPE).
+        assertThat(GuidanceService.searchableBody(null)).isEmpty();
+        // Markup is NOT searchable text: a search for the tag itself finds
+        // nothing in a stripped body.
+        assertThat(GuidanceService.searchableBody("<p>hello</p>")).doesNotContain("<");
+    }
+
+    @Test
+    void matchesSearchIsACaseInsensitiveSubstringOverTitleAndStrippedBody() {
+        // Title hit, any case...
+        assertThat(GuidanceService.matchesSearch("Kelder juhend", null, "kelder")).isTrue();
+        assertThat(GuidanceService.matchesSearch("Kelder juhend", null, "KELDER")).isTrue();
+        // ...body hit through the tag-stripped text...
+        assertThat(GuidanceService.matchesSearch("Muu", "<p><b>Varjendus</b> keha</p>", "varjendus")).isTrue();
+        // ...and a miss when neither carries the term.
+        assertThat(GuidanceService.matchesSearch("Muu", "<p>keha</p>", "varjendus")).isFalse();
+        // Markup is not a feature: the stripped body never contains tags.
+        assertThat(GuidanceService.matchesSearch("Muu", "<p>hello</p>", "<p>"))
+                .isFalse();
+    }
+
+    @Test
+    void aBlankOrAbsentNeedleIsNoFilter() {
+        assertThat(GuidanceService.matchesSearch("Title", "<p>body</p>", null)).isTrue();
+        assertThat(GuidanceService.matchesSearch("Title", "<p>body</p>", "   ")).isTrue();
+        // A blank needle matches even an all-null row (nothing to filter).
+        assertThat(GuidanceService.matchesSearch(null, null, " ")).isTrue();
+    }
+
+    @Test
+    void matchesSearchIsNullSafeOnTheRow() {
+        // A null title only: the body still matches.
+        assertThat(GuidanceService.matchesSearch(null, "<p>hello</p>", "hello")).isTrue();
+        // Both null: a non-blank needle finds nothing (no NPE).
+        assertThat(GuidanceService.matchesSearch(null, null, "hello")).isFalse();
+    }
+
     // ------------------------------------------------------------- audit (D12)
 
     private void assertLabeledRow(ModerationAuditLog.Row row, ModerationAuditLog.Action action, String label) {

@@ -14,6 +14,8 @@ import ee.sheltermap.auth.TokenBucketRateLimiter;
 import ee.sheltermap.retention.RetentionProperties;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationProperties;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -170,6 +172,12 @@ public class SecurityConfig {
         config.setAllowedOrigins(CommaSeparated.parseList(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
+        // Only the paged endpoints' custom response header crosses the
+        // origin boundary: without it the browser can read the body but
+        // NOT X-Total-Count, so a cross-origin frontend silently degrades
+        // to page-length pagination. Listed BY NAME (never a wildcard) so
+        // the readable set stays a reviewed decision.
+        config.setExposedHeaders(List.of("X-Total-Count"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -204,6 +212,17 @@ public class SecurityConfig {
                         writeError(objectMapper, clock, response, request, HttpStatus.FORBIDDEN, "Access denied")))
             .authorizeHttpRequests(auth -> {
                 auth
+                    // The servlet container's ERROR dispatch (a
+                    // sendError/status error re-enters the filter chain at
+                    // the container's error page, /error) must NOT be
+                    // answered by the JWT wall: otherwise a PUBLIC
+                    // endpoint's failure comes back as 401
+                    // "Authentication required" whose body reports the
+                    // internal "path":"/error" instead of the real status
+                    // on the path the client asked for. Scoped to the
+                    // DISPATCHER TYPE alone — no path is opened up, so a
+                    // direct anonymous GET /error is still 401.
+                    .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                     .requestMatchers(HttpMethod.POST,
                             "/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
                             "/auth/password-reset/request", "/auth/password-reset/confirm").permitAll()
@@ -260,6 +279,23 @@ public class SecurityConfig {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getWriter(), new ErrorResponse(
-                clock.instant(), status.value(), status.getReasonPhrase(), message, request.getRequestURI()));
+                clock.instant(), status.value(), status.getReasonPhrase(), message, failedPath(request)));
+    }
+
+    /**
+     * The path the CLIENT asked for — what {@link ErrorResponse#path()}
+     * documents. On a container ERROR dispatch the request URI is the
+     * internal error-page target ({@code /error}), so the servlet's
+     * {@code jakarta.servlet.error.request_uri} attribute (the original
+     * URI) wins when the container forwarded one. Nothing else is read:
+     * the attribute is a URI the container itself recorded, so no internal
+     * detail can leak into the body.
+     */
+    private static String failedPath(HttpServletRequest request) {
+        Object original = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
+        if (original instanceof String uri && !uri.isEmpty()) {
+            return uri;
+        }
+        return request.getRequestURI();
     }
 }

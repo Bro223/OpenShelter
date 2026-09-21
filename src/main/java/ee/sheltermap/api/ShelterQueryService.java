@@ -451,6 +451,14 @@ public class ShelterQueryService {
         // "Completed verification" = at least one active (non-revoked) claim;
         // a null author (registry row or a deleted user) is never verified.
         boolean submitterVerified = author != null && !author.getData().levels().isEmpty();
+        // The depth behind that boolean (submitter-verification-badge): the
+        // single channel when there is one, FULL at two or more. Live by
+        // construction — the claim set is re-read on every request, so a row
+        // added at 1/2 verification upgrades itself once the second channel
+        // is confirmed, with no backfill and no stored flag to go stale.
+        SubmitterVerification submitterVerification = author == null
+                ? null
+                : SubmitterVerification.of(author.getData().levels());
         Map<ShelterReportType, Long> typeCounts =
                 batches.reportCounts().getOrDefault(shelter.getId(), Map.of());
         long nonExistent = typeCounts.getOrDefault(ShelterReportType.NON_EXISTENT, 0L);
@@ -476,6 +484,7 @@ public class ShelterQueryService {
                 shelter.getDescription(),
                 shelter.getCapacity(),
                 submitterVerified,
+                submitterVerification,
                 (int) nonExistent,
                 batches.openStatus().get(shelter.getId()),
                 batches.occupancy().get(shelter.getId()),
@@ -505,15 +514,18 @@ public class ShelterQueryService {
      * statuses (auto-hidden rows included), id-ordered, with the same
      * batched trust derivations as the public list plus the submitter's
      * profile name (the provenance join — one batched lookup, no N+1).
-     * {@code status}/{@code source} are exact-match filters (absent = no
-     * filter); {@code q} is a case-insensitive substring over name OR
+     * {@code status}/{@code source} are filters (absent = no filter) —
+     * the source is the frontend-facing {@link ShelterSourceFilter}
+     * vocabulary (REGISTRY = Päästeamet + municipality imports, USER =
+     * user submissions — the same grouping as the public list); {@code q}
+     * is a case-insensitive substring over name OR
      * address, applied in-memory over the projected list (Estonia-scale
      * data — same precedent as the trust filters).
      */
-    public List<AdminShelterDto> findAllForAdmin(ShelterStatus status, ShelterSource source, String q) {
+    public List<AdminShelterDto> findAllForAdmin(ShelterStatus status, ShelterSourceFilter source, String q) {
         List<Shelter> shelters = shelterRepository.findAll().stream()
                 .filter(s -> status == null || s.getStatus() == status)
-                .filter(s -> source == null || s.getSource() == source)
+                .filter(s -> source == null || source.sources().contains(s.getSource()))
                 .sorted(Comparator.comparing(Shelter::getId))
                 .toList();
         if (shelters.isEmpty()) {

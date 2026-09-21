@@ -193,6 +193,8 @@ class ShelterApiIT extends AbstractPersistenceIT {
                 .andExpect(jsonPath("$").value(org.hamcrest.Matchers.hasSize(3)))
                 .andExpect(jsonPath("$[?(@.name == 'Kinnitatud varjend')].submitterVerified")
                         .value(org.hamcrest.Matchers.contains(true)))
+                .andExpect(jsonPath("$[?(@.name == 'Kinnitatud varjend')].submitterVerification")
+                        .value(org.hamcrest.Matchers.contains("EMAIL")))
                 .andExpect(jsonPath("$[?(@.name == 'Kinnitamata varjend')].submitterVerified")
                         .value(org.hamcrest.Matchers.contains(false)))
                 .andExpect(jsonPath("$[?(@.name == 'Päästeameti varjend')].submitterVerified")
@@ -201,18 +203,22 @@ class ShelterApiIT extends AbstractPersistenceIT {
         // detail: the same field on the single read
         mvc.perform(get("/api/shelters/" + verifiedShelterId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submitterVerified").value(true));
+                .andExpect(jsonPath("$.submitterVerified").value(true))
+                .andExpect(jsonPath("$.submitterVerification").value("EMAIL"));
         mvc.perform(get("/api/shelters/" + unverifiedShelter.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submitterVerified").value(false));
+                .andExpect(jsonPath("$.submitterVerified").value(false))
+                .andExpect(jsonPath("$.submitterVerification").doesNotExist());
         mvc.perform(get("/api/shelters/" + registryShelterId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.submitterVerified").value(false));
+                .andExpect(jsonPath("$.submitterVerified").value(false))
+                .andExpect(jsonPath("$.submitterVerification").doesNotExist());
 
         // the contributions path (/mine) carries the field too
         mvc.perform(get("/api/shelters/mine").header("Authorization", "Bearer " + mari))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].submitterVerified").value(true));
+                .andExpect(jsonPath("$[0].submitterVerified").value(true))
+                .andExpect(jsonPath("$[0].submitterVerification").value("EMAIL"));
     }
 
     // ---------- write side: POST /api/shelters ----------

@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static ee.sheltermap.domain.Provenance.COMMUNITY_REPORTED;
+import static ee.sheltermap.domain.Provenance.OFFICIAL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -439,20 +441,51 @@ class ShelterQueryServiceTest {
         ShelterDto dto = service.findById(registryShelter.getId()).orElseThrow();
 
         assertThat(dto.submitterVerified()).isFalse();
+        // No author at all — nothing to describe, so the depth is absent.
+        assertThat(dto.submitterVerification()).isNull();
     }
 
     @Test
     void verifiedCreatorGetsSubmitterVerifiedTrue() {
         userShelter.setCreatedBy(saveUser("Mari", "mari@example.ee", true));
 
-        assertThat(service.findById(userShelter.getId()).orElseThrow().submitterVerified()).isTrue();
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+        assertThat(dto.submitterVerified()).isTrue();
+        // The fixture confirms the E-MAIL channel only: one channel is the
+        // PARTIAL tier, and the depth names which channel it is.
+        assertThat(dto.submitterVerification()).isEqualTo(SubmitterVerification.EMAIL);
+    }
+
+    @Test
+    void theDepthUpgradesWhenTheAuthorConfirmsASecondChannel() {
+        // A row submitted at 1/2 verification...
+        RegisteredUser author = new RegisteredUser("Mari", "mari@example.ee", "+3725550001");
+        author.addVerification(new VerificationClaim(VerificationLevel.EMAIL, "smtp",
+                "mari@example.ee", NOW));
+        users.save(author);
+        userShelter.setCreatedBy(author.getId());
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().submitterVerification())
+                .isEqualTo(SubmitterVerification.EMAIL);
+
+        // ...must read as FULL once the SAME author confirms the second
+        // channel, with nothing rewritten on the shelter: the depth is derived
+        // per read, never stored on the row (the owner's requirement).
+        author.addVerification(new VerificationClaim(VerificationLevel.PHONE, "sms",
+                "+3725550001", NOW));
+        users.save(author);
+
+        assertThat(service.findById(userShelter.getId()).orElseThrow().submitterVerification())
+                .isEqualTo(SubmitterVerification.FULL);
     }
 
     @Test
     void unverifiedCreatorGetsSubmitterVerifiedFalse() {
         userShelter.setCreatedBy(saveUser("Priit", "priit@example.ee", false));
 
-        assertThat(service.findById(userShelter.getId()).orElseThrow().submitterVerified()).isFalse();
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+        assertThat(dto.submitterVerified()).isFalse();
+        assertThat(dto.submitterVerification()).isNull();
     }
 
     @Test
@@ -460,6 +493,38 @@ class ShelterQueryServiceTest {
         userShelter.setCreatedBy(99L); // author id present but no such user row
 
         assertThat(service.findById(userShelter.getId()).orElseThrow().submitterVerified()).isFalse();
+    }
+
+    @Test
+    void deletedCreatorRendersAtTheUnverifiedLevel() {
+        // Erasure-trust guard: a USER row whose author row is gone (the
+        // ON DELETE SET NULL orphan, or a dangling pre-V7 id) renders at the
+        // UNVERIFIED level — the flag is false, the depth (the cue behind the
+        // "verified yellow" marker) is absent, and the provenance is the
+        // ordinary community value, never the registry/partner standing.
+        userShelter.setCreatedBy(99L); // author id present but no such user row
+
+        ShelterDto dto = service.findById(userShelter.getId()).orElseThrow();
+
+        assertThat(dto.submitterVerified()).isFalse();
+        assertThat(dto.submitterVerification()).isNull();
+        // USER + CONFIRMED (the fixture default) is the plain community value.
+        assertThat(dto.provenance()).isEqualTo(COMMUNITY_REPORTED);
+    }
+
+    @Test
+    void registryRowKeepsOfficialProvenanceWithNoCreator() {
+        // Scoping guard: registry rows have NO creator by nature, and the
+        // absent-author -> unverified rule must NOT strip their standing. The
+        // official tone comes from the row's own source-derived provenance,
+        // never from the submitterVerified flag.
+        ShelterDto dto = service.findById(registryShelter.getId()).orElseThrow();
+
+        assertThat(dto.provenance()).isEqualTo(OFFICIAL);
+        // The submitter fields stay unverified for the no-author case — the
+        // OFFICIAL standing is provenance, not submitterVerified.
+        assertThat(dto.submitterVerified()).isFalse();
+        assertThat(dto.submitterVerification()).isNull();
     }
 
     @Test

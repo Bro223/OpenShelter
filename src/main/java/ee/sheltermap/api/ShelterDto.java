@@ -108,6 +108,14 @@ public record ShelterDto(
                 + "a completed verification; false for registry shelters (no "
                 + "author) and for creators whose account no longer exists.")
         boolean submitterVerified,
+        @Schema(description = "The submitter's verification DEPTH, derived live "
+                + "from the author's CURRENT active claims: EMAIL / PHONE / "
+                + "SMART_ID when exactly one channel is confirmed, FULL at two "
+                + "or more, null when there is no author (registry rows, a "
+                + "deleted account) or no confirmed channel yet. A row added at "
+                + "one channel upgrades to FULL as soon as the author confirms "
+                + "a second — nothing is stored on the shelter.")
+        SubmitterVerification submitterVerification,
         @Schema(description = "The NON_EXISTENT subset of the community reports "
                 + "(0 when none) — the UI's orange 'Reported' affordance fires "
                 + "at > 0. Distinct from reportCount (the TOTAL).")
