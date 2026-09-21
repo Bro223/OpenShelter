@@ -8,6 +8,7 @@ import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.RegisteredUser;
@@ -77,9 +78,11 @@ class ShelterControllerDetailReadTest {
         InMemoryShelterReportRepository reports = new InMemoryShelterReportRepository();
         occupancy = new InMemoryShelterOccupancyRepository();
         InMemoryShelterOpenStatusRepository openStatus = new InMemoryShelterOpenStatusRepository();
+        InMemoryModerationAuditLog audit = new InMemoryModerationAuditLog(FIXED);
         ShelterQueryService queryService = new ShelterQueryService(shelters, users, reports,
                 occupancy, openStatus, new InMemoryDataImportLog(),
-                new InMemoryModerationAuditLog(FIXED), new InMemoryShelterInfoRequestLog(FIXED), FIXED);
+                audit, new ReporterTrustEvaluator(shelters, audit),
+                new InMemoryShelterInfoRequestLog(FIXED), FIXED);
         controller = new ShelterController(queryService, null, null, users, null, null);
 
         shelter = new Shelter("Detail House", new GeoPoint(59.4, 24.7),

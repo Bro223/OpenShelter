@@ -154,6 +154,44 @@ class ContactChangeServiceTest {
     }
 
     @Test
+    void aRefusedSendWritesNoPendingRowAndAnchorsNoCooldown() {
+        // Send-first-then-commit (reviews F2/F5): the pending row is the
+        // cooldown anchor. A refused send must not leave it behind —
+        // otherwise the outage would throttle the user's retry for a code
+        // nobody received. The clock is FIXED: the retry lands inside the
+        // cooldown window, so its success proves the anchor was never
+        // written.
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        sms.refuseNext();
+        service.requestEmailChange(user, "mari@new.ee");
+        assertThat(changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE))
+                .as("no pending row for a refused send").isEmpty();
+        assertThat(sms.sent()).as("the refusal captured nothing").isEmpty();
+
+        service.requestEmailChange(user, "mari@new.ee"); // immediate retry
+        assertThat(changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.EMAIL_CHANGE)).isPresent();
+        assertThat(sms.sent()).hasSize(1);
+    }
+
+    @Test
+    void aRefusedSendWritesNoPendingRowForPhoneChangesEither() {
+        RegisteredUser user = user("mari@example.ee", "+37250000001");
+        smtp.refuseNext();
+        service.requestPhoneChange(user, "+37251111111");
+        assertThat(changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE))
+                .as("no pending row for a refused send").isEmpty();
+        assertThat(smtp.sent()).as("the refusal captured nothing").isEmpty();
+
+        service.requestPhoneChange(user, "+37251111111"); // immediate retry
+        assertThat(changes.findByUserIdAndType(user.getId(),
+                ee.sheltermap.domain.ContactChangeType.PHONE_CHANGE)).isPresent();
+        assertThat(smtp.sent()).hasSize(1);
+    }
+
+    @Test
     void confirmEmailChangeWithCorrectCodeUpdatesEmailAndDeletesPending() {
         RegisteredUser user = user("mari@example.ee", "+37250000001");
         service.requestEmailChange(user, "mari@new.ee");

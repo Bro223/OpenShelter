@@ -47,10 +47,10 @@ public class GuidanceTranslation {
                                               String bodyHtml, String heroImageAlt, Instant now) {
         GuidanceTranslation t = new GuidanceTranslation();
         t.postId = Objects.requireNonNull(postId, "postId");
-        t.locale = requireText(locale, "locale");
-        t.slug = requireText(slug, "slug");
-        t.title = requireText(title, "title");
-        t.bodyHtml = requireText(bodyHtml, "bodyHtml");
+        t.locale = TextValidation.requireText(locale, "locale");
+        t.slug = TextValidation.requireText(slug, "slug");
+        t.title = TextValidation.requireText(title, "title");
+        t.bodyHtml = TextValidation.requireText(bodyHtml, "bodyHtml");
         t.heroImageAlt = heroImageAlt;
         Instant stamped = Objects.requireNonNull(now, "now");
         t.createdAt = stamped;
@@ -86,9 +86,9 @@ public class GuidanceTranslation {
      * instant.
      */
     public void update(String slug, String title, String bodyHtml, String heroImageAlt, Instant now) {
-        this.slug = requireText(slug, "slug");
-        this.title = requireText(title, "title");
-        this.bodyHtml = requireText(bodyHtml, "bodyHtml");
+        this.slug = TextValidation.requireText(slug, "slug");
+        this.title = TextValidation.requireText(title, "title");
+        this.bodyHtml = TextValidation.requireText(bodyHtml, "bodyHtml");
         this.heroImageAlt = heroImageAlt;
         this.updatedAt = Objects.requireNonNull(now, "now");
     }
@@ -155,12 +155,5 @@ public class GuidanceTranslation {
 
     public Instant getUpdatedAt() {
         return updatedAt;
-    }
-
-    private static String requireText(String value, String name) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(name + " is required");
-        }
-        return value;
     }
 }

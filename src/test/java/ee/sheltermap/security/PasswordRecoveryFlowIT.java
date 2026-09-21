@@ -128,6 +128,23 @@ class PasswordRecoveryFlowIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void aRefusedSendLeavesNoTokenRowInTheDatabase() throws Exception {
+        // Send-first-then-commit at the persistence boundary: the token row
+        // is written ONLY after the channel accepts the send. A refusal
+        // (provider timeout / 5xx / rejected number) must leave NO row in
+        // the DB — and the endpoint still answers the uniform 200 ack, so
+        // the refusal is not even enumerable from the outside.
+        register("recovery-refused@example.ee", "+37250010002");
+        smtp.refuseNext();
+        requestReset("recovery-refused@example.ee");
+
+        Long rows = jdbc.queryForObject(
+                "SELECT count(*) FROM password_reset_tokens", Long.class);
+        assertThat(rows).as("no token row for a code nobody received").isZero();
+        assertThat(smtp.sent()).as("the refusal captured nothing").isEmpty();
+    }
+
+    @Test
     void reissueWithinCooldownIsSilent() throws Exception {
         register("recovery-cooldown@example.ee", "+37250010002");
         requestReset("recovery-cooldown@example.ee");

@@ -95,10 +95,10 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
-    public List<ShelterReport> findByShelterId(long shelterId) {
+    public List<ShelterReport> findLatestByShelterId(long shelterId, int limit) {
         return newestFirst(store.values().stream()
                 .filter(r -> r.getShelterId() == shelterId)
-                .toList());
+                .toList()).stream().limit(limit).toList();
     }
 
     private static List<ShelterReport> newestFirst(List<ShelterReport> reports) {
@@ -109,7 +109,25 @@ public class InMemoryShelterReportRepository implements ShelterReportRepository 
     }
 
     @Override
+    public List<ShelterReport> findLatest(int limit) {
+        return newestFirst(new ArrayList<>(store.values())).stream().limit(limit).toList();
+    }
+
+    // ---- test-only conveniences (NOT on the production seam) ----
+    // The production seam is deliberately bounded (an append-only table
+    // must not be read unbounded); assertions in unit tests that inspect
+    // the WHOLE fake still need an unbounded view. They take these
+    // concrete-type methods — never the seam.
+
+    /** Test inspection only: every stored report, newest first. */
     public List<ShelterReport> findAll() {
         return newestFirst(new ArrayList<>(store.values()));
+    }
+
+    /** Test inspection only: one shelter's reports, newest first. */
+    public List<ShelterReport> findByShelterId(long shelterId) {
+        return newestFirst(store.values().stream()
+                .filter(r -> r.getShelterId() == shelterId)
+                .toList());
     }
 }

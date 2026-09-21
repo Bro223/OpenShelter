@@ -70,10 +70,10 @@ public class GuidancePost {
                                      boolean pinned, Long heroImageId, String heroImageAlt,
                                      String heroImportUrl, int sortOrder, Long createdBy, Instant now) {
         GuidancePost post = new GuidancePost();
-        post.slug = requireText(slug, "slug");
-        post.title = requireText(title, "title");
-        post.bodyHtml = requireText(bodyHtml, "bodyHtml");
-        post.locale = requireText(locale, "locale");
+        post.slug = TextValidation.requireText(slug, "slug");
+        post.title = TextValidation.requireText(title, "title");
+        post.bodyHtml = TextValidation.requireText(bodyHtml, "bodyHtml");
+        post.locale = TextValidation.requireText(locale, "locale");
         post.pinned = pinned;
         post.heroImageId = heroImageId;
         post.heroImageAlt = heroImageAlt;
@@ -128,10 +128,10 @@ public class GuidancePost {
      */
     public void update(String slug, String title, String bodyHtml, String locale, boolean pinned,
                        Long heroImageId, String heroImageAlt, String heroImportUrl, Instant now) {
-        this.slug = requireText(slug, "slug");
-        this.title = requireText(title, "title");
-        this.bodyHtml = requireText(bodyHtml, "bodyHtml");
-        this.locale = requireText(locale, "locale");
+        this.slug = TextValidation.requireText(slug, "slug");
+        this.title = TextValidation.requireText(title, "title");
+        this.bodyHtml = TextValidation.requireText(bodyHtml, "bodyHtml");
+        this.locale = TextValidation.requireText(locale, "locale");
         this.pinned = pinned;
         this.heroImageId = heroImageId;
         this.heroImageAlt = heroImageAlt;
@@ -204,13 +204,6 @@ public class GuidancePost {
             throw new IllegalArgumentException("sortOrder must be at least 1");
         }
         return sortOrder;
-    }
-
-    private static String requireText(String value, String name) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(name + " is required");
-        }
-        return value;
     }
 
     /**

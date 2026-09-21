@@ -5,6 +5,7 @@ import ee.sheltermap.app.InMemoryUserRepository;
 import ee.sheltermap.app.ProvisionedAdminProtectedException;
 import ee.sheltermap.domain.AdminUser;
 import ee.sheltermap.domain.RegisteredUser;
+import ee.sheltermap.verification.CodePolicy;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -53,6 +54,26 @@ class PasswordResetServiceTest {
         service.requestReset("nobody@example.ee");
         assertThat(tokens.all()).isEmpty();
         assertThat(smtp.sent()).isEmpty();
+    }
+
+    @Test
+    void aRefusedSendWritesNoTokenRowAndAnchorsNoCooldown() {
+        // Send-first-then-commit (reviews F2): the token row is written ONLY
+        // after the channel accepts. A refusal leaves no row — and, just as
+        // important, no cooldown/cap anchor: the retry right after the
+        // outage is NOT throttled into a no-op for a code nobody received.
+        RegisteredUser user = savedUser();
+        smtp.refuseNext();
+        service.requestReset(EMAIL);
+
+        assertThat(tokens.all()).as("no token row for a refused send").isEmpty();
+        assertThat(smtp.sent()).as("the refusal captured nothing").isEmpty();
+
+        // the immediate retry — inside any cooldown window — succeeds
+        service.requestReset(EMAIL);
+        assertThat(tokens.all()).hasSize(1);
+        assertThat(tokens.all().get(0).getUserId()).isEqualTo(user.getId());
+        assertThat(smtp.sent()).hasSize(1);
     }
 
     @Test
@@ -201,7 +222,7 @@ class PasswordResetServiceTest {
         String code = requestCode();
         String wrong = aDifferentCode(code);
 
-        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS; i++) {
+        for (int i = 0; i < CodePolicy.MAX_ATTEMPTS; i++) {
             assertThat(service.reset(EMAIL, wrong, "newpass")).isFalse();
         }
         assertPasswordUnchanged(user);
@@ -216,7 +237,7 @@ class PasswordResetServiceTest {
         savedUser();
         String code = requestCode();
         String wrong = aDifferentCode(code);
-        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS; i++) {
+        for (int i = 0; i < CodePolicy.MAX_ATTEMPTS; i++) {
             service.reset(EMAIL, wrong, "newpass");
         }
 
@@ -280,10 +301,10 @@ class PasswordResetServiceTest {
 
         // MAX_ATTEMPTS - 1 wrong guesses: the 5th slot must still accept the
         // correct code (attempts < MAX, not attempts <= MAX)
-        for (int i = 0; i < PasswordResetService.MAX_ATTEMPTS - 1; i++) {
+        for (int i = 0; i < CodePolicy.MAX_ATTEMPTS - 1; i++) {
             assertThat(service.reset(EMAIL, wrong, "newpass")).isFalse();
         }
-        assertThat(tokens.all().get(0).getAttempts()).isEqualTo(PasswordResetService.MAX_ATTEMPTS - 1);
+        assertThat(tokens.all().get(0).getAttempts()).isEqualTo(CodePolicy.MAX_ATTEMPTS - 1);
 
         assertThat(service.reset(EMAIL, code, "newpass")).isTrue();
         assertThat(credentials.findByUserId(user.getId()).getPasswordHash()).isEqualTo("h(newpass)");

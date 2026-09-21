@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -108,9 +109,6 @@ public class GuidanceService {
     /** The uniform 404 message — a draft slug and an unknown slug answer the SAME 404 (D4). */
     public static final String POST_NOT_FOUND_MESSAGE = "Guidance post not found";
 
-    /** The uniform 404 for an unknown media asset (a hero reference or a serving name). */
-    public static final String ASSET_NOT_FOUND_MESSAGE = "Media asset not found";
-
     /** The title column width (V23 {@code guidance_posts.title VARCHAR(255)}) — the service bound. */
     public static final int MAX_TITLE_LENGTH = 255;
 
@@ -119,9 +117,6 @@ public class GuidanceService {
 
     /** The pending-import URL column width (V25 {@code hero_import_url VARCHAR(2048)}). */
     public static final int MAX_HERO_IMPORT_URL_LENGTH = 2048;
-
-    /** The serving-URL prefix for hero images (D7: the path sits under /api/ on purpose). */
-    public static final String MEDIA_URL_PREFIX = "/api/media/";
 
     private final GuidancePostRepository posts;
     private final MediaAssetRepository mediaAssets;
@@ -936,7 +931,7 @@ public class GuidanceService {
                     "heroImageAlt requires a hero image (heroImageId or heroImportUrl)");
         }
         if (heroImageId != null && mediaAssets.findById(heroImageId).isEmpty()) {
-            throw new GuidanceNotFoundException(ASSET_NOT_FOUND_MESSAGE);
+            throw new GuidanceNotFoundException(MediaService.ASSET_NOT_FOUND_MESSAGE);
         }
     }
 
@@ -984,12 +979,25 @@ public class GuidanceService {
 
     /**
      * The admin-supplied slug, used exactly as given (D5): validated to
-     * the generated shape (400) and refused on a collision with ANOTHER
-     * post (409 naming the slug). On an update, a blank slug keeps the
-     * post's current one, and a slug equal to the current one is a
-     * no-op, not a collision.
+     * the generated shape (400) and refused on a collision (409 naming
+     * the slug). On an update, a blank slug keeps the current one, and
+     * a slug equal to the current one is a no-op, not a collision. The
+     * collision predicate is the post table for posts and (locale, slug)
+     * for translations — the shape rule and the no-op rule are spelled
+     * ONCE, here, so the post and translation endpoints cannot answer
+     * differently.
      */
     private String resolveSuppliedSlug(String supplied, String currentSlug) {
+        return resolveSuppliedSlug(supplied, currentSlug, posts::existsBySlug);
+    }
+
+    private String resolveTranslationSlug(String locale, String supplied, String currentSlug) {
+        return resolveSuppliedSlug(supplied, currentSlug,
+                slug -> translations.existsByLocaleAndSlug(locale, slug));
+    }
+
+    private String resolveSuppliedSlug(String supplied, String currentSlug,
+                                       Predicate<String> slugTaken) {
         if (supplied == null || supplied.isBlank()) {
             return currentSlug;
         }
@@ -1002,7 +1010,7 @@ public class GuidanceService {
         if (slug.equals(currentSlug)) {
             return slug;
         }
-        if (posts.existsBySlug(slug)) {
+        if (slugTaken.test(slug)) {
             throw new SlugAlreadyUsedException(slug);
         }
         return slug;
@@ -1011,16 +1019,27 @@ public class GuidanceService {
     /**
      * The auto-generated slug (D5): from the title; a collision — with a
      * draft OR a published post, the uniqueness spans both — takes
-     * {@code -2}, {@code -3}, ... and takes the first free value.
+     * {@code -2}, {@code -3}, ... and takes the first free value. The
+     * translation variant scopes the same walk to the locale (see {@link
+     * #nextGeneratedTranslationSlug(String, String)}).
      */
     private String nextGeneratedSlug(String title) {
+        return nextGeneratedSlug(title, posts::existsBySlug);
+    }
+
+    private String nextGeneratedTranslationSlug(String locale, String title) {
+        return nextGeneratedSlug(title,
+                slug -> translations.existsByLocaleAndSlug(locale, slug));
+    }
+
+    private String nextGeneratedSlug(String title, Predicate<String> slugTaken) {
         String base = SlugFactory.of(title);
-        if (!posts.existsBySlug(base)) {
+        if (!slugTaken.test(base)) {
             return base;
         }
         for (int suffix = 2; ; suffix++) {
             String candidate = base + "-" + suffix;
-            if (!posts.existsBySlug(candidate)) {
+            if (!slugTaken.test(candidate)) {
                 return candidate;
             }
         }
@@ -1190,47 +1209,5 @@ public class GuidanceService {
                     "locale must be at most " + MAX_LOCALE_LENGTH + " characters");
         }
         return trimmed;
-    }
-
-    /**
-     * A translation's admin-supplied slug, used exactly as given: validated to
-     * the generated shape (400) and refused on a collision within the locale
-     * (409 naming the slug). A blank slug keeps the current one (an update
-     * no-op); a slug equal to the current one is not a collision.
-     */
-    private String resolveTranslationSlug(String locale, String supplied, String currentSlug) {
-        if (supplied == null || supplied.isBlank()) {
-            return currentSlug;
-        }
-        String slug = supplied.trim();
-        if (!SlugFactory.isValidCustomSlug(slug)) {
-            throw new GuidanceValidationException(
-                    "slug must match ^[a-z0-9]+(-[a-z0-9]+)*$ and be at most "
-                            + SlugFactory.MAX_SLUG_LENGTH + " characters");
-        }
-        if (slug.equals(currentSlug)) {
-            return slug;
-        }
-        if (translations.existsByLocaleAndSlug(locale, slug)) {
-            throw new SlugAlreadyUsedException(slug);
-        }
-        return slug;
-    }
-
-    /**
-     * The auto-generated translation slug: from the title; a collision WITHIN
-     * the locale takes {@code -2}, {@code -3}, ... and takes the first free value.
-     */
-    private String nextGeneratedTranslationSlug(String locale, String title) {
-        String base = SlugFactory.of(title);
-        if (!translations.existsByLocaleAndSlug(locale, base)) {
-            return base;
-        }
-        for (int suffix = 2; ; suffix++) {
-            String candidate = base + "-" + suffix;
-            if (!translations.existsByLocaleAndSlug(locale, candidate)) {
-                return candidate;
-            }
-        }
     }
 }

@@ -7,6 +7,18 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/sheltermap}
     username: ${DB_USERNAME:sheltermap}
     password: ${DB_PASSWORD:sheltermap}
+    hikari:
+      # Explicit pool sizing (reviews/05-backend-database-performance F2):
+      # HikariCP's defaults are 10 connections / 30 s connection timeout
+      # against Tomcat's 200 request threads, on a surface where
+      # POST /auth/password-reset/request is UNAUTHENTICATED. The senders
+      # no longer hold a connection across the provider exchange
+      # (send-first-then-commit), but the pool is still sized explicitly —
+      # 20 is the single-instance headroom the review recommended, and the
+      # 5 s connection-timeout fails a waiting request fast instead of
+      # queueing it for 30 s behind a pinned pool.
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:20}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT:5000}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -110,6 +122,14 @@ app:
     # (real SMS via Twilio Programmable Messaging — send-only; OTP logic
     # stays on our side, see PhoneVerificationProvider + VerificationService).
     provider: ${SMS_PROVIDER:dev}
+    # Finite timeout for the Twilio API exchange (TwilioSmsSender). The SDK
+    # default is finite but not app-configurable (10 s connect / 30.5 s
+    # socket, plus 3 retries on 5xx); these bounds are the app's own, and
+    # the send runs on the request thread OUTSIDE the DB transaction
+    # (send-first-then-commit), so a slow provider costs request latency,
+    # never a pooled connection.
+    twilio-connect-timeout: ${TWILIO_CONNECT_TIMEOUT:3s}
+    twilio-timeout: ${TWILIO_TIMEOUT:10s}
   contact-change:
     # Cross-channel contact change (email <-> phone): changing the email needs
     # an SMS code to the current phone; changing the phone needs an email code

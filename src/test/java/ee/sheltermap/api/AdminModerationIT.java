@@ -555,6 +555,88 @@ class AdminModerationIT extends AbstractPersistenceIT {
     }
 
     @Test
+    void theReportQueueIsBoundedInSqlWithUnchangedNewestFirstOrder() throws Exception {
+        // The queue's table is append-only: the read must stay bounded at
+        // the store (the audit-trail twin's bound — default 100, max 200,
+        // 400 outside), and the bound must not change the order.
+        long shelterId = seedShelter("Märgitud", ShelterSource.USER);
+        String[] types = {"NON_EXISTENT", "CLOSED", "OPEN_CONFIRMED", "WRONG_LOCATION", "OTHER"};
+        long[] userIds = new long[24];
+        for (int i = 0; i < 24; i++) {
+            RegisteredUser u = new RegisteredUser("Bulk" + i, "bulk" + i + "@example.ee",
+                    "+3725002" + String.format("%04d", i));
+            users.save(u);
+            userIds[i] = u.getId();
+        }
+        // 120 rows for ONE shelter (24 users x 5 types — the unique
+        // (shelter, user, type) holds), each a minute older than the last:
+        // row i has created_at = base - i minutes, so row 0 is newest.
+        java.time.Instant base = java.time.Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        for (int i = 0; i < 120; i++) {
+            jdbc.update("INSERT INTO shelter_reports (shelter_id, user_id, type, detail, created_at) "
+                            + "VALUES (?, ?, ?, NULL, ?)",
+                    shelterId, userIds[i % 24], types[i % 5],
+                    java.sql.Timestamp.from(base.minus(i, java.time.temporal.ChronoUnit.MINUTES)));
+        }
+        String token = adminToken();
+
+        java.util.List<Instant> all = queueCreatedAts(mvc.perform(
+                        get("/admin/reports").param("limit", "200")
+                                .header("Authorization", "Bearer " + token))
+                .andReturn(), 120);
+
+        // default: the newest 100 of the 120
+        java.util.List<Instant> defaulted = queueCreatedAts(mvc.perform(
+                        get("/admin/reports").header("Authorization", "Bearer " + token))
+                .andReturn(), 100);
+        assertThat(defaulted).isEqualTo(all.subList(0, 100)); // the bound trims the TAIL
+        assertThat(defaulted).doesNotContain(
+                base.minus(100, java.time.temporal.ChronoUnit.MINUTES)); // the 101st-newest row is outside the window
+
+        // an explicit smaller limit: the same newest-first prefix
+        java.util.List<Instant> fifty = queueCreatedAts(mvc.perform(
+                        get("/admin/reports").param("limit", "50")
+                                .header("Authorization", "Bearer " + token))
+                .andReturn(), 50);
+        assertThat(fifty).isEqualTo(all.subList(0, 50));
+
+        // the ORDER is the unbounded order restricted to the window:
+        // strictly newest-first, minute by minute
+        for (int i = 1; i < all.size(); i++) {
+            assertThat(all.get(i)).isBefore(all.get(i - 1));
+        }
+
+        // the bound applies to the shelter-scoped queue the same way
+        java.util.List<Instant> scoped = queueCreatedAts(mvc.perform(
+                        get("/admin/reports").param("shelterId", String.valueOf(shelterId))
+                                .header("Authorization", "Bearer " + token))
+                .andReturn(), 100);
+        assertThat(scoped).isEqualTo(all.subList(0, 100));
+
+        // the bound vocabulary is the audit's: 400 outside 1..200
+        expectError(mvc.perform(get("/admin/reports").param("limit", "0")
+                        .header("Authorization", "Bearer " + token)),
+                400, "Bad Request");
+        expectError(mvc.perform(get("/admin/reports").param("limit", "201")
+                        .header("Authorization", "Bearer " + token)),
+                400, "Bad Request");
+    }
+
+    /** The queue response's createdAt column, parsed, with a pinned row count. */
+    private java.util.List<Instant> queueCreatedAts(
+            org.springframework.test.web.servlet.MvcResult result, int expectedSize)
+            throws Exception {
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        com.fasterxml.jackson.databind.JsonNode rows = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(result.getResponse().getContentAsString());
+        assertThat(rows.isArray()).as("the queue response is a JSON array").isTrue();
+        java.util.List<Instant> stamps = new java.util.ArrayList<>();
+        rows.forEach(row -> stamps.add(Instant.parse(row.get("createdAt").asText())));
+        assertThat(stamps).hasSize(expectedSize);
+        return stamps;
+    }
+
+    @Test
     void factualReportDetailsReachTheAdminQueueAndBinaryTypesDropThem() throws Exception {
         // The factual types carry their detail into the admin queue;
         // the binary types store the claim without the text.

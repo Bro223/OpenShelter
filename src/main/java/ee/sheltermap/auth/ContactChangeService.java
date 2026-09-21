@@ -10,15 +10,21 @@ import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
 import ee.sheltermap.verification.SmtpSender;
 import ee.sheltermap.verification.VerificationThrottledException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Cross-channel contact changes (product decision, see 04-CONTEXT-AUTH.md):
@@ -62,49 +68,107 @@ public class ContactChangeService {
     private final SmtpSender smtpSender;
     private final ContactChangeProperties properties;
     private final Clock clock;
+    /** Null in plain unit tests (in-memory repos are not transactional). */
+    private final TransactionTemplate tx;
 
+    private static final Logger log = LoggerFactory.getLogger(ContactChangeService.class);
+
+    /** Unit-test constructor — no transaction manager. */
     public ContactChangeService(UserRepository userRepository,
                                 PendingContactChangeRepository changes,
                                 SmsSender smsSender,
                                 SmtpSender smtpSender,
                                 ContactChangeProperties properties,
                                 Clock clock) {
+        this(userRepository, changes, smsSender, smtpSender, properties, clock, null);
+    }
+
+    @Autowired
+    public ContactChangeService(UserRepository userRepository,
+                                PendingContactChangeRepository changes,
+                                SmsSender smsSender,
+                                SmtpSender smtpSender,
+                                ContactChangeProperties properties,
+                                Clock clock,
+                                PlatformTransactionManager txManager) {
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.changes = Objects.requireNonNull(changes, "changes");
         this.smsSender = Objects.requireNonNull(smsSender, "smsSender");
         this.smtpSender = Objects.requireNonNull(smtpSender, "smtpSender");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.tx = txManager == null ? null : new TransactionTemplate(txManager);
+    }
+
+    /**
+     * Runs {@code work} in one transaction when a transaction manager is
+     * present; in plain unit tests (in-memory fakes) it runs directly.
+     * The boundary belongs to the service because the provider send must
+     * sit OUTSIDE any transaction (send-first-then-commit, reviews F2).
+     */
+    private <T> T inTransaction(Supplier<T> work) {
+        if (tx == null) {
+            return work.get();
+        }
+        return tx.execute(status -> work.get());
     }
 
     // ---- Email change (verified by SMS to the current phone) ----
 
     /**
-     * Starts an email change: checks the target, enforces the cooldown, then
-     * sends an SMS code to the current phone and persists the pending change.
+     * Starts an email change: checks the target, enforces the cooldown,
+     * then sends an SMS code to the current phone and persists the pending
+     * change — send-first-then-commit (reviews F2/F5): the send happens
+     * OUTSIDE any transaction, and the pending row is written ONLY after
+     * the provider accepts. A refused send therefore leaves NO pending
+     * row and anchors NO cooldown — the user may retry immediately
+     * instead of being throttled for a code nobody received (the
+     * persist-before-send order armed the cooldown with an undelivered
+     * code; the verification flow was already send-first).
+     *
+     * <p>Transaction shape: the read-side checks run in ONE transaction
+     * (a consistent snapshot), the send runs with no transaction at all,
+     * and the pending-row replace (delete + insert under the unique
+     * (user_id, type) constraint) runs in ONE transaction.
      *
      * @throws DuplicateAccountException      the new email is already in use (409)
      * @throws InvalidContactChangeException  the new email equals the current one (400)
      * @throws VerificationThrottledException resend too soon (429)
      */
-    @Transactional
     public void requestEmailChange(RegisteredUser user, String newEmail) {
         requireNotProvisionedAdmin(user);
         String target = newEmail.trim().toLowerCase(Locale.ROOT);
-        if (target.equalsIgnoreCase(user.getData().email())) {
-            throw new InvalidContactChangeException("New email equals the current email");
-        }
-        if (userRepository.findByEmail(target) != null) {
-            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
-        }
-        enforceCooldown(user.getId(), ContactChangeType.EMAIL_CHANGE);
-
+        // Phase 1 — the checks, one read-side transaction.
+        inTransaction(() -> {
+            if (target.equalsIgnoreCase(user.getData().email())) {
+                throw new InvalidContactChangeException("New email equals the current email");
+            }
+            if (userRepository.findByEmail(target) != null) {
+                throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_EMAIL_MESSAGE);
+            }
+            enforceCooldown(user.getId(), ContactChangeType.EMAIL_CHANGE);
+            return null;
+        });
+        // Phase 2 — the send, outside any transaction (no pooled connection
+        // is held across the SMS exchange; the channel is a third party).
         String code = Codes.sixDigitCode();
         Instant now = clock.instant();
-        replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
-                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
-        smsSender.send(user.getData().phone(),
+        boolean accepted = smsSender.send(user.getData().phone(),
                 AppInfo.APP_DISPLAY_NAME + " change-email code: " + code + " (valid " + codeTtlMinutes() + " min)");
+        if (!accepted) {
+            // The channel logged the error. Honesty: the pending row is the
+            // cooldown anchor — refusing to write it means the outage costs
+            // the user nothing and the retry is not suppressed.
+            log.info("Email-change code send refused by the channel — no pending "
+                    + "row written, no cooldown anchored (user may retry)");
+            return;
+        }
+        // Phase 3 — the write, one transaction.
+        inTransaction(() -> {
+            replacePending(new PendingContactChange(user.getId(), ContactChangeType.EMAIL_CHANGE,
+                    target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+            return null;
+        });
     }
 
     /**
@@ -149,26 +213,41 @@ public class ContactChangeService {
     /**
      * Starts a phone change: normalizes E.164, checks the target, enforces the
      * cooldown, then sends an email code to the current email and persists the
-     * pending change.
+     * pending change. Send-first-then-commit, exactly as
+     * {@link #requestEmailChange}: the pending row (the cooldown anchor) is
+     * written only after the provider accepts the send, and the SMTP exchange
+     * never holds a pooled connection.
      */
-    @Transactional
     public void requestPhoneChange(RegisteredUser user, String newPhone) {
         requireNotProvisionedAdmin(user);
         String target = PhoneNumbers.normalizeE164(newPhone);
-        if (target.equals(user.getData().phone())) {
-            throw new InvalidContactChangeException("New phone equals the current phone");
-        }
-        if (userRepository.findByPhone(target) != null) {
-            throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
-        }
-        enforceCooldown(user.getId(), ContactChangeType.PHONE_CHANGE);
-
+        // Phase 1 — the checks, one read-side transaction.
+        inTransaction(() -> {
+            if (target.equals(user.getData().phone())) {
+                throw new InvalidContactChangeException("New phone equals the current phone");
+            }
+            if (userRepository.findByPhone(target) != null) {
+                throw new DuplicateAccountException(DuplicateAccountException.DUPLICATE_PHONE_MESSAGE);
+            }
+            enforceCooldown(user.getId(), ContactChangeType.PHONE_CHANGE);
+            return null;
+        });
+        // Phase 2 — the send, outside any transaction.
         String code = Codes.sixDigitCode();
         Instant now = clock.instant();
-        replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
-                target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
-        smtpSender.send(user.getData().email(),
+        boolean accepted = smtpSender.send(user.getData().email(),
                 AppInfo.APP_DISPLAY_NAME + " change-phone code: " + code + " (valid " + codeTtlMinutes() + " min)");
+        if (!accepted) {
+            log.info("Phone-change code send refused by the channel — no pending "
+                    + "row written, no cooldown anchored (user may retry)");
+            return;
+        }
+        // Phase 3 — the write, one transaction.
+        inTransaction(() -> {
+            replacePending(new PendingContactChange(user.getId(), ContactChangeType.PHONE_CHANGE,
+                    target, Hashes.sha256Hex(code), now.plusSeconds(properties.codeTtlSeconds()), now));
+            return null;
+        });
     }
 
     /**

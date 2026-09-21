@@ -2,6 +2,7 @@ package ee.sheltermap.api;
 
 import ee.sheltermap.app.DataImportLog;
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ShelterOccupancyRepository;
 import ee.sheltermap.app.ShelterOpenStatusRepository;
 import ee.sheltermap.app.ShelterRepository;
@@ -14,7 +15,6 @@ import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.Provenance;
 import ee.sheltermap.domain.ReporterTrust;
-import ee.sheltermap.domain.ReviewStatus;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
@@ -98,6 +98,7 @@ public class ShelterQueryService {
     private final ShelterOpenStatusRepository openStatusRepository;
     private final DataImportLog dataImportLog;
     private final ModerationAuditLog moderationAudit;
+    private final ReporterTrustEvaluator trustEvaluator;
     private final ShelterInfoRequestLog infoRequests;
     private final Clock clock;
 
@@ -108,6 +109,7 @@ public class ShelterQueryService {
                                ShelterOpenStatusRepository openStatusRepository,
                                DataImportLog dataImportLog,
                                ModerationAuditLog moderationAudit,
+                               ReporterTrustEvaluator trustEvaluator,
                                ShelterInfoRequestLog infoRequests,
                                Clock clock) {
         this.shelterRepository = shelterRepository;
@@ -117,6 +119,7 @@ public class ShelterQueryService {
         this.openStatusRepository = openStatusRepository;
         this.dataImportLog = dataImportLog;
         this.moderationAudit = moderationAudit;
+        this.trustEvaluator = trustEvaluator;
         this.infoRequests = infoRequests;
         this.clock = clock;
     }
@@ -655,7 +658,7 @@ public class ShelterQueryService {
         taps.forEach(tap -> reporters.add(tap.getUserId()));
         bands.forEach(band -> reporters.add(band.getUserId()));
         Map<Long, Integer> weights = new HashMap<>();
-        reporters.forEach(userId -> weights.put(userId, trustWeight(userId)));
+        reporters.forEach(userId -> weights.put(userId, trustEvaluator.weight(userId)));
         return new ShelterDto.CommunityPulse(
                 deriveOpenClosedPulse(taps, weights),
                 deriveOccupancyPulse(bands, weights),
@@ -750,23 +753,6 @@ public class ShelterQueryService {
         return merged.size() <= RECENT_REPORTS_CAP
                 ? List.copyOf(merged)
                 : List.copyOf(merged.subList(0, RECENT_REPORTS_CAP));
-    }
-
-    /**
-     * The reporter's derived trust weight — the SAME derivation the
-     * auto-hide tally uses (community-self-moderation D1, see
-     * {@code ShelterReportService#trustWeight}): re-derived from the rows
-     * that already exist (the reporter's own submissions + the moderation
-     * audit trail), never stored — baseline 1, +1 a cross-verified own
-     * submission, +1 two own AUTO_CONFIRM actions, capped at 3.
-     */
-    private int trustWeight(long userId) {
-        boolean crossVerifiedSubmission = shelterRepository
-                .countByCreatedByAndSourceAndReviewStatus(
-                        userId, ShelterSource.USER, ReviewStatus.CONFIRMED) > 0;
-        int ownAutoConfirms = (int) moderationAudit.countByModeratorAndAction(userId,
-                ModerationAuditLog.Action.AUTO_CONFIRM);
-        return ReporterTrust.of(crossVerifiedSubmission, ownAutoConfirms).weight();
     }
 
     /** A reporter absent from the weight map gets the baseline weight (defensive — the map is built over every reporter). */

@@ -49,7 +49,7 @@ class PhoneVerificationProviderTest {
         assertThat(otp).matches("\\d{6}");
 
         // stored hashed, never plaintext
-        assertThat(pending.getCodeHash()).isEqualTo(PendingVerification.sha256(otp));
+        assertThat(pending.getCodeHash()).isEqualTo(CodeHashes.sha256Hex(otp));
         assertThat(pending.getCodeHash()).doesNotContain(otp);
     }
 
@@ -99,11 +99,11 @@ class PhoneVerificationProviderTest {
         String otp = extractOtp(sender.getLastMessage());
         String wrong = otp.equals("000000") ? "000001" : "000000";
 
-        for (int i = 0; i < PhoneVerificationProvider.MAX_ATTEMPTS; i++) {
+        for (int i = 0; i < CodePolicy.MAX_ATTEMPTS; i++) {
             provider.confirm(user, pending, wrong);
         }
 
-        assertThat(pending.getAttempts()).isEqualTo(PhoneVerificationProvider.MAX_ATTEMPTS);
+        assertThat(pending.getAttempts()).isEqualTo(CodePolicy.MAX_ATTEMPTS);
         assertThat(provider.confirm(user, pending, otp)).isFalse();
     }
 
@@ -111,7 +111,7 @@ class PhoneVerificationProviderTest {
     void confirmExpiredPendingReturnsFalse() {
         PendingVerification expired = new PendingVerification(
                 1L, VerificationLevel.PHONE, "+37250000000",
-                PendingVerification.sha256("123456"), clock.instant().minusSeconds(1));
+                CodeHashes.sha256Hex("123456"), clock.instant().minusSeconds(1));
 
         assertThat(provider.confirm(user, expired, "123456")).isFalse();
     }
@@ -120,7 +120,7 @@ class PhoneVerificationProviderTest {
     void confirmPendingForAnotherLevelReturnsFalse() {
         PendingVerification emailPending = new PendingVerification(
                 1L, VerificationLevel.EMAIL, "aleks@example.com",
-                PendingVerification.sha256("123456"), clock.instant().plusSeconds(60));
+                CodeHashes.sha256Hex("123456"), clock.instant().plusSeconds(60));
 
         assertThat(provider.confirm(user, emailPending, "123456")).isFalse();
     }

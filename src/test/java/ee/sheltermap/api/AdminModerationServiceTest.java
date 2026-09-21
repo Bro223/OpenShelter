@@ -10,6 +10,7 @@ import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
@@ -81,7 +82,9 @@ class AdminModerationServiceTest {
         ShelterQueryService queryService =
                 new ShelterQueryService(shelters, users, shelterReports, occupancy,
                         openStatus,
-                        new InMemoryDataImportLog(), audit, infoRequests, FIXED);
+                        new InMemoryDataImportLog(), audit,
+                        new ReporterTrustEvaluator(shelters, audit),
+                        infoRequests, FIXED);
         service = new AdminModerationService(queryService, shelters, shelterReports,
                 users, FIXED,
                 audit,
@@ -256,7 +259,7 @@ class AdminModerationServiceTest {
         Shelter shelter = userShelter(ReviewStatus.NEW);
         shelterReports.save(new ShelterReport(shelter.getId(), submitterId,
                 ShelterReportType.NON_EXISTENT, null, NOW));
-        long reportId = shelterReports.findAll().get(0).getId();
+        long reportId = shelterReports.findLatest(100).get(0).getId();
 
         service.dismissReport(adminId, reportId);
         service.dismissReport(adminId, reportId); // no-op

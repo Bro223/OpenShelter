@@ -1,6 +1,5 @@
 package ee.sheltermap.guidance;
 
-import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**

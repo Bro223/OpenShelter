@@ -38,9 +38,21 @@ public interface SpringDataShelterReportRepository extends JpaRepository<Shelter
     List<Object[]> latestByShelterAndUserForShelterIdsAndType(@Param("ids") Collection<Long> ids,
                                                               @Param("type") ee.sheltermap.domain.ShelterReportType type);
 
-    /** One shelter's reports, newest first (the admin queue); created_at ties break by id desc. */
-    List<ShelterReportEntity> findByShelterIdOrderByCreatedAtDescIdDesc(Long shelterId);
+    /** One shelter's reports, newest first, capped at the {@code limit}
+     *  most recent rows (the admin queue); created_at ties break by id
+     *  desc. The cap is the LIMIT clause — the queue table is append-only,
+     *  so the bound belongs in the SQL, not in an in-memory trim. */
+    @Query("select r from ShelterReportEntity r "
+            + "where r.shelterId = :shelterId "
+            + "order by r.createdAt desc, r.id desc limit :limit")
+    List<ShelterReportEntity> findLatestByShelterId(@Param("shelterId") Long shelterId,
+                                                    @Param("limit") int limit);
 
-    /** Every report, newest first (the admin queue without a shelter filter). */
-    List<ShelterReportEntity> findAllByOrderByCreatedAtDescIdDesc();
+    /** Every report, newest first, capped at the {@code limit} most recent
+     *  rows (the admin queue without a shelter filter). Served by
+     *  idx_shelter_reports_created (V30): the ORDER BY matches the
+     *  composite, so the read is an index scan of the newest rows. */
+    @Query("select r from ShelterReportEntity r "
+            + "order by r.createdAt desc, r.id desc limit :limit")
+    List<ShelterReportEntity> findLatest(@Param("limit") int limit);
 }

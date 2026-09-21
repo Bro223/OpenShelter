@@ -1,8 +1,5 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.AdminAccessException;
-import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.GuidancePost;
 import ee.sheltermap.domain.GuidanceStatus;
 import ee.sheltermap.domain.GuidanceTranslation;
@@ -21,8 +18,6 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,13 +37,14 @@ import java.util.Map;
  * The admin guidance authoring API (crisis-guidance D3) — thin shell:
  * parse, validate, authorize, delegate to {@link GuidanceService}.
  *
- * <p>Authorization (D2 idiom, copied from {@link AdminController}): a
- * FRESH user lookup per request — the JWT's userId is loaded and its kind
- * checked, never a role claim in the token. A JWT minted before a
- * demotion/deletion keeps failing the instant the kind changes. Anonymous
- * callers never reach the guard: {@code /admin/**} requires a valid
- * access token (default security rule) and the entry point answers 401
- * first; the guard's own 401 branch is the same fallback convention.
+ * <p>Authorization is the shared fresh per-request ADMIN kind lookup
+ * ({@link AdminAccess#requireAdmin()}, D2): a FRESH user lookup per
+ * request — the JWT's userId is loaded and its kind checked, never a
+ * role claim in the token. A JWT minted before a demotion/deletion keeps
+ * failing the instant the kind changes. Anonymous callers never reach
+ * the guard: {@code /admin/**} requires a valid access token (default
+ * security rule) and the entry point answers 401 first; the guard's own
+ * 401 branch is the same fallback convention.
  *
  * <p>Surface: the list (every post, drafts included, in the stored
  * manual order — the live preview of the public order; scoped to ONE
@@ -82,14 +78,14 @@ public class AdminGuidanceController {
 
     private final GuidanceService guidance;
     private final MediaAssetRepository mediaAssets;
-    private final UserRepository userRepository;
+    private final AdminAccess adminAccess;
 
     public AdminGuidanceController(GuidanceService guidance,
                                    MediaAssetRepository mediaAssets,
-                                   UserRepository userRepository) {
+                                   AdminAccess adminAccess) {
         this.guidance = guidance;
         this.mediaAssets = mediaAssets;
-        this.userRepository = userRepository;
+        this.adminAccess = adminAccess;
     }
 
     /**
@@ -126,7 +122,7 @@ public class AdminGuidanceController {
                     + "only the posts that have content in it are returned. Absent = every "
                     + "post (the legacy locale-blind list).")
             @RequestParam(required = false) String locale) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
         List<GuidancePost> all = resolved == null
                 ? guidance.listForAdmin()
@@ -164,7 +160,7 @@ public class AdminGuidanceController {
                                     @Parameter(description = "Optional: the active UI "
                                             + "language — the DTO carries that locale's content.")
                                     @RequestParam(required = false) String locale) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
         GuidancePost post = guidance.getById(id);
         GuidanceTranslation content = null;
@@ -212,7 +208,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public AdminGuidancePostDto create(@Valid @RequestBody CreateGuidancePostRequest request) {
-        long adminId = requireAdmin();
+        long adminId = adminAccess.requireAdmin();
         GuidancePost post = guidance.create(adminId, request.title(), request.slug(),
                 request.body(), request.locale(), request.pinned(), request.heroImageId(),
                 request.heroImageAlt(), request.heroImportUrl(),
@@ -262,7 +258,7 @@ public class AdminGuidanceController {
                                                + "land on its translation row.")
                                        @RequestParam(required = false) String locale,
                                        @Valid @RequestBody UpdateGuidancePostRequest request) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
         GuidancePost post;
         if (resolved == null) {
@@ -328,7 +324,7 @@ public class AdminGuidanceController {
             + "post (the legacy 1..N renumber).")
             @RequestParam(required = false) String locale,
                         @Valid @RequestBody ReorderGuidanceRequest request) {
-        long adminId = requireAdmin();
+        long adminId = adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
         if (resolved == null) {
             guidance.reorder(adminId, request.postIds());
@@ -368,7 +364,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public void publish(@PathVariable long id) {
-        guidance.publish(requireAdmin(), id);
+        guidance.publish(adminAccess.requireAdmin(), id);
     }
 
     /**
@@ -388,7 +384,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public void unpublish(@PathVariable long id) {
-        guidance.unpublish(requireAdmin(), id);
+        guidance.unpublish(adminAccess.requireAdmin(), id);
     }
 
     /**
@@ -414,7 +410,7 @@ public class AdminGuidanceController {
                        @PathVariable long id,
                        @Parameter(description = "Required: confirm=true.")
                        @RequestParam(required = false, defaultValue = "false") boolean confirm) {
-        guidance.delete(requireAdmin(), id, confirm);
+        guidance.delete(adminAccess.requireAdmin(), id, confirm);
     }
 
     // ------------------------------------------------- translations (bilingual-guidance)
@@ -436,7 +432,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public List<GuidanceTranslationDto> listTranslations(@PathVariable long id) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return guidance.listTranslations(id).stream().map(this::toTranslationDto).toList();
     }
 
@@ -463,7 +459,7 @@ public class AdminGuidanceController {
     })
     public GuidanceTranslationDto createTranslation(@PathVariable long id,
                                                     @Valid @RequestBody CreateGuidanceTranslationRequest request) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         GuidanceTranslation t = guidance.createTranslation(id, request.locale(), request.slug(),
                 request.title(), request.body(), request.heroImageAlt());
         return toTranslationDto(t);
@@ -490,7 +486,7 @@ public class AdminGuidanceController {
     })
     public GuidanceTranslationDto updateTranslation(@PathVariable long id, @PathVariable String locale,
                                                     @Valid @RequestBody UpdateGuidanceTranslationRequest request) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         GuidanceTranslation t = guidance.updateTranslation(id, locale, request.slug(),
                 request.title(), request.body(), request.heroImageAlt());
         return toTranslationDto(t);
@@ -514,7 +510,7 @@ public class AdminGuidanceController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public void deleteTranslation(@PathVariable long id, @PathVariable String locale) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         guidance.deleteTranslation(id, locale);
     }
 
@@ -543,7 +539,7 @@ public class AdminGuidanceController {
     })
     public GuidanceTranslationDto attachTranslation(@PathVariable long id,
                                                     @Valid @RequestBody AttachGuidanceTranslationRequest request) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         GuidanceTranslation t = guidance.attachExistingPostAsTranslation(id, request.sourcePostId());
         return toTranslationDto(t);
     }
@@ -620,22 +616,4 @@ public class AdminGuidanceController {
                 t.getUpdatedAt());
     }
 
-    /**
-     * D2: fresh lookup per request — the kind column is the truth, never a
-     * JWT claim. 401 (same fallback convention as the other controllers;
-     * the security entry point answers this for anonymous requests first)
-     * or 403 for an authenticated non-admin. Returns the moderator's user
-     * id — every guidance WRITE is recorded in the moderation audit trail
-     * under it (crisis-guidance D12).
-     */
-    private long requireAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        if (!userRepository.isAdmin(userId)) {
-            throw new AdminAccessException("Admin access required");
-        }
-        return userId;
-    }
 }

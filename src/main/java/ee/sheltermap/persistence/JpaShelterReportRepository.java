@@ -114,16 +114,16 @@ public class JpaShelterReportRepository implements ShelterReportRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ShelterReport> findByShelterId(long shelterId) {
-        return reports.findByShelterIdOrderByCreatedAtDescIdDesc(shelterId).stream()
+    public List<ShelterReport> findLatestByShelterId(long shelterId, int limit) {
+        return reports.findLatestByShelterId(shelterId, limit).stream()
                 .map(JpaShelterReportRepository::toDomain)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ShelterReport> findAll() {
-        return reports.findAllByOrderByCreatedAtDescIdDesc().stream()
+    public List<ShelterReport> findLatest(int limit) {
+        return reports.findLatest(limit).stream()
                 .map(JpaShelterReportRepository::toDomain)
                 .toList();
     }

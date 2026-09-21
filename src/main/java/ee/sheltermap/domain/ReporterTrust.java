@@ -63,9 +63,4 @@ public record ReporterTrust(int weight) {
         }
         return new ReporterTrust(Math.min(weight, MAX));
     }
-
-    /** {@code true} for the baseline account with no trust history. */
-    public boolean isBaseline() {
-        return weight == BASELINE;
-    }
 }

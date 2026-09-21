@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.SmsSender;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -13,11 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Dev-only diagnostic endpoint — {@code POST /dev/sms-test} (mirror of
@@ -51,11 +50,7 @@ public class SmsTestController {
                              @Value("${app.dev-sms-test.allowed-recipients:}") String allowedRecipients,
                              @Value("${app.dev-sms-test.allow-any:false}") boolean allowAny) {
         this.activeSmsSender = Objects.requireNonNull(activeSmsSender, "activeSmsSender");
-        this.allowedRecipients = Arrays.stream(allowedRecipients.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(s -> s.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toUnmodifiableSet());
+        this.allowedRecipients = CommaSeparated.parseSetLowerCase(allowedRecipients);
         this.allowAny = allowAny;
     }
 

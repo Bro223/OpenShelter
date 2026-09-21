@@ -78,10 +78,12 @@ class TwilioSmsSenderTest {
         // With app.sms.provider=twilio, missing credentials would make
         // every send fail silently (delivery errors are swallowed) — refuse to
         // start instead.
-        assertThatCode(() -> new TwilioSmsSender("", "", "MG123", null))
+        assertThatCode(() -> new TwilioSmsSender("", "", "MG123", null,
+                        java.time.Duration.ofSeconds(3), java.time.Duration.ofSeconds(10)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("TWILIO_ACCOUNT_SID");
-        assertThatCode(() -> new TwilioSmsSender("AC123", "tok123", "", null))
+        assertThatCode(() -> new TwilioSmsSender("AC123", "tok123", "", null,
+                        java.time.Duration.ofSeconds(3), java.time.Duration.ofSeconds(10)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("TWILIO_MESSAGING_SERVICE_SID");
     }

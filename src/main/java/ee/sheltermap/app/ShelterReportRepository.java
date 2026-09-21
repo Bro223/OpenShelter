@@ -68,9 +68,18 @@ public interface ShelterReportRepository {
     /** Reads one report by id (admin queue dismissal); empty when unknown (admin-moderation D3). */
     Optional<ShelterReport> findById(Long id);
 
-    /** One shelter's reports, newest first (the admin queue, admin-moderation D3). */
-    List<ShelterReport> findByShelterId(long shelterId);
+    /**
+     * One shelter's reports, newest first, capped at the {@code limit} most
+     * recent rows (the admin queue, admin-moderation D3 — the cap is applied
+     * in the store, not by trimming in memory; the queue's table is
+     * append-only, so an unbounded read grows with the backlog).
+     */
+    List<ShelterReport> findLatestByShelterId(long shelterId, int limit);
 
-    /** Every report, newest first (the admin queue without a shelter filter). */
-    List<ShelterReport> findAll();
+    /**
+     * Every report, newest first, capped at the {@code limit} most recent
+     * rows (the admin queue without a shelter filter; same store-level cap
+     * as {@link #findLatestByShelterId}).
+     */
+    List<ShelterReport> findLatest(int limit);
 }

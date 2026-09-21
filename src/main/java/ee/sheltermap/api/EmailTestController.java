@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.verification.SmtpSender;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
@@ -7,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,11 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Dev-only diagnostic endpoint — {@code POST /dev/email-test}. Sends a real
@@ -65,11 +63,7 @@ public class EmailTestController {
         this.mailSender = Objects.requireNonNull(mailSender, "mailSender");
         this.activeSmtpSender = Objects.requireNonNull(activeSmtpSender, "activeSmtpSender");
         this.from = from;
-        this.allowedRecipients = Arrays.stream(allowedRecipients.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .map(s -> s.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toUnmodifiableSet());
+        this.allowedRecipients = CommaSeparated.parseSetLowerCase(allowedRecipients);
         this.allowAny = allowAny;
     }
 

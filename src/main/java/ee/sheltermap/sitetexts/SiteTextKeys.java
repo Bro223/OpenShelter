@@ -68,10 +68,6 @@ public final class SiteTextKeys {
     /** The locales the site serves (the V27 CHECK set). */
     public static final Set<String> LOCALES = Set.of("en", "et", "ru");
 
-    /** The shipped default URLs the frontend falls back to. */
-    public static final String DEFAULT_RESCUE_BOARD_URL = "https://www.päästeamet.ee";
-    public static final String DEFAULT_MINISTRY_URL = "https://www.siseministeerium.ee";
-
     /** The admin value cap — mirrored by the frontend input (maxlength=500). */
     public static final int VALUE_MAX = 500;
 

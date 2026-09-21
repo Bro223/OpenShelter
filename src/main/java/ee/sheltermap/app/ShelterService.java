@@ -198,11 +198,6 @@ public class ShelterService {
                 ShelterHistoryLog.Action.CREATED, null);
     }
 
-    /** The user's own shelters (the author-scoped "my shelters" list). */
-    public List<Shelter> findMine(long userId) {
-        return shelterRepository.findByCreatedBy(userId);
-    }
-
     /**
      * The first ACTIVE USER row that is a near-duplicate of
      * {@code candidate} (abuse-limits): the same normalized name

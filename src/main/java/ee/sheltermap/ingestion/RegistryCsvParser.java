@@ -1,5 +1,7 @@
 package ee.sheltermap.ingestion;
 
+import ee.sheltermap.app.TextTruncation;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -146,7 +148,8 @@ public final class RegistryCsvParser {
     }
 
     private static String firstLinePreview(String line) {
-        String clean = line.strip();
-        return clean.length() <= 80 ? clean : clean.substring(0, 80) + "…";
+        // strip() before truncate(): the preview is of the trimmed line;
+        // TextTruncation's own trim() is then a no-op.
+        return TextTruncation.truncate(line.strip(), 80);
     }
 }

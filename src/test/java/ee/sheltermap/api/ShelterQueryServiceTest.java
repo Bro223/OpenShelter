@@ -8,6 +8,7 @@ import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.BoundingBox;
 import ee.sheltermap.domain.GeoPoint;
@@ -76,7 +77,9 @@ class ShelterQueryServiceTest {
         audit = new InMemoryModerationAuditLog(FIXED);
         infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
         service = new ShelterQueryService(shelters, users, reports, occupancy,
-                openStatus, importLog, audit, infoRequests, FIXED);
+                openStatus, importLog, audit,
+                new ReporterTrustEvaluator(shelters, audit),
+                infoRequests, FIXED);
 
         userShelter = save("User House", ShelterSource.USER);
         registryShelter = save("Paasteamet House", ShelterSource.PAASETEAMET);

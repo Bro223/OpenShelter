@@ -1,8 +1,5 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.AdminAccessException;
-import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,8 +13,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,10 +29,10 @@ import java.util.List;
  * The admin media-library API (crisis-guidance D3/D7/D8) — thin shell:
  * parse, authorize, delegate to {@link MediaService}.
  *
- * <p>Authorization is the same fresh per-request ADMIN kind lookup as
- * {@link AdminController} (D2 idiom, copied verbatim): anonymous → 401
- * (the security entry point answers first), authenticated non-admin →
- * 403. The multipart upload field is {@code file}; the declared part
+ * <p>Authorization is the shared fresh per-request ADMIN kind lookup
+ * ({@link AdminAccess#requireAdmin()}, D2): anonymous → 401 (the security
+ * entry point answers first), authenticated non-admin → 403. The
+ * multipart upload field is {@code file}; the declared part
  * type the browser sends is validated against the SNIFFED type in the
  * service (a lying client gets a plain 400).
  */
@@ -54,11 +49,11 @@ import java.util.List;
 public class AdminMediaController {
 
     private final MediaService media;
-    private final UserRepository userRepository;
+    private final AdminAccess adminAccess;
 
-    public AdminMediaController(MediaService media, UserRepository userRepository) {
+    public AdminMediaController(MediaService media, AdminAccess adminAccess) {
         this.media = media;
-        this.userRepository = userRepository;
+        this.adminAccess = adminAccess;
     }
 
     /**
@@ -78,7 +73,7 @@ public class AdminMediaController {
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public List<MediaAssetDto> list() {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return media.list().stream().map(AdminMediaController::toDto).toList();
     }
 
@@ -117,7 +112,7 @@ public class AdminMediaController {
         } catch (IOException e) {
             throw new IllegalStateException("Could not read the uploaded file", e);
         }
-        MediaAsset uploaded = media.upload(requireAdmin(), bytes,
+        MediaAsset uploaded = media.upload(adminAccess.requireAdmin(), bytes,
                 file.getContentType(), file.getOriginalFilename());
         // A freshly uploaded asset cannot be referenced by a post yet.
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -154,7 +149,7 @@ public class AdminMediaController {
                                 @Parameter(description = "Required when the asset is "
                                         + "still referenced by posts.")
                                 @RequestParam(required = false, defaultValue = "false") boolean confirm) {
-        return toDto(media.delete(requireAdmin(), id, confirm));
+        return toDto(media.delete(adminAccess.requireAdmin(), id, confirm));
     }
 
     private static MediaAssetDto toDto(MediaService.MediaAssetWithUsage row) {
@@ -171,24 +166,5 @@ public class AdminMediaController {
                 asset.getCreatedAt(),
                 row.reusedBy(),
                 asset.getSourceUrl());
-    }
-
-    /**
-     * D2: fresh lookup per request — the kind column is the truth, never a
-     * JWT claim. 401 (same fallback convention as the other controllers;
-     * the security entry point answers this for anonymous requests first)
-     * or 403 for an authenticated non-admin. Returns the moderator's user
-     * id — the upload's author link and the delete's audit row actor
-     * (crisis-guidance D7/D12).
-     */
-    private long requireAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        if (!userRepository.isAdmin(userId)) {
-            throw new AdminAccessException("Admin access required");
-        }
-        return userId;
     }
 }

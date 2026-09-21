@@ -2,6 +2,7 @@ package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.VerificationLevel;
+import ee.sheltermap.verification.CodeHashes;
 import ee.sheltermap.verification.PendingVerification;
 import ee.sheltermap.verification.PendingVerificationRepository;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
     @Test
     void saveAndFindActiveRoundTrip() {
         Long userId = saveUser(users).getId();
-        String hash = PendingVerification.sha256("123456");
+        String hash = CodeHashes.sha256Hex("123456");
 
         PendingVerification pending = new PendingVerification(
                 userId, VerificationLevel.PHONE, "+37250000001", hash, Instant.now().plus(5, MINUTES));
@@ -50,7 +51,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
 
         PendingVerification pending = new PendingVerification(
                 userId, VerificationLevel.PHONE, "+37250000001",
-                PendingVerification.sha256("123456"), Instant.now().minus(1, MINUTES));
+                CodeHashes.sha256Hex("123456"), Instant.now().minus(1, MINUTES));
         pendings.save(pending);
 
         assertThat(pendings.findActiveByUserAndLevel(userId, VerificationLevel.PHONE, Instant.now())).isEmpty();
@@ -61,7 +62,7 @@ class PendingVerificationRepositoryIT extends AbstractPersistenceIT {
         Long userId = saveUser(users).getId();
         PendingVerification pending = new PendingVerification(
                 userId, VerificationLevel.PHONE, "+37250000001",
-                PendingVerification.sha256("123456"), Instant.now().plus(5, MINUTES));
+                CodeHashes.sha256Hex("123456"), Instant.now().plus(5, MINUTES));
         pendings.save(pending);
 
         pendings.delete(pending);

@@ -29,11 +29,6 @@ public final class ShelterHistoryChanges {
     private ShelterHistoryChanges() {
     }
 
-    /** The canonical diff field order (D4) — the map's own iteration order
-     *  is written as-is, so the caller fills the map in this order. */
-    public static final List<String> FIELDS =
-            List.of("name", "description", "capacity", "latitude", "longitude", "locationKind");
-
     /**
      * Serializes the moved-field map to the compact JSON document.
      *

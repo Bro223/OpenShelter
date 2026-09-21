@@ -5,8 +5,6 @@ import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.VerificationLevel;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -21,7 +19,6 @@ import java.util.Objects;
 @Service
 public class PhoneVerificationProvider implements VerificationProvider {
 
-    static final int MAX_ATTEMPTS = 5;
     private static final Duration TTL = Duration.ofMinutes(5);
     private static final int OTP_DIGITS = 6;
 
@@ -62,7 +59,7 @@ public class PhoneVerificationProvider implements VerificationProvider {
                 user.getId(),
                 VerificationLevel.PHONE,
                 phone,
-                PendingVerification.sha256(otp),
+                CodeHashes.sha256Hex(otp),
                 clock.instant().plus(TTL));
     }
 
@@ -75,26 +72,13 @@ public class PhoneVerificationProvider implements VerificationProvider {
         if (pending.isExpired(now)) {
             return false;
         }
-        if (pending.getAttempts() >= MAX_ATTEMPTS) {
+        if (pending.getAttempts() >= CodePolicy.MAX_ATTEMPTS) {
             return false;
         }
-        if (!constantTimeEquals(code == null ? null : PendingVerification.sha256(code), pending.getCodeHash())) {
+        if (!CodeHashes.constantTimeEquals(code == null ? null : CodeHashes.sha256Hex(code), pending.getCodeHash())) {
             pending.recordAttempt();
             return false;
         }
         return true;
-    }
-
-    /**
-     * Constant-time hash compare — no early exit on the first
-     * differing byte. Private here on purpose: {@code auth.Hashes} is not
-     * importable from this package (01-TASK.md §4 dependency rule — auth
-     * already imports verification), so the 3-line helper stays local.
-     */
-    private static boolean constantTimeEquals(String a, String b) {
-        if (a == null || b == null) {
-            return false;
-        }
-        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -4,7 +4,6 @@ import ee.sheltermap.domain.OccupancyBand;
 import ee.sheltermap.domain.OpenStatusState;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.ReviewStatus;
-import ee.sheltermap.domain.ReporterTrust;
 import ee.sheltermap.domain.Shelter;
 import ee.sheltermap.domain.ShelterOccupancyReport;
 import ee.sheltermap.domain.ShelterOpenStatusReport;
@@ -89,6 +88,7 @@ public class ShelterReportService {
     private final ShelterOpenStatusRepository openStatus;
     private final ReportActionLog actionLog;
     private final ModerationAuditLog audit;
+    private final ReporterTrustEvaluator trust;
     private final Clock clock;
     /** The near-duplicate haversine tolerance — one spelling of the duplicate rule (D3). */
     private final double duplicateCoordMeters;
@@ -99,6 +99,7 @@ public class ShelterReportService {
                                 ShelterOpenStatusRepository openStatus,
                                 ReportActionLog actionLog,
                                 ModerationAuditLog audit,
+                                ReporterTrustEvaluator trust,
                                 Clock clock,
                                 @Value("${app.limits.duplicate-coord-meters:100}") double duplicateCoordMeters) {
         this.shelters = Objects.requireNonNull(shelters, "shelters");
@@ -107,6 +108,7 @@ public class ShelterReportService {
         this.openStatus = Objects.requireNonNull(openStatus, "openStatus");
         this.actionLog = Objects.requireNonNull(actionLog, "actionLog");
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.trust = Objects.requireNonNull(trust, "trust");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.duplicateCoordMeters = duplicateCoordMeters;
     }
@@ -140,7 +142,7 @@ public class ShelterReportService {
             // untouched (the locked auto-trust).
             damped = isDampenedFor(user.getId(), shelter);
             long tallyBefore = hideTally(shelterId);
-            long myPoints = damped ? 0 : trustWeight(user.getId());
+            long myPoints = damped ? 0 : trust.weight(user.getId());
             reachesAutoHide = tallyBefore < ShelterReport.AUTO_HIDE_THRESHOLD
                     && tallyBefore + myPoints >= ShelterReport.AUTO_HIDE_THRESHOLD;
         }
@@ -241,22 +243,8 @@ public class ShelterReportService {
      */
     private long hideTally(long shelterId) {
         return reports.reportersByShelterIdAndType(shelterId, ShelterReportType.NON_EXISTENT).stream()
-                .mapToLong(entry -> entry.damped() ? 0 : trustWeight(entry.userId()))
+                .mapToLong(entry -> entry.damped() ? 0 : trust.weight(entry.userId()))
                 .sum();
-    }
-
-    /**
-     * The reporter's derived trust weight (D1): re-derived from the
-     * rows that already exist — the reporter's own submissions and the
-     * moderation audit trail. No stored score, no drift; a rolled-back
-     * report leaves no score behind.
-     */
-    private int trustWeight(long userId) {
-        boolean crossVerifiedSubmission = shelters.countByCreatedByAndSourceAndReviewStatus(
-                userId, ShelterSource.USER, ReviewStatus.CONFIRMED) > 0;
-        int ownAutoConfirms = (int) audit.countByModeratorAndAction(userId,
-                ModerationAuditLog.Action.AUTO_CONFIRM);
-        return ReporterTrust.of(crossVerifiedSubmission, ownAutoConfirms).weight();
     }
 
     /**

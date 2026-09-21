@@ -1,9 +1,9 @@
 package ee.sheltermap.persistence;
 
 import ee.sheltermap.app.DataImportLog;
+import ee.sheltermap.app.TextTruncation;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
 import java.util.Optional;
 import java.util.Objects;
 
@@ -27,7 +27,7 @@ public class JpaDataImportLog implements DataImportLog {
         DataImportEntity entity = new DataImportEntity(
                 row.sourceName(), row.sourceVersion(), row.importedAt(),
                 row.recordsAdded(), row.recordsUpdated(), row.recordsRemoved(),
-                row.status(), truncate(row.errorMessage(), 1000));
+                row.status(), TextTruncation.truncate(row.errorMessage(), 1000));
         imports.save(entity);
     }
 
@@ -51,14 +51,5 @@ public class JpaDataImportLog implements DataImportLog {
         return new Row(e.getSourceName(), e.getSourceVersion(), e.getImportedAt(),
                 e.getRecordsAdded(), e.getRecordsUpdated(), e.getRecordsRemoved(),
                 e.getStatus(), e.getErrorMessage());
-    }
-
-    /** The error_message column is 1000 chars; a registry error must never
-     *  abort the audit write. */
-    private static String truncate(String value, int maxLength) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

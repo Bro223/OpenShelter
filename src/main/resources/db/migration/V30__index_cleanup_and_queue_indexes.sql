@@ -1,0 +1,84 @@
+-- Shelter Map — V30 (ops hardening: the two index gaps + the four
+-- redundant indexes, reviews/05-backend-database-performance F5/F9/F12).
+-- One migration for the whole index delta so the schema history shows the
+-- decision as a unit. ddl-auto=validate must stay green against these
+-- definitions (Hibernate validates tables/columns, not indexes — safe).
+--
+-- ---------------------------------------------------------------- ADD 1
+-- idx_moderation_actions_moderator: (moderator_id, action)
+--
+-- The query shape: countByModeratorIdAndAction
+-- (persistence/SpringDataModerationActionRepository) is
+--   SELECT count(*) FROM moderation_actions
+--   WHERE moderator_id = ? AND action = ?
+-- run once per distinct fresh reporter on the PUBLIC shelter-detail read
+-- (ShelterQueryService.trustWeight) and by the auto-hide tally — and none
+-- of the table's existing indexes (shelter_id, created_at, subject_user_id
+-- — V11/V17) can serve it: a full scan of a table that is only bounded by
+-- the 24-month retention horizon.
+--
+-- The second consumer is the FK's SET NULL: V14 relaxed moderator_id to
+-- ON DELETE SET NULL for the account-erasure path without adding an index,
+-- so erasing a user scans the whole table to find the child rows, and the
+-- retention job runs that erasure per account in a loop. The same index
+-- serves both consumers (the leading column is the FK, the action is the
+-- equality predicate of the count).
+CREATE INDEX idx_moderation_actions_moderator
+    ON moderation_actions (moderator_id, action);
+--
+-- ---------------------------------------------------------------- ADD 2
+-- idx_shelter_reports_created: (created_at DESC, id DESC)
+--
+-- The query shape: the admin report queue (admin-moderation D3) orders
+-- EVERY read newest-first —
+--   findAllByOrderByCreatedAtDescIdDesc /
+--   findByShelterIdOrderByCreatedAtDescIdDesc
+-- (persistence/SpringDataShelterReportRepository), and since this hardening
+-- pass the unfiltered read is BOUNDED (GET /admin/reports?limit=, default
+-- 100, max 200, applied in SQL), so the query is
+--   SELECT ... FROM shelter_reports
+--   ORDER BY created_at DESC, id DESC LIMIT :limit
+-- and the composite matches the ORDER BY exactly: a tight index scan of
+-- the newest rows instead of a sort of the append-only table (nothing
+-- deletes its rows except the shelter cascade). The sibling newest-first
+-- tables already carry their ordering indexes (moderation_actions V11,
+-- shelter_history V18, report_actions V9, data_imports V15) — this closes
+-- the inconsistency the review flagged as F9.
+CREATE INDEX idx_shelter_reports_created
+    ON shelter_reports (created_at DESC, id DESC);
+--
+-- --------------------------------------------------------------- DROP 1
+-- idx_shelters_county (V2): NO query references county. The column is
+-- written by the registry import and read in the DTO projection of a
+-- full-row read; no repository method has a county predicate (verified:
+-- the only main-source references are the entity field, the import write
+-- and the DTO mapping). The index documents a county filter the code
+-- never implements — drop it; if a county filter lands later, the index
+-- comes back with the query.
+DROP INDEX idx_shelters_county;
+--
+-- --------------------------------------------------------------- DROP 2
+-- idx_media_assets_source_url (V25): no repository method queries
+-- source_url — the only reads are findByFilename and the library listing
+-- (findAllByOrderByCreatedAtDescIdDesc). The V25 header claims the index
+-- "backs that takedown lookup", but the takedown lookup does not exist in
+-- the code (source_url is metadata-only by V25's own statement: "the app
+-- never re-fetches it"). The comment and the index disagreed; the code
+-- sides with the comment. Drop the index, keep the column.
+DROP INDEX idx_media_assets_source_url;
+--
+-- --------------------------------------------------------------- DROP 3
+-- idx_site_texts_key (V27): single-column (key) — REDUNDANT with
+-- uq_site_texts_key_locale UNIQUE (key, locale), whose leading column is
+-- the same (key). The table's only query is findByKeyAndLocale, served by
+-- the composite (both equality predicates). Every write pays for the
+-- duplicate entry; nothing can use the shorter one.
+DROP INDEX idx_site_texts_key;
+--
+-- --------------------------------------------------------------- DROP 4
+-- idx_pending_contact_changes_user (V4): single-column (user_id) —
+-- REDUNDANT with uq_pending_contact_change UNIQUE (user_id, type) created
+-- three lines above it in the same migration. The table's only query is
+-- findByUserIdAndType, served by the composite. Same write amplification,
+-- no second consumer.
+DROP INDEX idx_pending_contact_changes_user;

@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
 import ee.sheltermap.domain.User;
@@ -26,10 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Thin HTTP shell for verification — exposes the service-level verification
@@ -80,10 +79,7 @@ public class VerificationController {
         this.verifyRateLimiter = Objects.requireNonNull(verifyRateLimiter, "verifyRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
-        this.trustedProxies = Arrays.stream(trustedProxies.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
     }
 
     /**

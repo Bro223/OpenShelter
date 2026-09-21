@@ -48,7 +48,7 @@ class EmailVerificationProviderTest {
         assertThat(token).matches("[A-Za-z0-9]{8}");
 
         // stored hashed, never plaintext
-        assertThat(pending.getCodeHash()).isEqualTo(PendingVerification.sha256(token));
+        assertThat(pending.getCodeHash()).isEqualTo(CodeHashes.sha256Hex(token));
         assertThat(pending.getCodeHash()).doesNotContain(token);
     }
 
@@ -88,11 +88,11 @@ class EmailVerificationProviderTest {
         PendingVerification pending = provider.request(user);
         String token = extractToken(sender.getLastMessage());
 
-        for (int i = 0; i < EmailVerificationProvider.MAX_ATTEMPTS; i++) {
+        for (int i = 0; i < CodePolicy.MAX_ATTEMPTS; i++) {
             provider.confirm(user, pending, "wrongtok");
         }
 
-        assertThat(pending.getAttempts()).isEqualTo(EmailVerificationProvider.MAX_ATTEMPTS);
+        assertThat(pending.getAttempts()).isEqualTo(CodePolicy.MAX_ATTEMPTS);
         assertThat(provider.confirm(user, pending, token)).isFalse();
     }
 
@@ -100,7 +100,7 @@ class EmailVerificationProviderTest {
     void confirmExpiredPendingReturnsFalse() {
         PendingVerification expired = new PendingVerification(
                 1L, VerificationLevel.EMAIL, "aleks@example.com",
-                PendingVerification.sha256("token123"), clock.instant().minusSeconds(1));
+                CodeHashes.sha256Hex("token123"), clock.instant().minusSeconds(1));
 
         assertThat(provider.confirm(user, expired, "token123")).isFalse();
     }
@@ -109,7 +109,7 @@ class EmailVerificationProviderTest {
     void confirmPendingForAnotherLevelReturnsFalse() {
         PendingVerification phonePending = new PendingVerification(
                 1L, VerificationLevel.PHONE, "+37250000000",
-                PendingVerification.sha256("123456"), clock.instant().plusSeconds(60));
+                CodeHashes.sha256Hex("123456"), clock.instant().plusSeconds(60));
 
         assertThat(provider.confirm(user, phonePending, "123456")).isFalse();
     }

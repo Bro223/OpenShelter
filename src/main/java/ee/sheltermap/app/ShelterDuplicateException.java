@@ -16,16 +16,8 @@ package ee.sheltermap.app;
  */
 public class ShelterDuplicateException extends RuntimeException {
 
-    private final long existingShelterId;
-
     public ShelterDuplicateException(long existingShelterId) {
         super("A shelter with this name already exists at this location (shelter #"
                 + existingShelterId + ")");
-        this.existingShelterId = existingShelterId;
-    }
-
-    /** The existing row the candidate collides with (the 409 pointer). */
-    public long getExistingShelterId() {
-        return existingShelterId;
     }
 }

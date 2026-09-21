@@ -1,11 +1,8 @@
 package ee.sheltermap.api;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
-import ee.sheltermap.app.AdminAccessException;
-import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.ShelterSource;
 import ee.sheltermap.domain.ShelterStatus;
-import ee.sheltermap.auth.InvalidAccessTokenException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -16,8 +13,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,7 +36,9 @@ import java.util.Map;
  * kind changes. Anonymous callers never reach the guard: {@code /admin/**}
  * requires a valid access token (default security rule) and the entry
  * point answers 401 first; the guard's own 401 branch is the same fallback
- * convention as the other controllers.
+ * convention as the other controllers. The guard itself is the shared
+ * {@link AdminAccess#requireAdmin()} — one implementation for the whole
+ * admin surface.
  *
  * <p>Surface: shelter list (all statuses, filters, search), manual
  * hide/restore (restore disarms auto-hide and reverts a REJECTED row
@@ -72,13 +69,13 @@ public class AdminController {
     static final int ALERTS_MAX_LIMIT = 200;
 
     private final AdminModerationService moderation;
-    private final UserRepository userRepository;
+    private final AdminAccess adminAccess;
     private final ThrottleAlertRecorder alerts;
 
-    public AdminController(AdminModerationService moderation, UserRepository userRepository,
+    public AdminController(AdminModerationService moderation, AdminAccess adminAccess,
                            ThrottleAlertRecorder alerts) {
         this.moderation = moderation;
-        this.userRepository = userRepository;
+        this.adminAccess = adminAccess;
         this.alerts = alerts;
     }
 
@@ -109,7 +106,7 @@ public class AdminController {
             @Parameter(description = "Case-insensitive name/address substring "
                     + "(optional).")
             @RequestParam(required = false) String q) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return moderation.listShelters(status, source, q);
     }
 
@@ -121,7 +118,7 @@ public class AdminController {
                     + "restore disarms auto-hide.")
     public void setShelterStatus(@PathVariable long id,
                                  @Valid @RequestBody AdminShelterStatusRequest request) {
-        moderation.setShelterStatus(requireAdmin(), id, request.status());
+        moderation.setShelterStatus(adminAccess.requireAdmin(), id, request.status());
     }
 
     /** Hard delete of a USER shelter (cascade). 204; 404 unknown; 409 registry rows. */
@@ -131,7 +128,7 @@ public class AdminController {
             description = "204; 404 unknown; 409 registry rows (import-owned). "
                     + "USER rows only — reports and occupancy cascade.")
     public void deleteShelter(@PathVariable long id) {
-        moderation.deleteShelter(requireAdmin(), id);
+        moderation.deleteShelter(adminAccess.requireAdmin(), id);
     }
 
     /**
@@ -155,7 +152,7 @@ public class AdminController {
             content = @Content(array = @ArraySchema(schema = @Schema(implementation =
                     AdminShelterHistoryDto.class))))
     public List<AdminShelterHistoryDto> shelterHistory(@PathVariable long id) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return moderation.shelterHistory(id);
     }
 
@@ -178,7 +175,7 @@ public class AdminController {
                     + "the replied row is kept).")
     public void requestInfo(@PathVariable long id,
                             @Valid @RequestBody AdminInfoRequestRequest request) {
-        moderation.requestInfo(requireAdmin(), id, request.message());
+        moderation.requestInfo(adminAccess.requireAdmin(), id, request.message());
     }
 
     /**
@@ -196,7 +193,7 @@ public class AdminController {
                     + "unknown shelter; 409 registry rows (import-owned).")
     public void markInaccurate(@PathVariable long id,
                                @Valid @RequestBody(required = false) AdminMarkInaccurateRequest request) {
-        moderation.markInaccurate(requireAdmin(), id,
+        moderation.markInaccurate(adminAccess.requireAdmin(), id,
                 request == null ? null : request.reason());
     }
 
@@ -207,7 +204,7 @@ public class AdminController {
             description = "Idempotent, audited. 204; 404 unknown shelter; 409 "
                     + "registry rows.")
     public void clearInaccurate(@PathVariable long id) {
-        moderation.clearInaccurate(requireAdmin(), id);
+        moderation.clearInaccurate(adminAccess.requireAdmin(), id);
     }
 
     /**
@@ -228,7 +225,7 @@ public class AdminController {
     @ApiResponse(responseCode = "200", description = "{\"ok\": true}")
     public Map<String, Boolean> reviewShelter(@PathVariable long id,
                                               @Valid @RequestBody AdminShelterReviewRequest request) {
-        moderation.reviewShelter(requireAdmin(), id, request.action(), request.reason());
+        moderation.reviewShelter(adminAccess.requireAdmin(), id, request.action(), request.reason());
         return Map.of("ok", true);
     }
 
@@ -255,7 +252,7 @@ public class AdminController {
             @Parameter(description = "Rows to return, 1..200 (default 100; "
                     + "anything else 400).")
             @RequestParam(required = false) Integer limit) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return moderation.listAudit(limit);
     }
 
@@ -285,7 +282,7 @@ public class AdminController {
             @Parameter(description = "Rows to return, 1..200 (default 50; "
                     + "anything else 400).")
             @RequestParam(required = false) Integer limit) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         int size = limit == null ? ALERTS_DEFAULT_LIMIT : limit;
         if (size < 1 || size > ALERTS_MAX_LIMIT) {
             throw new InvalidShelterException("limit must be between 1 and 200");
@@ -296,20 +293,30 @@ public class AdminController {
                 .toList();
     }
 
-    /** The shelter report queue, newest first (optional shelter filter). */
+    /** The shelter report queue, newest first (optional shelter filter).
+     *  {@code limit} is 1..200, default 100 (anything else 400) — the
+     *  same bound as {@code /admin/audit}; the queue's table is
+     *  append-only, so the read is capped in SQL. */
     @GetMapping("/reports")
     @Operation(summary = "The shelter report queue",
             description = "Newest first; optional shelterId narrows to one "
                     + "shelter. Carries the reporter's profile name + email — "
-                    + "admin-only data, served from /admin/* only.")
+                    + "admin-only data, served from /admin/* only. limit is "
+                    + "1..200, default 100 (anything else 400 — the same "
+                    + "bound as /admin/audit; a response of exactly limit "
+                    + "rows means the queue was truncated).")
     @ApiResponse(responseCode = "200", description = "The report rows (newest "
-            + "first)", content = @Content(array = @ArraySchema(schema =
+            + "first, at most limit)", content = @Content(array = @ArraySchema(schema =
             @Schema(implementation = AdminShelterReportDto.class))))
+    @ApiResponse(responseCode = "400", description = "limit outside 1..200")
     public List<AdminShelterReportDto> listShelterReports(
             @Parameter(description = "Narrow to one shelter (optional).")
-            @RequestParam(required = false) Long shelterId) {
-        requireAdmin();
-        return moderation.listShelterReports(shelterId);
+            @RequestParam(required = false) Long shelterId,
+            @Parameter(description = "Rows to return, 1..200 (default 100; "
+                    + "anything else 400).")
+            @RequestParam(required = false) Integer limit) {
+        adminAccess.requireAdmin();
+        return moderation.listShelterReports(shelterId, limit);
     }
 
     /** Mark a shelter report resolved — idempotent. 204; 404 unknown report. */
@@ -318,7 +325,7 @@ public class AdminController {
     @Operation(summary = "Mark a shelter report resolved",
             description = "Idempotent. 204; 404 unknown report.")
     public void dismissReport(@PathVariable long id) {
-        moderation.dismissReport(requireAdmin(), id);
+        moderation.dismissReport(adminAccess.requireAdmin(), id);
     }
 
     /**
@@ -334,7 +341,7 @@ public class AdminController {
             + "(id-ordered)", content = @Content(array = @ArraySchema(schema =
             @Schema(implementation = AdminUserDto.class))))
     public List<AdminUserDto> listUsers() {
-        requireAdmin();
+        adminAccess.requireAdmin();
         return moderation.listUsers();
     }
 
@@ -355,7 +362,7 @@ public class AdminController {
                     + "it cannot be disabled); 409 guest targets (no credentials). "
                     + "Audited as USER_SUSPEND with the account as subject.")
     public void suspendUser(@PathVariable long id) {
-        moderation.suspendUser(requireAdmin(), id);
+        moderation.suspendUser(adminAccess.requireAdmin(), id);
     }
 
     /** Lift a suspension — idempotent, audited. Same 204/404/403/409. */
@@ -367,25 +374,7 @@ public class AdminController {
                     + "administrator (it is never suspended — nothing to lift); "
                     + "409 guest targets.")
     public void unsuspendUser(@PathVariable long id) {
-        moderation.unsuspendUser(requireAdmin(), id);
+        moderation.unsuspendUser(adminAccess.requireAdmin(), id);
     }
 
-    /**
-     * D2: fresh lookup per request — the kind column is the truth, never a
-     * JWT claim. 401 (same fallback convention as the other controllers;
-     * the security entry point answers this for anonymous requests first)
-     * or 403 for an authenticated non-admin. Returns the moderator's user
-     * id — every admin WRITE is recorded in the moderation audit trail
-     * under it (community-review-queue D4); the read endpoints ignore it.
-     */
-    private long requireAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        if (!userRepository.isAdmin(userId)) {
-            throw new AdminAccessException("Admin access required");
-        }
-        return userId;
-    }
 }

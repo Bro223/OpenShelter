@@ -2,11 +2,7 @@ package ee.sheltermap.verification;
 
 import ee.sheltermap.domain.VerificationLevel;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Objects;
 
 /**
@@ -77,16 +73,5 @@ public class PendingVerification {
 
     public boolean isExpired(Instant now) {
         return now.isAfter(expiresAt);
-    }
-
-    /** SHA-256 hex digest — the one-way hash used for all codes at rest. */
-    public static String sha256(String raw) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
     }
 }

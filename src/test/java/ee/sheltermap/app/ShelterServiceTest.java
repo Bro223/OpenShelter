@@ -110,20 +110,6 @@ class ShelterServiceTest {
     }
 
     @Test
-    void findMineReturnsOnlyThatUsersShelters() {
-        RegisteredUser other = verifiedUser(2L);
-
-        service.addPlace(verifiedUser(), userPlace("Mine One"));
-        service.addPlace(verifiedUser(), userPlace("Mine Two"));
-        service.addPlace(other, userPlace("Not Mine"));
-
-        assertThat(service.findMine(1L))
-                .extracting(Shelter::getName)
-                .containsExactly("Mine One", "Mine Two");
-        assertThat(service.findMine(99L)).isEmpty();
-    }
-
-    @Test
     void updatePlaceReplacesEditableFieldsKeepingIdentityAuthorAndSource() {
         Shelter place = userPlace("Original");
         service.addPlace(verifiedUser(), place);
@@ -323,7 +309,7 @@ class ShelterServiceTest {
         service.deletePlace(place.getId(), 1L);
 
         assertThat(repo.findById(place.getId())).isEmpty();
-        assertThat(service.findMine(1L)).isEmpty();
+        assertThat(repo.findByCreatedBy(1L)).isEmpty();
     }
 
     // ---------- edit history (moderation-dashboard-completion D4) ----------

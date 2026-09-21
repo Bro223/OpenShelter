@@ -67,7 +67,7 @@ class ShelterReportServiceTest {
         audit = new InMemoryModerationAuditLog(FIXED);
         users = new InMemoryUserRepository();
         service = new ShelterReportService(shelters, reports, occupancy, openStatus,
-                actionLog, audit, FIXED, 100.0);
+                actionLog, audit, new ReporterTrustEvaluator(shelters, audit), FIXED, 100.0);
 
         verified = user("Mari", true);
         unverified = user("Priit", false);

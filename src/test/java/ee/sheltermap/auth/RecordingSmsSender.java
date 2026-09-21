@@ -12,9 +12,24 @@ public class RecordingSmsSender implements SmsSender {
     }
 
     private final List<Sent> sent = new ArrayList<>();
+    private boolean refuseNext;
+
+    /**
+     * Arms the NEXT send to be refused (returning false, recording nothing —
+     * a real channel failure never delivers, so nothing is captured either).
+     * Additive: un-armed, this sender behaves exactly as before.
+     */
+    public RecordingSmsSender refuseNext() {
+        this.refuseNext = true;
+        return this;
+    }
 
     @Override
     public boolean send(String phone, String message) {
+        if (refuseNext) {
+            refuseNext = false;
+            return false;
+        }
         sent.add(new Sent(phone, message));
         return true;
     }

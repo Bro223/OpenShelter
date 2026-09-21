@@ -1,6 +1,7 @@
 package ee.sheltermap.auth;
 
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.verification.PhoneNumbers;
 import ee.sheltermap.verification.RollingContactOtpLimiter;
 import ee.sheltermap.verification.VerificationThrottledException;
@@ -22,10 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Thin shell (01-TASK.md §7) — parse, validate, rate-limit, delegate.
@@ -78,10 +77,7 @@ public class AuthController {
         this.contactOtpLimiter = contactOtpLimiter;
         this.alerts = alerts;
         this.trustLoopback = trustLoopback;
-        this.trustedProxies = Arrays.stream(trustedProxies.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
     }
 
     @PostMapping("/register")

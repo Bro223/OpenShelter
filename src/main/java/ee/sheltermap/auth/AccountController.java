@@ -1,5 +1,6 @@
 package ee.sheltermap.auth;
 
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.NotVerifiedException;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.domain.RegisteredUser;
@@ -26,11 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Thin HTTP shell for the authenticated account surface (01-TASK.md §7 —
@@ -97,10 +95,7 @@ public class AccountController {
         this.changeRequestRateLimiter = Objects.requireNonNull(changeRequestRateLimiter, "changeRequestRateLimiter");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.trustLoopback = trustLoopback;
-        this.trustedProxies = Arrays.stream(trustedProxies.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
     }
 
     /** The authenticated user's real profile + verified claims (no rate bucket — cheap read). */

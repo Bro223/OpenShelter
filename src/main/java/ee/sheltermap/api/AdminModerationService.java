@@ -1,6 +1,5 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.AdminAccessException;
 import ee.sheltermap.app.ImportOwnedShelterException;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.app.NonSuspendableUserException;
@@ -273,17 +272,29 @@ public class AdminModerationService {
     /**
      * GET /admin/reports — the shelter report queue, newest first. With
      * {@code shelterId} that shelter's queue (unknown shelter → 404);
-     * without, every report. Shelter name/status and the reporter's
-     * profile name + email resolve in ONE batched lookup each (no N+1).
+     * without, the global queue. {@code limit} is 1..{@value
+     * #AUDIT_MAX_LIMIT} (default {@value #AUDIT_DEFAULT_LIMIT}, anything
+     * else a 400) — the same bound as the audit trail's list: the table
+     * is append-only (nothing deletes rows except the shelter cascade),
+     * so the queue must stay bounded in SQL (the bound is the LIMIT
+     * clause, applied in the store). A caller that gets exactly
+     * {@code limit} rows knows the queue was truncated, the same way the
+     * audit surface already says it. Shelter name/status and the
+     * reporter's profile name + email resolve in ONE batched lookup each
+     * (no N+1) over the RETURNED window only.
      */
     @Transactional(readOnly = true)
-    public List<AdminShelterReportDto> listShelterReports(Long shelterId) {
+    public List<AdminShelterReportDto> listShelterReports(Long shelterId, Integer limit) {
+        int size = limit == null ? AUDIT_DEFAULT_LIMIT : limit;
+        if (size < 1 || size > AUDIT_MAX_LIMIT) {
+            throw new InvalidShelterException("limit must be between 1 and 200");
+        }
         if (shelterId != null) {
             requireShelter(shelterId);
         }
         List<ShelterReport> reports = shelterId == null
-                ? shelterReports.findAll()
-                : shelterReports.findByShelterId(shelterId);
+                ? shelterReports.findLatest(size)
+                : shelterReports.findLatestByShelterId(shelterId, size);
         if (reports.isEmpty()) {
             return List.of();
         }

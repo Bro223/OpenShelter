@@ -63,7 +63,7 @@ class PendingVerificationDuplicateIT extends AbstractPersistenceIT {
                 user.getId(), VerificationLevel.PHONE, now).orElseThrow();
 
         // The newest code is the one the user last received — it wins.
-        assertThat(active.getCodeHash()).isEqualTo(PendingVerification.sha256("222222"));
+        assertThat(active.getCodeHash()).isEqualTo(CodeHashes.sha256Hex("222222"));
     }
 
     @Test
@@ -85,6 +85,6 @@ class PendingVerificationDuplicateIT extends AbstractPersistenceIT {
 
     private void savePending(long userId, String code, Instant expiresAt) {
         pending.save(new PendingVerification(userId, VerificationLevel.PHONE,
-                "+37250006661", PendingVerification.sha256(code), expiresAt));
+                "+37250006661", CodeHashes.sha256Hex(code), expiresAt));
     }
 }

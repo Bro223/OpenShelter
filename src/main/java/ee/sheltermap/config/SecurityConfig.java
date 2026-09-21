@@ -3,6 +3,7 @@ package ee.sheltermap.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ee.sheltermap.alerts.ThrottleAlertRecorder;
 import ee.sheltermap.api.ErrorResponse;
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.ReportProperties;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.ContactChangeProperties;
@@ -37,7 +38,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -167,10 +167,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource(
             @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}") String allowedOrigins) {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList());
+        config.setAllowedOrigins(CommaSeparated.parseList(allowedOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

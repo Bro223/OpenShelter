@@ -1,5 +1,6 @@
 package ee.sheltermap.api;
 
+import ee.sheltermap.app.CommaSeparated;
 import ee.sheltermap.app.LocationResolveException;
 import ee.sheltermap.app.LocationResolveService;
 import ee.sheltermap.app.LocationUpstreamException;
@@ -21,10 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Thin shell for the short-link resolver (shelter-location-input):
@@ -67,10 +66,7 @@ public class LocationController {
         this.resolveService = Objects.requireNonNull(resolveService, "resolveService");
         this.geoResolveRateLimiter = Objects.requireNonNull(geoResolveRateLimiter, "geoResolveRateLimiter");
         this.trustLoopback = trustLoopback;
-        this.trustedProxies = Arrays.stream(trustedProxies.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+        this.trustedProxies = CommaSeparated.parseSet(trustedProxies);
     }
 
     /** Resolves a {@code maps.app.goo.gl} short link to coordinates (see class docs). */

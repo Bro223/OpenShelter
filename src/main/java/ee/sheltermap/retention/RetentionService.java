@@ -1,6 +1,7 @@
 package ee.sheltermap.retention;
 
 import ee.sheltermap.app.ModerationAuditLog;
+import ee.sheltermap.app.TextTruncation;
 import ee.sheltermap.app.UserRepository;
 import ee.sheltermap.auth.AccountService;
 import ee.sheltermap.domain.AdminUser;
@@ -110,7 +111,7 @@ public class RetentionService {
             // error line are the record, and the next day's run retries.
             log.error("Retention prune failed: {}", e.toString());
             runLog.record(new RetentionRunLog.Row(
-                    now, accountsPruned, 0, "FAILED", truncate(e.toString(), 1000)));
+                    now, accountsPruned, 0, "FAILED", TextTruncation.truncate(e.toString(), 1000)));
             return new RetentionReport(accountsPruned, 0);
         }
     }
@@ -122,13 +123,5 @@ public class RetentionService {
      */
     static Instant monthsBefore(Instant from, long months) {
         return ZonedDateTime.ofInstant(from, ZoneOffset.UTC).minusMonths(months).toInstant();
-    }
-
-    /** The error_message column is 1000 chars; a failure must never abort the audit write. */
-    private static String truncate(String value, int maxLength) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

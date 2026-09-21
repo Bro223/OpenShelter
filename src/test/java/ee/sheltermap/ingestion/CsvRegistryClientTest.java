@@ -34,7 +34,6 @@ class CsvRegistryClientTest {
 
     private static final String URL = "http://opendata.test/gis/varjumiskohad.csv";
     private static final String LAST_MODIFIED = "Sun, 06 Sep 2026 21:02:21 GMT";
-    private static final long LAST_MODIFIED_EPOCH = Instant.parse("2026-09-06T21:02:21Z").toEpochMilli();
 
     private static final RegistryProperties PROPS = new RegistryProperties(
             URL, 100, 1, Duration.ZERO, "csv",

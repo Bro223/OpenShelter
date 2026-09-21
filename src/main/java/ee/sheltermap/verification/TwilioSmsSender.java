@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Objects;
 
 /**
@@ -47,8 +48,11 @@ public class TwilioSmsSender implements SmsSender {
     public TwilioSmsSender(@Value("${TWILIO_ACCOUNT_SID:}") String accountSid,
                            @Value("${TWILIO_AUTH_TOKEN:}") String authToken,
                            @Value("${TWILIO_MESSAGING_SERVICE_SID:}") String messagingServiceSid,
-                           @Value("${TWILIO_FROM:}") String fromNumber) {
-        this(newApiOrFail(accountSid, authToken, messagingServiceSid, fromNumber),
+                           @Value("${TWILIO_FROM:}") String fromNumber,
+                           @Value("${app.sms.twilio-connect-timeout:3s}") Duration connectTimeout,
+                           @Value("${app.sms.twilio-timeout:10s}") Duration readTimeout) {
+        this(newApiOrFail(accountSid, authToken, messagingServiceSid, fromNumber,
+                connectTimeout, readTimeout),
                 messagingServiceSid, fromNumber);
     }
 
@@ -61,7 +65,8 @@ public class TwilioSmsSender implements SmsSender {
      * statement of the delegated constructor.
      */
     private static TwilioApi newApiOrFail(String accountSid, String authToken,
-                                          String messagingServiceSid, String fromNumber) {
+                                          String messagingServiceSid, String fromNumber,
+                                          Duration connectTimeout, Duration readTimeout) {
         if (accountSid == null || accountSid.isBlank() || authToken == null || authToken.isBlank()) {
             throw new IllegalStateException(
                     "app.sms.provider=twilio requires TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN (see .env)");
@@ -71,7 +76,8 @@ public class TwilioSmsSender implements SmsSender {
             throw new IllegalStateException(
                     "app.sms.provider=twilio requires TWILIO_MESSAGING_SERVICE_SID or TWILIO_FROM (see .env)");
         }
-        return new SdkTwilioApi(accountSid, authToken);
+        return new SdkTwilioApi(accountSid, authToken,
+                (int) connectTimeout.toMillis(), (int) readTimeout.toMillis());
     }
 
     TwilioSmsSender(TwilioApi api, String messagingServiceSid, String fromNumber) {
@@ -123,10 +129,28 @@ public class TwilioSmsSender implements SmsSender {
     /** SDK-backed {@link TwilioApi}. Static init is idempotent; safe for a single app. */
     static final class SdkTwilioApi implements TwilioApi {
 
-        SdkTwilioApi(String accountSid, String authToken) {
+        SdkTwilioApi(String accountSid, String authToken, long connectTimeoutMs, long readTimeoutMs) {
             if (accountSid != null && !accountSid.isBlank()
                     && authToken != null && !authToken.isBlank()) {
-                com.twilio.Twilio.init(accountSid, authToken);
+                // The SDK's default client is finite but NOT app-configurable
+                // (10 s connect / 30.5 s socket, plus 3 retries on 5xx), and
+                // the send happens on the request thread. The exchange already
+                // runs outside the DB transaction (send-first-then-commit),
+                // so a slow provider no longer pins a pooled connection — but
+                // the bound stays explicit and short, on this app's terms:
+                // an API that cannot answer within the socket timeout fails
+                // the send (logged, returned as false), it never hangs the
+                // request thread for the SDK's own defaults.
+                org.apache.http.client.config.RequestConfig requestConfig =
+                        org.apache.http.client.config.RequestConfig.custom()
+                                .setConnectTimeout((int) connectTimeoutMs)
+                                .setSocketTimeout((int) readTimeoutMs)
+                                .build();
+                com.twilio.Twilio.setRestClient(new com.twilio.http.TwilioRestClient.Builder(
+                                accountSid, authToken)
+                        .accountSid(accountSid)
+                        .httpClient(new com.twilio.http.NetworkHttpClient(requestConfig))
+                        .build());
             }
         }
 

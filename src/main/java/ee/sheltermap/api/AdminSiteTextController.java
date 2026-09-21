@@ -1,9 +1,5 @@
 package ee.sheltermap.api;
 
-import ee.sheltermap.app.AdminAccessException;
-import ee.sheltermap.app.UserRepository;
-import ee.sheltermap.auth.InvalidAccessTokenException;
-import ee.sheltermap.sitetexts.SiteTextEntry;
 import ee.sheltermap.sitetexts.SiteTextValidationException;
 import ee.sheltermap.sitetexts.SiteTextsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,8 +8,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,14 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
-import java.util.List;
 import java.util.Objects;
 
 /**
  * The admin site-texts API (site_texts): the Settings tab's save. Thin
- * shell — authorize (the fresh per-request ADMIN kind lookup, the
- * AdminController idiom: anonymous → 401, non-admin → 403), then
- * delegate to {@link SiteTextsService} (allowlist, locale, cap and
+ * shell — authorize (the shared fresh per-request ADMIN kind lookup,
+ * {@link AdminAccess#requireAdmin()}: anonymous → 401, non-admin → 403),
+ * then delegate to {@link SiteTextsService} (allowlist, locale, cap and
  * https validation; a violation is a uniform 400).
  */
 @Tag(name = "Admin site texts",
@@ -42,14 +35,14 @@ import java.util.Objects;
 public class AdminSiteTextController {
 
     private final SiteTextsService siteTexts;
-    private final UserRepository userRepository;
+    private final AdminAccess adminAccess;
     private final Clock clock;
 
     public AdminSiteTextController(SiteTextsService siteTexts,
-                                   UserRepository userRepository,
+                                   AdminAccess adminAccess,
                                    Clock clock) {
         this.siteTexts = Objects.requireNonNull(siteTexts, "siteTexts");
-        this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+        this.adminAccess = Objects.requireNonNull(adminAccess, "adminAccess");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -67,21 +60,9 @@ public class AdminSiteTextController {
     @ApiResponse(responseCode = "403", description = "Authenticated but not an admin")
     public ResponseEntity<Void> update(@RequestBody UpdateSiteTextRequest request,
                                        HttpServletRequest servletRequest) {
-        requireAdmin();
+        adminAccess.requireAdmin();
         siteTexts.update(request.texts());
         return ResponseEntity.noContent().build();
-    }
-
-    /** The fresh per-request ADMIN kind lookup (the AdminController idiom):
-        anonymous → 401, authenticated non-admin → 403. */
-    private void requireAdmin() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof Long userId)) {
-            throw new InvalidAccessTokenException("Authentication required");
-        }
-        if (!userRepository.isAdmin(userId)) {
-            throw new AdminAccessException("Admin access required");
-        }
     }
 
     /** A refused batch → the uniform 400 (the shared ApiErrorHandler keeps

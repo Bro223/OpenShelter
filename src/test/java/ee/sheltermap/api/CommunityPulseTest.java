@@ -8,6 +8,7 @@ import ee.sheltermap.app.InMemoryShelterOpenStatusRepository;
 import ee.sheltermap.app.InMemoryShelterRepository;
 import ee.sheltermap.app.InMemoryShelterReportRepository;
 import ee.sheltermap.app.InMemoryUserRepository;
+import ee.sheltermap.app.ReporterTrustEvaluator;
 import ee.sheltermap.app.ModerationAuditLog;
 import ee.sheltermap.domain.GeoPoint;
 import ee.sheltermap.domain.OccupancyBand;
@@ -69,7 +70,9 @@ class CommunityPulseTest {
         audit = new InMemoryModerationAuditLog(FIXED);
         infoRequests = new InMemoryShelterInfoRequestLog(FIXED);
         service = new ShelterQueryService(shelters, users, reports, occupancy,
-                openStatus, importLog, audit, infoRequests, FIXED);
+                openStatus, importLog, audit,
+                new ReporterTrustEvaluator(shelters, audit),
+                infoRequests, FIXED);
 
         shelter = new Shelter("Pulsed Shelter", new GeoPoint(59.4, 24.7), ShelterStatus.ACTIVE,
                 "ext-pulsed", ShelterSource.USER);

@@ -16,7 +16,6 @@ class ReporterTrustTest {
     void aFreshVerifiedAccountIsBaseline() {
         ReporterTrust trust = ReporterTrust.of(false, 0);
         assertThat(trust.weight()).isEqualTo(ReporterTrust.BASELINE);
-        assertThat(trust.isBaseline()).isTrue();
     }
 
     @Test
