@@ -5737,7 +5737,7 @@
     },
     "/api/guidance" : {
       "get" : {
-        "description" : "PUBLISHED only (drafts are invisible), ONE locale, pinned first, then publishedAt descending (id descending tie-break). The index does not carry the post body (bodyHtml is null). 200 with [] when nothing is published in the requested locale.",
+        "description" : "PUBLISHED only (drafts are invisible), ONE locale, pinned first, then sortOrder ascending (the stored manual order), then publishedAt descending (id descending tie-break). The index does not carry the post body (bodyHtml is null). 200 with [] when nothing is published in the requested locale. Optional limit (1..200) and offset (>= 0) page the stable index order; the X-Total-Count response header is the un-paged index length (always present).",
         "operationId" : "list_3",
         "parameters" : [ {
           "name" : "locale",
@@ -5746,6 +5746,24 @@
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = no paging (the whole index).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the stable index order: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         } ],
         "responses" : {
@@ -5760,7 +5778,17 @@
                 }
               }
             },
-            "description" : "The published posts of the requested locale (pinned first)"
+            "description" : "The published posts of the requested locale (pinned first), paged when limit/offset are given",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The number of published posts in the requested locale WITHOUT the paging applied.",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
@@ -5773,7 +5801,7 @@
                 }
               }
             },
-            "description" : "A blank or over-long locale (the column is VARCHAR(5))"
+            "description" : "A blank or over-long locale (the column is VARCHAR(5)), a limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {

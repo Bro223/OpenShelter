@@ -6,6 +6,7 @@ import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthStore } from '../../session/auth-store';
 import type { GuidancePostDto, VerificationLevel } from '../../core/models';
+import type { GuidancePageResult } from '../../gateways/guidance-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
@@ -14,13 +15,26 @@ import { GuidanceListPage } from './guidance-list-page';
 /** Hand-written fakes (01-TASK.md §8 — no mocking framework gymnastics). */
 class FakeGuidanceGateway {
   rows: GuidancePostDto[] = [];
-  /** When set, list() rejects with it (the error-state seam). */
+  /** When set, list/listPage rejects with it (the error-state seam). */
   failure: unknown = null;
   list = vi.fn(async (): Promise<GuidancePostDto[]> => {
     if (this.failure !== null) {
       throw this.failure;
     }
     return this.rows;
+  });
+  /**
+   * Server-style paging — the fake slices its full stable rows the way
+   * the endpoint does (offset/limit over the ordered index) and reports
+   * the UN-PAGED total (the X-Total-Count contract), so an out-of-range
+   * page answers empty posts + a positive total.
+   */
+  listPage = vi.fn(async (page: number, size: number): Promise<GuidancePageResult> => {
+    if (this.failure !== null) {
+      throw this.failure;
+    }
+    const offset = (page - 1) * size;
+    return { posts: this.rows.slice(offset, offset + size), total: this.rows.length };
   });
   getBySlug = vi.fn(async (): Promise<GuidancePostDto> => {
     throw new Error('getBySlug is not used by the list page');
@@ -140,7 +154,8 @@ describe('GuidanceListPage (/blog)', () => {
     ];
     const { element, fixture } = await open('/blog');
 
-    expect(guidanceGateway.list).toHaveBeenCalledTimes(1);
+    expect(guidanceGateway.listPage).toHaveBeenCalledTimes(1);
+    expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(1, 20);
     // One <h1> per page (the heading); each post row is an h2 link.
     const h1 = element.querySelector('h1');
     expect(h1?.textContent).toBe('Crisis guidance');
@@ -169,10 +184,10 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   it('shows a loading indicator while fetching, then the posts', async () => {
-    let resolveList!: (rows: GuidancePostDto[]) => void;
-    guidanceGateway.list = vi.fn(
+    let resolveList!: (result: GuidancePageResult) => void;
+    guidanceGateway.listPage = vi.fn(
       () =>
-        new Promise<GuidancePostDto[]>((resolve) => {
+        new Promise<GuidancePageResult>((resolve) => {
           resolveList = resolve;
         }),
     ) as never;
@@ -180,7 +195,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(text(fixture)).toContain('Loading guidance…');
     expect(fixture.nativeElement.querySelector('.guidance-list__posts')).toBeNull();
 
-    resolveList([guidancePost()]);
+    resolveList({ posts: [guidancePost()], total: 1 });
     await settle(fixture);
     expect(text(fixture)).toContain('Water and heating in the first days');
     expect(text(fixture)).not.toContain('Loading guidance…');
@@ -217,6 +232,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelector('.guidance-list__posts')).toBeNull();
     expect(element.querySelector('.guidance-list__empty')).toBeNull();
     expect(element.querySelector('h1')?.textContent).toBe('Crisis guidance');
+    void fixture;
   });
 
   // ---------------------------------------------------------------------------
@@ -228,7 +244,7 @@ describe('GuidanceListPage (/blog)', () => {
     it('refetches the index when the language switcher changes', async () => {
       guidanceGateway.rows = [guidancePost()];
       const { fixture } = await open('/blog');
-      expect(guidanceGateway.list).toHaveBeenCalledTimes(1);
+      expect(guidanceGateway.listPage).toHaveBeenCalledTimes(1);
 
       // The switcher sets the I18nService locale signal; the server then
       // answers the other language's posts, which the fake serves back.
@@ -238,21 +254,23 @@ describe('GuidanceListPage (/blog)', () => {
       TestBed.inject(I18nService).setLocale('et');
       await settle(fixture);
 
-      expect(guidanceGateway.list).toHaveBeenCalledTimes(2);
+      expect(guidanceGateway.listPage).toHaveBeenCalledTimes(2);
+      // The CURRENT page is re-fetched — page 1 at the default size.
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(1, 20);
       expect(text(fixture)).toContain('Vesi ja kuumus');
       expect(text(fixture)).not.toContain('Water and heating');
     });
 
     it('drops a superseded response — a stale locale must not land over the new fetch', async () => {
       // The first fetch (EN) hangs in flight...
-      let resolveFirst!: (rows: GuidancePostDto[]) => void;
+      let resolveFirst!: (result: GuidancePageResult) => void;
       const firstFetch = vi.fn(
         () =>
-          new Promise<GuidancePostDto[]>((resolve) => {
+          new Promise<GuidancePageResult>((resolve) => {
             resolveFirst = resolve;
           }),
       );
-      guidanceGateway.list = firstFetch as never;
+      guidanceGateway.listPage = firstFetch as never;
       const { fixture } = await open('/blog');
       expect(firstFetch).toHaveBeenCalledTimes(1);
       expect(text(fixture)).toContain('Loading guidance…');
@@ -261,25 +279,28 @@ describe('GuidanceListPage (/blog)', () => {
       // resolves. The NEW fetch resolves FIRST... (the switcher's signal
       // reaches the page through change detection, so settle before the
       // second fetch exists and its resolver is captured.)
-      let resolveSecond!: (rows: GuidancePostDto[]) => void;
+      let resolveSecond!: (result: GuidancePageResult) => void;
       const secondFetch = vi.fn(
         () =>
-          new Promise<GuidancePostDto[]>((resolve) => {
+          new Promise<GuidancePageResult>((resolve) => {
             resolveSecond = resolve;
           }),
       );
-      guidanceGateway.list = secondFetch as never;
+      guidanceGateway.listPage = secondFetch as never;
       TestBed.inject(I18nService).setLocale('et');
       await settle(fixture);
       expect(firstFetch).toHaveBeenCalledTimes(1);
       expect(secondFetch).toHaveBeenCalledTimes(1);
-      resolveSecond([guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })]);
+      resolveSecond({
+        posts: [guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })],
+        total: 1,
+      });
       await settle(fixture);
       expect(text(fixture)).toContain('Vesi ja kuumus');
 
       // ...and the STALE EN response lands LAST: the fetchSeq guard must
       // drop it — the Estonian rows stay on screen.
-      resolveFirst([guidancePost()]);
+      resolveFirst({ posts: [guidancePost()], total: 1 });
       await settle(fixture);
       expect(text(fixture)).toContain('Vesi ja kuumus');
       expect(text(fixture)).not.toContain('Water and heating');
@@ -302,8 +323,35 @@ describe('GuidanceListPage (/blog)', () => {
     // The no-layout-shift + lazy-load contract (the admin hero-thumb idiom).
     expect(img?.getAttribute('loading')).toBe('lazy');
     expect(img?.getAttribute('decoding')).toBe('async');
+    // IMAGE-CACHING CONTRACT (owner report: "guidance pages load images each
+    // visit"): the browser was already caching (immutable year-long
+    // Cache-Control pinned server-side in GuidanceAuthorizationIT; verified
+    // empirically — a reloaded page transfers 0 bytes for an already-seen
+    // hero). What the CLIENT controls is pinned here: the no-CLS width/height
+    // attributes match the aspect-ratio box, so the lazy decode/land never
+    // shifts the card.
+    expect(img?.getAttribute('width')).toBe('400');
+    expect(img?.getAttribute('height')).toBe('300');
     // The title stays the row's single link (no duplicate link to the post).
     expect(element.querySelectorAll('.guidance-list__posts a')).toHaveLength(1);
+  });
+
+  it('renders a stored /api/media URL verbatim — no query string or cache-buster', async () => {
+    // IMAGE-CACHING CONTRACT: the card thumbnail must hit the SAME browser
+    // cache entry as the detail hero. The stored reference (a generated
+    // 32-hex name, never reused, served immutable for a year) goes into src
+    // UNTOUCHED — no ?v= or any other query, no locale, no absolute origin.
+    // A URL that varies between renders would defeat the immutable cache and
+    // re-download the 1–3 MB original on every visit.
+    const mediaUrl = '/api/media/0123456789abcdef0123456789abcdef.jpg';
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: mediaUrl, heroImageAlt: 'A kettle on a camp stove' }),
+    ];
+    const { element } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img?.getAttribute('src')).toBe(mediaUrl);
+    expect(img?.getAttribute('src')?.includes('?')).toBe(false);
   });
 
   it('renders a placeholder box for a post without a hero, and still links its title', async () => {
@@ -404,5 +452,146 @@ describe('GuidanceListPage (/blog)', () => {
     const link = element.querySelector<HTMLAnchorElement>('.guidance-list__posts a');
     expect(link?.textContent).toBe('Water and heating in the first days');
     expect(link?.getAttribute('href')).toBe('/blog/water-and-heating');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Paging (guidance-index-paging / list-page-paging): the view is the URL
+  // (?page, ?size — defaults 1 and 20 omitted from the URL), the SERVER
+  // does the slicing, the control is pointless at one page, and an
+  // out-of-range page is an explicit state, never a bare empty list.
+  // ---------------------------------------------------------------------------
+  describe('paging', () => {
+    function manyPosts(n: number): GuidancePostDto[] {
+      return Array.from({ length: n }, (_, i) =>
+        guidancePost({ slug: `post-${i + 1}`, title: `Post ${i + 1}` }),
+      );
+    }
+
+    function navButtons(element: HTMLElement): HTMLButtonElement[] {
+      return Array.from(
+        (element.querySelector('nav.pagination') as HTMLElement).querySelectorAll('button'),
+      ) as HTMLButtonElement[];
+    }
+
+    it('hides the pagination control at one page (no pointless chrome)', async () => {
+      guidanceGateway.rows = manyPosts(15);
+      const { element } = await open('/blog');
+      expect(element.querySelectorAll('.guidance-post')).toHaveLength(15);
+      expect(element.querySelector('nav.pagination')).toBeNull();
+    });
+
+    it('renders the control at two pages: the status line, prev disabled on page one', async () => {
+      guidanceGateway.rows = manyPosts(25);
+      const { element } = await open('/blog');
+      const nav = element.querySelector('nav.pagination') as HTMLElement;
+      expect(nav).not.toBeNull();
+      expect(nav.getAttribute('aria-label')).toBe('Pages');
+      expect(nav.textContent).toContain('Page 1 of 2');
+      const [prev, next] = navButtons(element);
+      expect(prev.disabled).toBe(true);
+      expect(next.disabled).toBe(false);
+      // The size selector shows the effective (default) size.
+      const select = nav.querySelector('select') as HTMLSelectElement;
+      expect(select.value).toBe('20');
+    });
+
+    it('writes the page to the URL on next and fetches offset=(page-1)*size', async () => {
+      guidanceGateway.rows = manyPosts(25);
+      const { element, fixture } = await open('/blog');
+      const router = TestBed.inject(Router);
+
+      const [_, next] = navButtons(element);
+      next.click();
+      await settle(fixture);
+
+      expect(router.url).toBe('/blog?page=2');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 20);
+      // Page two shows the REMAINDER (5 of 25) and prev is now enabled.
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(5);
+      const [prev] = navButtons(fixture.nativeElement as HTMLElement);
+      expect(prev.disabled).toBe(false);
+    });
+
+    it('shows the honest out-of-range state for a page past the end — never a bare empty list', async () => {
+      guidanceGateway.rows = manyPosts(25); // 2 pages at 20
+      const { element, fixture } = await open('/blog?page=5');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(5, 20);
+
+      // The explicit notice with the real last page, not the empty state.
+      expect(element.querySelector('.guidance-list__oob')).not.toBeNull();
+      expect(element.querySelector('.guidance-list__empty')).toBeNull();
+      expect(text(fixture)).toContain('Page 5 does not exist — the index ends at page 2.');
+
+      // The first-page action returns to /blog and the first page's rows.
+      const button = element.querySelector<HTMLButtonElement>('.guidance-list__oob button');
+      if (!button) {
+        throw new Error('the out-of-range first-page action was not rendered');
+      }
+      button.click();
+      await settle(fixture);
+      expect(TestBed.inject(Router).url).toBe('/blog');
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(20);
+    });
+
+    it('keeps a non-default size in the URL and fetches with it', async () => {
+      guidanceGateway.rows = manyPosts(90);
+      const { element } = await open('/blog?size=50');
+      expect(TestBed.inject(Router).url).toBe('/blog?size=50');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(1, 50);
+      expect(element.querySelectorAll('.guidance-post')).toHaveLength(50);
+      // Two pages at 50; the selector shows the effective size.
+      const select = element.querySelector('nav.pagination select') as HTMLSelectElement;
+      expect(select.value).toBe('50');
+    });
+
+    it('clamps a size change that would strand the current page past the last one', async () => {
+      guidanceGateway.rows = manyPosts(90); // 9 pages at 10
+      const { element, fixture } = await open('/blog?page=9&size=10');
+      expect(TestBed.inject(Router).url).toBe('/blog?page=9&size=10');
+      expect(element.querySelectorAll('.guidance-post')).toHaveLength(10);
+
+      const select = element.querySelector('nav.pagination select') as HTMLSelectElement;
+      select.value = '50';
+      select.dispatchEvent(new Event('change'));
+      await settle(fixture);
+
+      // 90 rows at 50 = 2 pages: page 9 clamps to page 2 — never a dead page.
+      expect(TestBed.inject(Router).url).toBe('/blog?page=2&size=50');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 50);
+      expect((fixture.nativeElement as HTMLElement).querySelectorAll('.guidance-post')).toHaveLength(40);
+    });
+
+    it('normalizes a hand-typed size off the 10..100 step to the nearest member (replaceUrl)', async () => {
+      guidanceGateway.rows = manyPosts(45);
+      await open('/blog?size=37');
+      // 37 -> 40, written back in place (no history entry for the cosmetic fix).
+      expect(TestBed.inject(Router).url).toBe('/blog?size=40');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(1, 40);
+    });
+
+    it('normalizes a hand-typed page below 1 to the clean /blog URL', async () => {
+      guidanceGateway.rows = manyPosts(25);
+      await open('/blog?page=0');
+      expect(TestBed.inject(Router).url).toBe('/blog');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(1, 20);
+    });
+
+    it('refetches the CURRENT page on a locale switch (no URL change)', async () => {
+      guidanceGateway.rows = manyPosts(25);
+      const { fixture } = await open('/blog?page=2');
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 20);
+
+      guidanceGateway.rows = manyPosts(12); // ET has fewer posts
+      TestBed.inject(I18nService).setLocale('et');
+      await settle(fixture);
+
+      // The same page is re-fetched at the same size...
+      expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(2, 20);
+      // ...and 12 rows at 20 = 1 page: page 2 is now past the end, so the
+      // honest out-of-range state shows (in the NEW active locale — the
+      // switcher changed it to Estonian), not a bare empty list.
+      expect((fixture.nativeElement as HTMLElement).querySelector('.guidance-list__oob')).not.toBeNull();
+      expect(text(fixture)).toContain('Lehe 2 ei ole — nimestik lõppeb lehel 1.');
+    });
   });
 });

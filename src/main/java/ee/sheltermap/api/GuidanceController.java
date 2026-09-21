@@ -3,10 +3,12 @@ package ee.sheltermap.api;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.domain.PublicGuidanceView;
 import ee.sheltermap.guidance.GuidanceService;
+import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,37 +68,98 @@ public class GuidanceController {
 
     /**
      * The public index (D6): PUBLISHED only, ONE locale, pinned first,
-     * then {@code publishedAt} descending, id descending as the stable
-     * tie-break. 200 with {@code []} when nothing is published in that
+     * then {@code sortOrder} ascending (the stored manual order), then
+     * {@code publishedAt} descending and id descending as the stable
+     * tie-breakers. 200 with {@code []} when nothing is published in that
      * locale; 400 on a blank or over-long {@code locale}.
+     *
+     * <p>Paging (guidance-index-paging): the optional {@code limit} (1..200)
+     * / {@code offset} (>= 0) slice the STABLE index order — the slice runs
+     * last, over the ordered list, so consecutive pages tile the index
+     * without overlap or skips (the shelter list's offset/limit
+     * vocabulary). The {@code X-Total-Count} response header carries the
+     * UN-PAGED length of the locale's index — always present, so a paged
+     * client knows the page count and can tell "beyond the end" from
+     * "nothing published". Omitting both parameters answers exactly what
+     * the endpoint answered before (the same order and body; the header
+     * is additive). A limit outside 1..200 or a negative offset is a 400
+     * (the shelter list's paging vocabulary); an offset past the end is an
+     * empty page, never an error.
      */
     @GetMapping
     @Operation(summary = "The public guidance index",
             description = "PUBLISHED only (drafts are invisible), ONE locale, "
-                    + "pinned first, then publishedAt descending (id descending "
-                    + "tie-break). The index does not carry the post body "
+                    + "pinned first, then sortOrder ascending (the stored manual "
+                    + "order), then publishedAt descending (id descending tie-"
+                    + "break). The index does not carry the post body "
                     + "(bodyHtml is null). 200 with [] when nothing is published "
-                    + "in the requested locale.")
+                    + "in the requested locale. Optional limit (1..200) and "
+                    + "offset (>= 0) page the stable index order; the "
+                    + "X-Total-Count response header is the un-paged index "
+                    + "length (always present).")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "The published posts "
-                    + "of the requested locale (pinned first)", content = @Content(array = @ArraySchema(
+                    + "of the requested locale (pinned first), paged when limit/"
+                    + "offset are given", headers = {
+                    @Header(name = "X-Total-Count",
+                            description = "The number of published posts in the "
+                                    + "requested locale WITHOUT the paging applied.",
+                            schema = @Schema(type = "integer", format = "int32"))
+            }, content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = GuidancePostDto.class)))),
             @ApiResponse(responseCode = "400", description = "A blank or over-long "
-                    + "locale (the column is VARCHAR(5))")
+                    + "locale (the column is VARCHAR(5)), a limit outside 1..200, "
+                    + "or a negative offset")
     })
     @SecurityRequirements({})
-    public List<GuidancePostDto> list(
+    public ResponseEntity<List<GuidancePostDto>> list(
             @Parameter(description = "The reader's language (optional): only the "
                     + "published posts of this locale are returned. Absent = the "
                     + "server's default locale. Blank or more than 5 characters "
                     + "is a 400.")
-            @RequestParam(name = "locale", required = false) String locale) {
+            @RequestParam(name = "locale", required = false) String locale,
+            @Parameter(description = "Optional page size: 1..200; absent = no "
+                    + "paging (the whole index).")
+            @RequestParam(name = "limit", required = false) Integer limit,
+            @Parameter(description = "Optional offset into the stable index "
+                    + "order: >= 0; past the end answers an empty array.")
+            @RequestParam(name = "offset", required = false) Integer offset) {
         List<PublicGuidanceView> published = guidance.listPublic(locale);
-        // ONE library read for the hero URLs (no N+1 over the list).
+        int total = published.size();
+        // The slice runs LAST, over the stable order (guidance-index-paging).
+        List<PublicGuidanceView> page = GuidanceService.slice(
+                published, requireOffset(offset), requireLimit(limit));
+        // ONE library read for the hero URLs (no N+1 over the page).
         Map<Long, MediaAsset> heroes = heroIndex();
-        return published.stream()
+        List<GuidancePostDto> dtos = page.stream()
                 .map(view -> toDto(view, heroes))
                 .toList();
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(total))
+                .body(dtos);
+    }
+
+    /** The page-size bound (the shelter list's paging vocabulary, 1..200):
+     *  absent = no paging. */
+    private static Integer requireLimit(Integer limit) {
+        if (limit == null) {
+            return null;
+        }
+        if (limit < 1 || limit > 200) {
+            throw new GuidanceValidationException("limit must be between 1 and 200");
+        }
+        return limit;
+    }
+
+    /** The offset bound: absent = the first page. */
+    private static Integer requireOffset(Integer offset) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset < 0) {
+            throw new GuidanceValidationException("offset must be non-negative");
+        }
+        return offset;
     }
 
     /**

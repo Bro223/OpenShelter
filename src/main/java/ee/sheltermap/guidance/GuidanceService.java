@@ -190,6 +190,26 @@ public class GuidanceService {
     }
 
     /**
+     * The offset/limit slice over the stable index order
+     * (guidance-index-paging) — the shelter list's slice semantics
+     * verbatim: nulls mean "no paging" (the offset defaults to 0); an
+     * offset past the end answers an empty page, never an error. The
+     * bounds themselves (1..200, non-negative) are the controller's
+     * validation, so this never sees a bad value. Runs over the
+     * deterministic order (pinned first, manual order, timestamps, id),
+     * so consecutive pages tile the index without overlap or skips.
+     */
+    public static List<PublicGuidanceView> slice(
+            List<PublicGuidanceView> rows, Integer offset, Integer limit) {
+        int from = offset == null ? 0 : offset;
+        if (from >= rows.size()) {
+            return List.of();
+        }
+        int to = limit == null ? rows.size() : Math.min(rows.size(), from + limit);
+        return List.copyOf(rows.subList(from, to));
+    }
+
+    /**
      * The admin list (D3): every post, drafts included, in the stored
      * manual order ({@code sortOrder} ascending, id descending tie-break)
      * — the table is the live preview of the public order.

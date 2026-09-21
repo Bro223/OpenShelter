@@ -5,6 +5,36 @@ import { I18nService } from '../core/i18n/i18n.service';
 import type { GuidancePostDto } from '../core/models';
 
 /**
+ * The public index page (guidance-index-paging): one page's posts PLUS the
+ * un-paged total the server reports in X-Total-Count — the page count is
+ * derived from it, so an out-of-range page can be told apart from a truly
+ * empty index.
+ */
+export interface GuidancePageResult {
+  /** The posts of the requested page (empty when the page is past the end). */
+  posts: GuidancePostDto[];
+  /** The number of published posts in the active locale, WITHOUT paging. */
+  total: number;
+}
+
+/**
+ * The default page size of the /blog index (the owner's paging contract).
+ * The size selector offers 10..100 in steps of 10; 20 is the default and
+ * the only value the frontend ever sends when the URL carries no size.
+ */
+export const GUIDANCE_PAGE_SIZE = 20;
+
+/**
+ * The public index page bounds — the size selector offers exactly this
+ * range (10..100 in steps of 10), and the endpoint's limit bound (1..200)
+ * always honours it, so the control never offers a size the backend would
+ * refuse.
+ */
+export const GUIDANCE_PAGE_SIZES: number[] = [
+  10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
+];
+
+/**
  * The door to the public /api/guidance controller group (crisis-guidance
  * D3/D4): the /blog pages. Public read API — permit-all, no auth. Both
  * methods return typed promises and throw ApiError on failure (mapped
@@ -38,6 +68,32 @@ export class GuidanceGateway {
     return lastValueFrom(
       this.api.get<GuidancePostDto[]>(`/api/guidance?locale=${this.i18n.locale()}`),
     );
+  }
+
+  /**
+   * GET /api/guidance?locale=<active>&limit=<size>&offset=(page-1)*size ->
+   * GuidancePageResult — the PAGED public index (guidance-index-paging).
+   * The server slices its stable order (pinned first, then publishedAt
+   * descending, id descending tie-break); nothing is fetched-and-sliced
+   * client-side. The un-paged total comes back as the X-Total-Count
+   * response header (the body stays GuidancePostDto[], so a client that
+   * ignores the header keeps working); a missing/blank header degrades
+   * to the fetched page's own length, which makes out-of-range detection
+   * honest (such a page IS empty) rather than a bare empty list.
+   *
+   * <p>page is 1-based; size is one of {@link GUIDANCE_PAGE_SIZES}.
+   */
+  listPage(page: number, size: number): Promise<GuidancePageResult> {
+    const offset = (page - 1) * size;
+    return lastValueFrom(
+      this.api.getWithHeaders<GuidancePostDto[]>(
+        `/api/guidance?locale=${this.i18n.locale()}&limit=${size}&offset=${offset}`,
+      ),
+    ).then(({ body, headers }) => {
+      const rawTotal = headers.get('X-Total-Count');
+      const parsed = rawTotal === null ? NaN : Number(rawTotal);
+      return { posts: body, total: Number.isInteger(parsed) && parsed >= 0 ? parsed : body.length };
+    });
   }
 
   /**

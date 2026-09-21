@@ -387,6 +387,23 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       expect(img?.getAttribute('alt')).toBe('A shelter entrance in snow');
       // The stored alt is NOT the post title (which would duplicate the h1).
       expect(img?.getAttribute('alt')).not.toBe('Water and heating in the first days');
+      // IMAGE-CACHING CONTRACT (owner report: "guidance pages load images each
+      // visit"): the browser was already caching — the server serves the
+      // immutable year-long Cache-Control (pinned in GuidanceAuthorizationIT)
+      // and the URL is stable. What the CLIENT controls is pinned here so a
+      // future change cannot silently break that contract:
+      //  - src is the stored reference VERBATIM (the assertion above) — no
+      //    query string, no per-render token, no cache-buster. A varying URL
+      //    would defeat the immutable cache and re-download 1–3 MB originals.
+      //  - fetchpriority=high: the hero is the article's first content (above
+      //    the fold) — the browser must fetch it before the below-fold work.
+      //  - decoding=async + the width/height attributes (matching the 4/3
+      //    aspect-ratio box, 704x528): the decode stays off the critical path
+      //    and the title never shifts while the image loads (no CLS).
+      expect(img?.getAttribute('fetchpriority')).toBe('high');
+      expect(img?.getAttribute('decoding')).toBe('async');
+      expect(img?.getAttribute('width')).toBe('704');
+      expect(img?.getAttribute('height')).toBe('528');
       // The hero is the article's first content: above the title header,
       // and the title stays the page's single h1.
       expect(element.querySelector('h1')?.textContent).toBe(

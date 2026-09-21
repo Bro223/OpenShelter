@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpHeaders } from '@angular/common/http';
 import { of, throwError } from 'rxjs';
 import { ApiError } from '../core/api-error';
 import { ApiClient } from '../core/api-client';
@@ -35,11 +36,21 @@ const POST_NO_BODY: GuidancePostDto = {
 };
 
 /** Hand-written fake ApiClient — the gateway must only pick paths (01-TASK.md §8). */
+const NO_TOTAL = new HttpHeaders({});
+
 class FakeApiClient {
   get = vi.fn();
+  /** getWithHeaders: ({body, headers}) pairs, as the real client surfaces them. */
+  getWithHeaders = vi.fn();
   post = vi.fn();
   put = vi.fn();
   delete = vi.fn();
+
+  /** Emit a paged answer with an (optional) X-Total-Count header. */
+  emitPage(posts: GuidancePostDto[], total: number | null): void {
+    const headers = total === null ? NO_TOTAL : new HttpHeaders({ 'X-Total-Count': String(total) });
+    this.getWithHeaders.mockReturnValue(of({ body: posts, headers }));
+  }
 }
 
 describe('GuidanceGateway', () => {
@@ -136,5 +147,59 @@ describe('GuidanceGateway', () => {
     api.get.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.list()).rejects.toBe(failure);
+  });
+
+  it('listPage(1, 20) GETs the index with limit=20&offset=0 and reads the total from X-Total-Count', async () => {
+    api.emitPage([POST_NO_BODY], 27);
+
+    const result = await gateway.listPage(1, 20);
+
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/api/guidance?locale=en&limit=20&offset=0');
+    expect(result.posts).toEqual([POST_NO_BODY]);
+    expect(result.total).toBe(27);
+  });
+
+  it('listPage(2, 50) sends offset=(page-1)*size — the server does the slicing', async () => {
+    api.emitPage([POST], 123);
+
+    const result = await gateway.listPage(2, 50);
+
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/api/guidance?locale=en&limit=50&offset=50');
+    expect(result).toEqual({ posts: [POST], total: 123 });
+  });
+
+  it('listPage sends the ACTIVE locale after a language switch (a re-fetch of the page)', async () => {
+    api.emitPage([], 3);
+    i18n.setLocale('et');
+
+    await gateway.listPage(3, 10);
+
+    expect(api.getWithHeaders).toHaveBeenLastCalledWith('/api/guidance?locale=et&limit=10&offset=20');
+  });
+
+  it('listPage degrades to the page\'s own length when X-Total-Count is missing (out-of-range stays honest)', async () => {
+    api.emitPage([POST_NO_BODY, POST], null);
+
+    const result = await gateway.listPage(1, 20);
+
+    expect(result.total).toBe(2);
+  });
+
+  it('listPage rejects with ApiError on a server failure (400)', async () => {
+    const failure = ApiError.fromHttp(
+      400,
+      {
+        timestamp: 't',
+        status: 400,
+        error: 'Bad Request',
+        message: 'limit must be between 1 and 200',
+        path: '/api/guidance',
+      },
+      '/api/guidance',
+    );
+    api.getWithHeaders.mockReturnValue(throwError(() => failure));
+
+    await expect(gateway.listPage(1, 300)).rejects.toBe(failure);
   });
 });

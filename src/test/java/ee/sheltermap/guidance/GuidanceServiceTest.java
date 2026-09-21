@@ -1272,6 +1272,58 @@ class GuidanceServiceTest {
         assertThat(posts.findAllForAdmin()).isEmpty();
     }
 
+    // ------------------------------------------------------------- paging (guidance-index-paging)
+
+    /** Three published posts -> three index views in the service order. */
+    private List<PublicGuidanceView> threeViews() {
+        for (String title : List.of("Slice A", "Slice B", "Slice C")) {
+            GuidancePost post = service.create(ADMIN_ID, title, null, "<p>b</p>",
+                    null, false, null, null, null, null);
+            service.publish(ADMIN_ID, post.getId());
+        }
+        return service.listPublic(null);
+    }
+
+    @Test
+    void sliceWithNoPagingParamsAnswersTheWholeList() {
+        List<PublicGuidanceView> rows = threeViews();
+        assertThat(GuidanceService.slice(rows, null, null))
+                .extracting(PublicGuidanceView::getId)
+                .containsExactlyElementsOf(rows.stream().map(PublicGuidanceView::getId).toList());
+    }
+
+    @Test
+    void slicePagesTheStableOrderAndTilesWithoutOverlapOrSkips() {
+        List<PublicGuidanceView> rows = threeViews();
+        assertThat(GuidanceService.slice(rows, 0, 2))
+                .extracting(PublicGuidanceView::getId)
+                .containsExactly(rows.get(0).getId(), rows.get(1).getId());
+        assertThat(GuidanceService.slice(rows, 2, 2))
+                .extracting(PublicGuidanceView::getId)
+                .containsExactly(rows.get(2).getId());
+        assertThat(GuidanceService.slice(rows, 1, null))
+                .extracting(PublicGuidanceView::getId)
+                .containsExactly(rows.get(1).getId(), rows.get(2).getId());
+    }
+
+    @Test
+    void sliceWithAnOffsetPastTheEndAnswersEmptyNeverAnError() {
+        List<PublicGuidanceView> rows = threeViews();
+        assertThat(GuidanceService.slice(rows, 3, 10)).isEmpty();
+        assertThat(GuidanceService.slice(rows, 100, null)).isEmpty();
+        // (no explicit type argument: target typing infers it, and the
+        // explicit form trips javac's parser in argument position)
+        assertThat(GuidanceService.slice(List.of(), 0, 10)).isEmpty();
+    }
+
+    @Test
+    void sliceWithALimitPastTheEndAnswersTheRemainder() {
+        List<PublicGuidanceView> rows = threeViews();
+        assertThat(GuidanceService.slice(rows, 0, 99))
+                .extracting(PublicGuidanceView::getId)
+                .containsExactly(rows.get(0).getId(), rows.get(1).getId(), rows.get(2).getId());
+    }
+
     // ------------------------------------------------------------- audit (D12)
 
     private void assertLabeledRow(ModerationAuditLog.Row row, ModerationAuditLog.Action action, String label) {

@@ -92,6 +92,22 @@
   margin: 0;
 }
 
+/* The honest out-of-range state (guidance-index-paging): the URL asks
+   for a page past the end of a NON-EMPTY index. Centered notice +
+   action, styled as a state (not an error) — the content exists, the
+   requested view does not. */
+.guidance-list__oob {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+  color: var(--color-muted);
+
+  p {
+    margin: 0;
+  }
+}
+
 /* The shared loading indicator's page-scoped slot (the detail-state
    pattern of the shelter detail page). */
 .guidance-state {

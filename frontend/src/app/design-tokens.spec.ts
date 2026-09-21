@@ -781,10 +781,20 @@ describe('design tokens (M6)', () => {
     // reported: the rule breaking near the middle of the row). The flex
     // layout must therefore stay on the inner .admin-cell__*-body
     // wrapper, never on the td itself.
+    // The table/cell rules are the shared admin surface — the single
+    // source is the _admin-shared.scss partial (@used by the page and
+    // every tab panel), so the check reads both files; the <td> scan
+    // covers every admin template that renders table rows.
     const adminScss = withoutCssComments(
-      readFileSync(`${SRC_DIR}/app/features/admin/admin-page.scss`, 'utf8'),
+      [
+        readFileSync(`${SRC_DIR}/app/features/admin/admin-page.scss`, 'utf8'),
+        readFileSync(`${SRC_DIR}/app/features/admin/_admin-shared.scss`, 'utf8'),
+      ].join('\n'),
     );
-    const adminHtml = readFileSync(`${SRC_DIR}/app/features/admin/admin-page.html`, 'utf8');
+    const adminHtml = [
+      readFileSync(`${SRC_DIR}/app/features/admin/admin-page.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/guidance-order-list.html`, 'utf8'),
+    ].join('\n');
 
     // Each rule extracted by brace balancing, comments stripped: the
     // old unbounded regexes matched outside the rule they claimed to
@@ -792,8 +802,8 @@ describe('design tokens (M6)', () => {
     // the .admin-queue-row rule's identical border-bottom satisfied
     // them after the real declarations were deleted.
     const tableRule = balancedBlock(adminScss, /^\.admin-table \{$/);
-    expect(tableRule, 'admin-page.scss must collapse the .admin-table borders').not.toBeNull();
-    expect(tableRule, 'admin-page.scss must collapse the .admin-table borders').toContain(
+    expect(tableRule, 'the admin scss must collapse the .admin-table borders').not.toBeNull();
+    expect(tableRule, 'the admin scss must collapse the .admin-table borders').toContain(
       'border-collapse: collapse',
     );
     const cellRule = balancedBlock(tableRule!, /^\s*th,\s*$/);

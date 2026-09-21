@@ -12,6 +12,20 @@
 
   @if (loading()) {
     <app-loading-indicator class="guidance-state" [message]="'guidance.loading' | t" />
+  } @else if (outOfRange()) {
+    <!-- The honest out-of-range state (guidance-index-paging): the URL
+         asks for a page past the end of a NON-EMPTY index — a hand-typed
+         number, a stale shared link, or a locale switch that shrank the
+         index. Explicit translated notice + first-page action; the empty
+         state below is total === 0 only, never this. -->
+    <div class="guidance-list__oob" role="status">
+      <p>
+        {{ 'guidance.pageOutOfRange' | t: { page: page(), pages: pages() } }}
+      </p>
+      <button type="button" class="btn btn--primary" (click)="gotoFirstPage()">
+        {{ 'guidance.pageFirst' | t }}
+      </button>
+    </div>
   } @else if (posts(); as list) {
     @if (list.length === 0) {
       <p class="guidance-list__empty">{{ 'guidance.empty' | t }}</p>
@@ -71,6 +85,17 @@
           </li>
         }
       </ul>
+
+      <!-- The shared page + size control (list-page-paging). It renders
+           NOTHING at one page or an empty list (pages() < 2), so the
+           chrome never appears when it would be pointless. -->
+      <app-pagination
+        [page]="page()"
+        [pages]="pages()"
+        [size]="size()"
+        [sizes]="pageSizes"
+        (onNavigate)="onNavigate($event)"
+      />
     }
   }
 </section>
