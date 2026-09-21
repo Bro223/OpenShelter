@@ -1963,6 +1963,60 @@ describe('AdminPage', () => {
     expect(publicGuidance.list).toHaveBeenCalledTimes(2);
   });
 
+  // ---- stylesheet pins (the admin stylesheet split) ---------------------------
+  // The admin-page.scss -> shared-partial split silently DROPPED the
+  // content-language select's rules (a bare native <select> rendered in
+  // the styled admin surface — the owner-reported breakage). Text-level
+  // pins so a future move cannot drop the styling again without a red
+  // spec (nothing in the DOM suite can see a missing stylesheet rule).
+
+  it('the content-language select keeps the app input idiom (admin-page.scss)', () => {
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+      'utf8',
+    );
+    const block = scss.match(/\.admin-guidance-language \{[\s\S]*?\n\}/);
+    expect(block, 'admin-page.scss must keep the .admin-guidance-language rule').not.toBeNull();
+    const rule = block![0];
+    expect(rule, 'the language block stays width-capped').toMatch(/max-width: 420px/);
+    expect(rule, 'the language block leaves room before the list below').toMatch(
+      /margin-bottom: var\(--space-8\)/,
+    );
+    const select = rule.match(/\n  select \{[\s\S]*?\n  \}/);
+    expect(select, '.admin-guidance-language must style its <select>').not.toBeNull();
+    expect(select![0], 'the select keeps the 48px target').toMatch(/min-height: 48px/);
+    expect(select![0], 'the select inherits the app font').toMatch(/font: inherit/);
+    expect(select![0], 'the select takes the app border').toMatch(
+      /border: 1px solid var\(--color-border\)/,
+    );
+    expect(select![0]).toMatch(/border-radius: var\(--radius-md\)/);
+    expect(select![0]).toMatch(/background: var\(--color-bg-surface\)/);
+    expect(select![0], 'the select never renders on the UA default background').toMatch(
+      /color: inherit/,
+    );
+  });
+
+  it('the active tab fills primary without a ghost border or off-contract text (admin-page.scss)', () => {
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+      'utf8',
+    );
+    const block = scss.match(/\.admin-tab--active \{[\s\S]*?\n\}/);
+    expect(block, 'admin-page.scss must keep the .admin-tab--active rule').not.toBeNull();
+    const rule = block![0];
+    // The tab is a ghost button: without this the ghost border rims the
+    // primary fill.
+    expect(rule, 'the active tab must hide the ghost border').toMatch(/border-color: transparent/);
+    // Text on primary is --color-bg-surface (the token contract for text
+    // on the primary fill). An undefined var() — the split's
+    // --color-text-inverse — silently falls back to the inherited text
+    // colour and breaks the light theme's contrast.
+    expect(rule, 'the active tab text follows the text-on-primary contract').toMatch(
+      /color: var\(--color-bg-surface\)/,
+    );
+    expect(rule, 'no undefined --color-text-inverse token').not.toMatch(/--color-text-inverse/);
+  });
+
   // ---- the pending hero import (guidance-hero-import) --------------------------
   // The publish call IS the import: the server fetches, validates and
   // stores the draft's heroImportUrl inside it. The 204 carries no body,

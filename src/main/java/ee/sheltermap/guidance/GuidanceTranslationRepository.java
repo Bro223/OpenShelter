@@ -42,6 +42,13 @@ public interface GuidanceTranslationRepository {
     List<GuidanceTranslation> findAllByLocale(String locale);
 
     /**
+     * EVERY translation row, in ANY locale (the unscoped admin list's
+     * search — admin-guidance-search: a locale-absent query matches any of
+     * the post's locale content). Deterministic (post_id, id) order.
+     */
+    List<GuidanceTranslation> findAll();
+
+    /**
      * Every translation row holding a slug, in ANY locale, deterministic
      * (locale, id) order. The public detail resolves a URL slug through this —
      * a slug is unique within a locale, so a well-formed slug names exactly one

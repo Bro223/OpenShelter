@@ -6,10 +6,12 @@ import ee.sheltermap.domain.GuidanceTranslation;
 import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.GuidanceNotFoundException;
 import ee.sheltermap.guidance.GuidanceService;
+import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +20,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -108,32 +111,142 @@ public class AdminGuidanceController {
                     + "`locale` names the content locale, `homeLocale` the post's own). The "
                     + "stored (sanitized) bodyHtml is returned — the editor round-trips what "
                     + "is stored. An empty scope is an empty list; a present but blank or "
-                    + "over-long locale is 400.")
+                    + "over-long locale is 400. Optional q (case-insensitive substring over "
+                    + "the list's title and tag-stripped body) and limit (1..200) / offset "
+                    + "(>= 0) slice the (filtered) stored manual order; the X-Total-Count "
+                    + "response header is the filter length WITHOUT paging (always present).")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "All posts (unscoped) or the "
-                    + "locale's posts (scoped), drafts included, in the stored manual order",
-                    content = @Content(array =
+                    + "locale's posts (scoped), drafts included, in the stored manual order, "
+                    + "search-filtered and paged when q/limit/offset are given", headers = {
+                    @Header(name = "X-Total-Count",
+                            description = "The number of posts in the (search-filtered) scope "
+                                    + "WITHOUT the paging applied.",
+                            schema = @Schema(type = "integer", format = "int32"))
+            }, content = @Content(array =
                     @ArraySchema(schema = @Schema(implementation = AdminGuidancePostDto.class)))),
-            @ApiResponse(responseCode = "400", description = "A present but blank or over-long locale"),
+            @ApiResponse(responseCode = "400", description = "A present but blank or over-long "
+                    + "locale, an over-long q, a limit outside 1..200, or a negative offset"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
-    public List<AdminGuidancePostDto> list(
+    public ResponseEntity<List<AdminGuidancePostDto>> list(
             @Parameter(description = "Optional: the active UI language (admin-locale-scope) — "
                     + "only the posts that have content in it are returned. Absent = every "
                     + "post (the legacy locale-blind list).")
-            @RequestParam(required = false) String locale) {
+            @RequestParam(required = false) String locale,
+            @Parameter(description = "Optional case-insensitive substring over the list's "
+                    + "title and TAG-STRIPPED body (search what you see): scoped (?locale=) "
+                    + "it matches the locale's rendered content, absent it matches ANY of "
+                    + "the post's locale content. Blank/absent = no filter; over 200 "
+                    + "characters is a 400.")
+            @RequestParam(required = false) String q,
+            @Parameter(description = "Optional page size: 1..200; absent = no paging (the "
+                    + "whole filtered scope).")
+            @RequestParam(required = false) Integer limit,
+            @Parameter(description = "Optional offset into the (filtered) stored manual "
+                    + "order: >= 0; past the end answers an empty array.")
+            @RequestParam(required = false) Integer offset) {
         adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
-        List<GuidancePost> all = resolved == null
-                ? guidance.listForAdmin()
-                : guidance.listForAdmin(resolved);
-        Map<Long, GuidanceTranslation> content = resolved == null
+        String query = requireSearch(q);
+        boolean scoped = resolved != null;
+        List<GuidancePost> all = scoped
+                ? guidance.listForAdmin(resolved)
+                : guidance.listForAdmin();
+        Map<Long, GuidanceTranslation> content = scoped
+                ? guidance.translationsInLocale(resolved)
+                : Map.of();
+        // Unscoped search matches ANY locale content: every translation row,
+        // keyed by post (one query, no per-post loop). Scoped search only
+        // needs the locale's row (or the home columns) — already in `content`.
+        Map<Long, List<GuidanceTranslation>> allTranslations = scoped
                 ? Map.of()
-                : guidance.translationsInLocale(resolved);
+                : guidance.translationsByPost();
         Map<Long, MediaAsset> heroes = heroIndex(all);
-        return all.stream()
+        // The search filter runs over the RENDERED content, in the stored
+        // manual order — the order is UNCHANGED, so search and reorder
+        // never fight over sorting.
+        List<GuidancePost> filtered = all.stream()
+                .filter(post -> matchesPost(post, content.get(post.getId()),
+                        allTranslations, scoped, query))
+                .toList();
+        int total = filtered.size();
+        // The slice runs LAST, over the (filtered) stored manual order.
+        List<GuidancePost> paged = GuidanceService.slice(filtered,
+                requireOffset(offset), requireLimit(limit));
+        List<AdminGuidancePostDto> dtos = paged.stream()
                 .map(post -> toAdminDto(post, heroes, content.get(post.getId())))
                 .toList();
+        return ResponseEntity.ok()
+                .header("X-Total-Count", String.valueOf(total))
+                .body(dtos);
+    }
+
+    /**
+     * Does a post match the search term? Scoped: the list renders the
+     * locale's content (the translation row, or the home columns when the
+     * post's home IS the locale) — match exactly that. Unscoped: match the
+     * home columns OR any translation row. A null needle is no filter.
+     */
+    private static boolean matchesPost(GuidancePost post, GuidanceTranslation scopedContent,
+                                       Map<Long, List<GuidanceTranslation>> allTranslations,
+                                       boolean scoped, String query) {
+        if (query == null) {
+            return true;
+        }
+        if (scoped) {
+            String title = scopedContent != null ? scopedContent.getTitle() : post.getTitle();
+            String body = scopedContent != null ? scopedContent.getBodyHtml() : post.getBodyHtml();
+            return GuidanceService.matchesSearch(title, body, query);
+        }
+        if (GuidanceService.matchesSearch(post.getTitle(), post.getBodyHtml(), query)) {
+            return true;
+        }
+        for (GuidanceTranslation row : allTranslations.getOrDefault(post.getId(), List.of())) {
+            if (GuidanceService.matchesSearch(row.getTitle(), row.getBodyHtml(), query)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The search-term bound (admin-guidance-search): absent/blank = no
+     *  filter (the public {@code q}-less behaviour — never a 400); a
+     *  present-but-over-long value is a 400 (the uniform vocabulary, the
+     *  locale bound's shape). */
+    private static String requireSearch(String q) {
+        if (q == null || q.isBlank()) {
+            return null;
+        }
+        String trimmed = q.trim();
+        if (trimmed.length() > GuidanceService.MAX_SEARCH_LENGTH) {
+            throw new GuidanceValidationException("q must be at most "
+                    + GuidanceService.MAX_SEARCH_LENGTH + " characters");
+        }
+        return trimmed;
+    }
+
+    /** The page-size bound (the public guidance's paging vocabulary, 1..200):
+     *  absent = no paging. */
+    private static Integer requireLimit(Integer limit) {
+        if (limit == null) {
+            return null;
+        }
+        if (limit < 1 || limit > 200) {
+            throw new GuidanceValidationException("limit must be between 1 and 200");
+        }
+        return limit;
+    }
+
+    /** The offset bound: absent = the first page. */
+    private static Integer requireOffset(Integer offset) {
+        if (offset == null) {
+            return null;
+        }
+        if (offset < 0) {
+            throw new GuidanceValidationException("offset must be non-negative");
+        }
+        return offset;
     }
 
     /**

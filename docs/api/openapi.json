@@ -2459,7 +2459,7 @@
     },
     "/admin/guidance" : {
       "get" : {
-        "description" : "Every post, drafts included, in the stored manual order. With ?locale= (admin-locale-scope) only the posts that have content in that locale are returned — a translation row there, or the post's home locale being it — carrying that locale's title/slug/body/alt (the DTO's `locale` names the content locale, `homeLocale` the post's own). The stored (sanitized) bodyHtml is returned — the editor round-trips what is stored. An empty scope is an empty list; a present but blank or over-long locale is 400.",
+        "description" : "Every post, drafts included, in the stored manual order. With ?locale= (admin-locale-scope) only the posts that have content in that locale are returned — a translation row there, or the post's home locale being it — carrying that locale's title/slug/body/alt (the DTO's `locale` names the content locale, `homeLocale` the post's own). The stored (sanitized) bodyHtml is returned — the editor round-trips what is stored. An empty scope is an empty list; a present but blank or over-long locale is 400. Optional q (case-insensitive substring over the list's title and tag-stripped body) and limit (1..200) / offset (>= 0) slice the (filtered) stored manual order; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
         "operationId" : "list_2",
         "parameters" : [ {
           "name" : "locale",
@@ -2468,6 +2468,32 @@
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "name" : "q",
+          "in" : "query",
+          "description" : "Optional case-insensitive substring over the list's title and TAG-STRIPPED body (search what you see): scoped (?locale=) it matches the locale's rendered content, absent it matches ANY of the post's locale content. Blank/absent = no filter; over 200 characters is a 400.",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = no paging (the whole filtered scope).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the (filtered) stored manual order: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         } ],
         "responses" : {
@@ -2482,7 +2508,17 @@
                 }
               }
             },
-            "description" : "All posts (unscoped) or the locale's posts (scoped), drafts included, in the stored manual order"
+            "description" : "All posts (unscoped) or the locale's posts (scoped), drafts included, in the stored manual order, search-filtered and paged when q/limit/offset are given",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The number of posts in the (search-filtered) scope WITHOUT the paging applied.",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
@@ -2495,7 +2531,7 @@
                 }
               }
             },
-            "description" : "A present but blank or over-long locale"
+            "description" : "A present but blank or over-long locale, an over-long q, a limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {

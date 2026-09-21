@@ -13,8 +13,6 @@
 
 .admin {
   padding: var(--space-8) var(--space-16);
-  max-width: var(--content-width);
-  margin: 0 auto;
 }
 
 /* The tab row: a scrollable row of chips (mobile: the tabs scroll, the
@@ -30,11 +28,16 @@
 
 .admin-tab--active {
   background: var(--color-primary);
-  color: var(--color-text-inverse);
+  /* The tab is a ghost button: without this the ghost border rims the
+     primary fill (pre-extraction behaviour, lost in the stylesheet split).
+     Text on primary is --color-bg-surface (the token contract for text on
+     the primary fill). */
+  border-color: transparent;
+  color: var(--color-bg-surface);
 
   &:hover:not(:disabled) {
     background: var(--color-primary-hover);
-    color: var(--color-text-inverse);
+    color: var(--color-bg-surface);
   }
 }
 
@@ -71,7 +74,8 @@
    (inputs/labels) style its fields. The primary border on :focus-within
    is the app-wide form-focus language (the same as .map-cta__form). */
 .admin-editor {
-  border: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-16);
   margin-bottom: var(--space-16);
@@ -94,11 +98,19 @@
   flex-direction: column;
   gap: var(--space-8);
   cursor: pointer;
-  transition: background var(--transition-fast);
 
+  /* Hover/drag fill: the app's neutral hover-fill token (defined in both
+     themes). The pre-fix --color-primary-bg did not exist, so the hover
+     fill was silently invalid. */
   &:hover,
   &--drag {
-    background: var(--color-primary-bg);
+    background: var(--color-surface-hover);
+  }
+
+  /* The accepted-types hint: reset the <p>'s UA margins (the column gap
+     owns the spacing — the pre-extraction rule's job was this same reset). */
+  &__hint {
+    margin: 0;
   }
 }
 
@@ -176,16 +188,35 @@
   opacity: 0.65;
 }
 
-/* The content-language select's scope note (admin-locale-scope): a muted
-   hint under the select — the chosen language scopes the whole tab,
-   not just this form. */
+/* The content-language select (admin-locale-scope): the ONE admin-controlled
+   language that scopes this tab's list, editor and reorders. The select is
+   styled to the app's input idiom (a bare native <select> reads broken
+   against the admin surface) and the block is width-capped so it doesn't
+   stretch full-width. A muted hint under the select says the chosen language
+   scopes the whole tab, not just this form. */
 .admin-guidance-language {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  max-width: 420px;
+  margin-bottom: var(--space-8);
+
+  /* The app's input idiom — the stylesheet split lost this rule; the
+     pre-extraction tokens --radius/--color-surface no longer exist in the
+     token set, so the restored rule names their current equivalents,
+     --radius-md and --color-bg-surface. */
+  select {
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    font: inherit;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: inherit;
+  }
 }
 
 .admin-guidance-language__hint {
-  font-size: var(--text-xs);
+  margin: 0;
   color: var(--color-muted);
+  font-size: var(--text-sm);
 }

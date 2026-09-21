@@ -138,7 +138,10 @@
   }
 
   textarea {
-    min-height: var(--space-96);
+    /* 96px (4 rows of comfortable reason text) — the pre-extraction
+       --space-96 token never existed in the token set; plain px keeps the
+       same geometry. */
+    min-height: 96px;
     resize: vertical;
     font-size: var(--text-base);
   }

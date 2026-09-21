@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.Objects;
@@ -115,6 +116,45 @@ public class GuidanceService {
     /** The locale column width (V23 {@code guidance_posts.locale VARCHAR(5)}) — the service bound. */
     public static final int MAX_LOCALE_LENGTH = 5;
 
+    /** The admin search-term bound (admin-guidance-search): a present q over this is a 400. */
+    public static final int MAX_SEARCH_LENGTH = 200;
+
+    /**
+     * The body's searchable text (admin-guidance-search): every HTML tag
+     * stripped, the remaining whitespace collapsed to single spaces, the
+     * ends trimmed. {@code <p>hello</p>} -> "hello" — a search for markup
+     * is not a feature (the sanitizer keeps only the allowed tags, so a
+     * stripped body is the reader's text). Null-safe (null -> "").
+     */
+    public static String searchableBody(String bodyHtml) {
+        if (bodyHtml == null) {
+            return "";
+        }
+        return bodyHtml.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    /**
+     * The admin list's search match (admin-guidance-search): a case-
+     * insensitive SUBSTRING over the title and the tag-stripped body — no
+     * ranking, no fuzzy matching. A blank/absent needle matches everything
+     * (no filter: the public {@code q}-less behaviour, never a 400).
+     * The caller passes the SAME title/body the list renders (the scoped
+     * locale's row or the home columns), so search matches what you see.
+     */
+    public static boolean matchesSearch(String title, String bodyHtml, String needle) {
+        if (needle == null || needle.isBlank()) {
+            return true;
+        }
+        String n = needle.trim().toLowerCase(Locale.ROOT);
+        if (n.isEmpty()) {
+            return true;
+        }
+        if (title != null && title.toLowerCase(Locale.ROOT).contains(n)) {
+            return true;
+        }
+        return searchableBody(bodyHtml).toLowerCase(Locale.ROOT).contains(n);
+    }
+
     /** The pending-import URL column width (V25 {@code hero_import_url VARCHAR(2048)}). */
     public static final int MAX_HERO_IMPORT_URL_LENGTH = 2048;
 
@@ -190,17 +230,17 @@ public class GuidanceService {
     }
 
     /**
-     * The offset/limit slice over the stable index order
-     * (guidance-index-paging) — the shelter list's slice semantics
-     * verbatim: nulls mean "no paging" (the offset defaults to 0); an
-     * offset past the end answers an empty page, never an error. The
+     * The offset/limit slice over a stable order — the shelter list's slice
+     * semantics verbatim: nulls mean "no paging" (the offset defaults to 0);
+     * an offset past the end answers an empty page, never an error. The
      * bounds themselves (1..200, non-negative) are the controller's
-     * validation, so this never sees a bad value. Runs over the
-     * deterministic order (pinned first, manual order, timestamps, id),
-     * so consecutive pages tile the index without overlap or skips.
+     * validation, so this never sees a bad value. Runs over whatever
+     * deterministic order the caller hands it (the public index's pinned-
+     * first order; the admin list's stored manual order), so consecutive
+     * pages tile the list without overlap or skips. Element-agnostic
+     * (the public index and the admin list both slice through it).
      */
-    public static List<PublicGuidanceView> slice(
-            List<PublicGuidanceView> rows, Integer offset, Integer limit) {
+    public static <T> List<T> slice(List<T> rows, Integer offset, Integer limit) {
         int from = offset == null ? 0 : offset;
         if (from >= rows.size()) {
             return List.of();
@@ -266,6 +306,23 @@ public class GuidanceService {
         Map<Long, GuidanceTranslation> byPost = new LinkedHashMap<>();
         for (GuidanceTranslation row : translations.findAllByLocale(requested)) {
             byPost.put(row.getPostId(), row);
+        }
+        return byPost;
+    }
+
+    /**
+     * Every translation row, keyed by the owning post id (the UNscoped
+     * admin list's search — admin-guidance-search: with no {@code ?locale=}
+     * the search matches ANY of the post's locale content, any translation
+     * row's title or body). One query, no per-post loop. A post's HOME
+     * columns are matched separately by the caller (the V26 invariant keeps
+     * the home row in sync, but the missing-row anomaly is still covered).
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, List<GuidanceTranslation>> translationsByPost() {
+        Map<Long, List<GuidanceTranslation>> byPost = new LinkedHashMap<>();
+        for (GuidanceTranslation row : translations.findAll()) {
+            byPost.computeIfAbsent(row.getPostId(), k -> new ArrayList<>()).add(row);
         }
         return byPost;
     }
