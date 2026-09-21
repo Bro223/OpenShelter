@@ -43,7 +43,8 @@ export const BLACK_AND_YELLOW_THEME = 'black-and-yellow';
  *   registry #7ab8ff  on badge #14263a  7.4:1 (the badge fill reuses the
  *                                        high-contrast dark tint — the
  *                                        verified pair)
- *   new     #ffb84d   black on it    12.22:1
+ *   new     #ffd400   black on it    14.67:1 (= the verified value — the
+ *                                yellow family is ONE value, owner decision)
  *   pick    #4dd0c4   on #000        10.9:1 (the selected-point pin)
  *   info    #8ac6f5   on #000        11.7:1
  *   border  #8a7400   vs #000        4.58:1 (UI boundary ≥ 3:1)
@@ -109,10 +110,11 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-chrome-focus': '#ffd400',
   '--color-chrome-active': '#ffd400',
   '--color-chrome-border': '#8a7400',
-  /* CTA + reported + new (the fills carry BLACK text — --color-bg-surface) */
+  /* CTA + reported + new (the CTA/reported fills carry BLACK text —
+     --color-bg-surface; new is unified with the verified yellow) */
   '--color-cta': '#ff9f1c',
   '--color-reported': '#ff6b4d',
-  '--color-new': '#ffb84d',
+  '--color-new': '#ffd400', /* ONE value with --color-verified — the unified yellow family */
   /* Submitter-verified marker fill (submitter-verification-badge) — the same
      name as :root, so the theme layers stay in lockstep (design-tokens.spec
      asserts both directions). */

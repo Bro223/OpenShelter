@@ -22,14 +22,15 @@ import type {
  * now runs through the CATALOG. Each copy function takes an optional
  * trailing `translate` callback — the same seam error-copy.ts's
  * bannerMessage() uses. Public pages pass `(key, params) => i18n.t(key,
- * params)` (the active locale); callers that pass none get the EN
- * catalog value, byte-identical to the old hardcoded literals, so the
- * admin surface (still un-routed) keeps its current copy. The nine
- * strings that already had translated catalog twins — the trust-state
- * labels, the two registry labels, the inaccurate warning and the three
- * FIRM band heads — REUSE those keys (account.contrib.* / detail.band.*),
- * never a duplicate: one fact can no longer read in two languages inside
- * one view.
+ * params)` (the active locale); the admin list passes it too (P1-4
+ * closed — the moderation surface reads in the moderator's language);
+ * callers that pass none get the EN catalog value, byte-identical to
+ * the old hardcoded literals (spec fakes and any future un-routed call
+ * site keep their current copy). The nine strings that already had
+ * translated catalog twins — the trust-state labels, the two registry
+ * labels, the inaccurate warning and the three FIRM band heads — REUSE
+ * those keys (account.contrib.* / detail.band.*), never a duplicate: one
+ * fact can no longer read in two languages inside one view.
  */
 
 /** The i18n seam (the error-copy.ts precedent): the active-locale
@@ -101,8 +102,9 @@ export function verificationTone(shelter: {
 /**
  * The community trust-state label (community-review-queue D5): a USER row
  * says what it IS in the trust lifecycle:
- *   NEW       -> "Newly added"       (amber marker treatment)
- *   CONFIRMED -> "Community-checked" (green marker treatment)
+ *   NEW       -> "Newly added"       (unified yellow marker treatment —
+ *   CONFIRMED -> "Community-checked" (--color-new == --color-verified: the
+ *                  pin-colour unification merged the two into ONE tone)
  *   REJECTED  -> "Rejected"          (hidden; /mine + admin surfaces only)
  * The keys are the contributions panel's catalog set (account.contrib.
  * badge.*) — the same words the /mine panel has rendered translated all
@@ -148,11 +150,12 @@ export function sourceTrustLabel(
 
 /**
  * The row's badge tone (community-review-queue D5): the badge follows the
- * marker's trust palette — USER rows in NEW get the amber "Newly added"
- * badge, REJECTED the danger one, CONFIRMED the green one. Registry rows
- * get no modifier (their base badge fill already says registry). Applied
- * on every surface that renders the badge (map row, detail header, admin
- * list, /mine).
+ * marker's trust palette — after the pin-colour unification the NEW
+ * ("Newly added") and CONFIRMED ("Community-checked") tones are ONE
+ * yellow (--color-new == --color-verified); REJECTED keeps the danger one.
+ * Registry rows get no modifier (their base badge fill already says
+ * registry). Applied on every surface that renders the badge (map row,
+ * detail header, admin list, /mine).
  */
 export function communityBadgeClass(shelter: {
   source: ShelterSource;
@@ -178,11 +181,10 @@ export function communityBadgeClass(shelter: {
  * IS (a declared private home), never what it is NOT: the app carries no
  * access data and must not claim any (owner decision, Option A).
  *
- * The public templates render this through the `t` pipe
- * (`'shelter.privateBadge' | t`); the const stays for the un-routed
- * admin call sites and is the EN catalog value — one source.
+ * Rendered everywhere through the `t` pipe ('shelter.privateBadge' | t)
+ * — the admin list included (P1-4 closed), so the badge follows the
+ * active locale with no frozen const.
  */
-export const PRIVATE_LOCATION_BADGE = EN['shelter.privateBadge'];
 
 /**
  * The detail-page note for PRIVATE rows (community-review-queue D7):
@@ -214,18 +216,9 @@ export const COMMUNITY_UNVERIFIED_WARNING = EN['shelter.unverifiedWarning'];
  * styling at the point of use: a caveat, not the crisis orange.
  *
  * The key is the contributions panel's catalog entry (account.contrib.
- * inaccurate) — the public templates render it through the `t` pipe; the
- * const stays for the un-routed admin call sites (EN catalog value).
+ * inaccurate) — every template renders it through the `t` pipe (the
+ * admin list included, P1-4 closed).
  */
-export const INACCURATE_WARNING = EN['account.contrib.inaccurate'];
-
-/**
- * The admin-list badge for a moderator-marked row. Admin-only — it has no
- * catalog key on purpose: the admin surface is the other lane's copy work
- * (P1-4), and keying only the public consumers would leave this one
- * dangling.
- */
-export const INACCURATE_BADGE = 'Inaccurate';
 
 /** True for rows carrying the private-home declaration. */
 export function isPrivateLocation(shelter: { locationKind: LocationKind }): boolean {
@@ -238,9 +231,9 @@ export function isPrivateLocation(shelter: { locationKind: LocationKind }): bool
  * report hedges ("Reported closed"), a fresh firm one (two+) is firm
  * ("Closed"), a fresh OPEN reads "Open"; with nothing fresh the lifecycle
  * status decides — INACTIVE reads "Closed", ACTIVE reads "Open (no recent
- * reports)". Single-sourced: the map's "Open" chip (isOpenRow), the amber
- * badge copy (openStatusBadgeText) and the admin-facing displays consume
- * the same rule. The PUBLIC detail page deliberately does NOT render it
+ * reports)". Single-sourced: the map's "Open" chip (isOpenRow), the
+ * reported-tone badge copy (openStatusBadgeText) and the admin-facing
+ * displays consume the same rule. The PUBLIC detail page deliberately does NOT render it
  * (owner decision — its Info section shows the last reported rows instead,
  * which consult the same fresh reports and carry the time; see the Info
  * section comment in shelter-detail-page.html). INACTIVE rows normally
@@ -298,7 +291,8 @@ export function isOpenRow(shelter: {
 
 /**
  * The list row's open/closed badge text: a fresh
- * CLOSED row carries the amber badge — the same copy the status row uses
+ * CLOSED row carries the reported-tone badge (red-orange, the untouched
+ * --color-reported) — the same copy the status row uses
  * ("Reported closed" at exactly one fresh report, "Closed" at two+). A
  * fresh OPEN row carries NO badge (open is the default — no noise); null
  * = nothing fresh (render nothing). Single-sourced: map rows and the

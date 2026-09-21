@@ -33,7 +33,7 @@ import type {
  * non-admin, 409 registry-row writes). All methods return typed promises
  * and throw ApiError on failure (mapped centrally by ApiClient).
  *
- * The twenty-nine endpoints, 1:1:
+ * The thirty-two methods, 1:1 (one line per public method below):
  *
  *   GET    /admin/shelters?status=&source=&q=&limit=&offset= -> AdminShelterDto[] (+ X-Total-Count)
  *   POST   /admin/shelters/{id}/status         -> 204 (USER rows only)
@@ -66,6 +66,7 @@ import type {
  *   GET    /admin/media                        -> MediaAssetDto[] (newest first)
  *   POST   /admin/media (multipart: file)      -> MediaAssetDto (201)
  *   DELETE /admin/media/{id}[?confirm=true]    -> MediaAssetDto (200; 409 in-use)
+ *   PUT    /admin/site-texts                   -> 204 (batch of (key, locale) edits)
  */
 @Injectable({ providedIn: 'root' })
 export class AdminGateway {

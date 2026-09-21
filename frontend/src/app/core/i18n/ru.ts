@@ -726,6 +726,15 @@ export const RU: Messages = {
   'admin.shelters.inaccurate.reason.placeholder': 'Что вы нашли неточным?',
   'admin.shelters.inaccurate.reason.max': 'Не более {max} символов.',
   'admin.shelters.inaccurate.marking': 'Отмечаем…',
+  'admin.shelters.inaccurate.badge': 'Неточно',
+  'admin.shelters.success.confirmed': 'Место подтверждено.',
+  'admin.shelters.success.rejected': 'Место отклонено.',
+  'admin.shelters.success.hidden': 'Укрытие скрыто.',
+  'admin.shelters.success.restored': 'Укрытие восстановлено.',
+  'admin.shelters.success.deleted': 'Укрытие удалено.',
+  'admin.shelters.success.questionSent': 'Вопрос отправлен заявителю.',
+  'admin.shelters.success.inaccurateMarked': 'Отмечено как неточное.',
+  'admin.shelters.success.inaccurateCleared': 'Отметка о неточности снята.',
 
   'admin.reports.loading': 'Загружаем сообщения…',
   'admin.reports.empty': 'Сообщений нет.',
@@ -735,6 +744,7 @@ export const RU: Messages = {
     'Не учтено: у заявителя уже есть своё укрытие с тем же названием в том же месте.',
   'admin.reports.restore': 'Восстановить укрытие',
   'admin.reports.dismiss': 'Отклонить',
+  'admin.reports.success.dismissed': 'Сообщение отклонено.',
 
   'admin.alerts.loading': 'Загружаем оповещения…',
   'admin.alerts.empty': 'Ограниченной или злоупотребляющей активности пока нет.',
@@ -763,6 +773,8 @@ export const RU: Messages = {
   'admin.users.suspend': 'Приостановить',
   'admin.users.unsuspend': 'Возобновить',
   'admin.users.notSuspendable': 'Не подлежит приостановке',
+  'admin.users.success.suspended': 'Пользователь приостановлен.',
+  'admin.users.success.unsuspended': 'Доступ пользователя восстановлен.',
 
   'admin.audit.loading': 'Загружаем журнал аудита…',
   'admin.audit.empty': 'Действий модерации пока нет.',

@@ -1985,6 +1985,63 @@ describe('AdminPage', () => {
     expect(publicGuidance.list).toHaveBeenCalledTimes(2);
   });
 
+  it('an Estonian moderator reads the moderation surface in Estonian (the admin i18n bypass is closed)', async () => {
+    const privateRow: AdminShelterDto = {
+      ...USER_ROW,
+      id: 11,
+      name: 'Privaatne Kelder',
+      locationKind: 'PRIVATE',
+    };
+    const markedRow: AdminShelterDto = {
+      ...USER_ROW,
+      id: 12,
+      name: 'Vale Kelder',
+      inaccurate: true,
+    };
+    admin.listShelters.mockResolvedValue(paged([USER_ROW, privateRow, markedRow, REGISTRY_ROW]));
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+    // The pre-switch state: the shared copy was still EN even for the
+    // rows the ET chrome should now translate.
+    expect(element.textContent).toContain('Newly added');
+
+    i18nService.setLocale('et');
+    await i18nService.ensureCatalog('et');
+    await settle(fixture);
+
+    // The shared copy helpers resolve through the active locale (the
+    // seam the public pages pass): the source/trust badge and the
+    // occupancy line (firm FULL + 12-min recency)…
+    expect(element.textContent).toContain('Uus kogukonnalt');
+    expect(element.textContent).toContain('Täis · 12 min tagasi');
+    // …and the three formerly EN-frozen copy constants now render
+    // catalog values: the private-home badge and the inaccurate
+    // badge + warning.
+    expect(element.textContent).toContain('Privaatkodu (deklareeritud)');
+    const badges = [...element.querySelectorAll('.badge--inaccurate')].map(
+      (b) => b.textContent?.trim(),
+    );
+    expect(badges).toContain('Ebatäpne');
+    expect(element.textContent).toContain('Teatatud ebatäpseks — detailid võivad olla valed');
+
+    // A 204 action: the success banner is the ET catalog value (pre-fix
+    // a hardcoded English literal regardless of locale).
+    buttonByText(firstRow(element), 'Peida')!.click();
+    await settle(fixture);
+    expect(element.textContent).toContain('Varjupaik peidetud.');
+    expect(element.textContent).not.toContain('Shelter hidden.');
+
+    // A 5xx action: the client-authored error copy is ET too (the
+    // bannerMessage translate callback), never the English fallback.
+    admin.setShelterStatus.mockRejectedValueOnce(
+      apiError(503, 'upstream down', '/admin/shelters/7/status'),
+    );
+    buttonByText(firstRow(element), 'Aktiveeri')!.click();
+    await settle(fixture);
+    expect(element.textContent).toContain('Midagi läks valesti. Palun proovi uuesti.');
+  });
+
   // ---- stylesheet pins (the admin stylesheet split) ---------------------------
   // The admin-page.scss -> shared-partial split silently DROPPED the
   // content-language select's rules (a bare native <select> rendered in
@@ -2945,6 +3002,52 @@ describe('AdminPage paged list view state', () => {
     expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
   });
 
+  it('a hand-opened /admin?q=… pre-fills the guidance search input (the URL is the ONE source of truth)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { q: 'kelder' } });
+    await fixture.whenStable();
+    await switchTab('Guidance', element, fixture);
+    // The applied filter AND the input agree: the URL's term is in the
+    // field (pre-fix: the filter ran while the input sat empty — the two
+    // sources of truth the search kept).
+    const input = element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement;
+    expect(input.value).toBe('kelder');
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      q: 'kelder',
+      limit: 20,
+      offset: 0,
+    });
+  });
+
+  it('a content-language switch clears the guidance search input WITH the filter (one source of truth)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+    const i18nService = TestBed.inject(I18nService);
+    const { element, fixture } = await openAdmin();
+    await switchTab('Guidance', element, fixture);
+
+    // Apply a search (submit-based — the term goes to the URL)…
+    const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
+    typeValue(input, 'kelder', fixture);
+    (element.querySelector('.admin-guidance-search') as HTMLFormElement).dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true }),
+    );
+    await settle(fixture);
+    expect(router.url).toContain('q=kelder');
+
+    // …the content language switches: the scope is voided and the filter
+    // resets — the input clears WITH it (pre-fix the field kept the term
+    // that was no longer applied).
+    i18nService.setContentLocale('ru');
+    await settle(fixture);
+    expect(router.url).not.toContain('q=');
+    expect((element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement).value).toBe('');
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'ru', limit: 20, offset: 0 });
+  });
+
   it('guidance size change clamps the stranded page to the last page at the new size', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage
@@ -3058,6 +3161,132 @@ describe('AdminPage paged list view state', () => {
     expect(router.url).not.toContain('shelterPage');
     expect(router.url).toContain('shelterSize=10');
     expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 10, offset: 0 });
+  });
+
+  // ---- URL clamping / normalization (normalizeListParams) ----------------
+  // Hand-typed (or stale) query values are clamped to the nearest legal
+  // value and the URL is normalized in place (replaceUrl) — the control
+  // and the URL can never quietly disagree. These cases pin the
+  // normalizer: deleting it keeps the loads sane (the parsers clamp for
+  // the REQUEST) but leaves the hand-typed value in the URL, which is
+  // exactly the strand the guard exists to close.
+
+  it('a hand-typed non-numeric shelterPage is normalized out of the URL (page 1)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { shelterPage: 'abc' } });
+    await settle(fixture);
+    // The cosmetic fix is a replaceUrl (no history entry): the URL reads
+    // the canonical view (page 1 = param omitted), not the hand-typed one.
+    expect(router.url).toBe('/admin');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+  });
+
+  it('a hand-typed shelterPage below 1 clamps to 1 (the param is normalized out)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { shelterPage: '0' } });
+    await settle(fixture);
+    expect(router.url).toBe('/admin');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+  });
+
+  it('a hand-typed non-numeric shelterSize falls back to the default 20 (normalized out of the URL)', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { shelterSize: 'abc' } });
+    await settle(fixture);
+    expect(router.url).toBe('/admin');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+  });
+
+  it('an off-step hand-typed shelterSize (25) clamps to the nearest legal size (30) in the URL and the request', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { shelterSize: '25' } });
+    await settle(fixture);
+    // The URL carries the CLAMPED value — a link or refresh keeps the
+    // view the control actually shows.
+    expect(router.url).toContain('shelterSize=30');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 30, offset: 0 });
+  });
+
+  it('a size beyond the endpoint range clamps to the legal bound (10 below, 100 above) in both tabs', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    admin.listGuidancePostsPage.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    await router.navigate(['/admin'], { queryParams: { shelterSize: '500', guidanceSize: '5' } });
+    await settle(fixture);
+    expect(router.url).toContain('shelterSize=100');
+    expect(router.url).toContain('guidanceSize=10');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 100, offset: 0 });
+    await switchTab('Guidance', element, fixture);
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 10, offset: 0 });
+  });
+
+  it('a stray hand-typed source (BOGUS, or the no-filter ALL) is normalized out of the URL and out of the request', async () => {
+    admin.listShelters.mockResolvedValue(paged([]));
+    const { element, fixture } = await openAdmin();
+    // The review's strand: `?source=BOGUS` sanitized for the request but
+    // left in the URL, against the code's own comment. The URL must not
+    // carry a value the list does not render.
+    await router.navigate(['/admin'], { queryParams: { source: 'BOGUS' } });
+    await settle(fixture);
+    expect(router.url).toBe('/admin');
+    await toShelters(element, fixture);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 }); // no source — unfiltered
+    // The no-filter default spelled 'ALL' normalizes the same way (the
+    // omit-defaults convention: the param's ABSENCE is the default).
+    await router.navigate(['/admin'], { queryParams: { source: 'ALL' } });
+    await settle(fixture);
+    expect(router.url).toBe('/admin');
+    // A LEGAL value is untouched (the filter keeps working from a link).
+    await router.navigate(['/admin'], { queryParams: { source: 'REGISTRY' } });
+    await settle(fixture);
+    expect(router.url).toContain('source=REGISTRY');
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'REGISTRY', limit: 20, offset: 0 });
+  });
+
+  it('a source chip clicked while the paged load is in flight re-queries with the chip (the URL and the list agree)', async () => {
+    admin.listShelters.mockResolvedValueOnce(paged([USER_ROW])); // the queue (ngOnInit)
+    // The Shelters tab's first page load is HELD — the in-flight window.
+    let resolveFirst!: (v: { rows: AdminShelterDto[]; total: number }) => void;
+    admin.listShelters.mockReturnValueOnce(
+      new Promise<{ rows: AdminShelterDto[]; total: number }>((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    admin.listShelters.mockResolvedValue(paged([USER_ROW])); // everything after
+    const { element, fixture } = await openAdmin();
+
+    buttonByText(element, 'Shelters')!.click();
+    fixture.detectChanges();
+    // The paged load is in flight (rows nulled, no error) — the window the
+    // old `!live` guard turned into a dead end. The Community chip clicks
+    // through it.
+    buttonByText(element, 'Community')!.click();
+    await settle(fixture);
+    // The URL is the state: the chip's filter is in it…
+    expect(router.url).toContain('source=USER');
+    // …and the change was NOT dropped: a re-query went out with the chip
+    // (pre-fix: the emission returned early, the unfiltered request was
+    // the only one, and a re-click could not recover — the router skips a
+    // same-URL navigation).
+    expect(admin.listShelters).toHaveBeenCalledTimes(3);
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'USER', limit: 20, offset: 0 });
+
+    // The SUPERSEDED unfiltered response now lands — the fetch-sequence
+    // guard drops it (the last response to arrive is not the last view
+    // asked for).
+    resolveFirst({ rows: [REGISTRY_ROW], total: 1 });
+    await settle(fixture);
+    expect(element.textContent).toContain('Kommunaali Varjend');
+    expect(element.textContent).not.toContain('Linna Varjend');
   });
 });
 });

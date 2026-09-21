@@ -15,10 +15,11 @@
           ></span>
           {{ 'map.legend.registry' | t }}
         </span>
-        <!-- Community trust tone (community-review-queue D5): the green pin is
-             still rendered — a community row whose submitter depth the API does
-             not report keeps this tone. The amber NEW tone is deliberately NOT
-             a legend entry (owner decision): the verification shapes carry the
+        <!-- Community trust tone (community-review-queue D5): the community
+             pin is still rendered — a community row whose submitter depth the
+             API does not report keeps this tone (the unified yellow, the same
+             tone as confirmed). The NEW tone is deliberately NOT a legend
+             entry (owner decision): the verification shapes carry the
              community-row story on the map, and the row badge text still says
              "Newly added" wherever it applies. -->
         <span class="legend-item">
@@ -278,8 +279,8 @@
                 <span class="shelter-row__meta">
                   <!-- Source/trust badge (community-review-queue): registry
                        rows say which registry; USER rows say their trust
-                       state (NEW = "Newly added" amber, CONFIRMED =
-                       "Community-checked" green). -->
+                       state (NEW = "Newly added", CONFIRMED =
+                       "Community-checked" — one unified yellow tone). -->
                   <span class="badge" [ngClass]="communityBadgeClass(shelter)">
                     {{ sourceTrustLabel(shelter) }}
                   </span>
@@ -298,9 +299,9 @@
                     }}</span>
                   }
                 </span>
-                <!-- Trust badges (shelter-trust-and-reports D6): orange
+                <!-- Trust badges (shelter-trust-and-reports D6): red-orange
                      "Reported" (nonexistentReports > 0), the
-                     fresh-CLOSED amber badge ("Reported closed" at one
+                     fresh-CLOSED reported-tone badge ("Reported closed" at one
                      fresh report, "Closed" at two+; a fresh OPEN row
                      renders NO badge — open is the default), and the
                      NEUTRAL occupancy badge with recency (hedged at one

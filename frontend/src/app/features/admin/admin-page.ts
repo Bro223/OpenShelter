@@ -55,10 +55,7 @@ import {
   recencyText,
   sourceTrustLabel as sourceTrustLabelShared,
   communityBadgeClass as communityBadgeClassShared,
-  PRIVATE_LOCATION_BADGE,
   isPrivateLocation as isPrivateLocationShared,
-  INACCURATE_WARNING,
-  INACCURATE_BADGE,
 } from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
@@ -393,6 +390,11 @@ export class AdminPage implements OnInit, OnDestroy {
   /** The monotonic guidance-list fetch sequence — a stale (out-of-order)
    *  response is dropped (the detail page's pattern). */
   private guidanceFetchSeq = 0;
+  /** The monotonic shelters-list fetch sequence (the guidance path's
+   *  guard, applied to this list too): a superseded response must not
+   *  win — the last response to ARRIVE is not the last view to be asked
+   *  for (a chip/search change during an in-flight load). */
+  private shelterFetchSeq = 0;
   /** The monotonic editor-detail fetch sequence (same guard). */
   private editorFetchSeq = 0;
   /** The monotonic editor-reveal sequence: a superseded open (a newer
@@ -436,6 +438,10 @@ export class AdminPage implements OnInit, OnDestroy {
         delete params['guidancePage'];
         delete params['guidanceSize'];
         this.guidanceQuery.set('');
+        // The input is the filter's editor (one source of truth): it
+        // clears WITH the filter, so a switch can never leave a term in
+        // the field that is not applied.
+        this.guidanceSearch.reset('');
         this.guidancePage.set(1);
         this.guidanceSize.set(GUIDANCE_PAGE_SIZE);
         this.guidanceViewKey = ['', 1, GUIDANCE_PAGE_SIZE, this.i18n.contentLocale()].join('|');
@@ -468,33 +474,37 @@ export class AdminPage implements OnInit, OnDestroy {
   protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
 
   // ---- shared copy helpers (exposed to the template) ---------------------------
+  /** The i18n seam: the shared shelter-copy helpers resolve their copy
+   *  through the active locale (the map-page's idiom) — the admin
+   *  surface is catalogued, so the badges read in the moderator's
+   *  language, not a frozen English const. */
+  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
+    this.i18n.t(key, params);
+
   protected readonly reporterText = reporterText;
   /** Source/trust badge copy (community-review-queue D5): the Shelters
    *  tab's source column shows the source label (registry rows) or the
    *  trust-state label — the admin list keeps hidden rows, so REJECTED
-   *  renders its own tone here. */
-  protected readonly sourceTrustLabel = sourceTrustLabelShared;
+   *  renders its own tone here. Resolved through the active locale. */
+  protected readonly sourceTrustLabel = (row: AdminShelterDto): string =>
+    sourceTrustLabelShared(row, this.translate);
   protected readonly communityBadgeClass = communityBadgeClassShared;
-  protected readonly privateLocationBadge = PRIVATE_LOCATION_BADGE;
   protected readonly isPrivateLocation = isPrivateLocationShared;
-  /** The single-sourced "reported inaccurate" warning + the admin-list
-   *  badge. */
-  protected readonly inaccurateWarning = INACCURATE_WARNING;
-  protected readonly inaccurateBadge = INACCURATE_BADGE;
 
   /** The admin occupancy block into the shared occupancy copy — the SAME
    *  wire shape as the public list's block (`lastReportedAt` included),
-   *  so no remapping. */
+   *  so no remapping; resolved through the active locale. */
   protected occupancyText(occ: AdminOccupancy | null, now: number = Date.now()): string | null {
     if (occ === null) {
       return null;
     }
-    return occupancyTextShared(occ, now);
+    return occupancyTextShared(occ, now, this.translate);
   }
 
-  /** Queue-row age ("12 min ago") — the shared recency copy. */
+  /** Queue-row age ("12 min ago") — the shared recency copy (active
+   *  locale). */
   protected ageText(iso: string): string {
-    return recencyText(iso);
+    return recencyText(iso, Date.now(), this.translate);
   }
 
   protected reportTypeLabel(type: ShelterReportType): string {
@@ -573,10 +583,11 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   /** A raw value that is not a legal member of the domain (non-numeric,
-   *  a size outside 10..100 or off the step of 10, a page below 1) is
-   *  clamped to the nearest legal value and the URL is normalized in
-   *  place (replaceUrl), so the control and the URL can never quietly
-   *  disagree. Returns true when a normalization navigation was issued. */
+   *  a size outside 10..100 or off the step of 10, a page below 1, a
+   *  source outside the chips' vocabulary) is clamped to the nearest
+   *  legal value and the URL is normalized in place (replaceUrl), so the
+   *  control and the URL can never quietly disagree. Returns true when a
+   *  normalization navigation was issued. */
   private normalizeListParams(params: Params): boolean {
     const canonical: Record<string, string> = { ...params };
     let dirty = false;
@@ -599,6 +610,18 @@ export class AdminPage implements OnInit, OnDestroy {
     };
     check(params['guidancePage'] ?? null, params['guidanceSize'] ?? null, 'guidancePage', 'guidanceSize');
     check(params['shelterPage'] ?? null, params['shelterSize'] ?? null, 'shelterPage', 'shelterSize');
+    // `source`: the chips' vocabulary is REGISTRY/USER. Anything else — a
+    // hand-typed 'ALL' (the no-filter default), a stale pre-lane enum value
+    // (PAASETEAMET), garbage — sanitizes to the no-filter default in the
+    // request (parseSourceFilter), and the no-filter default is the
+    // ABSENCE of the param (the omit-defaults convention), so the stray
+    // value is dropped from the URL rather than kept (the URL must not
+    // read `source=BOGUS` while the list renders unfiltered).
+    const sourceRaw = params['source'] ?? null;
+    if (sourceRaw !== null && sourceRaw !== 'REGISTRY' && sourceRaw !== 'USER') {
+      delete canonical['source'];
+      dirty = true;
+    }
     if (dirty) {
       void this.router.navigate([], {
         relativeTo: this.route,
@@ -620,12 +643,28 @@ export class AdminPage implements OnInit, OnDestroy {
     const page = parseListPage(params['guidancePage'] ?? null);
     const size = parseListSize(params['guidanceSize'] ?? null);
     const key = [q, page, size, this.i18n.contentLocale()].join('|');
-    const live = this.guidanceRows() !== null || this.guidanceLoadError() !== null;
-    if (!firstVisit && (!live || key === this.guidanceViewKey)) {
+    // A query-param change that lands WHILE A LOAD IS IN FLIGHT (rows
+    // nulled, no error yet) must re-load with the new view — never return
+    // early (the old `!live` clause dropped the change: the URL read the
+    // new filter while the list rendered the old one, and re-clicking
+    // could not recover because the router skips a same-URL navigation).
+    // The load's fetch-sequence guard drops the superseded response.
+    if (!firstVisit && key === this.guidanceViewKey) {
       return;
     }
     this.guidanceViewKey = key;
+    // One source of truth (the URL's `q`): when the APPLIED term changes,
+    // the input (the filter's editor) follows it — a hand-opened
+    // /admin?q=… or a history step pre-fills the field instead of
+    // leaving it disagreeing with the filter. An unchanged term (a
+    // page/size step) leaves the field alone: an unsubmitted draft is
+    // user state, not view state. emitEvent: false — a view write, not
+    // user input.
+    const prevQ = this.guidanceQuery();
     this.guidanceQuery.set(q);
+    if (q !== prevQ) {
+      this.guidanceSearch.setValue(q, { emitEvent: false });
+    }
     this.guidancePage.set(page);
     this.guidanceSize.set(size);
     this.loadGuidance();
@@ -640,8 +679,10 @@ export class AdminPage implements OnInit, OnDestroy {
     const page = parseListPage(params['shelterPage'] ?? null);
     const size = parseListSize(params['shelterSize'] ?? null);
     const key = [source, page, size, this.shelterQuery()].join('|');
-    const live = this.shelterRows() !== null || this.shelterLoadError() !== null;
-    if (!firstVisit && (!live || key === this.sheltersViewKey)) {
+    // In-flight window included: a chip/page change that lands while a
+    // fetch is running re-loads with the new view (the sequence guard
+    // drops the superseded response — see shelterFetchSeq).
+    if (!firstVisit && key === this.sheltersViewKey) {
       return;
     }
     this.sheltersViewKey = key;
@@ -752,7 +793,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listShelters()
       .then((page) => this.queueRows.set(page.rows))
-      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
   /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
    *  The shelters list refetches so both this queue and the Shelters tab
@@ -765,12 +806,12 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.reviewShelter(row.id, { action: 'CONFIRM' });
-      this.success.set('Location confirmed.');
+      this.success.set(this.i18n.t('admin.shelters.success.confirmed'));
       await this.refreshShelters();
     } catch (error) {
       // A 409 (the row moved since this list load) surfaces the server
       // message verbatim — the admin reloads and re-acts.
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -802,12 +843,12 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.reviewShelter(row.id, { action: 'REJECT', reason });
-      this.success.set('Location rejected.');
+      this.success.set(this.i18n.t('admin.shelters.success.rejected'));
       this.rejectRowFor.set(null);
       await this.refreshShelters();
     } catch (error) {
       // The editor STAYS open on failure (the admin keeps the reason).
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -824,6 +865,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.shelterLoadError.set(null);
     const q = this.shelterQuery().trim();
     const size = this.shelterSize();
+    const seq = ++this.shelterFetchSeq;
     this.admin
       .listShelters({
         source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
@@ -832,10 +874,18 @@ export class AdminPage implements OnInit, OnDestroy {
         offset: (this.shelterPage() - 1) * size,
       })
       .then((paged) => {
+        if (seq !== this.shelterFetchSeq) {
+          return; // a newer load superseded this response
+        }
         this.shelterTotal.set(paged.total);
         this.shelterRows.set(paged.rows);
       })
-      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => {
+        if (seq !== this.shelterFetchSeq) {
+          return;
+        }
+        this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+      });
   }
 
   /** The review actions' refetch: the queue's full list always (the
@@ -848,12 +898,19 @@ export class AdminPage implements OnInit, OnDestroy {
     if (this.shelterRows() !== null || this.shelterLoadError() !== null) {
       const q = this.shelterQuery().trim();
       const size = this.shelterSize();
+      // The shared fetch-sequence guard: a URL-driven loadShelters that
+      // started while this refresh's page leg was in flight supersedes it
+      // (its view is the newer one — the stale page is dropped).
+      const seq = this.shelterFetchSeq;
       const paged = await this.admin.listShelters({
         source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
         q: q === '' ? undefined : q,
         limit: size,
         offset: (this.shelterPage() - 1) * size,
       });
+      if (seq !== this.shelterFetchSeq) {
+        return;
+      }
       this.shelterTotal.set(paged.total);
       this.shelterRows.set(paged.rows);
     }
@@ -969,9 +1026,11 @@ export class AdminPage implements OnInit, OnDestroy {
     try {
       await this.admin.setShelterStatus(row.id, status);
       this.patchShelter(row.id, { status });
-      this.success.set(status === 'INACTIVE' ? 'Shelter hidden.' : 'Shelter restored.');
+      this.success.set(
+        this.i18n.t(status === 'INACTIVE' ? 'admin.shelters.success.hidden' : 'admin.shelters.success.restored'),
+      );
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1002,9 +1061,9 @@ export class AdminPage implements OnInit, OnDestroy {
       // control hides itself at one page; a page left past the end shows
       // the out-of-range notice with its first-page action).
       this.shelterTotal.update((t) => Math.max(0, t - 1));
-      this.success.set('Shelter deleted.');
+      this.success.set(this.i18n.t('admin.shelters.success.deleted'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       if (this.historyFor() === id) {
         this.closeHistory();
@@ -1065,12 +1124,12 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.requestInfo(row.id, message);
-      this.success.set('Question sent to the submitter.');
+      this.success.set(this.i18n.t('admin.shelters.success.questionSent'));
       await this.refreshShelters();
       this.closeInfo();
     } catch (error) {
       // The panel STAYS open on failure (the admin keeps the question).
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1116,12 +1175,12 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.markInaccurate(row.id, reason);
-      this.success.set('Marked as inaccurate.');
+      this.success.set(this.i18n.t('admin.shelters.success.inaccurateMarked'));
       await this.refreshShelters();
       this.closeInaccurate();
     } catch (error) {
       // The editor STAYS open on failure (the admin keeps the reason).
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1139,10 +1198,10 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.clearInaccurate(row.id);
-      this.success.set('Inaccurate mark cleared.');
+      this.success.set(this.i18n.t('admin.shelters.success.inaccurateCleared'));
       await this.refreshShelters();
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1170,7 +1229,7 @@ export class AdminPage implements OnInit, OnDestroy {
       this.historyEvents.set(await this.admin.listShelterHistory(row.id));
     } catch (error) {
       this.closeHistory();
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     }
   }
 
@@ -1206,7 +1265,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listShelterReports()
       .then((rows) => this.reportRows.set(rows))
-      .catch((error: unknown) => this.reportLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.reportLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
 
   /** Mark the report resolved (204, idempotent). The row stays, dimmed. */
@@ -1221,9 +1280,9 @@ export class AdminPage implements OnInit, OnDestroy {
       this.reportRows.update((rows) =>
         (rows ?? []).map((r) => (r.id === id ? { ...r, dismissed: true } : r)),
       );
-      this.success.set('Report dismissed.');
+      this.success.set(this.i18n.t('admin.reports.success.dismissed'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1247,9 +1306,9 @@ export class AdminPage implements OnInit, OnDestroy {
         ),
       );
       this.patchShelter(shelterId, { status: 'ACTIVE' });
-      this.success.set('Shelter restored.');
+      this.success.set(this.i18n.t('admin.shelters.success.restored'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1264,7 +1323,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listAlerts()
       .then((rows) => this.alertsRows.set(rows))
-      .catch((error: unknown) => this.alertsLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.alertsLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
 
   // -------------------------------------------------------------------------
@@ -1277,7 +1336,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listUsers()
       .then((rows) => this.userRows.set(rows))
-      .catch((error: unknown) => this.userLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.userLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
 
   /** Step 1 of the two-tap confirm: arm the confirm strip for the row. */
@@ -1308,9 +1367,11 @@ export class AdminPage implements OnInit, OnDestroy {
         await this.admin.unsuspendUser(id);
       }
       this.patchUser(id, { suspendedAt: action === 'suspend' ? new Date().toISOString() : null });
-      this.success.set(action === 'suspend' ? 'User suspended.' : 'User unsuspended.');
+      this.success.set(
+        this.i18n.t(action === 'suspend' ? 'admin.users.success.suspended' : 'admin.users.success.unsuspended'),
+      );
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.userActionConfirm.disarm();
       this.busy.set(false);
@@ -1330,7 +1391,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listAudit()
       .then((rows) => this.auditRows.set(rows))
-      .catch((error: unknown) => this.auditLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.auditLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
 
   // -------------------------------------------------------------------------
@@ -1380,7 +1441,7 @@ export class AdminPage implements OnInit, OnDestroy {
         if (seq !== this.guidanceFetchSeq) {
           return;
         }
-        this.guidanceLoadError.set(bannerMessage(error, 'shelter'));
+        this.guidanceLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
       });
   }
 
@@ -1523,7 +1584,7 @@ export class AdminPage implements OnInit, OnDestroy {
         // surface the server message on the page banner.
         this.guidanceEditor.set(null);
         this.guidanceEditorLoading.set(false);
-        this.error.set(bannerMessage(error, 'shelter'));
+        this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
       });
   }
 
@@ -1657,7 +1718,7 @@ export class AdminPage implements OnInit, OnDestroy {
       // the publishedAt merge follows the new state.
       this.refreshPublishedIndex();
     } catch (error) {
-      this.guidanceEditorError.set(bannerMessage(error, 'shelter'));
+      this.guidanceEditorError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1731,7 +1792,7 @@ export class AdminPage implements OnInit, OnDestroy {
         ),
       );
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1774,7 +1835,7 @@ export class AdminPage implements OnInit, OnDestroy {
       }
       this.success.set(this.i18n.t('admin.guidance.success.deleted'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       // A deleted post being edited: the form's target is gone.
       const editor = this.guidanceEditor();
@@ -1810,7 +1871,7 @@ export class AdminPage implements OnInit, OnDestroy {
         }
       })
       .catch((error: unknown) => {
-        this.error.set(bannerMessage(error, 'shelter'));
+        this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
       });
   }
 
@@ -1860,7 +1921,7 @@ export class AdminPage implements OnInit, OnDestroy {
         await this.loadGuidanceTranslations(post.id);
       }
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.translationDeleteConfirm.disarm();
       this.busy.set(false);
@@ -1901,7 +1962,7 @@ export class AdminPage implements OnInit, OnDestroy {
       this.guidanceRows.set(nextRows);
       this.success.set(this.i18n.t('admin.guidance.success.reordered'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1919,7 +1980,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listMediaAssets()
       .then((rows) => this.mediaRows.set(rows))
-      .catch((error: unknown) => this.mediaLoadError.set(bannerMessage(error, 'shelter')));
+      .catch((error: unknown) => this.mediaLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
   }
 
   /** The file input's change: hand the chosen file to the upload (the
@@ -1954,7 +2015,7 @@ export class AdminPage implements OnInit, OnDestroy {
       this.mediaRows.update((rows) => [asset, ...(rows ?? [])]);
       this.success.set(this.i18n.t('admin.media.success.uploaded'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
@@ -1982,7 +2043,7 @@ export class AdminPage implements OnInit, OnDestroy {
         // it is echoed in the confirm strip after the fixed copy.
         this.mediaDeleteInUse.arm(id, error.message);
       } else {
-        this.error.set(bannerMessage(error, 'shelter'));
+        this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
       }
     } finally {
       this.busy.set(false);
@@ -2012,7 +2073,7 @@ export class AdminPage implements OnInit, OnDestroy {
       this.mediaRows.update((rows) => (rows ?? []).filter((r) => r.id !== deleted.id));
       this.success.set(this.i18n.t('admin.media.success.deleted'));
     } catch (error) {
-      this.error.set(bannerMessage(error, 'shelter'));
+      this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.mediaDeleteInUse.disarm();
       this.busy.set(false);
@@ -2056,8 +2117,9 @@ function parseListSize(raw: string | null): number {
 }
 
 /** source chip: a legal grouping or 'ALL' (a stray hand-typed value is
- *  the no-filter default — the server would 400 an illegal one, so the
- *  URL normalizes before it can reach a link). */
+ *  the no-filter default — the server would 400 an illegal one, and
+ *  normalizeListParams drops it from the URL before it can reach a
+ *  link — the URL and the rendered filter stay in agreement). */
 function parseSourceFilter(raw: string | null): ShelterSourceFilter {
   return raw === 'REGISTRY' || raw === 'USER' ? raw : 'ALL';
 }

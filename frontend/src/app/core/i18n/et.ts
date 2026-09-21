@@ -708,6 +708,15 @@ export const ET: Messages = {
   'admin.shelters.inaccurate.reason.placeholder': 'Mis osutus täpsusetuks?',
   'admin.shelters.inaccurate.reason.max': 'Maksimaalselt {max} tähemärki.',
   'admin.shelters.inaccurate.marking': 'Märgin…',
+  'admin.shelters.inaccurate.badge': 'Ebatäpne',
+  'admin.shelters.success.confirmed': 'Asukoht kinnitatud.',
+  'admin.shelters.success.rejected': 'Asukoht tagasi lükatud.',
+  'admin.shelters.success.hidden': 'Varjupaik peidetud.',
+  'admin.shelters.success.restored': 'Varjupaik taastatud.',
+  'admin.shelters.success.deleted': 'Varjupaik kustutatud.',
+  'admin.shelters.success.questionSent': 'Küsimus saadetud esitajale.',
+  'admin.shelters.success.inaccurateMarked': 'Märgitud ebatäpseks.',
+  'admin.shelters.success.inaccurateCleared': 'Ebatäpsuse märge eemaldatud.',
 
   'admin.reports.loading': 'Laen teatisi…',
   'admin.reports.empty': 'Teatisi pole.',
@@ -717,6 +726,7 @@ export const ET: Messages = {
     'Arvestamata: teatajal on juba olemas sama nimega varjupaik samas asukohas.',
   'admin.reports.restore': 'Taasta varjupaik',
   'admin.reports.dismiss': 'Arvelda',
+  'admin.reports.success.dismissed': 'Teatedis arveldatud.',
 
   'admin.alerts.loading': 'Laen hoiatusi…',
   'admin.alerts.empty': 'Piiratud või kuritarvitavat tegevust pole veel.',
@@ -745,6 +755,8 @@ export const ET: Messages = {
   'admin.users.suspend': 'Peata',
   'admin.users.unsuspend': 'Taasta',
   'admin.users.notSuspendable': 'Pole peatatav',
+  'admin.users.success.suspended': 'Kasutaja peatatud.',
+  'admin.users.success.unsuspended': 'Kasutaja taastatud.',
 
   'admin.audit.loading': 'Laen auditeerimislogi…',
   'admin.audit.empty': 'Modereerimistegevusi pole veel.',

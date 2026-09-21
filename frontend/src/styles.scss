@@ -94,18 +94,23 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
-  /* New community state (community-review-queue D5) — the amber marker
-     tone for USER rows in review_status NEW. Vivid gold-amber on purpose,
-     distinct from the safety-orange reported token (#c2410c, hue ~19°;
-     this is ~40°): on the map a just-added community dot must read as
-     "new", not as "reported". Also the fill behind the "Newly added"
-     badge (its text uses the same token, 3.6:1 on white — a graphical
-     badge, not body text; the legend swatch reuses the marker class). */
-  --color-new: #f59f00;
-  /* Submitter-verified marker fill (submitter-verification-badge): the yellow
-     family, shared by BOTH verification shapes — the depth is carried by the
-     shape, not by a second colour. One value on purpose: Leaflet renders OSM
-     tiles, which are light in every app theme. */
+  /* New community state (community-review-queue D5) — the marker tone for
+     USER rows in review_status NEW. ONE value with --color-verified (owner
+     decision, the yellow-family unification): the amber read as yellow next
+     to the verified pins, so the family is ONE yellow and the state rides
+     on the marker shape + the row's badge text ("Newly added"), never on a
+     third hue. The reported red-orange stays distinct in every theme
+     (#c2410c, hue ~18° vs ~50° here). The badge tint derived from this
+     family is --color-badge-new. */
+  --color-new: #ffd400;
+  /* Submitter-verified marker fill (submitter-verification-badge): the ONE
+     yellow-family value — shared by BOTH verification shapes (the depth is
+     carried by the shape, not by a second colour) AND the NEW state
+     (--color-new is unified with this token, owner decision). One value on
+     purpose: Leaflet renders OSM tiles, which are light in every app theme.
+     On the light tiles the fill-vs-tile ratio is 1.43:1; the 2px
+     --color-bg-surface edge + the hue carry the marker (the documented
+     marker trade-off every tone in the palette lives with). */
   --color-verified: #ffd400;
 
   /* Borders — quiet by design, below 3:1 on purpose (the documented
@@ -130,14 +135,15 @@
    *   badge--closed / badge--inaccurate badges, .admin-inaccurate on the
    *   page surface, the "Newly added" badge), so it must hold 4.5:1 on
    *   every fill it sits on. The owner's #a66a00 fails on white at 4.48:1
-   *   and is 3.64:1 on the amber badge tint → darkened to #965a00:
-   *   5.59:1 on white, 5.24:1 on warning-bg, 4.53:1 on badge-new.
+   *   and is 3.64:1 on the old amber badge tint → darkened to #965a00:
+   *   5.59:1 on white, 5.24:1 on warning-bg, 4.87:1 on badge-new (the
+   *   unified pale-yellow tint; the pair is spec-enforced at 4.5:1).
    */
   --color-danger: #b33a3a; /* page-level error text (banners, field errors) — 5.86:1 on the surface */
   --color-danger-bg: #fbeded; /* light tint of the danger red — danger on it = 5.15:1 */
   --color-danger-border: #efc9c9; /* mid tint of the danger red (decorative border) */
   --color-error: #b33a3a; /* admin moderation inline error text — unified with --color-danger (see note) */
-  --color-warning: #965a00; /* darker ochre (see note) — 5.24:1 on warning-bg, 4.53:1 on badge-new */
+  --color-warning: #965a00; /* darker ochre (see note) — 5.24:1 on warning-bg, 4.87:1 on badge-new */
   --color-warning-bg: #fff7e6; /* pale amber tint — warning on it = 5.24:1 */
   --color-warning-border: #ffd591; /* amber border (decorative) */
   --color-info: #16598a; /* re-derived from the new blue family — the darker, quieter cousin of the primary; 6.50:1 on info-bg */
@@ -153,10 +159,12 @@
      (registry 4.86:1, user 4.50:1, warning on amber 4.53:1). */
   --color-badge-registry: #e2edf7; /* light tint of the official blue */
   --color-badge-user: #e8f3ea; /* light tint of the community green */
-  /* New community state (community-review-queue D5): pale amber fill, text =
-     --color-warning (#965a00 on #f9e6b8 = 4.53:1) — the trust-state badge
-     for NEW rows. */
-  --color-badge-new: #f9e6b8;
+  /* New community state (community-review-queue D5): pale YELLOW fill of
+     the unified family (the amber tint re-tinted onto the #ffd400 hue when
+     the yellow family unified), text = --color-warning (#965a00 on
+     #fbf0bf = 4.87:1, spec-enforced at 4.5:1) — the trust-state badge for
+     NEW rows and the /mine info-request chip. */
+  --color-badge-new: #fbf0bf;
 
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
@@ -358,12 +366,14 @@
      text is --color-bg-surface (dark on the bright fill, 9.7:1). */
   --color-reported: #ffa94d;
 
-  /* New community state — bright gold on the dark map surfaces, kept
-     clearly yellow-ward of the brightened reported/CTA oranges. */
-  --color-new: #ffd43b;
-  /* Submitter-verified marker fill (submitter-verification-badge): the same
-     token NAME as :root — the theme layers must override the same set (the
-     parity guard in design-tokens.spec asserts both directions). */
+  /* New community state — unified with the verified yellow (ONE value with
+     --color-verified, owner decision); the brightened reported/CTA oranges
+     stay the distinct family. */
+  --color-new: #ffd400;
+  /* Submitter-verified marker fill (submitter-verification-badge): the ONE
+     yellow-family value — the same value as :root, shared with --color-new.
+     The theme layers override the same name set (the parity guard in
+     design-tokens.spec.ts asserts both directions). */
   --color-verified: #ffd400;
 
   /* Borders */
@@ -683,10 +693,12 @@ textarea {
    the SHAPE carries the depth — a triangle at exactly one confirmed channel, a
    circle at two or more — so the distinction never rests on colour alone
    (WCAG 1.4.1; the anchor diamond below uses the same rationale). The yellow
-   family is the second cue, and BOTH shapes carry the SAME 2px edge token as
-   every other pin, so the map and the legend read identically (an earlier dark
-   outline here read as a black border in the legend — owner report). Rows
-   without a reported depth keep the trust tones above. */
+   family is the second cue — ONE value shared by both shapes AND the NEW
+   state (--color-new, unified with --color-verified, owner decision) — and
+   every shape carries the SAME 2px edge token as every other pin, so the map
+   and the legend read identically (an earlier dark outline here read as a
+   black border in the legend — owner report). Rows without a reported depth
+   keep the trust tones above. */
 .shelter-marker--full {
   background: var(--color-verified);
 }
@@ -738,10 +750,14 @@ textarea {
 }
 
 /* New community state (community-review-queue D5): USER rows in
- * review_status NEW render amber (CONFIRMED rows keep the green user
- * tone). The reported override still wins over the trust colour —
- * markerTone() picks the class, the map legend's amber swatch reuses
- * it, keeping the visual single-sourced. */
+ * review_status NEW render the unified yellow family (--color-new is ONE
+ * value with --color-verified, owner decision) — CONFIRMED rows keep the
+ * green user tone. The reported override still wins over the trust colour —
+ * markerTone() picks the class. The map legend deliberately carries NO "new"
+ * entry (owner decision: the verification shapes carry the community-row
+ * story on the map, the row's badge text says "Newly added" wherever it
+ * applies); the tone class stays the single source, so any swatch reuses it
+ * and matches the real marker by construction. */
 .shelter-marker--new {
   background: var(--color-new);
 }

@@ -1,10 +1,7 @@
 import {
   COMMUNITY_UNVERIFIED_WARNING,
-  INACCURATE_BADGE,
-  INACCURATE_WARNING,
   OCCUPANCY_FIRM_KEY,
   OCCUPANCY_HEDGED_KEY,
-  PRIVATE_LOCATION_BADGE,
   PRIVATE_LOCATION_NOTE,
   REPORT_SUBMITTED,
   REPORT_SUBMITTED_DAMPED,
@@ -83,8 +80,7 @@ describe('community + private copy (community-review-queue)', () => {
     );
   });
 
-  it('the private badge + note are the exact pinned strings', () => {
-    expect(PRIVATE_LOCATION_BADGE).toBe('Private home (declared)');
+  it('the private note is the exact pinned string (the badge is the catalog key rendered through the t pipe)', () => {
     expect(PRIVATE_LOCATION_NOTE).toBe(
       'This is a resident-offered location, not an official facility.',
     );
@@ -511,11 +507,8 @@ describe('locale seam (N7 i18n-completeness)', () => {
     lastReportedAt: string,
   ): ShelterOccupancy => ({ band, reportCount, lastReportedAt });
 
-  it('the no-callback path IS the EN catalog (admin call sites keep their copy)', () => {
+  it('the no-callback path IS the EN catalog (un-routed call sites keep their copy)', () => {
     expect(COMMUNITY_UNVERIFIED_WARNING).toBe(EN['shelter.unverifiedWarning']);
-    expect(INACCURATE_WARNING).toBe(EN['account.contrib.inaccurate']); // one of the 9 twins
-    expect(PRIVATE_LOCATION_BADGE).toBe(EN['shelter.privateBadge']);
-    expect(INACCURATE_BADGE).toBe('Inaccurate'); // admin-only literal (no key on purpose)
   });
 
   it('sourceTrustLabel resolves the account.contrib.* twins in the active locale', () => {

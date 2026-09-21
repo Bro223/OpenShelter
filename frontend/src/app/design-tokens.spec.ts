@@ -128,6 +128,53 @@ function balancedBlock(css: string, selector: RegExp): string | null {
   return null;
 }
 
+/**
+ * EVERY brace-balanced block whose selector line matches `selector` — the
+ * all-occurrence sibling of {@link balancedBlock}. The first-match idiom it
+ * replaces is the exact hole the sweep's mutation proof exposed in the
+ * <td>-class guard: a `display` declared for the same class in a LATER rule
+ * (an @media override, a more specific selector) sat outside the first
+ * match and was invisible, and a class with no rule at all was silently
+ * `continue`d, so "unchecked" read as "clean". The scan therefore covers
+ * every occurrence at every nesting depth — a rule nested in @media is a rule
+ * too, and a narrow-width display:flex on a <td> splits the row separator
+ * exactly as badly as a top-level one — and the CALLER must treat an empty
+ * result as a failure (a renamed/deleted rule), never as a pass.
+ */
+function allBalancedBlocks(css: string, selector: RegExp): string[] {
+  const lines = css.split('\n');
+  const blocks: string[] = [];
+  for (let start = 0; start < lines.length; start++) {
+    if (!selector.test(lines[start])) continue;
+    let depth = 0;
+    let opened = false;
+    let end = -1;
+    for (let i = start; i < lines.length; i++) {
+      const opens = (lines[i].match(/\{/g) ?? []).length;
+      const closes = (lines[i].match(/\}/g) ?? []).length;
+      if (!opened) {
+        if (closes > 0) {
+          // The match sat inside an earlier rule's declarations, not in a
+          // selector: skip past the end of that rule for the next candidate.
+          end = i;
+          break;
+        }
+        if (opens === 0) continue;
+        opened = true;
+      }
+      depth += opens - closes;
+      if (depth <= 0) {
+        end = i;
+        blocks.push(lines.slice(start, i + 1).join('\n'));
+        break;
+      }
+    }
+    if (end === -1) break; // opened but never closed (or the file ended)
+    start = end; // the next candidate sits after this block
+  }
+  return blocks;
+}
+
 describe('design tokens (M6)', () => {
   const stylesCss = readFileSync(STYLES_FILE ?? '', 'utf8');
   const rootLines = blockLines(stylesCss, /^\s*:root\s*\{/);
@@ -321,7 +368,11 @@ describe('design tokens (M6)', () => {
     ['--color-shelter-registry', '--color-badge-registry'],
     ['--color-shelter-user', '--color-badge-user'],
     // Trust-state badge text on its fill (community-review-queue D5):
-    // the NEW community rows' "Newly added" badge on every surface.
+    // the NEW community rows' "Newly added" badge (and the /mine
+    // info-request chip) on every surface. The badge rides on the
+    // UNIFIED yellow family (owner decision: the amber "new" hue was
+    // merged into the verified yellow) — the re-tinted fill is enforced
+    // here, not described in a comment.
     ['--color-warning', '--color-badge-new'],
     // Chrome band (header + footer + <900 menu panel): every text pair on
     // the band, every theme. Light + high-contrast: the navy band —
@@ -549,7 +600,49 @@ describe('design tokens (M6)', () => {
     expect(extra, 'black-and-yellow tokens without a :root counterpart').toEqual([]);
   });
 
+  it('the unified yellow family is ONE value per theme: --color-new === --color-verified (owner decision)', () => {
+    // The yellow-family unification (owner decision): the "not yet
+    // verified / newly added" state and the verified family are ONE
+    // yellow — the state rides on the marker shape + the row's badge
+    // text, and the reported red-orange stays a distinct family in
+    // every theme. This pin is the enforced form of that decision: a
+    // future "fix" that re-splits the two values (a fresher amber for
+    // NEW) fails here instead of quietly re-introducing the two-hue
+    // yellow family the owner rejected (the pins read yellow-ward, not
+    // orange-ward). The marker fill-vs-tile contrast itself is the
+    // documented trade-off every marker tone lives with (the 2px
+    // --color-bg-surface edge + the hue carry the pin), so no 3:1
+    // indicator pair is enforced for it — the fill is the verified
+    // pin's already-shipped value in all three themes.
+    const offenders: string[] = [];
+    const themes: [string, Map<string, string>][] = [
+      ['light', rootTokens],
+      ['high-contrast', themeTokens],
+      ['black-and-yellow', byTokens],
+    ];
+    for (const [theme, tokens] of themes) {
+      const fresh = tokens.get('--color-new');
+      const verified = tokens.get('--color-verified');
+      if (fresh === undefined || verified === undefined) {
+        offenders.push(`${theme}: --color-new/--color-verified missing from the token block`);
+        continue;
+      }
+      if (fresh.toLowerCase() !== verified.toLowerCase()) {
+        offenders.push(`${theme}: --color-new ${fresh} ≠ --color-verified ${verified}`);
+      }
+    }
+    expect(offenders, 'the yellow family must be one value per theme').toEqual([]);
+  });
+
   it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme', () => {
+    // The list itself must stay non-vacuous: a gutted CONTRAST_CHECKS
+    // (e.g. TEXT_PAIRS emptied) would pass every test below it — the
+    // floors exist to be checked, and an empty checker is the same
+    // "guard passes while the behaviour is gone" class this file has
+    // been hardened against (the repo idiom: a checked-count floor).
+    expect(CONTRAST_CHECKS.length, 'the contrast list must not be vacuous').toBeGreaterThanOrEqual(
+      80,
+    );
     const exempted = new Set(CONTRAST_EXEMPTIONS.map((e) => `${e.theme}:${e.fg}:${e.bg}`));
     const offenders: string[] = [];
     for (const check of CONTRAST_CHECKS) {
@@ -821,7 +914,14 @@ describe('design tokens (M6)', () => {
     ).toContain('border-bottom: 1px solid var(--color-border-subtle)');
 
     // Every class the markup puts on a <td> must keep the cell a real
-    // table cell: its top-level rule must not declare a display at all.
+    // table cell: NO rule for it — at any nesting depth, in any rule —
+    // may declare a display, and a class with NO rule at all is a failure,
+    // not a skip. (The old first-match regex left both holes: a `display`
+    // in a LATER rule for the same class was invisible, and `if (!block)
+    // continue` made an unstyled/renamed class indistinguishable from a
+    // clean one — the sweep's mutation proof: an appended
+    // `@media (max-width: 900px) { .admin-cell--name { display: flex } }`
+    // kept this guard green.)
     const tdClasses = new Set<string>();
     for (const m of adminHtml.matchAll(/<td\b[^>]*class="([^"]*)"/g)) {
       for (const c of m[1].split(/\s+/)) if (c) tdClasses.add(c);
@@ -830,12 +930,21 @@ describe('design tokens (M6)', () => {
       expect.arrayContaining(['admin-cell--name', 'admin-cell--actions']),
     );
     for (const c of tdClasses) {
-      const block = adminScss.match(new RegExp(`\\.${c} \\{[\\s\\S]*?\\n\\}`));
-      if (!block) continue;
+      // (?![\w-]) keeps .admin-cell--actions from matching the
+      // .admin-cell--actions-review rule (and vice versa): a td class is a
+      // whole token, not a prefix of a longer class name.
+      const re = new RegExp(`\\.${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`);
+      const blocks = allBalancedBlocks(adminScss, re);
       expect(
-        block[0],
-        `.${c} is carried by a <td>; a display declaration there demotes the cell and splits the row separator`,
-      ).not.toMatch(/display\s*:/);
+        blocks,
+        `.${c} is carried by a <td> but has no rule in the admin scss — a renamed or deleted rule would demote the cell silently, so the absence is a failure, not a skip`,
+      ).not.toHaveLength(0);
+      for (const block of blocks) {
+        expect(
+          block,
+          `.${c} is carried by a <td>; a display declaration there demotes the cell and splits the row separator`,
+        ).not.toMatch(/display\s*:/);
+      }
     }
   });
 

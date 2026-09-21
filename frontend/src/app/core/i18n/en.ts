@@ -703,6 +703,15 @@ export const EN: Messages = {
   'admin.shelters.inaccurate.reason.placeholder': 'What did you find to be inaccurate?',
   'admin.shelters.inaccurate.reason.max': 'Max {max} characters.',
   'admin.shelters.inaccurate.marking': 'Marking…',
+  'admin.shelters.inaccurate.badge': 'Inaccurate',
+  'admin.shelters.success.confirmed': 'Location confirmed.',
+  'admin.shelters.success.rejected': 'Location rejected.',
+  'admin.shelters.success.hidden': 'Shelter hidden.',
+  'admin.shelters.success.restored': 'Shelter restored.',
+  'admin.shelters.success.deleted': 'Shelter deleted.',
+  'admin.shelters.success.questionSent': 'Question sent to the submitter.',
+  'admin.shelters.success.inaccurateMarked': 'Marked as inaccurate.',
+  'admin.shelters.success.inaccurateCleared': 'Inaccurate mark cleared.',
 
   'admin.reports.loading': 'Loading reports…',
   'admin.reports.empty': 'No reports.',
@@ -712,6 +721,7 @@ export const EN: Messages = {
     'Not counted: the reporter already has a shelter with the same name at the same location.',
   'admin.reports.restore': 'Restore shelter',
   'admin.reports.dismiss': 'Dismiss',
+  'admin.reports.success.dismissed': 'Report dismissed.',
 
   'admin.alerts.loading': 'Loading alerts…',
   'admin.alerts.empty': 'No throttled or abusive activity yet.',
@@ -740,6 +750,8 @@ export const EN: Messages = {
   'admin.users.suspend': 'Suspend',
   'admin.users.unsuspend': 'Unsuspend',
   'admin.users.notSuspendable': 'Not suspendable',
+  'admin.users.success.suspended': 'User suspended.',
+  'admin.users.success.unsuspended': 'User unsuspended.',
 
   'admin.audit.loading': 'Loading audit log…',
   'admin.audit.empty': 'No moderation actions yet.',

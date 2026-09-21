@@ -867,6 +867,19 @@ export interface Messages {
   /** The inline length line; `{max}` is the character cap. */
   'admin.shelters.inaccurate.reason.max': string;
   'admin.shelters.inaccurate.marking': string;
+  /** The admin-list badge for a moderator-marked row (admin-only copy —
+   *  the warning line reuses account.contrib.inaccurate). */
+  'admin.shelters.inaccurate.badge': string;
+  // The moderation actions' success banners (the 204 confirmations —
+  // served through the banner seam like the guidance/media tabs' lines).
+  'admin.shelters.success.confirmed': string;
+  'admin.shelters.success.rejected': string;
+  'admin.shelters.success.hidden': string;
+  'admin.shelters.success.restored': string;
+  'admin.shelters.success.deleted': string;
+  'admin.shelters.success.questionSent': string;
+  'admin.shelters.success.inaccurateMarked': string;
+  'admin.shelters.success.inaccurateCleared': string;
 
   // shelter-reports tab: the report queue rows (dismiss, restore a
   // hidden shelter) and the not-counted/dismissed badges.
@@ -883,6 +896,8 @@ export interface Messages {
   'admin.reports.notCounted.reason': string;
   'admin.reports.restore': string;
   'admin.reports.dismiss': string;
+  /** The dismiss action's success banner (the 204 confirmation). */
+  'admin.reports.success.dismissed': string;
 
   // alerts tab: the M3 abuse-limits queue.
   'admin.alerts.loading': string;
@@ -917,6 +932,10 @@ export interface Messages {
   'admin.users.suspend': string;
   'admin.users.unsuspend': string;
   'admin.users.notSuspendable': string;
+  /** The suspend/unsuspend actions' success banners (the 204
+   *  confirmations). */
+  'admin.users.success.suspended': string;
+  'admin.users.success.unsuspended': string;
 
   // audit tab: the moderation trail.
   'admin.audit.loading': string;

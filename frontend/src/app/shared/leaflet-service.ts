@@ -50,14 +50,18 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 /**
  * The marker tone class suffix. Reported state (shelter-trust-and-reports
  * D1) wins over everything — the orange dot is the single "reported"
- * affordance. For community rows the SHAPE then carries the submitter's
- * verification depth (submitter-verification-badge, owner decision):
- * `partial` is a triangle at exactly one confirmed channel, `full` a circle at
- * two or more — never colour alone (WCAG 1.4.1, the same rationale as the
- * anchor diamond). A row whose depth the backend does not report (older API,
- * deleted author) keeps the trust tone (community-review-queue D5): amber
- * while NEW, green once CONFIRMED. Registry rows stay blue; hidden rows never
- * reach the public map.
+ * affordance (the red-orange stays a distinct family in every theme; the
+ * yellow-family unification, owner decision, did not touch it). For
+ * community rows the SHAPE then carries the submitter's verification depth
+ * (submitter-verification-badge, owner decision): `partial` is a triangle
+ * at exactly one confirmed channel, `full` a circle at two or more — never
+ * colour alone (WCAG 1.4.1, the same rationale as the anchor diamond). A
+ * row whose depth the backend does not report (older API, deleted author)
+ * keeps the trust tone (community-review-queue D5): the unified
+ * verified-yellow family while NEW (the amber was merged into the yellow
+ * family, owner decision — the state rides on the shape + the row's badge
+ * text, never a third hue), green once CONFIRMED. Registry rows stay blue;
+ * hidden rows never reach the public map.
  */
 export function markerTone(shelter: {
   source: ShelterSource;
@@ -91,10 +95,10 @@ export function markerTone(shelter: {
  *
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): the tone follows the trust
- * palette — registry blue (Päästeamet + Municipal), community NEW amber,
- * community CONFIRMED green (user family); reported rows keep the orange
- * override. The legend reuses the same classes, so the visual stays
- * single-sourced.
+ * palette — registry blue (Päästeamet + Municipal), community NEW yellow
+ * (the unified verified family), community CONFIRMED green (user family);
+ * reported rows keep the orange override. The legend reuses the same
+ * classes, so the visual stays single-sourced.
  */
 @Injectable()
 export class LeafletService {

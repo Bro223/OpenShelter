@@ -1263,17 +1263,59 @@ describe('GuidanceEditor', () => {
 
   // ---- the stylesheet wiring (loaded WITH the editor, never globally) ----
 
-  it('the snow stylesheet is not a global style (angular.json stays quill-free)', () => {
+  it('the snow stylesheet is not a global style, and the asset copy that serves SNOW_THEME_HREF stays pinned (angular.json)', () => {
     // The one regression this file guards twice: the stylesheet must ride
-    // in the lazy admin chunk, not in the initial bundle.
+    // in the lazy admin chunk, not in the initial bundle. The pin covers
+    // BOTH halves of the wiring — the negative (no quill in `styles`) and
+    // the positive (the assets entry that copies the vendored theme to the
+    // URL the editor links). The positive half is the one the sweep's
+    // mutation exposed: deleting the asset entry leaves this suite green
+    // (jsdom creates the <link> regardless of whether the URL resolves)
+    // while the BUILT app's editor loses its theme (404) — the exact bug
+    // this guard class exists to catch.
     const config = JSON.parse(
       readFileSync(`${process.cwd()}/angular.json`, 'utf8'),
-    ) as { projects: Record<string, { architect: Record<string, { options: { styles: string[] } }> }> };
-    const styles = config.projects['frontend']!.architect['build']!.options.styles;
+    ) as {
+      projects: Record<
+        string,
+        {
+          architect: Record<
+            string,
+            {
+              options: {
+                styles: string[];
+                assets: (string | { glob: string; input: string; output: string })[];
+              };
+            }
+          >;
+        }
+      >;
+    };
+    const options = config.projects['frontend']!.architect['build']!.options;
     expect(
-      styles.some((s) => s.includes('quill')),
+      options.styles.some((s) => s.includes('quill')),
       'quill.snow.css must not be a global style',
     ).toBe(false);
+    // The positive half: the entry that copies the vendored theme into the
+    // build output. Resolved against the vendored version directory it must
+    // land EXACTLY on SNOW_THEME_HREF — drift in the copy or in the href
+    // 404s the theme in the built app with a green suite. (The vendor file
+    // itself is pinned by the bytes test below, which fails if the
+    // 2.0.3/dist path goes away.)
+    const quillEntry = options.assets.find(
+      (
+        a,
+      ): a is { glob: string; input: string; output: string } =>
+        typeof a === 'object' && a.input === 'src/vendor/quill' && a.glob === '**/dist/quill.snow.css',
+    );
+    expect(
+      quillEntry,
+      'angular.json must copy the vendored quill snow theme into the build output — the editor links SNOW_THEME_HREF, and without the copy the built editor is unstyled (404) while this suite stays green',
+    ).toBeDefined();
+    expect(quillEntry!.output, 'the quill copy output root').toBe('/vendor/quill');
+    expect(`${quillEntry!.output}/2.0.3/dist/quill.snow.css`, 'the copied asset must land on the URL the editor links').toBe(
+      SNOW_THEME_HREF,
+    );
   });
 
   it('initialising the editor loads the snow stylesheet (one versioned link, never global)', () => {

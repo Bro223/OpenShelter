@@ -132,7 +132,7 @@
                        the Shelters tab's context, not a detail nav. -->
                     {{ row.name }}
                     @if (isPrivateLocation(row)) {
-                      <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                      <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
                     }
                   </div>
                 </td>
@@ -301,7 +301,7 @@
                        warning line — the row stays visible, the flag is the
                        treatment. -->
                     @if (row.inaccurate) {
-                      <span class="admin-inaccurate">{{ inaccurateWarning }}</span>
+                      <span class="admin-inaccurate">{{ 'account.contrib.inaccurate' | t }}</span>
                     }
                   </div>
                 </td>
@@ -313,10 +313,10 @@
                     {{ sourceTrustLabel(row) }}
                   </span>
                   @if (row.inaccurate) {
-                    <span class="badge badge--inaccurate">{{ inaccurateBadge }}</span>
+                    <span class="badge badge--inaccurate">{{ 'admin.shelters.inaccurate.badge' | t }}</span>
                   }
                   @if (isPrivateLocation(row)) {
-                    <span class="badge badge--private">{{ privateLocationBadge }}</span>
+                    <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
                   }
                 </td>
                 <td>

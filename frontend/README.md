@@ -150,10 +150,13 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   500 kB default warning is unreachable without dropping the map from first paint.
   Seven routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
   terms, the two /blog guidance routes). Measured initial total on a fresh build
-  (2026-09-18): **670.83 kB raw / 165.10 kB transfer** — this **exceeds**
-  `maximumWarning: 560kB` by 110.83 kB, so a fresh build prints a bundle-budget
-  warning (four component SCSS budgets warn as well: admin-page,
-  shelter-detail-page, map-page, page-shell). The `anyComponentStyle` budget
+  (2026-09-22): **723.26 kB raw / 175.99 kB transfer** — this **exceeds**
+  `maximumWarning: 560kB` by 163.26 kB, so a fresh build prints a bundle-budget
+  warning (eight component SCSS budgets warn as well, largest first: map-page
+  8.40 kB, admin-page 6.68 kB, shelter-detail-page 6.10 kB, page-shell 4.92 kB,
+  guidance-editor 4.27 kB, submit-shelter-page 4.11 kB, guidance-translations
+  4.08 kB, guidance-order-list 4.04 kB — all against the 4 kB warning). The
+  `anyComponentStyle` budget
   stays at its defaults (4 kB warning / **10 kB error** — no exception, and the
   30 kB exception a previous lane added for the Quill theme was reverted
   deliberately): the guidance editor's vendored Quill snow stylesheet (≈24 kB,
