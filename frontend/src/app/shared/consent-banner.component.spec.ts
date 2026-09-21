@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ConsentStore } from '../core/consent-store';
@@ -100,5 +101,19 @@ describe('ConsentBanner', () => {
     expect(text).toContain('Sain aru');
     expect(text).toContain('Loe privaatsuspoliitikat');
     expect(document.documentElement.lang).toBe('et');
+  });
+
+  it('suppresses the UA ring on the dialog container (no dark box while it holds focus)', () => {
+    // The section takes focus on open (afterNextRender) purely so the screen
+    // reader announces it; Chromium's default ring drew a dark box around the
+    // whole banner until the next click (owner-reported). BOTH pseudo-classes
+    // are required: a script focus() call can match :focus-visible.
+    const scss = readFileSync(
+      `${process.cwd()}/src/app/shared/consent-banner.component.scss`,
+      'utf8',
+    );
+    expect(scss, 'the dialog container must suppress the UA focus ring').toMatch(
+      /&:focus,\s*&:focus-visible \{\s*outline: none;\s*\}/,
+    );
   });
 });

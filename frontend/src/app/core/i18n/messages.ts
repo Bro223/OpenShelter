@@ -198,6 +198,10 @@ export interface Messages {
   'map.legend.new': string;
   'map.legend.confirmed': string;
   'map.legend.reported': string;
+  /** The submitter-verification shapes (submitter-verification-badge): a
+   *  triangle at one confirmed channel, a circle at two or more. */
+  'map.legend.partialVerified': string;
+  'map.legend.fullVerified': string;
   'map.geoNote': string;
   /** The around-you CTA label (the map's only geolocation trigger); the
    *  how.nearest + map.geocode copy quote this label, locale for locale. */
@@ -427,6 +431,13 @@ export interface Messages {
   'shelter.communityReports': string;
   /** {distance} is the shared straightLineText() figure (1 decimal km /
    *  whole metres). Never a walking-route or official-status claim. */
+  /** The submitter's verification depth (submitter-verification-badge): the
+   *  single confirmed channel, or FULL at two or more. Absent/null = no
+   *  badge (registry rows, no author, an author with no confirmed channel). */
+  'shelter.submitterVerification.email': string;
+  'shelter.submitterVerification.phone': string;
+  'shelter.submitterVerification.smartId': string;
+  'shelter.submitterVerification.full': string;
   'shelter.distance.meters': string;
   'shelter.distance.kilometers': string;
   // Report-flow notices (shelter-trust-and-reports D6; the dampened
@@ -520,6 +531,12 @@ export interface Messages {
   'error.verifyBadCode': string;
   'error.accountRateLimited': string;
   'error.accountBadCode': string;
+  /** The login 401 and the password-reset-confirm 400: the two branches
+   *  whose copy is CLIENT-authored on purpose (anti-enumeration — they must
+   *  never echo the backend's English message, and before these keys they
+   *  returned a raw English constant that no locale could translate). */
+  'error.invalidCredentials': string;
+  'error.resetBadCode': string;
   /** The network/transport-failure banner (ApiError.isNetworkError,
    *  status 0): the backend never answered at all. ONE state on purpose —
    *  ApiError does not distinguish offline / unreachable / timeout (all
@@ -724,6 +741,9 @@ export interface Messages {
   'pagination.next': string;
   'pagination.pageOf': string;
   'pagination.size': string;
+  /** The shelters list's size label (the admin Shelters tab passes it —
+   *  the default copy names posts). */
+  'pagination.sizeShelters': string;
   'guidance.pageOutOfRange': string;
   'guidance.pageFirst': string;
 
@@ -780,8 +800,25 @@ export interface Messages {
   'admin.shelters.search.label': string;
   'admin.shelters.search.placeholder': string;
   'admin.shelters.search.button': string;
+  /** The source filter chip group's accessible name (admin Shelters tab).
+   *  All / Registry / Community — the chips AND-compose with the status
+   *  filter and the search. */
+  'admin.shelters.source.aria': string;
+  /** The "all sources" chip (no filter). */
+  'admin.shelters.source.all': string;
+  /** The registry chip (Päästeamet + municipality imports — the table's
+   *  registry vocabulary, short). */
+  'admin.shelters.source.registry': string;
+  /** The community chip (user submissions). */
+  'admin.shelters.source.community': string;
   'admin.shelters.loading': string;
   'admin.shelters.empty': string;
+  /** The empty state when a filter (source/search) is ACTIVE — the
+   *  filtered list is empty, not the whole scope. */
+  'admin.shelters.emptyFiltered': string;
+  /** The list's out-of-range page notice (the URL asks for a page past
+   *  the end). `{page}` the requested page, `{pages}` the last one. */
+  'admin.shelters.pageOutOfRange': string;
   /** The table region aria-label. */
   'admin.shelters.aria': string;
   'admin.shelters.col.name': string;
@@ -921,6 +958,27 @@ export interface Messages {
   /** The scoped list's language line (admin-locale-scope): the posts shown
    *  are the active UI language's. `{locale}` is the language code. */
   'admin.guidance.shownIn': string;
+  /** The admin guidance search's input label (admin-guidance-search):
+   *  submit-based, matching the active content locale's scope. */
+  'admin.guidance.search.label': string;
+  /** The admin guidance search's input placeholder. */
+  'admin.guidance.search.placeholder': string;
+  /** The admin guidance search's submit button. */
+  'admin.guidance.search.button': string;
+  /** The explicit search-clear action (removes the filter; the page
+   *  resets to 1). */
+  'admin.guidance.search.clear': string;
+  /** The no-match state for a NON-EMPTY search — distinct from the
+   *  "no posts yet" empty states (they mean different things).
+   *  `{query}` is the search term, `{locale}` the active content
+   *  language. */
+  'admin.guidance.noMatch': string;
+  /** The list's out-of-range page notice (the URL asks for a page past
+   *  the end). `{page}` the requested page, `{pages}` the last one. */
+  'admin.guidance.pageOutOfRange': string;
+  /** The out-of-range notice's first-page action (both paged admin
+   *  lists). */
+  'admin.pageFirst': string;
   /** The content-language select's label (the Guidance tab): the language
    *  of the listed/edited posts. */
   'admin.guidance.language.label': string;
@@ -942,6 +1000,11 @@ export interface Messages {
   // that name the post and the direction — a screen reader announces
   // "Move {post} to the top").
   'admin.guidance.order.hint': string;
+  /** The reorder-disabled hint while the list spans pages (the DnD and
+   *  the move buttons need the whole scope on one page — the full-list
+   *  order PUT is all-rows by nature). `{max}` is the largest offered
+   *  page size. */
+  'admin.guidance.order.pagedHint': string;
   'admin.guidance.move.top': string;
   'admin.guidance.move.up': string;
   'admin.guidance.move.down': string;

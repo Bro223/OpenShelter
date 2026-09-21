@@ -245,3 +245,58 @@ describe('GuidanceOrderList manual ordering', () => {
     expect(reorder.length).toBe(0);
   });
 });
+
+// ---- paged scope (admin-page-size's interaction rule) ------------------------
+
+describe('GuidanceOrderList paged scope', () => {
+  it('a multi-page scope disables DnD and the move buttons, with the hint pointing at the size selector', async () => {
+    const { el, panel, reorder } = await render({ reorderable: false });
+    const rows = el.querySelectorAll('tbody tr');
+    // The move buttons stay rendered (the row shape is stable) but every
+    // one is disabled — a multi-page list offers no reordering at all
+    // (the full-list order PUT is all-rows-by-nature).
+    for (const row of Array.from(rows)) {
+      for (const b of moveButtons(row)) {
+        expect(b.disabled).toBe(true);
+      }
+    }
+    // The hint points at the size selector (the max offered size, 100)
+    // instead of the order hint.
+    const hint = el.querySelector('.admin-guidance-hint')!.textContent ?? '';
+    expect(hint).toContain('100');
+    expect(hint).not.toContain('in this order');
+    // The rows are not draggable at all.
+    for (const row of Array.from(rows)) {
+      expect(row.getAttribute('draggable')).toBeNull();
+    }
+    // …and the handlers guard even if a drag event slips through.
+    rows[0]!.dispatchEvent(dragEvent('dragstart'));
+    expect(panel.dragId).toBeNull();
+    rows[1]!.dispatchEvent(dragEvent('drop'));
+    expect(reorder.length).toBe(0);
+    panel.movePost(13, 'up');
+    expect(reorder.length).toBe(0);
+  });
+
+  it('the single-page scope keeps the order hint and works (reorderable default)', async () => {
+    const { el } = await render(); // reorderable defaults to true
+    const hint = el.querySelector('.admin-guidance-hint')!.textContent ?? '';
+    expect(hint).toContain('in this order');
+    const rows = el.querySelectorAll('tbody tr');
+    expect(rows[0]!.getAttribute('draggable')).toBe('true');
+  });
+
+  it('an empty result for a NON-EMPTY search shows the no-match state with the term (not "no posts yet")', async () => {
+    const { el } = await render({ rows: [], searchTerm: 'kelder' });
+    const state = el.querySelector('.admin-state')!.textContent ?? '';
+    expect(state).toContain('No posts matching "kelder" in en');
+    expect(state).not.toContain('No guidance posts in en yet');
+  });
+
+  it('an empty scope without a search keeps the "no posts yet" state', async () => {
+    const { el } = await render({ rows: [] });
+    const state = el.querySelector('.admin-state')!.textContent ?? '';
+    expect(state).toContain('No guidance posts in en yet');
+    expect(state).not.toContain('No posts matching');
+  });
+});

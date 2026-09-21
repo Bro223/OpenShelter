@@ -29,6 +29,20 @@
   background: var(--color-bg-surface);
   color: var(--color-text);
 
+  /* The dialog container takes focus on open (consent-banner.component.ts
+     afterNextRender) so the screen reader announces it — not because the
+     user navigated here. Suppress the UA ring: the <section> is not an
+     operable control (its button and link carry their own rings), while
+     Chromium's default ring painted a dark box around the whole banner
+     until the next click (owner-reported). BOTH pseudo-classes are listed:
+     a script focus() call can match :focus-visible. Contrast
+     accessibility-dialog.component.scss:40-45, which keeps a deliberate
+     token ring on the dialog the user opens explicitly. */
+  &:focus,
+  &:focus-visible {
+    outline: none;
+  }
+
   &__title {
     margin: 0 0 var(--space-8);
     font-size: var(--text-xl);

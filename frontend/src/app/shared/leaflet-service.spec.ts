@@ -128,6 +128,65 @@ describe('LeafletService', () => {
     expect(markers.every((m) => m.classList.contains('leaflet-marker-icon'))).toBe(true);
   });
 
+  it('community markers carry the submitter verification depth as SHAPE (owner decision)', () => {
+    // One confirmed channel -> the triangle; two or more -> the circle. Both in
+    // the verified family, so the depth never rides on colour alone. The
+    // channel itself does not change the shape (EMAIL and PHONE are both
+    // exactly one).
+    const emailOnly = shelter({
+      id: 21,
+      name: 'Email-only Cellar',
+      source: 'USER',
+      submitterVerification: 'EMAIL',
+    });
+    const phoneOnly = shelter({
+      id: 22,
+      name: 'Phone-only Cellar',
+      source: 'USER',
+      submitterVerification: 'PHONE',
+    });
+    const full = shelter({
+      id: 23,
+      name: 'Fully Verified Cellar',
+      source: 'USER',
+      submitterVerification: 'FULL',
+    });
+    const legacyNoDepth = shelter({
+      id: 24,
+      name: 'Older API Cellar',
+      source: 'USER',
+      reviewStatus: 'NEW',
+    });
+
+    service.renderShelters([emailOnly, phoneOnly, full, legacyNoDepth]);
+
+    const markers = renderedMarkers(container);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--partial')).length).toBe(2);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--full')).length).toBe(1);
+    // A row whose depth the backend does not report keeps the trust tone:
+    // graceful degradation, and the reason an older API keeps working.
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--new')).length).toBe(1);
+    expect(markers.filter((m) => m.classList.contains('shelter-marker--user')).length).toBe(0);
+
+    // Reported still wins over the verification shape (the safety affordance).
+    service.renderShelters([
+      shelter({
+        id: 25,
+        name: 'Reported Cellar',
+        source: 'USER',
+        submitterVerification: 'FULL',
+        nonexistentReports: 3,
+      }),
+    ]);
+    const reportedMarkers = renderedMarkers(container);
+    expect(
+      reportedMarkers.filter((m) => m.classList.contains('shelter-marker--reported')).length,
+    ).toBe(1);
+    expect(reportedMarkers.filter((m) => m.classList.contains('shelter-marker--full')).length).toBe(
+      0,
+    );
+  });
+
   it('a hidden or rejected USER row still pins the community green tone (only four classes exist)', () => {
     const reportedAway = shelter({
       id: 20,
@@ -452,7 +511,9 @@ describe('LeafletService', () => {
     service.renderShelters([TALLINN]);
     const shelterEl2 = container.querySelector<HTMLElement>('.shelter-marker--registry');
     const anchorEl2 = container.querySelector<HTMLElement>('.shelter-marker--anchor');
-    expect(parseInt(shelterEl2!.style.zIndex, 10) > parseInt(anchorEl2!.style.zIndex, 10)).toBe(true);
+    expect(parseInt(shelterEl2!.style.zIndex, 10) > parseInt(anchorEl2!.style.zIndex, 10)).toBe(
+      true,
+    );
   });
 
   it('setAnchor is a safe no-op before create and destroy clears the pin (M12)', () => {

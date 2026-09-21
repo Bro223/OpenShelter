@@ -109,6 +109,20 @@ literals; `design-tokens.spec.ts` scans every `.scss` file and fails on hex/rgb 
 off-grid font-sizes, so the audit stays mechanical. A global `:focus-visible` rule makes
 every interactive element keyboard-visible.
 
+**Focus rings — the UA ring is suppressed; every operable control keeps a token ring (owner decision
+2026-09-21).** The browser-default (UA) ring is suppressed globally by `*:focus { outline: none }` in
+`src/styles.scss`, because Chromium painted a dark box on every focused element that had no project rule
+— which read as a stray black border. That rule is lower specificity than the token rings, so the
+project's own rings still render: `a`, `button`, `input`, `textarea`, **`select`** and
+**`.admin-table-wrap`** (the seven `tabindex="0"` admin table scroll regions) all carry
+`:focus-visible { outline: 2px solid var(--color-primary) }`, alongside the shell chrome, the dialogs and
+the Leaflet map chrome. **No WCAG 2.4.7 deviation remains** — the only thing still suppressed is the two
+containers the shell focuses PROGRAMMATICALLY (a route change, a dialog open): not keyboard-operable, so
+no indicator is owed. **When you add a focusable control, add its selector to the token-ring list in
+`src/styles.scss`**, or the global suppression leaves it with no visible focus indicator. Recorded in
+[`qa/accessibility-checklist.md`](../qa/accessibility-checklist.md) §3 and pinned by
+`design-tokens.spec.ts` (it asserts both the suppression and the ring).
+
 ## Production build
 
 ```bash

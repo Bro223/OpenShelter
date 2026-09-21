@@ -64,7 +64,8 @@ auth, verification, shelter submission, community reports); run/build docs in
 - **2026-09-08 code-review fix campaign** — a 4-lead/14-child review found P0 security
   issues (reset-code brute force, XFF rate-limit spoofing, fail-open dev JWT secret) plus
   backend/frontend/architecture findings; all in-scope findings were fixed over 3 waves with
-  tests (see [2026-09-08 code review — fix log](docs/code-review/2026-09-08-fix-log.md)).
+  tests (the per-issue fix log is gitignored and stays local-only — see
+  [docs/code-review/README.md](docs/code-review/README.md)).
   Frontend: **513 tests green across 33 spec files** (counted 2026-09-10, pre-fix-wave) —
   2026-09-11 post-review-wave: 360 backend / 588 frontend, all green.
 - **Live data source wired** — real shelter data is fetched from the Päästeamet open-data CSV
@@ -461,7 +462,7 @@ SMTP endpoint: disabled by default, JWT required, recipient allowlist
 
 ## Running locally
 
-Requirements: JDK 21, Maven 3.9+, Docker (Compose).
+Requirements: JDK 21, Maven 3.9+, Docker (Compose), Node.js 26 + npm 11 (`frontend/package.json` `engines`).
 
 ```bash
 # 1. Start PostgreSQL 16 (dev credentials: sheltermap / sheltermap — dev only)
@@ -497,12 +498,13 @@ Steps 2–3 are build/verification steps; steps 1, 4 and 6 are all it takes to r
 the application. (`frontend/README.md` covers the frontend on its own.)
 
 > **Use `./dev-start.sh` to run the app locally.** Since the 2026-09-08 review the app is
-> **fail-closed at boot** via four guards: `ProdJwtGuard` (refuses the published dev-default /
+> **fail-closed at boot** via five guards: `ProdJwtGuard` (refuses the published dev-default /
 > < 32-byte `JWT_SECRET`), `DevEndpointsGuard` (refuses the `/dev/email-test` +
 > `/dev/sms-test` diagnostic endpoints — which the local `.env` turns on), `DevSenderGuard`
-> (refuses to send through the dev console senders when a real provider is configured) and
+> (refuses to send through the dev console senders when a real provider is configured),
 > `ApiDocsGuard` (refuses the springdoc `/v3/api-docs` + `/swagger-ui` surface — which the local
-> `.env` turns on via `SPRINGDOC_ENABLED=true`). All four refuse to boot
+> `.env` turns on via `SPRINGDOC_ENABLED=true`) and `DataSourceCredentialGuard` (refuses the
+> published dev database password — or a blank one). All five refuse to boot
 > **unless the active profile is exactly `dev` or `test`** (dev parity). A plain
 > `mvn spring-boot:run` with no profile set therefore exits at startup with
 > `PRODUCTION REFUSED TO START`. `./dev-start.sh` pins `SPRING_PROFILES_ACTIVE=dev` for you;
@@ -536,8 +538,9 @@ SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run -Dspring-boot.run.arguments="--ap
 
 **Local `.env` file** (project root): Spring loads it automatically at startup via
 `spring-dotenv` (`me.paulschwarz:spring-dotenv`). Put real credentials there instead of
-exporting them each launch — `.env` is gitignored and never committed. A `*.env.example`
-naming convention is reserved; shell-exported env vars take precedence over `.env` values.
+exporting them each launch — `.env` is gitignored and never committed. `.env.example` in the
+repository root lists the variable names this app reads (placeholders only, no real values) —
+copy it and fill in your own; shell-exported env vars take precedence over `.env` values.
 
 > **Secret-scan note (2026-09-09 de-slop pass):** a secret-pattern scan of the FULL git
 > history found zero committed credentials. The `a5e83db` commit message ("tested with
@@ -642,9 +645,9 @@ A code-review pass over the completed Steps 0–6 fixed the following (each with
 
 ## 2026-09-08 code-review fix campaign
 
-A 4-lead / 14-child review (reports: `docs/code-review/2026-09-08-review-output.md`) was fixed
-over three waves — full per-issue record with test evidence in
-[docs/code-review/2026-09-08-fix-log.md](docs/code-review/2026-09-08-fix-log.md). Highlights:
+A 4-lead / 14-child review was fixed over three waves — structure and per-area verdicts are
+documented in [docs/code-review/README.md](docs/code-review/README.md); the verbatim reports
+and the full per-issue fix log are gitignored, so they stay local-only. Highlights:
 
 - **P0 security** — reset-confirm anti-guess rate limit; per-user reset re-issue cooldown (60 s)
   - 5/UTC-day cap; `ClientIps` XFF resolution made unspoofable (untrusted peer → header

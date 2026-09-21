@@ -100,11 +100,11 @@
 
   <!-- =========================== Unconfirmed queue =========================== -->
   @if (tab() === 'unconfirmed') {
-    @if (shelterRows() === null && shelterLoadError() === null) {
+    @if (queueRows() === null && shelterLoadError() === null) {
       <app-loading-indicator class="admin-state" [message]="'admin.unconfirmed.loading' | t" />
     } @else if (shelterLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
-      <button type="button" class="btn btn--ghost" (click)="loadShelters()">{{ 'admin.retry' | t }}</button>
+      <button type="button" class="btn btn--ghost" (click)="loadQueue()">{{ 'admin.retry' | t }}</button>
     } @else if (unconfirmedRows().length === 0) {
       <p class="admin-state">{{ 'admin.unconfirmed.empty' | t }}</p>
     } @else {
@@ -214,27 +214,66 @@
 
   <!-- ============================== Shelters ============================== -->
   @if (tab() === 'shelters') {
-    <form class="admin-search" (submit)="onSearchSubmit()">
-      <div class="field admin-search__field">
-        <label for="admin-search">{{ 'admin.shelters.search.label' | t }}</label>
-        <input
-          id="admin-search"
-          type="search"
-          [formControl]="searchQuery"
-          [placeholder]="'admin.shelters.search.placeholder' | t"
-          autocomplete="off"
-        />
+    <!-- The paged list's controls: the name/address search (submit on
+         Enter or button — the server does the substring match) and the
+         source chips (All / Registry / Community — the URL-backed filter
+         that composes with the search, AND on the server). -->
+    <div class="admin-shelters-toolbar">
+      <form class="admin-search" (submit)="onSearchSubmit()">
+        <div class="field admin-search__field">
+          <label for="admin-search">{{ 'admin.shelters.search.label' | t }}</label>
+          <input
+            id="admin-search"
+            type="search"
+            [formControl]="searchQuery"
+            [placeholder]="'admin.shelters.search.placeholder' | t"
+            autocomplete="off"
+          />
+        </div>
+        <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.shelters.search.button' | t }}</button>
+      </form>
+      <div class="admin-chips" role="group" [attr.aria-label]="'admin.shelters.source.aria' | t">
+        @for (chip of sourceChips; track chip.value) {
+          <button
+            type="button"
+            class="chip"
+            [class.chip--active]="shelterSource() === chip.value"
+            [attr.aria-pressed]="shelterSource() === chip.value ? 'true' : 'false'"
+            [disabled]="busy()"
+            (click)="onSourceChip(chip.value)"
+          >
+            {{ chip.label | t }}
+          </button>
+        }
       </div>
-      <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.shelters.search.button' | t }}</button>
-    </form>
+    </div>
 
     @if (shelterRows() === null && shelterLoadError() === null) {
       <app-loading-indicator class="admin-state" [message]="'admin.shelters.loading' | t" />
     } @else if (shelterLoadError(); as loadErr) {
       <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
       <button type="button" class="btn btn--ghost" (click)="loadShelters()">{{ 'admin.retry' | t }}</button>
+    } @else if (shelterOutOfRange()) {
+      <!-- The honest out-of-range state (the public guidance page's
+           pattern): the URL asks for a page past the end of a NON-EMPTY
+           list — an explicit translated notice + first-page action,
+           never a bare empty list. -->
+      <div class="admin-oob" role="status">
+        <p>
+          {{ 'admin.shelters.pageOutOfRange' | t: { page: shelterPage(), pages: shelterPages() } }}
+        </p>
+        <button type="button" class="btn btn--primary" (click)="gotoSheltersFirstPage()">
+          {{ 'admin.pageFirst' | t }}
+        </button>
+      </div>
     } @else if ((shelterRows() ?? []).length === 0) {
-      <p class="admin-state">{{ 'admin.shelters.empty' | t }}</p>
+      <!-- A filter (source chips or the search) is ACTIVE — the filtered
+           list is empty, not the whole scope (different copy). -->
+      @if (shelterSource() !== 'ALL' || shelterQuery() !== '') {
+        <p class="admin-state">{{ 'admin.shelters.emptyFiltered' | t }}</p>
+      } @else {
+        <p class="admin-state">{{ 'admin.shelters.empty' | t }}</p>
+      }
     } @else {
       <div class="admin-table-wrap" tabindex="0" role="region" [attr.aria-label]="'admin.shelters.aria' | t">
         <table class="admin-table">
@@ -566,6 +605,18 @@
           </tbody>
         </table>
       </div>
+      <!-- The shared page + size control (admin's list-page-paging
+           follow-up): it renders NOTHING at one page or an empty list
+           (its own rule), so no guard is needed; the size label names
+           shelters. -->
+      <app-pagination
+        [page]="shelterPage()"
+        [pages]="shelterPages()"
+        [size]="shelterSize()"
+        [sizes]="pageSizes"
+        [sizeLabelKey]="'pagination.sizeShelters'"
+        (onNavigate)="onSheltersNavigate($event)"
+      />
     }
   }
 
@@ -829,6 +880,29 @@
       <p class="admin-guidance-language__hint">{{ 'admin.guidance.language.hint' | t }}</p>
     </div>
 
+    <!-- admin-guidance-search: the list's search — SUBMIT-based (Enter or
+         the button), never per-keystroke; the term is URL-backed (`q`),
+         scoped to the content locale's list, and a submit/clear resets
+         the page to 1. The Clear button appears while a term is active. -->
+    <form class="admin-search admin-guidance-search" (submit)="onGuidanceSearchSubmit()">
+      <div class="field admin-search__field">
+        <label for="guidance-search">{{ 'admin.guidance.search.label' | t }}</label>
+        <input
+          id="guidance-search"
+          type="search"
+          [formControl]="guidanceSearch"
+          [placeholder]="'admin.guidance.search.placeholder' | t"
+          autocomplete="off"
+        />
+      </div>
+      <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.guidance.search.button' | t }}</button>
+      @if (guidanceQuery() !== '') {
+        <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="onGuidanceSearchClear()">
+          {{ 'admin.guidance.search.clear' | t }}
+        </button>
+      }
+    </form>
+
     @if (guidanceEditor() === null) {
       <button
         type="button"
@@ -908,22 +982,51 @@
       </div>
     }
 
-    <app-guidance-order-list
-      [rows]="guidanceRows()"
-      [loadError]="guidanceLoadError()"
-      [busy]="busy()"
-      [contentLocale]="contentLocale()"
-      [publishedAt]="publishedAtBySlug()"
-      [deleteConfirm]="guidanceDeleteConfirm"
-      (retry)="loadGuidance()"
-      (edit)="openGuidanceEditor($event)"
-      (publish)="publishGuidancePost($event)"
-      (unpublish)="unpublishGuidancePost($event)"
-      (requestDelete)="requestDeleteGuidance($event)"
-      (confirmDelete)="confirmDeleteGuidance($event)"
-      (cancelDelete)="cancelDeleteGuidance()"
-      (reorder)="submitGuidanceOrder($event)"
-    />
+    <!-- admin-page-size: an out-of-range page (the URL asks for one past
+         the end of a NON-EMPTY scope) renders the explicit notice +
+         first-page action INSTEAD of the list — never a bare empty list.
+         The list itself renders the distinct no-match / no-posts-yet
+         empty states (searchTerm). -->
+    @if (guidanceOutOfRange()) {
+      <div class="admin-oob" role="status">
+        <p>
+          {{ 'admin.guidance.pageOutOfRange' | t: { page: guidancePage(), pages: guidancePages() } }}
+        </p>
+        <button type="button" class="btn btn--primary" (click)="gotoGuidanceFirstPage()">
+          {{ 'admin.pageFirst' | t }}
+        </button>
+      </div>
+    } @else {
+      <app-guidance-order-list
+        [rows]="guidanceRows()"
+        [loadError]="guidanceLoadError()"
+        [busy]="busy()"
+        [contentLocale]="contentLocale()"
+        [searchTerm]="guidanceQuery()"
+        [reorderable]="guidanceReorderable()"
+        [publishedAt]="publishedAtBySlug()"
+        [deleteConfirm]="guidanceDeleteConfirm"
+        (retry)="loadGuidance()"
+        (edit)="openGuidanceEditor($event)"
+        (publish)="publishGuidancePost($event)"
+        (unpublish)="unpublishGuidancePost($event)"
+        (requestDelete)="requestDeleteGuidance($event)"
+        (confirmDelete)="confirmDeleteGuidance($event)"
+        (cancelDelete)="cancelDeleteGuidance()"
+        (reorder)="submitGuidanceOrder($event)"
+      />
+      <!-- The shared page + size control (admin-page-size): namespaced
+           URL params (guidancePage/guidanceSize — the admin tabs share
+           one route); nothing at one page or an empty list (the
+           component's own rule). -->
+      <app-pagination
+        [page]="guidancePage()"
+        [pages]="guidancePages()"
+        [size]="guidanceSize()"
+        [sizes]="pageSizes"
+        (onNavigate)="onGuidanceNavigate($event)"
+      />
+    }
   }
 
   <!-- ========================= Media library ========================= -->

@@ -71,14 +71,15 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-text': '#ffd400',
   '--color-muted': '#d4b53a',
   '--color-bg': '#000000',
-  '--color-bg-surface': '#000000', /* cards: border-distinguished; also the text-on-primary colour */
+  '--color-bg-surface':
+    '#000000' /* cards: border-distinguished; also the text-on-primary colour */,
   '--color-bg-subtle': '#000000',
-  '--color-surface-hover': '#2b2400', /* ghost-button hover fill — text on it 10.8:1 */
-  '--color-surface-overlay': 'rgba(0, 0, 0, 0.92)', /* legend card over the light tiles */
+  '--color-surface-hover': '#2b2400' /* ghost-button hover fill — text on it 10.8:1 */,
+  '--color-surface-overlay': 'rgba(0, 0, 0, 0.92)' /* legend card over the light tiles */,
   '--color-backdrop': 'rgba(0, 0, 0, 0.8)',
   /* Brand */
-  '--color-primary': '#ff9f1c', /* CTA/primary fill family + focus ring */
-  '--color-primary-hover': '#ffb347', /* black on it 11.79:1 */
+  '--color-primary': '#ff9f1c' /* CTA/primary fill family + focus ring */,
+  '--color-primary-hover': '#ffb347' /* black on it 11.79:1 */,
   '--color-brand': '#ffd400',
   '--color-accent': '#4dd0c4',
   /* The link colour (the third theme adds a LINK token of its own:
@@ -112,28 +113,32 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
   '--color-cta': '#ff9f1c',
   '--color-reported': '#ff6b4d',
   '--color-new': '#ffb84d',
+  /* Submitter-verified marker fill (submitter-verification-badge) — the same
+     name as :root, so the theme layers stay in lockstep (design-tokens.spec
+     asserts both directions). */
+  '--color-verified': '#ffd400',
   /* Borders (the card edge is the structure of this theme) */
   '--color-border': '#8a7400',
-  '--color-border-subtle': '#6b5900', /* decorative divider (≈3:1) */
+  '--color-border-subtle': '#6b5900' /* decorative divider (≈3:1) */,
   /* Status palette */
   '--color-danger': '#ff6b4d',
-  '--color-danger-bg': '#2a120d', /* danger on it 6.3:1 */
+  '--color-danger-bg': '#2a120d' /* danger on it 6.3:1 */,
   '--color-danger-border': '#7a3a2d',
   '--color-error': '#ff6b4d',
   '--color-warning': '#ffb84d',
-  '--color-warning-bg': '#292008', /* warning on it 9.37:1 */
+  '--color-warning-bg': '#292008' /* warning on it 9.37:1 */,
   '--color-warning-border': '#6e5a1e',
   '--color-info': '#8ac6f5',
-  '--color-info-bg': '#10222f', /* info on it 8.9:1 (the verified pair) */
+  '--color-info-bg': '#10222f' /* info on it 8.9:1 (the verified pair) */,
   '--color-info-border': '#2f5a7a',
   '--color-success': '#7fd49a',
-  '--color-success-bg': '#0f2a18', /* success on it 8.6:1 (the verified pair) */
+  '--color-success-bg': '#0f2a18' /* success on it 8.6:1 (the verified pair) */,
   '--color-success-border': '#2f6e45',
   '--color-success-bg-soft': '#122417',
   /* Source badges (dark fills, the verified text pairs) */
   '--color-badge-registry': '#14263a',
   '--color-badge-user': '#11301d',
-  '--color-badge-new': '#332b12', /* warning on it 8.18:1 */
+  '--color-badge-new': '#332b12' /* warning on it 8.18:1 */,
   /* Map + markers (the map is not themed — tiles stay light) */
   '--color-shelter-registry': '#7ab8ff',
   '--color-shelter-user': '#7ac98a',
@@ -142,9 +147,7 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
 };
 
 /** The token names — clearing removes exactly what was set. */
-export const BLACK_AND_YELLOW_TOKEN_NAMES: readonly string[] = Object.keys(
-  BLACK_AND_YELLOW_TOKENS,
-);
+export const BLACK_AND_YELLOW_TOKEN_NAMES: readonly string[] = Object.keys(BLACK_AND_YELLOW_TOKENS);
 
 /** The <html> surface the theme is applied to: the attribute seam (for
  *  the ThemeStore) + the style object (the runtime tokens). */

@@ -350,6 +350,13 @@ export interface MeResponse {
   isAdmin: boolean;
 }
 
+/**
+ * The submitter's verification depth (submitter-verification-badge): the
+ * single confirmed channel, or 'FULL' at two or more. Server-derived on every
+ * read — see {@link ShelterDto.submitterVerification}.
+ */
+export type SubmitterVerification = 'EMAIL' | 'PHONE' | 'SMART_ID' | 'FULL';
+
 export interface ShelterDto {
   id: number;
   /** null for USER-submitted rows — registry rows always carry one. */
@@ -372,6 +379,19 @@ export interface ShelterDto {
    * the UI never re-derives it).
    */
   submitterVerified: boolean;
+  /**
+   * The submitter's verification DEPTH (submitter-verification-badge),
+   * backend-derived on every read from the author's CURRENT claims: 'EMAIL' /
+   * 'PHONE' / 'SMART_ID' when exactly one channel is confirmed, 'FULL' at two
+   * or more, null when there is nothing to describe (registry rows, a deleted
+   * account, an author with no confirmed channel yet). A row added at one
+   * channel upgrades to 'FULL' the moment the author confirms a second —
+   * nothing is stored on the row, so the badge cannot go stale.
+   *
+   * Optional on purpose: the UI treats absent and null identically (no badge),
+   * so an older backend that omits the field renders exactly as before.
+   */
+  submitterVerification?: SubmitterVerification | null;
   /**
    * Non-existence reports (D1): 0 when none, > 0 = the orange reported
    * state (marker + "Reported" badge). Five reach auto-hide server-side —
@@ -580,9 +600,27 @@ export interface AdminShelterDto {
 /** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
 export interface AdminShelterFilters {
   status?: ShelterStatus;
-  source?: ShelterSource;
+  /** The frontend-facing source grouping the backend now speaks
+   *  (REGISTRY = Päästeamet + municipality imports; USER = community
+   *  submissions) — the same grouping as the public map filter. */
+  source?: ShelterSourceFilter;
   /** Name/address substring. */
   q?: string;
+  /** Optional page size: 1..200; absent = no paging. */
+  limit?: number;
+  /** Optional offset into the (filtered) list: >= 0. */
+  offset?: number;
+}
+
+/** A paged admin list result: the page's rows PLUS the un-paged total
+ *  the server reports in the X-Total-Count header (the admin Shelters +
+ *  Guidance lists — the page count is derived from the total, so an
+ *  out-of-range page can be told apart from a truly empty scope). */
+export interface PagedRows<T> {
+  /** The rows of the requested page (empty when the page is past the end). */
+  rows: T[];
+  /** The number of rows in the (search-filtered) scope, WITHOUT paging. */
+  total: number;
 }
 
 /**

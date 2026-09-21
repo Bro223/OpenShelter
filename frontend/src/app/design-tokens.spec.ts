@@ -257,11 +257,17 @@ describe('design tokens (M6)', () => {
    *  where a --color-* name carries a 'name': 'value' pair). */
   function tsColorTokens(source: string): Map<string, string> {
     const out = new Map<string, string>();
-    for (const line of source.split('\n')) {
-      const match = line.match(/'(--color-[\w-]+)'\s*:\s*'([^']+)'/);
-      if (match !== null) {
-        out.set(match[1], match[2].trim());
-      }
+    // Scanned across NEWLINES, not per line: Prettier reflows a long entry so
+    // the value lands on the next line (the trailing comment moves after the
+    // value), and a line-based scan then reports the token as missing — making
+    // a formatting-only change fail the parity + contrast guards (owner-
+    // reported: the suite went red after a formatter pass over
+    // theme-tokens.ts). Only colour literals are taken, so the check keeps its
+    // power: a genuinely dropped entry still has no match.
+    for (const match of source.matchAll(
+      /'(--color-[\w-]+)'\s*:\s*'(#[0-9a-fA-F]{3,8}|rgba?\([^']*\))'/gs,
+    )) {
+      out.set(match[1], match[2].trim());
     }
     return out;
   }
@@ -888,6 +894,20 @@ describe('design tokens (M6)', () => {
     expect(inputRule![0]).toMatch(/width: 18px/);
     expect(inputRule![0]).toMatch(/height: 18px/);
     expect(inputRule![0]).toContain('flex-shrink: 0');
+  });
+
+  it('the UA (browser-default) focus ring is suppressed — documented WCAG 2.4.7 deviation', () => {
+    // Owner decision 2026-09-21: Chromium's default ring painted a dark box on
+    // focused elements with no project rule. Both halves are pinned here so
+    // neither can drift silently: the suppression exists, and the token ring it
+    // must NOT swallow still exists — now covering select and the admin table
+    // regions (the retirement of the deviation, reviews/12-summary QW6).
+    expect(stylesCss, 'the UA-ring suppression must exist').toMatch(
+      /\/\* OWNER DECISION[\s\S]*?\*\/\s*\*:focus \{\s*outline: none;\s*\}/,
+    );
+    expect(stylesCss, 'the token ring must survive the suppression (higher specificity)').toMatch(
+      /a:focus-visible,\s*button:focus-visible,\s*input:focus-visible,\s*textarea:focus-visible,\s*select:focus-visible,\s*\.admin-table-wrap:focus-visible \{\s*outline: 2px solid var\(--color-primary\);\s*outline-offset: 2px;\s*\}/,
+    );
   });
 
   it('styles.scss provides a global :focus-visible rule (keyboard-operable nav)', () => {

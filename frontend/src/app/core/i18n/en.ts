@@ -180,8 +180,13 @@ export const EN: Messages = {
   // copy. The around-you CTA copy is NOT keyed here (see messages.ts).
   'map.title': 'Shelter map',
   'map.subtitle': 'Find registered and community-submitted bomb shelters in Estonia.',
-  'map.legend.registry': 'Registry',
+  // Legend entry for the blue registry marker: it names the primary registry
+  // source (owner wording: "Registry (Päästeamet)").
+  'map.legend.registry': 'Registry (Päästeamet)',
   'map.legend.new': 'New by community',
+  // The submitter-verification shapes (submitter-verification-badge).
+  'map.legend.partialVerified': 'Added by a partially verified user',
+  'map.legend.fullVerified': 'Added by a fully verified user',
   'map.legend.confirmed': 'Confirmed by community',
   'map.legend.reported': 'Reported',
   'map.geoNote':
@@ -289,7 +294,8 @@ export const EN: Messages = {
   'detail.pulse.emptyOpen': 'No open/closed reports in the last 2 hours',
   'detail.pulse.emptyOccupancy': 'No how-full reports in the last 2 hours',
   'detail.pulse.openClosedText': 'Reports: {open} open, {closed} closed',
-  'detail.pulse.occupancyText': 'Reports: {space} space available, {gettingFull} getting full, {full} full',
+  'detail.pulse.occupancyText':
+    'Reports: {space} space available, {gettingFull} getting full, {full} full',
   'detail.pulse.windowHint': 'Reflects reports from the last 2 hours',
   'detail.pulse.estimateNote': 'The arrows show a calculated estimate, not confirmed data.',
 
@@ -319,6 +325,13 @@ export const EN: Messages = {
   'shelter.newlyAddedUnverified': 'Newly added {ago} — not yet verified',
   'shelter.noVerificationRecord': 'No verification record yet',
   'shelter.communityReports': 'Community reports: {count} (total, all types)',
+  // The submitter's verification depth (submitter-verification-badge): the
+  // single confirmed channel, or FULL at two or more. Only user-submitted
+  // rows carry it; the row/detail surfaces render it beside the trust badge.
+  'shelter.submitterVerification.email': 'Added by an e-mail verified user',
+  'shelter.submitterVerification.phone': 'Added by a phone verified user',
+  'shelter.submitterVerification.smartId': 'Added by a Smart-ID verified user',
+  'shelter.submitterVerification.full': 'Added by a fully verified user',
   'shelter.distance.meters': '≈ {distance} m straight line',
   'shelter.distance.kilometers': '≈ {distance} km straight line',
   'shelter.notice.reportSubmitted': 'Your report was submitted.',
@@ -413,6 +426,12 @@ export const EN: Messages = {
   // verbatim copy the shared error-copy module already ships.
   'error.rateLimited': 'Too many attempts — please wait a moment and then try again.',
   'error.unauthorized': 'Not authorized. Please log in again.',
+  // The login 401 and the password-reset-confirm 400 are deliberately
+  // client-authored (anti-enumeration: they never echo the backend's
+  // message), so they are catalog keys like the rest of this block.
+  'error.invalidCredentials': 'Invalid email/phone or password.',
+  'error.resetBadCode':
+    'That code is invalid or has expired. Check the latest e-mail and try again.',
   'error.checkInput': 'Please check your input and try again.',
   'error.serverError': 'Something went wrong. Please try again.',
   'error.valueInUse': 'That value is already in use.',
@@ -506,7 +525,8 @@ export const EN: Messages = {
   'account.success.emailChanged': 'Your email address has been changed.',
   'account.success.phoneChanged': 'Your phone number has been changed.',
   'account.success.exportDownloaded': 'Your data export has been downloaded.',
-  'account.error.sameValue': 'That is already the value on your account — the new one must be different.',
+  'account.error.sameValue':
+    'That is already the value on your account — the new one must be different.',
 
   // --- account: contributions panel.
   'account.contrib.shelters': 'Shelters',
@@ -537,7 +557,8 @@ export const EN: Messages = {
   'account.contrib.latitudeError': 'A latitude between −90 and 90 is required.',
   'account.contrib.longitudeLabel': 'Longitude (−180…180)',
   'account.contrib.longitudeError': 'A longitude between −180 and 180 is required.',
-  'account.contrib.estoniaNote': 'The location must be inside Estonia. That check happens on the server.',
+  'account.contrib.estoniaNote':
+    'The location must be inside Estonia. That check happens on the server.',
   'account.contrib.infoQuestion': 'A moderator is asking:',
   'account.contrib.replyLabel': 'Your reply (required, one-time)',
   'account.contrib.replyRequired': 'A reply (up to 2000 characters) is required.',
@@ -551,7 +572,7 @@ export const EN: Messages = {
   'verify.aria': 'Verification status',
   'verify.verified': 'Verified',
   'verify.notVerified': 'Not verified',
-  'verify.intro': 'We\'ll send a code to your {destination}. You enter it here to prove it\'s yours.',
+  'verify.intro': "We'll send a code to your {destination}. You enter it here to prove it's yours.",
   'verify.email.title': 'Verify your email',
   'verify.email.destination': 'email address',
   'verify.email.noun': 'email',
@@ -582,7 +603,8 @@ export const EN: Messages = {
 
   // --- crisis guidance (/blog — crisis-guidance D4/D6). The post title and
   // body are admin copy (rendered verbatim), never catalog keys.
-  'guidance.title': 'Crisis guidance',  'guidance.subtitle': 'Practical guidance for crisis situations.',
+  'guidance.title': 'Crisis guidance',
+  'guidance.subtitle': 'Practical guidance for crisis situations.',
   'guidance.loading': 'Loading guidance…',
   'guidance.loadingDetail': 'Loading guidance post…',
   'guidance.empty': 'No guidance yet — check back soon.',
@@ -599,6 +621,7 @@ export const EN: Messages = {
   'pagination.next': 'Next',
   'pagination.pageOf': 'Page {page} of {pages}',
   'pagination.size': 'Per page',
+  'pagination.sizeShelters': 'Shelters per page',
   'guidance.pageOutOfRange': 'Page {page} does not exist — the index ends at page {pages}.',
   'guidance.pageFirst': 'Show the first page',
 
@@ -633,8 +656,14 @@ export const EN: Messages = {
   'admin.shelters.search.label': 'Search shelters (name or address)',
   'admin.shelters.search.placeholder': 'e.g. kelder',
   'admin.shelters.search.button': 'Search',
+  'admin.shelters.source.aria': 'Filter shelters by source',
+  'admin.shelters.source.all': 'All',
+  'admin.shelters.source.registry': 'Registry',
+  'admin.shelters.source.community': 'Community',
   'admin.shelters.loading': 'Loading shelters…',
   'admin.shelters.empty': 'No shelters.',
+  'admin.shelters.emptyFiltered': 'No shelters match the current filter.',
+  'admin.shelters.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
   'admin.shelters.aria': 'Shelters',
   'admin.shelters.col.name': 'Name',
   'admin.shelters.col.source': 'Source',
@@ -740,7 +769,15 @@ export const EN: Messages = {
   'admin.guidance.loading': 'Loading guidance posts…',
   'admin.guidance.empty': 'No guidance posts yet.',
   'admin.guidance.emptyLocale': 'No guidance posts in {locale} yet.',
-  'admin.guidance.shownIn': 'Posts in {locale} — the other languages are edited from their own lists.',
+  'admin.guidance.shownIn':
+    'Posts in {locale} — the other languages are edited from their own lists.',
+  'admin.guidance.search.label': 'Search posts (title or body)',
+  'admin.guidance.search.placeholder': 'e.g. kelder',
+  'admin.guidance.search.button': 'Search',
+  'admin.guidance.search.clear': 'Clear',
+  'admin.guidance.noMatch': 'No posts matching "{query}" in {locale}.',
+  'admin.guidance.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
+  'admin.pageFirst': 'Show the first page',
   'admin.guidance.language.label': 'Content language',
   'admin.guidance.language.hint':
     'The language of the posts listed and edited here. On first use it follows the interface language; afterwards it is independent.',
@@ -756,6 +793,8 @@ export const EN: Messages = {
   'admin.guidance.posts.aria': 'Guidance posts',
   'admin.guidance.order.hint':
     'The posts appear to visitors in this order — drag a row or use the move buttons.',
+  'admin.guidance.order.pagedHint':
+    'Reordering needs the whole list on one page — set the page size to {max} to reorder.',
   'admin.guidance.move.top': 'To top',
   'admin.guidance.move.up': 'Up',
   'admin.guidance.move.down': 'Down',
@@ -860,7 +899,8 @@ export const EN: Messages = {
   'admin.guidance.editor.translationTitle': 'Add a translation',
   'admin.guidance.editor.translations.title': 'Translations',
   'admin.guidance.editor.translations.loading': 'Loading translations…',
-  "admin.guidance.editor.translations.empty": "No translations yet — only the post's home language.",
+  'admin.guidance.editor.translations.empty':
+    "No translations yet — only the post's home language.",
   'admin.guidance.editor.translations.home': 'home',
   'admin.guidance.editor.translations.add': 'Add {locale} translation',
   'admin.guidance.editor.translations.delete': 'Delete translation',
@@ -967,9 +1007,11 @@ export const EN: Messages = {
   'legal.privacy.collect.p2.link': 'user-generated content',
   'legal.privacy.collect.p2.after': '.',
 
-  'legal.privacy.why.p1': 'Each category is processed for a specific purpose, and for no other purpose:',
+  'legal.privacy.why.p1':
+    'Each category is processed for a specific purpose, and for no other purpose:',
   'legal.privacy.why.li1.strong': 'Name',
-  'legal.privacy.why.li1.after': ' - shown on your account and, for public submissions, on the map.',
+  'legal.privacy.why.li1.after':
+    ' - shown on your account and, for public submissions, on the map.',
   'legal.privacy.why.li2.strong': 'E-mail address',
   'legal.privacy.why.li2.after':
     ' - account verification, password resets and cross-channel confirmation when you change your phone number.',
@@ -1002,7 +1044,7 @@ export const EN: Messages = {
   'legal.privacy.location.p3.before': 'We ',
   'legal.privacy.location.p3.strong': 'never',
   'legal.privacy.location.p3.after':
-    " infer your location from your IP address. Address search uses the OpenStreetMap Nominatim service; a search request is sent only when you deliberately search for an address.",
+    ' infer your location from your IP address. Address search uses the OpenStreetMap Nominatim service; a search request is sent only when you deliberately search for an address.',
   'legal.privacy.content.p1.before':
     'When you contribute, the application stores your shelters and your reports (for example, that a location is closed, inaccurate, or no longer exists). This content becomes part of the public community map. You can edit or remove your own shelters from the ',
   'legal.privacy.content.p1.after': '; reports are reviewed by administrators.',

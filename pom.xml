@@ -117,6 +117,23 @@
             <groupId>com.twilio.sdk</groupId>
             <artifactId>twilio</artifactId>
             <version>10.9.2</version>
+            <exclusions>
+                <!-- The API is JSON-only (review 06, finding 1): this artifact
+                     transitively carries jackson-dataformat-xml, whose presence
+                     on the classpath makes Boot auto-configure the XML message
+                     converter, so a browser-style Accept used to answer
+                     application/xhtml+xml although every operation in
+                     docs/api/openapi.json declares application/json
+                     (JsonOnlyContentNegotiationIT pins this). NOT via springdoc:
+                     swagger-core-jakarta brings only jackson-dataformat-yaml.
+                     Twilio needs the jar only for TwiML.fromXml — the app sends
+                     via Message.creator (JSON REST), and the Twilio version is
+                     unchanged. -->
+                <exclusion>
+                    <groupId>com.fasterxml.jackson.dataformat</groupId>
+                    <artifactId>jackson-dataformat-xml</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

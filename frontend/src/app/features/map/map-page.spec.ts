@@ -441,26 +441,34 @@ describe('MapPage', () => {
       ]);
     });
 
-    it('renders the five-entry legend: registry, new community, confirmed community, reported, searched address (M8)', async () => {
+    it('renders the six-entry legend: registry, confirmed community, the two verification shapes, reported, searched address', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
       expect(legend).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull(); // registry blue
-      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull(); // NEW amber
-      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull(); // CONFIRMED green
+      // The community trust tone is STILL rendered: a row whose submitter depth
+      // the API does not report keeps this tone. The amber NEW tone is not a
+      // legend entry (owner decision) — the verification shapes carry the
+      // community-row story.
+      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
+      // Submitter verification depth (submitter-verification-badge): the SHAPE
+      // carries it — triangle at one confirmed channel, circle at two or more.
+      expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
       expect(legend?.querySelector('.shelter-marker--reported')).not.toBeNull();
       // The origin marker (M8): the searched address the per-row
       // distances are measured from — its own swatch + label, so
       // "222 m from WHAT" is answerable at a glance.
       expect(legend?.querySelector('.shelter-marker--anchor')).not.toBeNull();
       expect(legend?.textContent).toContain('Registry');
-      expect(legend?.textContent).toContain('New by community');
       expect(legend?.textContent).toContain('Confirmed by community');
+      expect(legend?.textContent).toContain('Added by a partially verified user');
+      expect(legend?.textContent).toContain('Added by a fully verified user');
       expect(legend?.textContent).toContain('Reported');
       expect(legend?.textContent).toContain('Searched address');
-      // Exactly five entries — no partner/official/proposed wording.
-      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(5);
+      // Exactly six entries — no partner/official/proposed wording.
+      expect(legend?.querySelectorAll('.legend-item')).toHaveLength(6);
       expect(legend?.textContent).not.toContain('Official');
       expect(legend?.textContent).not.toContain('Partner');
       expect(legend?.textContent).not.toContain('Proposed');
@@ -1722,8 +1730,10 @@ describe('MapPage', () => {
       expect(legend?.textContent).toContain('Reported');
       // The trust entries stay (the orange one is ADDED, not swapped).
       expect(legend?.querySelector('.shelter-marker--registry')).not.toBeNull();
-      expect(legend?.querySelector('.shelter-marker--new')).not.toBeNull();
-      expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
+      // ...and the community entries are the two verification SHAPES
+      // (submitter-verification-badge), not the old amber/green tones.
+      expect(legend?.querySelector('.shelter-marker--partial')).not.toBeNull();
+      expect(legend?.querySelector('.shelter-marker--full')).not.toBeNull();
     });
 
     it('a reported shelter (nonexistentReports > 0) shows the orange "Reported" row badge and is handed to the marker renderer', async () => {

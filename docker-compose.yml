@@ -10,7 +10,9 @@ services:
       POSTGRES_USER: sheltermap
       POSTGRES_PASSWORD: sheltermap
     ports:
-      - "5432:5432"
+      # Loopback-only: a dev database must not be reachable from the network —
+      # the credentials below are published in this repository.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

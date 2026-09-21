@@ -134,6 +134,22 @@
   gap: var(--space-8);
 }
 
+/* The route-change focus target IS this container (page-shell.ts
+   focusMainOnRouteChange focuses #main[tabindex="-1"] after every
+   navigation). Suppress the UA ring: `main` is not a keyboard-operable
+   control, so no focus indicator is owed (WCAG 2.4.7/2.4.11 cover operable
+   components), while Chromium's default ring traces a page-wide rectangle
+   that vanishes on the next click — read by the owner as a stray black
+   border. BOTH :focus and :focus-visible are listed: Chromium matches
+   :focus-visible for a script focus() call, so a `:focus:not(:focus-visible)`
+   guard would NOT cover it. The skip link keeps its own indicator
+   (styles.scss), and the first Tab into the routed page lands on a real
+   control that has one. */
+#main:focus,
+#main:focus-visible {
+  outline: none;
+}
+
 .shell-body {
   flex: 1;
   width: 100%;
@@ -322,7 +338,9 @@
       border-radius: var(--radius-sm);
       background: currentColor; /* follows the themed text colour */
       /* The cross morph; disabled by the reduced-motion guard below. */
-      transition: transform 180ms ease-in-out, opacity 180ms ease-in-out;
+      transition:
+        transform 180ms ease-in-out,
+        opacity 180ms ease-in-out;
     }
   }
 

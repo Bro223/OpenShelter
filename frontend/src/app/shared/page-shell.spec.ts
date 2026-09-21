@@ -808,6 +808,16 @@ describe('PageShell', () => {
       );
     });
 
+    it('the route-change focus target suppresses the UA ring (no stray page-wide border)', () => {
+      // page-shell.ts focuses main#main[tabindex="-1"] on every route change;
+      // without this rule Chromium's default ring draws a rectangle around the
+      // whole content area until the next click (owner-reported black border).
+      expect(
+        shellScss,
+        'main#main must suppress BOTH :focus and :focus-visible (Chromium matches :focus-visible for programmatic focus)',
+      ).toMatch(/#main:focus,\n#main:focus-visible \{\s*outline: none;\s*\}/);
+    });
+
     it('the <900 dropdown panel is band chrome too (band background, chrome divider edge)', () => {
       // The panel's styles live in the narrow block that also carries the
       // burger (same brace-balanced idiom as the burger bars block).

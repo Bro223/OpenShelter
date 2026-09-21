@@ -49,6 +49,66 @@
   display: block;
 }
 
+/* The Shelters tab's list controls: the name/address search and the
+   source chips on one row (the chips wrap below on narrow widths).
+   The guidance tab's search form reuses .admin-search on its own row. */
+.admin-shelters-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-16);
+
+  .admin-search {
+    margin-bottom: 0;
+  }
+}
+
+/* The source filter chips (All / Registry / Community) — the map's
+   filter-chip language, scoped to the admin list (component styles are
+   not shared). Real <button>s, 48px targets, the active chip is the
+   primary fill. */
+.admin-chips {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+
+  .chip {
+    padding: var(--space-6) var(--space-10);
+    min-height: var(--space-48);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-bg-surface);
+    font-size: var(--text-md);
+    font-family: inherit;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-primary);
+    }
+
+    &.chip--active {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: var(--color-bg-surface);
+    }
+  }
+}
+
+/* The paged lists' out-of-range state (the public guidance page's
+   guidance-list__oob, scoped): notice + first-page action, muted — a
+   recoverable view state, not an error. */
+.admin-oob {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+  color: var(--color-muted);
+
+  p {
+    margin: 0;
+  }
+}
+
 /* The "marked inaccurate" flag (community-corrections D4): the warning
    token pair (amber) — the same language as the public UI's fresh-CLOSED
    badge, NOT the red error color: inaccuracy is a flag to review, not a

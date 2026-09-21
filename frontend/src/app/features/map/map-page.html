@@ -15,15 +15,32 @@
           ></span>
           {{ 'map.legend.registry' | t }}
         </span>
-        <!-- Trust palette (community-review-queue D5): NEW community rows
-             are amber, CONFIRMED stay green. -->
-        <span class="legend-item">
-          <span class="shelter-marker shelter-marker--new legend-swatch" aria-hidden="true"></span>
-          {{ 'map.legend.new' | t }}
-        </span>
+        <!-- Community trust tone (community-review-queue D5): the green pin is
+             still rendered — a community row whose submitter depth the API does
+             not report keeps this tone. The amber NEW tone is deliberately NOT
+             a legend entry (owner decision): the verification shapes carry the
+             community-row story on the map, and the row badge text still says
+             "Newly added" wherever it applies. -->
         <span class="legend-item">
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
           {{ 'map.legend.confirmed' | t }}
+        </span>
+        <!-- Submitter verification depth (submitter-verification-badge, owner
+             decision): the SHAPE carries it for community rows — a triangle at
+             exactly one confirmed channel, a circle at two or more. The trust
+             state (newly added / community-checked) stays on the row's badge
+             text, so nothing is lost by moving the marker colour to the
+             verification family. -->
+        <span class="legend-item">
+          <span
+            class="shelter-marker shelter-marker--partial legend-swatch"
+            aria-hidden="true"
+          ></span>
+          {{ 'map.legend.partialVerified' | t }}
+        </span>
+        <span class="legend-item">
+          <span class="shelter-marker shelter-marker--full legend-swatch" aria-hidden="true"></span>
+          {{ 'map.legend.fullVerified' | t }}
         </span>
         <!-- Reported state (shelter-trust-and-reports D6): the single
              orange "reported" affordance — beats the trust colour. -->

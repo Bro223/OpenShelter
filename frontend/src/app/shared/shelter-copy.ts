@@ -10,6 +10,7 @@ import type {
   ShelterOccupancy,
   ShelterSource,
   ShelterStatus,
+  SubmitterVerification,
 } from '../core/models';
 
 /**
@@ -33,7 +34,10 @@ import type {
 
 /** The i18n seam (the error-copy.ts precedent): the active-locale
  *  resolver for a catalog key, with the `{param}` interpolation map. */
-export type ShelterTranslate = (key: MessageKey, params?: Record<string, string | number>) => string;
+export type ShelterTranslate = (
+  key: MessageKey,
+  params?: Record<string, string | number>,
+) => string;
 
 /** The no-callback path: the EN catalog value (byte-identical to the
  *  old hardcoded literals — behavior unchanged for un-routed callers). */
@@ -49,6 +53,49 @@ function resolve(
 ): string {
   const tr = translate ?? EN_FALLBACK;
   return params === undefined ? tr(key) : tr(key, params);
+}
+
+/** The verification depth -> its "added by …" catalog key. */
+const SUBMITTER_LABEL_KEY: Record<SubmitterVerification, MessageKey> = {
+  EMAIL: 'shelter.submitterVerification.email',
+  PHONE: 'shelter.submitterVerification.phone',
+  SMART_ID: 'shelter.submitterVerification.smartId',
+  FULL: 'shelter.submitterVerification.full',
+};
+
+/**
+ * The "added by …" badge CATALOG KEY for a row's submitter, or null for NO
+ * badge: registry rows, a deleted account, an author with no confirmed channel
+ * yet, or an older backend that omits the field. The caller renders it through
+ * the `| t` pipe, so the badge follows the active locale with no extra seam.
+ *
+ * Rendered on the shelter DETAIL header; the map row deliberately stays lean —
+ * there the marker SHAPE carries the depth (owner decision: no extra badge
+ * clutter in the sidebar row).
+ */
+export function submitterVerificationKey(shelter: {
+  submitterVerification?: SubmitterVerification | null;
+}): MessageKey | null {
+  const depth = shelter.submitterVerification;
+  return depth == null ? null : SUBMITTER_LABEL_KEY[depth];
+}
+
+/**
+ * The marker's verification tone: 'partial' at exactly one confirmed channel,
+ * 'full' at two or more, null when there is nothing to show (registry rows, no
+ * author, an older backend). The SHAPE carries the depth so the distinction
+ * never rests on colour alone (WCAG 1.4.1) — the same rationale as the anchor
+ * diamond. The colour family (verified yellow) is a second cue, not the only
+ * one. Shares the tone vocabulary with {@code markerTone}.
+ */
+export function verificationTone(shelter: {
+  submitterVerification?: SubmitterVerification | null;
+}): 'partial' | 'full' | null {
+  const depth = shelter.submitterVerification;
+  if (depth == null) {
+    return null;
+  }
+  return depth === 'FULL' ? 'full' : 'partial';
 }
 
 /**
@@ -67,7 +114,10 @@ const TRUST_BADGE_KEY: Record<ReviewStatus, MessageKey> = {
   REJECTED: 'account.contrib.badge.rejected',
 };
 
-export function communityTrustLabel(reviewStatus: ReviewStatus, translate?: ShelterTranslate): string {
+export function communityTrustLabel(
+  reviewStatus: ReviewStatus,
+  translate?: ShelterTranslate,
+): string {
   return resolve(TRUST_BADGE_KEY[reviewStatus], translate);
 }
 
@@ -208,7 +258,10 @@ export function shelterStatusText(
   // ("nothing fresh") so the FE ships ahead of the API safely.
   const fresh = shelter.openStatus ?? null;
   if (fresh !== null && fresh.state === 'CLOSED') {
-    return resolve(fresh.reportCount === 1 ? 'shelter.status.reportedClosed' : 'shelter.status.closed', translate);
+    return resolve(
+      fresh.reportCount === 1 ? 'shelter.status.reportedClosed' : 'shelter.status.closed',
+      translate,
+    );
   }
   if (fresh !== null && fresh.state === 'OPEN') {
     return resolve('shelter.status.open', translate);
@@ -251,14 +304,20 @@ export function isOpenRow(shelter: {
  * = nothing fresh (render nothing). Single-sourced: map rows and the
  * detail header render the same badge.
  */
-export function openStatusBadgeText(openStatus: OpenStatusDto | null, translate?: ShelterTranslate): string | null {
+export function openStatusBadgeText(
+  openStatus: OpenStatusDto | null,
+  translate?: ShelterTranslate,
+): string | null {
   // An older BE omits the field entirely (undefined) — treat it as null
   // ("nothing fresh") so the FE ships ahead of the API safely.
   const fresh = openStatus ?? null;
   if (fresh === null || fresh.state !== 'CLOSED') {
     return null;
   }
-  return resolve(fresh.reportCount === 1 ? 'shelter.status.reportedClosed' : 'shelter.status.closed', translate);
+  return resolve(
+    fresh.reportCount === 1 ? 'shelter.status.reportedClosed' : 'shelter.status.closed',
+    translate,
+  );
 }
 
 /** True when the DTO is in the reported state (D1: nonexistentReports > 0). */
@@ -326,7 +385,11 @@ export const OCCUPANCY_HEDGED_KEY: Record<OccupancyBand, MessageKey> = {
  * server's lastReportedAt relative to now. `now` is injectable so specs
  * are deterministic.
  */
-export function recencyText(iso: string, now: number = Date.now(), translate?: ShelterTranslate): string {
+export function recencyText(
+  iso: string,
+  now: number = Date.now(),
+  translate?: ShelterTranslate,
+): string {
   const minutes = Math.round((now - Date.parse(iso)) / 60000);
   if (Number.isNaN(minutes) || minutes < 1) {
     return resolve('shelter.recency.justNow', translate);
@@ -350,7 +413,9 @@ export function occupancyText(
   translate?: ShelterTranslate,
 ): string {
   const headKey =
-    occupancy.reportCount >= 2 ? OCCUPANCY_FIRM_KEY[occupancy.band] : OCCUPANCY_HEDGED_KEY[occupancy.band];
+    occupancy.reportCount >= 2
+      ? OCCUPANCY_FIRM_KEY[occupancy.band]
+      : OCCUPANCY_HEDGED_KEY[occupancy.band];
   return `${resolve(headKey, translate)} · ${recencyText(occupancy.lastReportedAt, now, translate)}`;
 }
 
@@ -367,7 +432,10 @@ export function occupancyText(
  * count). Rendered on the map row and the detail header wherever the
  * orange "Reported" badge appears.
  */
-export function reportedBadgeText(nonexistentReports: number, translate?: ShelterTranslate): string {
+export function reportedBadgeText(
+  nonexistentReports: number,
+  translate?: ShelterTranslate,
+): string {
   return resolve('shelter.reportedBadge', translate, { count: nonexistentReports });
 }
 

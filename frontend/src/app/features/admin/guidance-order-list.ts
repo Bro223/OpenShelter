@@ -38,6 +38,16 @@ export class GuidanceOrderList {
   /** The CONTENT language this list belongs to (admin-locale-scope) —
    *  the empty state and the scope line name it. */
   readonly contentLocale = input('en');
+  /** The applied search term (admin-guidance-search): '' = no filter.
+   *  The empty state is the DISTINCT "no posts match {query}" copy for a
+   *  non-empty term (it means something different from "no posts yet"). */
+  readonly searchTerm = input('');
+  /** Manual order availability (admin-page-size's interaction rule): the
+   *  DnD, the move buttons AND the full-list order PUT are all-rows-by-
+   *  nature, so they are offered only while the whole (searched, scoped)
+   *  list fits the current page; paged multi-page lists disable them with
+   *  the hint pointing at the size selector. */
+  readonly reorderable = input(true);
   /** The publishedAt merge source (slug -> publication instant): the
    *  admin DTO carries NO publishedAt — the Published column merges the
    *  permit-all public index (a missing entry renders "—", never the
@@ -121,11 +131,14 @@ export class GuidanceOrderList {
   /** Move one post to the top / one step up / one step down (PRIMARY
    *  mechanism). The boundary buttons are disabled in the template; the
    *  guards here are the same bounds as a safety net. Emits the full
-   *  reordered list — the page performs the submission. */
+   *  reordered list — the page performs the submission. Page-local when
+   *  paged: a move never crosses a page boundary (the DnD-when-single-
+   *  page covers the whole scope; multi-page lists are not reorderable
+   *  at all). */
   movePost(id: number, direction: 'top' | 'up' | 'down'): void {
     const rows = this.rows() ?? [];
     const index = rows.findIndex((r) => r.id === id);
-    if (index < 0 || this.busy()) {
+    if (index < 0 || !this.reorderable() || this.busy()) {
       return;
     }
     const target = direction === 'top' ? 0 : direction === 'up' ? index - 1 : index + 1;
@@ -140,6 +153,9 @@ export class GuidanceOrderList {
 
   /** dragstart: remember which row the drag started on. */
   onDragStart(event: DragEvent, row: AdminGuidancePostDto): void {
+    if (!this.reorderable()) {
+      return;
+    }
     this.dragId = row.id;
     // Without a dataTransfer payload some browsers do not start the drag.
     // (jsdom leaves dataTransfer UNDEFINED — the truthy guard covers both
@@ -153,7 +169,7 @@ export class GuidanceOrderList {
   /** dragover: allow the drop (prevents the browser's default navigation)
    *  and mark the row the cursor is over as the drop target. */
   onDragOver(event: DragEvent, row: AdminGuidancePostDto): void {
-    if (this.dragId === null) {
+    if (this.dragId === null || !this.reorderable()) {
       return;
     }
     event.preventDefault();
@@ -171,7 +187,7 @@ export class GuidanceOrderList {
     const draggedId = this.dragId;
     this.dragId = null;
     this.dropTarget.set(null);
-    if (draggedId === null || draggedId === targetRow.id || this.busy()) {
+    if (draggedId === null || draggedId === targetRow.id || !this.reorderable() || this.busy()) {
       return;
     }
     const rows = this.rows() ?? [];

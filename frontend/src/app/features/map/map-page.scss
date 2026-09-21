@@ -77,6 +77,26 @@
     width: 12px; /* marker-size swatch, not spacing */
     height: 12px;
     flex-shrink: 0;
+    /* Required for the verification TRIANGLE (.shelter-marker--partial in
+       styles.scss): that shape draws its 2px edge with absolutely-positioned
+       pseudo-elements (clip-path on the element cannot carry a border). A
+       static span would let them resolve against .map-legend instead, painting
+       a legend-sized triangle — this makes the swatch their containing block,
+       exactly like Leaflet's absolute .leaflet-marker-icon does on the map. */
+    position: relative;
+
+    /* The verification TRIANGLE reads larger than the round swatches at the
+       same box size (a triangle fills its bounding box corner-to-corner), so
+       it is shrunk a little in the LEGEND only: the map marker keeps its full
+       size, and the pseudo-element edge keeps the same 2px the circles use. */
+    &.shelter-marker--partial {
+      width: 10px;
+      height: 10px;
+      /* The smaller box would centre the triangle 1px left of the 12px round
+         swatches in the rows above and below (each shape is centred on its own
+         box), so nudge it back into line (owner report). */
+      margin-left: 1px;
+    }
   }
 }
 

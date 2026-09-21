@@ -1254,6 +1254,11 @@
             "enum" : [ "ACTIVE", "INACTIVE" ],
             "type" : "string"
           },
+          "submitterVerification" : {
+            "description" : "The submitter's verification DEPTH, derived live from the author's CURRENT active claims: EMAIL / PHONE / SMART_ID when exactly one channel is confirmed, FULL at two or more, null when there is no author (registry rows, a deleted account) or no confirmed channel yet. A row added at one channel upgrades to FULL as soon as the author confirms a second — nothing is stored on the shelter.",
+            "enum" : [ "EMAIL", "PHONE", "SMART_ID", "FULL" ],
+            "type" : "string"
+          },
           "submitterVerified" : {
             "description" : "true when the shelter's creator exists and has a completed verification; false for registry shelters (no author) and for creators whose account no longer exists.",
             "type" : "boolean"
@@ -4361,7 +4366,7 @@
     },
     "/admin/shelters" : {
       "get" : {
-        "description" : "Every shelter including hidden, with report counts, status flag, occupancy and the submitter's name. status/source exact-match filters, q the case-insensitive name/address substring.",
+        "description" : "Every shelter including hidden, with report counts, status flag, occupancy and the submitter's name. status/source exact-match filters, q the case-insensitive name/address substring. Optional limit (1..200) / offset (>= 0) slice the (filtered) list; the X-Total-Count response header is the filter length WITHOUT paging (always present).",
         "operationId" : "listShelters",
         "parameters" : [ {
           "name" : "status",
@@ -4375,11 +4380,11 @@
         }, {
           "name" : "source",
           "in" : "query",
-          "description" : "Exact source match (optional).",
+          "description" : "Source filter (optional): REGISTRY (the Päästeamet + municipality imports) or USER (user submissions) — the same grouping as the public list.",
           "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "PAASETEAMET", "MUNICIPALITY", "USER" ]
+            "enum" : [ "REGISTRY", "USER", "ALL" ]
           }
         }, {
           "name" : "q",
@@ -4388,6 +4393,24 @@
           "required" : false,
           "schema" : {
             "type" : "string"
+          }
+        }, {
+          "name" : "limit",
+          "in" : "query",
+          "description" : "Optional page size: 1..200; absent = no paging (the whole filtered list).",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "name" : "offset",
+          "in" : "query",
+          "description" : "Optional offset into the (filtered) list: >= 0; past the end answers an empty array.",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         } ],
         "responses" : {
@@ -4402,17 +4425,30 @@
                 }
               }
             },
-            "description" : "All shelter rows (including hidden)"
+            "description" : "The shelter rows (including hidden), search-filtered and paged when q/limit/offset are given",
+            "headers" : {
+              "X-Total-Count" : {
+                "description" : "The number of shelters in the (filtered) scope WITHOUT the paging applied.",
+                "schema" : {
+                  "format" : "int32",
+                  "type" : "integer"
+                },
+                "style" : "simple"
+              }
+            }
           },
           "400" : {
             "content" : {
-              "application/json" : {
+              "*/*" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
+                  "items" : {
+                    "$ref" : "#/components/schemas/AdminShelterDto"
+                  },
+                  "type" : "array"
                 }
               }
             },
-            "description" : "Validation failure — the uniform error body."
+            "description" : "A limit outside 1..200, or a negative offset"
           },
           "401" : {
             "content" : {

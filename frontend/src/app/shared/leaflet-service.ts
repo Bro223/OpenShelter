@@ -1,6 +1,12 @@
 import { Injectable } from '@angular/core';
 import L from 'leaflet';
-import type { ReviewStatus, ShelterDto, ShelterSource } from '../core/models';
+import { verificationTone } from './shelter-copy';
+import type {
+  ReviewStatus,
+  ShelterDto,
+  ShelterSource,
+  SubmitterVerification,
+} from '../core/models';
 
 /**
  * Default view for Estonia (05-CONTEXT-MAP.md: lat 57.5–59.7, lng 21.8–28.2).
@@ -44,20 +50,29 @@ export function inEstonia(latitude: number, longitude: number): boolean {
 /**
  * The marker tone class suffix. Reported state (shelter-trust-and-reports
  * D1) wins over everything — the orange dot is the single "reported"
- * affordance. Otherwise the trust palette (community-review-queue D5):
- * community rows are amber while review_status is NEW ("just added") and
- * green once CONFIRMED; registry rows stay blue. Reported beats trust
- * colour; hidden rows never reach the public map.
+ * affordance. For community rows the SHAPE then carries the submitter's
+ * verification depth (submitter-verification-badge, owner decision):
+ * `partial` is a triangle at exactly one confirmed channel, `full` a circle at
+ * two or more — never colour alone (WCAG 1.4.1, the same rationale as the
+ * anchor diamond). A row whose depth the backend does not report (older API,
+ * deleted author) keeps the trust tone (community-review-queue D5): amber
+ * while NEW, green once CONFIRMED. Registry rows stay blue; hidden rows never
+ * reach the public map.
  */
 export function markerTone(shelter: {
   source: ShelterSource;
   reviewStatus: ReviewStatus;
   nonexistentReports: number;
-}): 'reported' | 'new' | 'user' | 'registry' {
+  submitterVerification?: SubmitterVerification | null;
+}): 'reported' | 'partial' | 'full' | 'new' | 'user' | 'registry' {
   if (shelter.nonexistentReports > 0) {
     return 'reported';
   }
   if (shelter.source === 'USER') {
+    const shape = verificationTone(shelter);
+    if (shape !== null) {
+      return shape;
+    }
     return shelter.reviewStatus === 'NEW' ? 'new' : 'user';
   }
   return 'registry';

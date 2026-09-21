@@ -18,6 +18,15 @@
           <span class="badge" [ngClass]="communityBadgeClass(s)">
             {{ sourceTrustLabel(s) }}
           </span>
+          @if (submitterVerificationKey(s); as submitterKey) {
+            <!-- The submitter's verification depth
+                 (submitter-verification-badge): derived LIVE by the API from
+                 the author's current claims, so a row added at 1/2
+                 verification reads "fully verified" the moment the second
+                 channel is confirmed — nothing is stored on the row. Absent
+                 for registry rows, deleted accounts and unverified authors. -->
+            <span class="badge badge--submitter">{{ submitterKey | t }}</span>
+          }
           @if (isPrivateLocation(s)) {
             <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
           }
@@ -100,7 +109,9 @@
               [disabled]="distancePending()"
               [attr.aria-busy]="distancePending()"
             >
-              {{ distancePending() ? ('detail.distance.pending' | t) : ('detail.distance.cta' | t) }}
+              {{
+                distancePending() ? ('detail.distance.pending' | t) : ('detail.distance.cta' | t)
+              }}
             </button>
           </div>
         }

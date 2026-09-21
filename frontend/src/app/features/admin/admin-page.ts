@@ -16,7 +16,7 @@ import { NgClass } from '@angular/common';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DatePipe, registerLocaleData } from '@angular/common';
 import localeEnGB from '@angular/common/locales/en-GB';
-import { RouterLink } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router, type Params } from '@angular/router';
 import type {
   AdminAlertKind,
   AdminAlertRow,
@@ -33,10 +33,15 @@ import type {
   GuidanceTranslationDto,
   MediaAssetDto,
   ShelterReportType,
+  ShelterSourceFilter,
   ShelterStatus,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
-import { GuidanceGateway } from '../../gateways/guidance-gateway';
+import {
+  GuidanceGateway,
+  GUIDANCE_PAGE_SIZE,
+  GUIDANCE_PAGE_SIZES,
+} from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import {
   ALERT_KIND_LABEL,
@@ -58,10 +63,12 @@ import {
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
+import { Pagination } from '../../shared/pagination';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { Locale } from '../../core/i18n/locale';
 import { LOCALES } from '../../core/i18n/locale';
+import type { MessageKey } from '../../core/i18n/messages';
 import { ApiError } from '../../core/api-error';
 import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
 import { GuidanceOrderList } from './guidance-order-list';
@@ -161,6 +168,7 @@ export const INFO_REQUEST_MAX = 2000;
     DatePipe,
     BannerComponent,
     LoadingIndicator,
+    Pagination,
     TranslatePipe,
     GuidanceEditor,
     GuidanceOrderList,
@@ -180,18 +188,27 @@ export class AdminPage implements OnInit, OnDestroy {
    *  (the map-page's scrollRowIntoView idiom) and the destroy handle for
    *  its callbacks. */
   private readonly injector = inject(Injector);
+  /** The admin tabs share ONE route — the paged lists' view (page, size,
+   *  the guidance search, the shelters source) lives in its query params
+   *  (the URL is the state: a link or a refresh keeps the view). */
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   // ---- tabs ----------------------------------------------------------------
   protected readonly tab = signal<AdminTab>('unconfirmed');
 
   // ---- unconfirmed (review-queue) tab ------------------------------------------
+  /** The queue's source: the FULL un-paged shelters list — the queue is a
+   *  filter of the WHOLE scope, so the Shelters tab's paging must not
+   *  hollow it out. null = loading; [] = loaded and empty. */
+  protected readonly queueRows = signal<AdminShelterDto[] | null>(null);
   /** The queue: USER rows in the NEW state (client-side filter of the
-   *  shelters list — no extra endpoint), newest first. The backend is
+   *  full list — no extra endpoint), newest first. The backend is
    *  id-ordered (auto-increment id = creation order) and carries NO creation
    *  timestamp on the admin projection (verified against the live API), so
    *  the id IS the creation-order proxy. */
   protected readonly unconfirmedRows = computed(() =>
-    (this.shelterRows() ?? [])
+    (this.queueRows() ?? [])
       .filter((row) => row.source === 'USER' && row.reviewStatus === 'NEW')
       .sort((a, b) => b.id - a.id),
   );
@@ -205,13 +222,43 @@ export class AdminPage implements OnInit, OnDestroy {
   });
 
   // ---- shelters tab ----------------------------------------------------------
-  /** null = loading; [] = loaded and empty. */
+  /** The Shelters tab's current PAGE (server-paged — the owner's
+   *  list-page-paging follow-up): null = loading; [] = loaded and empty.
+   *  The un-paged queue lives in queueRows (the Unconfirmed tab). */
   protected readonly shelterRows = signal<AdminShelterDto[] | null>(null);
   protected readonly shelterLoadError = signal<string | null>(null);
-  /** The active name/address search term (set on submit). */
+  /** The active name/address search term (set on submit — the server does
+   *  the substring match). It stays a tab-local control: the paged view's
+   *  URL-backed params are the source filter, page and size. */
   protected readonly shelterQuery = signal('');
   /** Search input (public so specs can drive it — page convention). */
   readonly searchQuery = new FormControl('', { nonNullable: true });
+  /** The source filter chip (All / Registry / Community — the
+   *  frontend-facing grouping the backend speaks), URL-backed (`source`). */
+  protected readonly shelterSource = signal<ShelterSourceFilter>('ALL');
+  protected readonly shelterPage = signal(1);
+  protected readonly shelterSize = signal(GUIDANCE_PAGE_SIZE);
+  /** The un-paged (filtered) total (X-Total-Count) and the derived page
+   *  count / out-of-range flag — a past-the-end page renders an explicit
+   *  notice, never a bare empty list. */
+  protected readonly shelterTotal = signal(0);
+  protected readonly shelterPages = computed(() =>
+    this.shelterTotal() > 0 ? Math.max(1, Math.ceil(this.shelterTotal() / this.shelterSize())) : 1,
+  );
+  protected readonly shelterOutOfRange = computed(() =>
+    this.shelterTotal() > 0 && this.shelterPage() > this.shelterPages(),
+  );
+  /** The selectable sizes — the range the endpoint serves (limit 1..200
+   *  honours all of 10..100 step 10, so the control never offers a size
+   *  the backend would refuse). */
+  protected readonly pageSizes = GUIDANCE_PAGE_SIZES;
+  /** The source filter chips (the table's source vocabulary, short).
+   *  All = no filter. */
+  protected readonly sourceChips: { value: ShelterSourceFilter; label: MessageKey }[] = [
+    { value: 'ALL', label: 'admin.shelters.source.all' },
+    { value: 'REGISTRY', label: 'admin.shelters.source.registry' },
+    { value: 'USER', label: 'admin.shelters.source.community' },
+  ];
 
   // ---- shelter history ---------------------------------------------------------
   /** The row whose inline history panel is open (null = closed). */
@@ -286,6 +333,30 @@ export class AdminPage implements OnInit, OnDestroy {
    *  each carrying that locale's content, in the stored global manual order. */
   protected readonly guidanceRows = signal<AdminGuidancePostDto[] | null>(null);
   protected readonly guidanceLoadError = signal<string | null>(null);
+  /** The applied search term (admin-guidance-search): the URL's `q` — set
+   *  on submit (submit-based, never per-keystroke), scoped to the content
+   *  locale's list; '' = no filter. */
+  protected readonly guidanceQuery = signal('');
+  /** The search input (public so specs can drive it — page convention). */
+  readonly guidanceSearch = new FormControl('', { nonNullable: true });
+  /** The un-paged (search-filtered) total (X-Total-Count) and the
+   *  derived page count / out-of-range flag (the public page's honest
+   *  states). */
+  protected readonly guidanceTotal = signal(0);
+  protected readonly guidancePage = signal(1);
+  protected readonly guidanceSize = signal(GUIDANCE_PAGE_SIZE);
+  protected readonly guidancePages = computed(() =>
+    this.guidanceTotal() > 0 ? Math.max(1, Math.ceil(this.guidanceTotal() / this.guidanceSize())) : 1,
+  );
+  protected readonly guidanceOutOfRange = computed(() =>
+    this.guidanceTotal() > 0 && this.guidancePage() > this.guidancePages(),
+  );
+  /** Manual order (the DnD, the move buttons AND the full-list order PUT)
+   *  is ALL-ROWS-by-nature: available only while the whole (searched,
+   *  scoped) list fits the current page (the spec's interaction rule). */
+  protected readonly guidanceReorderable = computed(
+    () => this.guidanceTotal() <= this.guidanceSize(),
+  );
   /** The Published column's instants (slug -> publishedAt). The admin DTO
    *  carries NO publishedAt — the instants live in the permit-all public
    *  index, which this map merges (a failed merge degrades the column to
@@ -347,13 +418,33 @@ export class AdminPage implements OnInit, OnDestroy {
     .subscribe(() => {
       this.closeGuidanceEditor();
       // The list (if live) is the OLD locale's: invalidate the cached
-      // rows and re-fetch in the new one. Guarded on the ERROR state, not
-      // on rows: the switch's own invalidation (or a just-started load)
-      // may already have nulled them, and the error state keeps its Retry
-      // (a failed load stays failed until the admin retries).
+      // rows. Guarded on the ERROR state, not on rows: the switch's own
+      // invalidation (or a just-started load) may already have nulled
+      // them, and the error state keeps its Retry (a failed load stays
+      // failed until the admin retries).
+      this.guidanceRows.set(null);
+      // A scope change voids the previous scope's search and page —
+      // reset both to the first page and re-fetch. Guarded on the ERROR
+      // state, not on rows: the toObservable delivery is ASYNC — by the
+      // time this fires, onContentLanguageChange has already nulled the
+      // rows (and a not-yet-landed first load is null too — the seq guard
+      // drops the superseded in-flight response). The error state keeps
+      // its Retry (a failed load stays failed until the admin retries).
       if (this.tab() === 'guidance' && this.guidanceLoadError() === null) {
-        this.guidanceRows.set(null);
+        const params = { ...this.route.snapshot.queryParams };
+        delete params['q'];
+        delete params['guidancePage'];
+        delete params['guidanceSize'];
+        this.guidanceQuery.set('');
+        this.guidancePage.set(1);
+        this.guidanceSize.set(GUIDANCE_PAGE_SIZE);
+        this.guidanceViewKey = ['', 1, GUIDANCE_PAGE_SIZE, this.i18n.contentLocale()].join('|');
         this.loadGuidance();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: params,
+          replaceUrl: true,
+        });
       }
     });
 
@@ -448,8 +539,121 @@ export class AdminPage implements OnInit, OnDestroy {
     return `${previous} → ${next}`;
   }
 
+  /** The view IS the URL (admin-page-size / admin-guidance-search):
+   *  every emission (the initial navigation and every query change — a
+   *  page/size flip, a chip, a search submit, a back-button step) parses
+   *  the paged lists' params, normalizes a hand-typed value in place
+   *  (replaceUrl — no history entry for the cosmetic fix) and re-loads
+   *  the ACTIVE tab's list when its own params actually changed (the
+   *  other tab's params are inert while it is off-screen). The initial
+   *  emission loads nothing: the default tab's queue loads in ngOnInit,
+   *  and an off-tab list follows the lazy-load rule on first switch.
+   *  Unsubscribed in ngOnDestroy. */
+  private readonly querySub = this.route.queryParams.subscribe((params) =>
+    this.onQueryChange(params),
+  );
+
+  /** The last-applied view key per paged list — a queryParams emission
+   *  re-loads only when the ACTIVE tab's own params (or the local search
+   *  term, for the shelters list) differ from the last load. */
+  private guidanceViewKey = '';
+  private sheltersViewKey = '';
+
+  /** Parse + normalize the paged lists' params, then sync the active
+   *  tab (the public guidance page's idiom, applied per tab). */
+  private onQueryChange(params: Params): void {
+    if (this.normalizeListParams(params)) {
+      return; // the normalized URL re-emits and loads there
+    }
+    if (this.tab() === 'guidance') {
+      this.syncGuidanceFromParams(params, false);
+    } else if (this.tab() === 'shelters') {
+      this.syncSheltersFromParams(params, false);
+    }
+  }
+
+  /** A raw value that is not a legal member of the domain (non-numeric,
+   *  a size outside 10..100 or off the step of 10, a page below 1) is
+   *  clamped to the nearest legal value and the URL is normalized in
+   *  place (replaceUrl), so the control and the URL can never quietly
+   *  disagree. Returns true when a normalization navigation was issued. */
+  private normalizeListParams(params: Params): boolean {
+    const canonical: Record<string, string> = { ...params };
+    let dirty = false;
+    const check = (pageRaw: string | null, sizeRaw: string | null, pName: string, sName: string) => {
+      const page = parseListPage(pageRaw);
+      const size = parseListSize(sizeRaw);
+      if (page > 1) {
+        canonical[pName] = String(page);
+      } else {
+        delete canonical[pName];
+      }
+      if (size !== GUIDANCE_PAGE_SIZE) {
+        canonical[sName] = String(size);
+      } else {
+        delete canonical[sName];
+      }
+      if ((pageRaw !== null && String(page) !== pageRaw) || (sizeRaw !== null && String(size) !== sizeRaw)) {
+        dirty = true;
+      }
+    };
+    check(params['guidancePage'] ?? null, params['guidanceSize'] ?? null, 'guidancePage', 'guidanceSize');
+    check(params['shelterPage'] ?? null, params['shelterSize'] ?? null, 'shelterPage', 'shelterSize');
+    if (dirty) {
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: canonical,
+        replaceUrl: true,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /** The Guidance tab's view (the URL's `q` + guidancePage/guidanceSize)
+   *  into the signals, loading when `firstVisit` (the lazy-load rule) or
+   *  the view actually changed. The content locale is part of the key —
+   *  the locale subscription handles its own reset, so a stale key
+   *  cannot re-load the old scope. */
+  private syncGuidanceFromParams(params: Params, firstVisit: boolean): void {
+    const q = (params['q'] ?? '').trim();
+    const page = parseListPage(params['guidancePage'] ?? null);
+    const size = parseListSize(params['guidanceSize'] ?? null);
+    const key = [q, page, size, this.i18n.contentLocale()].join('|');
+    const live = this.guidanceRows() !== null || this.guidanceLoadError() !== null;
+    if (!firstVisit && (!live || key === this.guidanceViewKey)) {
+      return;
+    }
+    this.guidanceViewKey = key;
+    this.guidanceQuery.set(q);
+    this.guidancePage.set(page);
+    this.guidanceSize.set(size);
+    this.loadGuidance();
+  }
+
+  /** The Shelters tab's view (the URL's source + shelterPage/shelterSize)
+   *  into the signals — the local search term stays where it is (the
+   *  form control) and is part of the key, so a search submit's URL
+   *  change re-loads with the new term. */
+  private syncSheltersFromParams(params: Params, firstVisit: boolean): void {
+    const source = parseSourceFilter(params['source'] ?? null);
+    const page = parseListPage(params['shelterPage'] ?? null);
+    const size = parseListSize(params['shelterSize'] ?? null);
+    const key = [source, page, size, this.shelterQuery()].join('|');
+    const live = this.shelterRows() !== null || this.shelterLoadError() !== null;
+    if (!firstVisit && (!live || key === this.sheltersViewKey)) {
+      return;
+    }
+    this.sheltersViewKey = key;
+    this.shelterSource.set(source);
+    this.shelterPage.set(page);
+    this.shelterSize.set(size);
+    this.loadShelters();
+  }
+
   ngOnDestroy(): void {
     this.guidanceLocaleSub.unsubscribe();
+    this.querySub.unsubscribe();
   }
 
   // -------------------------------------------------------------------------
@@ -479,11 +683,11 @@ export class AdminPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // The default tab (Unconfirmed) filters the shelters list, so that list
-    // loads immediately; reports/alerts/users/audit load lazily on first
-    // switch (a visit after a load keeps the in-memory rows — the queue
-    // does not refetch itself).
-    this.loadShelters();
+    // The default tab (Unconfirmed) filters the FULL shelters list, so
+    // that list loads immediately; the Shelters tab's paged view and the
+    // other tabs load lazily on first switch (a visit after a load keeps
+    // the in-memory rows — the queue does not refetch itself).
+    this.loadQueue();
   }
 
   // -------------------------------------------------------------------------
@@ -500,9 +704,7 @@ export class AdminPage implements OnInit, OnDestroy {
     this.mediaDeleteInUse.disarm();
     switch (tab) {
       case 'shelters':
-        if (this.shelterRows() === null && this.shelterLoadError() === null) {
-          this.loadShelters();
-        }
+        this.syncSheltersFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'reports':
         if (this.reportRows() === null && this.reportLoadError() === null) {
@@ -520,9 +722,7 @@ export class AdminPage implements OnInit, OnDestroy {
         }
         break;
       case 'guidance':
-        if (this.guidanceRows() === null && this.guidanceLoadError() === null) {
-          this.loadGuidance();
-        }
+        this.syncGuidanceFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'media':
         if (this.mediaRows() === null && this.mediaLoadError() === null) {
@@ -535,13 +735,25 @@ export class AdminPage implements OnInit, OnDestroy {
         }
         break;
       case 'unconfirmed':
-        break; // filters the shelters list, which loaded in ngOnInit
+        break; // filters the full list, which loaded in ngOnInit
     }
   }
 
   // -------------------------------------------------------------------------
   // Unconfirmed (review-queue) tab
   // -------------------------------------------------------------------------
+  /** The queue's source: the FULL un-paged shelters list (the queue is a
+   *  filter of the whole scope — the Shelters tab's paging must not
+   *  hollow it out). The error state is shared with the Shelters tab
+   *  (one endpoint, one banner). */
+  loadQueue(): void {
+    this.queueRows.set(null);
+    this.shelterLoadError.set(null);
+    this.admin
+      .listShelters()
+      .then((page) => this.queueRows.set(page.rows))
+      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
+  }
   /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
    *  The shelters list refetches so both this queue and the Shelters tab
    *  show the new state. */
@@ -604,26 +816,53 @@ export class AdminPage implements OnInit, OnDestroy {
   // -------------------------------------------------------------------------
   // Shelters tab
   // -------------------------------------------------------------------------
+  /** The Shelters tab's current page: the (source, q) filtered slice —
+   *  the server does the filtering AND the slicing (no client-side fake
+   *  pagination), the un-paged total arrives as X-Total-Count. */
   loadShelters(): void {
     this.shelterRows.set(null);
     this.shelterLoadError.set(null);
     const q = this.shelterQuery().trim();
+    const size = this.shelterSize();
     this.admin
-      .listShelters(q === '' ? undefined : { q })
-      .then((rows) => this.shelterRows.set(rows))
+      .listShelters({
+        source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
+        q: q === '' ? undefined : q,
+        limit: size,
+        offset: (this.shelterPage() - 1) * size,
+      })
+      .then((paged) => {
+        this.shelterTotal.set(paged.total);
+        this.shelterRows.set(paged.rows);
+      })
       .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter')));
   }
 
-  /** The review actions' refetch: same query as loadShelters, but kept
-   *  quiet (no loading flash over an already-rendered queue). */
+  /** The review actions' refetch: the queue's full list always (the
+   *  action changed the queue's scope), the Shelters tab's page when it
+   *  is loaded (both views of the same endpoint — kept quiet, no
+   *  loading flash over an already-rendered list). */
   private async refreshShelters(): Promise<void> {
-    const q = this.shelterQuery().trim();
-    const rows = await this.admin.listShelters(q === '' ? undefined : { q });
-    this.shelterRows.set(rows);
+    const page = await this.admin.listShelters();
+    this.queueRows.set(page.rows);
+    if (this.shelterRows() !== null || this.shelterLoadError() !== null) {
+      const q = this.shelterQuery().trim();
+      const size = this.shelterSize();
+      const paged = await this.admin.listShelters({
+        source: this.shelterSource() === 'ALL' ? undefined : this.shelterSource(),
+        q: q === '' ? undefined : q,
+        limit: size,
+        offset: (this.shelterPage() - 1) * size,
+      });
+      this.shelterTotal.set(paged.total);
+      this.shelterRows.set(paged.rows);
+    }
   }
 
   /** Search submit: capture the term and re-query (the server does the
-   *  name/address substring match — no client-side filtering). */
+   *  name/address substring match — no client-side filtering). A new
+   *  filter has its own page 1 (keeping the old page number would often
+   *  land out-of-range). */
   onSearchSubmit(): void {
     this.shelterQuery.set(this.searchQuery.value.trim());
     this.clearFeedback();
@@ -631,7 +870,83 @@ export class AdminPage implements OnInit, OnDestroy {
     this.closeHistory();
     this.closeInfo();
     this.closeInaccurate();
-    this.loadShelters();
+    if (this.shelterPage() > 1) {
+      // The page reset changes the URL — the emission re-loads with the
+      // new term (the term is tab-local, part of the view key).
+      this.navigateShelters({ page: 1 });
+    } else {
+      // The page is already 1 and the term is not a URL param — the
+      // navigation would be a no-op, so load directly.
+      this.sheltersViewKey = [this.shelterSource(), this.shelterPage(), this.shelterSize(), this.shelterQuery()].join('|');
+      this.loadShelters();
+    }
+  }
+
+  /** The source chip (admin Shelters tab): write `source` to the URL
+   *  (a link or refresh keeps the filter), which composes with the
+   *  status filter and the search (AND on the server). The chip starts
+   *  at page 1. */
+  onSourceChip(source: ShelterSourceFilter): void {
+    if (source === this.shelterSource()) {
+      return;
+    }
+    this.clearFeedback();
+    this.shelterDeleteConfirm.disarm();
+    this.closeHistory();
+    this.closeInfo();
+    this.closeInaccurate();
+    this.navigateShelters({ source, page: 1 });
+  }
+
+  /** Write the Shelters tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted from the URL (page 1, size 20, no
+   *  source filter). */
+  private navigateShelters(view: {
+    page?: number;
+    size?: number;
+    source?: ShelterSourceFilter;
+  }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.source !== undefined) {
+      if (view.source === 'ALL') {
+        delete params['source'];
+      } else {
+        params['source'] = view.source;
+      }
+    }
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['shelterPage'] = String(view.page);
+      } else {
+        delete params['shelterPage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== GUIDANCE_PAGE_SIZE) {
+        params['shelterSize'] = String(view.size);
+      } else {
+        delete params['shelterSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page.
+   */
+  onSheltersNavigate({ page, size }: { page: number; size: number }): void {
+    const lastPage =
+      this.shelterTotal() > 0 ? Math.max(1, Math.ceil(this.shelterTotal() / size)) : 1;
+    this.navigateShelters({ page: Math.min(Math.max(1, page), lastPage), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size and source are kept). */
+  gotoSheltersFirstPage(): void {
+    this.navigateShelters({ page: 1 });
   }
 
   /** Hide a USER row (POST /admin/shelters/{id}/status INACTIVE). */
@@ -683,6 +998,10 @@ export class AdminPage implements OnInit, OnDestroy {
     try {
       await this.admin.deleteShelter(id);
       this.shelterRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
+      // The (filtered) total shrinks — the page count follows (the
+      // control hides itself at one page; a page left past the end shows
+      // the out-of-range notice with its first-page action).
+      this.shelterTotal.update((t) => Math.max(0, t - 1));
       this.success.set('Shelter deleted.');
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter'));
@@ -1019,11 +1338,13 @@ export class AdminPage implements OnInit, OnDestroy {
   // -------------------------------------------------------------------------
 
   /**
-   * Load the posts visible in the CONTENT language (admin-locale-scope
-   * + admin-locale-split): only the posts that have content in it (a
-   * translation row there, or the post's home being it), each carrying
-   * that locale's content, in the stored global manual order (the list
-   * renders in the server's order — no client sort). The monotonic fetch
+   * Load the CURRENT page of the posts visible in the CONTENT language
+   * (admin-locale-scope + admin-locale-split), search-filtered: the server
+   * runs the `q` filter over the scope's rendered content and slices the
+   * (filtered) stored manual order with limit/offset — the page never
+   * fetches-and-slices client-side, and the order is never re-sorted by
+   * the search. The un-paged (filtered) total arrives as X-Total-Count;
+   * an out-of-range page is the derived flag, not a bare empty list. The monotonic fetch
    * sequence drops a stale (out-of-order) response: a superseded load
    * must not overwrite a newer one (a language switch's pattern).
    */
@@ -1031,12 +1352,20 @@ export class AdminPage implements OnInit, OnDestroy {
     this.guidanceRows.set(null);
     this.guidanceLoadError.set(null);
     const seq = ++this.guidanceFetchSeq;
+    const page = this.guidancePage();
+    const size = this.guidanceSize();
     this.admin
-      .listGuidancePosts(this.i18n.contentLocale())
-      .then((rows) => {
+      .listGuidancePostsPage({
+        locale: this.i18n.contentLocale(),
+        q: this.guidanceQuery() === '' ? undefined : this.guidanceQuery(),
+        limit: size,
+        offset: (page - 1) * size,
+      })
+      .then(({ rows, total }) => {
         if (seq !== this.guidanceFetchSeq) {
           return; // a newer load superseded this response
         }
+        this.guidanceTotal.set(total);
         this.guidanceRows.set(rows);
         // The admin projection has NO publishedAt — the publication instants
         // live in the permit-all public index; merge them (a failed merge
@@ -1055,7 +1384,8 @@ export class AdminPage implements OnInit, OnDestroy {
       });
   }
 
-  /** The publishedAt merge source (the permit-all public index — PUBLISHED
+  /**
+   * The publishedAt merge source (the permit-all public index — PUBLISHED
    *  posts with their publication instants, keyed by slug). Fire-and-forget:
    *  a failure just leaves the column showing "—" until the next load. */
   private refreshPublishedIndex(): void {
@@ -1065,6 +1395,77 @@ export class AdminPage implements OnInit, OnDestroy {
         this.publishedAtBySlug.set(new Map(posts.map((p) => [p.slug, p.publishedAt]))),
       )
       .catch(() => this.publishedAtBySlug.set(new Map()));
+  }
+
+  /**
+   * The search submit (admin-guidance-search): capture the term and
+   *  re-query — SUBMIT-based, never per-keystroke. A new filter has its
+   *  own page 1 (keeping the old page number would often land out-of-
+   *  range). The term is written to the URL (`q`) so a link or a refresh
+   *  keeps it.
+   */
+  onGuidanceSearchSubmit(): void {
+    const term = this.guidanceSearch.value.trim();
+    this.guidanceQuery.set(term);
+    this.clearFeedback();
+    // The term goes to the URL (`q`) — that emission is what re-loads
+    // (the term itself is not part of the URL's page/size state).
+    this.navigateGuidance({ page: 1, q: term });
+  }
+
+  /** The explicit clear: removes `q` from the URL and resets to page 1
+   *  (the "no posts yet" empty state comes back for an empty scope). */
+  onGuidanceSearchClear(): void {
+    this.guidanceSearch.reset('');
+    this.guidanceQuery.set('');
+    this.clearFeedback();
+    this.navigateGuidance({ page: 1, q: '' });
+  }
+
+  /** Write the Guidance tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted (page 1, size 20, no search). */
+  private navigateGuidance(view: { page?: number; size?: number; q?: string }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.q !== undefined) {
+      if (view.q === '') {
+        delete params['q'];
+      } else {
+        params['q'] = view.q;
+      }
+    }
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['guidancePage'] = String(view.page);
+      } else {
+        delete params['guidancePage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== GUIDANCE_PAGE_SIZE) {
+        params['guidanceSize'] = String(view.size);
+      } else {
+        delete params['guidanceSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page.
+   *  The search term is kept (a new page of the same filter). */
+  onGuidanceNavigate({ page, size }: { page: number; size: number }): void {
+    const lastPage =
+      this.guidanceTotal() > 0 ? Math.max(1, Math.ceil(this.guidanceTotal() / size)) : 1;
+    this.navigateGuidance({ page: Math.min(Math.max(1, page), lastPage), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size and the search term are kept). */
+  gotoGuidanceFirstPage(): void {
+    this.navigateGuidance({ page: 1 });
   }
 
   /**
@@ -1237,7 +1638,8 @@ export class AdminPage implements OnInit, OnDestroy {
         result = await this.admin.createGuidancePost(save.create!);
         // The new post APPENDS at the END of the stored manual order (the
         // server does — it is not newest-first anymore), so the row is
-        // appended, not prepended.
+        // appended, not prepended; the (filtered) total grows with it.
+        this.guidanceTotal.update((t) => t + 1);
         this.guidanceRows.update((rows) => [...(rows ?? []), result]);
         this.success.set(this.i18n.t('admin.guidance.success.created'));
       } else {
@@ -1359,6 +1761,10 @@ export class AdminPage implements OnInit, OnDestroy {
       const row = (this.guidanceRows() ?? []).find((r) => r.id === id) ?? null;
       await this.admin.deleteGuidancePost(id);
       this.guidanceRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
+      // The (filtered) total shrinks — the page count follows (the
+      // control hides itself at one page; a page left past the end shows
+      // the out-of-range notice with its first-page action).
+      this.guidanceTotal.update((t) => Math.max(0, t - 1));
       if (row !== null && row.status === 'PUBLISHED') {
         this.publishedAtBySlug.update((m) => {
           const next = new Map(m);
@@ -1628,6 +2034,32 @@ export class AdminPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.success.set(null);
   }
+}
+
+/** page: 1-based integer; missing/non-numeric/below 1 -> 1 (the public
+ *  guidance page's parse — hand-typed URLs only; the control can only
+ *  offer legal values). */
+function parseListPage(raw: string | null): number {
+  const n = raw === null ? NaN : Number(raw);
+  return Number.isInteger(n) && n >= 1 ? n : 1;
+}
+
+/** size: clamp to the nearest member of 10..100 step 10 (the shared
+ *  Pagination's contract); missing -> the default 20. */
+function parseListSize(raw: string | null): number {
+  const n = raw === null ? NaN : Number(raw);
+  if (!Number.isFinite(n)) {
+    return GUIDANCE_PAGE_SIZE;
+  }
+  const stepped = Math.round(n / 10) * 10;
+  return Math.min(100, Math.max(10, stepped));
+}
+
+/** source chip: a legal grouping or 'ALL' (a stray hand-typed value is
+ *  the no-filter default — the server would 400 an illegal one, so the
+ *  URL normalizes before it can reach a link). */
+function parseSourceFilter(raw: string | null): ShelterSourceFilter {
+  return raw === 'REGISTRY' || raw === 'USER' ? raw : 'ALL';
 }
 
 /** Reporter identity for a queue row: name + e-mail, null-safe. */

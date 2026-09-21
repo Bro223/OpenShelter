@@ -35,10 +35,11 @@ Read-only QA pass, 2026-07-08. Evidence is from `frontend/src/` (paths relative 
 
 ## 3. Focus-visible styles
 
-**Status: VERIFIED**
+**Status: VERIFIED — with one documented WCAG 2.4.7 deviation (owner-accepted)**
 
 - Global rule: `a, button, input, textarea` `:focus-visible` in `styles.scss` ("global :focus-visible rules win where they exist"); explicit `:focus-visible` on shell controls (`styles.scss`).
-- Test: `design-tokens.spec.ts` — "styles.scss provides a global :focus-visible rule (keyboard-operable nav)".
+- Test: `design-tokens.spec.ts` — "styles.scss provides a global :focus-visible rule (keyboard-operable nav)" plus "the UA (browser-default) focus ring is suppressed — documented WCAG 2.4.7 deviation" (the second pins both the suppression and the survival of the token ring).
+- **The 2026-09-21 WCAG 2.4.7 deviation was RETIRED the same day (reviews/12-summary QW6).** `*:focus { outline: none }` in `styles.scss` still keeps the browser-default ring off elements with no project rule, but every keyboard-OPERABLE control now carries a token ring: `select:focus-visible` and `.admin-table-wrap:focus-visible` were added to the global rule (`styles.scss:418-419`), covering the seven `tabindex="0"` admin table scroll regions (`admin-page.html:113,278,703,741,1064,1184`, `guidance-order-list.html:36`) and the two `<select>`s (`shared/pagination.html:28` — a PUBLIC control — and `admin-page.html:871`). What remains suppressed is only the two containers the shell focuses PROGRAMMATICALLY (a route change, a dialog open): non-operable, so no indicator is owed (WCAG 2.4.7 covers operable components). **Standing rule: any new focusable element must be added to the token-ring selector list in `styles.scss`, or it will have no visible focus indicator.**
 - **Partial note**: focus *order* and focus *restoration* (e.g. after the mobile menu closes, or after a two-step confirm strips disappear) are not asserted by any spec — needs manual keyboard walk (see manual items).
 
 ## 4. ARIA roles & live regions

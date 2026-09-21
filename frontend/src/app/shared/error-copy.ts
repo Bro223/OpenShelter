@@ -100,6 +100,8 @@ function isFieldValidation400(kind: ErrorKind, message: string): boolean {
 export type ErrorCopyKey =
   | 'error.rateLimited'
   | 'error.unauthorized'
+  | 'error.invalidCredentials'
+  | 'error.resetBadCode'
   | 'error.checkInput'
   | 'error.serverError'
   | 'error.valueInUse'
@@ -113,6 +115,8 @@ export type ErrorCopyKey =
 const CLIENT_COPY: Record<ErrorCopyKey, string> = {
   'error.rateLimited': COPY.rateLimited,
   'error.unauthorized': COPY.unauthorized,
+  'error.invalidCredentials': COPY.invalidCredentials,
+  'error.resetBadCode': COPY.resetBadCode,
   'error.checkInput': COPY.checkInput,
   'error.serverError': COPY.serverError,
   'error.valueInUse': COPY.valueInUse,
@@ -155,7 +159,9 @@ export function bannerMessage(
       if (kind === 'profile') {
         return api.message || tr('error.unauthorized');
       }
-      return kind === 'login' ? COPY.invalidCredentials : api.message || tr('error.unauthorized');
+      return kind === 'login'
+        ? tr('error.invalidCredentials')
+        : api.message || tr('error.unauthorized');
     case 400:
       // Password-reset confirm: a FIELD-LEVEL VALIDATION failure (short
       // password, blank field — the form now blocks these client-side, the
@@ -165,7 +171,7 @@ export function bannerMessage(
       // 400s) keeps the generic bad-code copy: the UI must never reveal
       // which check failed (anti-enumeration).
       if (kind === 'reset') {
-        return isFieldValidation400(kind, api.message) ? api.message : COPY.resetBadCode;
+        return isFieldValidation400(kind, api.message) ? api.message : tr('error.resetBadCode');
       }
       // Profile edit: echo the validation message (blank field, etc.).
       if (kind === 'profile') {

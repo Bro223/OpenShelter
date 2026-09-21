@@ -45,6 +45,7 @@ import {
   occupancyText as occupancyTextShared,
   recencyText as recencyTextShared,
   sourceTrustLabel as sourceTrustLabelShared,
+  submitterVerificationKey as submitterVerificationKeyShared,
   communityBadgeClass as communityBadgeClassShared,
   reportedBadgeText as reportedBadgeTextShared,
   lastVerifiedText as lastVerifiedTextShared,
@@ -155,8 +156,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
    *  completeness): they resolve their copy through the active locale. */
   private readonly i18n = inject(I18nService);
   /** The active-locale resolver passed to the shared copy helpers. */
-  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
-    this.i18n.t(key, params);
+  private readonly translate = (
+    key: MessageKey,
+    params?: Record<string, string | number>,
+  ): string => this.i18n.t(key, params);
   /** The active UI locale, exposed to the template so the Info section's
    *  <time> stamps format in the VIEWER'S language (not the content
    *  language) — the same seam the t pipe and the account panel use. */
@@ -188,6 +191,10 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     source: ShelterSource;
     reviewStatus: ReviewStatus;
   }): string => sourceTrustLabelShared(s, this.translate);
+  /** The submitter's verification depth badge key (submitter-verification-
+   *  badge) — null renders NO badge. Rendered through the `| t` pipe so the
+   *  badge follows the active locale. */
+  protected readonly submitterVerificationKey = submitterVerificationKeyShared;
   protected readonly communityBadgeClass = communityBadgeClassShared;
   /** The list row's fresh-CLOSED badge — the same copy the status row uses;
    *  fresh OPEN rows render no badge. */
@@ -207,7 +214,8 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
     reviewStatus: ReviewStatus;
     createdAt: string;
     source: ShelterSource;
-  }): string => lastVerifiedTextShared(s, Date.now(), this.translate, MONTH_ABBREVS[this.i18n.locale()]);
+  }): string =>
+    lastVerifiedTextShared(s, Date.now(), this.translate, MONTH_ABBREVS[this.i18n.locale()]);
   protected readonly communityReportsText = (reportCount: number) =>
     communityReportsTextShared(reportCount, this.translate);
   /** The shared straight-line distance formatter (location-navigation: the
@@ -806,7 +814,9 @@ export class ShelterDetailPage implements OnInit, AfterViewInit, OnDestroy {
       this.notice.set({
         severity: 'success',
         text: this.i18n.t(
-          result?.damped ? 'shelter.notice.reportSubmittedDamped' : 'shelter.notice.reportSubmitted',
+          result?.damped
+            ? 'shelter.notice.reportSubmittedDamped'
+            : 'shelter.notice.reportSubmitted',
         ),
       });
       // The derived state (nonexistentReports, openStatus) moved server-
