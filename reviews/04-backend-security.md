@@ -1,481 +1,438 @@
-# OpenShelter — Backend Security Review (agent 4)
+# OpenShelter — Backend Security Review (agent 4, sweep 2)
 
-## Scope and method
+## Scope, method and evidence
 
-- **Read-only.** No source file was modified; this report is the only file created.
-- **Reviewed state:** the working tree at `HEAD` (`b4afb80d`) **plus the uncommitted lanes** that are
-  present in the tree (`git status` = 41 modified files): the verification send-order change
-  (`VerificationService`, `*SmsSender`/`*SmtpSender` boolean returns, `CodeSendFailedException`,
-  `ThrottleAlertRecorder.codeSendFailure`), the column-only caller read
-  (`ShelterQueryService.findById(long, Long)`, `UserRepository.existsById`), the removal of the
-  legacy `PaasteametRegistryClient` with a fail-closed registry-client check, and docs.
-- **Verification rule applied:** every claim below comes from reading the code (and, where cheap,
-  from running the build). I did not take any statement from `README.md`, `docs/security/*` or
-  `qa/security-checklist.md` on trust; where those documents disagree with the code, that
-  disagreement is itself reported.
-- **Build evidence:** `mvn -o test-compile` → exit 0 (main + test sources compile). Tests were not
-  executed (the suite needs Testcontainers/Docker and belongs to agent 3); the one test I cite is
-  cited for what it *asserts*, which I read directly.
-- **Versions detected** (from `pom.xml` + `mvn -o dependency:list`, i.e. the resolved versions, not
-  the declared ones): Java 21 (`pom.xml:21`), Maven via `spring-boot-starter-parent` 3.3.13
-  (`pom.xml:10`), Spring Boot 3.3.13, Spring Framework 6.1.21, Spring Security 6.3.10, embedded
-  Tomcat 10.1.42, Hibernate 6.5.3.Final, Jakarta Validation 3.0.2 / Hibernate Validator 8.0.2,
-  Flyway 10.10.0, PostgreSQL JDBC 42.7.7, jjwt 0.12.7, jsoup 1.23.2, springdoc 2.6.0, Twilio SDK
-  10.9.2, BouncyCastle 1.78.1, proj4j 1.3.0, spring-dotenv 4.0.0; tests: JUnit 5.10.5, Mockito
-  5.11.0, AssertJ 3.25.3, Testcontainers 2.0.5. No Gradle; no Dockerfile. Generated/vendor folders
-  (`target/`, `frontend/node_modules`, `.angular`) were ignored.
+- **Read-only.** No source file was modified, deleted or reformatted; this report is the only file created.
+- **Tree state:** `HEAD` = `d247007` plus 26 uncommitted entries. Backend-relevant in-flight work (the
+  admin list lane): `api/AdminController.java` (list gains `limit`/`offset` + `X-Total-Count`, `source`
+  retyped `ShelterSource` → `ShelterSourceFilter`), `api/AdminModerationService.java`,
+  `api/ShelterQueryService.java` (`findAllForAdmin` takes the filter enum), plus a new untracked
+  `src/test/java/ee/sheltermap/api/AdminGuidanceSearchPagingIT.java`. Frontend/i18n/openapi edits are
+  outside my area. Everything below was read in the working tree as it stands.
+- **Live, read-only probes against the running instance** (`:8080`, profile `dev` — `/v3/api-docs` answers
+  200 because the dev `.env` enables springdoc, which `ApiDocsGuard` permits only on dev/test). No state
+  was written: GET/HEAD/OPTIONS only, no login, no POST that creates data. The dev Postgres was queried
+  `SELECT`-only to look for a REJECTED row (there are none: `count(*) where review_note is not null` = 0,
+  `count(*) where review_status = 'REJECTED'` = 0 — so the `reviewNote` gate is verified by code, not live).
+- **Versions detected from `pom.xml`, then resolved** (offline `maven-dependency-plugin:3.7.0:list`, i.e.
+  the actual resolved set, not the declared one): Java 21, `spring-boot-starter-parent` **3.5.16** →
+  Spring Framework **6.2.19**, Spring Security **6.5.11**, embedded Tomcat **10.1.55**, Hibernate
+  **6.6.53.Final**, Hibernate Validator 8.0.3, Jackson **2.21.4**, PostgreSQL JDBC **42.7.11**,
+  Flyway **11.7.2**, Logback 1.5.34, snakeyaml 2.4, commons-lang3 **3.17.0**, jsoup **1.23.2**,
+  jjwt **0.12.7**, springdoc **2.8.17**, BouncyCastle **1.78.1**, Twilio **10.9.2**,
+  spring-dotenv **4.0.0** (+ its transitives, incl. `httpclient 4.5.13`, `commons-io 2.14.0`,
+  `gson 2.13.2`, `auth0 java-jwt 4.4.0`); tests JUnit 5 / Mockito / AssertJ / Testcontainers 2.0.5.
+  Generated/vendor folders (`target/`, `node_modules/`, `.angular/`, `dist/`) ignored.
+- I did not take any claim from `README.md`, `docs/security/*` or `qa/security-checklist.md` on trust;
+  where a document disagrees with the code, the disagreement is reported (F2, F3).
+
+---
+
+## Confirmations, corrections and contradictions of the earlier sweeps
+
+Each claim was re-checked in the current tree; I report only what the evidence supports.
+
+**C1 — the leaked moderator `reviewNote` (sweep 1) is fixed, and the gate holds in every projection.**
+`ShelterQueryService.java:464-466` emits the note only when
+`ownSurface || (callerId != null && callerId.equals(createdById))`. The three reachable paths are all
+correct: the public list passes `null` (`:174 toDtos(shelters, null)`), the public/owner detail read passes
+only the caller id (`:229`; `ShelterController.java:232` supplies it via `callerIdOrNull()`), the `/mine`
+list passes `ownSurface = true` (`:239`, every row is the caller's own), and the admin projection keeps it
+deliberately (`:557`, admin-only DTO). The list cannot leak it at all (`infoRequestRows`/`withInfoRequests`
+are also empty there). No other projection of `Shelter.getReviewNote()` exists in `src/main`
+(`grep -rn getReviewNote src/main` → the three sites above).
+
+**C2 — `POST /dev/sms-test` now reports the truth (run-1 F2 fixed).**
+`api/SmsTestController.java:79-86` propagates `activeSmsSender.send(...)`'s boolean and returns
+`sent:false` with a reason; the catch block remains for a throwing sender. The interface contract
+(`verification/SmsSender.java:13-24`) matches.
+
+**C3 — run-1 F3 (an OSS-EOL Spring Boot 3.3.x line) no longer applies.** `pom.xml:10` pins **3.5.16**, a
+supported line, and the previously unreachable fixes are now in the build: pgjdbc **42.7.11** is exactly
+the fix release for CVE-2026-42198 (unbounded PBKDF2 in SCRAM), and Spring Security **6.5.11** is above
+the 6.5.9 ceiling of CVE-2026-22751 (authorization bypass). The residual is F4 below.
+
+**C4 — run-1 F7 ("bearer-token and PII responses carry no `Cache-Control: no-store`") is wrong, and I
+contradict it with a live probe.** Spring Security's default header writer already emits
+`Cache-Control: no-cache, no-store, max-age=0, must-revalidate`, `Pragma: no-cache`, `Expires: 0` on every
+response that passes the chain. Measured on the running instance:
+
+```text
+GET /api/shelters/1   200  Cache-Control: no-cache, no-store, max-age=0, must-revalidate / Pragma: no-cache / Expires: 0
+GET /admin/shelters   401  Cache-Control: no-cache, no-store, max-age=0, must-revalidate / Pragma: no-cache / Expires: 0
+GET /actuator/health  200  same
+GET /api/media/<valid>.jpg 200  Cache-Control: max-age=31536000, public, immutable   (no no-store)
+```
+
+`SecurityConfig.java` never customizes `.headers(...)`, so the default writer is on for `/auth/**`,
+`/account/**` and `/verify/**` too, i.e. the token-returning and PII-returning endpoints already carry
+`no-store`. The single response that is deliberately *not* `no-store` is the public hero image
+(`MediaController.java:97`), where the controller's own `ResponseEntity` header replaces the writer's —
+the intended immutable cache. **No action needed; the finding should be dropped from the merged list.**
+
+**C5 — run-1 F5 (contact-change code persisted *before* the send) is fixed.** The send now precedes the
+pending-row write: `auth/ContactChangeService.java:154-171` (e-mail) and `:236-250` (phone) send first and
+`return` on a refused send without writing the row, so a refused delivery neither arms the cooldown (the
+row *is* the anchor, `enforceCooldown`) nor persists a code nobody received. **Still open from that
+finding:** a refused contact-change send (and a refused password-reset send,
+`auth/PasswordResetService.java:192`) is only logged — unlike verification, which records
+`alerts.codeSendFailure(...)` (`verification/VerificationService.java:171`). A channel outage on those two
+paths is invisible to `GET /admin/alerts`. That is operator visibility, not a vulnerability — noted, not
+scored as a finding.
+
+**C6 — the earlier disagreement about the rate-limit property: the current code supports agent 4's
+position (the old atomic check-and-record is off the production path).** Evidence, current tree:
+`verification/VerificationService.java:121` reads `sendLog.lastSentAt(...)` (and `countToday`), `:163` sends,
+`:178` records — three steps with no lock across them; `FileVerificationSendLog.java:90`
+(`public synchronized SendDecision tryRecord(...)`) has **no production caller**: `grep -rn tryRecord
+src/main` returns the interface declaration (`VerificationSendLog.java:52`), this implementation, and one
+comment. The only callers are tests (`VerificationServiceTest.java:328-345`,
+`FileVerificationSendLogTest.java:147` and the 50-thread test the other sweep praised). So the property
+"exactly one send per cooldown window" is no longer enforced by the send log on the shipped path; the
+burst bound that remains is the atomic `RollingContactOtpLimiter` acquire at
+`VerificationService.java:143`. Both sweeps were describing different objects (test quality vs production
+call graph) — agent 4's reading is the one that matches the code, so `FileVerificationSendLogTest`'s
+concurrency test now gives false confidence about production.
+
+**C7 — SSRF, geo resolver, PII crypto, boot guards, CSRF, CORS, SQL, media HEAD: confirmed clean**, see
+the clean-areas section; I re-read each rather than trusting the prior reports. Two refinements: (a) the
+HEAD permission the previous fix added exists **only** for `/api/media/**` (see F10); (b) the
+resolve→connect DNS-rebinding TOCTOU on the hero import is real and correctly documented as an accepted
+residual (`docs/security/threat-model.md:448-463`) — I confirm both the residual and the acceptance.
 
 ---
 
 ## Findings
 
-### F1 — High — the public shelter detail read leaks the moderator's REJECT note (`reviewNote`) to anonymous callers
+### F1 — Low — one-time codes are protected at rest by an *unkeyed* single-round SHA-256, which a 6-digit space makes decorative
 
-**Location**
-- `src/main/java/ee/sheltermap/config/SecurityConfig.java:216` — `GET /api/shelters/**` is `permitAll`.
-- `src/main/java/ee/sheltermap/api/ShelterController.java:233-234` — `get(@PathVariable long id)` delegates to
-  `queryService.findById(id, callerIdOrNull())`, i.e. the caller may be `null` (anonymous).
-- `src/main/java/ee/sheltermap/api/ShelterQueryService.java:429` (`toDto`, the projection shared by the
-  **public list and detail** and by `findById`) sets the field unconditionally:
-  **line 459 `shelter.getReviewNote(),`**. There is no caller/owner check anywhere on the path.
-- `src/main/java/ee/sheltermap/api/AdminModerationService.java:366-369` — the note is written by the admin
-  REJECT decision (`review_status = REJECTED`, `status = INACTIVE`, `reviewNote = reason`), reason ≤ 500 chars
-  (`api/AdminShelterReviewRequest.java:17`).
-- `src/main/java/ee/sheltermap/api/ShelterDto.java:129-131` documents this field as
-  *"The admin's REJECT reason … **Owner-scoped on the public surfaces**"* — the code does not do that.
-- The frontend contract says the same: `frontend/src/app/gateways/shelter-gateway.ts:74`
-  *"only reviewNote + infoRequest are owner-scoped"* (`ShelterDetailDto` does not even declare the field —
-  `frontend/src/app/core/models.ts:425-446`).
-- Jackson default: no `@JsonInclude(NON_NULL)` and no `spring.jackson.default-property-inclusion` anywhere
-  (`grep` over `src/main` + `application.yml`), so the field is serialized with its value.
+**Location.** `auth/PasswordResetService.java:199` and `:278` (`Hashes.sha256Hex(code)`),
+`auth/ContactChangeService.java:169`, `:248`, `:350`, `verification/PhoneVerificationProvider.java:51-62`
+(6-digit OTP) and `:78` (`CodeHashes.sha256Hex(code)`), the shared primitive
+`verification/CodeHashes.java:33-41`. The code space is 10⁶ by construction
+(`auth/Codes.java:26-28 sixDigitCode()`, `PhoneVerificationProvider.OTP_DIGITS = 6`).
+`docs/security/threat-model.md:164` presents "the 6-digit reset code is stored SHA-256-hashed" as the
+mitigation.
 
-**Why it matters.** A REJECTED row stays readable by id *by design* ("the detail stays readable by id like any
-INACTIVE row", `ShelterController.java:210-213`) and ids are sequential `BIGSERIAL` values. Anyone can walk
-`GET /api/shelters/{id}` unauthenticated and read the moderator's internal free-text reason — exactly the kind of
-text that contains personal or operational detail about a submitter. It also breaks the documented API contract
-(public DTO vs owner-only field), so the frontend types and the OpenAPI schema are wrong about a field that is
-in fact public.
+**What is wrong.** The stored value (`password_reset_tokens.token_hash`, `pending_contact_changes.code_hash`,
+`pending_verifications.code_hash`) is an unsalted, unkeyed, single-round SHA-256 of a 6-digit secret. An
+attacker who obtains the table — a dump, a backup, a read-only replica credential, a stray `SELECT` —
+enumerates all 10⁶ candidates in well under a second per row and recovers the live code, exactly the
+offline case the rest of the "PII at rest" design is built to defeat. The project's own boundary for the
+*neighbouring* secret is stronger: contacts are AES-256-GCM under an env-only key with a **keyed**,
+domain-separated HMAC blind index (`security/PiiCrypto.java:52-80, 126-140`, keys validated and fail-closed
+in `security/PiiKeys.java:44-62`), and `pending_contact_changes.target` / `pending_verifications.contact`
+are encrypted — yet the codes that unlock the same accounts are not. Impact path: recover a live
+`password_reset_tokens` row (15-min TTL) and POST `/auth/password-reset/confirm` with the victim's e-mail
+and the recovered code → password replacement → full account takeover; or recover a
+`pending_contact_changes` code (default TTL 900 s) → change the account's e-mail/phone. The confirm
+endpoints' own defences (5-attempt lockout `CodePolicy.MAX_ATTEMPTS`, single-use, per-(IP,e-mail) bucket)
+are *online* controls and do not apply to an offline attacker. Why not higher than Low: the dump alone does
+not link e-mail → `user_id` (both are encrypted/blind-indexed), so a *targeted* takeover also needs the
+victim's id-name link (plaintext `users.name`/shelters make that linkable) and the attacker must act inside
+the token TTL. Why not lower: it silently voids the project's own stated at-rest guarantee for a
+credential-bearing table, and the fix uses a primitive the codebase already has.
 
-**Proof it is not covered by the suite.** `src/test/java/ee/sheltermap/api/CommunityReviewIT.java:315-331`
-exercises exactly this case: the anonymous detail read (line 320, no `Authorization` header) asserts
-`$.status == INACTIVE` and `$.reviewStatus == REJECTED` (lines 321-322), then `/mine` asserts
-`$[0].reviewNote == "Pole varjend"` (line 330) — i.e. the note is on the row and is serialized. The only
-`reviewNote` `doesNotExist()` assertions in the whole test tree are lines 174/194, on a **NEW** (never rejected)
-row, so they cannot catch this.
+**Suggested fix.** Store `HMAC-SHA256(PII_HMAC_KEY, "reset-code:" + code)` — i.e. the exact
+`PiiCrypto.blindIndex(domain, value)` primitive already in the tree — instead of the unkeyed digest; add a
+`v2:` slot tag (the `PiiCrypto` envelope's own idiom, `:36`) so the old rows stay readable, and keep
+`constantTimeEquals`. Argon2 is also already a dependency if a slow KDF is preferred. A `PiiAtRestIT` case
+asserting that a dumped `code_hash` does not equal `sha256Hex(code)` would pin it.
 
-**Minimal fix.** Gate the field on the caller in the shared projection, e.g. in
-`ShelterQueryService.toDto(...)` pass `callerId` through and emit
-`reviewNote` only when `callerId != null && callerId.equals(shelter.getCreatedBy())` (the admin projection
-`toAdminDto` keeps returning it, and the existing `updatePlace`/owner path is unaffected), or add a
-`withOwnerFields` flag to the `toDtos` overloads the way `withInfoRequests`/`withPulse` are already threaded.
-Regression test: add `.andExpect(jsonPath("$.reviewNote").doesNotExist())` to the anonymous detail read at
-`CommunityReviewIT.java:320` — it currently fails.
+### F2 — Low — HSTS is never sent in the deployment shape the ops doc describes (TLS terminated at the edge)
 
----
+**Location.** `config/SecurityHeadersFilter.java:47-49` — `if (request.isSecure())` sets
+`Strict-Transport-Security`. Nothing configures forward-header handling: `grep -rn -i forward-headers
+--include='*.yml' --include='*.properties' --include='*.env' --include='Dockerfile*' .` finds nothing (the
+only hit is the unrelated `trusted-proxies` comment), and there is no `server.forward-headers-strategy`,
+no `server.tomcat.remoteip.*` and no `WebServerFactoryCustomizer`/valve anywhere in `src/main`. Live probe
+on the running instance: `GET /actuator/health -H 'X-Forwarded-Proto: https'` returns the four always-on
+headers and **no** `Strict-Transport-Security` (and none without the header either), i.e.
+`request.isSecure()` stays false for a proxy-terminated request.
 
-### F2 — Medium — `POST /dev/sms-test` now always answers `sent: true`: the change made the diagnostic blind to delivery failures
+**Why it matters.** `docs/security/operations.md:101-103` states: *"Terminate TLS in front of the app; the
+app sends `Strict-Transport-Security` only on secure requests (`SecurityHeadersFilter`), so HSTS is live
+exactly when the edge is."* With the documented shape (edge terminates TLS, forwards plain HTTP to the
+app), the app never sees a secure request, so HSTS is never emitted and the header is *not* live — the
+stated hardening silently does not apply. `SecurityHeadersIT.java:75-83` cannot catch it: it pins the code
+path with `request.setScheme("https")` on MockMvc, not the proxy behaviour. Severity is Low (HSTS is
+browser-side defence-in-depth; nothing else depends on it), but it is a documented control that is off in
+production.
 
-**Location.** `src/main/java/ee/sheltermap/api/SmsTestController.java:77-81`
+**Suggested fix.** Either emit HSTS when a *trusted* peer sent `X-Forwarded-Proto: https` — reusing the
+trust decision that already exists (`auth/ClientIps.java:52-61`, `app.ratelimit.trusted-proxies` /
+`trust-loopback`) — or add the header at the edge and correct `operations.md`. **Do not** simply set
+`server.forward-headers-strategy: framework`: that filter trusts every client's `X-Forwarded-*` and would
+rewrite `getRemoteAddr()`, defeating `ClientIps`' spoofing protection (the per-IP buckets) at the same time.
 
-```java
-activeSmsSender.send(request.to(), request.message());          // returned boolean DISCARDED
-return new SmsTestResult(provider, request.to(), toE164, true, null);   // hardcoded true
-...
-} catch (RuntimeException ex) { ... return new SmsTestResult(..., false, ex.getMessage()); }
-```
+### F3 — Low — the guidance body has no length bound although the code and the error vocabulary promise one
 
-**Cause (this is a regression introduced by the uncommitted change, not pre-existing).** The
-`SmsSender.send` contract changed from *"throws on failure"* to *"returns `false` on failure, never throws"*
-(`src/main/java/ee/sheltermap/verification/SmsSender.java:13-24`), and `TwilioSmsSender` now swallows every
-failure into `return false` (`TwilioSmsSender.java:84-99`). `SmsTestController` was not updated, so the catch
-block is unreachable for the production sender and `sent` is always `true`.
+**Location.** `api/CreateGuidancePostRequest.java:29` and `api/UpdateGuidancePostRequest.java:24`
+(`@NotBlank String body`, no `@Size`), `api/CreateGuidanceTranslationRequest.java:21` /
+`UpdateGuidanceTranslationRequest.java:17` (same), `guidance/GuidanceService.java:982-987`
+(`sanitize()` rejects null/blank only), the column is `body_html TEXT NOT NULL`
+(`db/migration/V23__crisis_guidance.sql`). The declared contract says otherwise:
+`GuidanceService`'s own javadoc (`:426`, `:1139`) and `api/ApiErrorHandler.java:150-154` describe a
+400 for a *"missing/oversized title or body"*.
 
-**Why it matters.** The endpoint's entire reason to exist is truthful delivery reporting — its sibling says so
-explicitly: *"A test endpoint must NOT do that: `sent:false` + the relay error is exactly the diagnostic you
-need"* (`api/EmailTestController.java:30-34`), and `EmailTestController` still gets it right because it calls
-`mailSender.send(...)` directly (line 91). So `POST /dev/sms-test` now reports success when Twilio refused the
-message, and the two "mirror" endpoints disagree. Severity is Medium rather than High because the surface is
-feature-flagged off by default and additionally guarded (`app.dev-sms-test.enabled` + JWT + recipient allowlist +
-`DevEndpointsGuard` refuses to boot outside dev/test), but the documented Twilio-channel verification workflow
-is exactly what silently stops working.
+**Why it matters.** An admin (or a stolen admin token) can store a body of arbitrary size — the request
+is `application/json`, so neither `spring.servlet.multipart.max-request-size: 6MB` nor Tomcat's form-post
+limit applies. The body is then rendered on the public `/blog` page, so the cost lands on anonymous
+readers and on DB size/backup, and the documented 400 does not exist. Low because the surface is
+ADMIN-only; reported because validation gaps are exactly what a review should not leave as "documented".
 
-**Proof.** `src/test/java/ee/sheltermap/api/SmsTestControllerIT.java:56-80` ("sendsTestSmsAndReportsTruthfully")
-only exercises `DevSmsSender`, which returns `true` unconditionally — no test covers a `false` return, which is
-why this passed review-by-test.
+**Suggested fix.** Add `MAX_BODY_LENGTH` to `GuidanceService` (mirroring `MAX_TITLE_LENGTH`, `:114`) and
+check it in `sanitize()`, with a matching `@Size(max = …)` on all four request records so the 400 arrives
+from bean validation as well.
 
-**Minimal fix.** `boolean sent = activeSmsSender.send(request.to(), request.message()); return new SmsTestResult(provider, request.to(), toE164, sent, sent ? null : "the sms channel did not accept the message");`
-and add a test with a `SmsSender` returning `false`.
+### F4 — Low — three artifacts are one patch behind on reachable-by-configuration-only advisories (Tomcat, Jackson, BouncyCastle)
 
----
+**Location and evidence (resolved versions, `pom.xml:10` = Boot 3.5.16).**
 
-### F3 — Medium — the whole Spring stack is pinned to the OSS-EOL Spring Boot 3.3.x line, so transitive security fixes have stopped arriving
-
-**Location / evidence.** `pom.xml:7-12` pins `spring-boot-starter-parent` **3.3.13**; nothing else pins the
-Spring-managed artifacts, so `mvn -o dependency:list` shows the frozen set:
-`tomcat-embed-core 10.1.42`, `spring-security-core/web/config/crypto 6.3.10`, `spring-web/webmvc 6.1.21`,
-`jackson-databind/core 2.17.3`, `postgresql 42.7.7`, `commons-lang3 3.14.0`, `springdoc-openapi-* 2.6.0`.
-
-Spring's own release note for 3.3.13 states it *"marks the end of open source support for Spring Boot 3.3.x"*
-(OSS EOL 2025-06-30; the current machine date is 2026-09-20, ~15 months past EOL). The codebase's own comment
-already treats this as frozen (`pom.xml:24-27`, springdoc 2.6.0 "do not bump without review", and
-`pom.xml:46-48` "NO springdoc-openapi-starter-actuator"), which is correct for those two artifacts but is not a
-security posture for the container/security/framework set.
-
-Concrete fixes that exist upstream but cannot reach this build while the line stays pinned (I checked each
-advisory; **reachability varies**, which is why this is a policy finding and not a proven exploit):
-
-| Artifact (resolved) | Advisory | Fixed in | Reachability here |
+| Artifact (resolved) | Advisory | Fixed in | Reachability in this app |
 | --- | --- | --- | --- |
-| `tomcat-embed-core` 10.1.42 | CVE-2025-53506 (HTTP/2 uncontrolled resource consumption) | 10.1.43 | HTTP/2 is off in Boot by default (`server.http2.enabled` unset) |
-| `tomcat-embed-core` 10.1.42 | CVE-2025-48989 ("made you reset", CWE-404) | 10.1.44 | as above |
-| `org.postgresql:postgresql` 42.7.7 | CVE-2026-42198 (unbounded PBKDF2 iterations → CPU DoS during SCRAM), `>=42.2.0,<42.7.11` | 42.7.11 | needs a hostile DB server; the DB is operator-controlled |
-| `org.postgresql:postgresql` 42.7.7 | CVE-2026-54291 (`channelBinding=require` silently downgraded), `>=42.7.4,<42.7.12` | 42.7.12 | needs `channelBinding=require` (not configured) + an intercepting MITM |
-| `commons-lang3` 3.14.0 | CVE-2025-48924 (`ClassUtils.getClass` recursion → `StackOverflowError`), `<3.18.0` | 3.18.0 | needs attacker-controlled class names; none found on a user-input path |
-| `jackson-databind` 2.17.3 | CVE-2026-54512 (`PolymorphicTypeValidator` bypass), `<=2.18.7` | 2.18.8 | needs default typing enabled; this app never enables it |
-| `spring-security-*` 6.3.10 | 6.3 line EOL; e.g. CVE-2026-41003 (`RelyingPartyRegistration` HTML-form injection) affects `<=6.3.16` | 6.4.x/6.5.x | SAML is not used here — not reachable |
+| `tomcat-embed-core` **10.1.55** | CVE-2026-55956 — default-servlet security constraints ignore method/method omission | 10.1.56 | No security constraints are declared (Spring Security is programmatic); no `server.tomcat.*` config, no `WebServerFactoryCustomizer`, no valve in `src/main` |
+| `tomcat-embed-core` 10.1.55 | CVE-2026-55955 — replay against the cluster `EncryptionInterceptor` | 10.1.56 | No Tomcat cluster is configured |
+| `tomcat-embed-core` 10.1.55 | CVE-2026-59083 — RewriteValve hex-encoding security-constraint bypass | 10.1.57 | No `RewriteValve` / rewrite config anywhere in the repo |
+| `jackson-databind` **2.21.4** | CVE-2026-59889 — `@JsonView` bypass for `@JsonUnwrapped` properties | 2.21.5 | `grep -rn 'JsonView\|JsonUnwrapped\|JsonTypeInfo\|activateDefaultTyping' src/` → no hits |
+| `bcprov-jdk18on` **1.78.1** (`pom.xml:104`) | e.g. CVE-2026-12185 (BKS/UBER keystore length handling < 1.85), CVE-2026-59638 (JSSE hostname verification < 1.85) | 1.85+ | No BC JCE provider is ever registered (`grep -rn addProvider src/main` → none); BC is used only as a library by Spring Security's `Argon2PasswordEncoder` (`SecurityConfig.java:64`) |
 
-**Why it matters.** Outside dev/test the fail-closed boot guards are strong about *configuration*, but no guard
-can compensate for a dependency line that no longer receives patches: every future fix in Tomcat, Spring
-Security, Spring Framework, Jackson and the JDBC driver is unavailable by construction. The one artifact that
-matters most for this app's threat model — **jsoup** (the sanitizer behind stored admin HTML) — is *not* affected:
-1.23.2 is the current release and CVE-2026-71497 (`<=1.22.2`, fixed 1.23.1) additionally requires a custom
-`Safelist` that permits raw-text elements, which `BodySanitizer`'s allowlist does not.
+**Why it matters.** None of these is exploitable as the code stands (I checked each reachability column
+in the tree rather than assuming), so this is hygiene, not a hole — but the app's only evidence that they
+stay unreachable is a human reading the config, and a future `RewriteValve`, cluster or `@JsonView` would
+silently arm a known CVE. BouncyCastle is the one *directly pinned* dependency (1.78.1 is several releases
+behind the current line).
 
-**Minimal fix.** Move to a supported Boot minor (3.5.x, or 4.0.x if the Framework-7 jump is acceptable) — the
-Springdoc comment at `pom.xml:24-27` already flags the springdoc bump that comes with it. If the jump cannot
-happen now, override just the reachable managed versions (`tomcat.version`, `postgresql.version`,
-`commons-lang3.version`) as an interim measure, and record the decision.
+**Suggested fix.** Override the two managed versions as properties — `<tomcat.version>10.1.57</tomcat.version>`
+and `<jackson-bom.version>2.21.5</jackson-bom.version>` — and bump `bcprov-jdk18on` to the current 1.85+
+line; then add a dependency-vulnerability gate (OWASP dependency-check or a Dependabot/Renovate rule) to CI
+so this class of finding does not depend on a manual sweep. Related positive note: `jsoup 1.23.2` is above
+the CVE-2026-71497 fix (1.23.1), and that advisory additionally requires a Safelist permitting raw-text
+elements, which `BodySanitizer`'s allowlist does not include.
 
----
+### F5 — Low — the verification throttle's atomicity is gone and the old atomic helper is production-dead
 
-### F4 — Low — the verification throttle is no longer atomic: the cooldown/daily cap can be amplified by a concurrent burst
+Covered as C6 above; listed here so it survives into the merged list. **Location.**
+`verification/VerificationService.java:121` (read) → `:163` (send) → `:178` (record);
+`FileVerificationSendLog.java:90` `tryRecord` has no production caller; the remaining burst bound is the
+atomic `RollingContactOtpLimiter` acquire at `:143`. **Why it matters.** A concurrent burst of
+`POST /verify/request` for one (user, level) can all pass the cooldown read and all send; the daily cap can
+be overcounted by the in-flight window. Deliberate (a refused send must not burn a slot) and bounded by the
+per-contact cap, so Low — but the rule now exists in two places (`VerificationService` and the dead
+`tryRecord`), the drift hazard is real, and the suite's strongest concurrency test now certifies a path that
+is not shipped. **Suggested fix.** Delete or `@Deprecated`-annotate `tryRecord` (keeping the read-only API)
+and add a concurrency IT that asserts the bounded overcount explicitly, so the accepted trade-off is a test,
+not a comment.
 
-**Location.** `src/main/java/ee/sheltermap/verification/VerificationService.java:112-125` (read-only decision from
-`sendLog.lastSentAt` / `sendLog.countToday`), `:154` (`provider.request(user)` → the real send), `:169`
-(`sendLog.record(...)` — only *after* a channel-accepted send). The previous implementation was one atomic
-check-and-record: `VerificationSendLog.tryRecord` (`FileVerificationSendLog.java:90-101`,
-`synchronized`, "Check + record under ONE lock hold … so a burst cannot pass both reads before either records").
+### F6 — Low — `/auth/refresh` and `/auth/logout` remain the only unauthenticated, DB-touching, unthrottled endpoints
 
-**What changed in effect.** `N` concurrent `POST /verify/request` calls for the same (user, level) can now all
-observe "no recent send" and all send. The amplification is **bounded** by the still-atomic per-contact limiter
-(`:143` `contactLimiter.tryAcquire("verify:" + contact)`, 5 events / 24 h by default) and the cooldown loss is
-bounded by that same budget — so this is a real but small weakening of an already-defence-in-depth control, and
-the new ordering is deliberate and documented in the method javadoc (not burning a daily slot on a refused send
-is a genuine improvement). Reported for completeness, not as a blocker.
+**Location.** `config/SecurityConfig.java:208` (`permitAll` for both) and
+`auth/AuthController.java:143-160` — neither handler calls `requireRate(...)`, unlike every sibling
+(`:100` register, `:138-139` login, `:189` reset request, `:219` reset confirm). **Why it matters.** No
+credential bypass exists (refresh tokens are 64 chars of `SecureRandom` and only their digest is stored —
+`JwtTokenService.java:64-66`, `auth/Tokens.java`), but each call reaches the DB (`findByTokenHash` + a
+conditional `UPDATE`), so this is the only unauthenticated unbounded-cost pair on the surface.
+**Suggested fix.** Add a small per-IP `TokenBucketRateLimiter` bucket to both (the `ClientIps` +
+`TokenBucketRateLimiter` wiring already exists), or state the unlimited decision in the threat model.
 
-**Secondary (maintainability, same location).** `VerificationSendLog.tryRecord` is now **production-dead** — the
-only callers are tests (`grep -rn tryRecord src/main` → declaration + javadoc only). The throttle rule is
-therefore duplicated in two places (service + log) that the service's own comment claims are identical; they can
-drift silently, and a future reader may wrongly assume `tryRecord` still guards the flow.
+### F7 — Low — the committed OpenAPI document publishes the whole admin surface that `ApiDocsGuard` exists to withhold
 
-**Minimal fix.** Extract the decision into one shared helper (or delete `tryRecord` and keep the read-only API),
-and add a concurrency IT pinning the bounded-overcount behaviour explicitly, so the accepted trade-off is an
-asserted contract rather than a comment.
+**Location.** `docs/api/openapi.json` (a tracked file; the in-flight lane edits it) contains the `/admin/*`
+paths; `config/ApiDocsGuard.java` refuses to boot outside dev/test precisely because *"the API document is
+a complete map of the attack surface — the admin endpoints and their payload shapes included"*, and
+`SecurityConfig.java:246-249` keeps the docs URLs behind a dev/test-only profile. **Why it matters.** No
+runtime exposure (verified: `/v3/api-docs` is 401 on a non-dev profile by construction, 200 here only
+because this instance runs `dev`) — but the stated rationale is partly undone by a tracked artifact anyone
+who can read the repository receives. It is a trade-off (the file is also the frontend contract), so Low.
+**Suggested fix.** Say so where the guard is justified, or generate a public-subset document for the
+committed file.
 
----
+### F8 — Low — the published dev DB credentials have no fail-closed guard, and `docker-compose.yml` publishes 5432 on every interface
 
-### F5 — Low — contact-change codes are persisted BEFORE the send, so a refused send arms the cooldown with a code nobody received
+**Location.** `src/main/resources/application.yml:7-9` (`${DB_URL:…localhost:5432/sheltermap}`,
+`${DB_USERNAME:sheltermap}`, `${DB_PASSWORD:sheltermap}`) and `docker-compose.yml:13` (`"5432:5432"`).
+Every other sensitive dev default in this project fails the boot outside dev/test (`config/ProdJwtGuard`,
+`DevSenderGuard`, `DevEndpointsGuard`, `ApiDocsGuard`, and `security/PiiKeys` refuses to start without
+32-byte keys); the datasource pair is the one left unchecked, and `docs/security/operations.md:90-92` only
+documents the requirement. **Why it matters.** On a shared machine or a cloud VM the compose port publishes
+the database — which holds the ciphertext, the blind-index hashes and the code hashes — to the whole
+network under credentials that are in the public repository, and an operator who forgets `DB_PASSWORD`
+silently connects with them. Low: a real database would have to accept those credentials.
+**Suggested fix.** Bind the compose port to loopback (`127.0.0.1:5432:5432`) and add a
+`DataSourceCredentialGuard` (the `Profiles.isDevTestOnly` idiom) that refuses the boot outside dev/test
+while the published default is still in use.
 
-**Location.** `src/main/java/ee/sheltermap/auth/ContactChangeService.java:104-107`
-(`replacePending(...)` at 104, then `smsSender.send(...)` at 106 — same order at `:168-171` for the phone change)
-and `enforceCooldown` at `:222-234`, which anchors the cooldown on the pending row's `createdAt`.
+### F9 — Low — loopback `X-Forwarded-For` trust is on by default and the guard only warns; the bucket map then grows on attacker-chosen keys
 
-**Why it matters.** If the channel refuses (`SmtpSender`/`SmsSender` now return `false`, both callers discard it)
-or the code cannot be delivered, the row already exists: the user receives nothing, cannot complete the change,
-and is throttled for `cooldown-seconds` (default 60 s, `application.yml:119`) before they can try again. The
-verification flow was just changed to the opposite order for exactly this reason
-(`VerificationService.java:150-176`), and the interface javadoc now documents the asymmetry
-(`SmsSender.java:13-24`). Additionally, unlike verification, a refused contact-change send records **no**
-operator alert (`ThrottleAlertRecorder.codeSendFailure` is only called from `VerificationService.java:161`), so
-a channel outage on this path is invisible to the admin ring. **I agree with the P3 item a prior lane flagged
-in this same file** — see the cross-check section.
+**Location.** `application.yml:221-226` (`trust-loopback: ${RATELIMIT_TRUST_LOOPBACK:true}`),
+`auth/ClientIps.java:52-61` (a loopback peer is trusted, so its `X-Forwarded-For` becomes the returned
+client IP), `config/LoopbackXffTrustGuard.java:36-49` (warns, never refuses, on a non-dev/test profile —
+deliberate, because dev parity needs the default), and `auth/TokenBucketRateLimiter.java:34-42` — the
+bucket key is that value verbatim, the map is a `ConcurrentHashMap` swept only when it exceeds 1024 entries
+*and* an entry has been idle for an hour. **Why it matters.** Any process that can reach the app on
+loopback can rotate self-declared IPs, evading every per-IP throttle (login, register, verify,
+contact-change, geo-resolve) *and* inserting an unbounded number of bucket keys → process memory growth,
+which is a new consequence beyond the eviction-of-throttles the guard message names. This is the documented
+residual (run-1's cross-check accepted it as an operational decision); it is re-reported only because the
+memory consequence is not in the guard text. **Suggested fix.** Add a hard cap (or LRU bound) on the
+bucket map, and extend the guard message with the memory consequence; keep the default for dev parity.
 
-**Minimal fix.** Create+send then persist the pending row on acceptance (or roll the row back and clear the
-cooldown anchor when the send returns `false`), and route the refusal into
-`ThrottleAlertRecorder.codeSendFailure(contact, channel)`.
+### F10 — Low — the HEAD-answers-like-GET rule that was just added for `/api/media/**` was not applied to the other public GETs
 
----
-
-### F6 — Low — `/auth/refresh` and `/auth/logout` are unauthenticated and unthrottled
-
-**Location.** `SecurityConfig.java:210-212` (`permitAll` for both), `AuthController.java:147-165` (neither calls
-`requireRate`, unlike `/auth/login`, `/auth/register`, `/auth/password-reset/*`). Each request reaches the DB:
-`JwtTokenService.refresh` does a `findByTokenHash` + a conditional `UPDATE`
-(`TokenService`/`JwtTokenService.java:83-101`), and `revoke` issues an `UPDATE`
-(`SpringDataRefreshTokenRepository.java:17-22`).
-
-**Why it matters.** No bypass: refresh tokens are 64 characters from a 62-symbol alphabet drawn from a
-`SecureRandom` (`JwtTokenService.java:24,64`; `Tokens.java:12-15`; `Codes.java:70-87`) and only their SHA-256 is
-stored, so guessing is infeasible. What is missing is purely the abuse valve: these are the only two
-unauthenticated, DB-touching endpoints in the app, and the per-IP throttling that covers every sibling auth
-endpoint has no analogue here.
-
-**Minimal fix.** Add a small per-IP `RateLimiter` bucket (the existing `TokenBucketRateLimiter` and
-`ClientIps` are already wired) to both handlers, or state explicitly in the threat model that they are
-deliberately unlimited.
-
----
-
-### F7 — Low — bearer-token and PII responses carry no `Cache-Control: no-store`
-
-**Location.** The only `Cache-Control` in `src/main` is the public media serve
-(`api/MediaController.java:97`, `public, max-age=31536000, immutable`). Nothing sets `no-store` on
-`POST /auth/login` and `POST /auth/refresh` (they return the access + refresh tokens in the body,
-`auth/TokenResponse.java`) or on `GET /account/me`, `GET /account/export` (decrypted name/e-mail/phone +
-every authored shelter, `auth/AccountService.java:112-134`). `SecurityHeadersFilter` sets
-`X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`/CSP/HSTS but no cache header
-(`config/SecurityHeadersFilter.java:47-55`), and `<oauth2>`-style session caches are not in play (stateless
-JWT, no cookie is ever set — asserted by `config/SecurityHeadersIT.java:38-50`).
-
-**Why it matters.** Standard hardening for credential/PII responses: without an explicit `no-store`, a browser
-or intermediary is free to retain them on disk. Low severity (no shared cache is configured, and the API is
-JSON behind a bearer header), but it is a one-line control that the `.env`/PII posture of this project would
-normally include.
-
-**Minimal fix.** Add `Cache-Control: no-store` for `/auth/**`, `/account/**` and `/verify/**` — e.g. one extra
-branch in `SecurityHeadersFilter` — and assert it in `SecurityHeadersIT`.
+**Location.** `config/SecurityConfig.java:227-235` explicitly permits `GET` **and** `HEAD` for
+`/api/media/**`, with the rationale *"a public, permit-all asset must answer HEAD the way GET does"*;
+`HttpMethod.GET` does not match HEAD, so the other public reads fall to `anyRequest().authenticated()`
+(`:251`). Measured: `HEAD /api/media/<valid>.jpg` → **200**, `HEAD /api/shelters` → **401**, `HEAD
+/api/guidance` → 401. **Why it matters.** Not a leak — the direction is deny-by-default, and no data is
+exposed by a 401 — but the same class of caller the media fix was made for (proxies, CDNs, uptime probes,
+`curl -I`) gets inconsistent answers per endpoint, and the fix's own comment now overstates what the config
+does. **Suggested fix.** Either add `HttpMethod.HEAD` alongside the GET matchers for
+`/api/shelters/**` (minus `/mine`), `/api/guidance/**`, `/api/site-texts` and `/api/data-source`, or narrow
+the comment to the media path.
 
 ---
 
-### F8 — Low — the committed OpenAPI document publishes the full admin surface, which is what `ApiDocsGuard` exists to prevent
+## Areas found clean (each read in the source, not taken from a checklist)
 
-**Location.** `docs/api/openapi.json` contains 26 `/admin/*` paths out of 55 (verified by parsing the file:
-`/admin/alerts`, `/admin/audit`, `/admin/guidance/**`, `/admin/media/**`, `/admin/shelters/**`, `/admin/site-texts`,
-`/admin/users/**`). `config/ApiDocsGuard.java:236-248` refuses to boot outside dev/test when either springdoc flag
-is enabled specifically because *"the API document is a complete map of the attack surface — the admin endpoints
-and their payload shapes included"*, and `SecurityConfig.java:255-259` keeps the docs URLs behind
-`authenticated()` for the same reason.
-
-**Why it matters.** The controls are consistent with each other (no runtime exposure), and the admin endpoints
-themselves are properly protected (F1 aside) — but the stated rationale is partially undone by a 271 KB file that
-ships the same map to anyone who can read the repository (the project's own User-Agent advertises a public
-GitHub URL, `ingestion/CsvRegistryClient.java:72-73`). This is an acknowledged-trade-off question rather than a
-hole; I report it because the guard's justification is stronger than the actual exposure control.
-
-**Minimal fix.** Either state the trade-off where the guard is justified (the file is the frontend contract; the
-guard is about runtime serving only), or generate a public-subset document for the committed artifact.
-
----
-
-### F9 — Low — `MarkdownToHtml` is production-dead but is the one main-package HTML producer that bypasses `BodySanitizer`
-
-**Location.** `src/main/java/ee/sheltermap/guidance/MarkdownToHtml.java` is referenced **nowhere** in
-`src/main/java` other than its own javadoc; its only callers are
-`src/test/java/ee/sheltermap/guidance/MarkdownMigrationDriver.java:266,303` (a one-off migration tool). The
-documented invariant is the opposite: `BodySanitizer` is *"The single producer of a guidance post's
-`body_html`"* (`guidance/BodySanitizer.java:12-20`), enforced because `GuidanceService` runs
-`BodySanitizer.sanitize` on create **and** update (`GuidanceService.java:~430`, `sanitize(body)` in both paths).
-
-**Why it matters.** Not a live vulnerability — it is unreachable dead code. But it is an HTML-producing utility
-sitting in the production source tree next to the sanitizer, and the next author who needs markdown will find it
-first and call it *without* the sanitizer, which is precisely the stored-XSS path the sanitizer exists to
-prevent (the admin body is rendered to anonymous readers on `/blog`, `api/GuidanceController.java:112-145`).
-
-**Minimal fix.** Move the converter to `src/test/java` (it is only a migration helper) or delete it now that the
-migration is done; optionally add the mirror of the existing `SourceVocabularyTest`-style architecture test that
-asserts no production class calls `MarkdownToHtml`.
-
----
-
-### F10 — Low — committed dev default for the database password, with no fail-closed guard (unlike every other dev default)
-
-**Location.** `src/main/resources/application.yml:7-9`
-(`url: ${DB_URL:jdbc:postgresql://localhost:5432/sheltermap}`, `username: ${DB_USERNAME:sheltermap}`,
-`password: ${DB_PASSWORD:sheltermap}`), and `docker-compose.yml:8-11` uses the same published values.
-
-**Why it matters.** This project's established posture is that a *published* dev default must fail the boot
-outside dev/test when the operator forgets the env var: `ProdJwtGuard` refuses to start if `app.jwt.secret` is
-still the published dev value or shorter than 32 bytes (`config/ProdJwtGuard.java:56-70`), and `DevSenderGuard`
-/ `DevEndpointsGuard` / `ApiDocsGuard` do the same for the dev senders and dev surfaces. The datasource
-credentials are the one sensitive pair left without that treatment, so a deploy that forgets `DB_PASSWORD`
-silently authenticates with a value that is in the public repository (and silently talks to
-`localhost:5432`). `docs/security/operations.md:61` documents the *requirement* but nothing enforces it.
-Low severity: a real deployment's database would have to actually accept those credentials.
-
-**Minimal fix.** Extend the same profile-keyed guard (a `DataSourceCredentialGuard` in `config/`, using
-`Profiles.isDevTestOnly`) to refuse the boot outside dev/test while `app.datasource`/`DB_PASSWORD` is still the
-published default or blank.
-
----
-
-## Areas found clean (checked, no issue)
-
-Each of these was read in the source, not taken from the checklist:
-
-1. **SQL / JPQL injection — clean.** Every `@Query` uses bound named parameters
-   (`SpringDataUserRepository.java:37`, `SpringDataRefreshTokenRepository.java:17,21`,
-   `SpringDataPasswordResetTokenRepository.java:21,26`, `SpringDataPendingContactChangeRepository.java:31`,
-   `SpringDataShelterReportRepository.java:19-35`, `SpringDataModerationActionRepository.java:21-31`,
-   `SpringDataVerificationClaimRepository.java:31`, `SpringDataGuidanceTranslationRepository.java:55`,
-   `SpringDataShelterRepository.java:60`). The only two `nativeQuery = true` statements are static SQL with no
-   parameters. No string-concatenated query, `EntityManager` escape hatch or `CriteriaBuilder` with raw input
-   exists in `src/main`.
-2. **Mass assignment — clean, and structurally impossible.** No controller binds an entity: all 33
-   `@RequestBody` parameters are request records in `api`/`auth`, and the domain objects are constructed
-   field-by-field from validated request fields (e.g. `ShelterController.java:246-266` and `:409-441`).
-   Server-owned state (`status`, `source`, `reviewStatus`, `createdBy`, `createdAt`, `autoHideDisarmed`,
-   `inaccurateMarked*`) is copied from the loaded row or overwritten by the service
-   (`ShelterService.updatePlace`, `ShelterService.java:287-297`). `UserKind` has no client-settable path
-   (`UserMapper.kindOf` keys off the class, `persistence/UserMapper.java:108-120`; `AdminUser` is only built by
-   `AdminSeeder`).
-3. **Validation coverage — clean.** All 33 `@RequestBody` sites are `@Valid` except
-   `AdminSiteTextController.java:68`, whose `UpdateSiteTextRequest` deliberately carries no constraints and is
-   fully validated in `SiteTextsService.update` (key allowlist, locale, `VALUE_MAX`, https-only link URLs). Field
-   bounds mirror the DB columns (`RegisterRequest`, `CreateShelterRequest`/`UpdateShelterRequest`,
-   `InfoRequestReplyRequest`, the guidance records), the Estonia bbox is re-checked server-side
-   (`ShelterController.requireInsideEstonia`), the optional viewport rejects partial boxes and `NaN`
-   (`ShelterController.requireBbox`), and `limit`/`offset` are bounded before use.
-4. **Authorization coverage per endpoint — clean apart from F1.** I enumerated all 15 controllers and their
-   mappings: every `/admin/**` handler calls the fresh per-request `requireAdmin()` (15/15 in `AdminController`,
-   13/13 in `AdminGuidanceController`, 3/3 in `AdminMediaController`, plus `AdminSiteTextController`), the
-   chain-level `.hasAuthority("ADMIN")` (`SecurityConfig.java:243`) is additive rather than the only check, and
-   the authority comes from a column read per request, never a token claim
-   (`config/JwtAuthenticationFilter.java:76-86`). The authenticated `/api/shelters/mine` matcher precedes the
-   public `/api/shelters/**` matcher (`SecurityConfig.java:215-216`), so no ordering hole exists. Author-scoped
-   shelter mutations require `source == USER` **and** `createdBy == caller` (404 vs 403 vocabulary,
-   `ShelterController.requireOwnedShelter`), verification/report/occupancy gates re-check `canWrite()` and the
-   request carries no contact, and `/account/**` resolves the user from the token only. I found no IDOR path.
-5. **Authentication, JWT and session handling — clean.** HS256 with a ≥32-byte `SecretKey` built at
-   construction (`JwtTokenService.java:44`), the published dev secret refused at boot outside dev/test
-   (`ProdJwtGuard`), `sub = userId` with no role claim, `exp` enforced by jjwt's own validation.
-   Invalid/expired tokens leave the request unauthenticated and the entry point answers 401; a **suspended**
-   account's in-flight tokens die on the next request, and a **demoted admin** loses `/admin/**` on the next
-   request (fresh `isSuspended`/`isAdmin` column reads, `JwtAuthenticationFilter.java:70-86`) — no revocation
-   window. Login has the dummy-hash timing equalizer *and* the post-verify existence guard
-   (`AuthService.login`), so neither latency nor the `"dummy"` password enumerates accounts. Refresh tokens
-   rotate atomically through a conditional `UPDATE` that claims the row (`JwtTokenService.refresh`), and a
-   successful password reset revokes every refresh token of the user.
-6. **Password hashing and one-time codes — clean.** Argon2id via
-   `Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()` (`SecurityConfig.passwordEncoder`), BouncyCastle
-   present for it. All codes/tokens come from `SecureRandom` (`Codes`, providers), are stored **hashed**
-   (`Hashes.sha256Hex`, `PendingVerification.sha256`) and compared with `MessageDigest.isEqual`
-   (constant-time) — three copies of the helper, but all correct. Failed-attempt lockouts are persisted
-   correctly (the reset/contact-change confirm paths deliberately *return* the failure so the
-   failed-attempt increment commits instead of rolling back — `PasswordResetService.reset`,
-   `ContactChangeService.confirmEmailChange`), single-use, with TTLs (5 min SMS / 15 min e-mail / 15 min reset).
-7. **CSRF — correctly disabled, on evidence.** `csrf.disable()` (`SecurityConfig.java:200`) is only sound
-   because auth is a Bearer header with `SessionCreationPolicy.STATELESS` and the app never sets a cookie;
-   `SecurityHeadersIT.java:38-65` asserts `Set-Cookie` is absent on the auth surface, so the justification holds
-   as written in `docs/security/threat-model.md`.
-8. **CORS — clean.** Explicit origins from `app.cors.allowed-origins` (defaults are the two local dev origins,
-   no `*`), explicit methods, and `allowCredentials(true)` is safe *because* the origin list is explicit
-   (`SecurityConfig.corsConfigurationSource`).
-9. **Secrets and configuration hygiene — clean apart from F10.** Every credential is an env placeholder
-   (SMTP, Twilio, PII keys, admin, JWT, DB); **no `.env` was ever tracked by git** (`git log --all --diff-filter=A`
-   finds none; `.gitignore:54-55` covers it), no Dockerfile exists, and the four boot guards
-   (`ProdJwtGuard`, `DevEndpointsGuard`, `DevSenderGuard`, `ApiDocsGuard`) all key off the *resolved* profile set
-   with the correct "the whole set must be dev/test" rule (`config/Profiles.java:396-408` — a blank or mixed set
-   arms the guard) and fail closed with a loud message.
-10. **Logging — clean.** 38 log statements in `src/main`; none logs a request body, password, token, OTP or
-    reset code. The real senders mask the recipient (`SmtpPulseSmtpSender.maskEmail`,
-    `TwilioSmsSender.maskPhone`) and log only message length; the plaintext code appears only in the dev
-    senders, which `DevSenderGuard` makes unbootable outside dev/test. `DevSmsSender`/`DevSmtpSender` are the
-    documented dev exception. The file-backed send log deliberately stores **no** contact
-    (`FileVerificationSendLog.java:80-87`, and legacy 4-field lines ignore the contact column at `:169-177`).
-11. **Error responses — clean.** One `@RestControllerAdvice` maps every failure to the same `ErrorResponse`
-    shape; no stack trace, SQL or schema detail is echoed (`DataIntegrityViolationException` →
-    field-neutral 400 with the detail only in the server log, `ApiErrorHandler.java:326-329`), and the JWT
-    exception deliberately wraps its cause without exposing it (`InvalidAccessTokenException.java:6-8`).
-12. **Actuator / exposed surface — clean apart from F8.** `management.endpoints.web.exposure.include:
-    health,info` with `show-details: when-authorized` and no `info` contributor
-    (`application.yml:63-77`); springdoc is off by default, dev-gated at the chain level, and refused at boot
-    outside dev/test; the `/dev/*` relays are feature-flagged, JWT-gated, allowlist-gated and boot-refused
-    outside dev/test.
-13. **File uploads and public media serving — clean.** Byte cap on the *received* bytes before anything touches
-    disk, magic-byte sniffing (JPEG/PNG/WebP only — SVG included in the refusals), declared-type
-    cross-check, server-generated 32-hex names with the client filename kept as display metadata only
-    (`MediaService.upload`), and `MediaStorage.resolve`: no separator / NUL / `.`/`..`, plus the normalized
-    parent-equality check (`MediaStorage.java:129-142`). The public serve endpoint additionally enforces
-    `^[a-f0-9]{32}\.(jpg|png|webp)$` and takes `Content-Type` from the stored (sniffed) value
-    (`api/MediaController.java:63,91-99`). No traversal, no stored-script-as-image path found.
-14. **Stored-XSS in admin-authored guidance — clean.** `BodySanitizer` is a jsoup `Safelist` allowlist
-    (`h2 h3 p br strong em ul ol li a blockquote`, only `a[href]`, only `http|https|mailto`) applied on both
-    create and update paths, so the stored value is sanitizer output and every reader gets the same safe HTML.
-    The library choice is also sound: jsoup 1.23.2 is current and the recent sanitizer CVE (CVE-2026-71497)
-    requires a Safelist permitting raw-text elements, which this allowlist does not include.
-15. **Outbound fetch (SSRF) — confirmed clean** (see the cross-check section for the accepted residual).
-16. **No debug leftovers.** No `System.out`/`System.err`/`printStackTrace` in `src/main`.
-
----
-
-## Cross-check against the earlier security pass
-
-The brief said a prior pass covered SSRF on the two outbound fetch paths, PII crypto, the fail-closed boot
-guards and the rate-limit design. Independent verification:
-
-- **SSRF / hero image import — I confirm the controls, and I confirm the *correction* that landed in
-  `docs/security/threat-model.md` (uncommitted diff).** `HeroAddressPolicy` classifies every resolved address
-  (loopback, unspecified, link-local incl. `169.254.169.254`, RFC 1918, multicast, `fc00::/7` incl.
-  `fd00:ec2::254`, and IPv4-mapped addresses unwrapped and re-classified), `HeroImageImportService` re-validates
-  scheme/credentials/**address** on every redirect hop (3-hop cap, wall-clock budget), the client never
-  auto-follows redirects and enforces the size cap *while reading* plus a stall watchdog with no whole-exchange
-  timeout, and the stored name/type are server-generated/sniffed. The old threat-model text claimed the JDK
-  client connects to the policy's resolved address — **it does not** (`JdkHeroImageFetchClient.fetch` passes the
-  URI to `HttpClient`, which resolves the hostname again), so the resolve→connect TOCTOU is real and is now
-  documented as an accepted, bounded residual (admin-only surface, capped read, sniffed content, no public
-  entry point). **I agree with that correction and with the acceptance**; I do not re-report it as a finding, and
-  I add only that the same argument is what makes F9 (`MarkdownToHtml`) worth removing rather than documenting.
-- **Geo short-link resolver — confirm clean.** The entry host is pinned to `maps.app.goo.gl` with the default
-  port, `http`→`https` normalization drops any pasted credentials, hops are limited to the Google host set with
-  no scheme change, and the walk is budgeted — no SSRF path found.
-- **PII crypto — confirm clean.** AES-256-GCM with a random 12-byte nonce per value and a `v1:` slot tag;
-  `decrypt` fails closed on a non-envelope/plaintext/foreign version rather than passing it through; the blind
-  index is HMAC-SHA256 over a domain-separated canonical value (so uniqueness and login lookups survive without
-  plaintext, and a DB dump alone cannot be reversed); keys are validated at construction (boot failure on
-  missing/malformed/wrong-size). Two details worth naming for agent 12 because they touch the "PII at rest"
-  claim: the admin **alert ring** holds the normalized contact in plaintext in process memory and serves it via
-  `GET /admin/alerts` (`AdminAlertDto.subject`, `ThrottleAlertRecorder.otpContactCap`/`codeSendFailure`) — admin-only
-  and memory-only, so I accept it; and the alert's `code-send-failure` kind is new in this tree with, per the
-  prior lane's hand-off, no frontend label yet (a frontend/integration loose end, not a backend finding).
-- **Fail-closed boot guards — confirm clean**, including the subtlety that they read the *resolved* profile set
-  (`Profiles.isDevTestOnly` rejects blank and mixed sets) rather than the raw property string. `LoopbackXffTrustGuard`
-  is a warning, not a refusal, and its warning is accurate: with the loopback XFF trust default on a non-dev
-  profile, a client that can reach the app's loopback interface can pick its own rate-limit bucket
-  (`ClientIps.resolve` trusts `X-Forwarded-For` only from a trusted peer, but `trust-loopback: true` makes
-  loopback a trusted peer). That is documented in the guard message and in the code; I confirm it as an
-  operational decision, not a defect.
-- **Rate-limit design — I partially contradict the prior pass's premise.** The design (per-contact rolling cap,
-  per-(user, level) durable daily cap, per-IP buckets, alert ring) is sound and well-argued, but the
-  **uncommitted change removed the atomicity** the argument rested on: `VerificationSendLog.tryRecord` was a
-  single `synchronized` check-and-record, and `VerificationService` now performs a read-only check, sends, then
-  records (F4). The per-contact limiter still bounds the loss, so I rate it Low — but the "exactly one send per
-  cooldown window" property that the old code provided no longer holds, and the prior conclusion should be
-  updated rather than repeated.
-- **Agreement with the prior lane on `ContactChangeService`.** Independent of that hand-off I found the same
-  persist-before-send family issue (F5); I confirm it and add the missing operator alert as part of the fix.
+1. **Authorization, per endpoint (32 admin handlers + 18 public/authenticated handlers).** I enumerated
+   every mapping in all 16 controllers. **All 32 `/admin/**` handlers** call the fresh per-request
+   `AdminAccess.requireAdmin()` (`api/AdminController.java` 15/15 — lines 138, 182, 192, 216, 239, 257,
+   268, 289, 316, 346, 379, 389, 405, 426, 438; `api/AdminGuidanceController.java` 13/13;
+   `api/AdminMediaController.java` 3/3; `api/AdminSiteTextController.java` 1/1), *and* the chain rule
+   `requestMatchers("/admin/**").hasAuthority("ADMIN")` (`SecurityConfig.java:243`) is additive, *and* the
+   authority comes from a column read per request (`config/JwtAuthenticationFilter.java:75-86`), never a
+   token claim — so a demoted admin loses `/admin/**` on the next request. There is no method security to
+   drift (`grep EnableMethodSecurity|PreAuthorize|Secured` → none), which is consistent because
+   `AdminAccess` is the one implementation. **Non-admin mutations:** `POST /api/shelters` (verified +
+   `canWrite()`, `ShelterController.java:246-263`), `PUT /{id}` / `DELETE /{id}` (verified **and**
+   author-scoped via `requireOwnedShelter`, `:432-441` → 404/403), `POST /{id}/info-request/reply`
+   (verified + author, `:298-305`), `POST /{id}/reports` (verified inside `ShelterReportService:131-137`),
+   `PUT /{id}/occupancy` (verified, `:183`), `PUT /{id}/open-status` (registered + `canWrite()`, `:218-219`).
+   **Reads:** `/api/shelters/mine` is `authenticated()` *and* its matcher precedes the public wildcard
+   (`SecurityConfig.java:212-213`; live: 401 anonymous), `/account/*` resolves the user from the token only
+   (`AccountController.java:237-250`), `GET /account/export` reads only `findByCreatedBy(me)`
+   (`AccountService.java:165`). **I found no IDOR and no unguarded mutation** (the one F1-class defect the
+   first sweep found is fixed, C1).
+2. **Validation coverage.** All 32 `@RequestBody` sites are `@Valid` except `AdminSiteTextController.java:68`,
+   whose record deliberately carries no constraints and is fully validated in `SiteTextsService.update`
+   (key allowlist, locale, `VALUE_MAX`, `MAX_ENTRIES_PER_REQUEST`, https-only link URLs, "URL only on link
+   keys/locale en"). Field bounds mirror the columns; the Estonia bbox is re-checked server-side;
+   `requireBbox` rejects partial boxes, `NaN`/infinities and inverted edges; `limit`/`offset` are bounded
+   before use in both the shelter and the guidance/admin lists. The only gap is the guidance body (F3).
+3. **Authentication, JWT and session handling.** HS256 with a ≥32-byte `SecretKey` built at construction
+   (`JwtTokenService.java:44`), dev secret refused at boot outside dev/test (`ProdJwtGuard`),
+   `sub = userId` with **no role claim**, `exp` validated with the injected `Clock`,
+   `verifyWith(key)` pinning the algorithm to HMAC (no alg-confusion surface). Suspended accounts lose
+   authentication on the next request; refresh rotation is an atomic conditional `UPDATE`
+   (`:83-101`); a successful reset revokes every refresh token. `AuthService.login:119-149` keeps the
+   Argon2 dummy-hash timing equalizer **and** the post-verify existence guard; the admin account cannot be
+   self-deleted or password-reset (`ProvisionedAdminProtectedException`), and `AdminSeeder:97-101` is
+   create-if-absent (no silent re-keying from the environment on every boot).
+4. **Password hashing and one-time-code handling on the *live* path.** Argon2id via
+   `Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()` (`SecurityConfig.java:64`), all codes/tokens
+   from `SecureRandom`, compared with `MessageDigest.isEqual` in one shared primitive
+   (`CodeHashes.constantTimeEquals`), single-use, expiring, 5-attempt lockout persisted across requests
+   (`CodePolicy.MAX_ATTEMPTS`, `PendingVerification.recordAttempt`, `PasswordResetService:249-280`,
+   `ContactChangeService:328-356`). The at-rest weakness is F1; the online defences are correct, and the
+   "return the failure instead of throwing" shape (so the failed-attempt increment commits) is right.
+5. **SQL / JPQL injection.** All 22 `@Query` statements use bound named parameters; the two
+   `nativeQuery = true` statements are static SQL with no parameters
+   (`SpringDataGuidancePostRepository.java:31-33`, and the advisory-lock call is a bound `?`,
+   `persistence/JpaReportActionLog.java:61`). No concatenated query, no `EntityManager` escape hatch.
+6. **Mass assignment.** No controller binds an entity; every `@RequestBody` is a request record in
+   `api/`/`auth/`, and the domain objects are constructed field-by-field. Server-owned state (`status`,
+   `source`, `createdBy`, `createdAt`, `reviewStatus`, `autoHideDisarmed`, `inaccurateMarked*`) is copied
+   from the loaded row or overwritten by the service — the owner's `PUT /api/shelters/{id}` cannot set
+   `reviewStatus`, and `kind` has no client path.
+7. **Secrets and configuration hygiene.** Every credential is an env placeholder; **no `.env` is tracked**
+   (`git ls-files | grep -i env` → only the two frontend `environment*.ts`), and `.gitignore:54-63` covers
+   `.env*`, keys, `data/`. PII keys are validated (32 bytes, base64, fail-closed, no default,
+   `security/PiiKeys.java:44-62`). The four boot guards read the *resolved* profile set
+   (`Profiles.isDevTestOnly` — blank or mixed sets arm the guard). F8 is the one exception.
+8. **What reaches the logs.** 38 log statements in `src/main`; I read every one. None logs a request body,
+   password, token, OTP or code: the real senders mask the recipient and log only the message length
+   (`SmtpPulseSmtpSender`, `TwilioSmsSender`), the auth/reset/contact-change paths log only `userId` or a
+   refusal with no contact, `ApiErrorHandler` logs method + URI (no query string, no body) and returns a
+   field-neutral message for `DataIntegrityViolationException` (`:360-364`), and the one place a contact is
+   logged is the dev senders (`DevSmsSender`/`DevSmtpSender`), which `DevSenderGuard` makes unbootable
+   outside dev/test. The plaintext recipient in `EmailTestController:78`/`SmsTestController:66` is behind
+   that same guard plus an allowlist. No `System.out`/`printStackTrace`. No Logback config, no
+   `logging.*` overrides, `show-sql` unset, `open-in-view: false`.
+9. **Error responses.** One `@RestControllerAdvice`; no stack trace, SQL, column or constraint name is
+   echoed (the JWT exception wraps its cause without exposing it; `MethodArgumentNotValidException` emits
+   only the first `field + message`).
+10. **Exposed surface.** Actuator exposes `health,info` only, `show-details: when-authorized`, empty `info`;
+    live: `/actuator/health` → `{"status":"UP"}` anonymously, `/actuator/env` and `/actuator/beans` → 401.
+    springdoc is off by default, dev-gated at the chain level and boot-refused elsewhere; `/dev/*` is
+    flag-gated + JWT + allowlist + boot-refused. CORS is an explicit origin list, verified live: a preflight
+    from `http://evil.example` gets **403 with no `Access-Control-Allow-Origin`**, the configured origin
+    gets the header with `Allow-Credentials: true` (safe because the origin list is explicit and auth is a
+    bearer header, not a cookie — no `Set-Cookie` on any probe). CSRF stays correctly disabled for a
+    stateless bearer API. Unknown paths answer 401 (anyRequest), `/error` is not exempt, TRACE is refused
+    (400).
+11. **File upload and public media serving.** Byte cap on the received bytes before disk
+    (`MediaService.java:132`), magic-byte sniffing, declared-vs-sniffed type cross-check, server-generated
+    UUID names with the client filename kept as display metadata, `MediaStorage.resolve` refusing
+    separators/NUL and re-checking parent equality, and the public serve endpoint enforcing
+    `^[a-f0-9]{32}\.(jpg|png|webp)$` with the `Content-Type` taken from the *stored* (sniffed) type
+    (`api/MediaController.java:60-97`). Verified live: a well-formed-but-unknown name is a uniform 404, HEAD
+    behaves like GET (F10 for the other endpoints), and the public cache header is the immutable one.
+12. **Stored XSS in admin-authored guidance.** `BodySanitizer` is a jsoup `Safelist` allowlist on both
+    create and update (`GuidanceService.java:443, 501, 1153, 1185`), so the stored column is sanitizer
+    output and every reader gets the same HTML; the pinned library version is above the recent sanitizer
+    CVE and that CVE additionally needs a raw-text-permitting Safelist.
+13. **Outbound fetches (SSRF).** Hero import: scheme allowlist, no `user:pass@`, per-hop address policy on
+    **every** hop (`HeroAddressPolicy` classifies loopback/unspecified/link-local incl. `169.254.169.254`/
+    RFC1918/multicast/`fc00::/7` incl. `fd00:ec2::254` and unwraps IPv4-mapped forms), redirects never
+    auto-followed, size cap enforced *while reading*, stall watchdog + head deadline + walk budget, and the
+    stored name/type generated/sniffed. Geo resolver: entry host pinned to `maps.app.goo.gl` with the
+    default port, https normalization that drops credentials, hops restricted to the Google host set with
+    no scheme change, budgeted — no SSRF path. The resolve→connect TOCTOU is an accepted, documented
+    residual (`threat-model.md:448-463`), confirmed.
+14. **PII crypto.** AES-256-GCM, random 12-byte nonce per value, `v1:` slot tag, fail-closed decrypt on a
+    non-envelope/foreign version, and a **keyed, domain-separated** HMAC-SHA256 blind index for
+    e-mail/phone with the same canonicalization the login path uses (`security/PiiCrypto.java`,
+    `JpaUserRepository.java:161-203`); the pending verification/contact-change targets and the SMART_ID
+    external ref are encrypted too. F1 is the gap in the same story, not a contradiction of this one.
 
 ---
 
 ## Top 5 findings
 
-1. **F1 (High) — `GET /api/shelters/{id}` leaks the moderator's REJECT note to anonymous callers.**
-   `ShelterQueryService.java:459` in the shared public projection, reachable through
-   `SecurityConfig.java:216` + `ShelterController.java:233`; contradicts `ShelterDto.java:129-131` and the
-   frontend contract; uncaught by `CommunityReviewIT.java:315-331`. Fix: emit `reviewNote` only for the owner
-   (and the admin projection), add the missing assertion.
-2. **F2 (Medium) — `POST /dev/sms-test` reports `sent: true` even when the channel refused**, because
-   `SmsTestController.java:77-78` discards the new boolean from `SmsSender.send`. The endpoint's whole purpose
-   (truthful delivery reporting) is defeated by the uncommitted interface change; `EmailTestController` still
-   behaves correctly, so the two mirrors now disagree.
-3. **F3 (Medium) — dependencies are frozen on the OSS-EOL Spring Boot 3.3.13 line** (`pom.xml:10`), so the
-   managed Tomcat 10.1.42 / Spring Security 6.3.10 / Spring Framework 6.1.21 / postgresql 42.7.7 /
-   commons-lang3 3.14.0 / Jackson 2.17.3 set can no longer receive patches (Tomcat CVE-2025-53506 and
-   CVE-2025-48989, pgjdbc CVE-2026-42198 and CVE-2026-54291, commons-lang3 CVE-2025-48924 are fixed upstream but
-   unreachable here). Reachability of each individual CVE is limited — the finding is the pinning, not an
-   exploit.
-4. **F4 (Low) — the verification throttle lost its atomicity** (`VerificationService.java:112-125` + `:154` +
-   `:169` replaced the single `synchronized` check-and-record of `FileVerificationSendLog.java:90`): a concurrent
-   burst can send up to the per-contact cap inside one cooldown window and overcount the daily cap by the
-   in-flight window. Bounded by the atomic per-contact limiter and documented; also leaves the now-dead,
-   duplicated `tryRecord` rule in the tree as a drift hazard.
-5. **F5 (Low) — contact-change codes are persisted before the send** (`ContactChangeService.java:104-107`,
-   `:168-171`), so a refused delivery arms the cooldown with a code the user never got, and — unlike the
-   verification path — records no operator alert. Same "persist before send" family as the issue a prior lane
-   flagged in this file; confirmed here with the cooldown anchor (`:222-234`) as the impact path.
+1. **F1 (Low) — 6-digit one-time codes are stored as an unkeyed single-round SHA-256**
+   (`PasswordResetService.java:199`, `ContactChangeService.java:169/248`,
+   `PhoneVerificationProvider.java:62`): 10⁶ candidates are recovered instantly from a dump/backup, turning
+   `password_reset_tokens`/`pending_contact_changes` read access into targeted account takeover inside the
+   token TTL — while the *neighbouring* secrets (contacts) are AES-GCM under an env-only key with a keyed
+   blind index. Fix: the keyed HMAC already in the tree (`PiiCrypto.blindIndex`) + a `v2:` slot tag.
+2. **F2 (Low) — HSTS never fires in the documented deploy shape** (`SecurityHeadersFilter.java:47-49` gates
+   on `request.isSecure()`, no forward-header handling is configured, and the ops doc
+   (`operations.md:101-103`) claims the opposite). Verified live with `X-Forwarded-Proto: https` → no HSTS.
+   Fix: honour `X-Forwarded-Proto` from *trusted* peers only (or set the header at the edge) — not
+   `forward-headers-strategy: framework`, which would defeat `ClientIps`.
+3. **F4 (Low) — three artifacts are behind on advisories that only configuration keeps unreachable**:
+   `tomcat-embed-core 10.1.55` (CVE-2026-55956 / CVE-2026-55955 fixed in 10.1.56, CVE-2026-59083 in
+   10.1.57), `jackson-databind 2.21.4` (CVE-2026-59889, fixed 2.21.5, needs `@JsonView`+`@JsonUnwrapped` —
+   absent), `bcprov-jdk18on 1.78.1` (`pom.xml:104`; keystore/JSSE advisories fixed only in 1.85+ — no BC
+   provider is registered). Fix: two version properties + a bcprov bump, plus a CI vulnerability gate.
+4. **F3 (Low) — the guidance body has no length bound** (`CreateGuidancePostRequest.java:29`,
+   `GuidanceService.java:982`; `body_html TEXT`) although the service javadoc and the error vocabulary
+   promise an "oversized body" 400 — an admin-token holder can store an arbitrary body that anonymous
+   readers then download.
+5. **F5 (Low) — the verification throttle's atomicity is gone and its old atomic helper is production-dead**
+   (`VerificationService.java:121/163/178`; `FileVerificationSendLog.tryRecord` called only by tests), which
+   also settles the sweep disagreement in favour of the run-1 reading; plus the smaller Low items F6
+   (refresh/logout unthrottled), F8 (published dev DB credentials with no guard + `5432:5432`), F9 (loopback
+   XFF trust default and the unbounded bucket map), F7 (committed admin OpenAPI paths) and F10 (HEAD
+   inconsistency on the other public GETs).
 
-**Merge verdict: OK with notes.** No Critical issue, one High (F1) that is a small, local fix with an existing
-test to extend, and no Finding that argues against shipping the uncommitted change — F2 and F4 are consequences
-of that change and should be fixed *with* it (the `SmsTestController` one-liner and a shared throttle decision),
-while F1/F3/F5–F10 are pre-existing or policy items. The backend's security engineering is otherwise unusually
-strong for this size: authorization is per-request and DB-backed, the crypto and outbound-fetch boundaries are
-explicit and tested, and secrets/hardening defaults fail closed.
+**Merge verdict: OK with notes** (no Critical, no High, no P0/P1). The in-flight admin list lane adds no
+security-relevant regression: the new `limit`/`offset` bounds are validated before use
+(`AdminController.java:157-172`), the list stays behind `requireAdmin()` + the `ADMIN` chain rule, the
+filter enum change is consistent end to end (frontend sends `REGISTRY`/`USER`, matching
+`ShelterSourceFilter`), the search term is bounded at 200 chars and matched with `String.contains` (no
+regex), and `X-Total-Count` carries only a count the caller can already compute from the unpaged list.
+Backend security engineering remains unusually disciplined for this size: authorization is per-request and
+DB-backed, crypto and outbound-fetch boundaries are explicit, and the config defaults fail closed. The
+items worth doing before a release are F1 (keyed code hashing), F4 (version bumps) and F2 (either fix the
+header or fix the doc); the rest are hygiene.

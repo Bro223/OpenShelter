@@ -1,117 +1,409 @@
-# Agent 8 — frontend-angular-rxjs
+# Agent 8 — frontend-angular-rxjs (sequential sweep, run 3)
 
-Scope: `frontend/` Angular/RxJS usage. Read-only review; no source file was modified.
-Framework versions detected (per COMMON RULES) — `frontend/package.json` and installed trees:
+Tree: `d247007` + ~23 uncommitted files (the `list-page-paging` admin lane: server paging,
+search, source filter; the shelters-side paging is owner-approved beyond
+`docs/autopilot/list-page-paging/ADMIN-LANE-SPEC.md`, per `ADMIN-LANE-REPORT.md` §4).
+Everything below is judged against that revision; findings that depend on the uncommitted
+lane are marked **[in-flight]**.
 
-| Thing | Declared | Installed | Note |
+## Versions detected (first, per COMMON RULES)
+
+| Thing | Declared | Installed / effective | Note |
 | --- | --- | --- | --- |
-| Angular | `^22.1.0` (`@angular/cli`/`build` `^22.1.7`) | 22.1.5 | zoneless default (no `zone.js` in deps, no `polyfills` entry, no `provideZonelessChangeDetection`) |
-| RxJS | `~7.8.0` | 7.8.2 | |
-| TypeScript | `~6.0.2` | 6.0.3 | **`strict` is on by default in TS 6.0** — verified by compiling a probe file: `let x: string = null` → `TS2322`, implicit-any param → `TS7006`. The missing `"strict": true` in `tsconfig.json` is therefore *not* a finding |
-| Tests | `vitest ^4.0.8` | 4.1.11 | no Karma/Jasmine; `@angular/build:unit-test` |
-| UI libs | `leaflet ^1.9.4`, vendored Quill 2.0.3 | | |
-
-Method: read every non-spec `.ts` under `frontend/src` plus all templates; cross-checked framework behaviour against the installed `@angular/core` / `@angular/router` bundles rather than trusting the in-code comments. All line numbers below refer to the files as they are in the working tree (which already carried unrelated pre-existing edits when this pass started — e.g. a prettier-only reformat of `features/shelter/shelter-detail-page.html:507-524`; I authored none of them, and this report is the only file I created).
+| Angular | `^22.1.0` (`@angular/cli`/`@angular/build` `^22.1.7`) | 22.1.5 | zoneless by default: no `zone.js` dep, no `polyfills` entry in `angular.json`, no `provideZonelessChangeDetection()` needed |
+| RxJS | `~7.8.0` | 7.8.x | only `lastValueFrom` + `from`/`mergeMap`/`throwError`/`skip`/`map` |
+| TypeScript | `~6.0.2` | 6.0.3 | **`strict` is on by default in TS 6.0** — see the verification note below; the absent `"strict": true` in `tsconfig.json` is *not* a gap |
+| Tests | `vitest ^4.0.8` | 4.1.11 (`@angular/build:unit-test`, jsdom) | full suite re-run: **59 files / 1395 tests passed**; `ng build` and `tsc --noEmit` clean |
+| Other | `leaflet ^1.9.4`, vendored Quill 2.0.3 | | no UI framework, no state library, no NgModule |
 
 ---
 
 ## Review
 
-### Verified clean (explicitly checked, no issues found)
+### Correct — verified clean (with the evidence)
 
-- **Subscribe/unsubscribe discipline.** Every explicit `subscribe()` in `frontend/src` (20 call sites) was read. There are **no nested subscribes**. Teardown inventory: 8 `toObservable(...).subscribe()` locale subscriptions each unsubscribe in `ngOnDestroy` (`account-page.ts:108/178`, `contributions-panel.ts:68/185`, `verify-page.ts:136/183`, `admin-page.ts:377/486`, `guidance-list-page.ts:87/94`, `guidance-detail-page.ts:85/97`, `legal/terms-page.ts:38/41`, `legal/privacy-policy-page.ts:39/42`); `page-shell.ts:107/132` removes both the `router.events` subscription and the host `keydown` listener; `shelter-detail-page.ts:468` and `guidance-detail-page.ts:93` are `route.paramMap` (see P2-5 for the comment rationale). `account-page.ts:446` (`deleteConfirm.valueChanges`) has no teardown but is a subscription on a control owned by the component — the control, the emitter and the observer form an unreachable cycle on destroy, so it cannot leak.
-- **The hand-rolled `toObservable(locale) + skip(1)` idiom is correct.** `toObservable` (node_modules/@angular/core/fesm2022/rxjs-interop.mjs:74-98) backs the stream with a `ReplaySubject(1)` fed by an `effect`, so the first emission is the current value and `skip(1)` fires only on a real switch; `distinctUntilChanged` is unnecessary because signals don't re-notify on equal values. All 8 sites also read `i18n.locale()`/`contentLocale` in the template through the `t` pipe, so the extra `cdr.markForCheck()` is defensive but harmless.
-- **`@for` + `track`.** All 31 `@for` blocks carry `track` (grep for `@for` without `track` returns nothing). Only `track $index` appears in a few places (P2-9). No `*ngFor`/`trackBy` legacy patterns anywhere.
-- **Change detection.** Every non-spec `@Component` (22) sets `ChangeDetectionStrategy.OnPush` — no exceptions. No `NgZone`, no `detectChanges()` outside specs, no zone-dependent code.
-- **Standalone/NgModules consistency.** Zero `NgModule`s, zero `CommonModule`/`BrowserModule`, no `HttpClientModule`/`ComponentFactoryResolver`/`.toPromise()`/`@ViewChild`/`@Input` decorators — functional guards, functional interceptor, signal `input()`/`output()`/`viewChild()`, `@if`/`@for`/`@switch`/`@let` only. **No deprecated API was found.**
-- **Typed forms.** Every `FormControl` is typed and `nonNullable` (the single exception, `submit-shelter-page.ts:173` `FormControl<number | null>`, is a deliberately optional capacity field, used as `typeof capacity === 'number'` before being sent). All forms are `FormGroup` + `ReactiveFormsModule`; `FormControlDirective` limitations are handled in comments (`account-page.ts` disables the target control instead of `[disabled]`).
-- **HTTP layer.** One `ApiClient` (`core/api-client.ts:41-48`) owns all `HttpClient` use: generic `request<T>`, a single `catchError → toApiError`, base URL from `environment.apiUrl`. **Zero `any` in `frontend/src`** (grep `: any`/`<any>`/`as any` returns only prose in comments), zero `@ts-ignore`, and every one of the ~60 gateway calls is `lastValueFrom(this.api.get<Dto>(...))` with a concrete DTO — no untyped responses.
-- **Interceptor correctness.** `core/api-interceptor.ts` is a functional interceptor: Bearer attachment excludes `/auth/login|refresh`, 401 handling is centralised, the retry calls `next(retried)` directly (so the retry cannot re-enter this interceptor → no refresh loop), and the single-flight `AuthStore.refresh()` with epoch guards (`session/auth-store.ts:186-243`) is sound — I found no way to double-spend a refresh token or resurrect a cleared session (`doRefresh` re-checks `startEpoch !== this.epoch` *after* storing, and `fetchProfile` drops a stale profile write).
-- **Operator choice.** The only higher-order operator in the codebase is the interceptor's `mergeMap` (`api-interceptor.ts:75`) over a one-shot promise — the correct choice; there is no `switchMap`-needed HTTP stream because the codebase deliberately resolves observables to promises at the gateway boundary and guards staleness with monotonic `fetchSeq` counters (`map-page.ts:352-364`, `shelter-detail-page.ts:494-545`, `guidance-*.ts`, `admin-page.ts`), which I checked for correct increment-and-compare placement.
-- **Error handling inside streams.** No stream is left without an error path: `ApiClient` converts everything to `ApiError`; every promise consumer uses `.then(ok, fail)`, `.catch(...)` or `try/catch`; `page-shell.ts:68-80` fire-and-forget fetches cannot reject because both gateways swallow internally (`data-source-gateway.ts:15-21`, `site-texts-gateway.ts:26-32`) — so the asymmetric `.catch` on the site-texts call is redundant, not a bug.
-- **Quill teardown is genuinely leak-free (verified, contrary to first appearance).** `guidance-editor.ts:803-809` only nulls `this.quill` on destroy, with a comment claiming Quill 2's DOM dispatch is module-scoped and weak. I checked the vendored bundle: `Emitter` is constructed *without* the Quill instance (`src/vendor/quill/2.0.3/dist/quill.js`, `this.emitter=new N.A`), listeners are registered module-scope and dispatch via `WeakMap<container, Quill>` + `document.querySelectorAll('.ql-container')`, and `listenDOM` only stores `{node,handler}` pairs. So dropping the reference (plus Angular removing the container) really does release the instance — no per-open leak, despite the editor being re-created on every open (`admin-page.html:848-871`).
-- **Leaflet and timers.** `LeafletService` is page-scoped and `destroy()` (resize observer, map, markers, callbacks) is called from every page's `ngOnDestroy`; `ResendCountdown` intervals are cleared in all three owners (`account-page.ts:174-177`, `verify-page.ts:180-183`, `reset-page.ts:68-70`); no `requestAnimationFrame`, no un-cleaned `setInterval`.
-- **State-management approach.** Consistent: `providedIn:'root'` signal services for cross-page state (auth, i18n, theme, consent, tokens), signal state + `computed` in pages, promise DTO access behind gateways, no store library, no `BehaviorSubject` state outside the router. Sensible and uniform.
-- **Presentation vs smart split.** Templates are thin: the "copy/predicate helpers" are shared pure functions (`shared/shelter-copy.ts`, `shared/error-copy.ts`) exposed as class fields, and templates contain no parsing/date math (`gaugeAngle`, `haversineKm`, `parseLocationInput` all live in `.ts`).
+- **Versions/strictness.** `npx tsc -p tsconfig.app.json --noEmit` → 0 errors, and
+  `--strict` adds **nothing** (0 errors both ways), because TS 6.0 defaults strict to on: a
+  probe compiled with only `--target/--module/--ignoreConfig` produced `TS7006`
+  (noImplicitAny), `TS2322` (`let x: string = null`), `TS2564` (strictPropertyInitialization).
+  So the whole app is strict-clean today. (`tsc --showConfig` not printing `strict` is not
+  evidence of its absence — it prints only explicitly-set options.)
+- **Subscribe/unsubscribe discipline.** All 13 non-spec `subscribe()` sites read:
+  - 9 `toObservable(...).subscribe()` (account-page 108/178, verify-page 136/183,
+    contributions-panel 68/185, legal terms 38/41, privacy 39/42, guidance-list 128/140,
+    guidance-detail 88/123, admin-page 418/655) all unsubscribe in `ngOnDestroy`. That
+    teardown is in fact **belt-and-braces**: `toObservable`
+    (`node_modules/@angular/core/fesm2022/rxjs-interop.mjs:74-93`) already wires
+    `injector.get(DestroyRef).onDestroy(() => { watcher.destroy(); subject.complete(); })`,
+    so the stream completes with the component's injector.
+  - `admin-page.ts:552` (`queryParams`) and `guidance-list-page.ts:135` unsubscribe ✓.
+  - `page-shell.ts:74/107` — the host `keydown` listener and the `router.events`
+    subscription are both removed in `ngOnDestroy` (stable arrow-function reference, so
+    `removeEventListener` matches) ✓.
+  - `account-page.ts:446` (`deleteConfirm.valueChanges`) has no teardown but is a control
+    owned by the component — control → observer → closure form an unreachable cycle on
+    destroy, so it cannot leak ✓.
+  - The two `route.paramMap` sites are the documented-exception case → F5 below.
+  - **No nested subscribes anywhere**; nothing subscribes inside a callback.
+- **The hand-rolled `toObservable(sig).pipe(skip(1))` idiom is correct** (confirms the
+  earlier sweep). Mechanism verified in the installed core: the source is a `ReplaySubject(1)`
+  fed by an `effect`, and an `effect` created in a field initializer first runs on the next
+  flush — i.e. *after* `.subscribe()` — so the single value `skip(1)` drops is the current
+  value on both possible orderings. `distinctUntilChanged` is unnecessary (signals do not
+  re-notify on equal values).
+- **`@for` + `track`.** All 11 `@for` blocks in `admin-page.html` carry `track` (0 without).
+  `track change.field` in the history panel cannot collide: the backend builds the change
+  map from a JSON object (`ShelterHistoryChanges.java:62-76`, `Map<String,Object[]>`), so
+  keys are unique by construction — no NG0955 risk.
+- **Change detection.** All 26 non-spec components set `ChangeDetectionStrategy.OnPush` (the
+  20 files without it are spec host components). No `NgZone`, no `detectChanges()` outside
+  specs, no zone-dependent code.
+- **Standalone/NgModules consistency.** Zero NgModules, zero `CommonModule`, no
+  `ComponentFactoryResolver`, no `@ViewChild`/`@Input` decorators, no `.toPromise()`,
+  no deprecated API. Forms are typed `nonNullable` `FormControl`s in `ReactiveFormsModule`
+  (no `ngModel`), including the new `searchQuery` / `guidanceSearch` controls.
+- **HTTP layer is typed end to end.** `core/api-client.ts` is the only
+  `inject(HttpClient)` in the app; every method is generic with one central
+  `catchError → toApiError`; `getWithHeaders<T>` returns `{body: T; headers}` for the paging
+  seam. All 8 gateways return concrete DTO promises via `lastValueFrom` (~60 call sites);
+  the new `PagedRows<T>` (`models.ts:594-600`) is the typed paged shape. **Zero `any`** and
+  zero `@ts-ignore` in `src`; the only casts are `api-client.ts:41` (`response.body as T`,
+  required by the generic) and `geocode-gateway.ts:75` (external JSON validated row by row
+  afterwards). The only non-`ApiClient` network call is Nominatim, which maps its own
+  failures to `ApiError` (`geocode-gateway.ts:66-76`).
+- **Interceptor correctness.** `api-interceptor.ts` is functional, uses
+  `from(refresh()).pipe(mergeMap(...))` — no nested subscribe, no `switchMap` misuse — and
+  retries with a direct `next(retried)`, so the retry cannot re-enter the interceptor
+  (no refresh loop). `mergeMap` over a one-shot promise is the right operator; there is no
+  HTTP stream that would want `switchMap` because the codebase deliberately resolves
+  observables at the gateway boundary and guards staleness with monotonic `fetchSeq`
+  counters.
+- **The async content-locale race that bit five lanes is handled correctly here
+  [in-flight].** For the admin page I traced six interleavings of
+  `onContentLanguageChange` (`admin-page.ts:672-676`), the `toObservable(contentLocale)`
+  subscription (`416-452`) and the router emission (`564-616`):
+  switch on the Guidance tab, switch off-tab, switch during a load in flight, two rapid
+  switches, switch with `q`/page params in the URL, and switch while the editor is open.
+  All are correct: the locale is part of `guidanceViewKey` (line 620), the manual key write
+  (441) prevents a second load, `loadGuidance` bumps `guidanceFetchSeq` (`1356`, compared at
+  `1371`/`1381`) so a superseded response is dropped, and the editor is closed so no
+  stale-locale draft can be saved.
+- **`normalizeListParams` cannot loop** (`admin-page.ts:580-616`): `dirty` is only set when
+  a raw string differs from its parsed canonical value, and the returned params then differ
+  from the current URL — so the normalization navigation always converges in one step, for
+  all four params (`guidancePage/Size`, `shelterPage/Size`).
+- **The unconfirmed queue is not hollowed out by the shelters paging** [in-flight] — verified
+  end to end, not just asserted: `loadQueue()` calls `listShelters()` with no filters
+  (`admin-page.ts:728-734`), the gateway omits `limit` and produces the bare path
+  (`admin-gateway.ts:576-593`), and the backend treats an absent `limit` as "no paging"
+  (`AdminController.java:131-146`).
+- **`ConfirmAction`** (6 instances in the admin page) is a signal-backed state machine; the
+  one raw `setTimeout(0)` (`confirm-action.ts:76`) is ordered after the signal write's
+  scheduled CD, so the focus target exists when it runs.
+
+### Fixed
+
+None. This is a read-only review: **no source file was modified**; the only file created is
+this report.
 
 ### Findings
 
-#### P1-1 (Medium) — five message keys used by the admin editor do not exist in any catalog; the UI renders blank copy
-- **Where:** `frontend/src/app/features/admin/guidance-editor.ts:543-549` (`i18nKeys` with `as MessageKey` casts), consumed at `frontend/src/app/features/admin/guidance-editor.html:120, 224, 234, 236, 243`.
-- **What is wrong:** `admin.guidance.editor.hero.importLabel`, `…hero.importHint`, `…hero.importInvalid`, `…hero.none`, `…hero.importNote` appear in **no** catalog (`core/i18n/en.ts`, `et.ts`, `ru.ts`) and are absent from the `Messages` interface (`core/i18n/messages.ts`) — the `as MessageKey` cast is what silences the compiler. `I18nService.t()` returns `CATALOGS[locale][key] ?? CATALOGS.en[key]`, i.e. `undefined` for these keys, and the `t` pipe interpolates `undefined` as the empty string. The backend's site-text allow-list has no such keys either (`src/main/java/ee/sheltermap/sitetexts/SiteTextKeys.java` has no `hero` entry), so no override can fill them at runtime.
-- **Why it matters:** the hero-import control renders an **empty `<label>`**, an empty hint, an empty note, an **unlabeled "no image" checkbox**, and — worst — the validation line at `guidance-editor.html:236` is blank, so a rejected URL (`heroImportUrlValidator`) shows an admin no explanation at all. The sibling keys landed (`admin.guidance.editor.hero.uploadLabel`, etc.), and the same-wave cast in `reset-page.ts:66` now resolves because `authPage.reset.newPasswordTooShort` exists in all three catalogs — these five were left behind.
-- **Suggested fix:** add the five keys to `messages.ts` + `en.ts`/`et.ts`/`ru.ts` (the parity guards in `core/i18n/i18n.spec.ts` then cover them) and drop the casts, or reuse existing keys. Consider a guard that fails when a `MessageKey`-cast string literal is not present in the catalogs — the current cast pattern is exactly how this class of gap ships.
+#### F1 — P1 (Medium-High) [in-flight]: a URL-driven reload is silently dropped while a list fetch is in flight, leaving the URL and the view disagreeing
 
-#### P1-2 (Medium) — untranslated copy on translated surfaces, and the project's own i18n template guard cannot see it
-- **Where:**
-  - inside interpolations: `frontend/src/app/features/shelter/shelter-detail-page.html:13` (`{{ shelter()?.name ?? 'Shelter details' }}`) and `:103` (`{{ distancePending() ? 'Measuring…' : 'Distance from you' }}`).
-  - literal `aria-label` values: `frontend/src/app/shared/page-shell.html:36` (`"Primary"`), `:136` (`"Legal"`), `frontend/src/app/features/map/map-page.html:10` (`"Marker legend"`), `:125` (`"Address results"`), `:210` (`"Shelter filters"`), `:240` (`"Shelters"`), `frontend/src/app/features/admin/admin-page.html:897` (`"Guidance posts"`), `:1125` (`"Media library"`).
-- **What is wrong:** these are user-visible strings rendered outside the translation seam in an app whose entire chrome is catalog-driven (EN/ET/RU). The guard written for this failure class (`frontend/src/app/features/account/account-i18n-guard.spec.ts`) does not catch them for two independent reasons: (a) its `TEMPLATES` map covers only `account-page.html`, `contributions-panel.html`, `verify-page.html`, `shelter-detail-page.html`, so the page-shell/map/admin literals are out of scope, and (b) `scan()` skips every `{{ … }}` interpolation (`if (source.startsWith('{{', i)) { … continue; }`), so the two detail-page literals are invisible to it. The page's own specs pin the English text (`shelter-detail-page.spec.ts:550` `toContain('Shelter details')`, `:698` `toBe('Distance from you')`), so the test suite actively locks the gap in.
-- **Why it matters:** ET/RU users get English headings/labels on the public shelter detail page, and screen-reader users get English accessible names for the map's legend/filter/list groups (the map page is the anonymous default route). The failure is silent: nothing fails, no test flags it.
-- **Suggested fix:** add keys (e.g. `detail.titleFallback`, `detail.distance.cta`, `detail.distance.pending`) and route all of the above through `| t` / `[attr.aria-label]="'…' | t"` (the shell already does this for `'lang.label'`); then extend the guard: add the missing templates to `TEMPLATES` and teach `scan()` to flag English-looking string literals *inside* interpolations (excluding key literals followed by `| t` and structural literals such as `'maxlength'`, `'medium'`).
+- **Where:** `frontend/src/app/features/admin/admin-page.ts:643-645` (shelters) and
+  `:623-625` (guidance):
+  ```ts
+  const live = this.shelterRows() !== null || this.shelterLoadError() !== null;
+  if (!firstVisit && (!live || key === this.sheltersViewKey)) {
+    return;                        // ← no reload, and no later re-check
+  }
+  ```
+  Writers that set `rows = null` for the whole load: `loadShelters()` `:822-824`,
+  `loadGuidance()` `:1352-1354`. Triggers that rely on the emission reloading:
+  `onSourceChip` `:889-899`, `onSearchSubmit` `:866-884` (page>1 branch), `onGuidanceSubmit`
+  `:1407-1416`, `onGuidanceSearchClear` `:1418-1424`, back/forward.
+- **What is wrong:** `!live` means "a fetch is in flight" (both the rows and the error are
+  null). Any query-param change in that window returns early *without* updating the signals
+  and *without* reloading, and nothing re-checks the URL when the in-flight promise settles.
+  Repro (Shelters tab, first visit): click **Shelters** → the paged list starts loading (the
+  toolbar with the chips stays rendered above the loading branch, `admin-page.html:222-249`,
+  and the chips are only disabled by `busy()`, not by the load) → click **Community** during
+  that load → the URL becomes `?source=USER` but `shelterSource()` stays `'ALL'`, the
+  in-flight unfiltered response renders with the **All** chip active. Re-clicking Community
+  does *not* recover: the router skips a same-URL navigation by default
+  (`@angular/router` 22.1.5: `_router-chunk.mjs:3833-3836` + `onSameUrlNavigation = 'ignore'`
+  at `:4520`) so no emission is produced — the admin must toggle another chip or switch tabs.
+  The same drop applies to a Back/Forward step and to a guidance search submitted during a
+  load.
+- **Why it matters:** the spec this lane implements states "**URL is the state**: every
+  control … lives in the route query; no component-local hidden state for view parameters"
+  (`ADMIN-LANE-SPEC.md`, "Shared contract"). The guard re-introduces exactly that hidden
+  state: a refresh, a copied link or the next tab visit shows a different list than the one
+  on screen, and the reported "search/chip relies on the URL emission" fixes (§"Bugs the new
+  specs caught" 1-2 of `ADMIN-LANE-REPORT.md`) are defeated whenever the click lands during a
+  load. The specs cannot catch it: every helper awaits (`admin-page.spec.ts:470-477`
+  `settle()`, `516-524` `toShelters`), so no test ever observes an in-flight list.
+- **Suggested fix:** drop the `!live` clause and compare only the view key
+  (`if (!firstVisit && key === this.sheltersViewKey) return;`) — the key is written by every
+  load, so this still prevents the double load the clause was added for — or, if the intent
+  is to avoid piling up requests, re-run the sync from the load's `.then`/`.catch`
+  (`if (seq === this.seq) this.onQueryChange(this.route.snapshot.queryParams)`).
 
-#### P2-3 (Low) — quadratic template work in the admin guidance table
-- **Where:** `frontend/src/app/features/admin/admin-page.ts:1416-1418` (`guidanceIndex()` = linear `findIndex` over all rows), called from `frontend/src/app/features/admin/admin-page.html:982, 991, 1001` — i.e. three times per rendered row.
-- **What is wrong:** every change-detection pass of the guidance tab performs `3 × n` linear scans (O(3n²) id comparisons), and each call also evaluates the `(this.guidanceRows() ?? [])` expression. The template already has the answer available: the rows are rendered by `@for (row of guidanceRows() ?? []; track row.id)` (`admin-page.html:914`).
-- **Why it matters:** it is pure avoidable work on the largest template in the app (1284 lines, up to 8 tabs of tables), and it scales worse than the list does — exactly the "heavy logic in templates" case, even though the methods are cheap per call.
-- **Suggested fix:** use the loop index — `@for (row of guidanceRows() ?? []; track row.id; let i = $index)` and compare `i <= 0` / `i >= (guidanceRows()?.length ?? 0) - 1` — or expose a `computed(() => new Map(rows.map((r, i) => [r.id, i])))` for the three lookups.
+#### F2 — P2 (Medium) [in-flight]: the shelters list has no fetch-sequence guard, so two loads can land out of order and render a superseded filter
 
-#### P2-4 (Low) — `ResendCountdown.active` is a non-signal field read from templates in a zoneless app
-- **Where:** `frontend/src/app/shared/resend-countdown.ts:29` (`active = false;`, mutated at `:42`/`:53`), read in templates at `features/account/account-page.html:190, 212, 293, 315`, `features/account/verify-page.html:61, 77`, `features/auth/reset-page.html:27, 107`.
-- **What is wrong:** the app is zoneless with `OnPush` everywhere, so a view re-renders only when a signal it read changes. `active` is a plain boolean, so a flip of `active` alone would not schedule change detection. It works *today* only because every current transition happens to write the `remaining` signal in the same tick: `start()` → `tick()` writes `remaining ≥ 1` (`:44-45`), and `stop()` writes `remaining.set(0)` after a live countdown had a value ≥ 1 (`:52-55`), with `tick()`'s expiry path going through `stop()` (`:58-62`).
-- **Why it matters:** the correctness of the disabled/label state of every send/resend button depends on an unwritten invariant of a helper that is shared by three pages. Any future path that toggles `active` without moving `remaining` (a pause/resume, a `stop()` from an already-zero state, an externally-driven re-arm) will silently render a stale disabled state — with no error and no failing test, because the specs drive the same timing.
-- **Suggested fix:** make the state observable, e.g. `readonly active = computed(() => this.remaining() > 0)` (with `remaining` written on every transition), or expose `active` as a `signal` and set it through `set()`. Then the template binding is guaranteed reactive by construction.
+- **Where:** `admin-page.ts:822-834` (`loadShelters`) and `:845-861` (`refreshShelters`
+  writes `shelterTotal.set` / `shelterRows.set` at `:859-860` with no guard), versus the
+  sibling guidance path which *does* guard (`guidanceFetchSeq` at `:1356`, compared at
+  `:1371`/`:1381`) and the public precedent (`guidance-list-page.ts:118-121`,
+  `shelter-detail-page.ts` `fetchSeq`).
+- **What is wrong:** three writers (`loadShelters`, `refreshShelters`, and the same again via
+  a tab re-entry) can be in flight at once and the last response to *arrive* wins, not the
+  last one *issued*. Reachable path: a review action (Confirm/Reject/Hide) starts
+  `refreshShelters()`; when its first await resolves the rows are still loaded, so it reads
+  `source`/page/size (`:852-858`) and fires the page fetch; the admin then flips the source
+  chip (allowed — `live` is true, so F1's guard does *not* block this one) and that load
+  resolves first; the older page fetch then lands and re-renders the previous filter's rows
+  under the new chip/URL permanently (no later load corrects it).
+- **Why it matters:** stale-moderation-data risk in a tool whose purpose is filtering the
+  queue. The failure is intermittent (a sub-second window), untested, and inconsistent with
+  the discipline the file itself documents for guidance ("a superseded load must not
+  overwrite a newer one", `:1346-1350`).
+- **Suggested fix:** one monotonic counter per list, incremented in `loadShelters` *and*
+  `refreshShelters`, captured and compared before every `.set` — the pattern already used 40
+  lines below for guidance.
 
-#### P2-5 (Low) — the `route.paramMap` "completes on deactivate" rationale is false for Angular 22
-- **Where:** `frontend/src/app/features/shelter/shelter-detail-page.ts:463-468` and `frontend/src/app/features/guidance/guidance-detail-page.ts:89-93` — "it completes when the route deactivates, so the subscription needs no manual teardown".
-- **What is wrong:** in the installed `@angular/router` 22.1.5, `ActivatedRoute.params` *is* the router's subject, created as a plain `BehaviorSubject` in `createActivatedRoute` (`node_modules/@angular/router/fesm2022/_router-chunk.mjs:2143-2144`); the only `.complete()` calls in the bundle are on the router's `transitions` (`:3779`) and `navigationTransitions` (`:4639`), both reached only when the `Router` itself is destroyed. `deactivateRouteAndOutlet` (`:2257-2273`) merely nulls `context.route` and destroys the local injector — nothing completes the route subjects. The claim is therefore wrong. Practical impact today is nil: a deactivated route object is unreachable, so no further emission can reach the callback and the subscription is collected with it.
-- **Why it matters:** the safety of the pattern rests on an incorrect statement of framework behaviour. If the code is later moved into a component that outlives the route, or a custom `RouteReuseStrategy` detaches the outlet (`detachAndStoreRouteSubtree` keeps the route object alive), the assumption turns into a live leak/cross-route write with no test to catch it. Note that `takeUntilDestroyed` is used nowhere in the repo, so there is no house idiom to copy.
-- **Suggested fix:** either correct the comment to state the real reason ("the subscription dies with the component because the router drops the deactivated route object; no completion is sent") or make it explicit: `this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(…)` in the same field initializer.
+#### F3 — P2 (Low): `index(row)` is a linear scan called three times per rendered row (the earlier sweep's P2-3, confirmed at its new location)
 
-#### P2-6 (Low) — query-param state is read once and goes stale because the component instance is reused
-- **Where:** `frontend/src/app/features/auth/login-page.ts:44-48` (`sessionExpired`, `resetOk`, `destination`), `frontend/src/app/features/account/verify-page.ts:148-154` (`returnUrl` field initializer), `frontend/src/app/features/shelter/submit-shelter-page.ts:311-313` (`?edit=` read in `ngOnInit`).
-- **What is wrong:** Angular's default `shouldReuseRoute` is `future.routeConfig === curr.routeConfig`, so a navigation that changes only the query string of an already-active route reuses the component instance and does **not** re-run the initializer/`ngOnInit`. Repro: while logged out, click a link to `/account` → `authGuard` sends you to `/login?returnUrl=/account`; press Back to `/login` — the reused `LoginPage` still has `destination = '/account'`, so a later login navigates to `/account` instead of `/map`. Equivalent for `/verify?returnUrl=…` (Back lands on the return URL after verifying) and for a hand-typed `/submit` after `/submit?edit=<id>` (the reused page stays in edit mode with the previous row's prefill).
-- **Why it matters:** the state driving navigation/route mode is derived from a one-shot snapshot, so it can disagree with the URL the user is actually on. Impact is small and benign (a plausible destination, not data leakage), hence Low — but it is a correctness gap that the param-driven pages already solved properly for path params (`route.paramMap` subscriptions) and that query params were left out of.
-- **Suggested fix:** drive them reactively — `toSignal(this.route.queryParamMap)` (or a `paramMap`-style subscription with `takeUntilDestroyed`) and derive `destination`/`returnUrl`/`editMode` from the signal.
+- **Where:** `frontend/src/app/features/admin/guidance-order-list.ts:118-120`
+  (`return (this.rows() ?? []).findIndex((r) => r.id === row.id);`) called from
+  `guidance-order-list.html:121`, `:130`, `:139` inside `@for (… track row.id)` (`:53`).
+- **What is wrong:** 3 × n linear id scans per change-detection pass (O(3n²)), each also
+  re-evaluating `this.rows() ?? []`. The extraction from `admin-page.ts` (previous sweep
+  reported it at `admin-page.ts:1416`, pre-extraction — `guidanceIndex()` no longer exists)
+  **moved** the code, it did not fix it. One thing the lane did improve: the new
+  `!reorderable() ||` prefix short-circuits the call on multi-page lists, where reordering is
+  off, so the cost now only applies to single-page scopes (≤100 rows → ≤30k id comparisons
+  per pass — small, which is why this stays Low).
+- **Why it matters:** avoidable work on the app's largest table, in the exact shape
+  ("heavy logic in a template") this review targets; it scales with the row count while the
+  answer (`$index`) is already available.
+- **Suggested fix:** `@for (row of rows() ?? []; track row.id; let i = $index)` and compare
+  `i <= 0` / `i >= (rows() ?? []).length - 1`, or expose
+  `computed(() => new Map(rows.map((r, i) => [r.id, i])))`.
 
-#### P2-7 (Low) — the impure `t` pipe is used by every template, not "the chrome only"; its comment understates the cost
-- **Where:** `frontend/src/app/core/i18n/translate-pipe.ts:6-13` (`pure: false`, "The chrome is the only pipe consumer, so the per-CD evaluation cost is negligible").
-- **What is wrong:** the pipe has **834 usages across 19 templates** (every page, not just the shell). Each evaluation of a component's view calls `I18nService.t()` → `overrideFor()` (`siteTexts()?.[locale]?.[key]`, three property lookups plus a signal read) plus a catalog lookup.
-- **Why it matters:** the decision itself is sound (a runtime locale switch with no reload, and `pure: false` is required for that), and signals+OnPush bound the exposure to dirty views — but the justification in the file is factually wrong, so a future maintainer reading it could conclude that impure-pipe cost is a non-issue app-wide. The comment should say why it is acceptable *despite* 834 call sites, or the pipe should memoize on (key, params, locale, `siteTexts` revision).
-- **Suggested fix:** correct the comment; if profiling ever shows it, cache the last `(key, locale, siteTextsIdentity, paramsKey)` → string, which keeps the switch behaviour intact.
+#### F4 — P2 (Low): route query params are read once at construction/`ngOnInit` on components the router reuses (the earlier sweep's P2-6, confirmed)
 
-#### P2-8 (Low) — dead `en-GB` locale registration, and admin date cells ignore the active locale
-- **Where:** `frontend/src/app/features/admin/admin-page.ts:18` + `:63` (`registerLocaleData(localeEnGB, 'en-GB')`), vs. `frontend/src/app/features/admin/admin-page.html:671, 731, 965, 970, 1162, 1263` (`| date: 'medium'`, no locale argument).
-- **What is wrong:** nothing ever selects the `'en-GB'` locale — there is no `LOCALE_ID` provider anywhere in `frontend/src` (grep) and no `| date: … : 'en-GB'` usage, so the module-level registration is dead weight (it does ship locale data into the bundle). Conversely the admin tables format dates with the default `en-US` locale while every public surface passes the active locale explicitly (`shared/page-shell.html:147`, `features/account/contributions-panel.html:73,154,190`, `features/guidance/guidance-list-page.html:69`, `features/guidance/guidance-detail-page.html:50`).
-- **Why it matters:** the intended (en-GB) date formatting never takes effect, and the admin's date columns disagree with the rest of the app in the same locale; the dead import/call is also a maintenance trap (someone will "fix" a date format there and see nothing change).
-- **Suggested fix:** either pass the locale per binding (`i18n.locale()`, the app-wide idiom) and delete the registration, or provide `LOCALE_ID`/`DATE_PIPE_DEFAULT_OPTIONS` once and drop the per-call arguments — but not both partially.
+- **Where:** `features/auth/login-page.ts:49-52` (`session`/`returnUrl` read into
+  `sessionExpired`/`destination`), `features/account/verify-page.ts:148-154`
+  (field-initializer IIFE reading `returnUrl`), `features/shelter/submit-shelter-page.ts:312`
+  (`?edit=` read in `ngOnInit`).
+- **What is wrong:** `BaseRouteReuseStrategy.shouldReuseRoute` is
+  `future.routeConfig === curr.routeConfig` (`_router-chunk.mjs:4211-4213`, still the
+  default), so a query-only navigation to the same route reuses the instance and never
+  re-runs the initializer/`ngOnInit`. Repro: `/login?session=expired&returnUrl=/account` →
+  Back to `/login` → the component is reused, `sessionExpired` stays true and
+  `destination` stays `/account`.
+- **Why it matters:** navigation-driving state can disagree with the URL the user is on.
+  Impact is benign (a plausible destination, no leakage) hence Low — but note it does **not**
+  apply to the admin page's `route.snapshot.queryParams` reads inside click handlers, which
+  are re-readable and current (the snapshot is reassigned on every navigation:
+  `advanceActivatedRoute`, `_router-chunk.mjs:1633-1641`). See the "contradicted" note below.
+- **Suggested fix:** derive from a signal — `toSignal(this.route.queryParamMap)` or a
+  `queryParams` subscription with `takeUntilDestroyed` (the admin/guidance pages already do
+  this properly).
 
-#### P2-9 (Low) — `track $index` on lists that refresh/reorder
-- **Where:** `frontend/src/app/features/shelter/shelter-detail-page.html:465` (`recentReports()`), `frontend/src/app/features/map/map-page.html:126` (`anchorResults()`), `frontend/src/app/shared/report-gauge.html:12, 48` (`textTokens()`).
-- **What is wrong:** `$index` is not a stable identity for a list whose contents change between renders; every entry then gets a new key value whenever the list shifts (a new report arriving at the top of the pulse log, a new Nominatim result set).
-- **Why it matters:** it defeats the DOM reuse `track` exists for — the whole snippet is torn down and rebuilt instead of being patched, and focus/scroll state inside the list can be lost. Not a correctness bug today (the tracked content is rendered from the same array), so Low.
-- **Suggested fix:** track something stable and unique — `track entry.reportedAt + ':' + entry.kind` (the log), `track result.displayName` (the sibling call at `submit-shelter-page.html:185` already does exactly this), `track token + $index` for the token spans.
+#### F5 — P2 (Low): the "paramMap completes on deactivate" rationale is false for router 22.1.5 (the earlier sweep's P2-5, confirmed — still uncorrected)
 
-#### P2-10 (Low) — `ContributionsPanel` declares `OnInit` but implements a teardown it does not declare
-- **Where:** `frontend/src/app/features/account/contributions-panel.ts:51` (`export class ContributionsPanel implements OnInit`) with `ngOnInit` at `:180` and `ngOnDestroy` at `:184`.
-- **What is wrong:** `ngOnDestroy` is relied on for teardown (it stops the locale subscription) but is missing from the `implements` list. Angular calls lifecycle hooks by name, so this works; it is the *contract* that is wrong.
-- **Why it matters:** purely readability/consistency — in a codebase where every other component declares `implements OnInit/OnDestroy`, the omission hides a real teardown from a reader (and from tools that key on the declared interface), which is exactly the kind of thing that gets deleted in a cleanup.
-- **Suggested fix:** `implements OnInit, OnDestroy`.
+- **Where:** `features/shelter/shelter-detail-page.ts:475-480` and
+  `features/guidance/guidance-detail-page.ts:114-119` ("paramMap replays the current params on
+  subscribe and completes when the route deactivates, so the subscription needs no manual
+  teardown").
+- **What is wrong:** in the installed router, `ActivatedRoute.params` *is* a plain
+  `BehaviorSubject` created per activation (`_router-chunk.mjs:1434-1471`, `:2144`) and the
+  only `complete()` calls in the bundle are on the router's `transitions`/
+  `navigationTransitions` (`:3779`, `:4639`, i.e. only when the `Router` is destroyed);
+  `deactivateRouteAndOutlet` (`:1797`) merely destroys the component instance. Nothing
+  completes the route subjects on deactivation.
+- **Why it matters:** the pattern's safety rests on a misstated framework invariant. I could
+  not construct an observable failure (a deactivated route object is unreachable, so no
+  further emission reaches the callback and the subscription is collected with it) — hence
+  Low, not a live bug — but the claim will mislead the next reader, and `takeUntilDestroyed`
+  is used nowhere in the repo, so there is no house idiom to fall back on.
+- **Suggested fix:** `this.route.paramMap.pipe(takeUntilDestroyed()).subscribe(…)` in the same
+  field initializer, or correct the comment to state the real reason ("the router drops the
+  deactivated route object, so the subscription dies with the component — no completion is
+  sent").
 
-### Not-a-finding, but worth a follow-up ticket (P2, opportunity)
+#### F6 — P2 (Low): the impure `t` pipe's justification is wrong by ~2 orders of magnitude
 
-The eight "load + loading + error + `fetchSeq`" blocks are hand-rolled and near-identical (`features/guidance/guidance-list-page.ts:90-125`, `features/guidance/guidance-detail-page.ts:120-165`, `features/map/map-page.ts:698-760`, `features/shelter/shelter-detail-page.ts:494-545`, `features/account/contributions-panel.ts:198-208`, `features/admin/admin-page.ts` list loaders, …). Angular 22 ships `resource()`/`httpResource()` as stable public API (`node_modules/@angular/common/types/http.d.ts:2536` — `@publicApi 22.0`), which would express the same state as signals and replace the monotonic-sequence staleness guards with real cancellation. Not a defect, and not something to do mid-sweep — but it is the single biggest simplification available on the frontend, and it removes the class of bug the `fetchSeq` counters are protecting against.
+- **Where:** `core/i18n/translate-pipe.ts:8-11` ("`pure: false` on purpose … **The chrome is
+  the only pipe consumer**, so the per-CD evaluation cost is negligible") + `:22`
+  (`@Pipe({name: 't', pure: false})`).
+- **What is wrong:** measured in this tree: **160** `| t` bindings in `admin-page.html`
+  alone (34 of them inside the shelters row block), 86 in `account-page.html`, 58 in
+  `shelter-detail-page.html`, 46 in `map-page.html`, 25 in `page-shell.html` — i.e. every page,
+  not the chrome. Each evaluation runs `I18nService.t()` → `overrideFor()` (three property
+  lookups + a `siteTexts()` read) + `catalogVersion()` + a catalog lookup
+  (`i18n.service.ts:236-256`). At the max page size (100 rows) an admin CD pass performs
+  ~3,400 impure-pipe evaluations (≈34/row) plus the per-row helpers in F9.
+- **Why it matters:** the decision (`pure: false`) is sound — a runtime locale switch with no
+  reload requires re-evaluation, and signals+OnPush confine the cost to dirty views; there is
+  no DOM churn because interpolation compares before writing. The defect is the *comment*: it
+  tells a future maintainer that impure-pipe cost is an app-wide non-issue, which is the
+  opposite of what the code does.
+- **Suggested fix:** correct the comment (state why it is acceptable despite ~400 call sites),
+  or memoize on `(key, params, locale, siteTexts identity, catalogVersion)`. A pure pipe with
+  the locale threaded as an argument (`'k' | t: i18n.locale()`) is the conventional escape
+  hatch if profiling ever demands it.
 
----
+#### F7 — P3 (Low) [in-flight]: the guidance search keeps two sources of truth for the same value, so the input and the applied filter can disagree
 
-## Merge verdict
+- **Where:** `admin-page.ts:618-630` (`syncGuidanceFromParams` writes `guidanceQuery`, never
+  `guidanceSearch`), `:441-449` (the locale switch resets `guidanceQuery`/the URL but not the
+  control), template `admin-page.html:899` (the Clear button keys off `guidanceQuery()`) and
+  `:895` (`[formControl]="guidanceSearch"`).
+- **What is wrong:** two ways to observe the term — the `FormControl` and the
+  `guidanceQuery`/`?q=` state — are kept in sync only on the two handler paths. Opening
+  `/admin?q=foo` (a shared link/refresh) or switching the content language leaves the input
+  showing a term the list is not filtered by (or the reverse: a filter active with an empty
+  input until the Clear button is used).
+- **Why it matters:** cosmetic on its own, but it is the classic two-sources-of-truth shape
+  inside code the lane just wrote, and it makes the "URL is the state" claim only ~half true
+  for this control.
+- **Suggested fix:** write the control in the sync (`this.guidanceSearch.setValue(q, {emitEvent: false})`)
+  and in the locale reset, or drop `guidanceQuery` and read the control (the shelters tab
+  deliberately does the latter for its tab-local term).
 
-**OK with notes.** No P0/blocker. The architecture-relevant parts of this topic (subscribe discipline, teardown, OnPush/zoneless correctness, operator choice, typed HTTP layer, `@for` tracking, deprecation hygiene) are deliberately and consistently done — notably better than a typical Angular codebase. The two Medium items are a *content* gap, not a structural one: five catalog keys that never landed (blank admin copy, including blank validation feedback) and hardcoded English copy that the project's own template guard structurally cannot see. Both are small, local fixes.
+#### F8 — P3 (Low) [in-flight]: the two paged tabs re-fetch on *every* tab switch, contradicting the documented lazy-load rule
 
-## Top 5 findings
+- **Where:** `admin-page.ts:706` `case 'shelters': this.syncSheltersFromParams(this.route.snapshot.queryParams, true)` and `:722` (guidance) — `firstVisit` is hard-coded `true`, and the guard short-circuits the key comparison whenever `firstVisit` is set (`:644`, `:624`). Compare `ngOnInit`'s comment `:663-668` ("the other tabs load lazily on first switch (a visit after a load keeps the in-memory rows)") and `switchTab`'s comment.
+- **What is wrong:** every visit to Shelters/Guidance issues a fresh request + loading flash,
+  while Reports/Alerts/Users/Media/Audit correctly use the `rows === null` lazy rule. The
+  comment documents the rule the paged tabs break.
+- **Why it matters:** needless round trips and a state flash on a tab the admin flips back and
+  forth constantly; a documentation/behaviour mismatch that will be trusted later.
+- **Suggested fix:** pass `false` and let the key comparison do the work (add "nothing loaded
+  yet" to the condition), or correct the comment.
 
-1. **P1-1 (Medium)** — `guidance-editor.ts:543-549` + `guidance-editor.html:120,224,234,236,243`: `admin.guidance.editor.hero.{importLabel,importHint,importInvalid,none,importNote}` exist in no catalog, so `t()` returns `undefined` and the editor renders a blank label, hint, note, unlabeled checkbox **and blank validation feedback**; the `as MessageKey` cast hides it from the compiler and from the parity tests.
-2. **P1-2 (Medium)** — `shelter-detail-page.html:13,103` (hardcoded English inside `{{ }}`) and literal `aria-label` values in `page-shell.html:36,136`, `map-page.html:10,125,210,240`, `admin-page.html:897,1125`: untranslated copy on EN/ET/RU surfaces, invisible to `account-i18n-guard.spec.ts` (wrong template scope + interpolations are skipped) and pinned by specs that assert the English literals.
-3. **P2-3 (Low)** — `admin-page.ts:1416-1418` called 3× per row from `admin-page.html:982,991,1001`: O(3n²) `findIndex` work in every change-detection pass; the loop's `$index` or an id→index `Map` removes it entirely.
-4. **P2-4 (Low)** — `shared/resend-countdown.ts:29`: `active` is a non-signal field read from 8 template bindings in a zoneless app; it renders correctly today only because every transition also writes the `remaining` signal, so the invariant is implicit and untested.
-5. **P2-5 (Low)** — `shelter-detail-page.ts:463-468` and `guidance-detail-page.ts:89-93`: the "paramMap completes on route deactivation" rationale is false in `@angular/router` 22.1.5 (verified in the bundle: only `transitions`/`navigationTransitions` are completed, and only on `Router.dispose`), so the pattern's safety today rests on garbage collection rather than on the stated reason — the fix is one `takeUntilDestroyed()` or a corrected comment.
+#### F9 — P3 (Low): time-dependent function calls in template bindings re-evaluate on every pass with a fresh `Date.now()`
+
+- **Where:** `admin-page.html:331` `@if (occupancyText(row.occupancy); as occ)` and `:653`
+  `{{ ageText(row.createdAt) }}` → `admin-page.ts:495-500`/`:511-513` → `shelter-copy.ts:392-401`
+  (`now: number = Date.now()` default) and `:320` (`recencyText`).
+- **What is wrong:** these are per-row, per-change-detection-pass evaluations whose result can
+  *change with time alone*. The minutes-granularity buckets mean that if the value is computed
+  in a CD pass and re-computed in the dev-mode verification pass across a minute boundary, the
+  binding differs → `ExpressionChangedAfterItHasBeenCheckedError` (dev only, rare); in
+  production the cost is a `Date.parse` + string build per occupancy row per pass. The same
+  pattern already exists on the public pages (`map-page.html:304` vs the explicit-`now` calls
+  elsewhere), so this is a pre-existing convention the lane extended, not a new invention.
+- **Why it matters:** cheap to keep out of templates; the "no heavy logic in templates" rule
+  applies to time-dependent formatting more than to anything else because it is non-idempotent.
+- **Suggested fix:** compute once per load (`computed` over `rows` + a `now` signal refreshed on
+  load), or pass a stable `now` captured at load time into the row's stored value.
+
+#### F10 — P3 (Low): `ResendCountdown.active` is a plain boolean read by 15 template bindings
+
+- **Where:** `shared/resend-countdown.ts:30` (`active = false;`, written at `:39`/`:52`), read
+  in `auth/reset-page.html:39/44/152`, `account/account-page.html:218/221/240/245/329/332/351/356`,
+  `account/verify-page.html:61/66/77/82`. (This corrects the earlier sweep's count of 8 — it is
+  15 `.active` reads in the current tree, across three templates, since the account page renders
+  two countdowns.)
+- **What is wrong:** the app is zoneless + OnPush, so a view re-renders only when a signal it
+  read changes; `active` is not a signal. I traced all three transition paths
+  (`start` `:37-45`, `stop` `:51-56`, `tick` `:58-64`) and found **no reachable stale render
+  today**: every `active` flip is accompanied by a `remaining` write in the same synchronous
+  block (`active === true ⇒ remaining ≥ 1`, so `stop()`'s `remaining.set(0)` always changes
+  the value). The correctness of 15 buttons therefore rests on an unstated invariant.
+- **Why it matters:** any future path that flips `active` alone (pause/resume, `stop()` from an
+  already-zero state, an externally driven re-arm) renders a stale disabled/label state with no
+  error and no failing spec.
+- **Suggested fix:** `readonly active = computed(() => this.remaining() > 0)` (writing
+  `remaining` on every transition), or make `active` a signal set through `set()`.
+
+#### F11 — P3 (Low): the new paging feature depends on `X-Total-Count`, which CORS never exposes
+
+- **Where:** the header is produced (`AdminController.java:147`, `AdminGuidanceController.java:181`)
+  and consumed (`admin-gateway.ts:557-566`, feeding `shelterPages`/`guidancePages`
+  `admin-page.ts:245-250`, `348-353`, the control and the out-of-range notice), but the CORS
+  bean sets no exposed headers (`config/SecurityConfig.java:167-176`: origins/methods/headers/
+  credentials only), while `src/environments/environment.ts` documents a cross-origin
+  deployment as supported ("Deployments with the API on another origin must set this to that
+  origin").
+- **What is wrong:** in a cross-origin deployment the JS client cannot read `X-Total-Count`
+  (not a CORS-safelisted response header), so `pagedResult` falls back to `body.length`; a
+  *full* last page then reports `total = size` → `pages = 1` → the pagination control
+  disappears and the out-of-range notice never fires, and the size-change clamp
+  (`admin-page.ts:940-945`) computes the wrong last page. The fallback's comment ("such a page
+  IS empty — out-of-range detection stays honest", `admin-gateway.ts:560-564`) only covers the
+  empty page. Default deployments (dev proxy, same-origin `apiUrl: ''`) are unaffected.
+- **Why it matters:** a silently degraded paging contract in exactly the deployment the
+  environment file tells operators to configure; the failure is invisible (no error, just a
+  one-page list).
+- **Suggested fix:** `config.setExposedHeaders(List.of("X-Total-Count"));` (one line). Flagging
+  it here as well as for agents 4/11 so agent 12 can de-duplicate.
+
+#### Minor consistency note (not a finding)
+
+`shared/pagination.html:1` still uses the legacy `*ngIf` microsyntax with `NgIf` imported,
+while every feature template (and the rest of this component's siblings) uses `@if`. Not
+deprecated and not wrong — `NgIf` is only kept alive for this one line.
+
+### Earlier sweeps: confirmed / corrected / contradicted
+
+| Earlier claim | Verdict | Evidence |
+| --- | --- | --- |
+| Zoneless Angular 22, signals + OnPush everywhere, no NgModules | **Confirmed** | no `zone.js`/polyfills entry; 26/26 production components OnPush; zero `@NgModule` |
+| No nested subscribes; every long-lived subscription torn down | **Confirmed** | all 13 non-spec subscribe sites read; 11 unsubscribed (`toObservable` self-completes too); the 2 `paramMap` ones are F5 |
+| `toObservable(i18n.locale).pipe(skip(1))` is correct | **Confirmed**, with the mechanism | `rxjs-interop.mjs:74-93` `ReplaySubject(1)` + effect first-run after subscribe |
+| All `@for` have `track`; no deprecated APIs; one `ApiClient` with `catchError → ApiError`; zero `any` | **Confirmed** | 11/11 tracks; zero `any`/`@ts-ignore`; single `inject(HttpClient)`; `delete<T = void>` etc. |
+| One O(3n²) call in `admin-page.ts` (~1416) called 3× per row per pass | **Confirmed but relocated**, F3 | `guidanceIndex()` no longer exists; the code moved to `guidance-order-list.ts:118-120` + `.html:121/130/139`, now partly short-circuited by `!reorderable()` |
+| Non-signal read driving 8 template bindings in `resend-countdown.ts` | **Confirmed, count corrected**, F10 | 15 `.active` reads across 3 templates; no reachable stale render — all three transition paths traced |
+| Two files' comments claim router `paramMap` completes on deactivate (false in 22.1.5) | **Confirmed** — still uncorrected at `d247007`, F5 | router bundle: `BehaviorSubject`, no completion; `deactivateRouteAndOutlet` only destroys the component |
+| Stale query-param snapshots on reused components | **Partly contradicted / refined** | The *one-shot* reads in field initializers/`ngOnInit` are a real issue (F4: login-page, verify-page, submit-shelter-page), but `route.snapshot.queryParams` read inside a *handler* is not stale — the snapshot is reassigned on every navigation (`advanceActivatedRoute`, `_router-chunk.mjs:1633-1641`), so the admin page's `route.snapshot` reads (`:706`, `:722`, `:921`, `:443`) are current; the only staleness window is mid-navigation, and the param-merging paths are insensitive to it |
+| Impure-pipe comment misdescribes usage | **Confirmed with numbers**, F6 | 160 `t`-pipe bindings in `admin-page.html`, ~375 repo-wide (earlier sweep: 834 — the count depends on how parameterised calls are counted; either way "the chrome only" is false) |
+| An earlier verdict: `strict` is on by default in TS 6.0, so the missing `"strict": true` is *not* a finding | **Confirmed independently** | I had flagged it, then disproved my own finding: a probe compiled with no config and no `--strict` errors with TS7006/TS2322/TS2564, so TS 6.0.3 defaults strict on and the app is strict-clean (`--strict` adds 0 errors) |
+| Five lanes tripped over the async locale switch | **Not reproduced here** | The admin page's locale reset is correctly sequenced (see "Correct": six interleavings traced) |
+
+### Areas found clean
+
+- HTTP layer design: interceptors, typed responses, error mapping, operator choice (F11 is the
+  only gap, and it is deployment-shaped, not code-shaped).
+- Subscribe lifecycle and teardown across the whole app.
+- Signal/computed usage: the new `computed`s (`unconfirmedRows` `:210-214`, `shelterPages`
+  `:245-247`, `shelterOutOfRange` `:248-250`, `guidancePages`/`-OutOfRange` `:348-353`,
+  `guidanceReorderable` `:357-359`) are pure derivations; the one sort inside a `computed` runs
+  on dependency change only, not per CD pass.
+- The in-flight guidance paging/search stream handling: the monotonic `guidanceFetchSeq` guard,
+  the locale-in-the-key strategy, the URL normalization, and the search/page-reset composition.
+- Standalone components, typed reactive forms, `@for`/`track`, and the absence of deprecated
+  APIs.
+- The lane's own test suite is green and the build/type-check are clean: `59 files / 1395 tests
+  passed`, `ng build` OK, `tsc --noEmit` OK (so F1/F2 are untested paths, not broken builds).
+
+### Merge verdict
+
+**OK with notes.** The in-flight admin lane is well-built on the axes this review covers, and
+the two earlier-sweep items that were "still open" are documentation/perf-shaped rather than
+functional. **F1 must be fixed before release** (it silently voids the lane's own
+"URL is the state" contract; it is a two-line change in code the lane just wrote), and F2
+should be fixed in the same lane (one counter, copying the guidance path). F4/F5/F6/F10 are
+small, independent follow-ups that predate this lane; F3, F7, F8, F9, F11 are Low.
+
+### Top 5 findings
+
+1. **F1 (P1, in-flight)** — a query-param change during an in-flight list fetch is dropped
+   (`admin-page.ts:643-645`, `:623-625`), leaving the URL and the rendered list disagreeing and
+   unrecoverable by re-clicking (same-URL navigation is skipped by the router).
+2. **F2 (P2, in-flight)** — the shelters list has no fetch-sequence guard
+   (`loadShelters`/`refreshShelters`, `admin-page.ts:822-861`) although the guidance path 40
+   lines below has one, so a superseded filter's rows can win the race and stick.
+3. **F3 (P2)** — `index(row)` (`guidance-order-list.ts:118-120`) is a linear scan invoked three
+   times per rendered row per change-detection pass (the earlier sweep's O(3n²) finding,
+   relocated by the extraction).
+4. **F4 (P2)** — route query params are read once at construction/`ngOnInit`
+   (`login-page.ts:49-52`, `verify-page.ts:148-154`, `submit-shelter-page.ts:312`) and go stale
+   whenever the router reuses the component for a query-only navigation.
+5. **F6 (P2)** — the impure `t` pipe's "the chrome is the only pipe consumer" comment
+   (`translate-pipe.ts:8-11`) is false by ~2 orders of magnitude (160 bindings in the admin
+   template alone), so the cost rationale for `pure: false` is mis-documented app-wide.

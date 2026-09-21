@@ -1,350 +1,372 @@
-# Agent 11 — Integration (FE↔BE) and DevOps (setup) review
+# Agent 11 — Integration (FE↔BE) and DevOps (setup)
 
-Read-only review. The only file I created is this report. Everything below was verified against **both** sides of
-the contract and, where the running app allowed, against the live backend on `:8080` and a live `ng serve` on `:5198`.
+READ-ONLY review. The only file I created is this report. Every claim below was verified against **both**
+sides of the contract — and, where possible, against the running services (`:8080`, `:5173`) — or by running
+the gate that guards it. Where I could not verify something I say so instead of guessing.
 
-## Review
+Tree judged: `d247007` **plus the uncommitted admin-lane work** (`git status`: 41 modified files — the admin
+lane's sources/docs, this sweep's other review reports, `qa/accessibility-checklist.md` — and 5 untracked
+paths: the two new ITs, the lane report and the two earlier review-run directories), treated as
+landed-but-uncommitted.
 
-**Versions detected (baseline for the judgement).**
+## Versions detected first (baseline for every judgement below)
 
 | Side | Version | Source |
 | --- | --- | --- |
-| Java / Maven | 21 (property) — local Temurin 21.0.7, Maven 3.9.16 | `pom.xml:20`, local toolchain |
-| Spring Boot | **3.3.13** | `pom.xml:12` |
-| springdoc / jjwt / jsoup / bcprov / testcontainers / twilio | 2.6.0 / 0.12.7 / 1.23.2 / 1.78.1 / 2.0.5 / 10.9.2 | `pom.xml:25-34,95,105,150` |
-| Angular | 22.1.x (core 22.1.5 installed, CLI/build 22.1.7, `@angular/build` engines `node ^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0`) | `frontend/package.json:13-19`, `frontend/node_modules/@angular/build/package.json` |
-| TypeScript / rxjs / Leaflet | 6.0.3 (`>=6.0 <6.1` peer) / 7.8.2 / 1.9.4 | installed vs `frontend/node_modules/@angular/compiler-cli/package.json` |
-| FE test stack | Vitest 4.1.11 + jsdom 28.1.0, `@angular/build:unit-test`, no e2e framework | `frontend/package.json:24-28`, `frontend/angular.json:80-85` |
-| Node / npm | local Node v26.8.2, npm 11.19.1 (`packageManager: npm@11.19.0`) | local toolchain, `frontend/package.json:11` |
+| Java (target) | 21 (property) — local runtime Temurin 21.0.7; the running app uses JDK 27.0.0 | `pom.xml:21`, local toolchain, `ps` |
+| Spring Boot | **3.5.16** | `pom.xml:10` |
+| springdoc / jjwt / jsoup / bcprov / proj4j / twilio / spring-dotenv | 2.8.17 / 0.12.7 / 1.23.2 / 1.78.1 / 1.3.0 / 10.9.2 / 4.0.0 | `pom.xml:21-33,56,148` |
+| Testcontainers | 2.0.5 (property override of the Boot-managed BOM version) | `pom.xml:23`, live classpath |
+| Persistence | PostgreSQL 16, Flyway 11.7.2, Hibernate 6.6.53, Spring Data JPA 3.5.13 | live classpath |
+| Angular / CLI | 22.1.x (`@angular/build` 22.1.7) | `frontend/package.json:13-25` |
+| TypeScript / rxjs / Leaflet | ~6.0.2 / 7.8 / 1.9.4 | `frontend/package.json:16-24` |
+| FE test stack | Vitest 4.0.8 + jsdom 28, `@angular/build:unit-test`, no e2e framework | `frontend/package.json:24-28`, `frontend/angular.json:80-85` |
+| Node (required) | `^22.22.3 \|\| ^24.15.0 \|\| >=26.0.0` (installed: v26.8.2, npm 11.19.1) | `frontend/node_modules/@angular/build/package.json` engines |
 
-**Generation/tooling baseline verified.** `docs/api/openapi.json` is the committed snapshot; I ran
-`flock /tmp/openshelter-mvn.lock mvn -Dtest=OpenApiSnapshotIT test` on this working tree → **Tests run: 1, Failures: 0**
-(`target/surefire-reports/ee.sheltermap.api.OpenApiSnapshotIT.txt`). So the snapshot the frontend gates against is in
-sync with the current (uncommitted) sources, and every field comparison below is valid for this tree. The prior full
-run in `target/surefire-reports/` reports **1098 tests / 0 failures / 0 errors / 0 skipped**; the frontend suite I ran
-(`CI=true npx ng test --watch=false`) reports **56 test files / 1263 tests passed**. Both suites are green *and both
-miss the drift in F1/F2* — nothing in either suite compares the two contracts field by field.
-
-**Working tree note.** 12 modified files from other lanes (backend + docs + two frontend files). I reviewed the tree as
-it stands; none of my findings is caused by those edits (F1/F2/F5/F10 are properties of committed code).
+**Suites re-run by me on this tree** (not taken on trust):
+`npx ng test --watch=false` → **59 files / 1398 tests passed, exit 0**.
+`mvn -Dtest=CorsExposedHeadersIT,AdminModerationIT,AdminGuidanceSearchPagingIT test` → **exit 0,
+surefire 2+20+9 = 31 tests, 0 failures** (the new paging + CORS gates are genuinely green).
 
 ---
 
-## Correct (areas I checked and found clean)
+## Review
 
-1. **FE → BE URL **and verb** contract — clean.** I extracted every `api.get/post/put/delete('/…')` literal from
-   `frontend/src/app/gateways/*-gateway.ts` with the same normalisation the committed gate uses and compared verb+path
-   against `docs/api/openapi.json`: **54/54 pairs exist with the matching HTTP method, 0 mismatches**. No frontend call
-   hits a non-existent endpoint. (The committed gate — `frontend/src/app/gateways/api-contract.spec.ts` — only compares
-   *paths*, so a verb drift would slip through it; there is none today.)
-2. **Request-body DTOs — field-for-field clean.** Every frontend request interface matches its backend record 1:1 in
-   name and JSON type, with no renames/reshapes: `RegisterRequest`, `LoginRequest`, `RefreshRequest`,
-   `PasswordResetRequest(+Confirm)`, `VerifyRequest(+Confirm)`, `ChangeEmailRequest`, `ChangePhoneRequest`,
-   `ConfirmChangeRequest`, `ProfileUpdateRequest` (`models.ts:74-124` vs `src/main/java/ee/sheltermap/auth/*.java`),
-   `CreateShelterRequest`, `UpdateShelterRequest`, `ReportShelterRequest`, `ReportOccupancyRequest`,
-   `PutOpenStatusRequest`, `InfoRequestReplyRequest`, `ReviewShelterRequest`, `ReorderGuidanceRequest`,
-   `Create/UpdateGuidancePostRequest`, `LocationResolved`, `SiteTextEntryDto` (`models.ts` vs `src/main/java/ee/sheltermap/api/*.java`,
-   `sitetexts/SiteTextEntry.java:1`). Also verified live: `POST /api/shelters`, the report/occupancy/open-status bodies all
-   bind.
-3. **Enums typed as string unions — clean.** Every frontend union equals the backend enum members:
-   `VerificationLevel` (`models.ts:27` / `domain/VerificationLevel.java:4`), `ShelterStatus`, `ReviewStatus`,
-   `LocationKind`, `ShelterSource`, `ShelterSourceFilter` (`api/ShelterSourceFilter.java:6`), `OccupancyBand`,
-   `ShelterReportType`, `OpenState` (`domain/OpenStatusState.java:4`), `GuidanceStatus`, `AdminUserDto.kind`
-   (`persistence/UserKind.java:3`), `AdminAlertKind` (kebab-case strings equal `alerts/ThrottleAlert.java:21-27`, pinned
-   by `src/test/java/ee/sheltermap/api/AdminAlertsIT.java:228,247,277`), `AdminAuditAction` (the 14 live values equal
-   `app/ModerationAuditLog.java:25-52`; the two extra `REVIEW_HIDE`/`REVIEW_RESTORE` are deliberate, documented
-   vocabulary kept only for the label map, `models.ts:625-627`), and `CommunityPulseRecentReport.kind`
-   (`OPEN/CLOSED` = `OpenStatusState.name()`, `SPACE/GETTING_FULL/FULL` = `OccupancyBand.name()`,
-   `api/ShelterQueryService.java:720-722`).
-4. **The uniform error shape — consistent on both sides.** `ErrorResponse{timestamp,status,error,message,path}`
-   (`api/ErrorResponse.java:15`) is exactly `ErrorResponseBody` (`frontend/src/app/core/api-error.ts:7-13`); the frontend
-   re-validates the five fields and degrades gracefully for any non-uniform body
-   (`frontend/src/app/core/api-error.ts:47-58,113-134`). Verified live: `GET /account/me` answers
-   `401 {"timestamp":"2026-09-20T21:20:34.056551059Z","status":401,"error":"Unauthorized","message":"Authentication
-   required","path":"/account/me"}`, and the running app's 400/413/500 bodies all have this shape (timestamp as an ISO
-   string, which is what the FE's `typeof string` check requires).
-5. **Validation constants duplicated in both layers — all consistent today.** I compared each frontend bound with its
-   bean-validation counterpart: name 200 (`CreateShelterRequest.java:8` vs `submit-shelter-page.ts:163`), description
-   2000 (`:11` vs `:171`), report detail 500 (`ShelterReportRequest.java:7` vs `shelter-detail-page.ts:368`), capacity
-   1…100 000 (`:12` vs `shared/form-helpers.ts:15-16`), reject reason 500 / info-request 2000
-   (`AdminShelterReviewRequest.java:8`, `InfoRequestReplyRequest.java:7` vs `admin-page.ts:82,86`) or `FormControlType`
-   min 8 (`PasswordResetConfirmRequest.java`), e-mail 255 / phone 64 (`account-page.ts:132,144`), guidance title 255 /
-   slug 200 / locale 5 / hero alt 300 / import url 2048 (`CreateGuidancePostRequest.java:4-11` vs `guidance-editor.ts:591-626`).
-   No mismatch found — this is a *risk* (see F12), not a defect.
-6. **`.gitignore` — clean.** No tracked build artefacts (`git ls-files` has no `target/`, `node_modules/`, `dist/`,
-   `.angular/` entry; the only vendored `dist` is the deliberately committed Quill 2.0.3 asset), `.env` is **not**
-   tracked (`git ls-files .env` → empty) and is ignored (`.gitignore:38-40`), `data/`, `.pi/`, `.vitest/`, `.attach_pid*`,
-   IDE dirs and both `node_modules` levels are covered. No untracked file that should be ignored, and no ignored file
-   that should be tracked. No secrets in `frontend/src/environments/*.ts` (public-only `production`/`apiUrl`).
-7. **Setup asset that works:** `dev-start.sh` (profile pinning, Postgres pre-flight with an actionable message) and
-   `docker-compose.yml` (postgres:16 + healthcheck) are correct and the README's steps 1/4/6 correspond to them.
-   `GET /actuator/health`, `/api/shelters`, `/api/guidance`, `/admin/shelters` all answer as documented on the running
-   instance.
+### Correct (checked and clean — with the evidence that makes it a fact, not an opinion)
 
----
+1. **Every frontend call resolves to a real backend endpoint with the right verb — clean.** I extracted all
+   `this.api.<verb>(<literal>)` call sites from `frontend/src/app/gateways/*-gateway.ts` and normalised them
+   exactly like the committed gate does: **59 literal-argument calls, 0 mismatches** (path exists *and* the
+   OpenAPI operation for that path carries the same verb). The four helper-built paths
+   (`adminSheltersPath`, `guidanceListPath`, `guidanceListPagePath`, shelter `listPath`) are all GET and their
+   snapshot paths are `get`. No frontend call hits a non-existent endpoint and none uses a wrong verb. The
+   only HTTP surface outside `ApiClient` is the external Nominatim fetch (`gateways/geocode-gateway.ts:67`).
+2. **Request-body DTOs match field-for-field — clean.** I mechanically compared **every** same-named FE
+   interface in `core/models.ts` against its OpenAPI schema (fields, not prose): the only differences are
+   *API-only* fields (deliberate extras), and **zero FE-only fields anywhere** — i.e. no request or response
+   DTO declares a field the API does not send. That covers `RegisterRequest`, `LoginRequest`,
+   `PasswordReset*`, `Verify*`, `Change*`, `ProfileUpdateRequest`, `Create/UpdateShelterRequest`,
+   `ReportShelterRequest`, `ReportOccupancyRequest`, `PutOpenStatusRequest`, `ReviewShelterRequest`,
+   `Create/UpdateGuidancePostRequest`, `Create/UpdateGuidanceTranslationRequest`, `ReorderGuidanceRequest`,
+   `SiteTextEntryDto`.
+3. **The new admin paging contract agrees on both sides — clean.** `limit`/`offset` (names, int types),
+   `X-Total-Count` (name, presence, semantics), and the `source` filter. Live proof against the running
+   backend (admin JWT):
 
-## Fixed
+   ```text
+   GET /admin/shelters?limit=2&offset=0                  -> 200, 2 rows, X-Total-Count: 308
+   GET /admin/shelters?source=REGISTRY&limit=1&offset=0   -> 200, 1 row,  X-Total-Count: 300
+   GET /admin/guidance?limit=2&offset=500                 -> 200, [] ,    X-Total-Count: 8
+   GET /admin/shelters?limit=0|201 / offset=-1            -> 400 "limit must be between 1 and 200" /
+                                                                 "offset must be non-negative"
+   ```
+   The frontend reads the header through `ApiClient.getWithHeaders` (`core/api-client.ts:36-45`, the only
+   caller of `observe:'response'`), converts it in `pagedResult` (`gateways/admin-gateway.ts:557-566`) and
+   degrades to the page length when the header is absent; the FE's size selector clamps to 10…100
+   (`admin-page.ts:2044-2053`), inside the backend's 1…200. `source` enum equality:
+   `models.ts:50` `'ALL'|'REGISTRY'|'USER'` = `api/ShelterSourceFilter.java:10-12`, and REGISTRY = PÄÄSTEAMET
+   + MUNICIPALITY on the server (`ShelterSourceFilter.sources()`), which the live 300 + 8 = 308 confirms.
+4. **The new CORS exposure of `X-Total-Count` is real and gated.** `SecurityConfig.java:178` sets
+   `setExposedHeaders(List.of("X-Total-Count"))` on the `/**` configuration; `CorsExposedHeadersIT` (new)
+   asserts the full chain with a real `Origin` header (exposure present for the configured origin, absent for
+   a foreign one) — I ran it green, and the running (pre-change) instance already returns
+   `Access-Control-Allow-Origin` on `/admin/shelters`, so the exposure applies to the admin paths too, not
+   only the `/api/guidance` path the IT exercises.
+5. **The committed OpenAPI snapshot is in sync with these sources.** `OpenApiSnapshotIT` fails when the
+   snapshot is stale; the working-tree `docs/api/openapi.json` diff is confined to `GET /admin/shelters`
+   (params, header, description, the `source` enum), and the frontend's two contract gates read that same
+   file — so both contract gates agree with the working tree.
+6. **`models-contract.spec.ts` (new) closes the F1 class mechanically.** 29 FE response interfaces are pinned
+   subset-wise against the snapshot schemas (I walked the `PINNED` table); `AdminOccupancy` and
+   `ShelterOccupancy` both pin to `Occupancy`, with an explicit second assertion for that pairing.
+7. **The three response shapes the new spec does *not* pin are nonetheless correct** (verified by hand
+   against the snapshot, which is why I do not report them): `ReviewShelterResponse{ok}` ↔
+   `AdminController.java:290` `Map.of("ok", true)` (snapshot: `additionalProperties: boolean`);
+   `AdminShelterHistoryEvent`/`AdminShelterHistoryFieldChange` ↔ `AdminShelterHistoryDto`/`FieldChange`
+   (identical six/three fields); `LocationResolved{latitude,longitude}` ↔ `LocationResolvedDto`
+   (identical, and the schema's own description names the FE model as the contract).
+8. **`.gitignore` / repo hygiene — clean.** `.env` is ignored and untracked (`.gitignore:38-40`), no
+   `target/`, `dist/`, `.angular/`, `.vitest/` or bytecode is tracked, `frontend/package-lock.json` **is**
+   tracked (so `npm ci` is viable for CI), and the only ignored-but-cited docs are the two
+   `docs/code-review/2026-09-08-*` files — see H1, which is now handled.
+9. **The dev setup that exists is good.** `docker-compose.yml` (postgres:16 + healthcheck), `dev-start.sh`
+   (profile pinning + a Postgres pre-flight with an actionable message) and README steps 1/5 match reality
+   (`/actuator/health` → `{"status":"UP"}`, `:5173` → 200). `frontend/proxy.conf.js` is method/`Accept`-aware
+   for the `/account` route-or-API ambiguity and is well commented.
+10. **Dependencies are current; no EOL or known-vulnerability concern found.** Boot 3.5.16, Angular 22.1,
+    TS 6.0, Vitest 4, jsdom 28, postgres 16, Flyway 11.7.2, Tomcat 10.1.55, logback 1.5.34. The only dated
+    libs are `proj4j 1.3.0` and `bcprov-jdk18on 1.78.1` (both still maintained, no advisory) — the real gap
+    is that nothing scans them (see H1/L6: no CI at all).
 
-**None — read-only review.** No source file was modified; only this report was created.
+### Confirmed fixed by earlier agents (verified by me, not re-reported as findings)
+
+| Earlier finding | Status on this tree | Evidence |
+| --- | --- | --- |
+| F1 `AdminOccupancy.reportedAt` vs API `lastReportedAt` | **Fixed** | `models.ts:515-519` declares `lastReportedAt` with the history in a comment; `models-contract.spec.ts` + `gateways/admin-gateway.spec.ts:25` fixtures updated |
+| F3 `DELETE /account` not proxied | **Fixed, properly** | `proxy.conf.js:40` keys `/account` with a navigation bypass (not the naive `"/account"` swap) |
+| F2 bilingual machinery had zero consumers | **Mostly fixed** | `guidance-detail-page.html:58-64` renders the `localeFallback` notice and links `alternates`; 4 of the 5 translation endpoints are reachable from the admin UI (`admin-page.ts:1806,1630,1854`). Two pieces remain unused — see L3 |
+| F5 test profile shadowed the main yml | **Fixed, with a new guard** | `src/test/resources/application-test.yml` (overlay) + `config/TestConfigOverlayTest` (delta allow-list, fails the build on a shadow) + `@ActiveProfiles("test")` on `AbstractPersistenceIT:43` |
+| F8 `PII` keys / Node in the README | **Partly fixed** — keys are in the config table (`README.md:572`), Node still missing | see M4 |
+| F10 tail — `MediaAssetDto.sourceUrl`, `ShelterDto.provenance` unread | **Still true** | see L5 |
+
+### Fixed
+
+None — read-only review; no source file was modified. I created only this report.
 
 ---
 
 ## Findings
 
+Severity uses the COMMON-RULES scale. Mapping: Critical/P0 = blocks merge; High/P1 = fix before release;
+Medium/P2 = plan it; Low/P2 = report only.
+
 ### High
 
-#### F1 — Admin shelter list: the occupancy timestamp field is wrong, so the admin's recency column always reads "just now"
-* **Where.** FE type `frontend/src/app/core/models.ts:511-515` declares `AdminOccupancy.reportedAt`; it is consumed at
-  `frontend/src/app/features/admin/admin-page.ts:426-435` (`lastReportedAt: occ.reportedAt`) and rendered through
-  `frontend/src/app/shared/shelter-copy.ts:283-289` → `recencyText` (`shelter-copy.ts:266-275`).
-* **Backend truth.** `AdminShelterDto.occupancy` is typed `ShelterDto.Occupancy` (`api/AdminShelterDto.java:62`), which is
-  `record Occupancy(OccupancyBand band, int reportCount, Instant lastReportedAt)` (`api/ShelterDto.java:198-201`),
-  populated from the same batched map as the public list (`api/ShelterQueryService.java:524` ← `:574`). The committed
-  snapshot agrees: `docs/api/openapi.json` → `AdminShelterDto.properties.occupancy → $ref Occupancy`, whose only timestamp
-  property is **`lastReportedAt`**; a backend IT pins the same key on the public list
-  (`src/test/java/ee/sheltermap/api/ShelterReportIT.java:541`, `jsonPath("$[0].occupancy.lastReportedAt")`). Live
-  `GET /admin/shelters` (307 rows, admin JWT) confirms the row shape carries `occupancy` and has no `reportedAt` key.
-* **Why it matters.** `occ.reportedAt` is `undefined` at runtime, `Date.parse(undefined)` → `NaN`, so `recencyText`
-  returns the literal **"just now"**. A fresh-occupancy report from 1 h 55 m ago is displayed to the moderator as
-  "just now" — the one signal that tells an admin whether the occupancy claim is still live. No test catches it: the
-  fixtures encode the same wrong field (`frontend/src/app/gateways/admin-gateway.spec.ts:21`,
-  `frontend/src/app/features/admin/admin-page.spec.ts:80`) and the assertion passes against them
-  (`admin-page.spec.ts:491` expects `'Full · 12 min ago'` from a fixture that supplies `reportedAt`).
-* **Fix (minimal).** Rename the field to `lastReportedAt` in `models.ts:514`, drop the shim in `admin-page.ts:426-435`
-  (or keep the shim one-directional), and update the three fixtures. Better: extend the contract gate (F11) so a field
-  rename on either side fails a test.
+#### H1 — The backend suite fails on a CLEAN CHECKOUT at `d247007`: the README cites a gitignored document (fixed in the working tree, but only there)
 
-#### F2 — Bilingual guidance: two contract fields and five endpoints exist only in the backend; a fallback-language post renders as if it were the reader's language
-* **Where (BE).** `api/GuidancePostDto.java:38-39` (`alternates`, `localeFallback`), populated by
-  `api/GuidanceController.java:145-162` and `guidance/GuidanceService.java:315-328`; the contract explicitly says the map
-  is "the field the frontend language switcher follows" (`domain/PublicGuidanceView.java:16-25`,
-  `api/GuidanceController.java:43`). Live proof: `GET /api/guidance?locale=en` (detail) returns
-  `alternates={"en":…,"et":"nadal-omal-joul-…","ru":"…-ru"}, localeFallback=false`, and a post with no translation in the
-  asked locale is served **200** in the default locale with `localeFallback=true` (`GuidanceService.java:316-323`).
-* **Where (FE).** `frontend/src/app/core/models.ts:792-810` `GuidancePostDto` has neither field; a whole-`src` grep for
-  `alternates`, `localeFallback` and `translations` returns **zero** non-spec hits. `frontend/src/app/features/guidance/guidance-detail-page.html`
-  renders only title/hero/body/date, and the gateway's doc still claims a cross-locale slug 404s
-  (`frontend/src/app/gateways/guidance-gateway.ts:17,44,47-52`), which is **false** for the detail endpoint.
-* **Where (endpoints).** `POST/GET /admin/guidance/{id}/translations`, `PUT/DELETE /admin/guidance/{id}/translations/{locale}`
-  and `POST /admin/guidance/{id}/translations/attach` (`api/AdminGuidanceController.java:426-528`) appear in the snapshot
-  and are called by **nothing** in `frontend/src`. A post gets exactly one translation row (its own locale) at creation
-  (`GuidanceService.java:404-406` `saveOwnTranslation`), so second languages can only be created through those five
-  endpoints — i.e. multilingual guidance is unreachable through the product UI.
-* **Why it matters.** (a) An English reader opening an Estonian-only link silently gets Estonian prose under the English
-  chrome, and switching language appears to do nothing — with the API already telling the FE that a fallback happened.
-  (b) A shipped backend feature (plus the V26 migration, the `sortOrder`-per-locale reorder work and the audit actions
-  `GUIDANCE_*`) has no consumer, so it cannot be exercised end to end and will rot.
-* **Fix.** Either consume the contract — a language switcher over `alternates` and a "shown in Estonian (not available
-  in English)" notice keyed on `localeFallback`, plus the admin translation editor — or delete the fields/endpoints and
-  make the public reads 404 a post that has no requested-locale translation (which is what the FE already assumes).
-
-#### F3 — `DELETE /account` is not proxied by the dev server: account erasure never reaches Spring in the documented local setup
-* **Where.** `frontend/proxy.conf.json:4` maps `"/account/"`; Vite matches a string context with
-  `url.startsWith(context)` (`frontend/node_modules/vite/dist/node/chunks/node.js`, `doesProxyContextMatchUrl`), and
-  Angular hands the object through unchanged (`frontend/node_modules/@angular/build/src/utils/load-proxy-config.js:99-115`
-  only rewrites glob patterns). `/account` therefore does not match `"/account/"`. The caller is
-  `frontend/src/app/gateways/account-gateway.ts:80-82` (`api.delete('/account')`); the README repeats the same proxy
-  list (`README.md:491`), so the docs confirm a configuration that does not work.
-* **Live repro.** Against a real `ng serve` with this `proxy.conf.json`:
+* **Where (HEAD).** `README.md:645` (`git show HEAD:README.md`) cites
+  `` `docs/code-review/2026-09-08-review-output.md` ``; that file is **gitignored**
+  (`docs/code-review/.gitignore:5`) and not in `git ls-files`. The guard is
+  `DocumentationFactsTest.everyRepositoryPathCitedInTheReadmeExists` (`src/test/java/ee/sheltermap/config/DocumentationFactsTest.java:129-141`),
+  which fails on any path cited in backticks that does not exist on disk.
+* **Proof (a clean checkout, not a guess).** I exported the committed tree with
+  `git archive HEAD | tar -x -C /tmp/cleancheck` and ran the test there:
 
   ```text
-  curl -X DELETE -H 'Accept: application/json' http://localhost:5198/account
-    -> 404 text/html  "Cannot DELETE /account"      # never reaches the backend
-  curl -H 'Accept: application/json' http://localhost:5198/account/me
-    -> 401 application/json  {"status":401,…,"path":"/account/me"}   # backend reached
+  [ERROR] Tests run: 4, Failures: 1, Errors: 0, Skipped: 0 <<< FAILURE! -- in ee.sheltermap.config.DocumentationFactsTest
+  [ERROR] ee.sheltermap.config.DocumentationFactsTest.everyRepositoryPathCitedInTheReadmeExists
+  java.lang.AssertionError:
+  [README.md cites repository paths that do not exist]
+  Expecting empty but was: ["docs/code-review/2026-09-08-review-output.md"]
   ```
-  I also reproduced the non-match on a minimal Vite server loaded with the same object (only `DELETE /account` fails;
-  `/account/me`, `/verify/request`, `/admin/shelters`, `/api/shelters/1` all proxy).
-* **Why it matters.** The GDPR/legal-recovery erasure flow is broken in the only environment a developer or reviewer
-  uses; the failure is invisible to `api-contract.spec.ts`, which compares paths (not the proxy table) and correctly
-  finds `/account` in the snapshot. A production same-origin reverse proxy built from this list would break it too.
-* **Fix.** Change the key to `"/account"` (which also covers `/account/…` via `startsWith`) or add a distinct
-  `"/account"` entry, and correct `README.md:491`.
+  (Two of the four lines are re-ordered for brevity; the failure text is verbatim.)
+  The same test in the working tree: **4 tests, 0 failures** (the uncommitted README edit rewrites the two
+  citations to the tracked `docs/code-review/README.md`, `README.md:67-68` and `:646-648`).
+* **Why it matters.** This is the answer to "can CI be green at all": **not against `d247007`** — a fresh
+  clone fails a backend test on every machine, before any CI runner config is even relevant. Today it is
+  masked because every existing checkout still has the ignored file on disk.
+* **Suggested fix.** Land the README edit (it is already written) and, while doing so, add the CI job (L6) so
+  the class of failure is caught by a runner rather than by a reviewer; a clone-without-ignored-files check
+  (`git clean -xdn`-style) in that job is the durable guard.
 
 ### Medium
 
-#### F4 — Uploads above the servlet cap answer **500**, not the documented 413; the frontend's 413 branch is dead code
-* **Where.** `src/main/resources/application.yml:33-40` raises the container cap to `max-file-size: 6MB` while the app's
-  own cap is `app.media.max-bytes: 5242880` (`application.yml:292`); `api/ApiErrorHandler.java` has **no** handler for
-  `MaxUploadSizeExceededException`/`MultipartException` (grep: zero hits, the only `Multipart`-related handling is the
-  app-level `MediaTooLargeException`), so the catch-all at `api/ApiErrorHandler.java:469-472` maps it to 500 and logs a
-  stack trace as ERROR. The frontend branches on 413 at `frontend/src/app/features/admin/guidance-editor.ts:1167`.
-* **Live repro** (`POST /admin/media`, admin JWT, on the running backend):
+#### M1 — The README's API table no longer documents the paging contract the frontend depends on, and the `source` parameter changed meaning under a documented URL
 
-  ```text
-  7 000 000 B  -> 500  {"status":500,"error":"Internal Server Error","message":"Internal server error","path":"/admin/media"}
-  5 600 000 B  -> 413  {"status":413,"error":"Payload Too Large","message":"The uploaded file exceeds the maximum size of 5242880 bytes"}
-  ```
-* **Why it matters.** The 413 copy path the frontend implements can never fire for the 6 MB+ band: the admin sees
-  "internal server error" for a plain "file too large", a routine user mistake is logged as an unhandled exception, and
-  the API lies about the resource state (500 vs 413). Same applies to the hero-image import upload band.
-* **Fix.** Add `@ExceptionHandler(MaxUploadSizeExceededException.class)` returning `HttpStatus.PAYLOAD_TOO_LARGE` with the
-  uniform body (reuse the existing message), keeping the container cap above the app cap as documented.
+* **Where.** `README.md:392` (`GET /admin/shelters`) still reads "`status`/`source` **exact-match filters**"
+  with no `limit`/`offset` and no header; `README.md:371` (`GET /api/guidance`) documents neither its
+  `limit`/`offset` nor its paging semantics; `README.md:395` (`GET /admin/reports`) omits the `limit` that
+  exists in the snapshot. The string `X-Total-Count` appears **0 times** in `README.md`
+  (`grep -c` = 0) although three endpoints return it and the frontend relies on it
+  (`gateways/guidance-gateway.ts:89-95`, `gateways/admin-gateway.ts:85,271`).
+* **Behaviour change, live:** `GET /admin/shelters?source=PAASETEAMET` — legal before this lane, still
+  documented as the vocabulary on `README.md:392` — now answers **400 `Malformed request`** (the enum is
+  `REGISTRY|USER|ALL`). Verified against the running backend. Any bookmark, script or stale doc link using
+  the old exact-source values breaks, and the only place that records the change is the OpenAPI snapshot.
+* **Why it matters.** The README is the human contract (`DocumentationFactsTest` guards the *mappings* only,
+  never params), and it now teaches the wrong filter vocabulary for one endpoint while hiding the paging
+  contract of three. The failure mode for a reader is a 400 they cannot explain from the docs.
+* **Suggested fix.** Update the three rows and add one sentence on `X-Total-Count` (the snapshot's own
+  wording is good: "the number of rows in the (filtered) scope WITHOUT the paging applied, always present");
+  state that `source` is the public-list grouping `REGISTRY|USER` and that the pre-change exact values are
+  now a 400.
 
-#### F5 — The test-profile `application.yml` is not the mirror it claims; four silent drifts, one of them behavioural
-* **Where.** `src/test/resources/application.yml:5-9` states the file is "a mirror, not an overlay … the ONLY additions
-  are: 1. `spring.profiles.active: test` … 2. nothing else". `diff` against `src/main/resources/application.yml`
-  (comment-stripped) shows, in addition to the profile line:
-  * `app.retention.*` (6 keys, main `application.yml:262-271`) — **absent** from the test file (grep: no `retention:` in
-    the test file at all); tests therefore run the annotation/Java defaults (`RetentionScheduler.java:26,37`), not the
-    documented values.
-  * `app.media.import-connect-timeout/-read-timeout/-budget/-max-side` (main `application.yml:296,299,303,308`) —
-    **absent**; the Java defaults happen to coincide today (`JdkHeroImageFetchClient.java:71-72`,
-    `HeroImageImportService.java:117-118`).
-  * `app.ratelimit.reset-confirm-capacity/-refill-per-second` = **5 / 0.084** in tests vs **10 / 0.2** in main
-    (`application.yml:182-183`); the production default is never exercised (both ITs override:
-    `auth/AuthApiIT.java:39-40`, `security/PasswordRecoveryFlowIT.java:44-45`).
-  * `app.limits.otp-per-contact-max` = **100** in tests vs **5** in main (`application.yml:221`) — the per-contact OTP
-    cap is effectively disabled in every test that does not override it (only `auth/OtpContactCapIT.java:45` and
-    `api/AdminAlertsIT.java:62` do).
-  * (`app.admin.email/password` are pinned to empty literals instead of `${ADMIN_EMAIL:}`/`${ADMIN_PASSWORD:}`.)
-* **Why it matters.** Because the test-classpath file **shadows** the main one rather than merging, any new `app.*` key
-  added to main is silently missing in tests; nothing asserts the two files agree, and two rate limits already differ.
-  A future change to the retention horizons or the OTP cap cannot be validated by the suite.
-* **Fix.** Keep only the profile activation in the test resource (rename it `application-test.yml`, activate it via
-  `@ActiveProfiles("test")`/surefire so it overlays instead of shadowing), and/or add a test that parses both files and
-  asserts identical key sets and values; where a test-only override is genuinely intended, add it on the test class
-  (`@TestPropertySource`) with a comment — as `AuthApiIT` already does.
+#### M2 — The new 400 `@ApiResponse` silently dropped the uniform error body from the committed snapshot for `GET /admin/shelters`
 
-#### F6 — DTO media URLs are origin-relative, so the README's own cross-origin deployment breaks every image
-* **Where.** `guidance/MediaService.java:52` `MEDIA_URL_PREFIX = "/api/media/"`, delivered as `MediaAssetDto.url`
-  (`api/AdminMediaController.java:164`), `GuidancePostDto.heroImageUrl` (`api/GuidanceController.java:161`) and
-  `AdminGuidancePostDto.heroImageUrl` (`api/AdminGuidanceController.java:602`). The frontend binds them straight into
-  `[src]` (`frontend/src/app/features/guidance/guidance-detail-page.html:27`,
-  `frontend/src/app/features/admin/guidance-editor.html:127,175`); only `ApiClient` prefixes the configured API origin
-  (`frontend/src/app/core/api-client.ts:22,41`).
-* **Why it matters.** `frontend/src/environments/environment.ts:8-25` and `frontend/README.md:120-123` instruct a
-  deployment whose API is on another origin to set `apiUrl` to that origin. In exactly that (documented) configuration
-  every JSON call works while **every hero image and admin thumbnail 404s** against the SPA's origin — a silent,
-  image-only failure that no test covers (the FE never prefixes these strings and the BE never makes them absolute).
-* **Fix.** Prefix the three media fields in one place on the FE (a small mapper used where DTOs are adopted) or return
-  absolute URLs from the backend via a configured public base; alternatively document that same-origin is mandatory and
-  remove the cross-origin instruction.
+* **Where.** `AdminController.java:116-117` adds a method-level
+  `@ApiResponse(responseCode = "400", description = …)` with **no `content`**. The global customizer only
+  attaches the uniform body to a status the operation does *not* declare
+  (`config/OpenApiConfig.java:133-137`, `attachIfAbsent`), so springdoc fell back to the operation's return
+  type. The regenerated snapshot (`docs/api/openapi.json`) now documents the 400 as
+  `*/*: {type: array, items: $ref AdminShelterDto}` where HEAD documented
+  `application/json: $ref ErrorResponse`.
+* **Proof.** `git diff -- docs/api/openapi.json` on this tree, hunk `@@ -4402,17 +4420,30 @@`; the live 400
+  body is the uniform `ErrorResponse` (`{"timestamp":…,"status":400,"error":"Bad Request","message":"limit
+  must be between 1 and 200","path":"/admin/shelters"}`), not an array.
+* **Why it matters.** The committed snapshot is the machine-readable contract (and the only artifact the
+  frontend gates read); it currently tells any consumer that a 400 returns shelter rows. The sibling
+  `/admin/guidance` and `/api/guidance` operations share the same flaw, so the fix is worth making general.
+* **Suggested fix.** Add
+  `content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))`
+  to the 400 — the repo's own idiom, already used for exactly this case at `api/ShelterController.java:181-184`
+  (`GET /api/shelters`, whose snapshot 400 is correctly `application/json: $ref ErrorResponse`) — and satisfy
+  the same for the two guidance 400s, then regenerate with
+  `mvn -Dopenapi.update=true -Dtest=OpenApiSnapshotIT test`.
 
-#### F7 — There is no profile-specific Spring configuration: dev defaults ride the production code path
-* **Where.** The backend has exactly one config file, `src/main/resources/application.yml` (plus the test-classpath copy in
-  F5). Its first line calls itself "local development configuration", yet it also carries the production-shape values:
-  the published dev JWT default (`application.yml:155-157`), `smtp-pulse.com` as `spring.mail.host`
-  (`application.yml:20`) and `jdbc:postgresql://localhost:5432/sheltermap` with `sheltermap/sheltermap`
-  (`application.yml:6-9`). Every profile — `dev`, `test`, `production` (`config/ApiDocsProdClosureIT.java:50`) — boots
-  from this one file.
-* **Why it matters.** A deploy that forgets `DB_URL`/`SMTP_HOST` silently points at localhost or at the dev SMTP relay;
-  the boot guards cover the JWT secret and the dev diagnostics/springdoc only. The README acknowledges this residual
-  (`README.md:767-772`), but there is no structural guard — no `application-prod.yml`, no required-property binding that
-  makes the omission fatal. setup/production boundary is enforced by discipline, not configuration.
-* **Fix.** Add `application-prod.yml` and/or `@Validated @ConfigurationProperties` with no defaults for `DB_URL`,
-  `SMTP_HOST` (`MAIL_PROVIDER=smtp-pulse`), so a prod boot with dev values fails closed like `PiiKeys` does.
+#### M3 — Media URLs are still origin-relative, so the cross-origin deployment the docs describe renders every image as 404
 
-#### F8 — The README quickstart cannot be completed by a new developer as written
-* **Where.** `README.md:462-494`. Two concrete blockers:
-  1. **No Node requirement.** The stated requirements are "JDK 21, Maven 3.9+, Docker (Compose)" (`README.md:464`), but
-     step 6 is `cd frontend && npm install && npm start`, and Angular 22.1.7 requires
-     `node ^22.22.3 || ^24.15.0 || >=26.0.0` (`frontend/node_modules/@angular/build/package.json` engines). A developer
-     on the still-widely-installed Node 20 or 22.12–22.21 gets a cryptic install/run failure, and `frontend/package.json`
-     declares no `engines` field to fail fast.
-  2. **No `.env` step.** `PiiKeys` throws when `PII_AES_KEY`/`PII_HMAC_KEY` are blank in **every** profile
-     (`security/PiiKeys.java:34-35,46-51`; `application.yml:92-93` sets them from `${PII_AES_KEY:}`), so step 4
-     (`./dev-start.sh`) cannot boot on a fresh clone; the repo ships no `.env.example`/template (the README only reserves
-     "a `*.env.example` naming convention", `README.md:539`). The variables are documented 40 lines further down in the
-     configuration table and in the "PII at rest" section, but the quickstart never points there.
-* **Why it matters.** "Can a new developer run this from the README?" — not without reverse-engineering a `.env` from a
-  different section and guessing a supported Node version. Everything else about the quickstart (dev-start.sh, the
-  health check, the fail-closed guards, the proxy note) is unusually good.
-* **Fix.** Add `.env.example` with `openssl rand -base64 32` placeholders for `PII_AES_KEY`/`PII_HMAC_KEY`, `JWT_SECRET`
-  and `ADMIN_*`; make it step 0 and reference it from step 4; add `Node.js 22.22+ (or 24/26)` to the requirements line
-  and an `engines` field to `frontend/package.json`.
+* **Where.** `guidance/MediaService.java:50` `MEDIA_URL_PREFIX = "/api/media/"`; live
+  `GET /api/guidance?locale=en` returns `heroImageUrl: "/api/media/2540786f….jpg"`. The frontend binds those
+  strings straight into `[src]` (`features/guidance/guidance-detail-page.html:27`,
+  `features/guidance/guidance-list-page.html:50`, `features/admin/guidance-editor.html:135,188`,
+  `features/admin/admin-page.html:1085`, `features/admin/guidance-order-list.html:67`); only `ApiClient`
+  prefixes `environment.apiUrl` (`core/api-client.ts:22`).
+* **Why it matters.** `frontend/src/environments/environment.ts:8-25` and `frontend/README.md:140-145` tell a
+  deployment with the API on another origin to set `apiUrl` to that origin — in exactly that configuration
+  every JSON call works while **every hero image and admin thumbnail 404s** against the SPA's origin. No
+  test covers it (the FE never prefixes these fields; the BE never absolutizes them).
+* **Suggested fix.** One mapping helper on the frontend applied where DTOs are adopted (or a configured
+  public base on the backend); alternatively state that same-origin is mandatory and delete the cross-origin
+  instruction from `environment.ts`/`frontend/README.md`.
+
+#### M4 — A new developer still cannot run the project from the README as written
+
+* **Where / what is wrong.**
+  1. **No `.env` step, and it is mandatory.** `PiiKeys` throws on a blank key in **every** profile
+     (`security/PiiKeys.java:34-40,46-51`), fed by `application.yml:104-105` (`${PII_AES_KEY:}`); no
+     `.env.example` ships (`ls .env*` → only the gitignored `.env`; `README.md:540` merely "reserves" the
+     convention). `./dev-start.sh` checks Postgres but never the keys, so step 4 of the quickstart
+     (`README.md:463-498`) dies on `IllegalStateException: PII_AES_KEY is not set` on a fresh clone — while
+     the same section claims "steps 1, 4 and 6 are all it takes to run the application".
+  2. **No Node requirement, and the one that exists elsewhere is wrong.** `README.md:465` lists
+     "JDK 21, Maven 3.9+, Docker (Compose)"; `frontend/README.md:29` says "Node 22+", but
+     `@angular/build@22.1.7` engines are `^22.22.3 || ^24.15.0 || >=26.0.0` and
+     `frontend/package.json` has **no** `engines` field, so Node 22.0–22.21 passes the documented check and
+     then fails cryptically.
+  3. **Two stale setup strings:** `frontend/README.md:47` names `--proxy-config proxy.conf.json` (the file is
+     `proxy.conf.js`, `frontend/package.json:6-7`), and `README.md:492` still lists the proxied prefix as
+     `/account/` — the exact spelling that was the pre-fix bug (the config now keys `/account` with a bypass).
+* **Why it matters.** "Can a new developer run this from the README today?" — not without reverse-engineering
+  a `.env` from a section 100 lines further down, and not on the Node versions the doc admits.
+* **Suggested fix.** Add `.env.example` (with `openssl rand -base64 32` placeholders for
+  `PII_AES_KEY`/`PII_HMAC_KEY`, `JWT_SECRET`, `ADMIN_*`), reference it as step 0, add
+  `Node.js 22.22+ (or 24/26)` to the requirements line plus an `engines` field, and correct the two strings.
 
 ### Low
 
-#### F9 — No CI and no application image: the green suites are only green on this machine
-* **Where.** No `Dockerfile` for the app and no CI configuration anywhere in the tree (searched: `Dockerfile*`,
-  `.github/`, `.gitlab-ci.yml`, `Jenkinsfile`, `*.tf`, `Procfile` → none). The only container is the dev database
-  (`docker-compose.yml:4-24`), and `README.md:716-772` is a manual deployment checklist whose frontend step is "serve
-  `dist/frontend/browser/` from any static host".
-* **Why it matters.** Nothing runs `mvn test` (1098 tests, incl. Testcontainers ITs) or `ng test` (1263 tests) on a
-  change; nothing pins JDK/Maven/Node for a build; a production image has to be invented from scratch, with the
-  fail-closed guards (the JWT/PII/dev-endpoint guards) as the only protection against a misconfigured deploy (F7).
-* **Fix.** Add a minimal CI job (`mvn -B -ntp test` + `npm ci && npx ng test --watch=false`, the latter needs the
-  regenerated snapshot step the api-contract spec documents) and a multi-stage Dockerfile (JDK 21 build → JRE 21 run,
-  `SPRING_PROFILES_ACTIVE=prod`, no `.env` copied — per `README.md:768-772`).
+#### L1 — `frontend/README.md` bundle numbers are stale (measured today: 720.87 kB and eight style warnings)
 
-#### F10 — Dead contract surface: `provenance` (two DTOs) and `MediaAssetDto.sourceUrl` have no consumer, and the FE never sends the bbox/paging/provenance query params
-* **Where.** `provenance` is on every shelter row (`api/ShelterDto.java:207-215`, `api/AdminShelterDto.java:75-80`,
-  computed by `Provenance.of(...)` at `api/ShelterQueryService.java:530`) and documented as the single source of truth
-  ("The UI never re-derives it"); `frontend/src` contains **no** `provenance` reference. Live `GET /api/shelters/1` and
-  `GET /admin/shelters` both return the key. The frontend instead derives its labels from `source` + `reviewStatus`
-  (`frontend/src/app/shared/shelter-copy.ts:42-52,63-77`), which cannot express `REPORTED_INACTIVE` or a
-  `nonexistentReports`-driven state.
-  `MediaAssetDto.sourceUrl` (`api/MediaAssetDto.java:15,29`) is absent from the FE type (`models.ts:881-901`).
-  `GET /api/shelters`'s `provenance`, `minLat/minLng/maxLat/maxLng`, `limit`, `offset` (`api/ShelterController.java:182-213`)
-  are never sent: the FE builds only `source` + `hasCapacity` (`frontend/src/app/gateways/shelter-gateway.ts:127-137`),
-  although `README.md:795-807` and `frontend/README.md:167-173` describe viewport filtering + paging as shipped and
-  imply the list uses it.
-* **Why it matters.** Two vocabularies for "where does this row come from" now exist (server `Provenance` vs client
-  labels), so a change of precedence in `Provenance.of` would not change a single pixel while the docs say the server
-  decides; and the README overstates the shipped viewport/paging feature.
-* **Fix.** Pick one: consume `provenance` in the badge logic (and delete the duplicated label derivation), or drop the
-  field; same for `sourceUrl`. Either use the bbox/paging params or correct the README/frontend README wording.
+* **Where.** `frontend/README.md:152-155`: "Measured initial total on a fresh build (2026-09-18): **670.83 kB
+  raw / 165.10 kB transfer** … a fresh build prints a bundle-budget warning (four component SCSS budgets warn
+  as well: **admin-page, shelter-detail-page, map-page, page-shell**)".
+* **Measured by me on this tree** (`npx ng build`, exit 0): **Initial total 720.87 kB raw / 175.40 kB
+  transfer**, and **eight** component-style budget warnings — the listed four **plus**
+  `guidance-order-list.scss`, `guidance-translations.scss`, `guidance-editor.scss`, `submit-shelter-page.scss`
+  (nine warnings printed including the initial-bundle one, which is presumably where the earlier "nine"
+  came from; the lane's own note says seven). Budgets themselves are unchanged
+  (`frontend/angular.json:44-56`).
+* **Why it matters.** The date makes the number "historical", but the parenthetical is a present-tense claim
+  about which files warn, and the arithmetic derived from 670.83 ("exceeds by 110.83 kB") is wrong now. A
+  contributor chasing the warning hunts four files instead of eight.
+* **Suggested fix.** Re-measure and restate (or rephrase to "the initial bundle exceeds the 560 kB warning
+  budget, and eight component stylesheets exceed the 4 kB one" and drop the now-meaningless delta).
 
-#### F11 — The contract gate is URL-only, which is exactly the blind spot F1–F3 live in
-* **Where.** `frontend/src/app/gateways/api-contract.spec.ts:100-125` compares gateway URL literals to the snapshot's
-  `paths` keys only — not fields, types, nullability, enum members, query parameters, HTTP verbs, or the dev proxy table.
-  It is the only cross-stack test; the backend's own gates (`config/DocumentationFactsTest`, `api/OpenApiSnapshotIT`,
-  which I ran green) pin the README table and the snapshot, so the *snapshot* is trustworthy while the *frontend's use
-  of it* is unchecked.
-* **Why it matters.** F1 (field name), F2 (two fields + five endpoints), F3 (proxy table) and F6 (relative media URLs)
-  are all invisible to the current gate while the suite reports 1263 passing tests.
-* **Fix.** Extend the spec: (1) parse `frontend/src/app/core/models.ts` and assert each interface's field set is a subset
-  of the matching OpenAPI schema with matching JSON types/nullability; (2) assert enum unions equal schema `enum` values;
-  (3) assert each gateway literal's verb exists at its snapshot path; (4) assert every context key in
-  `frontend/proxy.conf.json` matches every gateway literal that starts with it. All four are feasible with the file
-  reads the spec already does (the sub-set assertion must allow the documented intentional extras).
+#### L2 — `admin-gateway.ts` claims "The twenty-nine endpoints, 1:1"; the file has 32 methods (31 doc lines, two of them the same endpoint, `PUT /admin/site-texts` missing)
 
-#### F12 — Cross-stack vocabularies that must be edited in two places by hand (drift risk, no defect today)
-* **Where.** The locale set and default are duplicated three times: `frontend/src/app/core/i18n/locale.ts:9-12`
-  (`'en' | 'et' | 'ru'`, default `en`), `sitetexts/SiteTextKeys.java:69` (`LOCALES = Set.of("en","et","ru")`) and
-  `application.yml:313` (`app.guidance.default-locale: ${GUIDANCE_DEFAULT_LOCALE:en}`); `README.md:313` itself notes the
-  flip "means changing BOTH places". A locale added only in the FE is accepted by the chrome but rejected with 400 by
-  `PUT /admin/site-texts` (`sitetexts/SiteTextsService.java` key/locale validation) and yields an empty public guidance
-  index (`GuidanceService.listPublic` → `findPublishedInLocale`).
-* **Why it matters.** Small but real: the vocabulary has three owners and no test ties them together; the failure mode is
-  a 400 on the admin settings save, not a compile error.
-* **Fix.** Have the FE derive its locale list from a single place that is asserted against the backend (e.g. an
-  `/api/site-texts`/health payload or an added entry in the contract gate), or at minimum add a test asserting the three
-  lists agree.
+* **Where.** `frontend/src/app/gateways/admin-gateway.ts:36` (the count) and the list at `:38-68`. The class
+  implements **32** methods; the backend has **32** `/admin/*` operations in the snapshot; the doc list has
+  31 lines but lists `GET /admin/guidance` **twice** (bare and with its params) and omits
+  `PUT /admin/site-texts`, while `putSiteTexts` is a method of the class.
+* **Why it matters.** The block is the reader's map of the admin API; a wrong count and a missing endpoint
+  make it unreliable exactly where a reviewer looks first.
+* **Suggested fix.** Say "the thirty-two endpoints, 1:1", merge the two guidance lines, add the
+  `PUT /admin/site-texts` line.
+
+#### L3 — Two translation surfaces still have no caller
+
+* **Where / who calls what.** `updateGuidanceTranslation` (`admin-gateway.ts:428-434`) is called **only** from
+  `admin-gateway.spec.ts:657-660`; production edits go through the locale-scoped
+  `updateGuidancePost(id, request, contentLocale)` (`admin-page.ts:1639-1644`), which the backend routes into
+  that locale's translation row. `POST /admin/guidance/{id}/translations/attach`
+  (`api/AdminGuidanceController.java:637-658`) has **no frontend consumer at all** — it is the only backend
+  path besides `/api/media/{filename}` (which is bound indirectly through DTO `src` URLs) that no gateway
+  literal references.
+* **Why it matters.** The earlier "five unused translation endpoints" finding is now down to these two, but a
+  spec-only gateway method is dead weight that reads as a live capability, and the "attach an existing post
+  as a translation" flow (the documented way to pair two existing posts) is unreachable from the product.
+* **Suggested fix.** Either use `updateGuidanceTranslation` from the translation editor (or delete it if the
+  scoped post update is the intended seam) and add the attach action to the translation panel, or mark both
+  as intentionally deferred in the gateway doc.
+
+#### L4 — `GET /admin/reports?limit=` is implemented and snapshotted but never sent, and undocumented
+
+* **Where.** The param exists and is validated (`docs/api/openapi.json` `/admin/reports` → `limit` 1…200
+  default 100); the gateway sends only `shelterId` (`admin-gateway.ts:202-205`); `README.md:395` documents
+  only `?shelterId=`.
+* **Why it matters.** The report queue is the one admin list that is still unbounded from the UI, and its
+  server-side cap is invisible; the API's own answer ("exactly `limit` rows means the queue was truncated")
+  cannot be acted on by the UI.
+* **Suggested fix.** Send the cap (e.g. 100) and surface truncation, or document why the UI ignores it.
+
+#### L5 — `ShelterDto.provenance` and `MediaAssetDto.sourceUrl` are still unconsumed (the surviving half of the earlier F10)
+
+* **Where.** Neither is declared in `frontend/src/app/core/models.ts` (`models-contract.spec.ts` lists both as
+  deliberate API-only extras); the FE's `provenance` hits are the unrelated footer "data provenance" copy
+  (`shared/page-shell.ts:58`, `i18n/messages.ts:69`) and the badge labels are still derived from
+  `source` + `reviewStatus` in `shared/shelter-copy.ts`. The server still computes `Provenance.of(...)` for
+  every row (`ShelterQueryService.java`, `api/ShelterDto.java:207-215`) and documents it as the single source
+  of truth.
+* **Why it matters.** Two vocabularies for "where did this row come from" — a server-side taxonomy the admin
+  badges are documented to use and a client-side derivation that cannot express `REPORTED_INACTIVE`. A change
+  in the server's precedence changes no pixel.
+* **Suggested fix.** Consume `provenance` in the badge logic and delete the duplicated derivation, or drop
+  the field (and `sourceUrl`) from the API.
+
+#### L6 — No CI, no application image, and no dependency scanning (unchanged; now clearly the top setup gap)
+
+* **Where.** `find` over the tree (excluding `node_modules`/`.git`) returns **no** `Dockerfile*`, no
+  `.github/`, no `.gitlab-ci.yml`/`Jenkinsfile`, no `*.tf`; `docker-compose.yml` contains only the dev
+  database; `README.md:717` ("## Production deployment") is a manual deploy checklist. No `mvnw`/`.mvn/wrapper`
+  either.
+* **Evidence this matters today.** H1 is exactly the failure a CI job would have caught, and M1/L1 are docs
+  nobody re-measures. Both suites are green *only* on machines that happen to have JDK 21 + Maven + Docker +
+  Node 22.22+, and the PII keys of M4/1 are the difference between "green" and "cannot boot".
+* **Suggested fix.** A minimal job: `mvn -B -ntp test` (Testcontainers needs Docker) +
+  `cd frontend && npm ci && npx ng test --watch=false` (the frontend gates read the committed snapshot, so
+  order does not matter as long as both run), plus a multi-stage `Dockerfile` (JDK 21 build → JRE 21 run,
+  `SPRING_PROFILES_ACTIVE=prod`, no `.env` copied). Add Dependabot/OWASP dependency-check if scanning is
+  wanted, since nothing currently watches Boot/Angular CVEs.
 
 ---
+
+## Notes on verification limits (so nobody re-derives them)
+
+* The **running** backend (`:8080`, started 20:35) predates the working tree's `SecurityConfig` edit (22:43),
+  so its responses still lack `Access-Control-Expose-Headers` on paged endpoints. That is a stale process,
+  **not** a defect: `CorsExposedHeadersIT` (run green by me) proves the change, and the pre-change instance
+  already returns `Access-Control-Allow-Origin` on `/admin/shelters`, i.e. the CORS filter does process
+  admin requests. Restart before re-probing.
+* I re-ran `npx ng build` and the frontend suite myself (counts above). I did **not** re-run the full backend
+  suite (1139 claimed); I ran the three classes that touch this lane's contract (31 tests, green) plus the
+  decisive `DocumentationFactsTest` in both the clean HEAD archive and the working tree.
+* Sandbox note: my `ng build`/probes wrote only to `/tmp` and to gitignored build output (`frontend/dist`,
+  `target/`); no tracked file was touched.
 
 ## Merge verdict
 
-**OK with notes.** The integration is materially better than average: the differential risks that usually break FE/BE
-pairs (URLs, verbs, request bodies, enums, error shape) are all consistent and mostly *gated* by
-`api-contract.spec.ts` + `OpenApiSnapshotIT`, and both suites are green on this tree. But two real defects sit in the
-gate's blind spot — **F1** (the admin occupancy recency is always "just now" because the FE reads `reportedAt` where the
-API sends `lastReportedAt`) and **F3** (`DELETE /account` is unreachable in the dev setup, reproduced live) — plus **F2**
-(a shipped bilingual-guidance contract with no consumer, where a foreign-language post renders with no notice). I would
-merge F1/F3 fixes with the release and treat F2, F4, F5, F6, F7, F8 as the follow-up batch (F8 and F9 are the ones that
-cost a new contributor an afternoon). No P0/blocker: nothing here corrupts data or leaks anything, and every finding has
-a small, local fix.
+**OK with notes.** The integration itself is in good shape: 59/59 frontend calls match real endpoints with
+the right verbs, request DTOs match field-for-field, the new admin/guidance paging contract
+(`limit`/`offset`/`X-Total-Count`/`source`) agrees on both sides and is proven live, the CORS exposure the
+frontend needs is added *and* gated, both suites are green on this tree, and the F1/F3/F5 fixes from the
+previous sweep are real and verified (F3 in particular was fixed properly, not patched). Nothing here
+corrupts data or leaks anything, so there is no P0 in the working tree.
 
----
+Two things keep it out of a clean "OK": **H1** — the committed HEAD cannot pass a clean checkout, and the
+fix lives only in uncommitted bytes, so it must land with this lane; and **M1/M2** — the documented contract
+(README prose end-to-end, and the OpenAPI error body for the endpoint this lane changed) is now wrong or
+silent where the frontend depends on it. M3/M4 are the standing DX debts (cross-origin images, un-runnable
+quickstart), and L6 is the reason all of them can recur unnoticed.
 
 ## Top 5 findings
 
-1. **F1 — `AdminOccupancy.reportedAt` should be `lastReportedAt`** (`frontend/src/app/core/models.ts:514` vs
-   `api/ShelterDto.java:198-201`): the admin occupancy column always renders "just now"; the fixtures encode the same
-   wrong field, so 1263 green FE tests hide it. One-line fix (plus fixtures) or a field-level gate.
-2. **F3 — `DELETE /account` is not proxied in dev** (`frontend/proxy.conf.json:4` uses `"/account/"`, Vite matches with
-   `startsWith`): account erasure never reaches Spring; reproduced live (`404 text/html "Cannot DELETE /account"` while
-   `/account/me` proxies). Fix the key and `README.md:491`.
-3. **F2 — Bilingual guidance: `alternates`/`localeFallback` and the five `/admin/guidance/{id}/translations*` endpoints
-   have zero frontend consumers** (`api/GuidancePostDto.java:38-39`, `api/AdminGuidanceController.java:426-528`, live
-   responses carry both fields): a foreign-language post renders with no notice and no switcher, and translations cannot
-   be authored from the UI at all.
-4. **F4 — Oversized uploads answer 500 instead of 413** (`application.yml:33-40` + missing
-   `MaxUploadSizeExceededException` handler → `api/ApiErrorHandler.java:469-472`; live: 7 MB → 500, 5.6 MB → 413):
-   the FE's 413 copy is unreachable and routine input is logged as an unhandled exception.
-5. **F5 + F8/F9 — the setup story has holes** (`src/test/resources/application.yml:5-9` is not the mirror it claims:
-   retention keys absent, reset-confirm 5/0.084 vs 10/0.2, per-contact OTP cap 100 vs 5; README's `Running locally`
-   omits the required `.env`/PII keys and any Node version; no CI, no app Dockerfile). Both backends and the frontend
-   build and test reproducibly only on the machine they were written on.
+1. **H1 — a clean checkout of `d247007` fails `DocumentationFactsTest`** (`README.md:645` HEAD cites the
+   gitignored `docs/code-review/2026-09-08-review-output.md`; proven by running the test in
+   `git archive HEAD` → 1 failure; the working tree passes because the uncommitted README edit rewrites the
+   citation). This decides whether CI can be green: it cannot, until that edit lands.
+2. **M1 — the README's API table no longer matches the paging contract**: `X-Total-Count` appears 0 times,
+   `limit`/`offset` are missing from `GET /api/guidance`, `GET /admin/shelters` and `limit` from
+   `GET /admin/reports`, and `GET /admin/shelters` still advertises "exact-match" `source` values that now
+   answer **400** (`?source=PAASETEAMET`, verified live: `{"timestamp":…,"status":400,"error":"Bad
+   Request","message":"Malformed request","path":"/admin/shelters"}`).
+3. **M2 — the new 400 annotation silently replaced the uniform `ErrorResponse` with "an array of
+   AdminShelterDto" in the committed snapshot** (`AdminController.java:116-117` + `OpenApiConfig.java:133-137`
+   `attachIfAbsent`; the live body is the uniform error, and `ShelterController.java:181-184` shows the idiom the
+   fix should copy). The frontend gates read that snapshot.
+4. **M3 — media URLs are origin-relative** (`MediaService.java:50`, live `heroImageUrl: /api/media/….jpg`,
+   bound straight into `[src]`), so the documented cross-origin deployment (`environment.ts:8-25`,
+   `frontend/README.md:140-145`) breaks every hero image and admin thumbnail with no test to catch it.
+5. **M4 — the quickstart is still not runnable as written**: no `.env` step although `PiiKeys` fails closed
+   in every profile (`PiiKeys.java:34-51`, `application.yml:104-105`, no `.env.example`), no Node requirement
+   in `README.md:465` and a wrong one in `frontend/README.md:29` ("Node 22+" vs `^22.22.3 || ^24.15.0 ||
+   >=26.0.0`, no `engines` field) — with **L6** (no CI, no app image) as the structural reason none of this
+   is caught.

@@ -1,200 +1,126 @@
 # Review 03 — backend tests
 
-Agent 3 of 12. Read-only review of the backend test suite of
-`/home/aleks/MyScripts/LocalRepos/OpenShelter`. Nothing outside this file was modified.
+Agent 3 of 12 (sequential sweep). READ-ONLY review of the backend test suite of
+`/home/aleks/MyScripts/LocalRepos/OpenShelter`. The only file I created is this report; every other
+artefact in the repo is untouched. All runs were executed **in throwaway copies under `/tmp`**, so the
+working tree, its `target/` and the two running services (`:8080`, `:5173`) were never disturbed.
 
 ## Stack / versions actually in use
 
 | Thing | Version | Source |
 |---|---|---|
 | Java (declared) | 21 (`<java.version>21</java.version>`) | `pom.xml:22` |
-| Java (runtime on this machine) | `JAVA_HOME` = **27.0.0** (mise), `java` on `PATH` = 21.0.7 (sdkman) | `mvn -v`, `java -version` |
-| Spring Boot | 3.3.13 | `pom.xml:9` |
-| Build | Maven 3.9.16, surefire 3.2.5 (Boot-managed) | `pom.xml`, `mvn -v` |
-| Test frameworks | JUnit 5 + AssertJ (via `spring-boot-starter-test`), Testcontainers `postgres:16` (`testcontainers-junit-jupiter`, `testcontainers-postgresql`) | `pom.xml:180-206` |
-| Mocking | **none** — no Mockito, no `@MockBean`/`@SpyBean` anywhere | `grep -riE "mockito\|@MockBean\|@SpyBean" src/test` → only prose comments |
-| Coverage tooling | **none** — no JaCoCo plugin in `pom.xml`, no `jacoco*.exec`, no `target/site` | see "JaCoCo" below |
+| Java (what `mvn test` actually runs on) | **27.0.0** — Maven picks `JAVA_HOME` = `/home/aleks/.local/share/mise/installs/java/27.0.0` (Oracle runtime). `java` on `PATH` is 21.0.7 (sdkman Temurin), i.e. the *other* JVM | `mvn -v`, `java -version`, `echo $JAVA_HOME` |
+| Spring Boot | 3.5.16 | `pom.xml:8-11` |
+| Build | Maven 3.9.16, surefire **3.5.6** (Boot-managed) | `mvn -v`, `mvn-full.log:29` |
+| Test frameworks | JUnit 5 (Jupiter) + AssertJ via `spring-boot-starter-test`; Testcontainers **2.0.5** (`testcontainers-junit-jupiter`, `testcontainers-postgresql`, `postgres:16`) | `pom.xml:190-206`, `mvn-full.log:45` |
+| Mocking | **none** — no Mockito, no `@MockBean`/`@SpyBean`/`@ExtendWith(MockitoExtension)` anywhere in `src/test` | `grep -rE "mockito\|@MockBean\|@SpyBean" src/test` → 0 hits |
+| Coverage tooling | **none** — no JaCoCo plugin, no `jacoco*.exec`, no `target/site` | `grep jacoco pom.xml` → 0; `find . -name '*jacoco*'` → 0 |
+| Parallelism / ordering | none configured: default `forkCount=1`, `reuseForks=true`, `runOrder=filesystem` | `grep -E "parallel\|forkCount\|runOrder" pom.xml` → 0 hits |
+| Surefire includes | `*Test`, `*Tests`, `*TestCase`, **`*IT`** — the whole IT tier runs in `mvn test`; there is no failsafe split | `pom.xml:183-192` |
 
-Surefire is configured to pick up `*Test`, `*Tests`, `*TestCase` **and `*IT`** (`pom.xml:213-221`), so
-the integration tier runs in the same `mvn test` phase — there is no separate `verify`/failsafe split.
-
-Scale: 155 Java files under `src/test/java` (48 IT/boot-context classes, 106 test classes,
-~35 hand-written fakes/fixtures), **1088 executed tests** in the last full run.
+Shapes: 164 java files under `src/test/java` (32.456 lines), **133 test classes** (132 executing + the
+abstract `AbstractPersistenceIT`), of which **64 are integration classes** extending the single
+`@SpringBootTest` base and 68 are plain-JUnit/AssertJ classes; ~35 hand-written fakes/fixtures
+(`InMemory*`, `Capturing*`, `Recording*`, `Stub*`, `Fake*`, `MutableClock`, `TestTokens`). 1111
+`@Test`/`@ParameterizedTest` annotations → **1139 test executions** (`HeroAddressPolicyTest` alone
+contributes 31 executions from 3 parameterized methods).
 
 ## What I actually ran (evidence, not inference)
 
-* `mvn -o test` under **JDK 21** (`JAVA_HOME=~/.sdkman/candidates/java/21.0.7-tem`):
-  **`Tests run: 1088, Failures: 0, Errors: 0, Skipped: 0` — BUILD SUCCESS in 91 s**
-  (log: `/tmp/fulltest-jdk21.log`). Reports were redirected to `/tmp` so the repo's own
-  `target/surefire-reports` was left for the other agents.
-* `mvn -o test -Dtest=JdkHeroImageFetchClientTest` under **JDK 27** (the environment's `JAVA_HOME`,
-  i.e. what plain `mvn test` does here): **1 failure / 6**, reproduced 5 runs out of 5, and
-  isolated to a single test method (`-Dtest=...#aStalledBodyIsAbortedAtTheReadTimeout` → 5/5 failures).
-* `mvn -o -q test-compile` → exit 0, so the tree (including the other agents' in-flight edits)
-  compiles.
-* Standalone JVM probes (`/tmp/headprobe*`) to prove the root cause of finding 1.
+| # | Run | Result | Log |
+|---|---|---|---|
+| 1 | **Current working tree**, pristine rsync copy (no `target/`, no `node_modules`, `.gitignore`d `.env` copied) → genuinely fresh `target/`, JDK **27**: `mvn -o test` | **`Tests run: 1139, Failures: 0, Errors: 0, Skipped: 0` — BUILD SUCCESS in 1:57** | `/tmp/mvn-full.log` |
+| 2 | Same tree, `mvn -o test -Dsurefire.runOrder=reversealphabetical` | **`Tests run: 1139, Failures: 0, Errors: 0, Skipped: 0` — BUILD SUCCESS** | `/tmp/mvn-reverse.log` |
+| 3 | `JdkHeroImageFetchClientTest` alone under **JDK 21** (`JAVA_HOME=~/.sdkman/candidates/java/21.0.7-tem`) | `Tests run: 6, Failures: 0` — BUILD SUCCESS | stdout |
+| 4 | **Committed HEAD only** (`git archive HEAD` → `/tmp/os-head`, no untracked/uncommitted files) | **`Tests run: 1125, Failures: 1, Errors: 0, Skipped: 0` — BUILD FAILURE** | `/tmp/mvn-head.log` |
+| 5 | Static analysis of all 1111 test methods (assertion counting, scope annotations, `Thread.sleep`/random/assumption greps) | script `/tmp/count_asserts.py`, `/tmp/weak.py` | — |
 
-## Review
+The suite is green **on JDK 27** (the machine default, i.e. what a developer here gets from a bare
+`mvn test`), green under reversed class order, and 1139 is reproducible from a fresh `target/`.
 
-### Correct (done well, verified)
+## Count reconciliation — the four figures
 
-* **No assertion-free or weak tests.** I parsed all 1060 test methods in `src/test/java` and counted
-  assertions/expectations per body. Zero methods contain no assertion. A naive first pass flagged 25
-  methods, but every one of them delegates to a private assertion helper —
-  `ShelterApiIT.expectErrorShape` (`ShelterApiIT.java:96-108`, 6 `jsonPath` expectations),
-  `AuthRequestConstraintParityTest.assertConstraints` (`AuthRequestConstraintParityTest.java:77-82`),
-  `SecurityHeadersIT.hardeningHeaders()` (`SecurityHeadersIT.java:88-99`) — so the flags were false
-  positives, not gaps.
-* **No flakiness by construction.** `Math.random`/`new Random`: 0 occurrences. `@Disabled`,
-  `assumeTrue`, `Assumptions.*`, `@EnabledIf`: 0 occurrences (and the JDK-21 run reports
-  `Skipped: 0`, i.e. nothing is silently skipped). `Thread.sleep` appears exactly twice
-  (`JdkHeroImageFetchClientTest.java:109` — inside a fake *server* handler; `HeroImageImportIT.java:390`).
-  Every time-sensitive unit is driven by an injected `Clock` (`MutableClock`, `Clock.fixed(...)` —
-  `Instant.now()` appears only in fixture construction, never in an assertion). Every concurrency
-  test is latch/barrier-synchronised with a bounded await instead of a sleep:
-  `FileVerificationSendLogTest.concurrentTryRecordHonorsTheDailyCapExactly` (50 threads, one latch,
-  `done.await(10, SECONDS)`, "exactly 2 OKs" invariant), `RefreshRotationRaceIT` (`CyclicBarrier`,
-  `get(30, SECONDS)`, "exactly one success" invariant), `ShelterImportServiceTest`
-  overlap tests (`CountDownLatch` hand-off).
-* **No over-mocking.** Zero mocking framework in the suite; doubles are hand-written fakes
-  (`InMemory*` repositories/logs, `Capturing*`/`Recording*` senders, `Stub*`, `FakeRegistryClient`)
-  or single-method lambdas at the seam interfaces. This is deliberate and documented
-  (`RegistrySchedulerTest.java:22-25`, `ContactChangeServiceTest.java:24`,
-  `SmtpPulseSmtpSenderTest.java:12`, `FakeJavaMailSender.java:9`).
-* **Test scope is consistent and correct.** No `@WebMvcTest`/`@DataJpaTest` misuse, no Spring context
-  in plain unit tests. `@SpringBootTest` appears in exactly one place — the IT base class
-  (`AbstractPersistenceIT.java:31`) — and every IT that extends it actually needs the real security
-  chain / JWT filter / Postgres. The behaviour tests are plain JUnit + AssertJ with in-memory
-  repositories; the HTTP tests use MockMvc with the real filter chain.
-* **The security surface is genuinely covered.** Direct evidence:
-  `PiiCryptoTest` (12 tests, incl. blank / whitespace / invalid-base64 / short-key `PiiKeys`
-  rejections at `PiiCryptoTest.java:116-131`), all four fail-closed boot guards including the
-  mixed-profile `production,dev` and case-sensitivity cases (`ApiDocsGuardTest`,
-  `DevEndpointsGuardTest`, `DevSenderGuardTest`, `ProdJwtGuardTest`) — which means
-  `Profiles.isDevTestOnly` is fully exercised through its callers and needs no direct test,
-  `ClientIpsTest` (12 tests, XFF trust matrix), `BodySanitizerTest`, `HeroAddressPolicyTest`
-  (parameterised SSRF classifier over real `InetAddress` literals incl. IPv4-mapped smuggling),
-  `MediaImageInspectorTest` (magic bytes), `Argon2PasswordHasherTest`, `RefreshRotationRaceIT`,
-  and `OpenApiContractIT` which pins the public-vs-authenticated split and `x-admin-only` on every
-  admin operation in both directions.
-* **Endpoint coverage is complete.** I scripted every `@RequestMapping`/`@*Mapping` in the six
-  controllers (30+ mappings) and searched the test tree for the corresponding built path, including
-  the ones whose Java method names never appear literally (e.g.
-  `PUT/DELETE /admin/guidance/{id}/translations/{locale}` → `GuidanceTranslationIT.java:280,300,304`;
-  `GET /admin/guidance/{id}/translations` → `GuidanceTranslationIT.java:271,295`;
-  `POST /api/shelters/{id}/info-request/reply` → `ShelterInfoRequestIT.java:164,249,323,333,339`).
-  No mapping is without a test.
-* **Repository coverage is real.** 9 dedicated persistence ITs (`ShelterRepositoryIT`,
-  `UserRepositoryIT`, `UserCredentialsRepositoryIT`, `RefreshTokenRepositoryIT`,
-  `PasswordResetTokenRepositoryIT`, `PendingVerificationRepositoryIT`,
-  `ShelterOptimisticLockingIT`, plus `UserMapperBlankValueTest`,
-  `AbstractPersistenceIT`) for the non-trivial queries, and the remaining repositories are exercised
-  through the HTTP ITs (`ShelterReportIT` for the three report repositories,
-  `AdminModerationIT` for moderation/report-action, `SiteTextsApiIT`, `GuidanceOrderIT`,
-  `HeroImageImportIT` for media). No repository interface is entirely untested.
-* **The IT base class is high quality**: one shared `postgres:16` Testcontainers instance, per-JVM
-  temp verification send log to stop the durable daily-cap file from leaking across runs
-  (`AbstractPersistenceIT.java:77-103`), small Hikari pool with the reason documented
-  (`:64-70`), and a `TRUNCATE` helper for the deliberately non-`@Transactional` race tests.
+| Figure | What it actually is | How I know |
+|---|---|---|
+| **1139** | **The real number for the current working tree** (fresh `target/`, JDK 27, includes the uncommitted admin-list lane: `AdminGuidanceSearchPagingIT` = 9 + 5 new `@Test` in `AdminModerationIT`/`GuidanceServiceTest`) | run 1 |
+| **1125** | **The committed `HEAD` tree** (`git archive HEAD`), which is **red**: `DocumentationFactsTest.everyRepositoryPathCitedInTheReadmeExists` fails. 1139 − 1125 = 14 = exactly the uncommitted lane's 9 + 5 new tests | run 4 + `git diff -- src/test \| grep -c "^+.*@Test"` (5), `grep -c @Test AdminGuidanceSearchPagingIT.java` (10 incl. `@TestConfiguration`, 9 executed) |
+| **1150** | **The stale `target/` on this machine**: 135 `surefire-reports/TEST-*.xml` = 132 live classes **+ 3 orphan XMLs** for classes deleted in `670f43d` (`RouteDebugIT` 1 test, `ScratchDebugTest` 1, `PaasteametRegistryClientTest` 9 → 11 phantom tests). 1150 − 11 = **1139 exactly**. The `.class` files are gone from `target/test-classes`, so only the *XML* inflates a count read off disk — `mvn clean test` (or any fresh target) removes the trap | `grep -hoE 'tests="[0-9]+"' target/surefire-reports/TEST-*.xml \| awk '{s+=$1}'` = 1150; the 3 XMLs sum to 11; `git log --diff-filter=D -- '**/RouteDebugIT.java' …` → `670f43d` |
+| **1111** | **Not reproducible from any state of this repository I can build.** Neither `HEAD` (1125), the working tree (1139) nor a stale target (1150) yields it; the nearest reproducible neighbours differ by 14/28. Most likely a partial/aborted run, or an earlier commit | runs 1 & 4 vs 1111 |
 
-### JaCoCo
+So: quote **1139** for the current tree — but only after `mvn clean test`; and note that a *clean
+clone* of the same code is **red at 1125** for the reason in finding 1.
 
-No JaCoCo report exists in this tree — no `jacoco` entry in `pom.xml`, no `jacoco*.exec`,
-no `target/site/jacoco`. `target/` only holds `classes`, `test-classes`, `generated-*-sources`,
-`maven-status` and `surefire-reports`. Coverage percentages therefore play no part in this review;
-every "untested" claim below was verified by searching the whole repo (`src/main`, `src/test`,
-templates, reflection) rather than inferred from a report.
+## Confirm / contradict the previous sweep's claims about my area
 
-### Findings
+| Prior claim | Verdict | Evidence |
+|---|---|---|
+| `JdkHeroImageFetchClientTest` fails deterministically on JDK 27 (HIGH) | **CONTRADICTED — fixed.** The `/stall.png` fixture now writes one body byte and flushes before hanging (`JdkHeroImageFetchClientTest.java:104-118`, comment names the JDK-27 cause; commit `670f43d`). 6/6 green on **JDK 27** (run 1) *and* on **JDK 21** (run 3) | runs 1 & 3; `git log -S"ONE body byte"` → `670f43d` |
+| `HttpUrlRedirectClient` has zero test references | **CONFIRMED** — see finding 2 | `grep -rn HttpUrlRedirectClient src/test` → 0; `grep -rl RedirectClient src/test` → only lambda/stub seams |
+| `ShelterReportService` lost-race path unreachable by any test | **CONFIRMED** — see finding 3 | `grep -rn DataIntegrityViolation src/test` → `GuidanceTranslationIT:181,191` (raw-JDBC uniques, different mapping); `InMemoryShelterReportRepository.save` is a plain `Map.put` |
+| three unasserted `ApiErrorHandler` mappings | **CONFIRMED and understated — there are FOUR** (`locationResolve` → 400 was missed) — see finding 4 | no `502`/`isBadGateway`/`BAD_GATEWAY` assertion anywhere: `grep -rnE "isBadGateway\|BAD_GATEWAY\|502" src/test` → 3 hits, all comments |
+| no assertion-free tests | **CONFIRMED** — 26 methods have no inline assertion token, all 26 delegate to assertion helpers (`expectErrorShape` `ShelterApiIT.java:103-110`, `expectError`, `expectUniform400` `GuidanceLocaleFilterIT.java:111-118`, `performAdminRoute(403)` `GuidanceAuthorizationIT.java:139,169`, `assertConstraints`, `submit`→`status().isCreated()` `ShelterDailyLimitIT.java:80-88`); every one verified by reading the body | script + manual read of all 26 |
+| no flakiness (clocks injected, 2 `Thread.sleep` only) | **CONFIRMED and strengthened.** `Math.random`/`new Random`/`SecureRandom`: 0. `@Disabled`/`assumeTrue`/`Assumptions.*`/`@EnabledIf`: 0. `Skipped: 0` in all three runs. `Thread.sleep` exactly twice (`HeroImageImportIT.java:390`; `JdkHeroImageFetchClientTest.java:111` inside the fake server handler). Concurrency tests use latches/barriers with bounded awaits. `Instant.now()` appears only in fixture construction (never in an assertion). **New evidence:** a full run with `-Dsurefire.runOrder=reversealphabetical` is green (run 2), so the shared Postgres container + ~35 cached contexts + the deliberately non-`@Transactional` race ITs do not couple classes | runs 1-2; greps above |
+| correct test scopes | **CONFIRMED with one Low exception** — `@SpringBootTest` appears exactly once, on `AbstractPersistenceIT.java:42`; no `@WebMvcTest`/`@DataJpaTest` anywhere; the advice-level test uses MockMvc **standalone** (`ApiErrorHandlerClientErrorsMvcTest.java:57-61`). The only heavier-than-needed spot is finding 6 | `grep -rn "@SpringBootTest\|@WebMvcTest\|@DataJpaTest" src/test` |
 
----
+## Findings
 
-**1. HIGH — `JdkHeroImageFetchClientTest` fails deterministically on JDK 27, so `mvn test` is red
-with this environment's `JAVA_HOME`.**
-`src/test/java/ee/sheltermap/guidance/JdkHeroImageFetchClientTest.java:187-201` (assertion at `:195`),
-fixture handler at `:104-114`.
+**1. HIGH — the committed tree is red on a clean checkout: `DocumentationFactsTest` fails because
+README.md cites a deliberately git-ignored file.**
+`src/test/java/ee/sheltermap/config/DocumentationFactsTest.java:138` (guard `:60-66`, `:123-141`) vs
+`README.md:645` vs `docs/code-review/.gitignore:5`.
 
-*What is wrong.* The test drives `/stall.png` (handler sends a 200 head with `Content-Length: 100`,
-then `Thread.sleep(15_000)`, `:104-114`) and demands the **stall-watchdog** message:
+*What is wrong.* `README.md:645` — `A 4-lead / 14-child review (reports: \`docs/code-review/2026-09-08-review-output.md\`) was fixed`
+— backticks a path that `docs/code-review/.gitignore:5` deliberately excludes from the repository
+(the ignore file documents why: unfixed-vulnerability detail, "Git-push safety analysis"). The test
+asserts every backticked `docs/…` path in README **exists**, allowing only `data/`, `dist/`,
+`target/` as runtime prefixes (`:60-61`).
+
+*Evidence.* `git archive HEAD` → `/tmp/os-head` + run → `Tests run: 1125, Failures: 1`, the only
+failure being `[README.md cites repository paths that do not exist] Expecting empty but was:
+["docs/code-review/2026-09-08-review-output.md"]` (`/tmp/mvn-head.log:3563-3565`). The same test is
+green in the working tree **only because the ignored file happens to exist on this machine**
+(`ls -la docs/code-review/2026-09-08-review-output.md` → 74 KB, `git ls-files docs/code-review` does
+not list it). Causal proof: repointing that one citation at a tracked sibling
+(`docs/code-review/review-process.md`) in the HEAD copy makes the test green — 4/4, BUILD SUCCESS.
+
+*Why it matters.* `mvn test` is the documented gate; every fresh clone (CI, a new developer, another
+machine) fails it, while this machine reports a false "green" — the exact environment-dependent
+signal this sweep was asked to pin down. It also explains two of the four counts above.
+
+*Minimal fix (pick one, smallest first).* (a) Cite a tracked path at `README.md:645`
+(`docs/code-review/review-process.md` / `docs/code-review/fix-process.md`) or inline the sentence
+without a backticked path; or (b) teach the guard to skip git-ignored paths
+(`git check-ignore`-style allow-list next to `RUNTIME_PREFIXES`, `:61`); or (c) commit the review
+output (drop it from `docs/code-review/.gitignore`) — a policy decision, not a code one.
+
+**2. MEDIUM — the production `RedirectClient` still has no test anywhere.**
+`src/main/java/ee/sheltermap/app/HttpUrlRedirectClient.java:32-64` (guards at `:43-49`
+non-`http(s)` → `IOException`, `:51` `setInstanceFollowRedirects(false)`, `:52-53` 3 s/5 s timeouts,
+`:55` fixed User-Agent).
+
+*What is wrong.* `grep -rn "HttpUrlRedirectClient" src/test` → **0 hits**; the whole
+`LocationResolveServiceTest` (26 tests) and `LocationResolveIT` drive the seam with a lambda/stub
+(`LocationResolveServiceTest.java:269,295,318-320`; `LocationResolveIT.java:68-71`). None of the four
+security-relevant promises in its javadoc is asserted.
+
+*Why it matters.* It is the only outbound HTTP client on the anonymous-reachable geo-resolve path; its
+"never auto-follow + scheme allow-list" is why the ≤3-hop cap and the address policy cannot be
+bypassed. The sibling client `JdkHeroImageFetchClient` has exactly this test (real
+`com.sun.net.httpserver.HttpServer`), so this is an asymmetry, not a house style.
+
+*Minimal fix.* New `src/test/java/ee/sheltermap/app/HttpUrlRedirectClientTest.java` (~60 lines, no new
+dependency, the `HttpServer`-on-`127.0.0.1:0` pattern already in the repo): 302 + `Location` returned
+and **not** followed; `file:`/`ftp:` → `IOException` with the "unfetchable redirect target" message;
+the `OpenShelter/1.0 (location resolver)` User-Agent on the wire; malformed URI → `IOException`.
+
+**3. MEDIUM — the report-dedup lost-race → 409 branch is still unreachable by any test.**
+`src/main/java/ee/sheltermap/app/ShelterReportService.java:155-160`.
+
+*What is wrong.* Nothing can make the fake throw, and no test substitutes a throwing repository:
 
 ```java
-// JdkHeroImageFetchClientTest.java:192-195
-assertThatThrownBy(() -> client(Duration.ofMillis(500))
-                .fetch("http://127.0.0.1:" + port + "/stall.png", 5_242_880))
-        .isInstanceOf(HeroImportUnreachableException.class)
-        .hasMessageContaining("stalled");
-```
-
-On JDK 27 the production code legitimately takes its *other* branch — the response-head deadline
-(`JdkHeroImageFetchClient.java:114-120`, message "The hero image host timed out answering") instead
-of the body stall watchdog (`JdkHeroImageFetchClient.java:203-211`, "stalled the download").
-
-*Evidence.* Reproduced 5/5, standalone, on an idle machine:
-`mvn -o test -Dtest='JdkHeroImageFetchClientTest#aStalledBodyIsAbortedAtTheReadTimeout'` →
-`Tests run: 1, Failures: 1`. Failure text:
-`Expecting throwable message: "The hero image host timed out answering (no response within PT0.5S): 127.0.0.1" to contain: "stalled"`,
-thrown at `JdkHeroImageFetchClient.java:119` (the head-deadline throw), i.e. the response future had
-not completed within the 500 ms read timeout. Root cause proven with a minimal standalone probe
-(`/tmp/headprobe/HeadProbe.java`, same fixture, no Spring): **JDK 21 → `sendAsync` future completes
-92 ms after the request; JDK 27 → still not complete after 3 s.** So on JDK 27 a host that sends
-headers and then hangs is indistinguishable, to `sendAsync`, from a host that never answers.
-The repo's own `target/surefire-reports/TEST-…JdkHeroImageFetchClientTest.xml` (written by a run
-*before* I touched anything) shows the identical failure.
-
-*Why it matters.* `mvn test` is the documented suite entry point and this environment's
-`JAVA_HOME` is JDK 27, so the gate is red out of the box; on JDK 21 the whole suite is green
-(1088/1088), so the redness is purely JVM-version coupling — the worst kind, because it is
-invisible in CI-on-21 and on the author's machine. The test also pins one of two *equivalent*
-observable outcomes for the same external condition ("no progress within the read timeout"), which
-is exactly the kind of implementation-detail assertion that rots.
-
-*Minimal fix.* Two options, both small (pick either; the first is what I verified):
-(a) make the fixture actually deliver the head — flush at least one body byte before hanging
-(`out.write(new byte[]{0}); out.flush();` before the `Thread.sleep`). Probe `/tmp/headprobe2` shows
-the head then completes in 80 ms (JDK 21) / 101 ms (JDK 27), so `readCapped` runs and the "stalled"
-message is produced on both JDKs; or
-(b) assert the shared contract instead of the branch: `isInstanceOf(HeroImportUnreachableException.class)`
-plus the existing `.isLessThan(5_000)` elapsed bound (both branches fire at the read timeout, so the
-timing invariant still proves "aborted at the read timeout, not after the server's 15 s").
-
----
-
-**2. MEDIUM — the production `RedirectClient` has no test at all, so its scheme/redirect guards are
-unverified.**
-`src/main/java/ee/sheltermap/app/HttpUrlRedirectClient.java:32-64`.
-
-*What is wrong.* `HttpUrlRedirectClient` is the real bean behind `LocationResolveService` and its
-javadoc makes four concrete security-relevant promises — reject non-`http(s)` schemes
-(`:46-49`), **never** auto-follow redirects (`:51`, so the ≤3-hop cap and per-hop re-validation in
-`LocationResolveService` are actually in control), 3 s/5 s timeouts (`:34-35`), fixed User-Agent
-(`:36,55`) — and none of them is asserted anywhere. `grep -rn "HttpUrlRedirectClient" src` matches
-only its own file: no test class, no reference from any test. The entire
-`LocationResolveServiceTest` (26 tests) and `LocationResolveIT` drive the seam with a lambda
-(`LocationResolveServiceTest.java:32,269-275,285`; `LocationResolveIT.java:68-71`), which is the
-right unit-level choice but leaves the real client untested.
-
-*Why it matters.* This is the only outbound HTTP client on the anonymous-reachable geo-resolve path,
-and its "no auto-follow + scheme allowlist" behaviour is the reason the hop-cap and address policy
-cannot be bypassed by a redirect. The sibling client in the same design language —
-`JdkHeroImageFetchClient` — *does* have exactly this test (`JdkHeroImageFetchClientTest`, real
-`com.sun.net.httpserver.HttpServer`), so this is an asymmetry in the suite, not a house style.
-A regression here (e.g. dropping `setInstanceFollowRedirects(false)`) would be invisible.
-
-*Minimal fix.* Add `HttpUrlRedirectClientTest` using the pattern already twice in the repo (a local
-`HttpServer` on `127.0.0.1:0` with a cached thread pool): assert 302 + `Location` returned without
-being followed; `file:`/`ftp:`/`jar:` → `IOException` with the "unfetchable redirect target"
-message; the `OpenShelter/1.0 (location resolver)` User-Agent on the wire; and a `URISyntaxException`
-input → `IOException`. ~60 lines, no new dependency.
-
----
-
-**3. MEDIUM — the documented lost-race path of the report dedup is unreachable by any test.**
-`src/main/java/ee/sheltermap/app/ShelterReportService.java:152-156`.
-
-*What is wrong.*
-
-```java
-// ShelterReportService.java:152-156
+// ShelterReportService.java:155-160
 try {
     reports.save(report);
 } catch (DataIntegrityViolationException e) {
@@ -204,211 +130,175 @@ try {
 }
 ```
 
-No test can reach this branch. The unit double never throws (`InMemoryShelterReportRepository.save`,
-`src/test/java/ee/sheltermap/app/InMemoryShelterReportRepository.java:29-34`, is a plain
-`Map.put`), and no test substitutes a throwing repository (`grep -rn "DataIntegrityViolation"
-src/test` matches only `GuidanceTranslationIT` for a *different* table). The 409 that the pre-check
-covers is tested twice (`ShelterReportServiceTest.java:147`, `ShelterReportIT.duplicateReportIs409AndCountStaysOne`),
-but the concurrent-loser 409 — the case the javadoc calls "the authority" — never runs.
+`InMemoryShelterReportRepository.save` is a plain `Map.put`; the pre-check 409 is tested twice
+(`ShelterReportServiceTest.java:142`, `ShelterReportIT.java` duplicate case) but the
+concurrent-loser 409 — the case the javadoc calls "the authority" — never runs.
 
-*Why it matters.* Two verified users reporting the same shelter at the same instant is the exact
-abuse pattern the unique bound exists for (a duplicate report otherwise double-counts the
-NON_EXISTENT tally). The service deliberately swallows the DB exception and re-maps it; a change
-that turned this into a 500 would not be caught.
+*Why it matters.* Two verified users reporting the same shelter at the same instant is exactly the
+abuse the unique bound exists for (a duplicate `NON_EXISTENT` otherwise double-counts the auto-hide
+tally). A change that turned this into a 500 would not be caught.
 
-*Minimal fix.* One unit test: a `ShelterReportRepository` whose `save` throws
-`DataIntegrityViolationException` (a 10-line inline subclass of the existing in-memory fake), assert
-`assertThatThrownBy(... service.reportShelter(verified, id, NON_EXISTENT, null))`
-`.isInstanceOf(DuplicateReportException.class)`. Optionally also assert no `autoHideIfEligible` fired.
+*Minimal fix.* One unit test: a 10-line inline subclass of the existing in-memory fake whose `save`
+throws `DataIntegrityViolationException`, then
+`assertThatThrownBy(() -> service.reportShelter(verified, id, NON_EXISTENT, null))
+.isInstanceOf(DuplicateReportException.class)`; optionally assert `autoHideIfEligible` did not fire.
 
----
+**4. MEDIUM — four documented HTTP error mappings are asserted nowhere, directly or end-to-end.**
+`ApiErrorHandler.java:361` (`dataIntegrity` → 400 "Request failed due to invalid input"),
+`:198` (`heroImportUnreachable` → **502**), `:461` (`locationUpstream` → **502**),
+`:208` (`locationResolve` → 400, thrown only at `LocationController.java:104`).
 
-**4. MEDIUM — three documented `ApiErrorHandler` mappings are asserted nowhere (not directly, not
-end-to-end): `DataIntegrityViolationException → 400`, `HeroImportUnreachableException → 502`,
-`LocationUpstreamException → 502`.**
-`src/main/java/ee/sheltermap/api/ApiErrorHandler.java:325-329`, `:181-184`, `:422-425`.
-Test file: `src/test/java/ee/sheltermap/api/ApiErrorHandlerTest.java` (6 tests).
+*Evidence.* `grep -rnE "isBadGateway|BAD_GATEWAY|502" src/test` → 3 hits, **all comments**
+(`LocationResolveServiceTest.java:99,246,284`). `grep -rn "Request failed due to invalid input"
+src/test` → 0. `grep -rn "LocationUpstreamException" src/test` → **0**. `grep -rn "Could not find
+coordinates" src/test` → 0. The geo IT always gets a valid link back
+(`LocationResolveIT.java:68-71` always answers 302 → the `NotFound`/`UpstreamFailure` arms of
+`LocationController.resolve` `:97-107` are never taken); the hero IT's failure case drives a *404*
+(a 400 refusal, `HeroImageImportIT.java:468-482`), never an unreachable host.
 
-*What is wrong.* The handler has **36** `ResponseEntity<ErrorResponse>` methods;
-`ApiErrorHandlerTest` covers 4 of them (`optimisticLock`, `transactionSystem`,
-`methodNotSupported`, plus the 500 fallback). That alone would be fine — the uniform-shape ITs cover
-most status families end-to-end — but three mappings are covered by *neither*:
+*Why it matters.* 502 is a frontend-consumed contract ("retry later" vs "your link is broken"), and
+these are the only places where a swallowed upstream detail could leak into a response — nothing pins
+them. The API doc promises both 400 and 502 on `/api/geo/resolve` (`LocationController.java:85-93`),
+so the documented contract is unverified in both directions.
 
-* `dataIntegrity` → 400 "Request failed due to invalid input": `grep` for that message or for the
-  exception class in `src/test` returns nothing.
-* `heroImportUnreachable` → **502**: `HeroImageImportServiceTest` asserts the *service-level*
-  `HeroImportUnreachableException` (`:216,344,414`) but no test asserts the HTTP status;
-  `HeroImageImportIT` asserts only 400/413 (`:336,358,384,411,435,455,474,519`).
-* `locationUpstream` → **502**: `LocationResolveIT`'s stub always returns a 302
-  (`LocationResolveIT.java:68-71`), so the upstream-failure path is never driven over HTTP;
-  `LocationResolveServiceTest` asserts the exception (`:246,284`), not the mapping.
-  `grep -rn "isBadGateway\|502" src/test` → only comments.
+*Minimal fix.* Four direct handler tests in `ApiErrorHandlerTest`'s existing style (status + body
+message) plus one `LocationResolveIT` test with a `RedirectClient` stub that throws
+`LocationUpstreamException` (502) / returns a no-pair outcome (400).
 
-*Why it matters.* 502 is a contract the frontend consumes ("retry later" vs "your URL is broken"),
-and it is the status the design explicitly names for both upstream failures. The 400/502 mappings
-are also the only place where a swallowed upstream detail could leak; nothing pins them.
+**5. LOW — the filter branch "a demoted admin's existing token loses the ADMIN authority" is untested.**
+`src/main/java/ee/sheltermap/config/JwtAuthenticationFilter.java:73-80` (fresh
+`users.isAdmin(userId)` per request); contract in its javadoc `:24-30`.
 
-*Minimal fix.* Add 4-6 tests to `ApiErrorHandlerTest` in the existing direct-call style
-(`handler.dataIntegrity(new DataIntegrityViolationException("x"), request)` → status 400 + body
-message; `handler.heroImportUnreachable(...)` → 502; `handler.locationUpstream(...)` → 502;
-`handler.malformed(new HttpMessageNotReadableException(…))` → 400). ~40 lines, no infrastructure.
+*Evidence.* `JwtAuthenticationFilterTest` covers 7 branches (valid token, admin authority, suspended,
+expired, malformed, foreign secret, absent/non-Bearer) but always with the repository state fixed for
+the whole test; `AdminAuthorizationIT` covers anonymous → 401 (`:127`), non-admin → 403 (`:137`) and the
+provisioned admin → 200 (`:154`). No test anywhere changes a user's kind after issuing a token:
+`grep -rniE "demote|UPDATE users SET kind" src/test` → 0; `grep -rn "isAdmin" src/test` → only
+`InMemoryUserRepository`, `ShelterServiceTest` stubs, and seeder assertions.
 
----
+*Why it matters.* It is the headline guarantee of the "DB is the truth, never a token claim" design
+(the sibling branches — in-flight tokens of a suspended account, `UserSuspensionIT.java:233`; the
+deleted-account erasure contract, `AccountDeletionIT.java:271-297` — both have tests). A regression
+that cached the kind, or checked a claim, would be invisible.
 
-**5. LOW — write-only test scaffolding (dead test state).**
-`JdkHeroImageFetchClientTest.java:47,49,96,101`; `HeroImageImportIT.java:117,119,150,153`;
-`JdkHeroImageFetchClientTest.java:221-222`.
+*Minimal fix.* In `AdminAuthorizationIT`: log in the provisioned admin, then
+`UPDATE users SET kind='REGISTERED' WHERE id=?` via the existing `JdbcTemplate`, then assert the
+*same* token gets 403 on `/admin/shelters` (and 200 again after a second login attempt is not needed).
 
-*What is wrong.* `bigBytesWritten` and `bigWriteAborted` are declared and written in the fake
-servers' oversized-body handlers but **read by nothing** — all 8 occurrences across both files are
-declarations or mutations (`grep -rn "bigBytesWritten\|bigWriteAborted" src/test`). The abort proof
-they were meant to carry moved to the client-side seam (`JdkHeroImageFetchClientTest.java:182-184`
-asserts `client.bytesRead`), which the code comments confirm. `JdkHeroImageFetchClientTest.java:221-222`
-additionally declares `@TempDir Path unused` with the comment "kept for a future fixture" and no use.
+**6. LOW — CORS is security-relevant configuration with zero assertions.**
+`src/main/java/ee/sheltermap/config/SecurityConfig.java:167-176` (`setAllowedOrigins(
+CommaSeparated.parseList(allowedOrigins))`, `setAllowedHeaders(List.of("*"))`,
+**`setAllowCredentials(true)`**, allowed methods GET/POST/PUT/DELETE/OPTIONS, registered for `/**`, fed
+by `app.cors.allowed-origins` / `CORS_ALLOWED_ORIGINS` — `application.yml:106-110`).
 
-*Why it matters.* Dead scaffolding in a test that is already fragile (finding 1) makes the fixture's
-intent ambiguous — a reader cannot tell whether the abort is or is not being observed.
+*Evidence.* `grep -rniE "cors|Access-Control" src/test` → **0 hits**. No test sends an `Origin` header.
 
-*Minimal fix.* Delete the four fields and the `@TempDir` field. (Fixing finding 1(a) makes one of
-them meaningful again — `bigWriteAborted` would become a real assertion — so this interacts with
-finding 1; either assert them or remove them, don't leave them write-only.)
+*Why it matters.* The browser frontend on `:5173` depends on this in dev, and the combination
+credentials + wildcard **headers** + env-provided origins is exactly where a "fix" (e.g. allowing `*`
+origins, or dropping the dev origin) silently breaks the app or opens it up. Nothing detects either.
 
----
+*Minimal fix.* One MockMvc test: preflight from `http://localhost:5173` → 200 with
+`Access-Control-Allow-Origin` and `…-Allow-Credentials: true`; the same request from
+`http://evil.example` → no `Access-Control-Allow-Origin` header.
 
-**6. LOW — `LocationResolveIT` is order-dependent by design.**
-`src/test/java/ee/sheltermap/api/LocationResolveIT.java:42` (`@TestMethodOrder(OrderAnnotation.class)`),
-`:75` (`@Order(1)`), `:85` (`@Order(2)`), `:99` (`@Order(3)`).
+**7. LOW — two ITs boot the whole application and a Postgres container to assert bean presence.**
+`RetentionSchedulerIT.java:19,26`, `RetentionDisabledByDefaultIT.java:17,24-25` (each one
+`getBeanNamesForType` call). At 1:57 for 1139 tests the cost is acceptable and the base class is
+deliberate (`AbstractPersistenceIT.java:36-45`), so this is context for reviewers, not a defect:
+`ApplicationContextRunner` would test the same contract without Flyway + Hikari + a container.
 
-*What is wrong.* `rapidCallsFromOneIpHitTheFivePerMinuteBucket` (`:100`) shares the in-JVM per-IP
-token bucket with `resolvedShortLinkReturns200WithThePair` and the fixture text says so explicitly
-("the 200 test above consumed one, so …", `:103-104`). Running the class in another order, or the
-429 test alone, changes how many tokens are left.
+**8. LOW — small units with no direct test (still standing from the previous sweep, narrowed).**
+`grep -rl` over the whole test tree:
+| Unit | Test refs | Note |
+|---|---|---|
+| `auth/Tokens.java:12-15` (random token generation) | 0 | length/alphabet contract unasserted |
+| `auth/Codes.java:26-37` (`sixDigitCode`, `randomToken`) | 0 | the 6-digit shape is pinned *indirectly* (`PhoneVerificationProviderTest.java:49`, `AuthApiIT.java:282` assert `\\d{6}` off captured messages); leading-zero preservation is not |
+| `domain/VerificationRules.java:20-36` | 0 | **refined vs the previous sweep:** `ofDefaults()` *is* exercised indirectly via `VerificationPolicy.defaults()` (`VerificationPolicy.java:23`) by the 4 `VerificationPolicyTest` cases; the untested half is the compact constructor's null/defensive-copy branches |
+| `app/CommaSeparated.java:25-40` | 0 | happy path runs in every context (Spring binds the default origins/proxy lists), but trim / drop-empty / lowercase (`parseSetLowerCase`) rules are asserted nowhere |
+| `guidance/DnsHeroAddressResolver.java:18-22` | 0 | the seam the SSRF policy trusts to enumerate *every* address; the classifier it feeds is thoroughly tested |
+| `app/TextTruncation.java:19-24` | 0 | null + boundary truncation for the 1000-char audit columns |
+| `domain/TextValidation.java:18-24` | 0 | blank/null rejection shared by the guidance value objects |
 
-*Why it matters.* It is a real coupling between tests, and it is the kind that silently becomes a
-flake the next time someone tightens an assertion. Mitigating factor: the assertion is deliberately
-stated as an invariant ("a 429 arrives within 10 rapid calls", `:108-123`) rather than a position,
-so it does survive reordering in practice — which is why this is Low and not Medium.
+*Minimal fix.* One small test class each (< 80 lines total for the lot); `CommaSeparated` and
+`TextTruncation` are pure functions.
 
-*Minimal fix.* None required. If it is touched, give the bucket test its own key by asserting on an
-explicit drain loop with the invariant first (`for` loop until 429, then assert), so the assertion
-no longer references the sibling test's consumption.
+## Areas I found clean (explicitly)
 
----
+* **Assertions** — no assertion-free, no status-only tests. I parsed all 1111 test methods; 26 had no
+  inline assertion token and all 26 delegate to private assertion helpers (verified by reading each
+  one). The single "status-only" flag (`SecurityHeadersIT.hstsIsSentOnlyOnSecureRequests`) is a false
+  positive of my heuristic — the method asserts header presence/absence and the exact HSTS value
+  (`SecurityHeadersIT.java:66-84`).
+* **Flakiness / determinism** — no randomness, no `@Disabled`, no assumptions, `Skipped: 0` in every
+  run, clocks injected (`MutableClock`, `Clock.fixed`), two `Thread.sleep`s (one inside a fake server
+  handler), concurrency expressed with `CountDownLatch`/`CyclicBarrier` + bounded awaits, and a full
+  `-Dsurefire.runOrder=reversealphabetical` run is green.
+* **No mocking framework** — 0 Mockito/`@MockBean`/`@SpyBean`; doubles are hand-written fakes at the
+  seam interfaces and are documented as such (`RegistrySchedulerTest.java:22-25`,
+  `FakeJavaMailSender.java:9`).
+* **Test scope** — `@SpringBootTest` exactly once (the IT base); no `@WebMvcTest`/`@DataJpaTest`
+  misuse; the pure resolver test uses MockMvc **standalone** with an explicit JSON converter and a
+  documented reason (`ApiErrorHandlerClientErrorsMvcTest.java:54-61`).
+* **IT isolation design** — one shared `postgres:16` container per JVM (`AbstractPersistenceIT.java:58-70`),
+  a per-JVM temp verification send log to stop the durable daily-cap file leaking across runs
+  (`:77-103`), a small Hikari pool with the connection-ceiling reason written down (`:64-70`), and
+  every non-`@Transactional` IT explicitly deleting the tables the base `wipeAllTables()` does not
+  cover (`AdminGuidanceSearchPagingIT.java:79-86`, `GuidanceOrderIT.java:103-110`). That convention is
+  what makes the reverse-order run pass.
+* **No silently-skipped test classes** — every file under `src/test/java` that contains `@Test`
+  matches the surefire includes `*Test|*Tests|*TestCase|*IT`; the 32 non-matching files are all
+  fixtures/doubles (`InMemory*`, `Stub*`, `Recording*`, `MutableClock`, `TestTokens`, and the
+  one-shot `MarkdownMigrationDriver` ops tool).
+* **Coverage of services/endpoints/repositories** — every `@Service` class has at least one test
+  class, and a name-sweep of their public methods found no method without a call site in the test
+  tree (e.g. `UserService.findByEmailOrPhone`, the only one that looked suspicious, is driven both
+  ways: email through `AuthServiceTest` logins, phone through `loginByPhoneWorks`
+  `AuthServiceTest.java:148`). Controllers are exercised through MockMvc ITs (including the new
+  admin-list paging: `AdminModerationIT.java:335-400` asserts `X-Total-Count` un-paged, page tiling,
+  past-the-end empty page and the 400 bounds; `ShelterBboxPagingIT`, `GuidancePaginationIT`,
+  `AdminGuidanceSearchPagingIT` do the same for the public lists). Ten persistence ITs cover the
+  non-trivial queries; the rest go through HTTP ITs.
+* **The uncommitted admin-list lane** (untracked `AdminGuidanceSearchPagingIT`, +5 tests in
+  `AdminModerationIT`/`GuidanceServiceTest`, modified `docs/api/openapi.json`) is consistent and
+  green: 9 + 20 + 75 tests pass, and `OpenApiSnapshotIT` confirms the re-generated snapshot matches
+  the live `/v3/api-docs`.
 
-**7. LOW — a fixed `Thread.sleep(100)` guards a negative assertion.**
-`src/test/java/ee/sheltermap/api/HeroImageImportIT.java:390` (in `aRedirectTo127001IsRefusedAndNeverFetched`,
-`:377-395`).
+## Prioritized list — tests to add first
 
-*What is wrong.* The test asserts `secretRequests.get()` is zero, and the only reason it is not a
-pure race is `Thread.sleep(100)` before the read — a fixed wait cannot prove absence, only reduce
-the chance of a false pass.
-
-*Why it matters.* Low: the stronger instrument already exists in the same file (a counter on a route
-that is never supposed to be hit, and the assertion that the post stays `DRAFT`), so the sleep is
-belt-and-braces rather than the sole evidence. Worth knowing when the suite gets slower.
-
-*Minimal fix.* Keep the counter assertion, drop the sleep, or replace it with a bounded poll that
-first asserts the draft is still a draft (a positive signal) — the negative assertion is then a
-corollary rather than a timing bet.
-
----
-
-**8. LOW — several small security-relevant units have no test.**
-`src/main/java/ee/sheltermap/auth/Codes.java:26-37` + `Tokens.java:12-15`;
-`src/main/java/ee/sheltermap/domain/VerificationRules.java:20-36`;
-`src/main/java/ee/sheltermap/auth/TokenBucketRateLimiter.java:36-41,57-68`;
-`src/main/java/ee/sheltermap/guidance/DnsHeroAddressResolver.java:21-23`.
-
-*What is wrong / verification.* `grep -rn "VerificationRules" src/test` → **0 hits**, so the record's
-null-safe compact constructor and `ofDefaults()` (the policy data behind every `RegisteredUser.canWrite()`)
-are only exercised indirectly. `Codes.sixDigitCode()` / `Codes.randomToken` / `Tokens.random` are
-asserted nowhere — tests only regex the code out of a captured message, so the "6 digits, leading
-zeros preserved, exact length/alphabet" contract has no test. `TokenBucketRateLimiter`'s
-argument validation (`capacity <= 0`, `refillPerSecond < 0`, `:36-41`) and its idle-bucket sweep
-(`:57-68`, the memory-leak guard) are untested (the 4 existing tests cover burst/refill/key-isolation
-only). `DnsHeroAddressResolver` is untested, though the classifier it feeds is thoroughly tested.
-
-*Why it matters.* Low individually — all four are thin, and the surrounding behaviour is covered —
-but the first two are code-generation and authorization-policy primitives; the third's
-validation paths are the ones that fail loudly at boot.
-
-*Minimal fix.* Four tiny tests (< 80 lines total): code format/leading-zero/alphabet assertions;
-a `VerificationRules` null+defensive-copy + `ofDefaults()` matrix; two constructor-rejection
-assertions for the limiter; one `DnsHeroAddressResolver` test that an IP literal resolves to itself.
-
----
-
-**9. LOW / informational — IT scope is uniformly full-application, which is heavier than needed in
-two places.**
-`AbstractPersistenceIT.java:31`; `RetentionSchedulerIT.java:19`; `RetentionDisabledByDefaultIT.java:17`.
-
-*What is wrong.* Every IT extends a `@SpringBootTest` base, and the per-class property/config
-variations produce ~35 distinct context signatures → ~35 full application boots (Flyway + Hikari
-each) per run. Two of them exist only to assert a bean's presence:
-`RetentionSchedulerIT.theSchedulerBeanIsPresentWhenRetentionIsEnabled` and
-`RetentionDisabledByDefaultIT.theSchedulerBeanIsAbsentWhenRetentionIsDisabled` — each boots the whole
-app and a Postgres container for one `getBeanNamesForType` call.
-
-*Why it matters.* Low, and worth saying plainly: at 91 s total the cost is currently acceptable, and
-the design is deliberate and documented (shared container, small pool, `ddl-auto=validate` riding on
-the same context). Recording it as context for reviewers, not as a defect.
-
-*Minimal fix (optional).* `ApplicationContextRunner` for the two bean-presence guards;
-`@DataJpaTest` (with `@AutoConfigureTestDatabase(replace = NONE)`) for the pure repository ITs.
-
----
-
-### In-flight (not reported as defects)
-
-The working tree carries another agent's unfinished work. I verified it is consistent, not
-half-applied:
-
-* `mvn -o -q test-compile` → exit 0, so the in-flight `SmsSender.send`/`SmtpSender.send`
-  boolean-return change is applied across every producer and consumer
-  (`EmailVerificationProvider`, `PhoneVerificationProvider`, `VerificationService`,
-  `DevSmsSender`, `DevSmtpSender`, `TwilioSmsSender`, `SmtpPulseSmtpSender`) and every test double
-  (`Recording*`, `Capturing*` return `true`), with new assertions in
-  `EmailVerificationProviderTest`, `PhoneVerificationProviderTest`, `TwilioSmsSenderTest`,
-  `VerificationServiceTest` (`FlakySmsSender`) and `SmtpPulseSmtpSenderTest`.
-* `PaasteametRegistryClient.java` and `PaasteametRegistryClientTest.java` are deleted together.
-* The `findById(id, User)` → `findById(id, long userId)` signature change is applied consistently in
-  `ShelterQueryServiceTest.java:303-321` and `CommunityPulseTest.java:214`.
-* The three untracked test files (`ShelterControllerDetailReadTest`, `LoopbackXffTrustGuardTest`,
-  `RegistryPropertiesTest`) are complete, assert real contracts, and follow the suite's conventions.
-* I did **not** treat any of this as a finding. One note for the reader: `ShelterControllerDetailReadTest`
-  is a good addition (it proves the public detail read pays no caller domain mapping via a counting
-  `UserRepository` spy) and will need the same treatment if the controller signature changes again.
-
-### Prioritized list — tests to add first
-
-| # | Test to add | Where | Why it is first | Effort |
+| # | Test to add | Where | Why first | Effort |
 |---|---|---|---|---|
-| 1 | Fix `aStalledBodyIsAbortedAtTheReadTimeout` (flush one body byte in the `/stall.png` fixture, or assert both branches) | `JdkHeroImageFetchClientTest.java:104-114,187-201` | It is the only red test in the suite and it is red on the environment's own `JAVA_HOME` | S |
-| 2 | `HttpUrlRedirectClientTest` — 302 + `Location` not followed, `file:`/`ftp:` → IOException, User-Agent, malformed URI | new `src/test/java/ee/sheltermap/app/HttpUrlRedirectClientTest.java` | Only outbound client on the anonymous resolve path, zero coverage, sibling client already has this test | S |
-| 3 | Lost-race → 409: repository whose `save` throws `DataIntegrityViolationException` → `DuplicateReportException` | `ShelterReportServiceTest` | Documented as "the authority" for the concurrent duplicate; unreachable by every existing test | S |
-| 4 | Direct handler tests for the three uncovered mappings: dataIntegrity→400, heroImportUnreachable→502, locationUpstream→502 (+ malformed→400) | `ApiErrorHandlerTest` | Two of the 502s are frontend-consumed contracts asserted nowhere, directly or end-to-end | S |
-| 5 | Code-generation contract: `Codes.sixDigitCode()` is 6 digits with leading zeros, `Codes.randomToken`/`Tokens.random` length+alphabet | new `CodesTest` (package-private type, same package) | OTP/reset-code primitive with no test; a length/format regression is silent | S |
-| 6 | `VerificationRules` — null-safe compact constructor + `ofDefaults()` matrix | new `VerificationRulesTest` | Zero test references to the record that carries the whole capability policy | S |
-| 7 | `TokenBucketRateLimiter` — constructor rejections (`capacity<=0`, `refill<0`) and the idle-sweep path | `TokenBucketRateLimiterTest` | Validation and the memory-leak guard are the untested half | S |
-| 8 | `DnsHeroAddressResolver` — IP literal resolves to itself, name returns the full A/AAAA set | new `DnsHeroAddressResolverTest` | The seam the SSRF policy trusts to enumerate *every* address | S |
-| 9 | Optional: HTTP 502 for the geo resolve path end-to-end (throwing `RedirectClient` stub) | `LocationResolveIT` | Closes the same contract as #4 at the API layer | S |
-| 10 | Optional: convert the two bean-presence ITs to `ApplicationContextRunner` | `RetentionSchedulerIT`, `RetentionDisabledByDefaultIT` | Removes two full app+Postgres boots for one assertion each | S |
+| 1 | **Fix the clean-checkout failure**: repoint `README.md:645` at a tracked doc (or make the guard ignore git-ignored paths) | `README.md:645` (or `DocumentationFactsTest.java:60-66`) | The only red test in a fresh clone; the local "green" is a lie | S |
+| 2 | `HttpUrlRedirectClientTest` — 302 + `Location` not followed, `file:`/`ftp:` → `IOException`, User-Agent, malformed URI | new `src/test/java/ee/sheltermap/app/HttpUrlRedirectClientTest.java` | Only outbound client on the anonymous resolve path, zero coverage, sibling client already has this test | S |
+| 3 | Lost-race → 409 (repository whose `save` throws `DataIntegrityViolationException`) | `ShelterReportServiceTest` | Documented as "the authority"; unreachable by every existing test | S |
+| 4 | `dataIntegrity` → 400, `heroImportUnreachable` → 502, `locationUpstream` → 502, `locationResolve` → 400 | `ApiErrorHandlerTest` | Two frontend-consumed contracts (502) with no assertion anywhere, direct or end-to-end | S |
+| 5 | Geo-resolve upstream/not-found arm end-to-end (throwing / empty `RedirectClient` stub → 502 / 400) | `LocationResolveIT` | Closes the same contract at the API layer, where the controller switch lives | S |
+| 6 | Demotion: same admin token after `kind='REGISTERED'` → 403; also `isSuspended` flipping true → 401 | `AdminAuthorizationIT` | The javadoc's headline "DB is the truth" guarantee; its two sibling branches already have tests | S |
+| 7 | CORS: allowed origin preflight → ACAO + allow-credentials; foreign origin → no ACAO | new `SecurityConfigCorsTest`/`CorsIT` | Security config with `allowCredentials(true)` and env-provided origins, 0 assertions | S |
+| 8 | `Codes` (6 digits, leading zeros, alphabet) and `Tokens` (length/alphabet/uniqueness) | new `CodesTest`, `TokensTest` (same package) | Code-generation primitives; only the indirect `\d{6}` shape is pinned today | S |
+| 9 | `VerificationRules` compact-constructor null/defensive-copy branches | new `VerificationRulesTest` | The policy *data* type; only `ofDefaults()` is covered (indirectly) | S |
+| 10 | `CommaSeparated` (trim, empty entries, lowercase, unmodifiable), `TextTruncation` (null, exact boundary, over-length), `DnsHeroAddressResolver` (IP literal → itself) | new tiny test classes | Config parsing behind trusted proxies/CORS, audit-column truncation, SSRF address enumeration | S |
+| 11 | Convert the two bean-presence ITs to `ApplicationContextRunner` | `RetentionSchedulerIT`, `RetentionDisabledByDefaultIT` | Removes two full app + Postgres boots for one assertion each (no new coverage) | S |
 
-### Top 5 findings
+## Top 5 findings
 
-1. **HIGH** — `JdkHeroImageFetchClientTest.aStalledBodyIsAbortedAtTheReadTimeout`
-   (`JdkHeroImageFetchClientTest.java:195`) fails 5/5 on JDK 27, the environment's `JAVA_HOME`;
-   the code takes the head-deadline branch (`JdkHeroImageFetchClient.java:119`) while the test pins
-   the stall-watchdog message (`:210`). Root cause proven by standalone probe (JDK 21 completes the
-   response future in 92 ms, JDK 27 not in 3 s); suite is otherwise green (1088/1088 on JDK 21).
-2. **MEDIUM** — `HttpUrlRedirectClient` (`HttpUrlRedirectClient.java:32-64`) has no test anywhere;
-   its non-http(s) scheme rejection and "never auto-follow" guarantees are unverified while the
-   sibling fetch client is tested.
-3. **MEDIUM** — `ShelterReportService.java:152-156` lost-race → `DuplicateReportException` is
-   unreachable by any test (the in-memory fake never throws); the only fixture that can produce it
-   does not exist.
-4. **MEDIUM** — three documented `ApiErrorHandler` mappings are asserted nowhere: dataIntegrity→400
-   (`:325-329`), heroImportUnreachable→502 (`:181-184`), locationUpstream→502 (`:422-425`).
-5. **LOW** — write-only test scaffolding (`bigBytesWritten`/`bigWriteAborted` in
-   `JdkHeroImageFetchClientTest.java:47,49` and `HeroImageImportIT.java:117,119`; unused
-   `@TempDir Path unused` at `JdkHeroImageFetchClientTest.java:221-222`).
+1. **HIGH** — the committed tree is **red on a clean checkout**: `DocumentationFactsTest` (`:138`)
+   fails because `README.md:645` backticks `docs/code-review/2026-09-08-review-output.md`, a path
+   deliberately git-ignored (`docs/code-review/.gitignore:5`). `git archive HEAD` → `Tests run: 1125,
+   Failures: 1`; repointing the citation at a tracked doc makes it green (4/4). This machine's green
+   1139 is environment-dependent.
+2. **MEDIUM** — `HttpUrlRedirectClient` (`HttpUrlRedirectClient.java:32-64`) still has **no test
+   anywhere**: its non-`http(s)` rejection, "never auto-follow redirects", 3 s/5 s timeouts and fixed
+   User-Agent are unasserted while the sibling `JdkHeroImageFetchClient` has exactly that test.
+3. **MEDIUM** — `ShelterReportService.java:155-160`: the lost-race → `DuplicateReportException`
+   branch (the case its javadoc calls "the authority") is unreachable by any test; the in-memory fake
+   never throws and no test substitutes a throwing repository.
+4. **MEDIUM** — **four** `ApiErrorHandler` mappings are asserted nowhere, not even end-to-end:
+   `dataIntegrity` → 400 (`:361`), `heroImportUnreachable` → 502 (`:198`), `locationUpstream` → 502
+   (`:461`), and `locationResolve` → 400 (`:208`, thrown at `LocationController.java:104`) — one more
+   than the previous sweep listed.
+5. **LOW** — two security-relevant branches outside the exception table are also unasserted: the
+   demotion path of the JWT filter (`JwtAuthenticationFilter.java:73-80`, no test flips `users.kind`
+   after issuing a token) and CORS (`SecurityConfig.java:167-176`, zero test references). The rest of
+   the prior sweep's "clean" list — no assertion-free tests, no flakiness, zero mocking, correct
+   scopes — I re-verified and **confirm**, with the JDK-27 failure now genuinely fixed (green on both
+   JDK 21 and JDK 27).

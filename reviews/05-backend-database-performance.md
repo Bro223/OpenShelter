@@ -1,494 +1,429 @@
-# Agent 5 — Backend data access & performance review
+# Agent 5 — Backend data access & performance review (run 2)
 
-Read-only review: no source file was modified; the only file written is this report. Scope:
-`src/main/resources/db/migration/**` (V1–V28, incl. the Java migration V13), `src/main/java/ee/sheltermap/{persistence,app,api,auth,guidance,ingestion,retention,verification,sitetexts}/**`,
-both `application.yml` files, and `pom.xml`. Generated/vendor folders (`target/`, `node_modules/`,
-`frontend/dist/`, `.angular/`) excluded. Tree state: settled; every claim below was re-verified against
-the current working-tree file contents.
+Repository: `/home/aleks/MyScripts/LocalRepos/OpenShelter`
+Reviewed tree: `d247007` + 27 uncommitted files (the admin list lane: paging on
+`GET /admin/shelters` and on the guidance lists).
+Read-only review: no source file was modified; the only file written is this report.
 
-**Method.** I derived the query shapes from the actual Spring Data repository methods and the service
-call sites, then compared each shape against the indexes/constraints the Flyway files actually create
-(index inventory: every `CREATE INDEX`/`CREATE UNIQUE INDEX`/`CONSTRAINT ... UNIQUE` in
-`db/migration/*.sql`), and against the JPA/pool settings in the two yml files. Where the repo already
-documents a decision (`openspec/specs/map-browse/spec.md`, migration headers), I cite it and do not
-report the decision itself as a defect — see "Documented trade-offs".
+**Method.** Everything below is judged against the current tree *and* against the
+running instance. The running backend was compiled at 18:48 from sources last touched
+at 18:47, i.e. `target/classes` **includes the uncommitted paging** — so the runtime
+measurements describe the in-flight code. Read-only `GET`s were used; admin `GET`s
+were authorised with a minted dev-secret JWT for the existing ADMIN row (id 64).
+DB-side facts come from `pg_stat_user_tables` deltas around N identical requests with
+10–15 s settle windows (two independent batches per measurement, identical results),
+plus `pg_indexes` / `pg_constraint` dumps.
 
 ## Versions detected (judged against these)
 
-| Component | Version | Evidence |
-|---|---|---|
-| Java | 21 | `pom.xml:21` |
-| Spring Boot | 3.3.13 (`spring-boot-starter-parent`) | `pom.xml:19` |
-| Hibernate ORM | 6.5.3.Final | resolved dependency (`~/.m2/.../hibernate-core/6.5.3.Final`) |
-| Flyway | 10.10.0 (`flyway-core` + `flyway-database-postgresql`) | `pom.xml:63-70`, resolved dependency |
-| Connection pool | HikariCP 5.1.0 — **defaults only, nothing configured** | resolved dependency; no `hikari`/`maximum-pool-size` match anywhere in `src/main/resources` |
-| JDBC driver / DB | PostgreSQL JDBC 42.7.7; PostgreSQL 16 | resolved dependency; `docker-compose.yml:5` (`image: postgres:16`) |
-| Schema management | Flyway `classpath:db/migration`, `ddl-auto: validate`, `open-in-view: false` | `application.yml:10-14` |
-| Data scale (for severity calibration) | "~300 shelters" | `README.md:518` |
+| Component | Version | Source |
+| --- | --- | --- |
+| Java | 21 (toolchain ran on 27.0.0) | `pom.xml:16` |
+| Spring Boot | 3.5.16 | `pom.xml:9` |
+| Spring Framework / Data JPA / Hibernate | 6.2.19 / 3.5.13 / 6.6.53 | resolved deps of the running JVM |
+| HikariCP | 6.3.3 | resolved deps |
+| PostgreSQL / Flyway | 16 / 11.7.2 | `docker-compose.yml`, resolved deps |
+| Tests | JUnit 5 + AssertJ + Testcontainers 2.0.5 | `pom.xml` |
+| Angular frontend | (see agents 7–10) | `frontend/package.json` |
 
----
+Schema state at review time: `flyway_schema_history` shows V1…V30 all `success`,
+including V29 (users.version) and V30 (index cleanup + queue indexes).
 
-## Correct — independently confirmed from the brief, with evidence
+## Correct — independently re-verified (not taken from the brief)
 
-1. **The list path really is batched by design (one query per lookup kind, no per-row N+1).**
-   `ShelterQueryService.batchesFor` (`api/ShelterQueryService.java:275-330`) issues exactly one call per
-   kind: authors `userRepository.findByIds` (:284), report counts by type (:288),
-   occupancy `findFreshByShelterIds` (:295), open-status (:300), last-verified (`:303` →
-   `latestOpenConfirmedByShelterIds` + `latestConfirmationByShelterIds` + one
-   `findLatestVerifiedBySource` per distinct registry source), info requests (:316).
-   The underlying implementations are genuinely batched and index-backed:
-   `JpaUserRepository.findByIds` (`persistence/JpaUserRepository.java:169-184`) does 2 queries
-   (`findAllById` + one `findByUserIdIn` for claims), `countByTypeForShelterIds` is one grouped query
-   (`persistence/SpringDataShelterReportRepository.java:27-29`), and each of these is served by an
-   existing index (`idx_shelter_reports_shelter` V9:27, `idx_shelter_occupancy_reports_shelter` V9:42,
-   `idx_shelter_open_status_shelter` V22:17, `uq_shelter_info_requests_shelter` V19:35, `pk` for
-   `findAllById`). No `findByShelterId`-per-row call exists on the list paths.
-2. **Repository-level `@Transactional` boundaries and the `readOnly` flag are applied consistently.**
-   Every read on every `Jpa*Repository` is `@Transactional(readOnly = true)` and every write is
-   `@Transactional` — e.g. `JpaShelterRepository.java:32,80,86,92,102,108,116,129,136,143,150,159,165,174`;
-   same pattern in `JpaUserRepository`, `JpaGuidancePostRepository`, `JpaMediaAssetRepository`,
-   `JpaShelterReportRepository`, `JpaShelterOccupancyReportRepository`,
-   `JpaShelterOpenStatusReportRepository`, `JpaSiteTextRepository`, `Jpa*Repository` (tokens,
-   verifications, pending changes). Service-level `readOnly` is set where a service method wraps reads
-   (`api/AdminModerationService.java:140,279,389,449,518`, `guidance/GuidanceService.java:170,202,223,248,264,287,336`,
-   `sitetexts/SiteTextsService.java:44`, `auth/AccountService.java:69,105`, `guidance/MediaService.java:94,103`).
-   **Exception:** `app/ShelterService.java`, `api/ShelterQueryService.java`, `app/UserService.java` and
-   `verification/VerificationService.java` contain no `@Transactional` at all — see F1/F6.
-3. **`@Version` optimistic locking is present on `shelters` and mapped to 409.**
-   `persistence/ShelterEntity.java:86-88` + `V8__review_hardening.sql:34` (column), and the mapping is
-   in `api/ApiErrorHandler.java:337-342` (`OptimisticLockException`/`OptimisticLockingFailureException`
-   → 409) plus the commit-time shape `:357-363` (`TransactionSystemException` wrapping
-   `StaleStateException` → 409, cycle-safe walk `:366-371`). `JpaShelterRepository.save`
-   (`:42-48`) mutates the managed row in place so the counter is preserved — the documented reason it
-   is not a fresh-entity merge.
-4. **No JPA associations anywhere → the N+1/lazy-loading/cascade class of problems does not exist
-   here.** A repo-wide search for `@ManyToOne|@OneToMany|@OneToOne|@ManyToMany|@JoinColumn|
-   @ElementCollection|FetchType|CascadeType|orphanRemoval` across `src/main/java` returns **zero**
-   matches: every FK is a plain `Long` column and every join is done by an explicit batched query, with
-   cascade behaviour delegated to DB `ON DELETE CASCADE`/`SET NULL` and justified per migration
-   (e.g. `V19__shelter_info_requests.sql:8-16`, `V18__shelter_history.sql:11-18`). This is the reason
-   `open-in-view: false` is safe, and it removes the whole first category in my brief. The only
-   remaining cascade concern is index coverage on those FK columns — F5/F11.
-5. **No `equals`/`hashCode` on entities or domain objects, and nothing depends on them.** A search over
-   `persistence/` and `domain/` finds no `equals`/`hashCode` override; every cross-reference in the read
-   services is keyed by `Long` id (`ShelterQueryService.java:284,288,437-467`; `AdminModerationService.java:286-290`).
-   With flat entities and id keys this is correct rather than an oversight.
-6. **`open-in-view: false` and `ddl-auto: validate` in every profile that exists.** There are exactly
-   two config files (`src/main/resources/application.yml`, `src/test/resources/application.yml`, the
-   latter a declared mirror); both set `open-in-view: false` (`:13` / `:28`) and
-   `ddl-auto: validate` (`:12` / `:27`). No `application-dev.yml`/`-prod.yml` exists, so there is no
-   non-dev profile with `create`/`update`/`none`, no `show-sql`, no second-level cache, and no
-   dev-only JPA override. (Agent 1 flags a *content* drift between the two files as F2 — that is a
-   config-maintenance issue, not a JPA-setting one: the two JPA blocks are identical.)
-7. **The index that backs the viewport query is the index the query needs.**
-   `JpaShelterRepository.findAllActiveBySourceInWithin` (`:117-126`) → derived query with
-   `status = ACTIVE` + `latitude between` + `longitude between`, and
-   `V23.1__shelter_bbox_index.sql:20-23` creates `(latitude, longitude)`; the shipped order
-   (`ORDER BY id ASC`) is a total order so the read is deterministic.
-8. **Migrations are honest about `ddl-auto=validate` and about ordering.** Every `V*.sql` ends with the
-   validate note; `V23.1` is a Flyway-native dotted version that orders correctly between `V23` and
-   `V24` and says so (`V23.1:13-16`); the `V13` gap is filled by a Spring-registered Java migration
-   (`migration/PiiMigrationConfig.java:15-18`, `migration/V13PiiEncryptionMigration.java:58-71`
-   declares version `13` itself, `canExecuteInTransaction() == true`), and that migration is what
-   *replaces* the plaintext unique indexes with the hash-based ones the repository queries actually use
-   (`V13:101-104` ↔ `SpringDataUserRepository.java:22-24` `findByEmailHash`/`findByPhoneHash`). The
-   earlier case-sensitivity/index-usability nit recorded in `docs/code-review/2026-09-08-review-output.md`
-   (N14: `findByEmailIgnoreCase` unable to use `(email)`) is resolved by that migration.
-9. **Only two background jobs, both `@Scheduled` on the single default scheduler thread, both with
-   their fetch/work boundaries documented** (`config/RegistryScheduler.java:35`,
-   `retention/RetentionScheduler.java:37`); the registry import deliberately fetches *outside* the
-   transaction (`ingestion/ShelterImportService.java:146-154`) and the retention run commits one
-   account erasure per transaction (`retention/RetentionService.java:41-44,87-99`). The only raw
-   `new Thread` in the codebase is the bounded read-stall watchdog in
-   `guidance/JdkHeroImageFetchClient.java:176-210`, which closes/interrupts the stream on the deadline
-   (`:204-206,126`) — correct, not a thread leak.
+1. **No N+1 on the *shelter* list path — confirmed by counting statements.**
+   `GET /admin/shelters` issues a fixed set of 13 statements per request (11 batched
+   projection queries + 2 per-request auth reads), independent of row count:
+   `shelters` ×1, `users` ×4 (`findByIds` authors, `findByIds` requesters,
+   `isSuspended`, `isAdmin`), `shelter_reports` ×2 (`countByTypeForShelterIds`,
+   `latestOpenConfirmedByShelterIds`), `shelter_occupancy_reports`,
+   `shelter_open_status`, `moderation_actions` (`latestConfirmingByShelterIds`),
+   `shelter_info_requests`, `verification_claims` (`findByUserIdIn`), `data_imports`
+   (index scan). Measured, stable across two batches:
+   `shelters seq +1.0/req, users seq +4.0/req, shelter_reports seq +2.0/req, …`
+2. **Every index the batched lookups need exists.** Verified against `pg_indexes`:
+   `idx_shelters_created_by` (V7), `uq_shelter_reports_shelter_user_type` +
+   `idx_shelter_reports_shelter` (V9), `idx_shelter_occupancy_reports_shelter` (V9),
+   `idx_shelter_open_status_shelter` (V22), `idx_moderation_actions_shelter` (V11),
+   `idx_moderation_actions_moderator` (V30), `idx_moderation_actions_created` (V11),
+   `shelter_info_requests_shelter_id_key` (V19),
+   `idx_data_imports_source_time (source_name, imported_at DESC)` (V15),
+   `idx_report_actions_user_time` (V9), `idx_shelter_history_shelter` (V18).
+   **Precision note:** "index-backed" is true schema-wise, but the *plans* measured
+   today are sequential scans, because the tables are tiny (308 shelters, 62 users,
+   2 reports). That is the planner choosing correctly; it is not a defect, but the
+   earlier sweep's "all index-backed" should not be read as "the plans use indexes".
+3. **`@Version` → 409 in all three exception shapes** (earlier sweeps said two):
+   `OptimisticLockException` + `OptimisticLockingFailureException` at
+   `api/ApiErrorHandler.java:375-379`, and the commit-time
+   `TransactionSystemException`→`StaleStateException` at `:395-402`. All map to
+   "The resource changed under you; reload and retry" / 409.
+4. **V29 landed and is wired end-to-end**: `ALTER TABLE users ADD COLUMN version
+   BIGINT NOT NULL DEFAULT 0` (`V29__user_version.sql:26`), `@Version`
+   (`persistence/UserEntity.java:88-90`), mapper round-trip + copy-back
+   (`JpaUserRepository.save`, `user.setVersion(saved.getVersion())`).
+5. **The report queue is bounded in SQL, index-backed** (was the earlier F3):
+   `limit :limit` in the JPQL (`SpringDataShelterReportRepository.findLatest`
+   /`findLatestByShelterId`) plus `idx_shelter_reports_created (created_at DESC,
+   id DESC)` (V30:47). Measured `GET /admin/reports?limit=100`: 1 index scan,
+   496 bytes, 2 rows.
+6. **V30 both adds and drops correctly.** Added `idx_moderation_actions_moderator`
+   and `idx_shelter_reports_created` exist in `pg_indexes`. Dropped
+   `idx_shelters_county`, `idx_media_assets_source_url`, `idx_site_texts_key`,
+   `idx_pending_contact_changes_user` are gone, and I re-checked the repo for the
+   "no consumer" claim: `county` appears only as an entity/DTO/import field
+   (no predicate anywhere in `main/`), `source_url` has no query, and the remaining
+   two are leading-column-redundant with `uq_site_texts_key_locale (key, locale)`
+   and `uq_pending_contact_change (user_id, type)` whose consumers
+   (`findByKeyAndLocale`, `findByUserIdAndType`) match the composites.
+7. **Write-path transaction boundaries are in place** (earlier F1):
+   `app/ShelterService.java:128, 309, 378` are `@Transactional`, with the
+   count-cap serialization at `:151` (`userRepository.lockForUpdate`);
+   `verification/VerificationService.java:105, 241` are `@Transactional`.
+8. **Sends really are outside the transaction** (earlier F2) — and I verified the
+   *mechanism*, not just the ordering: `ContactChangeService.inTransaction`
+   (`auth/ContactChangeService.java:107-160`) reads in one transaction, sends with
+   no transaction, then writes in another; `VerificationService.requestVerification`
+   performs the channel send before its first DB access (the send log is file-backed,
+   the contact limiter in-memory). Decompiling
+   `spring-orm-6.2.19 …/vendor/HibernateJpaDialect.beginTransaction` shows the
+   physical connection is acquired at *begin* only when the isolation level is
+   custom (I asked for) or `definition.isReadOnly()` is true — so a read-write
+   `@Transactional` method with no statement before the send does **not** pin a
+   pooled connection. The earlier fix does what it claims. (Caveat → F9.)
+9. **Pool/JPA settings are explicit** (`application.yml:10-25`): Hikari
+   `maximum-pool-size: 20`, `connection-timeout: 5000`; `ddl-auto: validate`;
+   `open-in-view: false`. One config file for every profile (no
+   `application-prod.yml`), so no profile can silently flip `ddl-auto`; the test
+   overlay is a delta overlay guarded by `TestConfigOverlayTest`.
+10. **Entity model is free of the usual JPA performance traps**: zero associations —
+    `grep` for `@ManyToOne|@OneToMany|@OneToOne|@JoinColumn` in
+    `src/main/java/ee/sheltermap/persistence/` returns nothing; every relation is a
+    plain `Long` FK column with a DB-level `ON DELETE CASCADE/SET NULL`. Consequences:
+    no lazy-loading N+1, no bidirectional-relation traps, no cascade bugs, no proxy
+    identity issues. `equals`/`hashCode` are overridden on no entity and no domain
+    class (verified) and no entity is used as a `Map`/`Set` key.
+11. **Repository transaction flags are consistent**: I audited all 24 repository
+    implementations (100+ methods). Every read is `@Transactional(readOnly = true)`,
+    every write is read-write. The only unannotated repository methods are the ones
+    that must join the caller's transaction by design
+    (`JpaModerationAuditLog.record/recordLabeled/findLatest/countByModeratorAndAction`,
+    `JpaShelterHistoryLog.record/findByShelterId`) — and their callers
+    (`AdminModerationService.listAudit` `@Transactional(readOnly = true)`,
+    `GuidanceService.*`) do open one.
+12. **The new paging's bounds and ordering are correct and covered by tests.**
+    All three paged endpoints use the same 1..200 / ≥ 0 vocabulary and answer 400
+    through `ApiErrorHandler:156-167` (measured: `?limit=0` → 400, `?limit=201` → 400,
+    `?offset=-1` → 400, `?limit=20&offset=99999` → 200 `[]`). The slice always runs
+    over a *total* order: shelters by `id` (`ShelterQueryService.java:521`),
+    admin guidance by `sort_order ASC, id DESC`
+    (`findAllByOrderBySortOrderAscIdDesc`), public index by
+    `pinned DESC, sort_order ASC, published_at DESC, id DESC` (native query in
+    `SpringDataGuidanceTranslationRepository`), so consecutive pages tile without
+    overlap. Covered by the new `AdminGuidanceSearchPagingIT` (tiling, total header,
+    400 vocabulary) and `AdminModerationIT.theAdminListPagesTheFilteredOrderWithTheTotalHeader`.
+    The argument orders of the two `slice(...)` helpers are used consistently
+    (`slice(rows, offset, limit)`) at all four call sites — checked, no swap.
+13. **No wasteful re-read inside the admin paging path**: unlike the guidance lists,
+    the admin shelter path does not add a per-row lookup for the page.
 
----
+## Fixed
+
+Nothing — read-only review. No file other than this report was created or modified.
 
 ## Findings
 
-### F1 — High (P1): two write services run with no transaction boundary — confirmed, plus the data-access consequences agent 1 did not spell out
-
-**Also reported by agent 1 as F1** (see `reviews/01-architecture.md`). I independently confirmed it and
-add the DB-side evidence, because the failure modes are data-access ones.
-
-**Where**: `app/ShelterService.java:37-38` (`@Service`, zero `@Transactional` in the file),
-`addPlace` (:115-173), `updatePlace` (:287-316), `deletePlace` (:352-357); and
-`verification/VerificationService.java:35` (`@Service`, zero `@Transactional`),
-`requestVerification` (:96-173, with `findActive…` :170 → `delete` :171 → `save` :172),
-`confirmVerification` (:220-249, `save` :242 → `delete` :248).
-
-**What is wrong (DB view)**:
-- Each of those repository calls is its own transaction, so the multi-step writes are not atomic and a
-  single logical write costs several connection check-outs + `BEGIN`/`COMMIT` rounds (e.g.
-  `addPlace` = 2 count queries + a full `findAllActiveBySourceIn(USER)` scan + `save` + history
-  `save` = 5 transactions; `deletePlace` = 2).
-- The audit contract in `app/ShelterHistoryLog.java:9-13` and `db/migration/V18__shelter_history.sql:5-7`
-  ("written in the SAME transaction as the event … a rolled-back or failed event leaves no row") is
-  false for the three user-facing shelter endpoints: `deletePlace` commits the `DELETED` row first
-  (`:353-355`) and only then deletes (`:356`), so a failed delete leaves an audit row for a shelter
-  that still exists; `addPlace`/`updatePlace` commit the shelter first and the history row second, so a
-  failure between them leaves an eventless row.
-- The anti-abuse caps are read-check-write across transactions: the active cap
-  (`countByCreatedByAndSourceAndStatus`, :126-130) and the daily cap (:135-147) can both be passed by
-  two concurrent requests, and the near-duplicate scan (`findNearDuplicate`, :117-127) reads through
-  its own transaction. Nothing at the DB level backs them either — the only relevant unique index is
-  `uq_shelters_external_id` (`V1__schema.sql:48`); there is no constraint on
-  `(created_by, name)` or on a per-user active count.
-- `VerificationService.requestVerification` is the sharper failure: `pending_verifications` has a
-  **non-unique** index on `(user_id, level)` (`V1__schema.sql:36`), the "one active code" invariant is
-  enforced only by the delete-then-insert in three separate transactions, and the reader maps a single
-  row through `Optional` (`SpringDataPendingVerificationRepository.java:117`, called from
-  `JpaPendingVerificationRepository.java:44`). Two concurrent sends (double-submit; the cooldown check
-  at `VerificationService.java:126-138` reads a log that is only written *after* the channel accepts,
-  `:167`) therefore leave two unexpired rows, and the next
-  `POST /verify/confirm` throws `IncorrectResultSizeDataAccessException`, which no handler maps
-  (`api/ApiErrorHandler.java` has no case for it) → **500 instead of the documented generic
-  false/400**. The same pattern is handled correctly one service over: `PasswordResetService.java:113`
-  is `@Transactional` around `deleteActiveByUserId` + `save` (:142-144), and its repository uses
-  `findFirst…` with an explicit comment about exactly this hazard
-  (`SpringDataPasswordResetTokenRepository.java:83-87`).
-
-**Why it matters**: it is the app's main mutation path; it breaks an invariant the code documents,
-leaves the abuse caps racy, and turns a plausible concurrency interleaving on `/verify/confirm` into a
-500 (the user's only recovery is to request a fresh code).
-
-**Suggested fix (minimal)**: `@Transactional` on `ShelterService.addPlace/updatePlace/deletePlace`
-(move the history write after the state change in `deletePlace`) and on
-`VerificationService.requestVerification/confirmVerification`; switch the pending-verification read to
-`findFirst…` (the `PasswordResetService` idiom) so a legacy duplicate degrades instead of 500-ing.
-If the caps must hold *under* concurrency, add the matching DB constraint as well.
-
-### F2 — Medium: blocking SMTP/SMS sends inside `@Transactional` handlers, on top of a default 10-connection pool
-
-**Where**: `auth/PasswordResetService.java:113` (`@Transactional requestReset`) → `:145`
-`smtpSender.send(...)`; `auth/ContactChangeService.java:90` → `:106` `smsSender.send(...)`, and `:154`
-→ `:170` `smtpSender.send(...)`. Timeouts: `application.yml:27-28`
-(`mail.smtp.connectiontimeout: 5000`, `mail.smtp.timeout: 5000`); the Twilio SDK call
-(`verification/TwilioSmsSender.java:139-142`, `create()`) has no app-configured timeout at all.
-Pool: `application.yml:6-9` configures url/username/password only — no `spring.datasource.hikari.*`
-anywhere in the repo, so HikariCP 5.1.0 defaults apply (10 connections, 30 s connection timeout,
-`minimumIdle = maximumPoolSize`) against Tomcat's default 200 request threads.
-
-**What is wrong**: the DB transaction (and therefore a pooled connection, plus row locks on
-`password_reset_tokens` / `pending_contact_changes`) is held across an unbounded-by-design network
-conversation with a third party. `POST /auth/password-reset/request` is unauthenticated and
-rate-limited per IP, so it is trivially reachable. Ten simultaneous slow SMTP/Twilio exchanges pin
-every connection in the pool; every other endpoint then waits up to the 30 s pool timeout. The same
-shape exists in the hero import (`guidance/HeroImageImportService.java:169-200`, a download inside the
-publish transaction, bounded at 10 s by `app.media.import-budget`, `application.yml:303`) — that one
-the code knows about and documents.
-
-**Why it matters**: this is the most plausible way for the single instance to stop serving, and it
-needs no unusual input — a slow SMTP provider plus ordinary traffic.
-
-**Suggested fix**: keep the state write in the transaction and move the send after commit (the
-`VerificationService` "throwaway-then-record" idiom already in the codebase, or a
-`TransactionSynchronization`/outbox). Independently, set `spring.datasource.hikari.maximum-pool-size`
-explicitly (e.g. 20–30 for a single instance) with a matching `connection-timeout`, and configure a
-finite timeout for the Twilio client. Note the repo's own precedent for the "fetch outside the tx"
-rule: `ShelterImportService.java:146-154`.
-
-### F3 — Medium: `GET /admin/reports` is the only list endpoint with no bound, on an append-only table
-
-**Where**: `api/AdminModerationService.java:279-285` (`listShelterReports(null)` →
-`shelterReports.findAll()`), `persistence/SpringDataShelterReportRepository.java:44-45`
-(`findAllByOrderByCreatedAtDescIdDesc()`), then two batch lookups over *every* referenced shelter and
-user (`:286-290`) and a DTO per row (`:291-315`) including the reporter's decrypted e-mail.
-
-**What is wrong**: `shelter_reports` is append-only (V9; nothing deletes rows except the shelter
-cascade) and there is no `limit`, no keyset, and no default page — unlike the sibling audit endpoint,
-which pins `1..200` (`AdminModerationService.java:81-82`, enforced at `:390-395`). Every call loads the
-whole table, resolves every distinct shelter+user, AES-GCM-decrypts every reporter e-mail, and returns
-one JSON object per report.
-
-**Why it matters**: response size and heap grow linearly with the (unbounded) moderation backlog, and
-the growth path is exactly "a busy deployment with unresolved reports". At ~300 shelters this is fine
-today; there is no mechanism that keeps it fine.
-
-**Suggested fix**: give it the audit endpoint's shape — an optional `shelterId` (already there) plus a
-`limit` (default 100, max 200) applied in SQL, and order by `(created_at DESC, id DESC)` with the
-`created_at` index from F9. Alternatively filter to undismissed rows only (a partial index then backs
-it).
-
-### F4 — Medium: `users` has no optimistic locking, and every user save is a whole-row merge from a request-time snapshot
-
-**Where**: `persistence/UserEntity.java:27-29` (no `@Version`; the only `version` column in the schema
-is `shelters.version`, `V8__review_hardening.sql:34`), `persistence/JpaUserRepository.java:63-66`
-(`UserMapper.toEntity(user, …)` then `users.save(entity)` — a fresh detached entity carrying the id,
-i.e. merge semantics, **no** re-read), `persistence/UserMapper.java:34-49` (writes `name`, re-encrypted
-`email`/`phone`, `kind`, and `suspendedAt` :49, `lastActivityAt` :53), writers at
-`auth/AccountService.java:92` (profile update), `auth/VerificationController.java:145`,
-`auth/ContactChangeService.java:139,194`. The user object comes from a request-start read
-(`api/ShelterController.java:597-607` `currentUser()` → `userRepository.findById`).
-
-**What is wrong**: two concurrent writers silently lose one write (last-write-wins on every column).
-The material case is suspension: `AdminModerationService.suspendUser` commits `suspended_at` inside its
-own transaction (`:535-546`), and a user request that read the row *before* that commit writes the
-whole row back from its snapshot — `suspendedAt = null` — silently un-suspending the account. The
-narrower `last_activity_at` regression is the same mechanism (a stale snapshot overwrites a fresher
-stamp; the codebase guards only against `null`, `JpaUserRepository.java:66-74`, and only via the
-column-only path elsewhere).
-
-**Why it matters**: an administrator's suspension (a security action) can be reverted by an ordinary
-in-flight request from the user; the two writes are individually correct and the pair is not. Note the
-codebase already avoids this shape on purpose where it noticed it: `markActive` is a column-only bulk
-`UPDATE` (`SpringDataUserRepository.java:35-38`, `JpaUserRepository.markLastActivityById`) precisely so
-a write does not round-trip stale state.
-
-**Suggested fix**: either add `@Version` to `UserEntity` (+ a `V29` column, mapped through the existing
-409 handler), or make the state-changing writes column-scoped/`@Modifying` (the `markActive` idiom) so
-a profile save cannot rewrite `suspended_at`. The latter is the smaller change and matches the
-existing precedent.
-
-### F5 — Medium: `moderation_actions` has no index on `moderator_id` — a sequential scan on the shelter-detail read path and on every account erasure
-
-**Where**: `persistence/SpringDataModerationActionRepository.java:134-135`
-(`countByModeratorIdAndAction`), used by `api/ShelterQueryService.java:740-747` (`trustWeight`, called
-once per distinct fresh reporter from `communityPulse`, `:625-648`) and by
-`app/ShelterReportService.java` (auto-hide tally). The only indexes on the table are
-`shelter_id`, `created_at`, `subject_user_id` (`V11__community_review.sql:60-61`,
-`V17__user_suspension.sql:20`); `V14__account_deletion_moderator_fk.sql:11-13` changed the FK to
-`ON DELETE SET NULL` without adding an index.
-
-**What is wrong**: `count(*) … where moderator_id = ? and action = ?` cannot use any index → full scan.
-The same missing index makes the FK's `SET NULL` action scan the child table, and the erasure path runs
-that per account (`auth/AccountService.java:153-188` via `retention/RetentionService.java:87-99` loops
-over every inactive account in one run).
-
-**Why it matters**: it is the only per-reporter query on the public detail read
-(`GET /api/shelters/{id}` → `communityPulse` → `trustWeight` × 2 queries per reporter), and the audit
-table is only bounded by the 24-month retention horizon — it is designed to grow.
-
-**Suggested fix**: `CREATE INDEX idx_moderation_actions_moderator ON moderation_actions (moderator_id, action);`
-in a new migration (the `report_actions` idiom, `V9:92-94`).
-
-### F6 — Low: read projections are not wrapped in a single read-only transaction (and the DTO set is assembled non-atomically)
-
-**Where**: `api/ShelterQueryService.java:82-83` (`@Service`, no `@Transactional`), `findAll` (:165-175)
-→ `batchesFor` (:275-330) → the 6–9 separate repository calls listed in "Correct" #1, each of which
-opens and commits its own `readOnly` transaction (`Jpa*Repository`).
-
-**What is wrong**: one `GET /api/shelters` performs ~8–10 transactions (each a connection check-out +
-`BEGIN`/`COMMIT` + a fresh `EntityManager`), and the response is assembled from snapshots taken at
-different points in time — a report/occupancy row committed between two of those calls appears in the
-count but not in the shelter set, and vice versa. The sibling read services annotate the boundary
-(`AdminModerationService.java:279`, `GuidanceService.java:170`), so this is an inconsistency rather
-than a deliberate stance.
-
-**Why it matters**: it multiplies connection churn on the hottest endpoint (relevant given F2's pool
-head-room) and it is the non-obvious half of the "why is this 9 statements" question a future reader
-will ask. Correctness impact today is cosmetic (stale-by-milliseconds trust numbers on a
-read-only map), which is why this is Low.
-
-**Suggested fix**: put `@Transactional(readOnly = true)` on `ShelterQueryService.findAll/findById/
-findByCreatedBy/findAllForAdmin` — one transaction per request, one consistent snapshot, one
-connection.
-
-### F7 — Low: the community-pulse detail read has a per-reporter query loop
-
-**Where**: `api/ShelterQueryService.java:324-326` (`shelters.stream().collect(toMap(id, shelter -> communityPulse(...)))`)
-and `:625-648` (`communityPulse`: 2 queries per distinct reporter via `trustWeight`, `:740-747`; each
-`trustWeight` runs `countByCreatedByAndSourceAndReviewStatus` **and** the unindexed
-`countByModeratorAndAction` from F5).
-
-**What is wrong**: on `GET /api/shelters/{id}` the number of statements is `2 + 2 × distinct fresh
-reporters`; the parenthetical in `:322-324` ("no N+1") is true of the list/mine/admin reads only, not
-of this one.
-
-**Why it matters**: the fresh window is 2 h, so the reporter set is small today — but every reporter
-adds two full scans of `moderation_actions` (F5) and two scans of the user's own submissions, and this
-is a public endpoint. Fixing F5 alone removes most of the cost.
-
-**Suggested fix**: batch both weight inputs for the whole fresh reporter set (one `IN` query each, the
-`batchesFor` idiom already in this class), or at minimum fix F5.
-
-### F8 — Low: the shelter list paths decrypt PII they never use
-
-**Where**: `api/ShelterQueryService.java:284` (`userRepository.findByIds(authorIds)`) →
-`persistence/JpaUserRepository.java:169-184` → `persistence/UserMapper.java:56-80`, which AES-GCM
-decrypts `email` and `phone` per user (`:61-62`) and decrypts every claim's `external_ref` (`:79`).
-The consumers need only `levels()` (`ShelterQueryService.java:436`, `submittedVerified`) and `name`
-(`:526`, admin projection; `name` is not encrypted — V13 encrypts only
-`users.email/phone`, `verification_claims.external_ref`, `pending_verifications.contact`,
-`pending_contact_changes.target`, `V13PiiEncryptionMigration.java:81-85`).
-
-**What is wrong**: the batched author lookup pays 2 AES-GCM decryptions + N claim decryptions per
-author per list request for data that is discarded; the class that owns the shortcut documents the
-correct pattern one screen below (`JpaUserRepository.java:167-190`: `isSuspended`/`existsById` are
-"column-only on purpose … it must not pay the domain mapping (PII decrypt, claims load)").
-
-**Why it matters**: CPU on the request thread grows with the author set, and it widens the blast radius
-of any future decryption failure on a *public* read. Low because ~300 rows × ~2 decryptions is cheap.
-
-**Suggested fix**: give the projection a narrow read (`id, name` + claim levels, or a
-`Map<Long, Boolean> submitterVerified` batch) instead of `Map<Long, User>`; keep the full domain
-mapping for the paths that actually render the contact (admin users/reports).
-
-### F9 — Low: `shelter_reports` has no index on `created_at` although the admin queue orders by it
-
-**Where**: `persistence/SpringDataShelterReportRepository.java:41-45`
-(`findByShelterIdOrderByCreatedAtDescIdDesc`, `findAllByOrderByCreatedAtDescIdDesc`);
-indexes created in `V9__shelter_trust_and_reports.sql:27-28` are `(shelter_id)` and `(user_id)` only.
-
-**What is wrong**: the newest-first queue sorts the table (or, per shelter, sorts its slice). The
-sibling "newest first" tables in the same schema do carry the index: `moderation_actions(created_at)`
-(`V11:61`), `shelter_history(shelter_id, created_at)` (`V18:42-44`), `report_actions(user_id, created_at)`
-(`V9:92-94`), `data_imports(source_name, imported_at DESC)` (`V15:23-25`).
-
-**Why it matters**: small today; it becomes the sort cost behind F3's unbounded read. It is the kind of
-inconsistency the schema otherwise avoids.
-
-**Suggested fix**: `CREATE INDEX idx_shelter_reports_created ON shelter_reports (created_at DESC, id DESC);`
-— or, better, make F3's default a partial index over undismissed rows.
-
-### F10 — Low: the public guidance slug lookup has no usable index
-
-**Where**: `persistence/SpringDataGuidanceTranslationRepository.java:85`
-(`findBySlugOrderByLocaleAscIdAsc`, the "resolve a URL slug in ANY locale" read);
-`V26__guidance_post_translations.sql:62-66` creates `UNIQUE (post_id, locale)` and
-`UNIQUE (locale, slug)` — a B-tree whose leading column is `locale`, so a `slug = ?`-only predicate
-cannot use it.
-
-**What is wrong**: slug resolution (public detail, and the admin slug-uniqueness pre-check
-`existsByLocaleAndSlug` is fine) falls back to a scan of the translations table.
-
-**Why it matters**: the table is small (posts × locales), so this is a Low; it is listed only because
-`V26`'s own comment claims "the per-locale public reads (index + slug resolution)" are index-served,
-which is true for the locale filter and not for slug-only resolution.
-
-**Suggested fix**: `CREATE INDEX idx_guidance_post_translations_slug ON guidance_post_translations (slug);`
-(an `existsBySlug`-style read across locales then also becomes index-served).
-
-### F11 — Low: FK columns with `ON DELETE SET NULL` have no index, so account erasure scans their tables
-
-**Where**: `V23__crisis_guidance.sql:40` (`media_assets.uploaded_by`), `V23:68`
-(`guidance_posts.created_by`), `V19__shelter_info_requests.sql:30,33` (`requested_by`, `replied_by`).
-Contrast with the ones that do: `shelters.created_by` (`V7:8`), `guidance_posts.hero_image_id`
-(`V23:87-89`).
-
-**What is wrong**: the referential `SET NULL` action must find the child rows, and without an index on
-the referencing column that is a full scan of the child table for every erased account.
-`AccountService.deleteAccount` (`:153-188`, ending in `userRepository.delete` + `flush`) runs once per
-account, and `RetentionService.prune` (`:87-99`) runs it in a loop over every inactive account in a
-single pass.
-
-**Why it matters**: bounded by the table sizes (media library, guidance posts, info requests are all
-small), so Low — but the retention job exists precisely to run when those tables have accumulated for
-24 months, and the loops make the cost additive.
-
-**Suggested fix**: add the four indexes in a new migration (mirroring `V7:8`), or drop the loop's
-per-account cost by pruning in one `DELETE`. Also worth stating explicitly in the migration comment
-that the `SET NULL` columns are intentionally unindexed, if that is the decision.
-
-### F12 — Low: unused and redundant indexes in the migration set (write cost + misleading comments)
-
-| Index | Where | Evidence it is unused / redundant |
-|---|---|---|
-| `idx_shelters_county` | `V2__shelter_registry_fields.sql:14` | no query in `src/main/java` references `county` (only the entity field + DTO mapping) |
-| `idx_media_assets_source_url` | `V25__guidance_hero_import.sql:39` | its comment claims it "backs that takedown lookup", but no repository method queries `source_url`; the only read is `findAllByOrderByCreatedAtDescIdDesc` (`SpringDataMediaAssetRepository.java:15`) |
-| `idx_site_texts_key` | `V27__site_texts.sql:34` | redundant with `uq_site_texts_key_locale UNIQUE (key, locale)` (`V27:29`), which serves `findByKeyAndLocale` (`SpringDataSiteTextRepository.java:145`) |
-| `idx_pending_contact_changes_user` | `V4__contact_change.sql:23` | redundant with `uq_pending_contact_change UNIQUE (user_id, type)` created three lines above (`V4:21`) |
-
-**Why it matters**: each costs write amplification on every insert/update and (for `county`,
-`source_url`) documents an intent the code does not implement, which is exactly the kind of comment a
-future reader trusts. No correctness impact.
-
-**Suggested fix**: drop the redundant pair in a new migration; for the two unused ones, either drop
-them or add the query they were meant to serve (a county filter; a takedown lookup by `source_url`) —
-pick one, and update the comment to match.
-
-### F13 — Low: registry import does per-row read-modify-write with an extra `SELECT` inside `save`, and no JDBC batching
-
-**Where**: `ingestion/ShelterImportService.java:171-184` (per row: `findByExternalId` → `save`) and
-`persistence/JpaShelterRepository.java:42-44` (the update path re-reads the row inside `save` before
-mutating it). No `spring.jpa.properties.hibernate.jdbc.batch_size` is set anywhere, and `@GeneratedValue(strategy = IDENTITY)`
-(`persistence/ShelterEntity.java:25-27`) disables insert batching regardless.
-
-**What is wrong**: the apply phase issues ~2–3 statements per registry row inside one long transaction;
-the whole import also holds a single transaction for its duration (`:146-154`, documented).
-
-**Why it matters**: for the Estonian registry (~300 rows, `README.md:518`) this is a few hundred ms of
-extra round trips in a weekly background job — Low. It is listed because the value is now written
-twice for the same reason (`findByExternalId` in the loop and `findById` in `save`) and because the
-"insert" and "update" paths cannot be batched if the row count ever grows (the bbox index comment
-already anticipates a larger scale, `V23.1:6-11`).
-
-**Suggested fix**: reuse the already-loaded row (pass the existing entity/domain row into a
-row-update path, or expose a `mergeInto` that skips the lookup). Leave batching alone unless the
-dataset grows — the IDENTITY strategy makes it unattainable without a generator change.
-
----
-
-## Documented trade-offs (verified — not defects, listed so they are not re-derived)
-
-- **Full-list read with no SQL paging** (`ShelterQueryService.java:165-175`): `openspec/specs/map-browse/spec.md:36`
-  requires the map page to load *all* shelters and `:219-247` defines paging as
-  filters-then-slice, which cannot be pushed into SQL while `hasCapacity`/`provenance` are derived
-  in memory (`applyTrustFilters`, `:758-767`). Consequence to be aware of: `limit=1` still loads,
-  decorates and maps every ACTIVE row, so the parameter bounds the response body only. This is
-  consistent with the spec and fine at ~300 rows; the natural thresholds are (a) paging must move into
-  SQL (materialised `provenance`/`has_capacity` columns) or (b) the filters must become SQL predicates.
-- **A plain B-tree on `(latitude, longitude)` instead of PostGIS** (`V23.1:6-11`): the index serves the
-  latitude range and filters longitude per row; at Estonia scale the planner's choice is fine, and the
-  comment states the replacement path (GiST/geohash). No action.
-- **In-memory trust filters, duplicate scan and `finish`-time derivations** (`applyTrustFilters`
-  `:758-767`, `ShelterService.findNearDuplicate` `:186-196` with its "the USER table is small" note,
-  `deriveOccupancy`/`deriveOpenStatus` `:559-603`): each has a written scale justification and one
-  indexed query per batch. No action at this scale.
-- **No caching anywhere** (`@Cacheable`/`CacheManager`/`@EnableCaching`: zero matches; no cache starter
-  in `pom.xml`): the cacheable reads are all tiny and indexed (`site_texts` full read with the
-  documented "few dozen rows" note `V27:32-33`, `data_imports` latest-row lookup on
-  `(source_name, imported_at DESC)`), and the app is single-instance. Adding a cache now would buy
-  little and add invalidation risk; worth revisiting only if the read endpoints become hot.
-- **Per-request `isSuspended` lookup on every token-bearing request**
-  (`config/JwtAuthenticationFilter.java:69` → `JpaUserRepository.java:167-176`): one PK lookup, and
-  deliberate (suspension must take effect immediately). No action.
-
-## Areas found clean (explicitly)
-
-- No N+1 from lazy loading or associations anywhere — there are no JPA associations to fetch
-  (repo-wide search for `@ManyToOne|@OneToMany|@OneToOne|@ManyToMany|@JoinColumn|@ElementCollection|
-  FetchType|CascadeType|orphanRemoval` = 0 matches). Cascade behaviour is DB-level and justified per
-  migration.
-- `readOnly` transaction flags: consistently set on every repository read and on every service read
-  method that has a boundary at all (only the four files in F1/F6 lack a boundary).
-- `open-in-view: false` and `ddl-auto: validate` in both existing config files; no non-dev profile with
-  a destructive `ddl-auto`; no `show-sql`; no second-level cache; the datasource has no per-profile
-  divergence to get wrong.
-- Optimistic locking on `shelters` (`@Version`, `V8:34`) mapped to 409 in both exception shapes.
-- `equals`/`hashCode`: absent from entities/domain and not relied upon; all cross-references are id-keyed.
-- The batched list reads and their index support (authors, report counts, occupancy, open status,
-  last-verified stamps, info requests) — one query per kind, index-backed, verified.
-- Migration quality: versions V1–V28 with the V13 gap legitimately filled by a transactional
-  Spring-registered Java migration; dotted `V23.1` orders correctly; every migration carries a
-  validate-note and an explicit rationale for its DDL/DML; the PII migration replaces the plaintext
-  unique indexes with the hash indexes the code actually queries.
-- Background work: two `@Scheduled` jobs on the default single scheduler thread, with the registry
-  fetch deliberately outside the transaction and per-account commits in the retention loop; the only
-  raw thread is a correctly closed/interrupted read-stall watchdog.
-- Pool/JPA settings are otherwise appropriate for a single-instance deployment — the only gap is the
-  absence of any explicit Hikari sizing (F2).
+### F1 — High (P1): the new `/admin/shelters` paging slices *after* the whole pipeline, so a one-row page costs exactly what the full list costs
+
+* **Location:** `src/main/java/ee/sheltermap/api/AdminController.java:139-146`
+  (`moderation.listShelters(...)` → `filtered.size()` → `GuidanceService.slice(...)`)
+  feeding `src/main/java/ee/sheltermap/api/ShelterQueryService.java:516-527`
+  (`shelterRepository.findAll()` + `batchesFor(shelters, true)` over **all** rows).
+* **What is wrong:** `limit`/`offset` are applied in Java *after* (a) loading the
+  entire `shelters` table as entities, (b) mapping every row to the domain object,
+  (c) running all 11 batched trust/provenance lookups over every shelter id, and
+  (d) building an `AdminShelterDto` for every row. Paging therefore reduces only the
+  serialized bytes, never the work.
+* **Evidence (measured, two independent batches, identical):**
+  per request `GET /admin/shelters?limit=1&offset=0` →
+  `shelters seq +1.0 tupr +308.0`, `users seq +4.0`, `shelter_reports seq +2.0`,
+  `moderation_actions seq +1.0`, `shelter_occupancy_reports seq +1.0`,
+  `shelter_open_status seq +1.0`, `shelter_info_requests seq +1.0`,
+  `verification_claims seq +1.0`, `data_imports idx +1.0` — i.e. 13 statements and
+  **308 shelter rows read for a 1-row page**. A batch of 10 **unpaged** requests
+  produced the *byte-identical* delta table. Wall clock is 20–21 ms paged vs 20 ms
+  unpaged (payload 7 080 B vs 109 410 B).
+  The frontend now pages this endpoint at the default 20 rows
+  (`GUIDANCE_PAGE_SIZE = 20`, `frontend/src/app/gateways/guidance-gateway.ts:25`;
+  `admin-page.ts:240, 828-833`), so opening the Shelters tab and walking the 308-row
+  list turns one full pipeline into **16 full pipelines**, and `loadQueue()`/
+  `refreshShelters()` (`admin-page.ts:748-756, 840-862`) add another unpaged one.
+* **Why it matters:** this is the lane whose stated purpose is to bound the admin
+  list; as implemented, cost per *user-visible page* grows with table size while the
+  response shrinks — the exact opposite of a paging win. The same shape exists on the
+  public, **unauthenticated** `GET /api/shelters` (measured: 20× `?limit=5` and 20×
+  unpaged both = `seq_scan +160`, `seq_tup_read +9 440`, i.e. identical), and that
+  endpoint has no rate limit (`app.ratelimit.*` covers login/register/verify/change/
+  geo-resolve only), so the per-request cost is attacker-addressable.
+  Not a correctness bug — the dataset is 308 rows today, so this is a scaling cliff
+  rather than an incident.
+* **Suggested fix (minimal):** move the slice into SQL. `status`/`source` are plain
+  column predicates and `q` is a `lower(name)/lower(address) LIKE`; add to
+  `SpringDataShelterRepository` a `@Query` with `order by s.id asc` + `limit :limit
+  offset :offset` (or a `Pageable`), plus a `count(*)` twin for the `X-Total-Count`
+  contract (which stays exactly what it is now: the filter length without paging),
+  and run `batchesFor(...)` over the page's ids only. If in-memory is kept
+  deliberately, at least apply the source/status/`q` filters and the slice *before*
+  `batchesFor` + DTO mapping, and document that the header then needs the count query.
+* **Depends on unfinished work?** The javadoc/comments present the in-memory slice as
+  the finished design ("the same Estonia-scale precedent as the trust filters",
+  `ShelterQueryService.java:509-515`, `AdminController.java:141-143`), so this reads
+  as done rather than in flight.
+
+### F2 — Medium (P1): N+1 on the public guidance index (`GuidanceService.listPublic`)
+
+* **Location:** `src/main/java/ee/sheltermap/guidance/GuidanceService.java:213-221`
+  (`for (long id : postIds) { posts.findById(id)… }`); the javadoc immediately above
+  (`:211-214`) claims "The posts are batch-loaded once … no per-row N+1".
+* **What is wrong:** one `SELECT` per published post per request; there is no
+  `findByIdIn`, so Hibernate cannot batch them. It runs **before** the `limit/offset`
+  slice, so a 1-row page still reads every post.
+* **Evidence:** 10 anonymous `GET /api/guidance?limit=1` →
+  `guidance_posts seq +9.0/req, seq_tup_read +72.0/req` (9 statements × 8 rows =
+  the 8 published posts in `en` + the join), while `guidance_post_translations` is
+  read once (`+1.0/req`). A single-query alternative already exists and is **dead
+  code**: `GuidancePostRepository.findPublished(String locale)` →
+  `SpringDataGuidancePostRepository.findByStatusAndLocaleOrderByPinnedDescSortOrderAscPublishedAtDescIdDesc`
+  has no production caller (only `InMemoryGuidancePostRepository` implements it).
+* **Why it matters:** the public blog index is permit-all and unlimited in request
+  rate; its cost grows linearly with posts per locale on every page view, and the
+  new paging does not bound it.
+* **Suggested fix:** add `List<GuidancePost> findByIdIn(Collection<Long> ids)` to the
+  port + adapter and replace the loop with one call (the order already comes from
+  `rows`); or wire the existing `findPublished(locale)` and drop the redundant read.
+  Fix the comment either way.
+
+### F3 — Medium (P2): both guidance list endpoints load the **entire** media library on every request
+
+* **Location:** `src/main/java/ee/sheltermap/api/GuidanceController.java:133` +
+  `:211-217` (`heroIndex()` → `mediaAssets.findAll()`), and
+  `src/main/java/ee/sheltermap/api/AdminGuidanceController.java:165` + `:662-668`
+  (same body; the `List<GuidancePost> posts` parameter is **never used**).
+* **What is wrong:** the hero lookup is solved by loading every asset row and
+  building a map, instead of the hero ids on the page. It happens before filtering and
+  before the slice, so `limit=1` pays for the whole library.
+* **Evidence:** 10 anonymous `GET /api/guidance?limit=1` →
+  `media_assets seq +1.0/req, seq_tup_read +8.0/req` (the full 8-row library per
+  request, page size irrelevant). `media_assets` is append-only and grows with
+  admin uploads (5 MiB images, `GET /admin/media` also unpaged — see F4), so this
+  scan grows without bound while the page stays 20 rows.
+* **Suggested fix:** collect the distinct `heroImageId`s of the *page* (the slice
+  already ran) and add a batched
+  `MediaAssetRepository.findByIds(Collection<Long>)` (`findAllById` in the adapter) —
+  one indexed `IN` query. The unused parameter on
+  `AdminGuidanceController.heroIndex(List<GuidancePost>)` is the leftover of exactly
+  that change, so the signature is already there.
+
+### F4 — Low (P2): the remaining unpaged whole-table admin lists (users, media)
+
+* **Location:** `AdminModerationService.java:530-535` (`users.findAll()`),
+  `guidance/MediaService.java:93-97` (`mediaAssets.findAll()` via
+  `AdminMediaController.java:75`); `AdminController.shelterHistory` is per-shelter and
+  fine.
+* **What is wrong:** with `/admin/shelters` and `/admin/guidance` now paged, the two
+  neighbouring lists that grow without operator discipline — the media library, and
+  the account table — are still unbounded reads, mapped entity-by-entity (the user
+  path also decrypts PII for every row: `JpaUserRepository.findAll` → `UserMapper`
+  AES-GCM-decrypts e-mail/phone and loads all claims).
+* **Evidence:** 10× `GET /admin/users` → `users seq +4.0/req`, `verification_claims
+  seq +1.0/req` (62 accounts, every row decrypted even though GUEST rows are dropped
+  afterwards by the `email != null` filter on the decrypted value).
+* **Suggested fix:** give `/admin/media` the same `limit/offset` + `X-Total-Count`
+  treatment (its own `Pageable` read is trivial, `findAllByOrderByCreatedAtDescIdDesc`
+  is already ordered), and either page `/admin/users` the same way or add a
+  `kind`/`email_hash IS NOT NULL` predicate so GUEST rows are not decrypted and
+  filtered in memory. Low because both are admin-only triage surfaces on small tables
+  today.
+
+### F5 — Low (P2): the public guidance permalink lookup has no usable index
+
+* **Location:** `GuidanceService.getByPublicSlug` →
+  `translations.findBySlug(slug)` →
+  `SpringDataGuidanceTranslationRepository.findBySlugOrderByLocaleAscIdAsc`
+  (`persistence/SpringDataGuidanceTranslationRepository.java:33-36`).
+* **What is wrong:** the only index containing `slug` is
+  `uq_guidance_post_translations_locale_slug (locale, slug)` (V26:65) whose *leading*
+  column is `locale`; the query has no locale predicate, so it cannot use it. This is
+  the one place in the tree where an index is genuinely missing rather than merely
+  unused by the planner.
+* **Evidence:** `pg_indexes` has no index whose first column is `slug` on
+  `guidance_post_translations`; 10× `GET /api/guidance/{slug}` →
+  `guidance_post_translations seq +2.0/req, seq_tup_read +40.0/req` (2 full scans of
+  the 20-row table: `findBySlug` + `findAllByPostId`).
+* **Why it matters:** it is the public `/blog/{slug}` path on every page view, and the
+  table grows as posts × locales. Low severity today (20 rows).
+* **Suggested fix:** one line in a follow-up migration —
+  `CREATE INDEX idx_guidance_post_translations_slug ON guidance_post_translations (slug);`
+  (or `(slug, locale)`).
+
+### F6 — Low (P2): four `ON DELETE SET NULL` FK columns still have no index, so each account erasure scans their tables
+
+* **Location:** `V19__shelter_info_requests.sql:30,33`
+  (`requested_by`, `replied_by`), `V23__crisis_guidance.sql:40`
+  (`media_assets.uploaded_by`), `V23__crisis_guidance.sql:68`
+  (`guidance_posts.created_by`); exercised per account by the retention job's erasure
+  loop (`retention/RetentionService.java:88-97` → `AccountService.deleteAccount`).
+* **What is wrong:** V30 closed exactly this gap for `moderation_actions.moderator_id`
+  (its own comment cites "erasing a user scans the whole table to find the child
+  rows"), but the four columns added later by V19/V23 were not given the same
+  treatment. `pg_constraint` confirms they are `confdeltype = 'n'` (SET NULL) with no
+  matching index, while every other child FK on the erasure path is indexed
+  (`shelters.created_by`, `moderation_actions.moderator_id`, and the
+  `user_id` CASCADEs).
+* **Why it matters:** the daily retention job erases accounts in a loop, so each
+  erasure pays four extra sequential scans of tables that grow with content
+  (the media library especially).
+* **Suggested fix:** one migration adding the four single-column indexes (or one
+  documented decision to accept the scans — the tables are small today).
+
+### F7 — Low (P2): the new bound validation runs **after** the expensive read on all three paged endpoints
+
+* **Location:** `AdminController.java:139-145` (`moderation.listShelters(...)` then
+  `requireOffset`/`requireLimit`), `AdminGuidanceController.java:165-177`,
+  `GuidanceController.java:131-134` (public, anonymous).
+* **What is wrong:** a request with an invalid `limit`/`offset` performs the whole
+  pipeline (F1: 13 statements + 308-row projection; F2/F3: the N+1 + full media
+  library) before answering 400. Measured: `?limit=0` answers 400 *after* the same
+  work as a valid request.
+* **Suggested fix:** call `requireLimit`/`requireOffset` (and, on the guidance list,
+  `requireSearch`) before the service call — a pure reordering, no behaviour change;
+  the ITs assert the statuses, not the work done.
+
+### F8 — Low (P2): `findLatest` goes through `PageRequest`, so a *full* page costs an extra `count(*)`
+
+* **Location:** `persistence/JpaModerationAuditLog.java:72-79`
+  (`actions.findAll(PageRequest.of(0, limit, …))` → `Page<…>`).
+* **What is wrong:** Spring Data runs the count query when a full page is returned
+  (`PageableExecutionUtils`: skipped only when `pageSize > content.size()`); the
+  audit trail never uses the total.
+* **Evidence:** 10× `GET /admin/audit?limit=1` → `moderation_actions seq +1.0/req`
+  (the count) *and* `idx +1.0/req` (the ordered page), whereas 10×
+  `?limit=200` (24 rows returned — not full) → `seq +0.0/req`, `idx +1.0/req`.
+  With 57 audit rows and `limit=200` the count is simply never issued.
+* **Suggested fix:** declare the call site as `List<ModerationActionEntity> findAll(Pageable)`
+  (Spring Data then skips the count) or use a `@Query … order by … limit :limit`
+  sibling of the queue read in `SpringDataShelterReportRepository`.
+
+### F9 — Low (P2): a hero-import publish holds a pooled connection across the remote fetch
+
+* **Location:** `guidance/GuidanceService.publish` (`:659-670`) — `requirePost(id)` is
+  a DB statement, *then* `heroImport.importHero(...)`
+  (`guidance/HeroImageImportService.java:169-195`, itself `@Transactional`), then the
+  save.
+* **What is wrong:** because the transaction is read-write, Spring's
+  `HibernateJpaDialect.beginTransaction` does not acquire the connection at begin —
+  but the `requirePost` statement acquires it lazily and Hibernate holds it until
+  commit. The remote fetch (DNS + up to 3 redirect hops + up to 5 MiB body) therefore
+  runs with a pooled connection pinned, bounded only by
+  `app.media.import-budget: 10s`. The class comment acknowledges the bound
+  ("also bounds how long the publish transaction is held").
+* **Why it matters:** pool size is 20 and the connection timeout 5 s, so one slow
+  publish can make a waiting request fail at 5 s. Admin-only and budget-bounded, so
+  Low — but see the caveat under "Correct" #8: the earlier sweep's F2 fix holds for
+  read-write transactions with no prior statement, **not** for this shape, and *not*
+  for `@Transactional(readOnly = true)` methods, which do acquire the connection at
+  begin.
+* **Suggested fix:** move the import before the first statement of the publish
+  (resolve/validate the URL, fetch and store, then run the publishing transaction),
+  or clear the persistence context / split the fetch out of the transaction — the
+  same "phase 1 / phase 2 / phase 3" shape `ContactChangeService` already uses.
+
+### F10 — Low (P2): the "one slice semantics" is a copy, not a shared helper
+
+* **Location:** `api/ShelterQueryService.java:188-195` (`static List<ShelterDto> slice`)
+  vs `guidance/GuidanceService.java:243-250` (`public static <T> List<T> slice`).
+* **What is wrong:** two verbatim implementations of the same paging semantics now
+  coexist; three controllers call the guidance one while the shelter list keeps its
+  own. `GuidanceService.slice`'s javadoc calls itself "the shelter list's slice
+  semantics verbatim", so the single source of truth is a comment.
+* **Suggested fix:** delete `ShelterQueryService.slice` and call
+  `GuidanceService.slice(filtered, offset, limit)` (or move the helper to a neutral
+  home used by both) — behaviour-identical, one place to change.
+
+### F11 — Low (P2): registry import still does a read-modify-write per row
+
+* **Location:** `ingestion/ShelterImportService.java:171-176` (`findByExternalId`
+  followed by `save` per row, no `@Transactional` on the service, no JDBC batching).
+* **Why it matters:** ~2+ round-trips per registry row (300 rows today) on the weekly
+  sync. Not worth restructuring: `@GeneratedValue(strategy = IDENTITY)` on every
+  entity makes JDBC insert batching impossible anyway, so the only real fix is a
+  set-based upsert (`INSERT … ON CONFLICT (external_id) DO UPDATE`), which is a
+  larger change than the benefit at this scale. Listed so it is not re-derived.
+
+## Confirm / contradict the previous sweep's conclusions
+
+| Earlier claim | Verdict here |
+| --- | --- |
+| No N+1 on the list path; batched creator/count/occupancy/stamp lookups | **Confirmed for the shelter lists** (13 statements, measured). **Contradicted for the guidance lists**: `listPublic` N+1 (F2) and a full media-library load per request (F3). "All index-backed" → true schema-wise; the measured plans are seq scans on today's tiny tables. |
+| Repository `readOnly` flags consistent | **Confirmed** (all 24 impls audited). |
+| `@Version` → 409 in both exception shapes | **Confirmed, and there are three shapes** (adds the commit-time `TransactionSystemException`/`StaleStateException` branch). |
+| `ShelterService`/`VerificationService` lacked a transaction boundary | **Fixed in the current tree** (`ShelterService:128,309,378` + `lockForUpdate:151`; `VerificationService:105,241`). |
+| Oldest user row lacked optimistic locking | **Fixed** (V29 applied; mapper round-trip + copy-back verified). |
+| Sends inside transactional handlers + default Hikari settings | **Fixed, and the mechanism verified** at the Spring level; caveat: read-only transactions still pin a connection at begin (→ F9). |
+| Admin report queue unbounded | **Fixed** (LIMIT in SQL + `idx_shelter_reports_created`; measured 1 index scan). |
+| Index gaps + redundant indexes fixed in V30 | **Confirmed both directions**; the four remaining SET-NULL FK gaps are new (F6), and the translations-by-slug gap (F5) was not part of V30. |
+
+## Areas found clean (explicit)
+
+* **Entity/JPA model**: no associations at all, no lazy loading, no bidirectional
+  relations, no JPA cascades, no `equals`/`hashCode` overrides on entities or
+  aggregates.
+* **Transaction hygiene**: readOnly flags consistent across every repository; write
+  services (Shelter, Verification, Guidance, Moderation, PasswordReset, ContactChange)
+  all own their boundaries; audit/history rows are written in the caller's transaction
+  by design.
+* **The shelter list projection**: no per-row queries, no duplicated lookups, correct
+  id-ascending total order, and the two `findByIds` batches cover creators and
+  requesters.
+* **Index coverage for existing query shapes**: every read except F5 resolves against
+  an index that exists in `pg_indexes` (verified table by table).
+* **Migrations**: V1–V30 all applied; V29/V30 do exactly what their comments claim;
+  the four dropped indexes really have no consumer in `main/`;
+  `ddl-auto: validate` stays green against the new definitions.
+* **Paging correctness** (as opposed to cost): bounds, 400s, empty past-the-end page,
+  total-count semantics and the totality of the order are all implemented and tested
+  by the new ITs; reorder is only offered when the filtered list fits one page
+  (`guidanceReorderable`, `admin-page.ts:356-358`), so paging cannot feed a partial
+  list to the reorder endpoint.
+* **`ApiErrorHandler` 409 mapping** for optimistic locking, and the `limit` bounds
+  mapping to 400 with a `message` body.
 
 ## Top 5 findings
 
-1. **F1 (High)** — `app/ShelterService.java:37-38,115-173,287-316,352-357` and
-   `verification/VerificationService.java:96-173,220-249` have no transaction boundary: the
-   documented same-transaction history/audit invariant is false, the submission caps are racy, and two
-   concurrent verification sends lead to a duplicate pending code and a **500** on `/verify/confirm`
-   (`SpringDataPendingVerificationRepository.java:117` maps one row through `Optional`).
-   *(Also agent 1 F1; recorded here for the data-access consequences.)*
-2. **F2 (Medium)** — blocking SMTP/Twilio sends inside `@Transactional` handlers
-   (`auth/PasswordResetService.java:113,145`; `auth/ContactChangeService.java:90,106,154,170`) with no
-   Hikari sizing anywhere (`application.yml:6-9`, defaults = 10 connections vs 200 Tomcat threads):
-   the single most plausible way to take the instance down.
-3. **F3 (Medium)** — `GET /admin/reports` loads the entire append-only `shelter_reports` table with no
-   limit (`api/AdminModerationService.java:279-290`), while the sibling audit endpoint caps at 200
-   (`:81-82,390-395`).
-4. **F4 (Medium)** — `users` has no `@Version` and is written whole-row from a request snapshot
-   (`persistence/UserEntity.java:27-29`, `JpaUserRepository.java:63-66`, `UserMapper.java:34-53`), so an
-   in-flight user save can silently revert an admin suspension.
-5. **F5 (Medium)** — `moderation_actions` has no index on `moderator_id`
-   (`SpringDataModerationActionRepository.java:134-135`, used per reporter on the public detail read
-   `ShelterQueryService.java:740-747` and by the `SET NULL` erasure cascade): one migration adds
-   `(moderator_id, action)` and removes both scans.
+1. **F1 (High / P1)** — `AdminController.java:139-146` + `ShelterQueryService.java:516-527`:
+   the new `/admin/shelters` paging slices after the full pipeline — a 1-row page
+   reads all 308 shelter rows and runs all 13 statements, byte-identical to the
+   unpaged request (measured, two batches). The frontend pages this endpoint at 20
+   rows, so a Shelters-tab walk multiplies the DB work by the page count. Fix: SQL
+   `limit/offset` + a count query over the same filter and order.
+2. **F2 (Medium / P1)** — `GuidanceService.java:213-221`: N+1 on the public guidance
+   index (one `findById` per published post, before the slice) while the javadoc
+   claims a batch; 9 scans / 72 rows read per anonymous `GET /api/guidance?limit=1`.
+   Fix: `findByIdIn` batch (or the already-present, unused `findPublished(locale)`).
+3. **F3 (Medium / P2)** — `GuidanceController.java:211-217` and
+   `AdminGuidanceController.java:662-668`: the entire media library is loaded per
+   guidance list request, page-size-independent, and the admin helper ignores its
+   parameter. Fix: batched `findByIds` over the page's hero ids.
+4. **F6 (Low / P2)** — V19/V23: four `ON DELETE SET NULL` FK columns still lack
+   indexes that V30 gave `moderation_actions.moderator_id`, so each retention erasure
+   adds four sequential scans. Fix: one migration with four single-column indexes.
+5. **F5 (Low / P2)** — `SpringDataGuidanceTranslationRepository.java:33-36`:
+   the public permalink lookup (`findBySlug`) has no index whose leading column is
+   `slug` (the V26 unique is `(locale, slug)`), so every `/blog/{slug}` view scans the
+   translations table twice. Fix: `CREATE INDEX … ON guidance_post_translations (slug)`.
+
+**Merge verdict: OK with notes.** The lane's paging semantics are correct and
+tested; the cost model is not (F1, F2, F3, F7 — all cheap reorderings or one batched
+lookup each). Nothing here blocks a merge on correctness grounds: F1 is the one I
+would fix before calling the paging feature done, since it is the feature's whole
+point.
