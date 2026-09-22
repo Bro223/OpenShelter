@@ -12,50 +12,32 @@ import {
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { skip } from 'rxjs';
-import { NgClass } from '@angular/common';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
-import { DatePipe, registerLocaleData } from '@angular/common';
+import { registerLocaleData } from '@angular/common';
+import { FormControl, Validators } from '@angular/forms';
 import localeEnGB from '@angular/common/locales/en-GB';
-import { RouterLink, ActivatedRoute, Router, type Params } from '@angular/router';
+import { ActivatedRoute, Router, type Params } from '@angular/router';
 import type {
   AdminAlertKind,
   AdminAlertRow,
   AdminAuditAction,
   AdminAuditRow,
   AdminGuidancePostDto,
-  AdminOccupancy,
   AdminShelterDto,
   AdminShelterHistoryEvent,
-  AdminShelterHistoryFieldChange,
   AdminShelterReportDto,
   AdminUserDto,
   GuidanceStatus,
   GuidanceTranslationDto,
   MediaAssetDto,
-  ShelterReportType,
   ShelterSourceFilter,
   ShelterStatus,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
-import {
-  ALERT_KIND_LABEL,
-  AUDIT_ACTION_LABEL,
-  SHELTER_HISTORY_ACTION_LABEL,
-  SHELTER_REPORT_TYPE_LABEL,
-} from '../../shared/admin-copy';
 import { nameBlankValidator } from '../../shared/form-helpers';
-import {
-  occupancyText as occupancyTextShared,
-  recencyText,
-  sourceTrustLabel as sourceTrustLabelShared,
-  communityBadgeClass as communityBadgeClassShared,
-  isPrivateLocation as isPrivateLocationShared,
-} from '../../shared/shelter-copy';
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
-import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   PAGE_SIZE_DEFAULT,
   PAGE_SIZES,
@@ -64,17 +46,21 @@ import {
   parsePage,
   parseSize,
 } from '../../shared/paging';
-import { Pagination } from '../../shared/pagination';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { Locale } from '../../core/i18n/locale';
 import { LOCALES } from '../../core/i18n/locale';
-import type { MessageKey } from '../../core/i18n/messages';
 import { ApiError } from '../../core/api-error';
-import { GuidanceEditor, type GuidanceEditorSave } from './guidance-editor';
-import { GuidanceOrderList } from './guidance-order-list';
-import { GuidanceTranslations } from './guidance-translations';
+import type { GuidanceEditorSave } from './guidance-editor';
+import { AlertsPanel } from './alerts-panel';
+import { AuditPanel } from './audit-panel';
+import { GuidancePanel } from './guidance-panel';
+import { MediaPanel } from './media-panel';
+import { ReportsPanel } from './reports-panel';
+import { SheltersPanel } from './shelters-panel';
 import { SiteTextsPanel } from './site-texts-panel';
+import { UnconfirmedPanel } from './unconfirmed-panel';
+import { UsersPanel } from './users-panel';
 
 registerLocaleData(localeEnGB, 'en-GB');
 
@@ -104,54 +90,72 @@ export const INFO_REQUEST_MAX = 2000;
 /**
  * /admin (adminGuard — admin-kind accounts only; anonymous AND authenticated
  * non-admins are redirected home by the guard, mirroring the backend's
- * 401/403 per request). Eight tabs, each one queue:
+ * 401/403 per request). Nine tabs, each one queue; every tab is an
+ * extracted presentational panel component (the extracted-panel contract —
+ * the page owns the state, the URL-backed views and the gateway calls;
+ * the panels render and emit intents):
  *
  *  - UNCONFIRMED (first, default) — the community review queue: every USER
- *    row in the NEW state (client-side filter of the shelters list — the
- *    unconfirmed subset IS the queue, newest first). "Mark confirmed" is
+ *    row in the NEW state (client-side filter of the FULL shelters list —
+ *    the unconfirmed subset IS the queue, newest first; deliberately
+ *    un-paged: the queue filters the whole scope, so the Shelters tab's
+ *    paging must not hollow it out). "Mark confirmed" is
  *    direct; "Reject" requires a reason (≤500 chars). Confirm/reject hit
  *    POST /admin/shelters/{id}/review and refresh the shelters list (the
  *    queue recomputes from it; a 409 surfaces the server message verbatim).
  *  - SHELTERS — every row incl. hidden; USER rows actionable (Hide/Activate,
  *    Delete with a two-tap inline confirm), registry rows read-only (D4:
  *    import-owned — the UI never offers actions for them). Name/address
- *    search (submit-on-enter).
+ *    search (submit-on-enter), the source chips, the shared page + size
+ *    control (the first adopter of the admin's list-page-paging
+ *    follow-up).
  *  - SHELTER REPORTS — the report queue: shelter link, type, reporter, age,
- *    dismiss. Dismissed rows stay in the queue, DIMMED (audit trail — the
- *    choice over filtering: the admin sees what was resolved). Rows whose
- *    shelter is INACTIVE get a "Restore shelter" shortcut.
+ *    dismiss. The hide-dismissed filter is the queue's first-class control
+ *    (a chip group, URL-backed as `excludeDismissed`): the DEFAULT is 'All'
+ *    — dismissed rows stay in the queue, DIMMED (audit trail — the admin
+ *    sees what was resolved), nothing is hidden silently; 'Open only'
+ *    scopes the list AND the page count to the open reports server-side,
+ *    agreeing with the per-shelter open counts the Shelters tab's pins
+ *    express (W2-A). The list pages on the shared control (server-side
+ *    limit/offset, X-Total-Count). Rows whose shelter is INACTIVE get a
+ *    "Restore shelter" shortcut.
  *  - ALERTS — the throttle-abuse ring (abuse-limits): the
  *    daily submission cap (429), the per-contact OTP cap (429) and the
- *    near-duplicate rejection (409), newest first. Read-only; the ring
- *    is in-memory on the backend (cleared on a restart — a triage view,
- *    not a durable log).
+ *    near-duplicate rejection (409), newest first. Read-only and
+ *    deliberately un-paged: the ring is the backend's in-memory cap
+ *    (limit-bounded, no offset/total) — a triage view, not a durable log.
  *  - GUIDANCE (crisis-guidance D8) — the post list (title + hero
  *    thumbnail, status, locale, pinned, published date, updated) with
- *    create / edit / publish / unpublish / delete (two-tap). The editor
- *    is the inline GuidanceEditor form (title, slug, body, hero picker
- *    + mandatory-iff-set alt, locale, pinned, and the create-mode
- *    write-and-publish choice); the body is a plain textarea over the
- *    stored (sanitized) HTML. The admin DTO carries NO publishedAt — the
- *    published-date column merges the permit-all public index by slug
- *    (a merge failure degrades the column to "—", never the list).
- *  - MEDIA LIBRARY (crisis-guidance D8) — the asset inventory: thumbnail,
- *    filename, dimensions, size, upload date, reused-by count; the
- *    multipart upload (field `file`); delete is API-FIRST — the first tap
- *    calls DELETE (unreferenced → 200, row gone; referenced → 409 naming
- *    the affected posts, which arms the confirm strip that re-issues with
- *    confirm=true — never a dead end).
- *  - AUDIT (last) — the read-only moderation trail, newest 100 (lazy load
- *    on first switch): when / moderator / shelter / action / change /
- *    reason. Shelter names are resolved server-side (a deleted shelter
- *    reads "Deleted shelter"); the guidance/media rows (D12) read their
- *    subjectLabel snapshot in the same column.
- *  - USERS (before the authoring tabs) — the account list: name, e-mail,
- *    kind, suspension state. Suspend is two-tap (arm + confirm, like the
- *    shelter delete) and idempotent server-side; a suspended row is dimmed
- *    with a "Suspended" badge and an Unsuspend action. Admin-kind rows are
- *    listed (the provisioned account is visible) but the Suspend action is
- *    never offered for them (backend 409 — lockout vector). Suspension
- *    stops the ACCOUNT (login/refresh/tokens), not its shelters.
+ *    create / edit / publish / unpublish / delete (two-tap), paged on the
+ *    shared control. The editor is the inline GuidanceEditor form (title,
+ *    slug, body, hero picker + mandatory-iff-set alt, locale, pinned, and
+ *    the create-mode write-and-publish choice); the body is a plain
+ *    textarea over the stored (sanitized) HTML. The hero picker sees the
+ *    MEDIA library's current page (the library is paged too). The admin
+ *    DTO carries NO publishedAt — the published-date column merges the
+ *    permit-all public index by slug (a merge failure degrades the column
+ *    to "—", never the list).
+ *  - MEDIA LIBRARY (crisis-guidance D8) — the asset inventory (newest
+ *    first, paged on the shared control): thumbnail, filename, dimensions,
+ *    size, upload date, reused-by count; the multipart upload (field
+ *    `file` — a fresh asset lands on page 1); delete is API-FIRST — the
+ *    first tap calls DELETE (unreferenced → 200, row gone; referenced →
+ *    409 naming the affected posts, which arms the confirm strip that
+ *    re-issues with confirm=true — never a dead end).
+ *  - AUDIT (last) — the read-only moderation trail, paged on the shared
+ *    control (lazy load on first switch): when / moderator / shelter /
+ *    action / change / reason. Shelter names are resolved server-side (a
+ *    deleted shelter reads "Deleted shelter"); the guidance/media rows
+ *    (D12) read their subjectLabel snapshot in the same column.
+ *  - USERS (before the authoring tabs) — the account list, paged on the
+ *    shared control: name, e-mail, kind, suspension state. Suspend is
+ *    two-tap (arm + confirm, like the shelter delete) and idempotent
+ *    server-side; a suspended row is dimmed with a "Suspended" badge and
+ *    an Unsuspend action. Admin-kind rows are listed (the provisioned
+ *    account is visible) but the Suspend action is never offered for them
+ *    (backend 403 — lockout vector). Suspension stops the ACCOUNT
+ *    (login/refresh/tokens), not its shelters.
+ *  - SETTINGS — the site texts panel (self-contained).
  *
  * Mutations update the in-memory row in place (no full refetch — the backend
  * answers 204 with no body); a rejected mutation surfaces the server message
@@ -163,18 +167,17 @@ export const INFO_REQUEST_MAX = 2000;
 @Component({
   selector: 'app-admin-page',
   imports: [
-    ReactiveFormsModule,
-    RouterLink,
-    NgClass,
-    DatePipe,
     BannerComponent,
-    LoadingIndicator,
-    Pagination,
     TranslatePipe,
-    GuidanceEditor,
-    GuidanceOrderList,
-    GuidanceTranslations,
+    AlertsPanel,
+    AuditPanel,
+    GuidancePanel,
+    MediaPanel,
+    ReportsPanel,
+    SheltersPanel,
     SiteTextsPanel,
+    UnconfirmedPanel,
+    UsersPanel,
   ],
   templateUrl: './admin-page.html',
   styleUrl: './admin-page.scss',
@@ -243,21 +246,16 @@ export class AdminPage implements OnInit, OnDestroy {
    *  count / out-of-range flag — a past-the-end page renders an explicit
    *  notice, never a bare empty list. */
   protected readonly shelterTotal = signal(0);
-  protected readonly shelterPages = computed(() => lastPage(this.shelterTotal(), this.shelterSize()));
-  protected readonly shelterOutOfRange = computed(() =>
-    this.shelterTotal() > 0 && this.shelterPage() > this.shelterPages(),
+  protected readonly shelterPages = computed(() =>
+    lastPage(this.shelterTotal(), this.shelterSize()),
+  );
+  protected readonly shelterOutOfRange = computed(
+    () => this.shelterTotal() > 0 && this.shelterPage() > this.shelterPages(),
   );
   /** The selectable sizes — the range the endpoint serves (limit 1..200
    *  honours all of 10..100 step 10, so the control never offers a size
    *  the backend would refuse). */
   protected readonly pageSizes = PAGE_SIZES;
-  /** The source filter chips (the table's source vocabulary, short).
-   *  All = no filter. */
-  protected readonly sourceChips: { value: ShelterSourceFilter; label: MessageKey }[] = [
-    { value: 'ALL', label: 'admin.shelters.source.all' },
-    { value: 'REGISTRY', label: 'admin.shelters.source.registry' },
-    { value: 'USER', label: 'admin.shelters.source.community' },
-  ];
 
   // ---- shelter history ---------------------------------------------------------
   /** The row whose inline history panel is open (null = closed). */
@@ -291,11 +289,39 @@ export class AdminPage implements OnInit, OnDestroy {
   // ---- shelter-report tab ----------------------------------------------------
   protected readonly reportRows = signal<AdminShelterReportDto[] | null>(null);
   protected readonly reportLoadError = signal<string | null>(null);
+  /** The hide-dismissed filter (the owner's first-class control):
+   *  true = the OPEN scope (the endpoint's `excludeDismissed`) — the
+   *  dismissed rows are out of the list AND of the page count, agreeing
+   *  with the per-shelter open counts the Shelters tab's pins express
+   *  (W2-A); false = the DEFAULT 'All' — everything renders (nothing is
+   *  hidden silently; the dismissed rows are dimmed). URL-backed
+   *  (`excludeDismissed`, present only when true — the omit-defaults
+   *  convention). */
+  protected readonly reportExcludeDismissed = signal(false);
+  protected readonly reportPage = signal(1);
+  protected readonly reportSize = signal(PAGE_SIZE_DEFAULT);
+  /** The un-paged (filtered) total (X-Total-Count — the OPEN count when
+   *  the filter is on) and the derived page count / out-of-range flag. */
+  protected readonly reportTotal = signal(0);
+  protected readonly reportPages = computed(() => lastPage(this.reportTotal(), this.reportSize()));
+  protected readonly reportOutOfRange = computed(
+    () => this.reportTotal() > 0 && this.reportPage() > this.reportPages(),
+  );
 
   // ---- audit tab ---------------------------------------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly auditRows = signal<AdminAuditRow[] | null>(null);
   protected readonly auditLoadError = signal<string | null>(null);
+  /** The paged view (the owner's "every admin list pages" rule): the
+   *  un-paged trail length (X-Total-Count) and the derived page count /
+   *  out-of-range flag. */
+  protected readonly auditPage = signal(1);
+  protected readonly auditSize = signal(PAGE_SIZE_DEFAULT);
+  protected readonly auditTotal = signal(0);
+  protected readonly auditPages = computed(() => lastPage(this.auditTotal(), this.auditSize()));
+  protected readonly auditOutOfRange = computed(
+    () => this.auditTotal() > 0 && this.auditPage() > this.auditPages(),
+  );
 
   // ---- alerts tab ------------------------------------------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
@@ -306,6 +332,16 @@ export class AdminPage implements OnInit, OnDestroy {
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty. */
   protected readonly userRows = signal<AdminUserDto[] | null>(null);
   protected readonly userLoadError = signal<string | null>(null);
+  /** The paged view (the owner's "every admin list pages" rule): the
+   *  un-paged population (X-Total-Count) and the derived page count /
+   *  out-of-range flag. */
+  protected readonly userPage = signal(1);
+  protected readonly userSize = signal(PAGE_SIZE_DEFAULT);
+  protected readonly userTotal = signal(0);
+  protected readonly userPages = computed(() => lastPage(this.userTotal(), this.userSize()));
+  protected readonly userOutOfRange = computed(
+    () => this.userTotal() > 0 && this.userPage() > this.userPages(),
+  );
   /** Two-tap suspend/unsuspend confirm (accessibility): the armed row
    *  id, carrying which action was armed — the shared ConfirmAction owns the
    *  state machine, the focus move and the focus restore. */
@@ -344,9 +380,11 @@ export class AdminPage implements OnInit, OnDestroy {
   protected readonly guidanceTotal = signal(0);
   protected readonly guidancePage = signal(1);
   protected readonly guidanceSize = signal(PAGE_SIZE_DEFAULT);
-  protected readonly guidancePages = computed(() => lastPage(this.guidanceTotal(), this.guidanceSize()));
-  protected readonly guidanceOutOfRange = computed(() =>
-    this.guidanceTotal() > 0 && this.guidancePage() > this.guidancePages(),
+  protected readonly guidancePages = computed(() =>
+    lastPage(this.guidanceTotal(), this.guidanceSize()),
+  );
+  protected readonly guidanceOutOfRange = computed(
+    () => this.guidanceTotal() > 0 && this.guidancePage() > this.guidancePages(),
   );
   /** Manual order (the DnD, the move buttons AND the full-list order PUT)
    *  is ALL-ROWS-by-nature: available only while the whole (searched,
@@ -395,6 +433,15 @@ export class AdminPage implements OnInit, OnDestroy {
    *  win — the last response to ARRIVE is not the last view to be asked
    *  for (a chip/search change during an in-flight load). */
   private shelterFetchSeq = 0;
+  /** The monotonic report-queue fetch sequence (the same guard — a
+   *  filter/page change during an in-flight load supersedes). */
+  private reportFetchSeq = 0;
+  /** The monotonic account-list fetch sequence (the same guard). */
+  private userFetchSeq = 0;
+  /** The monotonic media-library fetch sequence (the same guard). */
+  private mediaFetchSeq = 0;
+  /** The monotonic audit-trail fetch sequence (the same guard). */
+  private auditFetchSeq = 0;
   /** The monotonic editor-detail fetch sequence (same guard). */
   private editorFetchSeq = 0;
   /** The monotonic editor-reveal sequence: a superseded open (a newer
@@ -456,9 +503,20 @@ export class AdminPage implements OnInit, OnDestroy {
 
   // ---- media library tab (crisis-guidance D8) ---------------------------------
   /** null = not loaded yet (lazy on first switch); [] = loaded and empty.
-   *  Newest first; the editor's hero picker reuses this list. */
+   *  Newest first; the guidance editor's hero picker reuses the current
+   *  page of the library. */
   protected readonly mediaRows = signal<MediaAssetDto[] | null>(null);
   protected readonly mediaLoadError = signal<string | null>(null);
+  /** The paged view (the owner's "every admin list pages" rule): the
+   *  un-paged library size (X-Total-Count) and the derived page count /
+   *  out-of-range flag. */
+  protected readonly mediaPage = signal(1);
+  protected readonly mediaSize = signal(PAGE_SIZE_DEFAULT);
+  protected readonly mediaTotal = signal(0);
+  protected readonly mediaPages = computed(() => lastPage(this.mediaTotal(), this.mediaSize()));
+  protected readonly mediaOutOfRange = computed(
+    () => this.mediaTotal() > 0 && this.mediaPage() > this.mediaPages(),
+  );
   /** The in-use delete confirm: the armed asset id, carrying the 409's
    *  server message (naming the affected posts) — the strip re-issues the
    *  delete with confirm=true. */
@@ -472,82 +530,6 @@ export class AdminPage implements OnInit, OnDestroy {
 
   /** Two-tap delete confirm: the armed shelter id (no window.confirm). */
   protected readonly shelterDeleteConfirm = new ConfirmAction<number>(this.host.nativeElement);
-
-  // ---- shared copy helpers (exposed to the template) ---------------------------
-  /** The i18n seam: the shared shelter-copy helpers resolve their copy
-   *  through the active locale (the map-page's idiom) — the admin
-   *  surface is catalogued, so the badges read in the moderator's
-   *  language, not a frozen English const. */
-  private readonly translate = (key: MessageKey, params?: Record<string, string | number>): string =>
-    this.i18n.t(key, params);
-
-  protected readonly reporterText = reporterText;
-  /** Source/trust badge copy (community-review-queue D5): the Shelters
-   *  tab's source column shows the source label (registry rows) or the
-   *  trust-state label — the admin list keeps hidden rows, so REJECTED
-   *  renders its own tone here. Resolved through the active locale. */
-  protected readonly sourceTrustLabel = (row: AdminShelterDto): string =>
-    sourceTrustLabelShared(row, this.translate);
-  protected readonly communityBadgeClass = communityBadgeClassShared;
-  protected readonly isPrivateLocation = isPrivateLocationShared;
-
-  /** The admin occupancy block into the shared occupancy copy — the SAME
-   *  wire shape as the public list's block (`lastReportedAt` included),
-   *  so no remapping; resolved through the active locale. */
-  protected occupancyText(occ: AdminOccupancy | null, now: number = Date.now()): string | null {
-    if (occ === null) {
-      return null;
-    }
-    return occupancyTextShared(occ, now, this.translate);
-  }
-
-  /** Queue-row age ("12 min ago") — the shared recency copy (active
-   *  locale). */
-  protected ageText(iso: string): string {
-    return recencyText(iso, Date.now(), this.translate);
-  }
-
-  protected reportTypeLabel(type: ShelterReportType): string {
-    return SHELTER_REPORT_TYPE_LABEL[type];
-  }
-
-  /** Audit-log action label (the machine value → human copy). */
-  protected auditActionLabel(action: AdminAuditAction): string {
-    return AUDIT_ACTION_LABEL[action];
-  }
-
-  /** Alert kind label (the machine value → human copy). */
-  protected alertKindLabel(kind: AdminAlertKind): string {
-    return ALERT_KIND_LABEL[kind];
-  }
-
-  /** The 429 alert's Retry-After countdown, human-formatted (null → "—"). */
-  protected retryAfterText(seconds: number | null): string {
-    if (seconds === null) {
-      return '—';
-    }
-    const h = Math.floor(seconds / 3600);
-    const m = Math.round((seconds % 3600) / 60);
-    if (h > 0) {
-      return m > 0 ? `${h} h ${m} min` : `${h} h`;
-    }
-    if (m > 0) {
-      return `${m} min`;
-    }
-    return `${seconds} s`;
-  }
-
-  /** Audit-log status change cell: "A → B", the single status when one side
-   *  is null (delete/reject), or "—" when neither (e.g. report dismiss). */
-  protected auditChangeText(previous: string | null, next: string | null): string {
-    if (previous === null && next === null) {
-      return '—';
-    }
-    if (previous === null || next === null) {
-      return (previous ?? next) as string;
-    }
-    return `${previous} → ${next}`;
-  }
 
   /** The view IS the URL (admin-page-size / admin-guidance-search):
    *  every emission (the initial navigation and every query change — a
@@ -568,6 +550,10 @@ export class AdminPage implements OnInit, OnDestroy {
    *  term, for the shelters list) differ from the last load. */
   private guidanceViewKey = '';
   private sheltersViewKey = '';
+  private reportsViewKey = '';
+  private usersViewKey = '';
+  private mediaViewKey = '';
+  private auditViewKey = '';
 
   /** Parse + normalize the paged lists' params, then sync the active
    *  tab (the public guidance page's idiom, applied per tab). */
@@ -579,6 +565,14 @@ export class AdminPage implements OnInit, OnDestroy {
       this.syncGuidanceFromParams(params, false);
     } else if (this.tab() === 'shelters') {
       this.syncSheltersFromParams(params, false);
+    } else if (this.tab() === 'reports') {
+      this.syncReportsFromParams(params, false);
+    } else if (this.tab() === 'users') {
+      this.syncUsersFromParams(params, false);
+    } else if (this.tab() === 'media') {
+      this.syncMediaFromParams(params, false);
+    } else if (this.tab() === 'audit') {
+      this.syncAuditFromParams(params, false);
     }
   }
 
@@ -591,7 +585,12 @@ export class AdminPage implements OnInit, OnDestroy {
   private normalizeListParams(params: Params): boolean {
     const canonical: Record<string, string> = { ...params };
     let dirty = false;
-    const check = (pageRaw: string | null, sizeRaw: string | null, pName: string, sName: string) => {
+    const check = (
+      pageRaw: string | null,
+      sizeRaw: string | null,
+      pName: string,
+      sName: string,
+    ) => {
       const page = parsePage(pageRaw);
       const size = parseSize(sizeRaw);
       if (page > 1) {
@@ -604,12 +603,29 @@ export class AdminPage implements OnInit, OnDestroy {
       } else {
         delete canonical[sName];
       }
-      if ((pageRaw !== null && String(page) !== pageRaw) || (sizeRaw !== null && String(size) !== sizeRaw)) {
+      if (
+        (pageRaw !== null && String(page) !== pageRaw) ||
+        (sizeRaw !== null && String(size) !== sizeRaw)
+      ) {
         dirty = true;
       }
     };
-    check(params['guidancePage'] ?? null, params['guidanceSize'] ?? null, 'guidancePage', 'guidanceSize');
-    check(params['shelterPage'] ?? null, params['shelterSize'] ?? null, 'shelterPage', 'shelterSize');
+    check(
+      params['guidancePage'] ?? null,
+      params['guidanceSize'] ?? null,
+      'guidancePage',
+      'guidanceSize',
+    );
+    check(
+      params['shelterPage'] ?? null,
+      params['shelterSize'] ?? null,
+      'shelterPage',
+      'shelterSize',
+    );
+    check(params['reportPage'] ?? null, params['reportSize'] ?? null, 'reportPage', 'reportSize');
+    check(params['userPage'] ?? null, params['userSize'] ?? null, 'userPage', 'userSize');
+    check(params['mediaPage'] ?? null, params['mediaSize'] ?? null, 'mediaPage', 'mediaSize');
+    check(params['auditPage'] ?? null, params['auditSize'] ?? null, 'auditPage', 'auditSize');
     // `source`: the chips' vocabulary is REGISTRY/USER. Anything else — a
     // hand-typed 'ALL' (the no-filter default), a stale pre-lane enum value
     // (PAASETEAMET), garbage — sanitizes to the no-filter default in the
@@ -620,6 +636,16 @@ export class AdminPage implements OnInit, OnDestroy {
     const sourceRaw = params['source'] ?? null;
     if (sourceRaw !== null && sourceRaw !== 'REGISTRY' && sourceRaw !== 'USER') {
       delete canonical['source'];
+      dirty = true;
+    }
+    // `excludeDismissed`: the report queue's hide-dismissed filter. Only
+    // the literal 'true' is the open scope; anything else — a hand-typed
+    // 'false', garbage — sanitizes to the default ('All'), and the
+    // default is the ABSENCE of the param (the omit-defaults convention),
+    // so the stray value is dropped from the URL.
+    const excludeRaw = params['excludeDismissed'] ?? null;
+    if (excludeRaw !== null && excludeRaw !== 'true') {
+      delete canonical['excludeDismissed'];
       dirty = true;
     }
     if (dirty) {
@@ -692,6 +718,70 @@ export class AdminPage implements OnInit, OnDestroy {
     this.loadShelters();
   }
 
+  /** The Reports tab's view (the URL's reportPage/reportSize +
+   *  excludeDismissed) into the signals, loading when `firstVisit` (the
+   *  lazy-load rule) or the view actually changed (the sequence guard
+   *  drops a superseded in-flight response). */
+  private syncReportsFromParams(params: Params, firstVisit: boolean): void {
+    const exclude = params['excludeDismissed'] === 'true';
+    const page = parsePage(params['reportPage'] ?? null);
+    const size = parseSize(params['reportSize'] ?? null);
+    const key = [page, size, exclude].join('|');
+    if (!firstVisit && key === this.reportsViewKey) {
+      return;
+    }
+    this.reportsViewKey = key;
+    this.reportExcludeDismissed.set(exclude);
+    this.reportPage.set(page);
+    this.reportSize.set(size);
+    this.loadReports();
+  }
+
+  /** The Users tab's view (userPage/userSize) into the signals (the same
+   *  idiom). */
+  private syncUsersFromParams(params: Params, firstVisit: boolean): void {
+    const page = parsePage(params['userPage'] ?? null);
+    const size = parseSize(params['userSize'] ?? null);
+    const key = [page, size].join('|');
+    if (!firstVisit && key === this.usersViewKey) {
+      return;
+    }
+    this.usersViewKey = key;
+    this.userPage.set(page);
+    this.userSize.set(size);
+    this.loadUsers();
+  }
+
+  /** The Media tab's view (mediaPage/mediaSize) into the signals (the
+   *  same idiom). */
+  private syncMediaFromParams(params: Params, firstVisit: boolean): void {
+    const page = parsePage(params['mediaPage'] ?? null);
+    const size = parseSize(params['mediaSize'] ?? null);
+    const key = [page, size].join('|');
+    if (!firstVisit && key === this.mediaViewKey) {
+      return;
+    }
+    this.mediaViewKey = key;
+    this.mediaPage.set(page);
+    this.mediaSize.set(size);
+    this.loadMedia();
+  }
+
+  /** The Audit tab's view (auditPage/auditSize) into the signals (the
+   *  same idiom). */
+  private syncAuditFromParams(params: Params, firstVisit: boolean): void {
+    const page = parsePage(params['auditPage'] ?? null);
+    const size = parseSize(params['auditSize'] ?? null);
+    const key = [page, size].join('|');
+    if (!firstVisit && key === this.auditViewKey) {
+      return;
+    }
+    this.auditViewKey = key;
+    this.auditPage.set(page);
+    this.auditSize.set(size);
+    this.loadAudit();
+  }
+
   ngOnDestroy(): void {
     this.guidanceLocaleSub.unsubscribe();
     this.querySub.unsubscribe();
@@ -743,14 +833,13 @@ export class AdminPage implements OnInit, OnDestroy {
     this.closeGuidanceEditor();
     this.guidanceDeleteConfirm.disarm();
     this.mediaDeleteInUse.disarm();
+    this.userActionConfirm.disarm();
     switch (tab) {
       case 'shelters':
         this.syncSheltersFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'reports':
-        if (this.reportRows() === null && this.reportLoadError() === null) {
-          this.loadReports();
-        }
+        this.syncReportsFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'alerts':
         if (this.alertsRows() === null && this.alertsLoadError() === null) {
@@ -758,22 +847,16 @@ export class AdminPage implements OnInit, OnDestroy {
         }
         break;
       case 'users':
-        if (this.userRows() === null && this.userLoadError() === null) {
-          this.loadUsers();
-        }
+        this.syncUsersFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'guidance':
         this.syncGuidanceFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'media':
-        if (this.mediaRows() === null && this.mediaLoadError() === null) {
-          this.loadMedia();
-        }
+        this.syncMediaFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'audit':
-        if (this.auditRows() === null && this.auditLoadError() === null) {
-          this.loadAudit();
-        }
+        this.syncAuditFromParams(this.route.snapshot.queryParams, true);
         break;
       case 'unconfirmed':
         break; // filters the full list, which loaded in ngOnInit
@@ -793,7 +876,9 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listShelters()
       .then((page) => this.queueRows.set(page.rows))
-      .catch((error: unknown) => this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .catch((error: unknown) =>
+        this.shelterLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))),
+      );
   }
   /** "Mark confirmed": direct, no reason (POST /admin/shelters/{id}/review).
    *  The shelters list refetches so both this queue and the Shelters tab
@@ -934,7 +1019,12 @@ export class AdminPage implements OnInit, OnDestroy {
     } else {
       // The page is already 1 and the term is not a URL param — the
       // navigation would be a no-op, so load directly.
-      this.sheltersViewKey = [this.shelterSource(), this.shelterPage(), this.shelterSize(), this.shelterQuery()].join('|');
+      this.sheltersViewKey = [
+        this.shelterSource(),
+        this.shelterPage(),
+        this.shelterSize(),
+        this.shelterQuery(),
+      ].join('|');
       this.loadShelters();
     }
   }
@@ -1025,7 +1115,11 @@ export class AdminPage implements OnInit, OnDestroy {
       await this.admin.setShelterStatus(row.id, status);
       this.patchShelter(row.id, { status });
       this.success.set(
-        this.i18n.t(status === 'INACTIVE' ? 'admin.shelters.success.hidden' : 'admin.shelters.success.restored'),
+        this.i18n.t(
+          status === 'INACTIVE'
+            ? 'admin.shelters.success.hidden'
+            : 'admin.shelters.success.restored',
+        ),
       );
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
@@ -1237,17 +1331,6 @@ export class AdminPage implements OnInit, OnDestroy {
     this.historyEvents.set(null);
   }
 
-  /** History action label (the machine value → human copy). */
-  protected historyActionLabel(action: AdminShelterHistoryEvent['action']): string {
-    return SHELTER_HISTORY_ACTION_LABEL[action];
-  }
-
-  /** One field change, "field: old → new"; an absent side renders "—"
-   *  (a first-set description, or a field cleared to absent). */
-  protected historyChangeText(change: AdminShelterHistoryFieldChange): string {
-    return `${change.field}: ${change.from ?? '—'} → ${change.to ?? '—'}`;
-  }
-
   private patchShelter(id: number, patch: Partial<AdminShelterDto>): void {
     this.shelterRows.update((rows) =>
       (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)),
@@ -1260,13 +1343,96 @@ export class AdminPage implements OnInit, OnDestroy {
   loadReports(): void {
     this.reportRows.set(null);
     this.reportLoadError.set(null);
+    const size = this.reportSize();
+    const seq = ++this.reportFetchSeq;
     this.admin
-      .listShelterReports()
-      .then((rows) => this.reportRows.set(rows))
-      .catch((error: unknown) => this.reportLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .listShelterReports({
+        excludeDismissed: this.reportExcludeDismissed() || undefined,
+        limit: size,
+        offset: (this.reportPage() - 1) * size,
+      })
+      .then((paged) => {
+        if (seq !== this.reportFetchSeq) {
+          return; // a newer load superseded this response
+        }
+        this.reportTotal.set(paged.total);
+        this.reportRows.set(paged.rows);
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.reportFetchSeq) {
+          return;
+        }
+        this.reportLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+      });
   }
 
-  /** Mark the report resolved (204, idempotent). The row stays, dimmed. */
+  /** The hide-dismissed filter chips' intent: write `excludeDismissed`
+   *  to the URL (a link or refresh keeps the scope), which re-loads the
+   *  queue in the new scope at page 1 (a scope change voids the page
+   *  number — the old one would often land out-of-range). The default
+   *  ('All') is the ABSENCE of the param. */
+  onReportFilterChange(excludeDismissed: boolean): void {
+    if (excludeDismissed === this.reportExcludeDismissed()) {
+      return;
+    }
+    this.clearFeedback();
+    this.navigateReports({ excludeDismissed, page: 1 });
+  }
+
+  /** Write the Reports tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted from the URL (page 1, size 20, the
+   *  'All' scope). */
+  private navigateReports(view: {
+    page?: number;
+    size?: number;
+    excludeDismissed?: boolean;
+  }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.excludeDismissed !== undefined) {
+      if (view.excludeDismissed) {
+        params['excludeDismissed'] = 'true';
+      } else {
+        delete params['excludeDismissed'];
+      }
+    }
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['reportPage'] = String(view.page);
+      } else {
+        delete params['reportPage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
+        params['reportSize'] = String(view.size);
+      } else {
+        delete params['reportSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page.
+   *  The filter scope is kept. */
+  onReportsNavigate({ page, size }: { page: number; size: number }): void {
+    this.navigateReports({ page: clampPage(page, this.reportTotal(), size), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size and filter scope are kept). */
+  gotoReportsFirstPage(): void {
+    this.navigateReports({ page: 1 });
+  }
+
+  /** Mark the report resolved (204, idempotent). With the DEFAULT scope
+   *  ('All') the row stays, dimmed (the audit trail — the admin sees
+   *  what was resolved); with the OPEN scope the row leaves the list AND
+   *  the (open) total — the list and the pin counts stay in agreement
+   *  (W2-A). */
   async dismissReport(id: number): Promise<void> {
     if (this.busy()) {
       return;
@@ -1275,9 +1441,14 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.admin.dismissShelterReport(id);
-      this.reportRows.update((rows) =>
-        (rows ?? []).map((r) => (r.id === id ? { ...r, dismissed: true } : r)),
-      );
+      if (this.reportExcludeDismissed()) {
+        this.reportRows.update((rows) => (rows ?? []).filter((r) => r.id !== id));
+        this.reportTotal.update((t) => Math.max(0, t - 1));
+      } else {
+        this.reportRows.update((rows) =>
+          (rows ?? []).map((r) => (r.id === id ? { ...r, dismissed: true } : r)),
+        );
+      }
       this.success.set(this.i18n.t('admin.reports.success.dismissed'));
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
@@ -1321,7 +1492,9 @@ export class AdminPage implements OnInit, OnDestroy {
     this.admin
       .listAlerts()
       .then((rows) => this.alertsRows.set(rows))
-      .catch((error: unknown) => this.alertsLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .catch((error: unknown) =>
+        this.alertsLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))),
+      );
   }
 
   // -------------------------------------------------------------------------
@@ -1331,10 +1504,23 @@ export class AdminPage implements OnInit, OnDestroy {
     this.userRows.set(null);
     this.userLoadError.set(null);
     this.userActionConfirm.disarm();
+    const size = this.userSize();
+    const seq = ++this.userFetchSeq;
     this.admin
-      .listUsers()
-      .then((rows) => this.userRows.set(rows))
-      .catch((error: unknown) => this.userLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .listUsers({ limit: size, offset: (this.userPage() - 1) * size })
+      .then((paged) => {
+        if (seq !== this.userFetchSeq) {
+          return; // a newer load superseded this response
+        }
+        this.userTotal.set(paged.total);
+        this.userRows.set(paged.rows);
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.userFetchSeq) {
+          return;
+        }
+        this.userLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+      });
   }
 
   /** Step 1 of the two-tap confirm: arm the confirm strip for the row. */
@@ -1366,7 +1552,11 @@ export class AdminPage implements OnInit, OnDestroy {
       }
       this.patchUser(id, { suspendedAt: action === 'suspend' ? new Date().toISOString() : null });
       this.success.set(
-        this.i18n.t(action === 'suspend' ? 'admin.users.success.suspended' : 'admin.users.success.unsuspended'),
+        this.i18n.t(
+          action === 'suspend'
+            ? 'admin.users.success.suspended'
+            : 'admin.users.success.unsuspended',
+        ),
       );
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
@@ -1380,16 +1570,101 @@ export class AdminPage implements OnInit, OnDestroy {
     this.userRows.update((rows) => (rows ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
+  /** Write the Users tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted from the URL (page 1, size 20). */
+  private navigateUsers(view: { page?: number; size?: number }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['userPage'] = String(view.page);
+      } else {
+        delete params['userPage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
+        params['userSize'] = String(view.size);
+      } else {
+        delete params['userSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page. */
+  onUsersNavigate({ page, size }: { page: number; size: number }): void {
+    this.navigateUsers({ page: clampPage(page, this.userTotal(), size), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size is kept). */
+  gotoUsersFirstPage(): void {
+    this.navigateUsers({ page: 1 });
+  }
+
   // -------------------------------------------------------------------------
   // Audit tab
   // -------------------------------------------------------------------------
   loadAudit(): void {
     this.auditRows.set(null);
     this.auditLoadError.set(null);
+    const size = this.auditSize();
+    const seq = ++this.auditFetchSeq;
     this.admin
-      .listAudit()
-      .then((rows) => this.auditRows.set(rows))
-      .catch((error: unknown) => this.auditLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .listAudit({ limit: size, offset: (this.auditPage() - 1) * size })
+      .then((paged) => {
+        if (seq !== this.auditFetchSeq) {
+          return; // a newer load superseded this response
+        }
+        this.auditTotal.set(paged.total);
+        this.auditRows.set(paged.rows);
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.auditFetchSeq) {
+          return;
+        }
+        this.auditLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+      });
+  }
+
+  /** Write the Audit tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted from the URL (page 1, size 20). */
+  private navigateAudit(view: { page?: number; size?: number }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['auditPage'] = String(view.page);
+      } else {
+        delete params['auditPage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
+        params['auditSize'] = String(view.size);
+      } else {
+        delete params['auditSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page. */
+  onAuditNavigate({ page, size }: { page: number; size: number }): void {
+    this.navigateAudit({ page: clampPage(page, this.auditTotal(), size), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size is kept). */
+  gotoAuditFirstPage(): void {
+    this.navigateAudit({ page: 1 });
   }
 
   // -------------------------------------------------------------------------
@@ -1703,7 +1978,11 @@ export class AdminPage implements OnInit, OnDestroy {
         // SCOPED to the CONTENT language (admin-locale-split): the content
         // fields land on that locale's translation row (the post-level
         // fields stay shared).
-        result = await this.admin.updateGuidancePost(save.id, save.update!, this.i18n.contentLocale());
+        result = await this.admin.updateGuidancePost(
+          save.id,
+          save.update!,
+          this.i18n.contentLocale(),
+        );
         this.guidanceRows.update((rows) =>
           (rows ?? []).map((r) => (r.id === result.id ? result : r)),
         );
@@ -1954,7 +2233,10 @@ export class AdminPage implements OnInit, OnDestroy {
     this.clearFeedback();
     this.busy.set(true);
     try {
-      await this.admin.reorderGuidanceOrder(nextRows.map((r) => r.id), this.i18n.contentLocale());
+      await this.admin.reorderGuidanceOrder(
+        nextRows.map((r) => r.id),
+        this.i18n.contentLocale(),
+      );
       this.guidanceRows.set(nextRows);
       this.success.set(this.i18n.t('admin.guidance.success.reordered'));
     } catch (error) {
@@ -1968,37 +2250,48 @@ export class AdminPage implements OnInit, OnDestroy {
   // Media library tab (crisis-guidance D8)
   // -------------------------------------------------------------------------
 
-  /** Load the asset inventory (newest first, with the reused-by counts).
-   *  The editor's hero picker reuses these rows. */
+  /** Load the CURRENT page of the asset inventory (newest first, with the
+   *  reused-by counts): the server slices with limit/offset and the
+   *  un-paged library size arrives as X-Total-Count (the owner's "every
+   *  admin list pages" rule). The editor's hero picker reuses the current
+   *  page. */
   loadMedia(): void {
     this.mediaRows.set(null);
     this.mediaLoadError.set(null);
+    const size = this.mediaSize();
+    const seq = ++this.mediaFetchSeq;
     this.admin
-      .listMediaAssets()
-      .then((rows) => this.mediaRows.set(rows))
-      .catch((error: unknown) => this.mediaLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key))));
+      .listMediaAssets({ limit: size, offset: (this.mediaPage() - 1) * size })
+      .then((paged) => {
+        if (seq !== this.mediaFetchSeq) {
+          return; // a newer load superseded this response
+        }
+        this.mediaTotal.set(paged.total);
+        this.mediaRows.set(paged.rows);
+      })
+      .catch((error: unknown) => {
+        if (seq !== this.mediaFetchSeq) {
+          return;
+        }
+        this.mediaLoadError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+      });
   }
 
-  /** The file input's change: hand the chosen file to the upload (the
-   *  input value resets FIRST — the same file stays re-selectable). */
-  onMediaFileChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    // Index access (not .item): FileList is indexable, and the spec sets a
-    // plain array on `files`.
-    const file = input.files?.[0];
-    input.value = '';
-    if (file !== null && file !== undefined) {
-      void this.uploadMediaFile(file);
-    }
+  /** The file input's chosen file (the media panel resets the input value
+   *  FIRST — the same file stays re-selectable): hand it to the upload. */
+  onMediaFileChosen(file: File): void {
+    void this.uploadMediaFile(file);
   }
 
   /**
    * POST /admin/media (multipart, field `file`) -> 201 with the stored
    *  asset (the generated name — the client's filename is display metadata
-   *  only). The new asset prepends to the inventory (newest first). A
-   *  rejected upload (400 unsupported / declared-type mismatch, 413 over
-   *  the cap — the message names the cap) surfaces the server message
-   *  through the page banner — the shared error-copy convention.
+   *  only). The inventory is NEWEST FIRST: on page 1 the new asset
+   *  prepends to the page (total +1); on a later page the jump to page 1
+   *  (URL write) re-loads so the new row and the total agree with the
+   *  server. A rejected upload (400 unsupported / declared-type mismatch,
+   *  413 over the cap — the message names the cap) surfaces the server
+   *  message through the page banner — the shared error-copy convention.
    */
   async uploadMediaFile(file: File): Promise<void> {
     if (this.busy()) {
@@ -2008,13 +2301,56 @@ export class AdminPage implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       const asset = await this.admin.uploadMediaAsset(file);
-      this.mediaRows.update((rows) => [asset, ...(rows ?? [])]);
+      if (this.mediaPage() > 1) {
+        // Newest-first: the fresh asset lands on page 1 — jump there (the
+        // query emission re-loads the first page).
+        this.navigateMedia({ page: 1 });
+      } else {
+        this.mediaRows.update((rows) => [asset, ...(rows ?? [])]);
+        this.mediaTotal.update((t) => t + 1);
+      }
       this.success.set(this.i18n.t('admin.media.success.uploaded'));
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
     } finally {
       this.busy.set(false);
     }
+  }
+
+  /** Write the Media tab's view to the URL (merging the other tab's
+   *  params — the tabs share one route); the query emission re-loads via
+   *  the sync. Defaults are omitted from the URL (page 1, size 20). */
+  private navigateMedia(view: { page?: number; size?: number }): void {
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.page !== undefined) {
+      if (view.page > 1) {
+        params['mediaPage'] = String(view.page);
+      } else {
+        delete params['mediaPage'];
+      }
+    }
+    if (view.size !== undefined) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
+        params['mediaSize'] = String(view.size);
+      } else {
+        delete params['mediaSize'];
+      }
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /** The pagination control's intent (prev/next/size): a SIZE change
+   *  that would strand the current page past the last one clamps the
+   *  page to the last page AT THE NEW SIZE (the total is known whenever
+   *  the control is visible), so a size flip never lands on a dead page. */
+  onMediaNavigate({ page, size }: { page: number; size: number }): void {
+    this.navigateMedia({ page: clampPage(page, this.mediaTotal(), size), size });
+  }
+
+  /** The out-of-range notice's action: back to the first page (the
+   *  current size is kept). */
+  gotoMediaFirstPage(): void {
+    this.navigateMedia({ page: 1 });
   }
 
   /**
@@ -2032,6 +2368,9 @@ export class AdminPage implements OnInit, OnDestroy {
     try {
       const deleted = await this.admin.deleteMediaAsset(id, false);
       this.mediaRows.update((rows) => (rows ?? []).filter((r) => r.id !== deleted.id));
+      // The (un-paged) library size shrinks — the page count follows
+      // (a page left past the end shows the out-of-range notice).
+      this.mediaTotal.update((t) => Math.max(0, t - 1));
       this.success.set(this.i18n.t('admin.media.success.deleted'));
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
@@ -2067,6 +2406,9 @@ export class AdminPage implements OnInit, OnDestroy {
     try {
       const deleted = await this.admin.deleteMediaAsset(id, true);
       this.mediaRows.update((rows) => (rows ?? []).filter((r) => r.id !== deleted.id));
+      // The (un-paged) library size shrinks — the page count follows
+      // (a page left past the end shows the out-of-range notice).
+      this.mediaTotal.update((t) => Math.max(0, t - 1));
       this.success.set(this.i18n.t('admin.media.success.deleted'));
     } catch (error) {
       this.error.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
@@ -2074,17 +2416,6 @@ export class AdminPage implements OnInit, OnDestroy {
       this.mediaDeleteInUse.disarm();
       this.busy.set(false);
     }
-  }
-
-  /** The asset's human size (the listing's Size column). */
-  protected mediaSizeText(bytes: number): string {
-    if (bytes < 1024) {
-      return `${bytes} B`;
-    }
-    if (bytes < 1024 * 1024) {
-      return `${Math.round(bytes / 1024)} KB`;
-    }
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   private clearFeedback(): void {
@@ -2099,13 +2430,4 @@ export class AdminPage implements OnInit, OnDestroy {
  *  link — the URL and the rendered filter stay in agreement). */
 function parseSourceFilter(raw: string | null): ShelterSourceFilter {
   return raw === 'REGISTRY' || raw === 'USER' ? raw : 'ALL';
-}
-
-/** Reporter identity for a queue row: name + e-mail, null-safe. */
-export function reporterText(row: {
-  reporterName: string | null;
-  reporterEmail: string | null;
-}): string {
-  const name = row.reporterName ?? 'Unknown';
-  return row.reporterEmail === null ? name : `${name} <${row.reporterEmail}>`;
 }

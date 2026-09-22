@@ -1,0 +1,6 @@
+/* The Audit tab panel: the table rules are the shared admin surface
+   (single source — @used here, like every tab panel). The panel carries
+   no page-specific styles of its own: the trail table is the shared
+   vocabulary, and the paged list's out-of-range block is the shared
+   list-state component's own styling. */
+@use './admin-shared';

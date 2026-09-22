@@ -622,6 +622,10 @@ export const EN: Messages = {
   'pagination.pageOf': 'Page {page} of {pages}',
   'pagination.size': 'Per page',
   'pagination.sizeShelters': 'Shelters per page',
+  'pagination.sizeReports': 'Reports per page',
+  'pagination.sizeUsers': 'Accounts per page',
+  'pagination.sizeMedia': 'Images per page',
+  'pagination.sizeAudit': 'Audit rows per page',
   'guidance.pageOutOfRange': 'Page {page} does not exist — the index ends at page {pages}.',
   'guidance.pageFirst': 'Show the first page',
 
@@ -722,6 +726,17 @@ export const EN: Messages = {
   'admin.reports.restore': 'Restore shelter',
   'admin.reports.dismiss': 'Dismiss',
   'admin.reports.success.dismissed': 'Report dismissed.',
+
+  // reports tab: the hide-dismissed filter — the default ('All') renders
+  // everything, so the control never hides silently.
+  'admin.reports.filter.aria': 'Filter the report queue',
+  'admin.reports.filter.all': 'All',
+  'admin.reports.filter.open': 'Open only',
+  'admin.reports.emptyOpen': 'No open reports.',
+  'admin.reports.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
+  'admin.users.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
+  'admin.media.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
+  'admin.audit.pageOutOfRange': 'Page {page} does not exist — the list ends at page {pages}.',
 
   'admin.alerts.loading': 'Loading alerts…',
   'admin.alerts.empty': 'No throttled or abusive activity yet.',

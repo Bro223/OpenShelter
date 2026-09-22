@@ -744,6 +744,14 @@ export interface Messages {
   /** The shelters list's size label (the admin Shelters tab passes it —
    *  the default copy names posts). */
   'pagination.sizeShelters': string;
+  /** The report queue's size label (the admin Reports tab). */
+  'pagination.sizeReports': string;
+  /** The account list's size label (the admin Users tab). */
+  'pagination.sizeUsers': string;
+  /** The media library's size label (the admin Media tab). */
+  'pagination.sizeMedia': string;
+  /** The audit trail's size label (the admin Audit tab). */
+  'pagination.sizeAudit': string;
   'guidance.pageOutOfRange': string;
   'guidance.pageFirst': string;
 
@@ -898,6 +906,28 @@ export interface Messages {
   'admin.reports.dismiss': string;
   /** The dismiss action's success banner (the 204 confirmation). */
   'admin.reports.success.dismissed': string;
+
+  // reports tab: the hide-dismissed filter (the queue's first-class control
+  // — the default, 'all', renders everything: nothing is hidden silently).
+  /** The filter chips' group aria-label. */
+  'admin.reports.filter.aria': string;
+  /** The chip rendering every row (dismissed included, dimmed). */
+  'admin.reports.filter.all': string;
+  /** The chip rendering the OPEN scope only (the dismissed verdicts out).
+   *  The scope the pin counts express (W2-A). */
+  'admin.reports.filter.open': string;
+  /** The empty state of the OPEN scope (the filter hides the dismissed
+   *  rows — distinct from the unfiltered "no reports yet"). */
+  'admin.reports.emptyOpen': string;
+  /** The queue's out-of-range page notice (the URL asks for a page past
+   *  the end). `{page}` the requested page, `{pages}` the last one. */
+  'admin.reports.pageOutOfRange': string;
+  /** The account list's out-of-range page notice (same shape). */
+  'admin.users.pageOutOfRange': string;
+  /** The media library's out-of-range page notice (same shape). */
+  'admin.media.pageOutOfRange': string;
+  /** The audit trail's out-of-range page notice (same shape). */
+  'admin.audit.pageOutOfRange': string;
 
   // alerts tab: the M3 abuse-limits queue.
   'admin.alerts.loading': string;

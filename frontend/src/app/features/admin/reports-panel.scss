@@ -1,0 +1,7 @@
+@use './admin-shared';
+
+/* The Reports tab panel: the queue row, the dimmed (dismissed) row and
+   the filter chips are the shared admin surface (single source —
+   @used here, like every tab panel). The panel carries no
+   page-specific styles of its own: the queue vocabulary is shared
+   (the unconfirmed panel renders the same rows). */

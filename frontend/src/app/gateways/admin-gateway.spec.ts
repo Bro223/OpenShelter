@@ -74,7 +74,13 @@ describe('AdminGateway', () => {
   it('listShelters appends only the filters that are set, in a fixed order (page params last)', async () => {
     api.getWithHeaders.mockReturnValue(of({ body: [], headers: new HttpHeaders() }));
 
-    await gateway.listShelters({ status: 'INACTIVE', source: 'USER', q: 'kelder', limit: 10, offset: 20 });
+    await gateway.listShelters({
+      status: 'INACTIVE',
+      source: 'USER',
+      q: 'kelder',
+      limit: 10,
+      offset: 20,
+    });
 
     expect(api.getWithHeaders).toHaveBeenCalledWith(
       '/admin/shelters?status=INACTIVE&source=USER&q=kelder&limit=10&offset=20',
@@ -176,20 +182,39 @@ describe('AdminGateway', () => {
 
   // ---- GET /admin/reports ---------------------------------------------------------
 
-  it('listShelterReports GETs the bare queue', async () => {
-    api.get.mockReturnValue(of([]));
+  it('listShelterReports GETs the bare queue and reads the total from the header', async () => {
+    // The header says 4 even though the page carries no row — the total
+    // must come from X-Total-Count, not the page length.
+    api.getWithHeaders.mockReturnValue(
+      of({ body: [], headers: new HttpHeaders({ 'X-Total-Count': '4' }) }),
+    );
 
-    await gateway.listShelterReports();
+    const paged = await gateway.listShelterReports();
 
-    expect(api.get).toHaveBeenCalledWith('/admin/reports');
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/reports');
+    expect(paged).toEqual({ rows: [], total: 4 });
   });
 
-  it('listShelterReports narrows by shelterId when given', async () => {
-    api.get.mockReturnValue(of([]));
+  it('listShelterReports appends only the filters that are set, in a fixed order (page params last)', async () => {
+    api.getWithHeaders.mockReturnValue(of({ body: [], headers: new HttpHeaders() }));
 
-    await gateway.listShelterReports(7);
+    await gateway.listShelterReports({
+      shelterId: 7,
+      excludeDismissed: true,
+      limit: 10,
+      offset: 20,
+    });
 
-    expect(api.get).toHaveBeenCalledWith('/admin/reports?shelterId=7');
+    expect(api.getWithHeaders).toHaveBeenCalledWith(
+      '/admin/reports?shelterId=7&excludeDismissed=true&limit=10&offset=20',
+    );
+
+    // The default scope: excludeDismissed=false is the ABSENCE of the
+    // param (the omit-defaults convention — 'All' hides nothing).
+    api.getWithHeaders.mockClear();
+    await gateway.listShelterReports({ excludeDismissed: false, limit: 20, offset: 0 });
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/reports?limit=20&offset=0');
   });
 
   it('dismissShelterReport POSTs the row id and resolves with no body (idempotent 204)', async () => {
@@ -202,7 +227,7 @@ describe('AdminGateway', () => {
 
   it('rejects with ApiError on a network failure', async () => {
     const failure = ApiError.fromNetwork();
-    api.get.mockReturnValue(throwError(() => failure));
+    api.getWithHeaders.mockReturnValue(throwError(() => failure));
 
     await expect(gateway.listShelterReports()).rejects.toBe(failure);
   });
@@ -247,7 +272,7 @@ describe('AdminGateway', () => {
     await expect(gateway.reviewShelter(7, { action: 'CONFIRM' })).rejects.toBe(failure);
   });
 
-  it('listAudit GETs the newest-100 moderation actions', async () => {
+  it('listAudit GETs the paged moderation trail (newest first) and reads the total from the header', async () => {
     const row = {
       id: 9001,
       createdAt: '2026-07-18T12:00:00Z',
@@ -259,13 +284,15 @@ describe('AdminGateway', () => {
       newStatus: 'CONFIRMED' as const,
       reason: null,
     };
-    api.get.mockReturnValue(of([row]));
+    api.getWithHeaders.mockReturnValue(
+      of({ body: [row], headers: new HttpHeaders({ 'X-Total-Count': '137' }) }),
+    );
 
-    const rows = await gateway.listAudit();
+    const paged = await gateway.listAudit({ limit: 20, offset: 0 });
 
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/audit');
-    expect(rows).toEqual([row]);
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/audit?limit=20&offset=0');
+    expect(paged).toEqual({ rows: [row], total: 137 });
   });
 
   // ---- GET /admin/alerts (abuse-limits) ----
@@ -298,7 +325,7 @@ describe('AdminGateway', () => {
 
   // ---- user suspension ------------------------------------------------------
 
-  it('listUsers GETs the bare /admin/users', async () => {
+  it('listUsers GETs the paged /admin/users and reads the total from the header', async () => {
     const row = {
       id: 301,
       name: 'Siht',
@@ -306,13 +333,15 @@ describe('AdminGateway', () => {
       kind: 'REGISTERED' as const,
       suspendedAt: null,
     };
-    api.get.mockReturnValue(of([row]));
+    api.getWithHeaders.mockReturnValue(
+      of({ body: [row], headers: new HttpHeaders({ 'X-Total-Count': '42' }) }),
+    );
 
-    const rows = await gateway.listUsers();
+    const paged = await gateway.listUsers({ limit: 20, offset: 0 });
 
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/users');
-    expect(rows).toEqual([row]);
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/users?limit=20&offset=0');
+    expect(paged).toEqual({ rows: [row], total: 42 });
   });
 
   it('suspendUser POSTs /admin/users/{id}/suspend and resolves with no body (204)', async () => {
@@ -622,12 +651,17 @@ describe('AdminGateway', () => {
   });
 
   it('createGuidanceTranslation POSTs the body to /admin/guidance/{id}/translations and resolves with the created row (200)', async () => {
-    api.post.mockReturnValue(of({ ...TRANSLATION_ROW, id: 402, locale: 'et', slug: 'varjumine-droonirunnaku-ajal' }));
+    api.post.mockReturnValue(
+      of({ ...TRANSLATION_ROW, id: 402, locale: 'et', slug: 'varjumine-droonirunnaku-ajal' }),
+    );
 
     const row = await gateway.createGuidanceTranslation(11, CREATE_TRANSLATION_REQUEST);
 
     expect(api.post).toHaveBeenCalledTimes(1);
-    expect(api.post).toHaveBeenCalledWith('/admin/guidance/11/translations', CREATE_TRANSLATION_REQUEST);
+    expect(api.post).toHaveBeenCalledWith(
+      '/admin/guidance/11/translations',
+      CREATE_TRANSLATION_REQUEST,
+    );
     expect(row.locale).toBe('et');
   });
 
@@ -660,7 +694,10 @@ describe('AdminGateway', () => {
     const row = await gateway.updateGuidanceTranslation(11, 'en', UPDATE_TRANSLATION_REQUEST);
 
     expect(api.put).toHaveBeenCalledTimes(1);
-    expect(api.put).toHaveBeenCalledWith('/admin/guidance/11/translations/en', UPDATE_TRANSLATION_REQUEST);
+    expect(api.put).toHaveBeenCalledWith(
+      '/admin/guidance/11/translations/en',
+      UPDATE_TRANSLATION_REQUEST,
+    );
     expect(row.title).toBe(UPDATE_TRANSLATION_REQUEST.title);
   });
 
@@ -673,14 +710,14 @@ describe('AdminGateway', () => {
     expect(api.delete).toHaveBeenCalledWith('/admin/guidance/11/translations/et');
   });
 
-  it('deleteGuidanceTranslation rejects with the 400 when the locale is the post\'s home locale', async () => {
+  it("deleteGuidanceTranslation rejects with the 400 when the locale is the post's home locale", async () => {
     const failure = ApiError.fromHttp(
       400,
       {
         timestamp: 't',
         status: 400,
         error: 'Bad Request',
-        message: 'the post\'s own-locale translation cannot be deleted',
+        message: "the post's own-locale translation cannot be deleted",
         path: '/admin/guidance/11/translations/en',
       },
       '/admin/guidance/11/translations/en',
@@ -711,14 +748,16 @@ describe('AdminGateway', () => {
     reusedBy: 1,
   };
 
-  it('listMediaAssets GETs the bare /admin/media (newest first, with usage counts)', async () => {
-    api.get.mockReturnValue(of([MEDIA_ROW]));
+  it('listMediaAssets GETs the paged /admin/media (newest first, with usage counts) and reads the total from the header', async () => {
+    api.getWithHeaders.mockReturnValue(
+      of({ body: [MEDIA_ROW], headers: new HttpHeaders({ 'X-Total-Count': '7' }) }),
+    );
 
-    const rows = await gateway.listMediaAssets();
+    const paged = await gateway.listMediaAssets({ limit: 20, offset: 0 });
 
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/media');
-    expect(rows).toEqual([MEDIA_ROW]);
+    expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
+    expect(api.getWithHeaders).toHaveBeenCalledWith('/admin/media?limit=20&offset=0');
+    expect(paged).toEqual({ rows: [MEDIA_ROW], total: 7 });
   });
 
   // ---- POST /admin/media (multipart) ----------------------------------------

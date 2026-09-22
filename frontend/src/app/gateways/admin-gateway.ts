@@ -10,6 +10,7 @@ import type {
   AdminShelterFilters,
   AdminShelterHistoryEvent,
   AdminShelterReportDto,
+  AdminShelterReportFilters,
   AdminUserDto,
   CreateGuidancePostRequest,
   CreateGuidanceTranslationRequest,
@@ -44,11 +45,11 @@ import { parseTotal } from '../shared/paging';
  *   POST   /admin/shelters/{id}/request-info   -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/mark-inaccurate -> 204 (USER rows only)
  *   POST   /admin/shelters/{id}/clear-inaccurate -> 204 (USER rows only)
- *   GET    /admin/reports?shelterId=           -> AdminShelterReportDto[]
+ *   GET    /admin/reports?shelterId=&excludeDismissed=&limit=&offset= -> AdminShelterReportDto[] (+ X-Total-Count)
  *   POST   /admin/reports/{id}/dismiss         -> 204 (idempotent)
- *   GET    /admin/audit                        -> AdminAuditRow[] (newest 100)
+ *   GET    /admin/audit?limit=&offset=         -> AdminAuditRow[] (+ X-Total-Count)
  *   GET    /admin/alerts?limit=                -> AdminAlertRow[] (newest 50)
- *   GET    /admin/users                        -> AdminUserDto[]
+ *   GET    /admin/users?limit=&offset=         -> AdminUserDto[] (+ X-Total-Count)
  *   POST   /admin/users/{id}/suspend           -> 204 (idempotent; REGISTERED only)
  *   POST   /admin/users/{id}/unsuspend         -> 204 (idempotent; REGISTERED only)
  *   GET    /admin/guidance                     -> AdminGuidancePostDto[] (drafts incl.)
@@ -64,7 +65,7 @@ import { parseTotal } from '../shared/paging';
  *   POST   /admin/guidance/{id}/translations   -> GuidanceTranslationDto (200)
  *   PUT    /admin/guidance/{id}/translations/{locale} -> GuidanceTranslationDto (200)
  *   DELETE /admin/guidance/{id}/translations/{locale} -> 204 (no body)
- *   GET    /admin/media                        -> MediaAssetDto[] (newest first)
+ *   GET    /admin/media?limit=&offset=         -> MediaAssetDto[] (+ X-Total-Count, newest first)
  *   POST   /admin/media (multipart: file)      -> MediaAssetDto (201)
  *   DELETE /admin/media/{id}[?confirm=true]    -> MediaAssetDto (200; 409 in-use)
  *   PUT    /admin/site-texts                   -> 204 (batch of (key, locale) edits)
@@ -85,7 +86,7 @@ export class AdminGateway {
   listShelters(filters?: AdminShelterFilters): Promise<PagedRows<AdminShelterDto>> {
     return lastValueFrom(
       this.api.getWithHeaders<AdminShelterDto[]>(adminSheltersPath(filters)),
-    ).then(result => pagedResult(result.body, result.headers));
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -176,12 +177,17 @@ export class AdminGateway {
   }
 
   /**
-   * GET /admin/audit -> the moderation audit trail, newest first (the
-   * backend's default newest-100 window). Shelter names are resolved at
-   * read time (a deleted shelter's rows carry the "Deleted shelter" text).
+   * GET /admin/audit -> the moderation audit trail, newest first.
+   * Shelter names are resolved at read time (a deleted shelter's rows
+   * carry the "Deleted shelter" text). Optional `limit` (1..200; absent
+   * = the backend's default 100) / `offset` page the trail
+   * server-side; the un-paged length comes back as the X-Total-Count
+   * header.
    */
-  listAudit(): Promise<AdminAuditRow[]> {
-    return lastValueFrom(this.api.get<AdminAuditRow[]>('/admin/audit'));
+  listAudit(options?: AdminListPageOptions): Promise<PagedRows<AdminAuditRow>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<AdminAuditRow[]>(adminListPagePath('/admin/audit', options)),
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -199,11 +205,21 @@ export class AdminGateway {
   /**
    * GET /admin/reports — the shelter-report queue, newest first, with the
    * shelter's live status and the reporter's profile name + email.
-   * Optional `shelterId` narrows to one shelter.
+   * Optional `shelterId` narrows to one shelter. `excludeDismissed`
+   * hides the dismissed (resolved) rows — the moderator's hide-dismissed
+   * control; absent = everything renders (nothing is hidden silently).
+   * `limit` (1..200; absent = the backend's default 100) / `offset` page
+   * the (filtered) queue server-side. Returns the page's rows PLUS the
+   * un-paged (filtered) total (the X-Total-Count header — the OPEN count
+   * when the filter is on, which is the sum of the per-shelter open
+   * counts the pins express, W2-A).
    */
-  listShelterReports(shelterId?: number): Promise<AdminShelterReportDto[]> {
-    const suffix = shelterId === undefined ? '' : `?shelterId=${shelterId}`;
-    return lastValueFrom(this.api.get<AdminShelterReportDto[]>(`/admin/reports${suffix}`));
+  listShelterReports(
+    filters?: AdminShelterReportFilters,
+  ): Promise<PagedRows<AdminShelterReportDto>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<AdminShelterReportDto[]>(adminReportsPath(filters)),
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /** POST /admin/reports/{id}/dismiss -> 204. Idempotent (no-op if done). */
@@ -214,10 +230,14 @@ export class AdminGateway {
   /**
    * GET /admin/users -> the account list behind the Users tab: every
    * REGISTERED + ADMIN account, id-ordered, with its suspension state
-   * (null = active).
+   * (null = active). Optional `limit` (1..200; absent = the whole list)
+   * / `offset` page it server-side; the un-paged population comes back
+   * as the X-Total-Count header.
    */
-  listUsers(): Promise<AdminUserDto[]> {
-    return lastValueFrom(this.api.get<AdminUserDto[]>('/admin/users'));
+  listUsers(options?: AdminListPageOptions): Promise<PagedRows<AdminUserDto>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<AdminUserDto[]>(adminListPagePath('/admin/users', options)),
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -271,7 +291,7 @@ export class AdminGateway {
   ): Promise<PagedRows<AdminGuidancePostDto>> {
     return lastValueFrom(
       this.api.getWithHeaders<AdminGuidancePostDto[]>(guidanceListPagePath(options)),
-    ).then(result => pagedResult(result.body, result.headers));
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -326,10 +346,7 @@ export class AdminGateway {
     locale?: string,
   ): Promise<AdminGuidancePostDto> {
     return lastValueFrom(
-      this.api.put<AdminGuidancePostDto>(
-        `/admin/guidance/${id}` + localeQuery(locale),
-        request,
-      ),
+      this.api.put<AdminGuidancePostDto>(`/admin/guidance/${id}` + localeQuery(locale), request),
     );
   }
 
@@ -433,10 +450,7 @@ export class AdminGateway {
     request: UpdateGuidanceTranslationRequest,
   ): Promise<GuidanceTranslationDto> {
     return lastValueFrom(
-      this.api.put<GuidanceTranslationDto>(
-        `/admin/guidance/${id}/translations/${locale}`,
-        request,
-      ),
+      this.api.put<GuidanceTranslationDto>(`/admin/guidance/${id}/translations/${locale}`, request),
     );
   }
 
@@ -449,9 +463,7 @@ export class AdminGateway {
    * no confirm query parameter on this endpoint — the confirm is in the UI).
    */
   deleteGuidanceTranslation(id: number, locale: string): Promise<void> {
-    return lastValueFrom(
-      this.api.delete<void>(`/admin/guidance/${id}/translations/${locale}`),
-    );
+    return lastValueFrom(this.api.delete<void>(`/admin/guidance/${id}/translations/${locale}`));
   }
 
   // ------------------------------------------------------------------
@@ -459,12 +471,17 @@ export class AdminGateway {
   // ------------------------------------------------------------------
 
   /**
-   * GET /admin/media -> MediaAssetDto[] — every asset newest-first, with
-   * the serving URL, dimensions, size, upload date and the reused-by-post
-   * count (0 for an unused asset — the library is the admin's inventory).
+   * GET /admin/media -> MediaAssetDto[] — the asset inventory, newest
+   * first, with the serving URL, dimensions, size, upload date and the
+   * reused-by-post count (0 for an unused asset — the library is the
+   * admin's inventory). Optional `limit` (1..200; absent = no paging) /
+   * `offset` page the newest-first order server-side; the un-paged
+   * library size comes back as the X-Total-Count header.
    */
-  listMediaAssets(): Promise<MediaAssetDto[]> {
-    return lastValueFrom(this.api.get<MediaAssetDto[]>('/admin/media'));
+  listMediaAssets(options?: AdminListPageOptions): Promise<PagedRows<MediaAssetDto>> {
+    return lastValueFrom(
+      this.api.getWithHeaders<MediaAssetDto[]>(adminListPagePath('/admin/media', options)),
+    ).then((result) => pagedResult(result.body, result.headers));
   }
 
   /**
@@ -556,11 +573,46 @@ function guidanceListPagePath(options: GuidanceAdminListOptions): string {
 }
 
 /**
- * The page body + X-Total-Count header -> PagedRows. A missing/blank
- * header degrades to the page's own length (parseTotal — the shared
- * paging policy, the public guidance gateway's rule) — out-of-range
- * detection stays honest (such a page IS empty).
+ * The paged admin lists' options (absent = omitted from the URL — the
+ * endpoint's own default, whole list or default page).
  */
+export interface AdminListPageOptions {
+  limit?: number;
+  offset?: number;
+}
+
+/** GET /admin/{audit|users|media}?limit=&offset= — only the fields set. */
+function adminListPagePath(base: string, options?: AdminListPageOptions): string {
+  const params: string[] = [];
+  if (options?.limit !== undefined) {
+    params.push(`limit=${options.limit}`);
+  }
+  if (options?.offset !== undefined) {
+    params.push(`offset=${options.offset}`);
+  }
+  return params.length > 0 ? `${base}?${params.join('&')}` : base;
+}
+
+/**
+ * GET /admin/reports?shelterId=&excludeDismissed=&limit=&offset= —
+ * fixed param order, only the fields actually set appear.
+ */
+function adminReportsPath(filters?: AdminShelterReportFilters): string {
+  const params: string[] = [];
+  if (filters?.shelterId !== undefined) {
+    params.push(`shelterId=${filters.shelterId}`);
+  }
+  if (filters?.excludeDismissed) {
+    params.push('excludeDismissed=true');
+  }
+  if (filters?.limit !== undefined) {
+    params.push(`limit=${filters.limit}`);
+  }
+  if (filters?.offset !== undefined) {
+    params.push(`offset=${filters.offset}`);
+  }
+  return params.length > 0 ? `/admin/reports?${params.join('&')}` : '/admin/reports';
+}
 function pagedResult<T>(body: T[], headers: HttpHeaders): PagedRows<T> {
   return {
     rows: body,

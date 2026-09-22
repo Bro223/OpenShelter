@@ -19,6 +19,92 @@
   }
 }
 
+/* ---- list controls (search + filter chips) -------------------------------- */
+/* The search input (unconfirmed tab). The global input styling applies;
+   width is capped and it grows to fill on wide screens. */
+.admin-search {
+  width: min(420px, 100%);
+  margin-bottom: var(--space-16);
+  display: block;
+}
+
+/* The filter chip groups (the shelters source chips, the reports
+   hide-dismissed filter) — the shared .chip control (styles.scss) carries
+   the pill styling; layout-local only: 48px targets (the admin lane's
+   touch-target rule). */
+.admin-chips {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+
+  .chip {
+    min-height: var(--space-48);
+  }
+}
+
+/* ---- review-queue rows (unconfirmed + reports panels) --------------------- */
+/* The review row: a stacked card (title + meta + detail + reason +
+   actions) — a list item, not a table row, since the content is uneven. */
+.admin-queue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.admin-queue-row {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.admin-queue-row__info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.admin-queue-row__title {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.admin-queue-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
+
+.admin-queue-row__detail {
+  font-size: var(--text-md);
+  white-space: pre-wrap;
+}
+
+.admin-queue-row__reason {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.admin-queue-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+}
+
+/* A dismissed report row: dimmed — the badge says WHY, the row shows
+   it's out of the queue. (Occupancy language: DISMISSED, not
+   deleted/rejected.) */
+.admin-row--dismissed {
+  opacity: 0.65;
+}
+
 /* ---- admin tables ---------------------------------------------------------- */
 /* Keyboard handle for the horizontally scrollable tables (WCAG 2.1.1):
    each wrapper is a labelled, focusable region (tabindex="0" +
@@ -78,6 +164,12 @@
 
 .admin-cell--actions {
   min-width: 220px;
+}
+
+/* The review queue (Unconfirmed): the actions cell carries the reject
+   controls, which wrap to a second line instead of truncating. */
+.admin-cell--actions-review {
+  flex-wrap: wrap;
 }
 
 .admin-cell__name-body {

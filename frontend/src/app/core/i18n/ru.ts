@@ -642,6 +642,10 @@ export const RU: Messages = {
   'pagination.pageOf': 'Страница {page} из {pages}',
   'pagination.size': 'На странице',
   'pagination.sizeShelters': 'Укрытий на странице',
+  'pagination.sizeReports': 'Сообщений на странице',
+  'pagination.sizeUsers': 'Аккаунтов на странице',
+  'pagination.sizeMedia': 'Изображений на странице',
+  'pagination.sizeAudit': 'Строк журнала на странице',
   'guidance.pageOutOfRange':
     'Страницы {page} не существует — список заканчивается на странице {pages}.',
   'guidance.pageFirst': 'Показать первую страницу',
@@ -745,6 +749,21 @@ export const RU: Messages = {
   'admin.reports.restore': 'Восстановить укрытие',
   'admin.reports.dismiss': 'Отклонить',
   'admin.reports.success.dismissed': 'Сообщение отклонено.',
+
+  // Вкладка сообщений: фильтр скрытия отклонённых — по умолчанию ('Все')
+  // показывается всё, фильтр ничего не скрывает молча.
+  'admin.reports.filter.aria': 'Фильтр сообщений об укрытиях',
+  'admin.reports.filter.all': 'Все',
+  'admin.reports.filter.open': 'Только открытые',
+  'admin.reports.emptyOpen': 'Открытых сообщений нет.',
+  'admin.reports.pageOutOfRange':
+    'Страницы {page} не существует — список заканчивается на странице {pages}.',
+  'admin.users.pageOutOfRange':
+    'Страницы {page} не существует — список заканчивается на странице {pages}.',
+  'admin.media.pageOutOfRange':
+    'Страницы {page} не существует — список заканчивается на странице {pages}.',
+  'admin.audit.pageOutOfRange':
+    'Страницы {page} не существует — список заканчивается на странице {pages}.',
 
   'admin.alerts.loading': 'Загружаем оповещения…',
   'admin.alerts.empty': 'Ограниченной или злоупотребляющей активности пока нет.',

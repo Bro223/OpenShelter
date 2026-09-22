@@ -1,0 +1,430 @@
+<!-- The paged list's controls: the name/address search (submit on
+     Enter or button — the server does the substring match) and the
+     source chips (All / Registry / Community — the URL-backed filter
+     that composes with the search, AND on the server). -->
+<div class="admin-shelters-toolbar">
+  <form class="admin-search" (submit)="onSearchSubmit()">
+    <div class="field admin-search__field">
+      <label for="admin-search">{{ 'admin.shelters.search.label' | t }}</label>
+      <input
+        id="admin-search"
+        type="search"
+        [formControl]="searchQuery()"
+        [placeholder]="'admin.shelters.search.placeholder' | t"
+        autocomplete="off"
+      />
+    </div>
+    <button type="submit" class="btn btn--ghost" [disabled]="busy()">
+      {{ 'admin.shelters.search.button' | t }}
+    </button>
+  </form>
+  <div class="admin-chips" role="group" [attr.aria-label]="'admin.shelters.source.aria' | t">
+    @for (chip of sourceChips; track chip.value) {
+      <button
+        type="button"
+        class="chip"
+        [class.chip--active]="source() === chip.value"
+        [attr.aria-pressed]="source() === chip.value ? 'true' : 'false'"
+        [disabled]="busy()"
+        (click)="onSourceChip(chip.value)"
+      >
+        {{ chip.label | t }}
+      </button>
+    }
+  </div>
+</div>
+
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.shelters.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if (outOfRange()) {
+  <!-- The honest out-of-range state (the shared component): the URL asks
+       for a page past the end of a NON-EMPTY list — an explicit
+       translated notice + first-page action, never a bare empty list.
+       (W2-D's transitional `.admin-oob` block, swapped to the shared
+       component with the panel extraction.) -->
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.shelters.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else if ((rows() ?? []).length === 0) {
+  <!-- A filter (source chips or the search) is ACTIVE — the filtered
+       list is empty, not the whole scope (different copy). -->
+  @if (source() !== 'ALL' || appliedQuery() !== '') {
+    <p class="admin-state">{{ 'admin.shelters.emptyFiltered' | t }}</p>
+  } @else {
+    <p class="admin-state">{{ 'admin.shelters.empty' | t }}</p>
+  }
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.shelters.aria' | t"
+  >
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.shelters.col.name' | t }}</th>
+          <th scope="col">{{ 'admin.shelters.col.source' | t }}</th>
+          <th scope="col">{{ 'admin.shelters.col.status' | t }}</th>
+          <th scope="col">{{ 'admin.shelters.col.reports' | t }}</th>
+          <th scope="col">{{ 'admin.shelters.col.occupancy' | t }}</th>
+          <th scope="col">{{ 'admin.shelters.col.submitter' | t }}</th>
+          <th scope="col" class="admin-table__actions-head">
+            {{ 'admin.shelters.col.actions' | t }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row" [class.admin-row--hidden]="row.status === 'INACTIVE'">
+            <td class="admin-cell--name">
+              <div class="admin-cell__name-body">
+                <a [routerLink]="['/shelters', row.id]">{{ row.name }}</a>
+                @if (row.address) {
+                  <span class="admin-muted">{{ row.address }}</span>
+                }
+                <!-- Marked inaccurate: the single-sourced
+                   warning line — the row stays visible, the flag is the
+                   treatment. -->
+                @if (row.inaccurate) {
+                  <span class="admin-inaccurate">{{ 'account.contrib.inaccurate' | t }}</span>
+                }
+              </div>
+            </td>
+            <td>
+              <!-- Source/trust state (community-review-queue D5):
+                   registry rows say which registry; USER rows say
+                   "Newly added" / "Community-checked" / "Rejected". -->
+              <span class="badge" [ngClass]="communityBadgeClass(row)">
+                {{ sourceTrustLabel(row) }}
+              </span>
+              @if (row.inaccurate) {
+                <span class="badge badge--inaccurate">{{
+                  'admin.shelters.inaccurate.badge' | t
+                }}</span>
+              }
+              @if (isPrivateLocation(row)) {
+                <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
+              }
+            </td>
+            <td>
+              @if (row.status === 'INACTIVE') {
+                <span class="badge badge--hidden">{{ 'admin.shelters.status.hidden' | t }}</span>
+              } @else {
+                <span class="admin-muted">{{ 'admin.shelters.status.active' | t }}</span>
+              }
+            </td>
+            <td>{{ row.nonexistentReports }}</td>
+            <td>
+              @if (occupancyText(row.occupancy); as occ) {
+                {{ occ }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td>
+              @if (row.submitter; as submitter) {
+                {{ submitter }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td class="admin-cell--actions">
+              <div class="admin-cell__actions-body">
+                @if (row.source === 'USER') {
+                  <!-- Edit-history toggle: USER rows only —
+                     registry import rows keep their own data_imports
+                     audit and write no history rows. -->
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="onOpenHistory(row)"
+                    [disabled]="busy()"
+                  >
+                    {{
+                      historyFor() === row.id
+                        ? ('admin.shelters.history.close' | t)
+                        : ('admin.shelters.history' | t)
+                    }}
+                  </button>
+                  <!-- Info-request toggle: the moderator→
+                     submitter exchange — question editor for rows
+                     without a request, the exchange (with the answer
+                     once given) for rows with one. USER rows only,
+                     like the History button. -->
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="onToggleInfo(row)"
+                    [disabled]="busy()"
+                  >
+                    {{
+                      infoFor() === row.id
+                        ? ('admin.shelters.info.close' | t)
+                        : ('admin.shelters.info' | t)
+                    }}
+                  </button>
+                  <!-- Mark inaccurate: the Clear action for a
+                     marked row, the editor toggle for an unmarked one.
+                     USER rows only, like History/Info. -->
+                  @if (row.inaccurate) {
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onClearInaccurateAction(row)"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.shelters.inaccurate.clear' | t }}
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onToggleInaccurate(row)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        inaccurateFor() === row.id
+                          ? ('admin.shelters.inaccurate.markClose' | t)
+                          : ('admin.shelters.inaccurate.mark' | t)
+                      }}
+                    </button>
+                  }
+                  @if (!deleteConfirm().isArmed(row.id)) {
+                    @if (row.status === 'ACTIVE') {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="onHideShelter(row)"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.shelters.hide' | t }}
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="onActivateShelter(row)"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.shelters.activate' | t }}
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-trigger]="row.id"
+                      (click)="onRequestDelete(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.shelters.delete' | t }}
+                    </button>
+                  } @else {
+                    <!-- two-tap confirm (no window.confirm, the app's inline
+                       style). The shared ConfirmAction owns the state
+                       machine, the focus move onto Confirm and the focus
+                       restore to Delete on cancel; the prompt
+                       is a live region so arming is announced. -->
+                    <span class="admin-confirm" role="status">{{
+                      'admin.shelters.delete.confirm' | t
+                    }}</span>
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-focus]="row.id"
+                      (click)="onConfirmDelete(row.id)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.shelters.delete.working' | t)
+                          : ('admin.shelters.delete.confirmButton' | t)
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onCancelDelete()"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.cancel' | t }}
+                    </button>
+                  }
+                } @else {
+                  <span class="admin-hint">{{ 'admin.shelters.readOnly' | t }}</span>
+                }
+              </div>
+            </td>
+          </tr>
+          <!-- Inline edit-history panel: the row's
+               lifecycle events ascending — action label, actor, time,
+               and "field: old → new" per moved field. The name
+               snapshot is not repeated (the changes carry it). -->
+          @if (historyFor() === row.id) {
+            <tr class="admin-history-row">
+              <td class="admin-history" colspan="9">
+                @if (historyEvents() === null) {
+                  <p class="admin-muted">{{ 'admin.shelters.history.loading' | t }}</p>
+                } @else if ((historyEvents() ?? []).length === 0) {
+                  <p class="admin-muted">{{ 'admin.shelters.history.empty' | t }}</p>
+                } @else {
+                  <ul class="admin-history__list">
+                    @for (event of historyEvents() ?? []; track event.id) {
+                      <li class="admin-history__event">
+                        <span class="admin-history__action">{{
+                          historyActionLabel(event.action)
+                        }}</span>
+                        <span class="admin-history__actor">{{ event.actorName }}</span>
+                        <span class="admin-history__time">{{
+                          event.createdAt | date: 'medium'
+                        }}</span>
+                        @for (change of event.changes; track change.field) {
+                          <span class="admin-history__change">{{ historyChangeText(change) }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                }
+              </td>
+            </tr>
+          }
+          <!-- Inline info-request panel: a row WITHOUT a
+               request gets the question editor (required, ≤2000); a row
+               WITH one shows the exchange read-only — the row is kept
+               after the reply (audit posture). -->
+          @if (infoFor() === row.id) {
+            <tr class="admin-history-row">
+              <td class="admin-history" colspan="9">
+                @if (row.infoRequest; as req) {
+                  <p class="admin-history__event">
+                    <span class="admin-history__action">{{
+                      'admin.shelters.info.request' | t
+                    }}</span>
+                    <span class="admin-history__actor">{{ req.requestedByName }}</span>
+                    <span class="admin-history__time">{{ req.requestedAt | date: 'medium' }}</span>
+                  </p>
+                  <p class="admin-history__change">{{ req.message }}</p>
+                  @if (req.replyMessage; as reply) {
+                    <p class="admin-history__event">
+                      <span class="admin-history__action">{{
+                        'admin.shelters.info.answer' | t
+                      }}</span>
+                      <span class="admin-history__time">{{ req.repliedAt | date: 'medium' }}</span>
+                    </p>
+                    <p class="admin-history__change">{{ reply }}</p>
+                  } @else {
+                    <p class="admin-muted">{{ 'admin.shelters.info.waiting' | t }}</p>
+                  }
+                } @else {
+                  <div class="admin-reason">
+                    <label for="info-request-message">{{
+                      'admin.shelters.info.question.label' | t
+                    }}</label>
+                    <textarea
+                      id="info-request-message"
+                      [formControl]="requestMessage()"
+                      [placeholder]="'admin.shelters.info.question.placeholder' | t"
+                    ></textarea>
+                    @if (requestMessage().invalid && requestMessage().touched) {
+                      <span class="admin-reason__error">
+                        {{ 'admin.shelters.info.question.required' | t: { max: 2000 } }}
+                      </span>
+                    }
+                    <div class="admin-reason__actions">
+                      <button
+                        type="button"
+                        class="btn btn--primary"
+                        (click)="onSendInfoRequest(row)"
+                        [disabled]="busy() || requestMessage().invalid"
+                      >
+                        {{
+                          busy()
+                            ? ('admin.shelters.info.sending' | t)
+                            : ('admin.shelters.info.send' | t)
+                        }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="onCloseInfo()"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.cancel' | t }}
+                      </button>
+                    </div>
+                  </div>
+                }
+              </td>
+            </tr>
+          }
+          <!-- Inline mark-inaccurate editor: the optional
+               reason (blank/absent stores NULL on the audit row); the
+               row refetches on success like the other 204 actions. -->
+          @if (inaccurateFor() === row.id) {
+            <tr class="admin-history-row">
+              <td class="admin-history" colspan="9">
+                <div class="admin-reason">
+                  <label for="mark-inaccurate-reason">{{
+                    'admin.shelters.inaccurate.reason.label' | t
+                  }}</label>
+                  <textarea
+                    id="mark-inaccurate-reason"
+                    [formControl]="inaccurateReason()"
+                    [placeholder]="'admin.shelters.inaccurate.reason.placeholder' | t"
+                  ></textarea>
+                  @if (inaccurateReason().invalid && inaccurateReason().touched) {
+                    <span class="admin-reason__error">
+                      {{ 'admin.shelters.inaccurate.reason.max' | t: { max: 500 } }}
+                    </span>
+                  }
+                  <div class="admin-reason__actions">
+                    <button
+                      type="button"
+                      class="btn btn--primary"
+                      (click)="onMarkInaccurateAction(row)"
+                      [disabled]="busy() || inaccurateReason().invalid"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.shelters.inaccurate.marking' | t)
+                          : ('admin.shelters.inaccurate.mark' | t)
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onCloseInaccurate()"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.cancel' | t }}
+                    </button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+  <!-- The shared page + size control (admin's list-page-paging
+       follow-up): it renders NOTHING at one page or an empty list
+       (its own rule), so no guard is needed; the size label names
+       shelters. -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    [sizeLabelKey]="'pagination.sizeShelters'"
+    (onNavigate)="onNavigate($event)"
+  />
+}

@@ -1,0 +1,151 @@
+<div class="admin-media-upload">
+  <div class="field admin-search__field">
+    <label for="media-upload-file">
+      {{ busy() ? ('admin.media.uploading' | t) : ('admin.media.upload' | t) }}
+    </label>
+    <input
+      id="media-upload-file"
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      (change)="onFileChange($event)"
+      [disabled]="busy()"
+    />
+  </div>
+  <p class="admin-hint admin-media-upload__hint">{{ 'admin.media.uploadHint' | t }}</p>
+</div>
+
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.media.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">
+    {{ 'admin.retry' | t }}
+  </button>
+} @else if (outOfRange()) {
+  <!-- The honest out-of-range state (the shared component): the URL asks
+       for a page past the end of a NON-EMPTY library — an explicit
+       translated notice + first-page action, never a bare empty list. -->
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.media.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">{{ 'admin.media.empty' | t }}</p>
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.media.library.aria' | t"
+  >
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.media.col.image' | t }}</th>
+          <th scope="col">{{ 'admin.media.col.file' | t }}</th>
+          <th scope="col">{{ 'admin.media.col.dimensions' | t }}</th>
+          <th scope="col">{{ 'admin.media.col.size' | t }}</th>
+          <th scope="col">{{ 'admin.media.col.uploaded' | t }}</th>
+          <th scope="col">{{ 'admin.media.col.usedBy' | t }}</th>
+          <th scope="col" class="admin-table__actions-head">
+            {{ 'admin.media.col.actions' | t }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row">
+            <td>
+              <img
+                class="admin-media-thumb"
+                [src]="row.url"
+                [alt]="row.originalFilename"
+                width="40"
+                height="40"
+                loading="lazy"
+                decoding="async"
+              />
+            </td>
+            <td class="admin-cell--name">
+              <div class="admin-cell__name-body">
+                <span class="admin-media-name">{{ row.originalFilename }}</span>
+                <span class="admin-muted">{{ row.contentType }}</span>
+              </div>
+            </td>
+            <td class="admin-cell--nowrap">{{ row.width }} × {{ row.height }}</td>
+            <td class="admin-cell--nowrap">{{ mediaSizeText(row.sizeBytes) }}</td>
+            <td class="admin-cell--nowrap">{{ row.createdAt | date: 'medium' }}</td>
+            <td>
+              @if (row.reusedBy !== 0) {
+                {{ row.reusedBy }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td class="admin-cell--actions">
+              <div class="admin-cell__actions-body">
+                @if (deleteInUse()?.isArmed(row.id)) {
+                  <!-- The in-use 409 answer, turned into the confirm step:
+                     the fixed copy + the server message (naming the
+                     affected posts); Confirm re-issues with confirm=true. -->
+                  <span class="admin-confirm" role="status">
+                    {{ 'admin.media.delete.inUse' | t }}
+                    <span class="admin-muted">{{ deleteInUse()!.armed()!.value }}</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--danger"
+                    [attr.data-confirm-focus]="row.id"
+                    (click)="onConfirmDelete(row.id)"
+                    [disabled]="busy()"
+                  >
+                    {{
+                      busy()
+                        ? ('admin.media.delete.working' | t)
+                        : ('admin.media.delete.confirmButton' | t)
+                    }}
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn--ghost"
+                    (click)="onCancelDelete()"
+                    [disabled]="busy()"
+                  >
+                    {{ 'admin.media.delete.cancel' | t }}
+                  </button>
+                } @else {
+                  <!-- The first tap CALLS the API (the unreferenced asset
+                     deletes straight; the referenced one answers 409
+                     and arms the strip above). -->
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--danger"
+                    [attr.data-confirm-trigger]="row.id"
+                    (click)="onRequestDelete(row.id)"
+                    [disabled]="busy()"
+                  >
+                    {{ busy() ? ('admin.media.delete.working' | t) : ('admin.media.delete' | t) }}
+                  </button>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <!-- The shared page + size control: nothing at one page or an empty
+       list (the component's own rule). -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    [sizeLabelKey]="'pagination.sizeMedia'"
+    (onNavigate)="onNavigate($event)"
+  />
+}

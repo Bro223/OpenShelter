@@ -626,6 +626,10 @@ export const ET: Messages = {
   'pagination.pageOf': 'Leht {page} / {pages}',
   'pagination.size': 'Ühel lehel',
   'pagination.sizeShelters': 'Varjupaiku lehel',
+  'pagination.sizeReports': 'Teatisi lehel',
+  'pagination.sizeUsers': 'Kontosid lehel',
+  'pagination.sizeMedia': 'Pilte lehel',
+  'pagination.sizeAudit': 'Auditirea lehel',
   'guidance.pageOutOfRange': 'Lehe {page} ei ole — nimestik lõppeb lehel {pages}.',
   'guidance.pageFirst': 'Näita esimest lehte',
 
@@ -727,6 +731,17 @@ export const ET: Messages = {
   'admin.reports.restore': 'Taasta varjupaik',
   'admin.reports.dismiss': 'Arvelda',
   'admin.reports.success.dismissed': 'Teatedis arveldatud.',
+
+  // Raportite vahekaart: arveldatud-teadiste peidufilter — vaikimisi
+  // ('Kõik') näidatakse kõike, nii et filter ei peida midagi vaikitset.
+  'admin.reports.filter.aria': 'Filtreeri varjupaikade teatisi',
+  'admin.reports.filter.all': 'Kõik',
+  'admin.reports.filter.open': 'Ainult avatud',
+  'admin.reports.emptyOpen': 'Avatud teatisi pole.',
+  'admin.reports.pageOutOfRange': 'Lehe {page} ei ole — loetelu lõppeb lehel {pages}.',
+  'admin.users.pageOutOfRange': 'Lehe {page} ei ole — loetelu lõppeb lehel {pages}.',
+  'admin.media.pageOutOfRange': 'Lehe {page} ei ole — loetelu lõppeb lehel {pages}.',
+  'admin.audit.pageOutOfRange': 'Lehe {page} ei ole — loetelu lõppeb lehel {pages}.',
 
   'admin.alerts.loading': 'Laen hoiatusi…',
   'admin.alerts.empty': 'Piiratud või kuritarvitavat tegevust pole veel.',

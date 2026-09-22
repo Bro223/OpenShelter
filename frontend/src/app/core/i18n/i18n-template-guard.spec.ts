@@ -58,17 +58,26 @@ function findTemplates(): string[] {
   return out;
 }
 
-/** The full template set as of 2026-09-21 (23 files). */
+/** The full template set as of 2026-09-21 (31 files — the W3-B admin
+ *  panel extraction added the eight tab panels). */
 const EXPECTED_TEMPLATES = [
   'src/app/app.html',
   'src/app/features/account/account-page.html',
   'src/app/features/account/contributions-panel.html',
   'src/app/features/account/verify-page.html',
   'src/app/features/admin/admin-page.html',
+  'src/app/features/admin/alerts-panel.html',
+  'src/app/features/admin/audit-panel.html',
   'src/app/features/admin/guidance-editor.html',
   'src/app/features/admin/guidance-order-list.html',
+  'src/app/features/admin/guidance-panel.html',
   'src/app/features/admin/guidance-translations.html',
+  'src/app/features/admin/media-panel.html',
+  'src/app/features/admin/reports-panel.html',
+  'src/app/features/admin/shelters-panel.html',
   'src/app/features/admin/site-texts-panel.html',
+  'src/app/features/admin/unconfirmed-panel.html',
+  'src/app/features/admin/users-panel.html',
   'src/app/features/auth/login-page.html',
   'src/app/features/auth/register-page.html',
   'src/app/features/auth/reset-page.html',
@@ -103,7 +112,8 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
   },
   'features/shelter/shelter-detail-page.html': {
     '&larr;': 'decorative back-arrow entity (punctuation, not copy)',
-    'Capacity:': 'prefix label of the live occupancy gauge — a single key would need a {n} param for the gauge value; structural to the gauge markup (review 07 P1-4 note)',
+    'Capacity:':
+      'prefix label of the live occupancy gauge — a single key would need a {n} param for the gauge value; structural to the gauge markup (review 07 P1-4 note)',
   },
   'features/auth/login-page.html': {
     '&middot;': 'legal-links separator entity (punctuation, not copy)',
@@ -115,7 +125,7 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
     '&larr;': 'decorative back-arrow entity (punctuation, not copy)',
   },
   'shared/page-shell.html': {
-    'OpenShelter': 'brand name — proper noun, not translated in any locale (like detail.navigate)',
+    OpenShelter: 'brand name — proper noun, not translated in any locale (like detail.navigate)',
     '&middot;': 'footer separator entity (punctuation, not copy)',
     ':': 'punctuation spliced after the translated footer.dataSource label',
     '.': 'sentence-final period after the last footer link (like account.legal.tail)',
@@ -129,14 +139,28 @@ const ALLOWED_TEXT: Record<string, Record<string, string>> = {
     ':': 'punctuation spliced after the translated map.aroundYou label',
     '→': 'decorative arrow glyph after the translated view-details label',
   },
-  'features/admin/admin-page.html': {
+  'features/admin/guidance-order-list.html': {
     '—': 'empty-cell placeholder glyph (data absence, not copy)',
+  },
+  'features/admin/unconfirmed-panel.html': {
+    '—': 'empty-cell placeholder glyph (data absence, not copy)',
+  },
+  'features/admin/shelters-panel.html': {
+    '—': 'empty-cell placeholder glyph (data absence, not copy)',
+  },
+  'features/admin/reports-panel.html': {
     '·': 'queue-row separator glyph (punctuation, not copy)',
     '“': 'opening quote glyph around the moderator note (punctuation, not copy)',
     '”': 'closing quote glyph around the moderator note (punctuation, not copy)',
+  },
+  'features/admin/users-panel.html': {
+    '—': 'empty-cell placeholder glyph (data absence, not copy)',
+  },
+  'features/admin/media-panel.html': {
+    '—': 'empty-cell placeholder glyph (data absence, not copy)',
     '×': 'dimension separator between width/height figures (punctuation, not copy)',
   },
-  'features/admin/guidance-order-list.html': {
+  'features/admin/audit-panel.html': {
     '—': 'empty-cell placeholder glyph (data absence, not copy)',
   },
   'features/admin/site-texts-panel.html': {
@@ -152,7 +176,7 @@ const ALLOWED_ATTRS: Record<string, Record<string, string>> = {
 };
 
 const ALLOWED_INTERP: Record<string, Record<string, string>> = {
-  'features/admin/admin-page.html': {
+  'features/admin/users-panel.html': {
     suspend: 'user-action discriminator (string comparison against a data value), not copy',
   },
 };
@@ -204,7 +228,9 @@ describe('i18n template guard (no hardcoded user-visible template text)', () => 
       'attr',
     ]);
     expect(violations.some((v) => v.kind === 'interp' && v.value === 'Measuring…')).toBe(true);
-    expect(violations.some((v) => v.kind === 'attr' && v.raw === 'aria-label="Marker legend"')).toBe(true);
+    expect(
+      violations.some((v) => v.kind === 'attr' && v.raw === 'aria-label="Marker legend"'),
+    ).toBe(true);
   });
 
   it('structural interpolation literals are not flagged', () => {
@@ -229,7 +255,10 @@ describe('i18n template guard (no hardcoded user-visible template text)', () => 
           .map((v) => v.value),
       );
       for (const value of Object.keys(entries)) {
-        expect(live.has(value), `${file}: allowed text ${JSON.stringify(value)} no longer occurs — remove the entry`).toBe(true);
+        expect(
+          live.has(value),
+          `${file}: allowed text ${JSON.stringify(value)} no longer occurs — remove the entry`,
+        ).toBe(true);
       }
     }
     for (const [file, entries] of Object.entries(ALLOWED_ATTRS)) {
@@ -240,7 +269,10 @@ describe('i18n template guard (no hardcoded user-visible template text)', () => 
           .map((v) => v.raw),
       );
       for (const raw of Object.keys(entries)) {
-        expect(live.has(raw), `${file}: allowed attr ${JSON.stringify(raw)} no longer occurs — remove the entry`).toBe(true);
+        expect(
+          live.has(raw),
+          `${file}: allowed attr ${JSON.stringify(raw)} no longer occurs — remove the entry`,
+        ).toBe(true);
       }
     }
     for (const [file, entries] of Object.entries(ALLOWED_INTERP)) {
@@ -251,7 +283,10 @@ describe('i18n template guard (no hardcoded user-visible template text)', () => 
           .map((v) => v.value),
       );
       for (const value of Object.keys(entries)) {
-        expect(live.has(value), `${file}: allowed interpolation literal ${JSON.stringify(value)} no longer occurs — remove the entry`).toBe(true);
+        expect(
+          live.has(value),
+          `${file}: allowed interpolation literal ${JSON.stringify(value)} no longer occurs — remove the entry`,
+        ).toBe(true);
       }
     }
   });

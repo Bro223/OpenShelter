@@ -612,6 +612,20 @@ export interface AdminShelterFilters {
   offset?: number;
 }
 
+/** Optional filters for GET /admin/reports (absent = omitted from the URL). */
+export interface AdminShelterReportFilters {
+  /** Narrow to one shelter. */
+  shelterId?: number;
+  /** Hide the dismissed (resolved) rows — the moderator's hide-dismissed
+   *  control. Absent = false: everything renders (nothing is hidden
+   *  silently). */
+  excludeDismissed?: boolean;
+  /** Optional page size: 1..200; absent = the backend's default 100. */
+  limit?: number;
+  /** Optional offset into the (filtered) queue: >= 0. */
+  offset?: number;
+}
+
 /** A paged admin list result: the page's rows PLUS the un-paged total
  *  the server reports in the X-Total-Count header (the admin Shelters +
  *  Guidance lists — the page count is derived from the total, so an

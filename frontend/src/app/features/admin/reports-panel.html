@@ -1,0 +1,121 @@
+@if (rows() !== null && loadError() === null) {
+  <!-- The hide-dismissed filter (the owner's first-class control): a
+       pressed-state chip group. The DEFAULT is 'All' — everything
+       renders (the dismissed rows dimmed), nothing is hidden silently;
+       'Open only' scopes the list to the open reports server-side. -->
+  <div class="admin-chips" role="group" [attr.aria-label]="'admin.reports.filter.aria' | t">
+    <button
+      type="button"
+      class="chip"
+      [class.chip--active]="!excludeDismissed()"
+      [attr.aria-pressed]="!excludeDismissed() ? 'true' : 'false'"
+      (click)="onFilterChange(false)"
+      [disabled]="busy()"
+    >
+      {{ 'admin.reports.filter.all' | t }}
+    </button>
+    <button
+      type="button"
+      class="chip"
+      [class.chip--active]="excludeDismissed()"
+      [attr.aria-pressed]="excludeDismissed() ? 'true' : 'false'"
+      (click)="onFilterChange(true)"
+      [disabled]="busy()"
+    >
+      {{ 'admin.reports.filter.open' | t }}
+    </button>
+  </div>
+}
+
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.reports.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if (outOfRange()) {
+  <!-- The honest out-of-range state (the shared component): the URL asks
+       for a page past the end of a NON-EMPTY (filtered) queue — an
+       explicit translated notice + first-page action, never a bare
+       empty list. -->
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.reports.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else if ((rows() ?? []).length === 0) {
+  <!-- The OPEN scope's empty state is distinct from the unfiltered one
+       (the filter hides the dismissed rows — the queue may still hold
+       them under 'All'). -->
+  <p class="admin-state">
+    {{ (excludeDismissed() ? 'admin.reports.emptyOpen' : 'admin.reports.empty') | t }}
+  </p>
+} @else {
+  <ul class="admin-queue">
+    @for (row of rows() ?? []; track row.id) {
+      <li class="admin-queue-row" [class.admin-row--dismissed]="row.dismissed">
+        <div class="admin-queue-row__info">
+          <span class="admin-queue-row__title">
+            <a [routerLink]="['/shelters', row.shelterId]">{{ row.shelterName }}</a>
+            @if (row.dismissed) {
+              <span class="badge badge--hidden">{{ 'admin.reports.dismissed' | t }}</span>
+            }
+          </span>
+          <span class="admin-queue-row__meta">
+            {{ reportTypeLabel(row.type) }}
+            @if (row.damped) {
+              <span class="badge badge--hidden" [title]="'admin.reports.notCounted.reason' | t">{{
+                'admin.reports.notCounted' | t
+              }}</span>
+            }
+            · {{ reporterText(row) }} ·
+            {{ ageText(row.createdAt) }}
+          </span>
+          @if (row.detail) {
+            <span class="admin-queue-row__detail">“{{ row.detail }}”</span>
+          }
+          @if (row.damped) {
+            <!-- The reason is an always-visible line (touch/keyboard
+                 accessible), not the badge's title tooltip alone; the
+                 tooltip repeats the same key for mouse hover. -->
+            <span class="admin-queue-row__reason">{{ 'admin.reports.notCounted.reason' | t }}</span>
+          }
+        </div>
+        <div class="admin-queue-row__actions">
+          @if (row.shelterStatus === 'INACTIVE') {
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="onRestoreShelter(row.shelterId)"
+              [disabled]="busy()"
+            >
+              {{ 'admin.reports.restore' | t }}
+            </button>
+          }
+          @if (!row.dismissed) {
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="onDismissReport(row.id)"
+              [disabled]="busy()"
+            >
+              {{ busy() ? ('admin.working' | t) : ('admin.reports.dismiss' | t) }}
+            </button>
+          }
+        </div>
+      </li>
+    }
+  </ul>
+  <!-- The shared page + size control: nothing at one page or an empty
+       list (the component's own rule). -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    [sizeLabelKey]="'pagination.sizeReports'"
+    (onNavigate)="onNavigate($event)"
+  />
+}

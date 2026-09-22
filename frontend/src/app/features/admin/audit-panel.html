@@ -1,0 +1,73 @@
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.audit.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if (outOfRange()) {
+  <!-- The honest out-of-range state (the shared component): the URL asks
+       for a page past the end of a NON-EMPTY trail — an explicit
+       translated notice + first-page action, never a bare empty list. -->
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.audit.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">{{ 'admin.audit.empty' | t }}</p>
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.audit.aria' | t"
+  >
+    <table class="admin-table admin-table--audit">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.audit.col.when' | t }}</th>
+          <th scope="col">{{ 'admin.audit.col.moderator' | t }}</th>
+          <!-- "Subject": a shelter row's name OR the
+               suspended account ("Account: name (email)" / "Deleted
+               account") — the server resolves both into one text. -->
+          <th scope="col">{{ 'admin.audit.col.subject' | t }}</th>
+          <th scope="col">{{ 'admin.audit.col.action' | t }}</th>
+          <th scope="col">{{ 'admin.audit.col.change' | t }}</th>
+          <th scope="col">{{ 'admin.audit.col.reason' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row">
+            <td class="admin-cell--nowrap">{{ row.createdAt | date: 'medium' }}</td>
+            <td>{{ row.moderatorName }}</td>
+            <!-- The server resolves the name (a deleted shelter reads
+                 "Deleted shelter") — plain text, no link. -->
+            <td class="admin-cell--name">{{ row.shelterName }}</td>
+            <td>{{ auditActionLabel(row.action) }}</td>
+            <td>{{ auditChangeText(row.previousStatus, row.newStatus) }}</td>
+            <td>
+              @if (row.reason; as reason) {
+                {{ reason }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <!-- The shared page + size control: nothing at one page or an empty
+       list (the component's own rule). -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    [sizeLabelKey]="'pagination.sizeAudit'"
+    (onNavigate)="onNavigate($event)"
+  />
+}

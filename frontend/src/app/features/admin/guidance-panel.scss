@@ -1,0 +1,50 @@
+@use './admin-shared';
+
+/* The Guidance tab panel: shared vocabulary from _admin-shared.scss
+   (@used here, like every tab panel); panel-local: the editor card and
+   the content-language select. */
+
+/* The editor card (crisis-guidance D8): bordered, padded, distinct from
+   the page background; the primary border on :focus-within is the
+   app-wide form-focus language (the same as .map-cta__form). */
+.admin-editor {
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
+  margin-bottom: var(--space-16);
+
+  &:focus-within {
+    border-color: var(--color-primary);
+  }
+}
+
+/* The content-language select (admin-locale-scope): the ONE admin-controlled
+   language that scopes this tab's list, editor and reorders — the app's
+   input idiom, width-capped; the muted hint scopes the whole tab. */
+.admin-guidance-language {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 420px;
+  margin-bottom: var(--space-8);
+
+  /* The app's input idiom — the stylesheet split lost this rule; the
+     pre-extraction tokens --radius/--color-surface no longer exist in the
+     token set, so the restored rule names their current equivalents,
+     --radius-md and --color-bg-surface. */
+  select {
+    min-height: 48px;
+    padding: 0 var(--space-4);
+    font: inherit;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: inherit;
+  }
+}
+
+.admin-guidance-language__hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}

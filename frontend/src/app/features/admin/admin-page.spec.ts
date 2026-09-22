@@ -399,10 +399,10 @@ describe('AdminPage', () => {
     admin.deleteShelter.mockResolvedValue(undefined);
     admin.dismissShelterReport.mockResolvedValue(undefined);
     admin.reviewShelter.mockResolvedValue({ ok: true });
-    admin.listAudit.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue(paged([]));
     admin.listAlerts.mockResolvedValue([]);
     admin.listShelterHistory.mockResolvedValue([]);
-    admin.listUsers.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue(paged([]));
     admin.suspendUser.mockResolvedValue(undefined);
     admin.unsuspendUser.mockResolvedValue(undefined);
     // The translations section (bilingual-guidance): open in the ordinary
@@ -1024,7 +1024,7 @@ describe('AdminPage', () => {
 
   it('switching to the reports tab loads the queue lazily; rows carry shelter link, type, reporter, age', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listShelterReports.mockResolvedValue([REPORT_ROW]);
+    admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
     const { element, fixture } = await openAdmin();
 
     expect(admin.listShelterReports).not.toHaveBeenCalled(); // lazy — shelters tab only
@@ -1034,7 +1034,9 @@ describe('AdminPage', () => {
     fixture.detectChanges();
 
     expect(admin.listShelterReports).toHaveBeenCalledTimes(1);
-    expect(admin.listShelterReports).toHaveBeenCalledWith();
+    // The default view: the 'All' scope (no excludeDismissed), page 1,
+    // the default size — the paged queue's initial request.
+    expect(admin.listShelterReports).toHaveBeenCalledWith({ limit: 20, offset: 0 });
     expect(element.querySelector('a[href="/shelters/7"]')).not.toBeNull();
     expect(element.textContent).toContain('Does not exist');
     expect(element.textContent).toContain('Toomas T. <toomas@example.ee>');
@@ -1043,7 +1045,7 @@ describe('AdminPage', () => {
 
   it('a dampened report row (M9) renders the "Not counted" badge plus a non-empty reason line', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listShelterReports.mockResolvedValue([{ ...REPORT_ROW, id: 103, damped: true }]);
+    admin.listShelterReports.mockResolvedValue(paged([{ ...REPORT_ROW, id: 103, damped: true }]));
     const { element, fixture } = await openAdmin();
     buttonByText(element, 'Shelter reports')!.click();
     await fixture.whenStable();
@@ -1067,7 +1069,7 @@ describe('AdminPage', () => {
 
   it('Dismiss posts the report id; the row stays in the queue, dimmed with the Dismissed badge', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listShelterReports.mockResolvedValue([REPORT_ROW]);
+    admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
     const { element, fixture } = await openAdmin();
     buttonByText(element, 'Shelter reports')!.click();
     await fixture.whenStable();
@@ -1089,7 +1091,7 @@ describe('AdminPage', () => {
 
   it('a report row whose shelter is INACTIVE gets the restore-shelter shortcut', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listShelterReports.mockResolvedValue([REPORT_ROW_INACTIVE]);
+    admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW_INACTIVE]));
     const { element, fixture } = await openAdmin();
     buttonByText(element, 'Shelter reports')!.click();
     await fixture.whenStable();
@@ -1197,7 +1199,9 @@ describe('AdminPage', () => {
   it('Reject with a reason posts REJECT + reason, closes the editor, refreshes the queue', async () => {
     admin.listShelters
       .mockResolvedValueOnce(paged([USER_ROW]))
-      .mockResolvedValueOnce(paged([{ ...USER_ROW, reviewStatus: 'REJECTED', status: 'INACTIVE' }]));
+      .mockResolvedValueOnce(
+        paged([{ ...USER_ROW, reviewStatus: 'REJECTED', status: 'INACTIVE' }]),
+      );
     const { page, element, fixture } = await openAdmin();
 
     buttonByText(firstRow(element), 'Reject')!.click();
@@ -1285,41 +1289,43 @@ describe('AdminPage', () => {
 
   it('switching to the Audit tab loads the trail lazily; rows render when/moderator/shelter/action/change/reason', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listAudit.mockResolvedValue([
-      {
-        id: 9001,
-        createdAt: ago(5 * 60_000),
-        moderatorName: 'Anu T.',
-        shelterId: 7,
-        shelterName: 'Kommunaali Varjend',
-        action: 'CONFIRM',
-        previousStatus: 'NEW',
-        newStatus: 'CONFIRMED',
-        reason: null,
-      },
-      {
-        id: 9002,
-        createdAt: ago(10 * 60_000),
-        moderatorName: 'Anu T.',
-        shelterId: 12,
-        shelterName: 'Deleted shelter',
-        action: 'DELETE',
-        previousStatus: 'INACTIVE',
-        newStatus: null,
-        reason: null,
-      },
-      {
-        id: 9003,
-        createdAt: ago(15 * 60_000),
-        moderatorName: 'Bert B.',
-        shelterId: 8,
-        shelterName: 'Peidetud Kelder',
-        action: 'REJECT',
-        previousStatus: 'NEW',
-        newStatus: 'INACTIVE',
-        reason: 'Could not verify',
-      },
-    ]);
+    admin.listAudit.mockResolvedValue(
+      paged([
+        {
+          id: 9001,
+          createdAt: ago(5 * 60_000),
+          moderatorName: 'Anu T.',
+          shelterId: 7,
+          shelterName: 'Kommunaali Varjend',
+          action: 'CONFIRM',
+          previousStatus: 'NEW',
+          newStatus: 'CONFIRMED',
+          reason: null,
+        },
+        {
+          id: 9002,
+          createdAt: ago(10 * 60_000),
+          moderatorName: 'Anu T.',
+          shelterId: 12,
+          shelterName: 'Deleted shelter',
+          action: 'DELETE',
+          previousStatus: 'INACTIVE',
+          newStatus: null,
+          reason: null,
+        },
+        {
+          id: 9003,
+          createdAt: ago(15 * 60_000),
+          moderatorName: 'Bert B.',
+          shelterId: 8,
+          shelterName: 'Peidetud Kelder',
+          action: 'REJECT',
+          previousStatus: 'NEW',
+          newStatus: 'INACTIVE',
+          reason: 'Could not verify',
+        },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     expect(admin.listAudit).not.toHaveBeenCalled(); // lazy — audit tab only
@@ -1329,7 +1335,9 @@ describe('AdminPage', () => {
     fixture.detectChanges();
 
     expect(admin.listAudit).toHaveBeenCalledTimes(1);
-    expect(admin.listAudit).toHaveBeenCalledWith();
+    // The default view: page 1, the default size — the paged trail's
+    // initial request.
+    expect(admin.listAudit).toHaveBeenCalledWith({ limit: 20, offset: 0 });
     const rows = element.querySelectorAll('tr.admin-row');
     expect(rows.length).toBe(3);
     // Row 1: action label + the status transition + the null reason dash.
@@ -1348,30 +1356,32 @@ describe('AdminPage', () => {
 
   it('the audit trail labels the mark-inaccurate actions (M10 slice 4)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listAudit.mockResolvedValue([
-      {
-        id: 9101,
-        createdAt: ago(5 * 60_000),
-        moderatorName: 'Anu T.',
-        shelterId: 7,
-        shelterName: 'Kommunaali Varjend',
-        action: 'MARK_INACCURATE',
-        previousStatus: 'NEW',
-        newStatus: 'NEW',
-        reason: 'Uks on suletud',
-      },
-      {
-        id: 9102,
-        createdAt: ago(10 * 60_000),
-        moderatorName: 'Anu T.',
-        shelterId: 7,
-        shelterName: 'Kommunaali Varjend',
-        action: 'CLEAR_INACCURATE',
-        previousStatus: 'NEW',
-        newStatus: 'NEW',
-        reason: null,
-      },
-    ]);
+    admin.listAudit.mockResolvedValue(
+      paged([
+        {
+          id: 9101,
+          createdAt: ago(5 * 60_000),
+          moderatorName: 'Anu T.',
+          shelterId: 7,
+          shelterName: 'Kommunaali Varjend',
+          action: 'MARK_INACCURATE',
+          previousStatus: 'NEW',
+          newStatus: 'NEW',
+          reason: 'Uks on suletud',
+        },
+        {
+          id: 9102,
+          createdAt: ago(10 * 60_000),
+          moderatorName: 'Anu T.',
+          shelterId: 7,
+          shelterName: 'Kommunaali Varjend',
+          action: 'CLEAR_INACCURATE',
+          previousStatus: 'NEW',
+          newStatus: 'NEW',
+          reason: null,
+        },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     buttonByText(element, 'Audit log')!.click();
@@ -1387,7 +1397,7 @@ describe('AdminPage', () => {
 
   it('an empty audit trail shows the empty state', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listAudit.mockResolvedValue([]);
+    admin.listAudit.mockResolvedValue(paged([]));
     const { element, fixture } = await openAdmin();
 
     buttonByText(element, 'Audit log')!.click();
@@ -1402,10 +1412,12 @@ describe('AdminPage', () => {
 
   it('switching to the Users tab loads accounts lazily; rows render name/e-mail/kind/status', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listUsers.mockResolvedValue([
-      { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
-      { id: 302, name: 'Admin', email: 'admin@example.ee', kind: 'ADMIN', suspendedAt: null },
-    ]);
+    admin.listUsers.mockResolvedValue(
+      paged([
+        { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
+        { id: 302, name: 'Admin', email: 'admin@example.ee', kind: 'ADMIN', suspendedAt: null },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     expect(admin.listUsers).not.toHaveBeenCalled(); // lazy — users tab only
@@ -1430,9 +1442,11 @@ describe('AdminPage', () => {
 
   it('suspending is two-tap: the confirm strip arms, confirms, and patches the row in place', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listUsers.mockResolvedValue([
-      { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
-    ]);
+    admin.listUsers.mockResolvedValue(
+      paged([
+        { id: 301, name: 'Siht', email: 'siht@example.ee', kind: 'REGISTERED', suspendedAt: null },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     buttonByText(element, 'Users')!.click();
@@ -1464,15 +1478,17 @@ describe('AdminPage', () => {
 
   it('unsuspending flips the row back to Active', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listUsers.mockResolvedValue([
-      {
-        id: 301,
-        name: 'Siht',
-        email: 'siht@example.ee',
-        kind: 'REGISTERED',
-        suspendedAt: ago(60_000),
-      },
-    ]);
+    admin.listUsers.mockResolvedValue(
+      paged([
+        {
+          id: 301,
+          name: 'Siht',
+          email: 'siht@example.ee',
+          kind: 'REGISTERED',
+          suspendedAt: ago(60_000),
+        },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     buttonByText(element, 'Users')!.click();
@@ -1495,19 +1511,21 @@ describe('AdminPage', () => {
 
   it('the audit trail renders user-scoped rows with the account subject and new labels', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listAudit.mockResolvedValue([
-      {
-        id: 9101,
-        createdAt: ago(2 * 60_000),
-        moderatorName: 'Admin',
-        shelterId: null,
-        shelterName: 'Account: Siht (siht@example.ee)',
-        action: 'USER_SUSPEND',
-        previousStatus: null,
-        newStatus: null,
-        reason: null,
-      },
-    ]);
+    admin.listAudit.mockResolvedValue(
+      paged([
+        {
+          id: 9101,
+          createdAt: ago(2 * 60_000),
+          moderatorName: 'Admin',
+          shelterId: null,
+          shelterName: 'Account: Siht (siht@example.ee)',
+          action: 'USER_SUSPEND',
+          previousStatus: null,
+          newStatus: null,
+          reason: null,
+        },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     buttonByText(element, 'Audit log')!.click();
@@ -1527,12 +1545,12 @@ describe('AdminPage', () => {
 
   it('shows a plain empty state per tab when the queues are empty', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listShelterReports.mockResolvedValue([]);
-    admin.listAudit.mockResolvedValue([]);
+    admin.listShelterReports.mockResolvedValue(paged([]));
+    admin.listAudit.mockResolvedValue(paged([]));
     admin.listAlerts.mockResolvedValue([]);
-    admin.listUsers.mockResolvedValue([]);
+    admin.listUsers.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue(paged([]));
     const { element, fixture } = await openAdmin();
 
     // Default tab: the unconfirmed queue is empty (no shelters at all).
@@ -1594,7 +1612,11 @@ describe('AdminPage', () => {
 
     // admin-locale-scope: the list is fetched for the active UI language.
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
     const rows = element.querySelectorAll('tbody tr');
     expect(rows.length).toBe(2);
     // The published row: status badge, locale, pin, hero thumbnail.
@@ -1663,7 +1685,11 @@ describe('AdminPage', () => {
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
 
     // The admin UI language flips to et (the header switcher's path).
     i18nService.setLocale('et');
@@ -1676,7 +1702,11 @@ describe('AdminPage', () => {
     // The listed content is untouched: the list is NOT re-fetched (no
     // content-locale change) and the en-scoped rows still render.
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
     expect(element.textContent).toContain('Varjumine droonirünnaku ajal');
   });
 
@@ -1696,7 +1726,11 @@ describe('AdminPage', () => {
     // parameter is the CONTENT locale — still en, not the new UI locale —
     // and the list is not re-fetched.
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
     expect(element.textContent).toContain('Keeles en juhiseid pole veel.');
   });
 
@@ -1708,7 +1742,11 @@ describe('AdminPage', () => {
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
 
     i18nService.setContentLocale('ru');
     await settle(fixture);
@@ -1716,7 +1754,11 @@ describe('AdminPage', () => {
     // The list is re-fetched in the NEW content locale (the listed content
     // is now the ru rows)…
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(2);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'ru', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'ru',
+      limit: 20,
+      offset: 0,
+    });
     // …and the chrome is untouched: the UI language is still en (the tab
     // label keeps the en copy, <html lang> is untouched).
     expect(buttonByText(element, 'Guidance')).not.toBeNull();
@@ -1727,7 +1769,7 @@ describe('AdminPage', () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
     publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
     admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
     admin.updateGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
     const i18nService = TestBed.inject(I18nService);
@@ -1772,13 +1814,21 @@ describe('AdminPage', () => {
     const i18nService = TestBed.inject(I18nService);
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
 
     // The content language flips (the list re-fetches in et)…
     i18nService.setContentLocale('et');
     await settle(fixture);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(2);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'et', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'et',
+      limit: 20,
+      offset: 0,
+    });
     // …and the UI language flips too (chrome only — no re-fetch)…
     i18nService.setLocale('ru');
     await i18nService.ensureCatalog('ru');
@@ -1839,7 +1889,11 @@ describe('AdminPage', () => {
     // the current content locale…
     await switchTab('Guidance', element, fixture);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'en',
+      limit: 20,
+      offset: 0,
+    });
     const contentSel = element.querySelector<HTMLSelectElement>('#content-language-select')!;
     expect(contentSel).not.toBeNull();
     expect(contentSel.value).toBe('en');
@@ -1851,7 +1905,11 @@ describe('AdminPage', () => {
     contentSel.dispatchEvent(new Event('change'));
     await settle(fixture);
     expect(admin.listGuidancePostsPage).toHaveBeenCalledTimes(2);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'ru', limit: 20, offset: 0 });
+    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+      locale: 'ru',
+      limit: 20,
+      offset: 0,
+    });
     // …while the chrome is untouched (the en tab labels and <html lang>
     // stay) and the choice persists under the content key.
     expect(buttonByText(element, 'Guidance')).not.toBeNull();
@@ -1883,7 +1941,7 @@ describe('AdminPage', () => {
   it('create: the editor saves a draft (DRAFT status, null hero), the row is appended (the server appends new posts to the manual order)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
     admin.createGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
     const { element, fixture } = await openAdmin();
     await switchTab('Guidance', element, fixture);
@@ -1916,7 +1974,7 @@ describe('AdminPage', () => {
   it('create: a 409 slug collision keeps the editor open with the server message', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([]);
+    admin.listMediaAssets.mockResolvedValue(paged([]));
     admin.createGuidancePost.mockRejectedValue(
       apiError(409, 'slug "uus-juhis" is already in use', '/admin/guidance'),
     );
@@ -1937,7 +1995,7 @@ describe('AdminPage', () => {
   it('edit: opens with the fetched post; Save PUTs the update body (no status field)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
     admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
     admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
     admin.updateGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
     const { element, fixture } = await openAdmin();
@@ -2019,8 +2077,8 @@ describe('AdminPage', () => {
     // catalog values: the private-home badge and the inaccurate
     // badge + warning.
     expect(element.textContent).toContain('Privaatkodu (deklareeritud)');
-    const badges = [...element.querySelectorAll('.badge--inaccurate')].map(
-      (b) => b.textContent?.trim(),
+    const badges = [...element.querySelectorAll('.badge--inaccurate')].map((b) =>
+      b.textContent?.trim(),
     );
     expect(badges).toContain('Ebatäpne');
     expect(element.textContent).toContain('Teatatud ebatäpseks — detailid võivad olla valed');
@@ -2049,13 +2107,16 @@ describe('AdminPage', () => {
   // pins so a future move cannot drop the styling again without a red
   // spec (nothing in the DOM suite can see a missing stylesheet rule).
 
-  it('the content-language select keeps the app input idiom (admin-page.scss)', () => {
+  // The panel extraction (W3-B) moved the rules to the guidance panel's
+  // own stylesheet — the pins follow the rule, not the page.
+
+  it('the content-language select keeps the app input idiom (guidance-panel.scss)', () => {
     const scss = readFileSync(
-      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+      `${process.cwd()}/src/app/features/admin/guidance-panel.scss`,
       'utf8',
     );
     const block = scss.match(/\.admin-guidance-language \{[\s\S]*?\n\}/);
-    expect(block, 'admin-page.scss must keep the .admin-guidance-language rule').not.toBeNull();
+    expect(block, 'guidance-panel.scss must keep the .admin-guidance-language rule').not.toBeNull();
     const rule = block![0];
     expect(rule, 'the language block stays width-capped').toMatch(/max-width: 420px/);
     expect(rule, 'the language block leaves room before the list below').toMatch(
@@ -2076,10 +2137,7 @@ describe('AdminPage', () => {
   });
 
   it('the active tab fills primary without a ghost border or off-contract text (admin-page.scss)', () => {
-    const scss = readFileSync(
-      `${process.cwd()}/src/app/features/admin/admin-page.scss`,
-      'utf8',
-    );
+    const scss = readFileSync(`${process.cwd()}/src/app/features/admin/admin-page.scss`, 'utf8');
     const block = scss.match(/\.admin-tab--active \{[\s\S]*?\n\}/);
     expect(block, 'admin-page.scss must keep the .admin-tab--active rule').not.toBeNull();
     const rule = block![0];
@@ -2105,7 +2163,9 @@ describe('AdminPage', () => {
 
   it('publish with a pending hero import: the row adopts the stored image (the detail re-fetch after the 204)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]));
+    admin.listGuidancePostsPage.mockResolvedValue(
+      paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
+    );
     admin.publishGuidancePost.mockResolvedValue(undefined);
     admin.getGuidancePost.mockResolvedValue(GUIDANCE_IMPORTED_PUBLISHED);
     const { element, fixture } = await openAdmin();
@@ -2148,7 +2208,9 @@ describe('AdminPage', () => {
 
   it('a refused import fails the publish: the server message is echoed, the row stays a draft with the URL intact', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]));
+    admin.listGuidancePostsPage.mockResolvedValue(
+      paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
+    );
     admin.publishGuidancePost.mockRejectedValue(
       apiError(400, 'heroImportUrl names a refused address', '/admin/guidance/12/publish'),
     );
@@ -2171,7 +2233,9 @@ describe('AdminPage', () => {
 
   it('an unreachable import (502) fails the publish with the generic 5xx copy (the error-copy convention)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]));
+    admin.listGuidancePostsPage.mockResolvedValue(
+      paged([GUIDANCE_PENDING_IMPORT, GUIDANCE_PUBLISHED]),
+    );
     admin.publishGuidancePost.mockRejectedValue(
       apiError(502, 'could not be fetched', '/admin/guidance/12/publish'),
     );
@@ -2235,185 +2299,193 @@ describe('AdminPage', () => {
   // delete a foreign one (the two-tap confirm; the home-locale row is
   // never offered the trigger).
 
-describe('translations (bilingual-guidance)', () => {
-  it('the section shows the loading state while the rows load', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
-    // The rows load is deliberately pending — the section stays in its
-    // loading state.
-    admin.listGuidanceTranslations.mockReturnValue(new Promise(() => {}));
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
+  describe('translations (bilingual-guidance)', () => {
+    it('the section shows the loading state while the rows load', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+      // The rows load is deliberately pending — the section stays in its
+      // loading state.
+      admin.listGuidanceTranslations.mockReturnValue(new Promise(() => {}));
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
 
-    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
-      'Loading translations',
-    );
-  });
-
-  it('the section shows the empty state for a shell post with no translation rows', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
-    admin.listGuidanceTranslations.mockResolvedValue([]);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
-
-    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
-      'No translations yet',
-    );
-  });
-
-  it('opening a post in edit mode loads its translation rows and offers only the missing locales', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
-    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
-
-    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(1);
-    expect(admin.listGuidanceTranslations).toHaveBeenCalledWith(11);
-    const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    expect(section).not.toBeNull();
-    expect(section.textContent).toContain('Translations');
-    // The home-locale row is marked 'home' and NEVER offered the delete;
-    // the foreign row carries exactly one trigger.
-    expect(section.textContent).toContain('home');
-    expect(section.querySelectorAll('[data-confirm-trigger]').length).toBe(1);
-    // Only the missing locale (ru) is offered for authoring.
-    expect(buttonByText(section, 'Add ru translation')).not.toBeNull();
-    expect(buttonByText(section, 'Add et translation')).toBeNull();
-    expect(buttonByText(section, 'Add en translation')).toBeNull();
-  });
-
-  it('creating a missing translation calls the CREATE endpoint (not the update one), keeps the editor open in the ordinary edit mode, and re-loads the rows', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
-    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
-
-    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    buttonByText(section(), 'Add ru translation')!.click();
-    await settle(fixture);
-    // The editor re-created in translation-authoring mode (heading swap) …
-    expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
-      'Add a translation',
-    );
-    // …the prefill is valid (the shared hero + alt are paired) — save as-is.
-    buttonByText(element, 'Save')!.click();
-    await settle(fixture);
-
-    expect(admin.createGuidanceTranslation).toHaveBeenCalledTimes(1);
-    expect(admin.createGuidanceTranslation.mock.calls[0]![0]).toBe(11);
-    expect(admin.createGuidanceTranslation.mock.calls[0]![1]).toEqual({
-      locale: 'ru',
-      title: GUIDANCE_PUBLISHED.title,
-      body: GUIDANCE_PUBLISHED.bodyHtml,
-      heroImageAlt: GUIDANCE_PUBLISHED.heroImageAlt,
+      const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
+        'Loading translations',
+      );
     });
-    expect(admin.updateGuidancePost).not.toHaveBeenCalled();
-    expect(admin.createGuidancePost).not.toHaveBeenCalled();
-    expect(element.textContent).toContain('Translation created.');
-    // The editor STAYED open, back in the ordinary edit mode …
-    expect(element.querySelector('app-guidance-editor')).not.toBeNull();
-    expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
-      'Edit guidance post',
-    );
-    // …and the section re-loaded the rows.
-    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+
+    it('the section shows the empty state for a shell post with no translation rows', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+      admin.listGuidanceTranslations.mockResolvedValue([]);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      expect(section.querySelector('.admin-guidance-translations__state')!.textContent).toContain(
+        'No translations yet',
+      );
+    });
+
+    it('opening a post in edit mode loads its translation rows and offers only the missing locales', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(1);
+      expect(admin.listGuidanceTranslations).toHaveBeenCalledWith(11);
+      const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      expect(section).not.toBeNull();
+      expect(section.textContent).toContain('Translations');
+      // The home-locale row is marked 'home' and NEVER offered the delete;
+      // the foreign row carries exactly one trigger.
+      expect(section.textContent).toContain('home');
+      expect(section.querySelectorAll('[data-confirm-trigger]').length).toBe(1);
+      // Only the missing locale (ru) is offered for authoring.
+      expect(buttonByText(section, 'Add ru translation')).not.toBeNull();
+      expect(buttonByText(section, 'Add et translation')).toBeNull();
+      expect(buttonByText(section, 'Add en translation')).toBeNull();
+    });
+
+    it('creating a missing translation calls the CREATE endpoint (not the update one), keeps the editor open in the ordinary edit mode, and re-loads the rows', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      buttonByText(section(), 'Add ru translation')!.click();
+      await settle(fixture);
+      // The editor re-created in translation-authoring mode (heading swap) …
+      expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+        'Add a translation',
+      );
+      // …the prefill is valid (the shared hero + alt are paired) — save as-is.
+      buttonByText(element, 'Save')!.click();
+      await settle(fixture);
+
+      expect(admin.createGuidanceTranslation).toHaveBeenCalledTimes(1);
+      expect(admin.createGuidanceTranslation.mock.calls[0]![0]).toBe(11);
+      expect(admin.createGuidanceTranslation.mock.calls[0]![1]).toEqual({
+        locale: 'ru',
+        title: GUIDANCE_PUBLISHED.title,
+        body: GUIDANCE_PUBLISHED.bodyHtml,
+        heroImageAlt: GUIDANCE_PUBLISHED.heroImageAlt,
+      });
+      expect(admin.updateGuidancePost).not.toHaveBeenCalled();
+      expect(admin.createGuidancePost).not.toHaveBeenCalled();
+      expect(element.textContent).toContain('Translation created.');
+      // The editor STAYED open, back in the ordinary edit mode …
+      expect(element.querySelector('app-guidance-editor')).not.toBeNull();
+      expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+        'Edit guidance post',
+      );
+      // …and the section re-loaded the rows.
+      expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+    });
+
+    it('deleting a translation is two-tap: the first tap only arms, Cancel disarms, the confirm sends the DELETE', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
+      admin.listGuidanceTranslations
+        .mockResolvedValueOnce(TRANSLATION_ROWS)
+        .mockResolvedValueOnce([TRANSLATION_ROWS[0]!]);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      // Tap 1: arm only — the prompt is visible, nothing is sent.
+      buttonByText(section(), 'Delete translation')!.click();
+      fixture.detectChanges();
+      expect(element.textContent).toContain('Delete the en translation of this post?');
+      expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
+      // Cancel: disarm — still nothing sent.
+      buttonByText(section(), 'Cancel')!.click();
+      fixture.detectChanges();
+      expect(element.textContent).not.toContain('Delete the en translation of this post?');
+      expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
+      // Tap 1 + Tap 2: the DELETE goes out (post id + locale), the success
+      // shows and the rows re-load (the en row is gone from the fake).
+      buttonByText(section(), 'Delete translation')!.click();
+      fixture.detectChanges();
+      buttonByText(section(), 'Confirm delete')!.click();
+      await settle(fixture);
+      expect(admin.deleteGuidanceTranslation).toHaveBeenCalledTimes(1);
+      expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
+      expect(element.textContent).toContain('Translation deleted.');
+      expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+      expect(section().textContent).not.toContain('sheltering-during-a-drone-strike');
+    });
+
+    it('deleting the row the editor is SHOWING (a foreign-locale edit) closes the editor and re-loads the list', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED_EN);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      const i18nService = TestBed.inject(I18nService);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      // The content language flips to en: the list re-fetches and the
+      // editor will show the EN row (post.locale 'en', homeLocale 'et').
+      i18nService.setContentLocale('en');
+      await settle(fixture);
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+      expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'en');
+
+      const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      buttonByText(section(), 'Delete translation')!.click();
+      fixture.detectChanges();
+      buttonByText(section(), 'Confirm delete')!.click();
+      await settle(fixture);
+
+      expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
+      // The shown row (the content-locale row) is gone: the editor closes
+      // and the list re-loads in the en scope.
+      expect(element.querySelector('app-guidance-editor')).toBeNull();
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
+    });
   });
-
-  it('deleting a translation is two-tap: the first tap only arms, Cancel disarms, the confirm sends the DELETE', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED);
-    admin.listGuidanceTranslations
-      .mockResolvedValueOnce(TRANSLATION_ROWS)
-      .mockResolvedValueOnce([TRANSLATION_ROWS[0]!]);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
-
-    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    // Tap 1: arm only — the prompt is visible, nothing is sent.
-    buttonByText(section(), 'Delete translation')!.click();
-    fixture.detectChanges();
-    expect(element.textContent).toContain('Delete the en translation of this post?');
-    expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
-    // Cancel: disarm — still nothing sent.
-    buttonByText(section(), 'Cancel')!.click();
-    fixture.detectChanges();
-    expect(element.textContent).not.toContain('Delete the en translation of this post?');
-    expect(admin.deleteGuidanceTranslation).not.toHaveBeenCalled();
-    // Tap 1 + Tap 2: the DELETE goes out (post id + locale), the success
-    // shows and the rows re-load (the en row is gone from the fake).
-    buttonByText(section(), 'Delete translation')!.click();
-    fixture.detectChanges();
-    buttonByText(section(), 'Confirm delete')!.click();
-    await settle(fixture);
-    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledTimes(1);
-    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
-    expect(element.textContent).toContain('Translation deleted.');
-    expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
-    expect(section().textContent).not.toContain('sheltering-during-a-drone-strike');
-  });
-
-  it('deleting the row the editor is SHOWING (a foreign-locale edit) closes the editor and re-loads the list', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
-    admin.listMediaAssets.mockResolvedValue([]);
-    admin.getGuidancePost.mockResolvedValue(GUIDANCE_PUBLISHED_EN);
-    admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
-    const i18nService = TestBed.inject(I18nService);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    // The content language flips to en: the list re-fetches and the
-    // editor will show the EN row (post.locale 'en', homeLocale 'et').
-    i18nService.setContentLocale('en');
-    await settle(fixture);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
-    const row = element.querySelectorAll('tbody tr')[1]!;
-    buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
-    await settle(fixture);
-    expect(admin.getGuidancePost).toHaveBeenCalledWith(11, 'en');
-
-    const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
-    buttonByText(section(), 'Delete translation')!.click();
-    fixture.detectChanges();
-    buttonByText(section(), 'Confirm delete')!.click();
-    await settle(fixture);
-
-    expect(admin.deleteGuidanceTranslation).toHaveBeenCalledWith(11, 'en');
-    // The shown row (the content-locale row) is gone: the editor closes
-    // and the list re-loads in the en scope.
-    expect(element.querySelector('app-guidance-editor')).toBeNull();
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
-  });
-});
 
   // ---- editor reveal: the form is found, not hunted (scroll + focus) -------
   //
@@ -2482,7 +2554,7 @@ describe('translations (bilingual-guidance)', () => {
       admin.listShelters.mockResolvedValue(paged([]));
       admin.listGuidancePostsPage.mockResolvedValue(paged(ORDERED_ROWS)); // 11, 13, 12
       publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
       admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT); // id 12's detail
       const { element, fixture } = await openAdmin();
       await switchTab('Guidance', element, fixture);
@@ -2517,7 +2589,7 @@ describe('translations (bilingual-guidance)', () => {
       admin.listShelters.mockResolvedValue(paged([]));
       admin.listGuidancePostsPage.mockResolvedValue(paged(ORDERED_ROWS));
       publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
       const { element, fixture } = await openAdmin();
       await switchTab('Guidance', element, fixture);
 
@@ -2537,7 +2609,7 @@ describe('translations (bilingual-guidance)', () => {
       admin.listShelters.mockResolvedValue(paged([]));
       admin.listGuidancePostsPage.mockResolvedValue(paged(ORDERED_ROWS));
       publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
       admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
       admin.unpublishGuidancePost.mockResolvedValue(undefined);
       const { element, fixture } = await openAdmin();
@@ -2571,7 +2643,7 @@ describe('translations (bilingual-guidance)', () => {
       admin.listShelters.mockResolvedValue(paged([]));
       admin.listGuidancePostsPage.mockResolvedValue(paged(ORDERED_ROWS));
       publicGuidance.list.mockResolvedValue([PUBLIC_POST]);
-      admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+      admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
       admin.getGuidancePost.mockResolvedValue(GUIDANCE_DRAFT);
       const { element, fixture } = await openAdmin();
       await switchTab('Guidance', element, fixture);
@@ -2591,13 +2663,13 @@ describe('translations (bilingual-guidance)', () => {
       expect(document.activeElement).toBe(element.querySelector<HTMLInputElement>('#ge-title')!);
     });
 
-    it('the open editor is visually obvious while in focus (the accent border, admin-page.scss)', () => {
+    it('the open editor is visually obvious while in focus (the accent border, guidance-panel.scss)', () => {
       const scss = readFileSync(
-        `${process.cwd()}/src/app/features/admin/admin-page.scss`,
+        `${process.cwd()}/src/app/features/admin/guidance-panel.scss`,
         'utf8',
       );
       const block = scss.match(/\.admin-editor \{[\s\S]*?\n\}/);
-      expect(block, 'admin-page.scss must keep the .admin-editor rule').not.toBeNull();
+      expect(block, 'guidance-panel.scss must keep the .admin-editor rule').not.toBeNull();
       expect(
         block![0],
         'the editor must take the primary accent border while the form has focus',
@@ -2744,7 +2816,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('the media tab lazy-loads and renders rows (filename, dimensions, size, usage, thumbnail)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW, MEDIA_ROW_UNUSED]));
     const { element, fixture } = await openAdmin();
     expect(admin.listMediaAssets).not.toHaveBeenCalled();
 
@@ -2766,7 +2838,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('upload: choosing a file POSTs the multipart and prepends the returned row', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
     admin.uploadMediaAsset.mockResolvedValue(MEDIA_ROW_UNUSED);
     const { element, fixture } = await openAdmin();
     await switchTab('Media library', element, fixture);
@@ -2789,7 +2861,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('upload: a rejected upload shows the banner and keeps the old list', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW]));
     admin.uploadMediaAsset.mockRejectedValue(
       apiError(413, 'image exceeds the 5 MB cap', '/admin/media'),
     );
@@ -2811,7 +2883,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('media delete of an unused asset: the bare DELETE resolves, the row is removed (no dialog)', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW, MEDIA_ROW_UNUSED]));
     admin.deleteMediaAsset.mockResolvedValue(MEDIA_ROW_UNUSED);
     const { element, fixture } = await openAdmin();
     await switchTab('Media library', element, fixture);
@@ -2828,7 +2900,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('media delete of an in-use asset: 409 arms the confirm; the re-issue sends confirm=true', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW, MEDIA_ROW_UNUSED]));
     const conflict = apiError(
       409,
       'still used by Guidance post "Varjumine" (varjumine)',
@@ -2859,7 +2931,7 @@ describe('translations (bilingual-guidance)', () => {
 
   it('media delete cancel: the strip closes without a second call', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listMediaAssets.mockResolvedValue([MEDIA_ROW, MEDIA_ROW_UNUSED]);
+    admin.listMediaAssets.mockResolvedValue(paged([MEDIA_ROW, MEDIA_ROW_UNUSED]));
     const conflict = apiError(
       409,
       'still used by Guidance post "Varjumine" (varjumine)',
@@ -2885,30 +2957,32 @@ describe('translations (bilingual-guidance)', () => {
 
   it('the audit trail labels the guidance and media actions', async () => {
     admin.listShelters.mockResolvedValue(paged([]));
-    admin.listAudit.mockResolvedValue([
-      {
-        id: 9201,
-        createdAt: ago(2 * 60_000),
-        moderatorName: 'Admin',
-        shelterId: null,
-        shelterName: 'Guidance post "Varjumine" (varjumine)',
-        action: 'GUIDANCE_PUBLISH',
-        previousStatus: null,
-        newStatus: null,
-        reason: null,
-      },
-      {
-        id: 9202,
-        createdAt: ago(4 * 60_000),
-        moderatorName: 'Admin',
-        shelterId: null,
-        shelterName: 'Media asset "kelder.jpg" (0123.jpg)',
-        action: 'MEDIA_DELETE',
-        previousStatus: null,
-        newStatus: null,
-        reason: null,
-      },
-    ]);
+    admin.listAudit.mockResolvedValue(
+      paged([
+        {
+          id: 9201,
+          createdAt: ago(2 * 60_000),
+          moderatorName: 'Admin',
+          shelterId: null,
+          shelterName: 'Guidance post "Varjumine" (varjumine)',
+          action: 'GUIDANCE_PUBLISH',
+          previousStatus: null,
+          newStatus: null,
+          reason: null,
+        },
+        {
+          id: 9202,
+          createdAt: ago(4 * 60_000),
+          moderatorName: 'Admin',
+          shelterId: null,
+          shelterName: 'Media asset "kelder.jpg" (0123.jpg)',
+          action: 'MEDIA_DELETE',
+          previousStatus: null,
+          newStatus: null,
+          reason: null,
+        },
+      ]),
+    );
     const { element, fixture } = await openAdmin();
 
     await switchTab('Audit log', element, fixture);
@@ -2924,10 +2998,7 @@ describe('translations (bilingual-guidance)', () => {
     // The .badge rule is the shared admin surface: the single source is
     // the _admin-shared.scss partial (@used by the page and every tab
     // panel that renders badges), so the pin reads the partial.
-    const scss = readFileSync(
-      `${process.cwd()}/src/app/features/admin/_admin-shared.scss`,
-      'utf8',
-    );
+    const scss = readFileSync(`${process.cwd()}/src/app/features/admin/_admin-shared.scss`, 'utf8');
     const badge = scss.match(/\.badge \{[\s\S]*?\n\}/);
     expect(badge, '_admin-shared.scss must keep the .badge rule').not.toBeNull();
     const rule = badge![0];
@@ -2939,354 +3010,599 @@ describe('translations (bilingual-guidance)', () => {
     expect(rule, 'the badge must size to its content').toMatch(/width: fit-content/);
     // …and a flex item that cannot be squeezed or grown on the main axis
     // either (row flex contexts: queue titles, action bodies).
-    expect(rule, 'the badge must not stretch or shrink as a flex item').toMatch(
-      /flex: 0 0 auto/,
-    );
+    expect(rule, 'the badge must not stretch or shrink as a flex item').toMatch(/flex: 0 0 auto/);
     // The label stays ONE line in every locale — the long ET/RU values are
     // long, not wrapped mid-label.
     expect(rule, 'the badge label must never wrap mid-label').toMatch(/white-space: nowrap/);
   });
 
+  /** The pagination's Next button (its text carries an &nbsp; — match on the
+   *  aria-label instead of the visible text). */
+  function nextButton(element: HTMLElement): HTMLButtonElement {
+    return Array.from(element.querySelectorAll<HTMLButtonElement>('.pagination button')).find(
+      (b) => b.getAttribute('aria-label') === 'Next',
+    )!;
+  }
 
-/** The pagination's Next button (its text carries an &nbsp; — match on the
- *  aria-label instead of the visible text). */
-function nextButton(element: HTMLElement): HTMLButtonElement {
-  return Array.from(element.querySelectorAll<HTMLButtonElement>('.pagination button')).find(
-    (b) => b.getAttribute('aria-label') === 'Next',
-  )!;
-}
+  // ---- paged list view state (admin-page-size / admin-guidance-search) --------
 
-// ---- paged list view state (admin-page-size / admin-guidance-search) --------
-
-describe('AdminPage paged list view state', () => {
-  it('guidance search: submit writes q to the URL, resets the page to 1; clear removes it (namespaced paging params)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }) // page 1
-      .mockResolvedValueOnce({ rows: [GUIDANCE_DRAFT], total: 25 }) // page 2
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 1 }) // searched page 1
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }); // cleared page 1
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    // Defaults are omitted from the URL (page 1, size 20) — and the
-    // admin's params are NAMESPACEd (never bare page/size — the tabs
-    // share one route).
-    expect(router.url).toBe('/admin');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
-    // Page 2 through the shared control.
-    nextButton(element).click();
-    await settle(fixture);
-    expect(router.url).toContain('guidancePage=2');
-    expect(router.url).not.toContain('page=2');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 20 });
-    // The search submit: the term lands in the URL AND the page resets
-    // to 1 (a new filter has its own page 1).
-    const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
-    typeValue(input, '  kelder  ', fixture);
-    (element.querySelector('.admin-guidance-search') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
-    await settle(fixture);
-    expect(router.url).toContain('q=kelder');
-    expect(router.url).not.toContain('guidancePage');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
-      locale: 'en',
-      q: 'kelder',
-      limit: 20,
-      offset: 0,
+  describe('AdminPage paged list view state', () => {
+    it('guidance search: submit writes q to the URL, resets the page to 1; clear removes it (namespaced paging params)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }) // page 1
+        .mockResolvedValueOnce({ rows: [GUIDANCE_DRAFT], total: 25 }) // page 2
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 1 }) // searched page 1
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }); // cleared page 1
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      // Defaults are omitted from the URL (page 1, size 20) — and the
+      // admin's params are NAMESPACEd (never bare page/size — the tabs
+      // share one route).
+      expect(router.url).toBe('/admin');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
+      // Page 2 through the shared control.
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('guidancePage=2');
+      expect(router.url).not.toContain('page=2');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 20,
+      });
+      // The search submit: the term lands in the URL AND the page resets
+      // to 1 (a new filter has its own page 1).
+      const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
+      typeValue(input, '  kelder  ', fixture);
+      (element.querySelector('.admin-guidance-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toContain('q=kelder');
+      expect(router.url).not.toContain('guidancePage');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        q: 'kelder',
+        limit: 20,
+        offset: 0,
+      });
+      // The explicit clear: `q` is gone, the unfiltered scope is back.
+      buttonByText(element, 'Clear')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('q=');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
     });
-    // The explicit clear: `q` is gone, the unfiltered scope is back.
-    buttonByText(element, 'Clear')!.click();
-    await settle(fixture);
-    expect(router.url).not.toContain('q=');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
-  });
 
-  it('a hand-opened /admin?q=… pre-fills the guidance search input (the URL is the ONE source of truth)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { q: 'kelder' } });
-    await fixture.whenStable();
-    await switchTab('Guidance', element, fixture);
-    // The applied filter AND the input agree: the URL's term is in the
-    // field (pre-fix: the filter ran while the input sat empty — the two
-    // sources of truth the search kept).
-    const input = element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement;
-    expect(input.value).toBe('kelder');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
-      locale: 'en',
-      q: 'kelder',
-      limit: 20,
-      offset: 0,
+    it('a hand-opened /admin?q=… pre-fills the guidance search input (the URL is the ONE source of truth)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { q: 'kelder' } });
+      await fixture.whenStable();
+      await switchTab('Guidance', element, fixture);
+      // The applied filter AND the input agree: the URL's term is in the
+      // field (pre-fix: the filter ran while the input sat empty — the two
+      // sources of truth the search kept).
+      const input = element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement;
+      expect(input.value).toBe('kelder');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        q: 'kelder',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('a content-language switch clears the guidance search input WITH the filter (one source of truth)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+      const i18nService = TestBed.inject(I18nService);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+
+      // Apply a search (submit-based — the term goes to the URL)…
+      const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
+      typeValue(input, 'kelder', fixture);
+      (element.querySelector('.admin-guidance-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toContain('q=kelder');
+
+      // …the content language switches: the scope is voided and the filter
+      // resets — the input clears WITH it (pre-fix the field kept the term
+      // that was no longer applied).
+      i18nService.setContentLocale('ru');
+      await settle(fixture);
+      expect(router.url).not.toContain('q=');
+      expect(
+        (element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement).value,
+      ).toBe('');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'ru',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('guidance size change clamps the stranded page to the last page at the new size', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }) // page 1
+        .mockResolvedValueOnce({ rows: [GUIDANCE_DRAFT], total: 25 }) // page 2
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED, GUIDANCE_DRAFT], total: 25 }); // size 100, page 1
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('guidancePage=2');
+      // A size flip to 100 strands page 2 (the scope now fits ONE page) —
+      // the clamp lands on page 1, never a dead page.
+      const select = element.querySelector('.pagination select') as HTMLSelectElement;
+      select.value = '100';
+      select.dispatchEvent(new Event('change'));
+      await settle(fixture);
+      expect(router.url).toContain('guidanceSize=100');
+      expect(router.url).not.toContain('guidancePage');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 100,
+        offset: 0,
+      });
+    });
+
+    it('guidance out-of-range page: the notice + first-page action, never a bare empty list', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage
+        .mockResolvedValueOnce({ rows: [], total: 25 }) // page 9 of 2 — empty server page
+        .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }); // back to page 1
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { guidancePage: '9' } });
+      await fixture.whenStable();
+      await switchTab('Guidance', element, fixture);
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 160,
+      });
+      expect(element.textContent).toContain(
+        'Page 9 does not exist \u2014 the list ends at page 2.',
+      );
+      buttonByText(element, 'Show the first page')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('guidancePage');
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('guidance manual order is offered only while the whole scope fits one page', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 25 });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      // 25 rows at 20/page = two pages: the whole reorder is off (the
+      // full-list order PUT is all-rows-by-nature) — move buttons disabled,
+      // the hint points at the size selector.
+      const disabledBtn = element.querySelector('.admin-guidance-move button') as HTMLButtonElement;
+      expect(disabledBtn.disabled).toBe(true);
+      expect(element.querySelector('.admin-guidance-hint')!.textContent).toContain('100');
+      // A search whose scope fits one page re-opens the gate.
+      admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+      const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
+      typeValue(input, 'one', fixture);
+      const formEl = element.querySelector('.admin-guidance-search') as HTMLFormElement;
+      formEl.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await settle(fixture);
+      const enabledBtns = Array.from(
+        element.querySelectorAll<HTMLButtonElement>('.admin-guidance-move button'),
+      );
+      // The single row: top/up disabled (boundary), down disabled (boundary)
+      // — but the LIST is reorderable (the hint flipped back).
+      expect(element.querySelector('.admin-guidance-hint')!.textContent).toContain('in this order');
+      expect(enabledBtns.length).toBe(3);
+    });
+
+    it('shelters source chips are URL-backed and compose with the search (AND); the search resets the page', async () => {
+      admin.listShelters.mockResolvedValue({ rows: [USER_ROW], total: 25 });
+      const { element, fixture } = await openAdmin();
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+      // The chip writes `source` to the URL (a link/refresh keeps it) and
+      // the backend receives it.
+      buttonByText(element, 'Registry')!.click();
+      await settle(fixture);
+      expect(router.url).toContain('source=REGISTRY');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({
+        source: 'REGISTRY',
+        limit: 20,
+        offset: 0,
+      });
+      // Page 2 of the filtered scope…
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('shelterPage=2');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({
+        source: 'REGISTRY',
+        limit: 20,
+        offset: 20,
+      });
+      // …the search composes WITH the chip (AND on the server) and resets
+      // the page to 1.
+      const page = fixture.debugElement.query(By.directive(AdminPage))!
+        .componentInstance as AdminPage;
+      page.searchQuery.setValue('kelder');
+      (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toContain('source=REGISTRY');
+      expect(router.url).not.toContain('shelterPage');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({
+        source: 'REGISTRY',
+        q: 'kelder',
+        limit: 20,
+        offset: 0,
+      });
+      // The All chip removes the filter (the param is omitted from the URL).
+      buttonByText(element, 'All')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('source=');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'kelder', limit: 20, offset: 0 });
+    });
+
+    it('shelters out-of-range page: the notice + first-page action (the total is from the header)', async () => {
+      admin.listShelters.mockResolvedValue({ rows: [], total: 25 });
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterPage: '4', shelterSize: '10' } });
+      await fixture.whenStable();
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 10, offset: 30 });
+      expect(element.textContent).toContain(
+        'Page 4 does not exist \u2014 the list ends at page 3.',
+      );
+      buttonByText(element, 'Show the first page')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('shelterPage');
+      expect(router.url).toContain('shelterSize=10');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 10, offset: 0 });
+    });
+
+    // ---- URL clamping / normalization (normalizeListParams) ----------------
+    // Hand-typed (or stale) query values are clamped to the nearest legal
+    // value and the URL is normalized in place (replaceUrl) — the control
+    // and the URL can never quietly disagree. These cases pin the
+    // normalizer: deleting it keeps the loads sane (the parsers clamp for
+    // the REQUEST) but leaves the hand-typed value in the URL, which is
+    // exactly the strand the guard exists to close.
+
+    it('a hand-typed non-numeric shelterPage is normalized out of the URL (page 1)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterPage: 'abc' } });
+      await settle(fixture);
+      // The cosmetic fix is a replaceUrl (no history entry): the URL reads
+      // the canonical view (page 1 = param omitted), not the hand-typed one.
+      expect(router.url).toBe('/admin');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('a hand-typed shelterPage below 1 clamps to 1 (the param is normalized out)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterPage: '0' } });
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('a hand-typed non-numeric shelterSize falls back to the default 20 (normalized out of the URL)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterSize: 'abc' } });
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('an off-step hand-typed shelterSize (25) clamps to the nearest legal size (30) in the URL and the request', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterSize: '25' } });
+      await settle(fixture);
+      // The URL carries the CLAMPED value — a link or refresh keeps the
+      // view the control actually shows.
+      expect(router.url).toContain('shelterSize=30');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 30, offset: 0 });
+    });
+
+    it('a size beyond the endpoint range clamps to the legal bound (10 below, 100 above) in both tabs', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterSize: '500', guidanceSize: '5' } });
+      await settle(fixture);
+      expect(router.url).toContain('shelterSize=100');
+      expect(router.url).toContain('guidanceSize=10');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 100, offset: 0 });
+      await switchTab('Guidance', element, fixture);
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 10,
+        offset: 0,
+      });
+    });
+
+    it('a stray hand-typed source (BOGUS, or the no-filter ALL) is normalized out of the URL and out of the request', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      const { element, fixture } = await openAdmin();
+      // The review's strand: `?source=BOGUS` sanitized for the request but
+      // left in the URL, against the code's own comment. The URL must not
+      // carry a value the list does not render.
+      await router.navigate(['/admin'], { queryParams: { source: 'BOGUS' } });
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      await toShelters(element, fixture);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 }); // no source — unfiltered
+      // The no-filter default spelled 'ALL' normalizes the same way (the
+      // omit-defaults convention: the param's ABSENCE is the default).
+      await router.navigate(['/admin'], { queryParams: { source: 'ALL' } });
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      // A LEGAL value is untouched (the filter keeps working from a link).
+      await router.navigate(['/admin'], { queryParams: { source: 'REGISTRY' } });
+      await settle(fixture);
+      expect(router.url).toContain('source=REGISTRY');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({
+        source: 'REGISTRY',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it('a source chip clicked while the paged load is in flight re-queries with the chip (the URL and the list agree)', async () => {
+      admin.listShelters.mockResolvedValueOnce(paged([USER_ROW])); // the queue (ngOnInit)
+      // The Shelters tab's first page load is HELD — the in-flight window.
+      let resolveFirst!: (v: { rows: AdminShelterDto[]; total: number }) => void;
+      admin.listShelters.mockReturnValueOnce(
+        new Promise<{ rows: AdminShelterDto[]; total: number }>((resolve) => {
+          resolveFirst = resolve;
+        }),
+      );
+      admin.listShelters.mockResolvedValue(paged([USER_ROW])); // everything after
+      const { element, fixture } = await openAdmin();
+
+      buttonByText(element, 'Shelters')!.click();
+      fixture.detectChanges();
+      // The paged load is in flight (rows nulled, no error) — the window the
+      // old `!live` guard turned into a dead end. The Community chip clicks
+      // through it.
+      buttonByText(element, 'Community')!.click();
+      await settle(fixture);
+      // The URL is the state: the chip's filter is in it…
+      expect(router.url).toContain('source=USER');
+      // …and the change was NOT dropped: a re-query went out with the chip
+      // (pre-fix: the emission returned early, the unfiltered request was
+      // the only one, and a re-click could not recover — the router skips a
+      // same-URL navigation).
+      expect(admin.listShelters).toHaveBeenCalledTimes(3);
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'USER', limit: 20, offset: 0 });
+
+      // The SUPERSEDED unfiltered response now lands — the fetch-sequence
+      // guard drops it (the last response to arrive is not the last view
+      // asked for).
+      resolveFirst({ rows: [REGISTRY_ROW], total: 1 });
+      await settle(fixture);
+      expect(element.textContent).toContain('Kommunaali Varjend');
+      expect(element.textContent).not.toContain('Linna Varjend');
+    });
+
+    // ---- the owner's "every admin list pages" rule (W3-B) ------------------
+    // The reports / users / media / audit lists adopt the SAME shared
+    // control the shelters list uses (W2-D's app-pagination + the honest
+    // app-list-state out-of-range block): namespaced URL params, server-
+    // side limit/offset, X-Total-Count, clamp-on-size-flip, and the same
+    // URL normalizer. (Alerts and Unconfirmed stay un-paged by design —
+    // the in-memory ring cap and the client-side queue filter.)
+
+    it('the reports list pages on the shared control (reportPage/reportSize, namespaced)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listShelterReports.mockResolvedValue({ rows: [REPORT_ROW], total: 25 });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Shelter reports', element, fixture);
+      // 25 rows at 20/page = two pages: the control renders and page 2
+      // writes the NAMESPACEd param (never bare page/size — the tabs
+      // share one route).
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('reportPage=2');
+      expect(router.url).not.toContain('page=2');
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    });
+
+    it('reports out-of-range page: the notice + first-page action, never a bare empty list', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listShelterReports
+        .mockResolvedValueOnce({ rows: [], total: 25 }) // page 3 of 2 — empty server page
+        .mockResolvedValueOnce({ rows: [REPORT_ROW], total: 25 }); // back to page 1
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { reportPage: '3' } });
+      await fixture.whenStable();
+      await switchTab('Shelter reports', element, fixture);
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 40 });
+      expect(element.textContent).toContain(
+        'Page 3 does not exist \u2014 the list ends at page 2.',
+      );
+      buttonByText(element, 'Show the first page')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('reportPage');
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('the users list pages on the shared control (userPage/userSize, namespaced)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listUsers.mockResolvedValue({
+        rows: [
+          {
+            id: 301,
+            name: 'Siht',
+            email: 'siht@example.ee',
+            kind: 'REGISTERED',
+            suspendedAt: null,
+          },
+        ],
+        total: 25,
+      });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Users', element, fixture);
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('userPage=2');
+      expect(router.url).not.toContain('page=2');
+      expect(admin.listUsers).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    });
+
+    it('the media library pages on the shared control (mediaPage/mediaSize, namespaced)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listMediaAssets.mockResolvedValue({ rows: [MEDIA_ROW], total: 41 });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Media library', element, fixture);
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('mediaPage=2');
+      expect(router.url).not.toContain('page=2');
+      expect(admin.listMediaAssets).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    });
+
+    it('the audit trail pages on the shared control (auditPage/auditSize, namespaced)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listAudit.mockResolvedValue({
+        rows: [
+          {
+            id: 9001,
+            createdAt: ago(60_000),
+            moderatorName: 'Anu T.',
+            shelterId: 7,
+            shelterName: 'Kommunaali Varjend',
+            action: 'CONFIRM',
+            previousStatus: 'NEW',
+            newStatus: 'CONFIRMED',
+            reason: null,
+          },
+        ],
+        total: 30,
+      });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Audit log', element, fixture);
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('auditPage=2');
+      expect(router.url).not.toContain('page=2');
+      expect(admin.listAudit).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    });
+
+    it('a hand-typed reportPage below 1 / off-step reportSize normalizes (the shared rules, all six lists)', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { reportPage: '0', reportSize: '25' } });
+      await settle(fixture);
+      // The normalizer clamps exactly like the shelters list: page 1 is the
+      // param's ABSENCE, the off-step size snaps to the nearest legal one.
+      expect(router.url).toContain('reportSize=30');
+      expect(router.url).not.toContain('reportPage');
+      await switchTab('Shelter reports', element, fixture);
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 30, offset: 0 });
+    });
+
+    // ---- the owner's hide-dismissed control (W3-B) ---------------------------
+    // A first-class filter on the report queue: the DEFAULT is 'All' —
+    // everything renders, nothing is hidden silently. 'Open only' scopes
+    // the list AND its count to the open reports (the server's filtered
+    // total — the same scope the per-shelter open counts express, W2-A).
+
+    it('the reports filter: the default is All (nothing hidden silently); Open only scopes request and URL', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listShelterReports.mockResolvedValue({ rows: [REPORT_ROW], total: 1 });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Shelter reports', element, fixture);
+      // The default view: the 'All' chip is pressed and the request carries
+      // NO excludeDismissed (the param's absence is the 'All' default).
+      expect(router.url).toBe('/admin');
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+      const allChip = element.querySelector('.admin-chips button[aria-pressed="true"]')!;
+      expect(allChip.textContent).toContain('All');
+      // The chips are the first-class control: a pressed-state group with
+      // its own aria-label (screen readers see the filter, not bare chips).
+      expect(element.querySelector('.admin-chips[aria-label]')).not.toBeNull();
+      // 'Open only': the URL keeps the scope (a link/refresh restores it)
+      // and the backend receives the filter.
+      buttonByText(element, 'Open only')!.click();
+      await settle(fixture);
+      expect(router.url).toContain('excludeDismissed=true');
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({
+        excludeDismissed: true,
+        limit: 20,
+        offset: 0,
+      });
+      // Back to 'All': the param is omitted again (the omit-defaults
+      // convention) and the unfiltered scope is back.
+      buttonByText(element, 'All')!.click();
+      await settle(fixture);
+      expect(router.url).not.toContain('excludeDismissed');
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('a stray hand-typed excludeDismissed (anything but the literal true) normalizes out of the URL', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listShelterReports.mockResolvedValue(paged([REPORT_ROW]));
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { excludeDismissed: 'false' } });
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      await switchTab('Shelter reports', element, fixture);
+      // The request runs the DEFAULT scope ('All' hides nothing).
+      expect(admin.listShelterReports).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('dismiss in the open scope removes the row (the count follows); the default keeps it, dimmed', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      // Default scope: dismiss keeps the row, dimmed (the audit trail — the
+      // admin sees what was resolved); the unfiltered total is untouched.
+      admin.listShelterReports.mockResolvedValue({ rows: [REPORT_ROW], total: 1 });
+      const { element, fixture } = await openAdmin();
+      await switchTab('Shelter reports', element, fixture);
+      buttonByText(element, 'Dismiss')!.click();
+      await settle(fixture);
+      expect(element.querySelectorAll('.admin-queue-row')).toHaveLength(1);
+      expect(element.querySelector('.admin-row--dismissed')).not.toBeNull();
+      // Open scope: the same action removes the row AND the (open) count —
+      // the list and the pin counts stay in agreement (W2-A). The now-
+      // empty open scope renders its own empty copy (distinct from the
+      // unfiltered "no reports yet").
+      admin.listShelterReports.mockResolvedValue({ rows: [REPORT_ROW], total: 1 });
+      buttonByText(element, 'Open only')!.click();
+      await settle(fixture);
+      buttonByText(element, 'Dismiss')!.click();
+      await settle(fixture);
+      expect(element.querySelectorAll('.admin-queue-row')).toHaveLength(0);
+      expect(element.textContent).toContain('No open reports.');
     });
   });
-
-  it('a content-language switch clears the guidance search input WITH the filter (one source of truth)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
-    const i18nService = TestBed.inject(I18nService);
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-
-    // Apply a search (submit-based — the term goes to the URL)…
-    const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
-    typeValue(input, 'kelder', fixture);
-    (element.querySelector('.admin-guidance-search') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
-    await settle(fixture);
-    expect(router.url).toContain('q=kelder');
-
-    // …the content language switches: the scope is voided and the filter
-    // resets — the input clears WITH it (pre-fix the field kept the term
-    // that was no longer applied).
-    i18nService.setContentLocale('ru');
-    await settle(fixture);
-    expect(router.url).not.toContain('q=');
-    expect((element.querySelector<HTMLInputElement>('#guidance-search') as HTMLInputElement).value).toBe('');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'ru', limit: 20, offset: 0 });
-  });
-
-  it('guidance size change clamps the stranded page to the last page at the new size', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }) // page 1
-      .mockResolvedValueOnce({ rows: [GUIDANCE_DRAFT], total: 25 }) // page 2
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED, GUIDANCE_DRAFT], total: 25 }); // size 100, page 1
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    nextButton(element).click();
-    await settle(fixture);
-    expect(router.url).toContain('guidancePage=2');
-    // A size flip to 100 strands page 2 (the scope now fits ONE page) —
-    // the clamp lands on page 1, never a dead page.
-    const select = element.querySelector('.pagination select') as HTMLSelectElement;
-    select.value = '100';
-    select.dispatchEvent(new Event('change'));
-    await settle(fixture);
-    expect(router.url).toContain('guidanceSize=100');
-    expect(router.url).not.toContain('guidancePage');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 100, offset: 0 });
-  });
-
-  it('guidance out-of-range page: the notice + first-page action, never a bare empty list', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage
-      .mockResolvedValueOnce({ rows: [], total: 25 }) // page 9 of 2 — empty server page
-      .mockResolvedValueOnce({ rows: [GUIDANCE_PUBLISHED], total: 25 }); // back to page 1
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { guidancePage: '9' } });
-    await fixture.whenStable();
-    await switchTab('Guidance', element, fixture);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 160 });
-    expect(element.textContent).toContain('Page 9 does not exist \u2014 the list ends at page 2.');
-    buttonByText(element, 'Show the first page')!.click();
-    await settle(fixture);
-    expect(router.url).not.toContain('guidancePage');
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 20, offset: 0 });
-  });
-
-  it('guidance manual order is offered only while the whole scope fits one page', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 25 });
-    const { element, fixture } = await openAdmin();
-    await switchTab('Guidance', element, fixture);
-    // 25 rows at 20/page = two pages: the whole reorder is off (the
-    // full-list order PUT is all-rows-by-nature) — move buttons disabled,
-    // the hint points at the size selector.
-    const disabledBtn = element.querySelector('.admin-guidance-move button') as HTMLButtonElement;
-    expect(disabledBtn.disabled).toBe(true);
-    expect(element.querySelector('.admin-guidance-hint')!.textContent).toContain('100');
-    // A search whose scope fits one page re-opens the gate.
-    admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
-    const input = element.querySelector<HTMLInputElement>('#guidance-search')!;
-    typeValue(input, 'one', fixture);
-    const formEl = element.querySelector('.admin-guidance-search') as HTMLFormElement;
-    formEl.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await settle(fixture);
-    const enabledBtns = Array.from(
-      element.querySelectorAll<HTMLButtonElement>('.admin-guidance-move button'),
-    );
-    // The single row: top/up disabled (boundary), down disabled (boundary)
-    // — but the LIST is reorderable (the hint flipped back).
-    expect(element.querySelector('.admin-guidance-hint')!.textContent).toContain('in this order');
-    expect(enabledBtns.length).toBe(3);
-  });
-
-  it('shelters source chips are URL-backed and compose with the search (AND); the search resets the page', async () => {
-    admin.listShelters.mockResolvedValue({ rows: [USER_ROW], total: 25 });
-    const { element, fixture } = await openAdmin();
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
-    // The chip writes `source` to the URL (a link/refresh keeps it) and
-    // the backend receives it.
-    buttonByText(element, 'Registry')!.click();
-    await settle(fixture);
-    expect(router.url).toContain('source=REGISTRY');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'REGISTRY', limit: 20, offset: 0 });
-    // Page 2 of the filtered scope…
-    nextButton(element).click();
-    await settle(fixture);
-    expect(router.url).toContain('shelterPage=2');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'REGISTRY', limit: 20, offset: 20 });
-    // …the search composes WITH the chip (AND on the server) and resets
-    // the page to 1.
-    const page = fixture.debugElement.query(By.directive(AdminPage))!.componentInstance as AdminPage;
-    page.searchQuery.setValue('kelder');
-    (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
-    await settle(fixture);
-    expect(router.url).toContain('source=REGISTRY');
-    expect(router.url).not.toContain('shelterPage');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'REGISTRY', q: 'kelder', limit: 20, offset: 0 });
-    // The All chip removes the filter (the param is omitted from the URL).
-    buttonByText(element, 'All')!.click();
-    await settle(fixture);
-    expect(router.url).not.toContain('source=');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'kelder', limit: 20, offset: 0 });
-  });
-
-  it('shelters out-of-range page: the notice + first-page action (the total is from the header)', async () => {
-    admin.listShelters.mockResolvedValue({ rows: [], total: 25 });
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterPage: '4', shelterSize: '10' } });
-    await fixture.whenStable();
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 10, offset: 30 });
-    expect(element.textContent).toContain('Page 4 does not exist \u2014 the list ends at page 3.');
-    buttonByText(element, 'Show the first page')!.click();
-    await settle(fixture);
-    expect(router.url).not.toContain('shelterPage');
-    expect(router.url).toContain('shelterSize=10');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 10, offset: 0 });
-  });
-
-  // ---- URL clamping / normalization (normalizeListParams) ----------------
-  // Hand-typed (or stale) query values are clamped to the nearest legal
-  // value and the URL is normalized in place (replaceUrl) — the control
-  // and the URL can never quietly disagree. These cases pin the
-  // normalizer: deleting it keeps the loads sane (the parsers clamp for
-  // the REQUEST) but leaves the hand-typed value in the URL, which is
-  // exactly the strand the guard exists to close.
-
-  it('a hand-typed non-numeric shelterPage is normalized out of the URL (page 1)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterPage: 'abc' } });
-    await settle(fixture);
-    // The cosmetic fix is a replaceUrl (no history entry): the URL reads
-    // the canonical view (page 1 = param omitted), not the hand-typed one.
-    expect(router.url).toBe('/admin');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
-  });
-
-  it('a hand-typed shelterPage below 1 clamps to 1 (the param is normalized out)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterPage: '0' } });
-    await settle(fixture);
-    expect(router.url).toBe('/admin');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
-  });
-
-  it('a hand-typed non-numeric shelterSize falls back to the default 20 (normalized out of the URL)', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterSize: 'abc' } });
-    await settle(fixture);
-    expect(router.url).toBe('/admin');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
-  });
-
-  it('an off-step hand-typed shelterSize (25) clamps to the nearest legal size (30) in the URL and the request', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterSize: '25' } });
-    await settle(fixture);
-    // The URL carries the CLAMPED value — a link or refresh keeps the
-    // view the control actually shows.
-    expect(router.url).toContain('shelterSize=30');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 30, offset: 0 });
-  });
-
-  it('a size beyond the endpoint range clamps to the legal bound (10 below, 100 above) in both tabs', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    admin.listGuidancePostsPage.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    await router.navigate(['/admin'], { queryParams: { shelterSize: '500', guidanceSize: '5' } });
-    await settle(fixture);
-    expect(router.url).toContain('shelterSize=100');
-    expect(router.url).toContain('guidanceSize=10');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 100, offset: 0 });
-    await switchTab('Guidance', element, fixture);
-    expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({ locale: 'en', limit: 10, offset: 0 });
-  });
-
-  it('a stray hand-typed source (BOGUS, or the no-filter ALL) is normalized out of the URL and out of the request', async () => {
-    admin.listShelters.mockResolvedValue(paged([]));
-    const { element, fixture } = await openAdmin();
-    // The review's strand: `?source=BOGUS` sanitized for the request but
-    // left in the URL, against the code's own comment. The URL must not
-    // carry a value the list does not render.
-    await router.navigate(['/admin'], { queryParams: { source: 'BOGUS' } });
-    await settle(fixture);
-    expect(router.url).toBe('/admin');
-    await toShelters(element, fixture);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 }); // no source — unfiltered
-    // The no-filter default spelled 'ALL' normalizes the same way (the
-    // omit-defaults convention: the param's ABSENCE is the default).
-    await router.navigate(['/admin'], { queryParams: { source: 'ALL' } });
-    await settle(fixture);
-    expect(router.url).toBe('/admin');
-    // A LEGAL value is untouched (the filter keeps working from a link).
-    await router.navigate(['/admin'], { queryParams: { source: 'REGISTRY' } });
-    await settle(fixture);
-    expect(router.url).toContain('source=REGISTRY');
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'REGISTRY', limit: 20, offset: 0 });
-  });
-
-  it('a source chip clicked while the paged load is in flight re-queries with the chip (the URL and the list agree)', async () => {
-    admin.listShelters.mockResolvedValueOnce(paged([USER_ROW])); // the queue (ngOnInit)
-    // The Shelters tab's first page load is HELD — the in-flight window.
-    let resolveFirst!: (v: { rows: AdminShelterDto[]; total: number }) => void;
-    admin.listShelters.mockReturnValueOnce(
-      new Promise<{ rows: AdminShelterDto[]; total: number }>((resolve) => {
-        resolveFirst = resolve;
-      }),
-    );
-    admin.listShelters.mockResolvedValue(paged([USER_ROW])); // everything after
-    const { element, fixture } = await openAdmin();
-
-    buttonByText(element, 'Shelters')!.click();
-    fixture.detectChanges();
-    // The paged load is in flight (rows nulled, no error) — the window the
-    // old `!live` guard turned into a dead end. The Community chip clicks
-    // through it.
-    buttonByText(element, 'Community')!.click();
-    await settle(fixture);
-    // The URL is the state: the chip's filter is in it…
-    expect(router.url).toContain('source=USER');
-    // …and the change was NOT dropped: a re-query went out with the chip
-    // (pre-fix: the emission returned early, the unfiltered request was
-    // the only one, and a re-click could not recover — the router skips a
-    // same-URL navigation).
-    expect(admin.listShelters).toHaveBeenCalledTimes(3);
-    expect(admin.listShelters).toHaveBeenLastCalledWith({ source: 'USER', limit: 20, offset: 0 });
-
-    // The SUPERSEDED unfiltered response now lands — the fetch-sequence
-    // guard drops it (the last response to arrive is not the last view
-    // asked for).
-    resolveFirst({ rows: [REGISTRY_ROW], total: 1 });
-    await settle(fixture);
-    expect(element.textContent).toContain('Kommunaali Varjend');
-    expect(element.textContent).not.toContain('Linna Varjend');
-  });
-});
 });

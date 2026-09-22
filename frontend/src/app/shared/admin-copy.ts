@@ -64,3 +64,13 @@ export const ALERT_KIND_LABEL: Record<AdminAlertKind, string> = {
   'otp-contact-cap': 'OTP contact cap',
   'near-duplicate': 'Near-duplicate submission',
 };
+
+/** Reporter identity for a report-queue row: name + e-mail, null-safe
+ *  (extracted from admin-page.ts with the reports-tab panel). */
+export function reporterText(row: {
+  reporterName: string | null;
+  reporterEmail: string | null;
+}): string {
+  const name = row.reporterName ?? 'Unknown';
+  return row.reporterEmail === null ? name : `${name} <${row.reporterEmail}>`;
+}

@@ -1,0 +1,151 @@
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.users.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if (outOfRange()) {
+  <!-- The honest out-of-range state (the shared component): the URL asks
+       for a page past the end of a NON-EMPTY list — an explicit
+       translated notice + first-page action, never a bare empty list. -->
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.users.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">{{ 'admin.users.empty' | t }}</p>
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.users.aria' | t"
+  >
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.users.col.name' | t }}</th>
+          <th scope="col">{{ 'admin.users.col.email' | t }}</th>
+          <th scope="col">{{ 'admin.users.col.kind' | t }}</th>
+          <th scope="col">{{ 'admin.users.col.status' | t }}</th>
+          <th scope="col" class="admin-table__actions-head">{{ 'admin.users.col.actions' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row" [class.admin-row--dismissed]="row.suspendedAt !== null">
+            <td class="admin-cell--name">
+              @if (row.name; as name) {
+                {{ name }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td>
+              @if (row.email; as email) {
+                {{ email }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td>
+              <span class="badge" [class.badge--user]="row.kind === 'REGISTERED'">{{
+                row.kind
+              }}</span>
+            </td>
+            <td>
+              @if (row.suspendedAt; as suspendedAt) {
+                <span class="badge badge--hidden">{{ 'admin.users.suspended' | t }}</span>
+                <span class="admin-muted"> {{ suspendedAt | date: 'medium' }}</span>
+              } @else {
+                <span class="admin-muted">{{ 'admin.users.active' | t }}</span>
+              }
+            </td>
+            <td class="admin-cell--actions">
+              <div class="admin-cell__actions-body">
+                @if (row.kind === 'REGISTERED') {
+                  @if (actionConfirm()?.isArmed(row.id)) {
+                    <!-- two-tap confirm (no window.confirm, the app's inline
+                       style). The shared ConfirmAction owns the state
+                       machine, the focus move onto Confirm and the focus
+                       restore to Suspend/Unsuspend on cancel;
+                       the prompt is a live region so arming is announced. -->
+                    <span class="admin-confirm" role="status">
+                      @if (actionConfirm()!.armed()!.value === 'suspend') {
+                        {{ 'admin.users.suspend.confirm' | t }}
+                      } @else {
+                        {{ 'admin.users.unsuspend.confirm' | t }}
+                      }
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      [class.btn--danger]="actionConfirm()!.armed()!.value === 'suspend'"
+                      [attr.data-confirm-focus]="row.id"
+                      (click)="onConfirmUserAction(row.id, actionConfirm()!.armed()!.value)"
+                      [disabled]="busy()"
+                    >
+                      {{
+                        busy()
+                          ? ('admin.working' | t)
+                          : actionConfirm()!.armed()!.value === 'suspend'
+                            ? ('admin.users.suspend.confirmButton' | t)
+                            : ('admin.users.unsuspend.confirmButton' | t)
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      (click)="onCancelUserAction()"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.cancel' | t }}
+                    </button>
+                  } @else if (row.suspendedAt === null) {
+                    <button
+                      type="button"
+                      class="btn btn--ghost btn--danger"
+                      [attr.data-confirm-trigger]="row.id"
+                      (click)="onRequestUserAction(row.id, 'suspend')"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.users.suspend' | t }}
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn--ghost"
+                      [attr.data-confirm-trigger]="row.id"
+                      (click)="onRequestUserAction(row.id, 'unsuspend')"
+                      [disabled]="busy()"
+                    >
+                      {{ 'admin.users.unsuspend' | t }}
+                    </button>
+                  }
+                } @else {
+                  <!-- ADMIN kind: listed for visibility, not suspendable
+                     (lockout vector — the backend answers 403: the
+                     provisioned admin cannot be disabled at all). -->
+                  <span class="admin-muted">{{ 'admin.users.notSuspendable' | t }}</span>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <!-- The shared page + size control: nothing at one page or an empty
+       list (the component's own rule). -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    [sizeLabelKey]="'pagination.sizeUsers'"
+    (onNavigate)="onNavigate($event)"
+  />
+}

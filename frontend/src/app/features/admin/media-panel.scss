@@ -1,0 +1,38 @@
+@use './admin-shared';
+
+/* The media library (crisis-guidance D8): the upload zone — dashed
+   primary border (a DROPPABLE zone marker). */
+.admin-media-upload {
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  cursor: pointer;
+
+  /* Hover/drag fill: the app's neutral hover-fill token. */
+  &:hover,
+  &--drag {
+    background: var(--color-surface-hover);
+  }
+
+  /* The accepted-types hint: reset the <p>'s UA margins (the column gap
+     owns the spacing). */
+  &__hint {
+    margin: 0;
+  }
+}
+
+.admin-media-thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.admin-media-name {
+  word-break: break-all;
+}

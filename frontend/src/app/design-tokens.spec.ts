@@ -893,6 +893,14 @@ describe('design tokens (M6)', () => {
     const adminHtml = [
       readFileSync(`${SRC_DIR}/app/features/admin/admin-page.html`, 'utf8'),
       readFileSync(`${SRC_DIR}/app/features/admin/guidance-order-list.html`, 'utf8'),
+      // The tab panels own their table markup (W3-B extraction): the td
+      // scan must cover every template that renders table rows.
+      readFileSync(`${SRC_DIR}/app/features/admin/alerts-panel.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/audit-panel.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/media-panel.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/shelters-panel.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/unconfirmed-panel.html`, 'utf8'),
+      readFileSync(`${SRC_DIR}/app/features/admin/users-panel.html`, 'utf8'),
     ].join('\n');
 
     // Each rule extracted by brace balancing, comments stripped: the
@@ -926,7 +934,7 @@ describe('design tokens (M6)', () => {
     for (const m of adminHtml.matchAll(/<td\b[^>]*class="([^"]*)"/g)) {
       for (const c of m[1].split(/\s+/)) if (c) tdClasses.add(c);
     }
-    expect([...tdClasses], 'expected the classed <td> cells in admin-page.html').toEqual(
+    expect([...tdClasses], 'expected the classed <td> cells in the admin templates').toEqual(
       expect.arrayContaining(['admin-cell--name', 'admin-cell--actions']),
     );
     for (const c of tdClasses) {

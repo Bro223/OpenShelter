@@ -1,0 +1,5 @@
+/* The Unconfirmed tab panel: the table rules are the shared admin
+   surface (single source — @used here, like every tab panel). The
+   panel carries no page-specific styles of its own: the review-queue
+   table is the shared vocabulary. */
+@use './admin-shared';

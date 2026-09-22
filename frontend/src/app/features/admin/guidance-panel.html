@@ -1,0 +1,165 @@
+<!-- admin-locale-split: the content language — the ONE admin-controlled
+     language: it scopes the list below, the editor prefill, saves and
+     reorders. It lives WITH the content (the Guidance tab), not in
+     Settings — the chrome's language is the header switcher's domain. -->
+<div class="admin-guidance-language">
+  <label for="content-language-select">{{ 'admin.guidance.language.label' | t }}</label>
+  <select
+    id="content-language-select"
+    [value]="contentLocale()"
+    (change)="onContentLanguageChange($event)"
+  >
+    @for (code of locales(); track code) {
+      <option [value]="code">{{ code }}</option>
+    }
+  </select>
+  <p class="admin-guidance-language__hint">{{ 'admin.guidance.language.hint' | t }}</p>
+</div>
+
+<!-- admin-guidance-search: the list's search — SUBMIT-based (Enter or
+     the button), never per-keystroke; the term is URL-backed (`q`),
+     scoped to the content locale's list, and a submit/clear resets
+     the page to 1. The Clear button appears while a term is active. -->
+<form class="admin-search admin-guidance-search" (submit)="onSearchSubmit()">
+  <div class="field admin-search__field">
+    <label for="guidance-search">{{ 'admin.guidance.search.label' | t }}</label>
+    <input
+      id="guidance-search"
+      type="search"
+      [formControl]="search()"
+      [placeholder]="'admin.guidance.search.placeholder' | t"
+      autocomplete="off"
+    />
+  </div>
+  <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.guidance.search.button' | t }}</button>
+  @if (appliedQuery() !== '') {
+    <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="onSearchClear()">
+      {{ 'admin.guidance.search.clear' | t }}
+    </button>
+  }
+</form>
+
+@if (editor() === null) {
+  <button
+    type="button"
+    class="btn btn--primary"
+    (click)="onOpenEditor(null)"
+    [disabled]="busy()"
+  >
+    {{ 'admin.guidance.create' | t }}
+  </button>
+}
+
+@if (editor() !== null) {
+  <div class="admin-editor">
+    @if (editorLoading()) {
+      <app-loading-indicator
+        class="admin-state"
+        [message]="'admin.guidance.editor.loading' | t"
+      />
+    } @else if (editor() === 'new') {
+      <app-guidance-editor
+        [post]="null"
+        [busy]="busy()"
+        [serverError]="editorError()"
+        [mediaAssets]="mediaAssets()"
+        (save)="onSavePost($event)"
+        (cancel)="onCloseEditor()"
+      />
+    } @else {
+      <!-- Translation authoring (bilingual-guidance): the branch
+           switches on the target locale so the editor RECREATES on a
+           switch (the prefill and the save payload pick the mode);
+           the ordinary edit form is the null branch. -->
+      @if (translationTarget() === null) {
+        <app-guidance-editor
+          [post]="editorPost()"
+          [translationTarget]="null"
+          [busy]="busy()"
+          [serverError]="editorError()"
+          [mediaAssets]="mediaAssets()"
+          (save)="onSavePost($event)"
+          (cancel)="onCloseEditor()"
+        />
+      } @else {
+        <app-guidance-editor
+          [post]="editorPost()"
+          [translationTarget]="translationTarget()"
+          [busy]="busy()"
+          [serverError]="editorError()"
+          [mediaAssets]="mediaAssets()"
+          (save)="onSavePost($event)"
+          (cancel)="onCloseEditor()"
+        />
+      }
+    }
+
+    <!-- The translations (bilingual-guidance): the post's per-locale
+         rows under the open editor (edit mode only — a create-mode
+         post has no id yet). Add a missing locale (the editor
+         recreates in translation-authoring mode, prefilled from the
+         on-screen row); delete a foreign one (the two-tap confirm —
+         the home-locale row is the post itself and is never offered
+         the trigger). Editing an existing one is the ordinary scoped
+         edit (the content-language select). -->
+    @if (editorPost(); as p) {
+      <app-guidance-translations
+        [post]="p"
+        [rows]="translations()"
+        [busy]="busy()"
+        [translationTarget]="translationTarget()"
+        [deleteConfirm]="translationDeleteConfirm()"
+        (start)="onStartTranslation($event)"
+        (requestDelete)="onRequestDeleteTranslation($event)"
+        (cancelDelete)="onCancelDeleteTranslation()"
+        (confirmDelete)="onConfirmDeleteTranslation($event)"
+      />
+    }
+  </div>
+}
+
+<!-- admin-page-size: an out-of-range page (the URL asks for one past
+     the end of a NON-EMPTY scope) renders the explicit notice +
+     first-page action INSTEAD of the list — never a bare empty list.
+     The list itself renders the distinct no-match / no-posts-yet
+     empty states (searchTerm). -->
+@if (outOfRange()) {
+  <app-list-state
+    [kind]="'out-of-range'"
+    [messageKey]="'admin.guidance.pageOutOfRange'"
+    [page]="page()"
+    [pages]="pages()"
+    [actionKey]="'admin.pageFirst'"
+    (onGoFirstPage)="onGoFirstPage()"
+  />
+} @else {
+  <app-guidance-order-list
+    [rows]="rows()"
+    [loadError]="loadError()"
+    [busy]="busy()"
+    [contentLocale]="contentLocale()"
+    [searchTerm]="appliedQuery()"
+    [reorderable]="reorderable()"
+    [publishedAt]="publishedAt()"
+    [deleteConfirm]="deleteConfirm()"
+    (retry)="onRetry()"
+    (edit)="onEdit($event)"
+    (publish)="onPublish($event)"
+    (unpublish)="onUnpublish($event)"
+    (requestDelete)="onRequestDelete($event)"
+    (confirmDelete)="onConfirmDelete($event)"
+    (cancelDelete)="onCancelDelete()"
+    (reorder)="onReorder($event)"
+  />
+  <!-- The shared page + size control (admin-page-size): namespaced
+       URL params (guidancePage/guidanceSize — the admin tabs share
+       one route); nothing at one page or an empty list (the
+       component's own rule). -->
+  <app-pagination
+    [page]="page()"
+    [pages]="pages()"
+    [size]="size()"
+    [sizes]="pageSizes"
+    (onNavigate)="onNavigate($event)"
+  />
+}

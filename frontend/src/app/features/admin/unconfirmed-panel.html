@@ -1,0 +1,112 @@
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.unconfirmed.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">{{ 'admin.unconfirmed.empty' | t }}</p>
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.unconfirmed.aria' | t"
+  >
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.unconfirmed.col.name' | t }}</th>
+          <th scope="col">{{ 'admin.unconfirmed.col.address' | t }}</th>
+          <th scope="col">{{ 'admin.unconfirmed.col.submitter' | t }}</th>
+          <th scope="col" class="admin-table__actions-head">
+            {{ 'admin.unconfirmed.col.actions' | t }}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row">
+            <td class="admin-cell--name">
+              <div class="admin-cell__name-body">
+                <!-- Plain text: NEW rows are public, but the link goes to
+                   the Shelters tab's context, not a detail nav. -->
+                {{ row.name }}
+                @if (isPrivateLocation(row)) {
+                  <span class="badge badge--private">{{ 'shelter.privateBadge' | t }}</span>
+                }
+              </div>
+            </td>
+            <td>
+              @if (row.address) {
+                {{ row.address }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td>
+              @if (row.submitter; as submitter) {
+                {{ submitter }}
+              } @else {
+                <span class="admin-muted">—</span>
+              }
+            </td>
+            <td class="admin-cell--actions admin-cell--actions-review">
+              <div class="admin-cell__actions-body admin-cell--actions-review">
+                <button
+                  type="button"
+                  class="btn btn--ghost"
+                  (click)="onConfirmRow(row)"
+                  [disabled]="busy()"
+                >
+                  {{ busy() ? ('admin.working' | t) : ('admin.unconfirmed.confirm' | t) }}
+                </button>
+                @if (rejectFor() === row.id) {
+                  <div class="admin-reason">
+                    <label for="reject-reason">{{ 'admin.unconfirmed.reject.label' | t }}</label>
+                    <textarea
+                      id="reject-reason"
+                      [formControl]="rejectReason()"
+                      [placeholder]="'admin.unconfirmed.reject.placeholder' | t"
+                    ></textarea>
+                    @if (rejectReason().invalid && rejectReason().touched) {
+                      <span class="admin-reason__error">
+                        {{ 'admin.unconfirmed.reject.required' | t: { max: 500 } }}
+                      </span>
+                    }
+                    <div class="admin-reason__actions">
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--danger"
+                        (click)="onRejectRow(row)"
+                        [disabled]="busy() || rejectReason().invalid"
+                      >
+                        {{ busy() ? ('admin.working' | t) : ('admin.unconfirmed.reject' | t) }}
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn--ghost"
+                        (click)="onCancelReject()"
+                        [disabled]="busy()"
+                      >
+                        {{ 'admin.cancel' | t }}
+                      </button>
+                    </div>
+                  </div>
+                } @else {
+                  <button
+                    type="button"
+                    class="btn btn--ghost btn--danger"
+                    (click)="onOpenRejectEditor(row)"
+                    [disabled]="busy()"
+                  >
+                    {{ 'admin.unconfirmed.reject' | t }}
+                  </button>
+                }
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

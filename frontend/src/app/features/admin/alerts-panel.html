@@ -1,0 +1,38 @@
+@if (rows() === null && loadError() === null) {
+  <app-loading-indicator class="admin-state" [message]="'admin.alerts.loading' | t" />
+} @else if (loadError(); as loadErr) {
+  <p class="admin-state admin-state--error" role="alert">{{ loadErr }}</p>
+  <button type="button" class="btn btn--ghost" (click)="onRetry()">{{ 'admin.retry' | t }}</button>
+} @else if ((rows() ?? []).length === 0) {
+  <p class="admin-state">{{ 'admin.alerts.empty' | t }}</p>
+} @else {
+  <div
+    class="admin-table-wrap"
+    tabindex="0"
+    role="region"
+    [attr.aria-label]="'admin.alerts.aria' | t"
+  >
+    <table class="admin-table admin-table--audit">
+      <thead>
+        <tr>
+          <th scope="col">{{ 'admin.alerts.col.when' | t }}</th>
+          <th scope="col">{{ 'admin.alerts.col.type' | t }}</th>
+          <th scope="col">{{ 'admin.alerts.col.subject' | t }}</th>
+          <th scope="col">{{ 'admin.alerts.col.detail' | t }}</th>
+          <th scope="col">{{ 'admin.alerts.col.retryAfter' | t }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.id) {
+          <tr class="admin-row">
+            <td class="admin-cell--nowrap">{{ row.at | date: 'medium' }}</td>
+            <td>{{ alertKindLabel(row.kind) }}</td>
+            <td class="admin-cell--nowrap">{{ row.subject }}</td>
+            <td class="admin-cell--name">{{ row.detail }}</td>
+            <td class="admin-cell--nowrap">{{ retryAfterText(row.retryAfterSeconds) }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
