@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <script type="module" src="/@vite/client"></script>
+
+    <meta charset="utf-8"/>
+    <title>OpenShelter</title>
+    <base href="/"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="description" content="Find registered and community-reported bomb shelters in Estonia."/>
+    <link rel="icon" type="image/x-icon" href="favicon.ico"/>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+    <script>
+      // Pre-paint theme (accessibility-and-provenance D2, extended by
+      // accessibility-dialog to the three contrast options): apply the
+      // persisted theme preference BEFORE the app bundle paints — no
+      // flash/FOUC. 'high-contrast' applies the SCSS token block (the
+      // attribute alone); 'black-and-yellow' applies the attribute AND the
+      // verified runtime tokens (the values are the typed twin in
+      // core/theme-tokens.ts — keep them in lockstep, prepaint.spec.ts runs
+      // THIS script source against the same guarantees).
+      // Absent key = the light default.
+      try {
+        var openshelterTheme = localStorage.getItem('openshelter-theme');
+        if (openshelterTheme === 'high-contrast' || openshelterTheme === 'black-and-yellow') {
+          document.documentElement.setAttribute('data-theme', openshelterTheme);
+        }
+        if (openshelterTheme === 'black-and-yellow') {
+          var openshelterThemeTokens = {
+            '--color-text': '#ffd400',
+            '--color-muted': '#d4b53a',
+            '--color-bg': '#000000',
+            '--color-bg-surface': '#000000',
+            '--color-bg-subtle': '#000000',
+            '--color-surface-hover': '#2b2400',
+            '--color-surface-overlay': 'rgba(0, 0, 0, 0.92)',
+            '--color-backdrop': 'rgba(0, 0, 0, 0.8)',
+            '--color-primary': '#ff9f1c',
+            '--color-primary-hover': '#ffb347',
+            '--color-brand': '#ffd400',
+            '--color-accent': '#4dd0c4',
+            '--color-link': '#ffe066',
+            '--color-chrome-bg': '#000000',
+            '--color-chrome-text': '#ffd400',
+            '--color-chrome-muted': '#d4b53a',
+            '--color-chrome-focus': '#ffd400',
+            '--color-chrome-active': '#ffd400',
+            '--color-chrome-border': '#8a7400',
+            '--color-cta': '#ff9f1c',
+            '--color-reported': '#ff6b4d',
+            '--color-new': '#ffd400',
+            '--color-border': '#8a7400',
+            '--color-border-subtle': '#6b5900',
+            '--color-danger': '#ff6b4d',
+            '--color-danger-bg': '#2a120d',
+            '--color-danger-border': '#7a3a2d',
+            '--color-error': '#ff6b4d',
+            '--color-warning': '#ffb84d',
+            '--color-warning-bg': '#292008',
+            '--color-warning-border': '#6e5a1e',
+            '--color-info': '#8ac6f5',
+            '--color-info-bg': '#10222f',
+            '--color-info-border': '#2f5a7a',
+            '--color-success': '#7fd49a',
+            '--color-success-bg': '#0f2a18',
+            '--color-success-border': '#2f6e45',
+            '--color-success-bg-soft': '#122417',
+            '--color-badge-registry': '#14263a',
+            '--color-badge-user': '#11301d',
+            '--color-badge-new': '#332b12',
+            '--color-shelter-registry': '#7ab8ff',
+            '--color-shelter-user': '#7ac98a',
+            '--color-shelter-pick': '#4dd0c4',
+            '--color-map-placeholder': '#e9eef2',
+          };
+          for (var openshelterThemeToken in openshelterThemeTokens) {
+            document.documentElement.style.setProperty(
+              openshelterThemeToken,
+              openshelterThemeTokens[openshelterThemeToken],
+            );
+          }
+        }
+      } catch (error) {
+        /* storage unavailable (private mode) — default to light */
+      }
+    </script>
+    <script>
+      // Pre-paint locale (i18n-et-en): apply the persisted UI language
+      // BEFORE the app bundle paints — <html lang> is correct for screen
+      // readers / spellcheck from first paint. Only 'en'/'et'/'ru' are ever
+      // stored; absent or invalid key = the static lang="en" default.
+      // The typed form of this logic is core/prepaint.ts — prepaint.spec.ts
+      // runs THIS script source against the same guarantees, so keep them in
+      // lockstep (a divergence fails the suite).
+      //
+      // bundle-lazy-i18n — why this script stays catalog-free: it runs
+      // before any app bundle exists, so it must never need i18n data. It
+      // validates the stored locale STRING against the same three letters
+      // the I18nService accepts (nothing more) and sets <html lang>; the
+      // pre-paint <title> above is the brand name — a proper noun no
+      // locale translates. Neither need ever pulls catalog code into the
+      // page; the catalog itself is lazy (default locale in the initial
+      // bundle, the rest in on-demand chunks).
+      try {
+        var openshelterLocale = localStorage.getItem('openshelter-locale');
+        if (
+          openshelterLocale === 'en' ||
+          openshelterLocale === 'et' ||
+          openshelterLocale === 'ru'
+        ) {
+          document.documentElement.lang = openshelterLocale;
+        }
+      } catch (error) {
+        /* storage unavailable (private mode) — default to the static lang */
+      }
+    </script>
+  <link rel="stylesheet" href="styles.css"></head>
+  <body>
+    <app-root></app-root>
+  <script src="main.js" type="module"></script></body>
+</html>
