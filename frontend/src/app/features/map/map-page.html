@@ -228,7 +228,7 @@
       <div class="filter-trust" role="group" [attr.aria-label]="'map.trustFiltersAria' | t">
         <button
           type="button"
-          class="trust-chip"
+          class="chip trust-chip"
           [class.chip--active]="openOnly()"
           [attr.aria-pressed]="openOnly()"
           (click)="toggleOpen()"
@@ -237,7 +237,7 @@
         </button>
         <button
           type="button"
-          class="trust-chip"
+          class="chip trust-chip"
           [class.chip--active]="hasCapacity()"
           [attr.aria-pressed]="hasCapacity()"
           (click)="toggleHasCapacity()"
@@ -253,7 +253,9 @@
       @if (loading()) {
         <app-loading-indicator class="sidebar-state" [message]="'map.loading' | t" />
       } @else if (showEmpty()) {
-        <p class="sidebar-state">{{ 'map.emptyFilter' | t }}</p>
+        <!-- The filtered list is empty: the shared empty-state notice (the
+             host class keeps the sidebar's muted, centred slot styling). -->
+        <app-list-state class="sidebar-state" [kind]="'empty'" [messageKey]="'map.emptyFilter'" />
       } @else if (sorted().length) {
         <ul #listEl class="shelter-list" [attr.aria-label]="'map.shelterListAria' | t">
           @for (shelter of sorted(); track shelter.id) {

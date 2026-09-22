@@ -13,22 +13,25 @@
   @if (loading()) {
     <app-loading-indicator class="guidance-state" [message]="'guidance.loading' | t" />
   } @else if (outOfRange()) {
-    <!-- The honest out-of-range state (guidance-index-paging): the URL
-         asks for a page past the end of a NON-EMPTY index — a hand-typed
-         number, a stale shared link, or a locale switch that shrank the
-         index. Explicit translated notice + first-page action; the empty
-         state below is total === 0 only, never this. -->
-    <div class="guidance-list__oob" role="status">
-      <p>
-        {{ 'guidance.pageOutOfRange' | t: { page: page(), pages: pages() } }}
-      </p>
-      <button type="button" class="btn btn--primary" (click)="gotoFirstPage()">
-        {{ 'guidance.pageFirst' | t }}
-      </button>
-    </div>
+    <!-- The honest out-of-range state (guidance-index-paging), in the
+         shared component: the URL asks for a page past the end of a
+         NON-EMPTY index — a hand-typed number, a stale shared link, or a
+         locale switch that shrank the index. Explicit translated notice
+         + first-page action; the empty state below is total === 0 only,
+         never this. -->
+    <app-list-state
+      [kind]="'out-of-range'"
+      [messageKey]="'guidance.pageOutOfRange'"
+      [page]="page()"
+      [pages]="pages()"
+      [actionKey]="'guidance.pageFirst'"
+      (onGoFirstPage)="gotoFirstPage()"
+    />
   } @else if (posts(); as list) {
     @if (list.length === 0) {
-      <p class="guidance-list__empty">{{ 'guidance.empty' | t }}</p>
+      <!-- The empty state (the shared component's empty mode): nothing is
+           published in the active locale. -->
+      <app-list-state [kind]="'empty'" [messageKey]="'guidance.empty'" />
     } @else {
       <ul class="guidance-list__posts">
         @for (post of list; track post.slug) {
@@ -88,12 +91,13 @@
 
       <!-- The shared page + size control (list-page-paging). It renders
            NOTHING at one page or an empty list (pages() < 2), so the
-           chrome never appears when it would be pointless. -->
+           chrome never appears when it would be pointless. Its default
+           size list IS the endpoint's range (shared/paging PAGE_SIZES),
+           so no [sizes] binding is needed. -->
       <app-pagination
         [page]="page()"
         [pages]="pages()"
         [size]="size()"
-        [sizes]="pageSizes"
         (onNavigate)="onNavigate($event)"
       />
     }

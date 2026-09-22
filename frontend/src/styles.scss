@@ -664,6 +664,86 @@ textarea {
   }
 }
 
+/* Filter chips — the shared pill control (the map's source/trust filter
+   chips and the admin's source chips are ONE control). The surface's
+   layout stays local (fill-the-row flex, 48px minimums); everything the
+   pill itself says about itself lives here. */
+.chip {
+  padding: var(--space-6) var(--space-10);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-surface);
+  font-size: var(--text-md);
+  font-family: inherit;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
+}
+
+.chip.chip--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg-surface);
+}
+
+/* Badges — the shared pill vocabulary (map rows, shelter detail header,
+   admin tables, the account kind badge). Typography, shape and the
+   registry/user token fills are ONE source here; context-specific
+   surfaces keep only their local overrides (the map rows' computed 8%
+   tint fill — contrast-pinned in design-tokens.spec.ts MIXED_PAIRS — and
+   the admin tables' content-sizing layout extras). Modifier vocabulary:
+   reported = the single reported affordance (the token, white text — HC
+   flips to dark on the brightened fill); closed = the warning tint
+   (a fresh OPEN row renders no badge at all — open is the default);
+   occupancy = NEUTRAL ("space available" is not a celebration, "full" is
+   not a crisis); new = the amber trust tint (the --color-badge-new fill
+   with the dark-amber --color-warning text — the pair is pinned in
+   design-tokens.spec.ts); private = the neutral description chip
+   (what the location is, not a state). */
+.badge {
+  font-size: var(--text-2xs);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-badge-registry);
+  color: var(--color-shelter-registry);
+}
+
+.badge.badge--user {
+  background: var(--color-badge-user);
+  color: var(--color-shelter-user);
+}
+
+.badge.badge--new {
+  background: var(--color-badge-new);
+  color: var(--color-warning);
+}
+
+.badge.badge--private {
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.badge.badge--reported {
+  background: var(--color-reported);
+  color: var(--color-bg-surface);
+}
+
+.badge.badge--closed {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning);
+}
+
+.badge.badge--occupancy {
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
 /* D6 (map-crisis-actions): coordinate/count readouts use tabular figures so
    digits do not shift while they update (submit-page coordinate readout,
    detail-page coordinate line). */

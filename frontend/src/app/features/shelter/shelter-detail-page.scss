@@ -34,65 +34,17 @@
   gap: var(--space-10);
 }
 
+/* The shared .badge pill (styles.scss) carries the typography, shape and
+   the registry/user/trust fills; detail-local only: the submitter's
+   verification depth (submitter-verification-badge) — a NEUTRAL chip like
+   occupancy/private — it describes WHO added the row, not a state, so it
+   must not compete with the trust badge beside it or the crisis-orange
+   reported badge. */
 .badge {
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  background: var(--color-badge-registry);
-  color: var(--color-shelter-registry);
-
-  &.badge--user {
-    background: var(--color-badge-user);
-    color: var(--color-shelter-user);
-  }
-
-  /* Trust badges (shelter-trust-and-reports D6) — the
-     same language as the map row badges: reported = the single reported
-     token; closed = the existing warning tint (fresh OPEN rows render no
-     badge at all — open is the default); occupancy = NEUTRAL ("space
-     available" is not a celebration, "full" is not a crisis). */
-  &.badge--reported {
-    background: var(--color-reported);
-    color: var(--color-bg-surface);
-  }
-
-  &.badge--closed {
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-warning);
-  }
-
-  &.badge--occupancy {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* The submitter's verification depth (submitter-verification-badge): a
-     NEUTRAL chip like occupancy/private — it describes WHO added the row, not
-     a state, so it must not compete with the trust badge beside it or the
-     crisis-orange reported badge. */
   &.badge--submitter {
     background: var(--color-bg-subtle);
     border: 1px solid var(--color-border);
     color: var(--color-muted);
-  }
-
-  /* Private-home declaration (D7): the neutral chip — a description of
-     what the location is, not a state. Same language as occupancy/hidden. */
-  &.badge--private {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* New community state (community-review-queue D5): the amber tint — the
-     --color-badge-new fill with the dark-amber --color-warning text (the
-     contrast pair is pinned in design-tokens.spec.ts). */
-  &.badge--new {
-    background: var(--color-badge-new);
-    color: var(--color-warning);
   }
 }
 

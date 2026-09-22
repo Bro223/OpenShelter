@@ -63,40 +63,24 @@
   }
 }
 
-/* The source filter chips (All / Registry / Community) — the map's
-   filter-chip language, scoped to the admin list (component styles are
-   not shared). Real <button>s, 48px targets, the active chip is the
-   primary fill. */
+/* The source filter chips (All / Registry / Community) — the shared .chip
+   control (styles.scss) carries the pill styling; layout-local only: 48px
+   targets (the admin lane's touch-target rule). */
 .admin-chips {
   display: flex;
   gap: var(--space-6);
   flex-wrap: wrap;
 
   .chip {
-    padding: var(--space-6) var(--space-10);
     min-height: var(--space-48);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    background: var(--color-bg-surface);
-    font-size: var(--text-md);
-    font-family: inherit;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      border-color: var(--color-primary);
-    }
-
-    &.chip--active {
-      background: var(--color-primary);
-      border-color: var(--color-primary);
-      color: var(--color-bg-surface);
-    }
   }
 }
 
-/* The paged lists' out-of-range state (the public guidance page's
-   guidance-list__oob, scoped): notice + first-page action, muted — a
-   recoverable view state, not an error. */
+/* The paged lists' out-of-range state: notice + first-page action, muted
+   — a recoverable view state, not an error. TRANSITIONAL copy of the
+   shared list-state component's out-of-range block (W2-D): the tabs'
+   templates still carry this class; the panel-extraction lane (W3-B) swaps
+   them to <app-list-state> and deletes this block. */
 .admin-oob {
   display: flex;
   flex-direction: column;

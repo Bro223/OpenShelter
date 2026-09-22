@@ -123,18 +123,12 @@
   flex-wrap: wrap;
 }
 
-/* Kind badge (admin-moderation D5): the same pill vocabulary as
-   the map rows / shelter-detail header source badges (those duplicate the
-   block per feature; the tokens are the app-wide ones). "Admin" uses the
-   green trust tint — the verified/trusted colour. */
+/* Kind badge (admin-moderation D5): the shared .badge pill (styles.scss)
+   carries the typography, shape and the registry fill; account-local only:
+   the layout extras for the row it rides in and the "Admin" green tint —
+   the verified/trusted colour. */
 .badge {
   display: inline-block;
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  background: var(--color-badge-registry);
-  color: var(--color-shelter-registry);
   vertical-align: middle;
 
   &.badge--admin {

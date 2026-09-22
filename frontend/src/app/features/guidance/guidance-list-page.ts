@@ -7,14 +7,12 @@ import { skip } from 'rxjs';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { GuidancePostDto } from '../../core/models';
-import {
-  GUIDANCE_PAGE_SIZE,
-  GUIDANCE_PAGE_SIZES,
-  GuidanceGateway,
-} from '../../gateways/guidance-gateway';
+import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import { ListState } from '../../shared/list-state';
 import { LoadingIndicator } from '../../shared/loading-indicator';
+import { PAGE_SIZE_DEFAULT, clampPage, lastPage, parsePage, parseSize } from '../../shared/paging';
 import { Pagination } from '../../shared/pagination';
 
 /**
@@ -23,20 +21,21 @@ import { Pagination } from '../../shared/pagination';
  *
  * <p>Thin shell (01-TASK.md §7): state in signals, the gateway owns the
  * API (a permit-all read — no auth). The VIEW is the URL: ?page=N and
- * ?size=M (both optional — 1 and {@link GUIDANCE_PAGE_SIZE} are the
- * defaults and are omitted from the URL, so a link or a refresh keeps the
- * view). The SERVER does the paging (limit/offset over its stable order,
- * pinned first then publishedAt descending, id descending tie-break); the
- * page never fetches-and-slices client-side. The un-paged total arrives
- * as X-Total-Count (the gateway surfaces it), which is what makes an
+ * ?size=M (both optional — 1 and the default size are the defaults and
+ * are omitted from the URL, so a link or a refresh keeps the view). The
+ * SERVER does the paging (limit/offset over its stable order, pinned first
+ * then publishedAt descending, id descending tie-break); the page never
+ * fetches-and-slices client-side. The un-paged total arrives as
+ * X-Total-Count (the gateway surfaces it), which is what makes an
  * out-of-range page distinguishable from a truly empty index: past-the-end
- * renders an explicit translated notice with a "show the first page"
+ * renders the shared out-of-range notice with a "show the first page"
  * action, never a bare empty list; the empty state is total === 0 only.
  *
  * <p>The page number belongs in the URL, and so does the size
- * (list-page-paging: 10..100 in steps of 10). The size is per-list —
- * the URL is the state, deliberately NOT a remembered cross-list
- * preference, so /blog and a later admin list cannot surprise each other.
+ * (list-page-paging: the shared paging contract, shared/paging). The size
+ * is per-list — the URL is the state, deliberately NOT a remembered
+ * cross-list preference, so /blog and a later admin list cannot surprise
+ * each other.
  *
  * <p>Locale scope: the server answers ONE language per call (the gateway
  * sends the active locale), so a language switcher change is a re-fetch
@@ -45,7 +44,15 @@ import { Pagination } from '../../shared/pagination';
  */
 @Component({
   selector: 'app-guidance-list-page',
-  imports: [DatePipe, RouterLink, BannerComponent, LoadingIndicator, Pagination, TranslatePipe],
+  imports: [
+    DatePipe,
+    RouterLink,
+    BannerComponent,
+    ListState,
+    LoadingIndicator,
+    Pagination,
+    TranslatePipe,
+  ],
   templateUrl: './guidance-list-page.html',
   styleUrl: './guidance-list-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,13 +69,10 @@ export class GuidanceListPage implements OnDestroy {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
-  /** The current (effective) view: page is 1-based, size is one of
-      {@link GUIDANCE_PAGE_SIZES}. */
+  /** The current (effective) view: page is 1-based, size is one of the
+      shared paging contract's sizes (shared/paging). */
   readonly page = signal(1);
-  readonly size = signal(GUIDANCE_PAGE_SIZE);
-  /** The selectable sizes — the range the ENDPOINT actually serves
-      (limit 1..200 honours all of them). */
-  readonly pageSizes: number[] = GUIDANCE_PAGE_SIZES;
+  readonly size = signal(PAGE_SIZE_DEFAULT);
 
   /** The un-paged index length (X-Total-Count) and the derived page
       count — 1 even when 0, so "Page 1 of 1" can never say "of 0". */
@@ -144,22 +148,23 @@ export class GuidanceListPage implements OnDestroy {
   /** Parse + normalize the view parameters, then load.
       A raw value that is not a legal member of the domain (non-numeric,
       a size outside 10..100 or off the step of 10, a page below 1) is
-      clamped to the NEAREST legal value and the URL is normalized in
-      place (replaceUrl — no history entry for the cosmetic fix), so the
-      selector always shows the value that is actually in effect and the
-      URL and the view can never quietly disagree. */
+      clamped to the NEAREST legal value (the shared paging policy,
+      shared/paging) and the URL is normalized in place (replaceUrl — no
+      history entry for the cosmetic fix), so the selector always shows
+      the value that is actually in effect and the URL and the view can
+      never quietly disagree. */
   private onQueryChange(params: Params): void {
     const rawPage = params['page'] ?? null;
     const rawSize = params['size'] ?? null;
-    const page = this.parsePage(rawPage);
-    const size = this.parseSize(rawSize);
+    const page = parsePage(rawPage);
+    const size = parseSize(rawSize);
     const canonical: Record<string, string> = { ...params };
     if (page > 1) {
       canonical['page'] = String(page);
     } else {
       delete canonical['page'];
     }
-    if (size !== GUIDANCE_PAGE_SIZE) {
+    if (size !== PAGE_SIZE_DEFAULT) {
       canonical['size'] = String(size);
     } else {
       delete canonical['size'];
@@ -168,7 +173,7 @@ export class GuidanceListPage implements OnDestroy {
       (rawPage !== null && String(page) !== rawPage) ||
       (rawSize !== null && String(size) !== rawSize) ||
       (rawPage === null && page !== 1) ||
-      (rawSize === null && size !== GUIDANCE_PAGE_SIZE);
+      (rawSize === null && size !== PAGE_SIZE_DEFAULT);
     if (dirty) {
       // The normalized URL re-emits through this same subscription and
       // loads there — no double fetch.
@@ -184,24 +189,6 @@ export class GuidanceListPage implements OnDestroy {
     void this.load();
   }
 
-  /** page: 1-based integer; missing/non-numeric/below 1 -> 1. */
-  private parsePage(raw: string | null): number {
-    const n = raw === null ? NaN : Number(raw);
-    return Number.isInteger(n) && n >= 1 ? n : 1;
-  }
-
-  /** size: clamp to the nearest member of 10..100 step 10; missing ->
-      the default. The selector can only offer legal values, so this
-      only matters for hand-typed URLs. */
-  private parseSize(raw: string | null): number {
-    const n = raw === null ? NaN : Number(raw);
-    if (!Number.isFinite(n)) {
-      return GUIDANCE_PAGE_SIZE;
-    }
-    const stepped = Math.round(n / 10) * 10;
-    return Math.min(100, Math.max(10, stepped));
-  }
-
   /** The pagination control's intent (prev/next/size). A SIZE change
       that would strand the current page past the last one clamps the
       page to the last page AT THE NEW SIZE (the total is known whenever
@@ -210,14 +197,12 @@ export class GuidanceListPage implements OnDestroy {
       verbatim. Either way the canonical URL is written and the fresh
       query emission loads. */
   onNavigate({ page, size }: { page: number; size: number }): void {
-    const knownTotal = this.total();
-    const lastPage = knownTotal > 0 ? Math.max(1, Math.ceil(knownTotal / size)) : 1;
-    const effectivePage = Math.min(Math.max(1, page), lastPage);
+    const effectivePage = clampPage(page, this.total(), size);
     const queryParams: Record<string, string> = {};
     if (effectivePage > 1) {
       queryParams['page'] = String(effectivePage);
     }
-    if (size !== GUIDANCE_PAGE_SIZE) {
+    if (size !== PAGE_SIZE_DEFAULT) {
       queryParams['size'] = String(size);
     }
     void this.router.navigate([], { relativeTo: this.route, queryParams });
@@ -227,7 +212,7 @@ export class GuidanceListPage implements OnDestroy {
       current size is kept if it is non-default). */
   gotoFirstPage(): void {
     const queryParams: Record<string, string> = {};
-    if (this.size() !== GUIDANCE_PAGE_SIZE) {
+    if (this.size() !== PAGE_SIZE_DEFAULT) {
       queryParams['size'] = String(this.size());
     }
     void this.router.navigate([], { relativeTo: this.route, queryParams });
@@ -247,13 +232,12 @@ export class GuidanceListPage implements OnDestroy {
         if (seq !== this.fetchSeq) {
           return; // a newer fetch superseded this one (switch/page flip)
         }
-        const { posts, total } = value;
+        const { rows, total } = value;
         this.total.set(total);
-        const pages = total > 0 ? Math.max(1, Math.ceil(total / size)) : 1;
-        this.pages.set(pages);
-        const outOfRange = total > 0 && page > pages;
+        this.pages.set(lastPage(total, size));
+        const outOfRange = total > 0 && page > lastPage(total, size);
         this.outOfRange.set(outOfRange);
-        this.posts.set(outOfRange ? [] : posts);
+        this.posts.set(outOfRange ? [] : rows);
         this.failedHeroSlugs.set(new Set());
         this.loading.set(false);
       },

@@ -5,8 +5,7 @@ import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { AuthStore } from '../../session/auth-store';
-import type { GuidancePostDto, VerificationLevel } from '../../core/models';
-import type { GuidancePageResult } from '../../gateways/guidance-gateway';
+import type { GuidancePostDto, PagedRows, VerificationLevel } from '../../core/models';
 import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { DataSourceGateway } from '../../gateways/data-source-gateway';
 import { PageShell } from '../../shared/page-shell';
@@ -29,12 +28,12 @@ class FakeGuidanceGateway {
    * the UN-PAGED total (the X-Total-Count contract), so an out-of-range
    * page answers empty posts + a positive total.
    */
-  listPage = vi.fn(async (page: number, size: number): Promise<GuidancePageResult> => {
+  listPage = vi.fn(async (page: number, size: number): Promise<PagedRows<GuidancePostDto>> => {
     if (this.failure !== null) {
       throw this.failure;
     }
     const offset = (page - 1) * size;
-    return { posts: this.rows.slice(offset, offset + size), total: this.rows.length };
+    return { rows: this.rows.slice(offset, offset + size), total: this.rows.length };
   });
   getBySlug = vi.fn(async (): Promise<GuidancePostDto> => {
     throw new Error('getBySlug is not used by the list page');
@@ -184,10 +183,10 @@ describe('GuidanceListPage (/blog)', () => {
   });
 
   it('shows a loading indicator while fetching, then the posts', async () => {
-    let resolveList!: (result: GuidancePageResult) => void;
+    let resolveList!: (result: PagedRows<GuidancePostDto>) => void;
     guidanceGateway.listPage = vi.fn(
       () =>
-        new Promise<GuidancePageResult>((resolve) => {
+        new Promise<PagedRows<GuidancePostDto>>((resolve) => {
           resolveList = resolve;
         }),
     ) as never;
@@ -195,7 +194,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(text(fixture)).toContain('Loading guidance…');
     expect(fixture.nativeElement.querySelector('.guidance-list__posts')).toBeNull();
 
-    resolveList({ posts: [guidancePost()], total: 1 });
+    resolveList({ rows: [guidancePost()], total: 1 });
     await settle(fixture);
     expect(text(fixture)).toContain('Water and heating in the first days');
     expect(text(fixture)).not.toContain('Loading guidance…');
@@ -230,7 +229,7 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelector('.banner--error')).not.toBeNull();
     expect(text(fixture)).toContain('Something went wrong. Please try again.');
     expect(element.querySelector('.guidance-list__posts')).toBeNull();
-    expect(element.querySelector('.guidance-list__empty')).toBeNull();
+    expect(element.querySelector('.list-state--empty')).toBeNull();
     expect(element.querySelector('h1')?.textContent).toBe('Crisis guidance');
     void fixture;
   });
@@ -263,10 +262,10 @@ describe('GuidanceListPage (/blog)', () => {
 
     it('drops a superseded response — a stale locale must not land over the new fetch', async () => {
       // The first fetch (EN) hangs in flight...
-      let resolveFirst!: (result: GuidancePageResult) => void;
+      let resolveFirst!: (result: PagedRows<GuidancePostDto>) => void;
       const firstFetch = vi.fn(
         () =>
-          new Promise<GuidancePageResult>((resolve) => {
+          new Promise<PagedRows<GuidancePostDto>>((resolve) => {
             resolveFirst = resolve;
           }),
       );
@@ -279,10 +278,10 @@ describe('GuidanceListPage (/blog)', () => {
       // resolves. The NEW fetch resolves FIRST... (the switcher's signal
       // reaches the page through change detection, so settle before the
       // second fetch exists and its resolver is captured.)
-      let resolveSecond!: (result: GuidancePageResult) => void;
+      let resolveSecond!: (result: PagedRows<GuidancePostDto>) => void;
       const secondFetch = vi.fn(
         () =>
-          new Promise<GuidancePageResult>((resolve) => {
+          new Promise<PagedRows<GuidancePostDto>>((resolve) => {
             resolveSecond = resolve;
           }),
       );
@@ -292,7 +291,7 @@ describe('GuidanceListPage (/blog)', () => {
       expect(firstFetch).toHaveBeenCalledTimes(1);
       expect(secondFetch).toHaveBeenCalledTimes(1);
       resolveSecond({
-        posts: [guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })],
+        rows: [guidancePost({ slug: 'vesi-ja-kuumus', title: 'Vesi ja kuumus' })],
         total: 1,
       });
       await settle(fixture);
@@ -300,7 +299,7 @@ describe('GuidanceListPage (/blog)', () => {
 
       // ...and the STALE EN response lands LAST: the fetchSeq guard must
       // drop it — the Estonian rows stay on screen.
-      resolveFirst({ posts: [guidancePost()], total: 1 });
+      resolveFirst({ rows: [guidancePost()], total: 1 });
       await settle(fixture);
       expect(text(fixture)).toContain('Vesi ja kuumus');
       expect(text(fixture)).not.toContain('Water and heating');
@@ -518,12 +517,12 @@ describe('GuidanceListPage (/blog)', () => {
       expect(guidanceGateway.listPage).toHaveBeenLastCalledWith(5, 20);
 
       // The explicit notice with the real last page, not the empty state.
-      expect(element.querySelector('.guidance-list__oob')).not.toBeNull();
-      expect(element.querySelector('.guidance-list__empty')).toBeNull();
+      expect(element.querySelector('.list-state--oob')).not.toBeNull();
+      expect(element.querySelector('.list-state--empty')).toBeNull();
       expect(text(fixture)).toContain('Page 5 does not exist — the index ends at page 2.');
 
       // The first-page action returns to /blog and the first page's rows.
-      const button = element.querySelector<HTMLButtonElement>('.guidance-list__oob button');
+      const button = element.querySelector('.list-state--oob button') as HTMLButtonElement | null;
       if (!button) {
         throw new Error('the out-of-range first-page action was not rendered');
       }
@@ -590,7 +589,7 @@ describe('GuidanceListPage (/blog)', () => {
       // ...and 12 rows at 20 = 1 page: page 2 is now past the end, so the
       // honest out-of-range state shows (in the NEW active locale — the
       // switcher changed it to Estonian), not a bare empty list.
-      expect((fixture.nativeElement as HTMLElement).querySelector('.guidance-list__oob')).not.toBeNull();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.list-state--oob')).not.toBeNull();
       expect(text(fixture)).toContain('Lehe 2 ei ole — nimestik lõppeb lehel 1.');
     });
   });

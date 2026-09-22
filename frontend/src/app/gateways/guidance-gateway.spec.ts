@@ -156,7 +156,7 @@ describe('GuidanceGateway', () => {
 
     expect(api.getWithHeaders).toHaveBeenCalledTimes(1);
     expect(api.getWithHeaders).toHaveBeenCalledWith('/api/guidance?locale=en&limit=20&offset=0');
-    expect(result.posts).toEqual([POST_NO_BODY]);
+    expect(result.rows).toEqual([POST_NO_BODY]);
     expect(result.total).toBe(27);
   });
 
@@ -166,7 +166,7 @@ describe('GuidanceGateway', () => {
     const result = await gateway.listPage(2, 50);
 
     expect(api.getWithHeaders).toHaveBeenCalledWith('/api/guidance?locale=en&limit=50&offset=50');
-    expect(result).toEqual({ posts: [POST], total: 123 });
+    expect(result).toEqual({ rows: [POST], total: 123 });
   });
 
   it('listPage sends the ACTIVE locale after a language switch (a re-fetch of the page)', async () => {

@@ -36,6 +36,7 @@ import type {
 import { ShelterGateway } from '../../gateways/shelter-gateway';
 import { BannerComponent } from '../../shared/banner.component';
 import { bannerMessage } from '../../shared/error-copy';
+import { ListState } from '../../shared/list-state';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import { ReportGauge } from '../../shared/report-gauge';
 import {
@@ -137,6 +138,7 @@ const RECENT_KIND_KEYS: Record<CommunityPulseRecentReport['kind'], MessageKey> =
     DatePipe,
     ReactiveFormsModule,
     BannerComponent,
+    ListState,
     LoadingIndicator,
     ReportGauge,
     TranslatePipe,

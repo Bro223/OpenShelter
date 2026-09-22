@@ -37,11 +37,7 @@ import type {
   ShelterStatus,
 } from '../../core/models';
 import { AdminGateway } from '../../gateways/admin-gateway';
-import {
-  GuidanceGateway,
-  GUIDANCE_PAGE_SIZE,
-  GUIDANCE_PAGE_SIZES,
-} from '../../gateways/guidance-gateway';
+import { GuidanceGateway } from '../../gateways/guidance-gateway';
 import { bannerMessage } from '../../shared/error-copy';
 import {
   ALERT_KIND_LABEL,
@@ -60,6 +56,14 @@ import {
 import { BannerComponent } from '../../shared/banner.component';
 import { ConfirmAction } from '../../shared/confirm-action';
 import { LoadingIndicator } from '../../shared/loading-indicator';
+import {
+  PAGE_SIZE_DEFAULT,
+  PAGE_SIZES,
+  clampPage,
+  lastPage,
+  parsePage,
+  parseSize,
+} from '../../shared/paging';
 import { Pagination } from '../../shared/pagination';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
@@ -234,21 +238,19 @@ export class AdminPage implements OnInit, OnDestroy {
    *  frontend-facing grouping the backend speaks), URL-backed (`source`). */
   protected readonly shelterSource = signal<ShelterSourceFilter>('ALL');
   protected readonly shelterPage = signal(1);
-  protected readonly shelterSize = signal(GUIDANCE_PAGE_SIZE);
+  protected readonly shelterSize = signal(PAGE_SIZE_DEFAULT);
   /** The un-paged (filtered) total (X-Total-Count) and the derived page
    *  count / out-of-range flag — a past-the-end page renders an explicit
    *  notice, never a bare empty list. */
   protected readonly shelterTotal = signal(0);
-  protected readonly shelterPages = computed(() =>
-    this.shelterTotal() > 0 ? Math.max(1, Math.ceil(this.shelterTotal() / this.shelterSize())) : 1,
-  );
+  protected readonly shelterPages = computed(() => lastPage(this.shelterTotal(), this.shelterSize()));
   protected readonly shelterOutOfRange = computed(() =>
     this.shelterTotal() > 0 && this.shelterPage() > this.shelterPages(),
   );
   /** The selectable sizes — the range the endpoint serves (limit 1..200
    *  honours all of 10..100 step 10, so the control never offers a size
    *  the backend would refuse). */
-  protected readonly pageSizes = GUIDANCE_PAGE_SIZES;
+  protected readonly pageSizes = PAGE_SIZES;
   /** The source filter chips (the table's source vocabulary, short).
    *  All = no filter. */
   protected readonly sourceChips: { value: ShelterSourceFilter; label: MessageKey }[] = [
@@ -341,10 +343,8 @@ export class AdminPage implements OnInit, OnDestroy {
    *  states). */
   protected readonly guidanceTotal = signal(0);
   protected readonly guidancePage = signal(1);
-  protected readonly guidanceSize = signal(GUIDANCE_PAGE_SIZE);
-  protected readonly guidancePages = computed(() =>
-    this.guidanceTotal() > 0 ? Math.max(1, Math.ceil(this.guidanceTotal() / this.guidanceSize())) : 1,
-  );
+  protected readonly guidanceSize = signal(PAGE_SIZE_DEFAULT);
+  protected readonly guidancePages = computed(() => lastPage(this.guidanceTotal(), this.guidanceSize()));
   protected readonly guidanceOutOfRange = computed(() =>
     this.guidanceTotal() > 0 && this.guidancePage() > this.guidancePages(),
   );
@@ -443,8 +443,8 @@ export class AdminPage implements OnInit, OnDestroy {
         // the field that is not applied.
         this.guidanceSearch.reset('');
         this.guidancePage.set(1);
-        this.guidanceSize.set(GUIDANCE_PAGE_SIZE);
-        this.guidanceViewKey = ['', 1, GUIDANCE_PAGE_SIZE, this.i18n.contentLocale()].join('|');
+        this.guidanceSize.set(PAGE_SIZE_DEFAULT);
+        this.guidanceViewKey = ['', 1, PAGE_SIZE_DEFAULT, this.i18n.contentLocale()].join('|');
         this.loadGuidance();
         void this.router.navigate([], {
           relativeTo: this.route,
@@ -592,14 +592,14 @@ export class AdminPage implements OnInit, OnDestroy {
     const canonical: Record<string, string> = { ...params };
     let dirty = false;
     const check = (pageRaw: string | null, sizeRaw: string | null, pName: string, sName: string) => {
-      const page = parseListPage(pageRaw);
-      const size = parseListSize(sizeRaw);
+      const page = parsePage(pageRaw);
+      const size = parseSize(sizeRaw);
       if (page > 1) {
         canonical[pName] = String(page);
       } else {
         delete canonical[pName];
       }
-      if (size !== GUIDANCE_PAGE_SIZE) {
+      if (size !== PAGE_SIZE_DEFAULT) {
         canonical[sName] = String(size);
       } else {
         delete canonical[sName];
@@ -640,8 +640,8 @@ export class AdminPage implements OnInit, OnDestroy {
    *  cannot re-load the old scope. */
   private syncGuidanceFromParams(params: Params, firstVisit: boolean): void {
     const q = (params['q'] ?? '').trim();
-    const page = parseListPage(params['guidancePage'] ?? null);
-    const size = parseListSize(params['guidanceSize'] ?? null);
+    const page = parsePage(params['guidancePage'] ?? null);
+    const size = parseSize(params['guidanceSize'] ?? null);
     const key = [q, page, size, this.i18n.contentLocale()].join('|');
     // A query-param change that lands WHILE A LOAD IS IN FLIGHT (rows
     // nulled, no error yet) must re-load with the new view — never return
@@ -676,8 +676,8 @@ export class AdminPage implements OnInit, OnDestroy {
    *  change re-loads with the new term. */
   private syncSheltersFromParams(params: Params, firstVisit: boolean): void {
     const source = parseSourceFilter(params['source'] ?? null);
-    const page = parseListPage(params['shelterPage'] ?? null);
-    const size = parseListSize(params['shelterSize'] ?? null);
+    const page = parsePage(params['shelterPage'] ?? null);
+    const size = parseSize(params['shelterSize'] ?? null);
     const key = [source, page, size, this.shelterQuery()].join('|');
     // In-flight window included: a chip/page change that lands while a
     // fetch is running re-loads with the new view (the sequence guard
@@ -980,7 +980,7 @@ export class AdminPage implements OnInit, OnDestroy {
       }
     }
     if (view.size !== undefined) {
-      if (view.size !== GUIDANCE_PAGE_SIZE) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
         params['shelterSize'] = String(view.size);
       } else {
         delete params['shelterSize'];
@@ -995,9 +995,7 @@ export class AdminPage implements OnInit, OnDestroy {
    *  the control is visible), so a size flip never lands on a dead page.
    */
   onSheltersNavigate({ page, size }: { page: number; size: number }): void {
-    const lastPage =
-      this.shelterTotal() > 0 ? Math.max(1, Math.ceil(this.shelterTotal() / size)) : 1;
-    this.navigateShelters({ page: Math.min(Math.max(1, page), lastPage), size });
+    this.navigateShelters({ page: clampPage(page, this.shelterTotal(), size), size });
   }
 
   /** The out-of-range notice's action: back to the first page (the
@@ -1503,7 +1501,7 @@ export class AdminPage implements OnInit, OnDestroy {
       }
     }
     if (view.size !== undefined) {
-      if (view.size !== GUIDANCE_PAGE_SIZE) {
+      if (view.size !== PAGE_SIZE_DEFAULT) {
         params['guidanceSize'] = String(view.size);
       } else {
         delete params['guidanceSize'];
@@ -1518,9 +1516,7 @@ export class AdminPage implements OnInit, OnDestroy {
    *  the control is visible), so a size flip never lands on a dead page.
    *  The search term is kept (a new page of the same filter). */
   onGuidanceNavigate({ page, size }: { page: number; size: number }): void {
-    const lastPage =
-      this.guidanceTotal() > 0 ? Math.max(1, Math.ceil(this.guidanceTotal() / size)) : 1;
-    this.navigateGuidance({ page: Math.min(Math.max(1, page), lastPage), size });
+    this.navigateGuidance({ page: clampPage(page, this.guidanceTotal(), size), size });
   }
 
   /** The out-of-range notice's action: back to the first page (the
@@ -2095,25 +2091,6 @@ export class AdminPage implements OnInit, OnDestroy {
     this.error.set(null);
     this.success.set(null);
   }
-}
-
-/** page: 1-based integer; missing/non-numeric/below 1 -> 1 (the public
- *  guidance page's parse — hand-typed URLs only; the control can only
- *  offer legal values). */
-function parseListPage(raw: string | null): number {
-  const n = raw === null ? NaN : Number(raw);
-  return Number.isInteger(n) && n >= 1 ? n : 1;
-}
-
-/** size: clamp to the nearest member of 10..100 step 10 (the shared
- *  Pagination's contract); missing -> the default 20. */
-function parseListSize(raw: string | null): number {
-  const n = raw === null ? NaN : Number(raw);
-  if (!Number.isFinite(n)) {
-    return GUIDANCE_PAGE_SIZE;
-  }
-  const stepped = Math.round(n / 10) * 10;
-  return Math.min(100, Math.max(10, stepped));
 }
 
 /** source chip: a legal grouping or 'ALL' (a stray hand-typed value is

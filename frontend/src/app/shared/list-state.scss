@@ -1,0 +1,29 @@
+/* The paged list's honest empty-ish states (list-state). Muted on
+   purpose — a recoverable view state, not an error: the content exists
+   (out-of-range) or the scope is empty, and neither is a failure. */
+
+/* Out-of-range: notice + first-page action, stacked, left-aligned (the
+   list sits left in every surface that renders it). */
+.list-state--oob {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-12);
+  color: var(--color-muted);
+
+  p {
+    margin: 0;
+  }
+}
+
+.list-state--empty {
+  color: var(--color-muted);
+  margin: 0;
+}
+
+/* The host is a custom element: block-level so a host-scoped layout class
+   (padding, flex sizing, text-align) behaves like the plain <p> this
+   component replaces. */
+:host {
+  display: block;
+}

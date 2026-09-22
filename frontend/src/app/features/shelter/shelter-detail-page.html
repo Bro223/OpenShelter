@@ -428,7 +428,11 @@
               [describedBy]="'pulse-occupancy-caption'"
             />
           } @else {
-            <p class="pulse-empty">{{ 'detail.pulse.emptyOccupancy' | t }}</p>
+            <app-list-state
+              class="pulse-empty"
+              [kind]="'empty'"
+              [messageKey]="'detail.pulse.emptyOccupancy'"
+            />
           }
           @if (openPulse(); as openPulse) {
             <!-- The open/closed arrow references its count-line id — the
@@ -440,7 +444,11 @@
               [describedBy]="'pulse-open-caption'"
             />
           } @else {
-            <p class="pulse-empty">{{ 'detail.pulse.emptyOpen' | t }}</p>
+            <app-list-state
+              class="pulse-empty"
+              [kind]="'empty'"
+              [messageKey]="'detail.pulse.emptyOpen'"
+            />
           }
         </div>
         @if (occupancyPulse() || openPulse()) {
@@ -481,7 +489,11 @@
             }
           </ul>
         } @else {
-          <p class="pulse-empty">{{ 'detail.pulse.recentEmpty' | t }}</p>
+          <app-list-state
+            class="pulse-empty"
+            [kind]="'empty'"
+            [messageKey]="'detail.pulse.recentEmpty'"
+          />
         }
       </section>
 

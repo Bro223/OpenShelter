@@ -1,0 +1,17 @@
+@if (kind() === 'out-of-range') {
+  <!-- The honest out-of-range state: the URL asks for a page past the end
+       of a NON-EMPTY scope — an explicit translated notice + first-page
+       action, never a bare empty list. -->
+  <div class="list-state list-state--oob" role="status">
+    <p>{{ messageKey() | t: { page: page(), pages: pages() } }}</p>
+    @if (actionKey(); as key) {
+      <button type="button" class="btn btn--primary" (click)="onGoFirstPage.emit()">
+        {{ key | t }}
+      </button>
+    }
+  </div>
+} @else {
+  <!-- The empty state: the scope is truly empty — the notice only, no
+       action (there is no first page to return to). -->
+  <p class="list-state list-state--empty" role="status">{{ messageKey() | t }}</p>
+}

@@ -492,7 +492,9 @@ describe('MapPage', () => {
 
     it('filter chips refetch server-side with the matching source param', async () => {
       const { element, fixture } = await open('/map');
-      const chips = [...element.querySelectorAll<HTMLButtonElement>('.chip')];
+      // The SOURCE chips (the trust chips also carry the shared .chip class
+      // now — scope to their container).
+      const chips = [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')];
       expect(chips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
       expect(chips[0].classList.contains('chip--active')).toBe(true);
 
@@ -576,7 +578,7 @@ describe('MapPage', () => {
       const { element, fixture } = await open('/map');
       expect(text(fixture)).not.toContain('No shelters match this filter.');
 
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User
       await settle(fixture);
 
       expect(text(fixture)).toContain('No shelters match this filter.');
@@ -690,7 +692,7 @@ describe('MapPage', () => {
       );
       const { element, fixture } = await open('/map'); // ALL fetch pending
       // Chips stay enabled while loading — a second filter click queues a newer fetch.
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User
       await settle(fixture);
       expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'USER']);
 
@@ -1055,7 +1057,7 @@ describe('MapPage', () => {
       const { element, fixture } = await open('/map');
 
       cta(element).click(); // locate in flight
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry refetch
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][1].click(); // Registry refetch
       await settle(fixture);
       // The refetch failed: the list is empty and the banner is up.
       expect(element.querySelector('.banner--error')).not.toBeNull();
@@ -1120,7 +1122,7 @@ describe('MapPage', () => {
       // (name order would put Aegviidu first).
       expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
 
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][1].click(); // Registry
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][1].click(); // Registry
       await settle(fixture);
 
       // The refetch replaced the list — the stale one-line result is gone
@@ -1467,7 +1469,7 @@ describe('MapPage', () => {
 
     it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
       const { element, fixture } = await open('/map');
-      [...element.querySelectorAll<HTMLButtonElement>('.chip')][2].click(); // User filter
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User filter
       await settle(fixture);
       scrollSpy.mockClear();
 
@@ -1553,8 +1555,11 @@ describe('MapPage', () => {
       expect(element.querySelector('.filter-rating')).toBeNull();
       expect(element.querySelector('select')).toBeNull();
       // The source chips (three of them) stay untouched, still first in the
-      // row.
-      const sourceChips = [...element.querySelectorAll<HTMLButtonElement>('button.chip')];
+      // row (scoped to their container — the trust chips share the .chip
+      // class via the shared control).
+      const sourceChips = [
+        ...element.querySelectorAll<HTMLButtonElement>('.filter-chips button.chip'),
+      ];
       expect(sourceChips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
     });
 

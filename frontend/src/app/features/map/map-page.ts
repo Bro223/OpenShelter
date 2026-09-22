@@ -31,6 +31,7 @@ import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { toApiError } from '../../core/api-error';
 import { AuthStore } from '../../session/auth-store';
 import { BannerComponent } from '../../shared/banner.component';
+import { ListState } from '../../shared/list-state';
 import { LoadingIndicator } from '../../shared/loading-indicator';
 import {
   isPrivateLocation,
@@ -192,7 +193,7 @@ function nearestShelterAt(
  */
 @Component({
   selector: 'app-map-page',
-  imports: [NgClass, RouterLink, BannerComponent, LoadingIndicator, TranslatePipe],
+  imports: [NgClass, RouterLink, BannerComponent, ListState, LoadingIndicator, TranslatePipe],
   providers: [LeafletService],
   templateUrl: './map-page.html',
   styleUrl: './map-page.scss',

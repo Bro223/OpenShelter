@@ -24,6 +24,7 @@ import type {
   UpdateGuidancePostRequest,
   UpdateGuidanceTranslationRequest,
 } from '../core/models';
+import { parseTotal } from '../shared/paging';
 
 /**
  * The door to the /admin/* controller group (admin-moderation D3, plus the
@@ -556,15 +557,14 @@ function guidanceListPagePath(options: GuidanceAdminListOptions): string {
 
 /**
  * The page body + X-Total-Count header -> PagedRows. A missing/blank
- * header degrades to the page's own length (the public guidance gateway's
- * rule) — out-of-range detection stays honest (such a page IS empty).
+ * header degrades to the page's own length (parseTotal — the shared
+ * paging policy, the public guidance gateway's rule) — out-of-range
+ * detection stays honest (such a page IS empty).
  */
 function pagedResult<T>(body: T[], headers: HttpHeaders): PagedRows<T> {
-  const raw = headers.get('X-Total-Count');
-  const parsed = raw === null ? NaN : Number(raw);
   return {
     rows: body,
-    total: Number.isInteger(parsed) && parsed >= 0 ? parsed : body.length,
+    total: parseTotal(headers.get('X-Total-Count'), body.length),
   };
 }
 

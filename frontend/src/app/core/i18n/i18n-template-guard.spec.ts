@@ -82,6 +82,7 @@ const EXPECTED_TEMPLATES = [
   'src/app/shared/accessibility-dialog.component.html',
   'src/app/shared/banner.component.html',
   'src/app/shared/consent-banner.component.html',
+  'src/app/shared/list-state.html',
   'src/app/shared/loading-indicator.html',
   'src/app/shared/page-shell.html',
   'src/app/shared/pagination.html',

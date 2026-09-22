@@ -2,37 +2,8 @@ import { inject, Injectable } from '@angular/core';
 import { lastValueFrom } from 'rxjs';
 import { ApiClient } from '../core/api-client';
 import { I18nService } from '../core/i18n/i18n.service';
-import type { GuidancePostDto } from '../core/models';
-
-/**
- * The public index page (guidance-index-paging): one page's posts PLUS the
- * un-paged total the server reports in X-Total-Count — the page count is
- * derived from it, so an out-of-range page can be told apart from a truly
- * empty index.
- */
-export interface GuidancePageResult {
-  /** The posts of the requested page (empty when the page is past the end). */
-  posts: GuidancePostDto[];
-  /** The number of published posts in the active locale, WITHOUT paging. */
-  total: number;
-}
-
-/**
- * The default page size of the /blog index (the owner's paging contract).
- * The size selector offers 10..100 in steps of 10; 20 is the default and
- * the only value the frontend ever sends when the URL carries no size.
- */
-export const GUIDANCE_PAGE_SIZE = 20;
-
-/**
- * The public index page bounds — the size selector offers exactly this
- * range (10..100 in steps of 10), and the endpoint's limit bound (1..200)
- * always honours it, so the control never offers a size the backend would
- * refuse.
- */
-export const GUIDANCE_PAGE_SIZES: number[] = [
-  10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
-];
+import type { GuidancePostDto, PagedRows } from '../core/models';
+import { parseTotal } from '../shared/paging';
 
 /**
  * The door to the public /api/guidance controller group (crisis-guidance
@@ -72,28 +43,32 @@ export class GuidanceGateway {
 
   /**
    * GET /api/guidance?locale=<active>&limit=<size>&offset=(page-1)*size ->
-   * GuidancePageResult — the PAGED public index (guidance-index-paging).
+   * PagedRows<GuidancePostDto> — the PAGED public index
+   * (guidance-index-paging). One page's posts PLUS the un-paged total —
+   * the shared page-result shape (core/models PagedRows), same as the
+   * admin's paged lists.
    * The server slices its stable order (pinned first, then publishedAt
    * descending, id descending tie-break); nothing is fetched-and-sliced
    * client-side. The un-paged total comes back as the X-Total-Count
    * response header (the body stays GuidancePostDto[], so a client that
    * ignores the header keeps working); a missing/blank header degrades
-   * to the fetched page's own length, which makes out-of-range detection
-   * honest (such a page IS empty) rather than a bare empty list.
+   * to the fetched page's own length (parseTotal), which makes
+   * out-of-range detection honest (such a page IS empty) rather than a
+   * bare empty list.
    *
-   * <p>page is 1-based; size is one of {@link GUIDANCE_PAGE_SIZES}.
+   * <p>page is 1-based; size is one of the shared paging contract's sizes
+   * (shared/paging PAGE_SIZES).
    */
-  listPage(page: number, size: number): Promise<GuidancePageResult> {
+  listPage(page: number, size: number): Promise<PagedRows<GuidancePostDto>> {
     const offset = (page - 1) * size;
     return lastValueFrom(
       this.api.getWithHeaders<GuidancePostDto[]>(
         `/api/guidance?locale=${this.i18n.locale()}&limit=${size}&offset=${offset}`,
       ),
-    ).then(({ body, headers }) => {
-      const rawTotal = headers.get('X-Total-Count');
-      const parsed = rawTotal === null ? NaN : Number(rawTotal);
-      return { posts: body, total: Number.isInteger(parsed) && parsed >= 0 ? parsed : body.length };
-    });
+    ).then(({ body, headers }) => ({
+      rows: body,
+      total: parseTotal(headers.get('X-Total-Count'), body.length),
+    }));
   }
 
   /**

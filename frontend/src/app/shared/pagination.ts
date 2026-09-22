@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { NgIf } from '@angular/common';
 import { TranslatePipe } from '../core/i18n/translate-pipe';
 import type { MessageKey } from '../core/i18n/messages';
+import { PAGE_SIZES } from './paging';
 
 /**
  * The shared page + page-size control (list-page-paging). Renders the
@@ -40,9 +41,11 @@ export class Pagination {
    * The selectable sizes. The host passes the range its ENDPOINT actually
    * serves — the control must never offer a size the backend would reject
    * (the shelter/guidance endpoints bound limit at 200, so 10..100 always
-   * fits); 10..100 step 10 is the default.
+   * fits). The default IS the shared paging contract's one size-step
+   * list (shared/paging PAGE_SIZES, derived from its MIN/MAX/STEP), so a
+   * host whose endpoint honours the range passes no [sizes] at all.
    */
-  readonly sizes = input<number[]>([10, 20, 30, 40, 50, 60, 70, 80, 90, 100]);
+  readonly sizes = input<number[]>(PAGE_SIZES);
   /** The "per page" label key (posts by default; a host with other rows
    *  passes its own — the numbers themselves are never translated). */
   readonly sizeLabelKey = input<MessageKey>('pagination.size');

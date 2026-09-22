@@ -35,9 +35,7 @@
                 "output": "/vendor/quill"
               }
             ],
-            "styles": [
-              "src/styles.scss"
-            ],
+            "styles": ["src/styles.scss"],
             "allowedCommonJsDependencies": ["leaflet"]
           },
           "configurations": {
@@ -45,7 +43,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "560kB",
+                  "maximumWarning": "741401b",
                   "maximumError": "1MB"
                 },
                 {

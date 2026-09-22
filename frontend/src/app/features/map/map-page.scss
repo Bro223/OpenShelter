@@ -335,6 +335,9 @@
   }
 }
 
+/* The shared .chip control (styles.scss) carries the pill styling;
+   layout-local only: the source chips FILL the row equally (the row spans
+   the shelter list's width, so the chips' edges line up with it). */
 .filter-chips {
   display: flex;
   gap: var(--space-6);
@@ -342,23 +345,6 @@
 
   .chip {
     flex: 1;
-    padding: var(--space-6) var(--space-10);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    background: var(--color-bg-surface);
-    font-size: var(--text-md);
-    font-family: inherit;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      border-color: var(--color-primary);
-    }
-
-    &.chip--active {
-      background: var(--color-primary);
-      border-color: var(--color-primary);
-      color: var(--color-bg-surface);
-    }
   }
 }
 
@@ -366,7 +352,9 @@
    second row beside the source chips — the "Open" (client-side) and
    "Has capacity" (server-side) toggle chips in the same visual language
    (the combined selector keeps ONE style source for both chip kinds).
-   Every control is a new interactive target, so each carries the 48px
+   The shared .chip control (styles.scss) carries the pill styling — these
+   two trust chips carry the `chip` class too; layout-local only. Every
+   control is a new interactive target, so each carries the 48px
    minimum (the pre-existing source chips keep their sizing). */
 .filter-trust {
   display: flex;
@@ -380,24 +368,7 @@
   .trust-chip {
     flex: 1 1 0;
     min-width: 0;
-    padding: var(--space-6) var(--space-10);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    background: var(--color-bg-surface);
-    font-size: var(--text-md);
-    font-family: inherit;
-    cursor: pointer;
     min-height: var(--space-48);
-
-    &:hover:not(:disabled) {
-      border-color: var(--color-primary);
-    }
-
-    &.chip--active {
-      background: var(--color-primary);
-      border-color: var(--color-primary);
-      color: var(--color-bg-surface);
-    }
   }
 }
 
@@ -479,63 +450,22 @@
   justify-content: flex-start;
 }
 
+/* Source/trust badge (community-review-queue): the shared .badge pill
+   (styles.scss) carries the typography, shape and the registry/user
+   token fills; the map rows ride a COMPUTED 8% tint instead of the token
+   fill — a page-specific surface. The tint is contrast audit-enforced:
+   design-tokens.spec.ts MIXED_PAIRS re-derives the mix and requires
+   >= 4.5:1 in every theme. 12% measured 4.36:1 for the user pair (below
+   AA); note RAISING the tint makes the pair WORSE (the text is the same
+   hue as its own tint), so the percentage is pinned by the spec, not by
+   this comment. */
 .badge {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold);
-  /* The COMPUTED 8% tint is the contrast surface, not the token — it is
-     audit-enforced: design-tokens.spec.ts MIXED_PAIRS re-derives the mix
-     and requires >= 4.5:1 in every theme. 12% measured 4.36:1 for the
-     user pair (below AA); note RAISING the tint makes the pair WORSE
-     (the text is the same hue as its own tint), so the percentage is
-     pinned by the spec, not by this comment. */
   background: color-mix(in srgb, var(--color-shelter-registry) 8%, var(--color-bg-surface));
   color: var(--color-shelter-registry);
 
   &.badge--user {
     background: color-mix(in srgb, var(--color-shelter-user) 8%, var(--color-bg-surface));
     color: var(--color-shelter-user);
-  }
-
-  /* Trust badges (shelter-trust-and-reports D6).
-     "Reported" is the single reported affordance (the token, white text
-     5.18:1 — HC flips to dark on the brightened fill). The fresh-CLOSED
-     badge reuses the existing warning tint (a fresh OPEN row renders no
-     badge at all — open is the default). Occupancy is NEUTRAL on purpose:
-     "space available" is not a celebration and "full" is not a crisis —
-     muted text, muted fill. */
-  &.badge--reported {
-    background: var(--color-reported);
-    color: var(--color-bg-surface);
-  }
-
-  &.badge--closed {
-    background: var(--color-warning-bg);
-    border: 1px solid var(--color-warning-border);
-    color: var(--color-warning);
-  }
-
-  &.badge--occupancy {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
-  }
-
-  /* New community state (community-review-queue D5): the amber tint — the
-     --color-badge-new fill with the dark-amber --color-warning text (the
-     contrast pair is pinned in design-tokens.spec.ts). */
-  &.badge--new {
-    background: var(--color-badge-new);
-    color: var(--color-warning);
-  }
-
-  /* Private-home declaration (D7): the neutral chip — a description of
-     what the location is, not a state. */
-  &.badge--private {
-    background: var(--color-bg-subtle);
-    border: 1px solid var(--color-border);
-    color: var(--color-muted);
   }
 }
 
