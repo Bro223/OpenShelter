@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="OpenShelter PMD ruleset (W2-C gate)"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>
+        The W2-C static-analysis gate (P2-16): all standard Java categories,
+        reported at high-or-worse severity only (PMD priority 1-2; configured
+        in pom.xml as minimumPriority=2 / failurePriority=2).
+
+        Two rules are lowered to priority 5 (never reported) because they
+        conflict with this codebase's documented idioms, not because the
+        code is wrong:
+
+        - FieldNamingConventions: every class carries the standard SLF4J
+          `private static final Logger log` field; the rule reads `static
+          final` as "constant" and demands UPPER_CASE. Excluding it keeps
+          the idiom; a per-site exclusion would tax every new class.
+
+        - GuardLogStatement: demands if (log.isDebugEnabled()) around every
+          logger call. This codebase uses parameterized SLF4J logging
+          (log.info("... {}", x)), which evaluates nothing while disabled —
+          the guard is dead weight here, and requiring it would force new
+          code to diverge from every existing call site.
+
+        Pre-existing findings the code still carries (measured 2026-09-22 at
+        branch feature/frontend HEAD) are excluded from the check via
+        pmd-exclude-from-failure.properties — that properties file is the
+        manifest of the excluded debt, so the gate fails on NEW violations
+        without hiding anything.
+    </description>
+    <rule ref="category/java/bestpractices.xml"/>
+    <rule ref="category/java/codestyle.xml"/>
+    <rule ref="category/java/design.xml"/>
+    <rule ref="category/java/documentation.xml"/>
+    <rule ref="category/java/errorprone.xml"/>
+    <rule ref="category/java/performance.xml"/>
+    <rule ref="category/java/security.xml"/>
+    <rule ref="category/java/codestyle.xml/FieldNamingConventions">
+        <priority>5</priority>
+    </rule>
+    <rule ref="category/java/bestpractices.xml/GuardLogStatement">
+        <priority>5</priority>
+    </rule>
+</ruleset>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  OWASP Dependency-Check suppressions (W2-C gate, P2-16).
+
+  The gate (pom.xml) fails the build on CVSS >= 7 (failBuildOnCVSS=7).
+  This file is the DOCUMENTED registry of known findings: every entry
+  carries the CVE, the affected dependency, the fix version, the owner
+  and the expiry condition. Deleting an entry is the acceptance proof
+  when the owning lane bumps the dependency; an entry without a reason
+  and an owner must not be added.
+
+  Measured 2026-09-22 against branch feature/frontend HEAD (NVD feed,
+  plugin 12.1.9): both findings are CVSS v3.1 base 5.3 (MEDIUM) — below
+  the failure threshold, so the gate passes on HEAD as-is. They are
+  suppressed here on purpose: an untracked advisory that crosses the
+  threshold in a future NVD revision would fail the build silently,
+  and the dependency bump belongs to W3-C, not to this enforcement lane.
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0 https://jeremylong.github.io/DependencyCheck/css/dependency-suppression-1.3.0.xsd">
+
+    <!-- Apache Commons Lang uncontrolled-recursion DoS (ClassUtils.getClass
+         on very long input). We never parse untrusted class names — the
+         API is JSON-only and class loading is not reachable from input.
+         Fix: commons-lang3 3.18.0 — owner W3-C (dependency bumps). -->
+    <suppress>
+        <note>commons-lang3 3.17.0: CVSS 5.3 MEDIUM at measurement; below the
+              CVSS 7 gate threshold. W3-C owns the bump to 3.18.0; delete
+              this entry when the version moves.</note>
+        <cvssVersion>3.1</cvssVersion>
+        <cvssScore minimum="5.3" maximum="6.9"/>
+        <packageUrl regex="true">^pkg:maven/org\.apache\.commons/commons-lang3@3\.17\.0$</packageUrl>
+        <vulnerabilityName>CVE-2025-48924</vulnerabilityName>
+    </suppress>
+
+    <!-- jackson-databind case-insensitive-binding deserializer leak. The
+         app binds JSON request DTOs only; the @JsonFormat
+         ACCEPT_CASE_INSENSITIVE_PROPERTIES trigger is not used anywhere in
+         src/main. Fix: jackson-databind 2.21.5 (arrives with the Boot
+         parent line W3-C bumps). -->
+    <suppress>
+        <note>jackson-databind 2.21.4: CVSS 5.3 MEDIUM at measurement; below
+              the CVSS 7 gate threshold. W3-C owns the bump to 2.21.5+;
+              delete this entry when the version moves.</note>
+        <cvssVersion>3.1</cvssVersion>
+        <cvssScore minimum="5.3" maximum="6.9"/>
+        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson-databind@2\.21\.4$</packageUrl>
+        <vulnerabilityName>CVE-2026-54515</vulnerabilityName>
+    </suppress>
+
+</suppressions>
