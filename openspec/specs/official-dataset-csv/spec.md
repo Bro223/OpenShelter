@@ -16,8 +16,9 @@ row SHALL map `id` → external id, `nimi` → name, `aadress` → address
 `lest_x`/`lest_y` → WGS84 via the L-EST97 transformer, and SHALL carry
 `source = PAASETEAMET` with attribution "Päästeamet". Malformed rows
 (blank id/nimi/aadress, non-finite coordinates) SHALL be dropped and
-counted, never fatal. A wrong header or a deterministic 4xx SHALL fail
-the run with NO retry; transient failures (network, 5xx) SHALL be
+counted, never fatal. A wrong header (validated quote-aware — the same
+five column names in order, quoted or bare) or a deterministic 4xx SHALL
+fail the run with NO retry; transient failures (network, 5xx) SHALL be
 retried with the existing backoff budget. The zero-row-no-delist guard
 and the "never touch source=USER rows" invariant SHALL be preserved.
 
@@ -36,8 +37,10 @@ and the "never touch source=USER rows" invariant SHALL be preserved.
 
 #### Scenario: A deterministic failure fails fast
 
-- **WHEN** the endpoint answers 404 (or the header is not
-  `id;nimi;aadress;lest_x;lest_y`)
+- **WHEN** the endpoint answers 404 (or the header is not the same five
+  column names — `id;nimi;aadress;lest_x;lest_y` in order — validated
+  quote-aware: the live registry's quoted header validates, only a
+  genuinely wrong or truncated header fails)
 - **THEN** exactly one request is made, the run is recorded FAILED, and
   no shelter row changes
 

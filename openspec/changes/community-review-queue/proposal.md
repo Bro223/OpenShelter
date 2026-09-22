@@ -27,10 +27,11 @@ separate later waves.
   CONFIRMED). NEW and CONFIRMED rows are public; REJECTED flips
   status=INACTIVE (hidden). No blocking queue — nothing waits on a
   human.
-- NEW→CONFIRMED promotion: automatic when a positive report
-  (`OPEN_CONFIRMED`) arrives from a user other than the submitter, or
-  manually via the admin CONFIRM action. Both paths are audited
-  (AUTO_CONFIRM / CONFIRM).
+- NEW→CONFIRMED promotion: automatic when three distinct community
+  confirmers (verified non-submitters with an open `OPEN_CONFIRMED`
+  report or a current OPEN tap, each counted once) cross the
+  threshold, or manually via the admin CONFIRM action. Both paths are
+  audited (AUTO_CONFIRM / CONFIRM).
 - `shelters.location_kind`: PUBLIC / PRIVATE — submitter declares "this
   is a private home or private shelter offered as a refuge". Private
   rows show a "Private home (declared)" badge (list, detail, admin);
@@ -38,9 +39,12 @@ separate later waves.
   derived from the declaration (design D7a).
 - `moderation_actions` audit table + `GET /admin/audit`; admin
   `POST /admin/shelters/{id}/review` accepts CONFIRM / REJECT (reason).
-- Display: legend grows to Registry / New community (yellow — since
-  unified with the verified yellow, one value per theme) /
-  Confirmed community (green) / Reported (orange); NEW community rows
+- Display: the map legend (since wave 7 the pin-tone filter) renders
+  Registry / Confirmed by community (the community tone — unified
+  yellow, one value per theme) / Added by a partially verified user
+  (triangle) / Added by a fully verified user (circle) / Reported
+  (orange); five toggle entries plus the inert searched-address anchor
+  entry; NEW community rows
   get a "Newly added" badge + unverified warning on the detail page;
   CONFIRMED get "Community-checked". Nearest CTA renamed "Show shelters
   around you"; result shows "≈ N km straight line"; unverified warning

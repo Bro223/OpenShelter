@@ -95,15 +95,19 @@ SHALL be rejected.
 ### Requirement: Contributions management in the account UI
 
 The account page SHALL show a "My contributions" panel listing the caller's own shelters. Each
-shelter row SHALL offer view, inline edit (name/description/capacity/location with client-side
-validation mirroring the backend) and two-step-confirmed deletion. The list SHALL have loading,
+shelter row SHALL offer view, an edit entry and two-step-confirmed deletion. Editing SHALL open
+the shared /submit form in edit mode (`/submit?edit=<id>`) — the SAME full creation form
+prefilled with the row's values — where save is `PUT /api/shelters/{id}`; the account area
+hosts no inline edit form of its own, and a saved edit publishes immediately with the
+pending-verification (NEW) trust state. The list SHALL have loading,
 empty (with a "submit a shelter" affordance) and error states.
 
 #### Scenario: Full happy path in the UI
 
 - **WHEN** a user with one shelter opens the account page
-- **THEN** the shelter appears in the contributions panel, editing and saving persists the change
-  (row updates without a full page reload), and deleting with confirmation removes the row
+- **THEN** the shelter appears in the contributions panel, editing through the
+  `/submit?edit=<id>` form and saving persists the change, and deleting with
+  confirmation removes the row
 
 #### Scenario: Rejected mutation
 

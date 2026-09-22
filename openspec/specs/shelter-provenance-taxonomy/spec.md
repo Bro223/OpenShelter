@@ -12,9 +12,10 @@ Every shelter DTO (public list, detail, `/mine`, admin list) SHALL
 carry `provenance`, a value of the taxonomy OFFICIAL /
 PARTNER_VERIFIED / COMMUNITY_REPORTED / UNDER_REVIEW /
 REPORTED_INACTIVE / REJECTED, derived server-side at read time from
-`(source, review_status, status, nonexistentReports)` with the
-precedence REJECTED > REPORTED_INACTIVE (INACTIVE + ≥ 5 NON_EXISTENT
-reports) > OFFICIAL (PAASETEAMET) > PARTNER_VERIFIED (MUNICIPALITY) >
+`(source, review_status, status, nonexistentReports,
+inaccurateReports)` with the precedence REJECTED > REPORTED_INACTIVE
+(INACTIVE + ≥ 5 open reports of EITHER report kind — the W2-A OR) >
+OFFICIAL (PAASETEAMET) > PARTNER_VERIFIED (MUNICIPALITY) >
 UNDER_REVIEW (USER + NEW) > COMMUNITY_REPORTED. The value SHALL NOT be
 stored. The FE SHALL NOT re-derive it from source/reviewStatus.
 
@@ -87,24 +88,35 @@ private-home markers.
 - **THEN** the list narrows to rows whose server-derived provenance matches,
   and the UI never has to render the value as a chip
 
-### Requirement: Provenance badges on every surface
+### Requirement: Source and trust badges on every surface
 
 The map row, the detail header, the /mine list and the admin list SHALL
-render the provenance label and badge tone from the DTO's `provenance`
-via the single-sourced `provenanceText` / `provenanceBadgeClass`. The
-visible values keep their established copy ("Päästeamet registry" /
-"Municipal registry" / "Community-checked" / "Newly added"); the hidden
-values read "Reported inactive" (muted grey tone) and "Rejected"
-(danger tone).
+render the row's label and badge tone from the DTO's `source` +
+`reviewStatus` via the single-sourced `sourceTrustLabel` /
+`communityBadgeClass` (`shelter-copy.ts`) — registry rows name their
+registry ("Päästeamet registry" / "Municipal registry"), USER rows
+carry their trust-state label ("Newly added" / "Community-checked", and
+"Rejected" on the /mine + admin surfaces), and the badge tone follows
+the marker trust palette (the unified yellow family for NEW and
+CONFIRMED, the danger tone for REJECTED). An auto-hidden (INACTIVE)
+row keeps its trust-state label and is marked hidden on the surfaces
+that keep hidden rows (the /mine per-row "Hidden — reported by the
+community (N reports)" note; the admin list's status column) — there is
+no separate "reported inactive" chip. The DTO's `provenance` value
+still rides on every projection (server-derived), but the FE renders
+no chip from it.
 
-#### Scenario: The /mine list names a reported-away row
+#### Scenario: The /mine list marks a reported-away row
 
-- **WHEN** the owner's list includes an INACTIVE row with 5
-  NON_EXISTENT reports
-- **THEN** its badge reads "Reported inactive" with the muted
-  `badge--inactive` tone
+- **WHEN** the owner's list includes an INACTIVE (auto-hidden) row that
+  is not REJECTED
+- **THEN** the row keeps its trust-state badge and carries the per-row
+  hidden note naming the community report count
 
-#### Scenario: The admin list renders all six values
+#### Scenario: The admin list renders source and trust labels
 
-- **WHEN** the admin list contains one row per taxonomy value
-- **THEN** each row's badge shows the matching label and tone
+- **WHEN** the admin list contains registry and USER rows (incl.
+  hidden ones)
+- **THEN** each registry row names its registry, each USER row carries
+  its trust-state label, and a REJECTED row renders the "Rejected"
+  badge with the danger tone

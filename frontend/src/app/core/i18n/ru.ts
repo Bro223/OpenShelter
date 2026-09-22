@@ -1111,7 +1111,7 @@ export const RU: Messages = {
   'legal.privacy.location.p1.before': 'Мы видим ваше местоположение только тогда, когда ',
   'legal.privacy.location.p1.em': 'вы',
   'legal.privacy.location.p1.after':
-    ' просите о нём. Кнопка «Показать укрытия рядом с вами» и опция «Моё местоположение» в форме отправки сначала показывают запрос разрешения самого вашего браузера. Если вы откажетесь, ничего не изменится.',
+    ' просите о нём. Кнопка «Показать укрытия рядом с вами» на карте, действие «Расстояние до вас» на странице укрытия и опция «Моё местоположение» в форме отправки сначала показывают запрос разрешения самого вашего браузера. Если вы откажетесь, ничего не изменится.',
 
   'legal.privacy.location.p2.before': 'На карте ближайшее укрытие определяется ',
   'legal.privacy.location.p2.strong': 'внутри вашего браузера',
@@ -1133,7 +1133,7 @@ export const RU: Messages = {
   'legal.privacy.cookies.li1.after': ', который держит вас в системе между перезагрузками страниц;',
   'legal.privacy.cookies.li2.before': 'ваши ',
   'legal.privacy.cookies.li2.strong': 'языковые настройки',
-  'legal.privacy.cookies.li2.after': ' (эстонский или английский);',
+  'legal.privacy.cookies.li2.after': ' (эстонский, английский или русский);',
   'legal.privacy.cookies.li3.before': 'ваши ',
   'legal.privacy.cookies.li3.strong': 'настройки отображения',
   'legal.privacy.cookies.li3.after': ' (режим высокой контрастности).',

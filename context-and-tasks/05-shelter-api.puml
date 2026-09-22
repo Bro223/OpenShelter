@@ -203,8 +203,8 @@ package "api" {
     + yourOpenStatus : String      ' V22: the CALLER's own live open/closed state
                                    ' (DETAIL read only; same null rules as the band)
     + reviewStatus : ReviewStatus  ' V11 (community-review-queue v2): the community
-                                   ' trust state; NEW rows are PUBLIC (amber "Newly
-                                   ' added" treatment + unverified warning on detail)
+                                   ' trust state; NEW rows are PUBLIC (unified-yellow
+                                   ' "Newly added" treatment + unverified warning)
     + reviewNote : String          ' V11: the admin's REJECT reason - /mine + admin rows
                                    ' only; null on the public projection
     + locationKind : LocationKind  ' V11: the private-home declaration (badge only -
@@ -317,7 +317,8 @@ package "api" {
 
   ' V11 (community-review-queue v2): the community trust lifecycle.
   enum ReviewStatus {
-    NEW         ' just added (public immediately, amber "Newly added")
+    NEW         ' just added (public immediately; unified-yellow "Newly added"
+                ' badge - NEW is not a marker tone)
     CONFIRMED   ' community-checked (AUTO_CONFIRM promotion or admin CONFIRM)
     REJECTED    ' admin REJECT (hides via status = INACTIVE; restore -> NEW)
   }
@@ -397,9 +398,10 @@ package "app - trust layer (contracts only)" {
     ' Verified-only (403, the submission vocabulary), 404 unknown shelter,
     ' 409 duplicate (shelter, user, type) BEFORE any throttle budget is
     ' consumed, 429 report throttle (10 report-type actions / rolling hour).
-    ' The 4 -> 5 NON_EXISTENT insert auto-hides an ACTIVE shelter whose
-    ' autoHideDisarmed is false - the ONLY auto-hide path (D1); later
-    ' reports never re-hide (manual restore sets the flag).
+    ' The insert that crosses the trust-weighted NON_EXISTENT tally from
+    ' below 5 to 5+ auto-hides an ACTIVE shelter whose autoHideDisarmed is
+    ' false - the ONLY auto-hide path (D1); later reports never re-hide
+    ' (manual restore sets the flag).
     ' Occupancy: upsert - one live band per user per shelter, latest wins,
     ' updated_at refreshed. Display-only: never hides, recolors or filters.
   }
@@ -463,7 +465,7 @@ ShelterController --> OccupancyReportRequest : parses occupancy body
 ShelterReportService --> ShelterReportRepository : interface (V9)
 ShelterReportService --> ShelterOccupancyRepository : interface (V9)
 ShelterReportService ..> ReportActionLog : check-and-record (429 at the cap)
-ShelterReportService ..> Shelter : the ONLY auto-hide path (4 -> 5 NON_EXISTENT)
+ShelterReportService ..> Shelter : the ONLY auto-hide path (weighted NON_EXISTENT tally >= 5)
 ShelterQueryService --> ShelterReportRepository : report counts by type (one batched query)
 ShelterQueryService --> ShelterOccupancyRepository : fresh occupancy rows (one batched query)
 ' ---- admin moderation (admin-moderation D3/D4) ----
@@ -547,7 +549,8 @@ note bottom of ShelterController
   DELETE /api/shelters/{id}                    (Bearer JWT, author-only; reports + occupancy cascade)
   POST /api/shelters/{id}/reports              (Bearer JWT + verified -> 200 {damped};
        404 unknown shelter; 409 duplicate (shelter, user, type) - checked before
-       the throttle budget; 429 report throttle. The 5th NON_EXISTENT auto-hides.
+       the throttle budget; 429 report throttle. The trust-weighted NON_EXISTENT
+       tally reaching 5 points auto-hides (five baseline reporters - the 5th report).
        M11: detail (<= 500) stored for CLOSED / WRONG_LOCATION / OTHER, ignored
        for the binary types; the admin queue surfaces it.
        Verified-only: 403 "Reporting requires a verified account")
@@ -562,8 +565,10 @@ note bottom of ShelterController
   legacy created_by-NULL rows are unmanageable by anyone (ids are public, so
   403-vs-404 leaks nothing). PUT re-checks the Estonia bbox - one shared gate with
   POST, so create/update cannot drift.
-  Deferred: nearest/bbox queries need GeoService + PostGIS GIST index.
-  Paging deferred: Estonia-scale data is small; add limit/offset when it grows.
+  Deferred: a server-side NEAREST ranking (nearest is a ranking, not a filter -
+  the CTA ranks the loaded list client-side). Bbox + paging are SHIPPED
+  (shelter-bbox-paging): minLat/minLng/maxLat/maxLng + limit/offset on
+  GET /api/shelters.
 end note
 
 note right of ShelterQueryService
@@ -685,24 +690,28 @@ else report throttle (10 report-type actions / rolling hour)
 else
   SRS -> RAL : record(user, SHELTER_REPORT)  (advisory-locked check-and-record)
   SRS -> DB : INSERT shelter_reports (UNIQUE shelter_id, user_id, type)
-  alt type = NON_EXISTENT and the count goes 4 -> 5 (shelter ACTIVE, not disarmed)
+  alt type = NON_EXISTENT and the trust-weighted tally crosses 5 points (shelter ACTIVE, not disarmed)
     SRS -> DB : UPDATE shelters SET status = INACTIVE (auto-hide, exactly-once trigger)
   end
-  alt type = OPEN_CONFIRMED and the USER row is still review_status = NEW and reporter != submitter (V11)
+  alt the USER row is still review_status = NEW and its distinct non-submitter confirmers
+      (open OPEN_CONFIRMED reports + current OPEN taps, each user counted once) reach 3 (V11)
     SRS -> DB : UPDATE shelters SET review_status = 'CONFIRMED' (same transaction)
-    SRS -> DB : INSERT moderation_actions (AUTO_CONFIRM, actor = the reporting user)
+    SRS -> DB : INSERT moderation_actions (AUTO_CONFIRM, actor = the crossing user)
   end
   SRS --> Client : 200 {"damped": true|false}
 end
 note over SRS
   The auto-hide is the ONLY auto-hide path. After a manual status change
   (admin restore sets auto_hide_disarmed = true) later reports increment
-  the count but never re-hide. CLOSED / OPEN_CONFIRMED feed the fresh
+  the tally but never re-hide. CLOSED / OPEN_CONFIRMED feed the fresh
   open/closed display block only (V22: the latest fresh tap wins, 1 fresh
   tap = hedged, 2+ = firm) - they never hide.
-  V11: OPEN_CONFIRMED additionally carries the NEW -> CONFIRMED promotion
-  (community-review-queue v2 D2) - in the SAME transaction, audited
-  AUTO_CONFIRM; the submitter's own positive report never promotes.
+  The NEW -> CONFIRMED promotion (community-review-queue v2 D2, three
+  distinct confirmers since community-self-moderation): an OPEN_CONFIRMED
+  report or a live OPEN tap by a non-submitter recomputes the distinct-
+  confirmer tally (the submitter excluded - never as the third); at 3
+  the row promotes in the SAME transaction, audited AUTO_CONFIRM with
+  the crossing user as actor. A CLOSED tap never confirms.
 end note
 
 == 12. PUT /api/shelters/{id}/occupancy (Bearer JWT, verified user) ==

@@ -104,8 +104,9 @@ are the only door.
 | `PUT /api/shelters/{id}/open-status` | `PutOpenStatusRequest`   | 204                    | 400 (bad enum), 403 (not verified), 404 (unknown shelter) — **not throttled**                                                                                   |
 
 > Server-side effects the frontend never computes (the UI renders what the DTO carries —
-> never re-derives trust state): the 5th trust-weighted `NON_EXISTENT` shelter report auto-hides
-> an ACTIVE shelter (it simply disappears from `GET /api/shelters` and the map); the live
+> never re-derives trust state): the trust-weighted `NON_EXISTENT` tally reaching 5
+> points auto-hides an ACTIVE shelter (five baseline reporters — the 5th report; it simply
+> disappears from `GET /api/shelters` and the map); the live
 > open/closed signal is the `openStatus` block derived from the open-status taps; occupancy and
 > open status are display-only (2 h freshness, latest wins) and never hide, recolor or filter.
 
@@ -295,14 +296,23 @@ interface ShelterDto {
   description: string | null; // USER submissions only
   capacity: number | null; // USER submissions only
   submitterVerified: boolean; // backend-computed (creator has a completed verification;
-  // registry rows false) — the four-valued provenance badge reads THIS, never re-derived
-  nonexistentReports: number; // the NON_EXISTENT subset of the community reports (> 0 = the
-  // orange reported state: marker + "Reported" badge); five reach auto-hide server-side
+  // registry rows false)
+  submitterVerification: 'PARTIAL' | 'FULL' | null; // the submitter's verification DEPTH,
+  // derived live (one confirmed channel = PARTIAL, two+ = FULL; null = no author or no
+  // confirmed channel) — drives the marker SHAPE (triangle vs circle), never the tone
+  nonexistentReports: number; // the NON_EXISTENT subset of the community reports (0 when
+  // none); the OR with inaccurateReports below drives the orange reported state
+  // (marker + "Reported (n)" badge); the trust-weighted NON_EXISTENT tally reaching
+  // 5 points auto-hides server-side
+  inaccurateReports: number; // the open WRONG_LOCATION + OTHER subset (0 when none;
+  // a dismissed report stops counting) — W2-A: EITHER kind drives the reported state
   openStatus: OpenStatusDto | null; // fresh (≤ 2 h) open/closed block; null = nothing fresh
   occupancy: ShelterOccupancy | null; // fresh (≤ 2 h) occupancy block; null = show nothing
   reviewStatus: 'NEW' | 'CONFIRMED' | 'REJECTED'; // community trust state (registry rows carry
   // CONFIRMED; REJECTED rows are absent from the ACTIVE-only public list)
   locationKind: 'PUBLIC' | 'PRIVATE'; // submitter's private-home declaration (display-only badge)
+  provenance: 'OFFICIAL' | 'PARTNER_VERIFIED' | 'COMMUNITY_REPORTED' | 'UNDER_REVIEW' | 'REPORTED_INACTIVE' | 'REJECTED'; // server-derived on every
+  // projection; the UI renders no chip from it (source/trust badge instead)
   reportCount: number; // the TOTAL community shelter-report count (all types)
   lastVerifiedAt: string | null; // per-entry verification stamp; null = never verified
   inaccurate: boolean; // moderator "mark inaccurate" flag (the row stays visible)
@@ -354,6 +364,7 @@ interface AdminShelterDto {
   source: ShelterSource;
   status: 'ACTIVE' | 'INACTIVE';
   nonexistentReports: number;
+  inaccurateReports: number;
   occupancy: AdminOccupancy | null;
   capacity: number | null;
   submitter: string | null; // the creator's profile name (USER rows only)
@@ -391,8 +402,9 @@ Notes:
   surfaced in the UI.
 - Registry rows carry `address` and no description/capacity; USER rows carry description/capacity
   and no external registry id. UI must render `null` gracefully.
-- `GET /api/shelters` fetches all ACTIVE rows (no paging) — hundreds of points, fine for the
-  map. Auto-hidden (INACTIVE) rows are absent from the public list and the map; `GET
+- `GET /api/shelters` serves all ACTIVE rows — the map page sends no viewport/paging
+  params (the endpoint itself supports `?minLat=/minLng=/maxLat=/maxLng=` + `limit`/`offset`
+  since shelter-bbox-paging), so the map gets all hundreds of points in one fetch. Auto-hidden (INACTIVE) rows are absent from the public list and the map; `GET
 /api/shelters/mine` and `GET /api/shelters/{id}` still carry them (the contributions panel
   marks the owner's hidden rows; the detail read is public for all statuses).
 

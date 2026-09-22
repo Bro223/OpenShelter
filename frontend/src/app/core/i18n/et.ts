@@ -1049,7 +1049,7 @@ export const ET: Messages = {
   'legal.privacy.location.p1.before': 'Me näeme su asukohta ainult siis, kui ',
   'legal.privacy.location.p1.em': 'sina',
   'legal.privacy.location.p1.after':
-    ' seda küsid. Nupp "Näita varjupaiku minu ümbruses" ja lisamisvormi valik "Kasuta mu asukohta" näitavad esmalt sinu brauseri enda lubatamispalvet. Kui lükad tagasi, siis midagi ei muutu.',
+    ' seda küsid. Nupp "Näita varjupaiku minu ümbruses", detaililehe toiming "Kaugus sinust" ja lisamisvormi valik "Kasuta mu asukohta" näitavad esmalt sinu brauseri enda lubatamispalvet. Kui lükad tagasi, siis midagi ei muutu.',
 
   'legal.privacy.location.p2.before': 'Kaardil arvutatakse lähim varjupaik ',
   'legal.privacy.location.p2.strong': 'sinu brauseri sees',
@@ -1071,7 +1071,7 @@ export const ET: Messages = {
   'legal.privacy.cookies.li1.after': ', mis hoiab sind lehe uuendamiste vältel sisselogituna;',
   'legal.privacy.cookies.li2.before': 'sinu ',
   'legal.privacy.cookies.li2.strong': 'keeleeelistus',
-  'legal.privacy.cookies.li2.after': ' (eesti või inglise keel);',
+  'legal.privacy.cookies.li2.after': ' (eesti, inglise või vene keel);',
   'legal.privacy.cookies.li3.before': 'sinu ',
   'legal.privacy.cookies.li3.strong': 'kuvamiseelistused',
   'legal.privacy.cookies.li3.after': ' (kõrge kontrasti režiim).',

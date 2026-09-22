@@ -8,10 +8,10 @@ TBD - created by archiving change threat-model-security-posture. Update Purpose 
 ### Requirement: Maintained threat model
 
 The repository SHALL contain a threat model at `docs/security/threat-model.md`
-covering the twelve-attack list (false shelter submissions, brigading / fake
-reviews, DoS, account takeover, enumeration, private-address exposure,
+covering the thirteen-attack list (false shelter submissions, brigading / fake
+reports, DoS, account takeover, enumeration, private-address exposure,
 malicious content, location tracking, SMS/e-mail cost abuse, DB leaks, admin
-compromise, nearest-result manipulation). Every attack SHALL state its
+compromise, nearest-result manipulation, SSRF via the admin hero-image import). Every attack SHALL state its
 mitigations with code pointers, a status (mitigated / mitigated-with-residual
 / accepted-by-decision), and the test(s) that pin it, and the document SHALL
 carry an explicit residual-risk register.

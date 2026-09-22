@@ -176,11 +176,14 @@ and is off in the development setup, where the data is therefore kept.
 
 The register form SHALL explain under the e-mail field and the phone
 field why each contact is collected (one-time verification code now,
-recovery/login uses later). The map's "Show shelters around you" CTA
-SHALL remain the ONLY geolocation trigger and SHALL be paired with a
-standing consent line stating that the browser asks first and that the
-location is never sent to the servers (the nearest ranking is
-client-side). IP geolocation SHALL NOT be performed anywhere.
+recovery/login uses later). Every geolocation trigger SHALL be
+user-initiated and SHALL first show the browser's own permission
+prompt; the three live triggers are the map's "Show shelters around
+you" CTA (paired with a standing consent line stating that the browser
+asks first and that the location is never sent to the servers — the
+nearest ranking is client-side), the shelter detail page's "Distance
+from you" action, and the submit form's "Use my location" option.
+IP geolocation SHALL NOT be performed anywhere.
 
 #### Scenario: Register form why-we-collect notes
 
@@ -193,6 +196,14 @@ client-side). IP geolocation SHALL NOT be performed anywhere.
 
 - **WHEN** an anonymous visitor is on the map page before any location
   request
-- **THEN** no geolocation request has been made, the CTA is the only
-  trigger, and the consent line under it states the browser asks first
-  and the location is never sent to the servers
+- **THEN** no geolocation request has been made and the consent line
+  under the CTA states the browser asks first and the location is
+  never sent to the servers
+
+#### Scenario: The other two triggers are user-initiated too
+
+- **WHEN** the user activates "Distance from you" on a shelter detail
+  page or "Use my location" on the submit form
+- **THEN** the browser's own permission prompt appears first, the
+  position is used only inside the browser, and no location is sent to
+  the servers

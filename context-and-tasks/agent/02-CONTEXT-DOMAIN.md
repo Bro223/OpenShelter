@@ -22,7 +22,7 @@ depends on it. It answers "what is this app about": users, verification claims, 
 | `VerificationPolicy` | class | holds `rules: VerificationRules`; `allows(levels: Set<VerificationLevel>, capability: Capability): boolean`. |
 | `VerificationRules` | record | `baseline: Set<Capability>`, `byLevel: Map<VerificationLevel, Set<Capability>>`, `ofDefaults(): VerificationRules`. |
 | `Capability` | enum | `VIEW_MAP, SUBMIT_SHELTER` (`PUBLISH_INSTANTLY` removed in the review-fix pass). |
-| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource, address, county, municipality, dataAsOf, sourceAttribution, description: String, capacity: Integer`. User submissions: `externalId = null`, `source = USER`. Registry rows carry the FULL published record; `description`/`capacity` are USER-submission details (stored since V3 — previously validated then silently dropped). **`createdBy: Long` (M8, V7)** — the author of a USER submission (set by `ShelterService.addPlace` to the submitting user's id); `null` for registry rows and pre-V7 legacy USER rows, which are unmanageable by anyone. **`autoHideDisarmed: boolean` (V9, default `false`)** — the auto-hide disarm flag: an `ACTIVE` shelter whose flag is still `false` can be auto-hidden by the 5th `NON_EXISTENT` report; the admin restore (`POST /admin/shelters/{id}/status` → `ACTIVE`, admin-moderation D3) sets it `true` so later reports never re-hide. **`reviewStatus: ReviewStatus` (V11, community-review-queue v2, default `NEW`)** — the community trust state: new USER rows are created `NEW` (public IMMEDIATELY — no blocking queue) and reach `CONFIRMED` automatically (an `OPEN_CONFIRMED` report from a user OTHER than the submitter, in the same transaction) or via the rare admin CONFIRM; `REJECTED` (admin REJECT, with a required reason) hides the row by flipping `status = INACTIVE`, and restoring it reverts the review state to `NEW` (it starts over). V11 backfill: USER rows → `NEW` (no confirmation evidence yet), registry rows → `CONFIRMED` (official data — informational, behaviour unchanged). **`reviewNote: String` (≤500, nullable, V11)** — the admin's REJECT reason, shown to the submitter in `GET /api/shelters/mine`. **`locationKind: LocationKind` (V11, default `PUBLIC`)** — the submitter's private-home declaration (the submission-form checkbox); private rows are NOT hidden or demoted — every surface shows the "Private location" badge instead. Getter/setter like `id`/`createdAt`; the rest of the record stays immutable-final. |
+| `Shelter` | class | `id, name, status: ShelterStatus, location: GeoPoint, externalId: String, source: ShelterSource, address, county, municipality, dataAsOf, sourceAttribution, description: String, capacity: Integer`. User submissions: `externalId = null`, `source = USER`. Registry rows carry the FULL published record; `description`/`capacity` are USER-submission details (stored since V3 — previously validated then silently dropped). **`createdBy: Long` (M8, V7)** — the author of a USER submission (set by `ShelterService.addPlace` to the submitting user's id); `null` for registry rows and pre-V7 legacy USER rows, which are unmanageable by anyone. **`autoHideDisarmed: boolean` (V9, default `false`)** — the auto-hide disarm flag: an `ACTIVE` shelter whose flag is still `false` can be auto-hidden by the trust-weighted `NON_EXISTENT` tally reaching 5 points (five baseline reporters — the 5th report); the admin restore (`POST /admin/shelters/{id}/status` → `ACTIVE`, admin-moderation D3) sets it `true` so later reports never re-hide. **`reviewStatus: ReviewStatus` (V11, community-review-queue v2, default `NEW`)** — the community trust state: new USER rows are created `NEW` (public IMMEDIATELY — no blocking queue) and reach `CONFIRMED` automatically (three distinct non-submitter confirmations — open `OPEN_CONFIRMED` reports and current OPEN taps, each user counted once — in the same transaction as the crossing action) or via the rare admin CONFIRM; `REJECTED` (admin REJECT, with a required reason) hides the row by flipping `status = INACTIVE`, and restoring it reverts the review state to `NEW` (it starts over). V11 backfill: USER rows → `NEW` (no confirmation evidence yet), registry rows → `CONFIRMED` (official data — informational, behaviour unchanged). **`reviewNote: String` (≤500, nullable, V11)** — the admin's REJECT reason, shown to the submitter in `GET /api/shelters/mine`. **`locationKind: LocationKind` (V11, default `PUBLIC`)** — the submitter's private-home declaration (the submission-form checkbox); private rows are NOT hidden or demoted — every surface shows the "Private location" badge instead. Getter/setter like `id`/`createdAt`; the rest of the record stays immutable-final. |
 | `ShelterStatus` | enum | `ACTIVE, INACTIVE` (`PENDING`/`REJECTED` removed in the review-fix pass). `INACTIVE` is also the auto-hidden state (V9) — a report-triggered soft hide, restorable later by an admin only. |
 | `OpenStatusState` | enum | `OPEN, CLOSED` (V22 — live open/closed state, same level as capacity) — the per-reporter live open/closed state (the per-(shelter, user) `ShelterOpenStatusReport` row; a re-tap updates it, latest state wins); carried on `ShelterDto` as the **display-only** `OpenStatus` block derived at read time (the latest fresh (≤ 2 h) tap's state, the number of fresh taps agreeing with it, the newest fresh tap's time — `null` = nothing fresh); it never changes status or visibility. |
 | `ReviewStatus` | enum | `NEW, CONFIRMED, REJECTED` (V11, community-review-queue v2) — the community trust lifecycle WITHOUT a blocking queue: `NEW` = just added (public, yellow "Newly added" treatment — the unified
@@ -63,15 +63,18 @@ diagram (see `03-CONTEXT-VERIFICATION.md` note / `01` puml package `app`).
    Reports are data whose consequences are DERIVED at read time in the API projection
    (`nonexistentReports`, the `openStatus` derivation, fresh occupancy) — nothing is stored
    except the report rows themselves, plus the deliberate state writes: the
-   auto-hide (exactly on the 4→5 `NON_EXISTENT` insert of an `ACTIVE` shelter whose
-   `autoHideDisarmed` is `false`), the report's `dismissedAt` stamp (V10 — the admin's
+   auto-hide (exactly on the insert that brings the trust-weighted
+   `NON_EXISTENT` tally — distinct reporters' derived weights, damped
+   0, dismissed excluded — from below 5 to at least 5, on an `ACTIVE`
+   shelter whose `autoHideDisarmed` is `false`), the report's `dismissedAt` stamp (V10 — the admin's
    dismissal, set once),
    and — V11 (community-review-queue v2) — the `review_status` transitions (the
-   `OPEN_CONFIRMED` NEW→CONFIRMED promotion in the SAME transaction as the report,
-   the admin CONFIRM/REJECT, the restore's REJECTED→NEW) and the append-only
+   three-distinct-confirmer NEW→CONFIRMED promotion in the SAME transaction as the
+   crossing action, the admin CONFIRM/REJECT, the restore's REJECTED→NEW) and the append-only
    `moderation_actions` audit row written with each of them (see the contracts
-   below). `CLOSED` never touches status; `OPEN_CONFIRMED` now ALSO carries the
-   `NEW → CONFIRMED` promotion (it still never touches `status`); occupancy never
+   below). `CLOSED` never touches status; `OPEN_CONFIRMED` (and a live OPEN tap)
+   ALSO runs the `NEW → CONFIRMED` promotion tally (it still never touches
+   `status`); occupancy never
    touches anything but the display.
 7. **No blocking queue; the audit trail IS the moderation record** (community-review-queue
 v2). Community rows publish immediately as `NEW` — nothing waits on a human, and the
@@ -101,7 +104,8 @@ CONFIRM, AUTO_CONFIRM, REJECT) as one row in `moderation_actions`, in
    `RegisteredUser.canWrite() ==
   true`; `RegisteredUser.levels()` reflects added/revoked claims.
 - Trust invariants (V9): report uniqueness per (shelter, user, type);
-  the 4→5 auto-hide fires once and not when disarmed or not `ACTIVE`; the `openStatus`
+  the trust-weighted-tally auto-hide (the insert crossing from below 5 to at
+  least 5) fires once and not when disarmed or not `ACTIVE`; the `openStatus`
   derivation (latest fresh tap wins, agreeing count, 2 h window); occupancy derivation (latest
   fresh band wins, agreeing count, 2 h window).
 - Throttle (V9): `ReportActionLog.record` rejects at the cap WITHOUT recording, and the

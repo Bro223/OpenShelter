@@ -13,12 +13,18 @@ instead of migrating to a new schema.
 
 The owner will not actively moderate, so submissions MUST NOT wait on a
 human: new community rows publish immediately as `NEW`. Trust moves
-forward automatically — a positive community report
-(`OPEN_CONFIRMED`… i.e. type `OPEN_CONFIRMED`) from a user other than
-the submitter promotes NEW→CONFIRMED inside the report-write
-transaction (audited AUTO_CONFIRM). Trust moves backward through the
-existing community channel too: 5× NON_EXISTENT auto-hides (status
-INACTIVE) exactly as today. Admin actions (CONFIRM / REJECT) are the
+forward automatically — when the row's tally of distinct community
+confirmers (verified users other than the submitter with an open
+`OPEN_CONFIRMED` report or a current OPEN tap, each counted once) reaches
+three, the row promotes NEW→CONFIRMED inside the crossing action's
+transaction (audited AUTO_CONFIRM, the crossing user as actor — one
+cross-user report at V11, three distinct confirmers since
+community-self-moderation). Trust moves backward through the
+existing community channel too: the trust-weighted `NON_EXISTENT`
+tally (the distinct reporters' derived weights, dampened reports 0,
+dismissed excluded) reaching 5 points auto-hides (status INACTIVE) —
+five baseline reporters, the fifth report. Admin actions (CONFIRM /
+REJECT) are the
 rare manual override. REJECT sets status=INACTIVE + stores the reason
 in review_note; restoring a rejected row uses the existing admin
 status endpoint and reverts review_status to NEW (it starts over).
@@ -26,7 +32,8 @@ status endpoint and reverts review_status to NEW (it starts over).
 ## D3 — Grandfather existing USER rows as NEW
 
 Existing community rows have no confirmation evidence yet, so they
-backfill to NEW (the amber "just added" treatment is the honest one).
+backfill to NEW (the unified-yellow "Newly added" treatment — one value
+with the verified yellow — is the honest one).
 Registry rows backfill CONFIRMED (official data — the value is
 informational for them; the FE only reads review_status on USER rows).
 
@@ -41,12 +48,19 @@ time; a deleted row renders "Deleted shelter".
 
 ## D5 — Marker palette: trust state gets its own colour
 
-Blue = registry (unchanged). Community: amber (NEW) vs green
-(CONFIRMED) — new design token `--color-new` (amber family, distinct
-from the safety-orange `--color-reported`). Reported rows keep the
-orange override (reported beats trust colour). Grey/hidden rows never
-reach the public map. Legend: Registry / New community / Confirmed
-community / Reported.
+Blue = registry (unchanged). Community: one unified yellow tone for
+USER rows (`--color-new`, since unified with `--color-verified` — one
+value per theme, distinct from the safety-orange `--color-reported`);
+NEW is not a marker tone (the "Newly added" badge says NEW, never the
+pin — the pin carries the submitter's verification depth as shape:
+triangle at one confirmed channel, circle at two+). Reported rows keep
+the orange override (reported beats trust colour; either open report
+kind). Grey/hidden rows never
+reach the public map. Legend (since wave 7 the legend IS the pin-tone
+filter): Registry / Confirmed by community (the community tone) /
+Added by a partially verified user (triangle) / Added by a fully
+verified user (circle) / Reported — the five toggle entries, display-
+only `?tones=` URL state — plus the inert searched-address anchor entry.
 
 ## D6 — "Around you", not "nearest", and honest distance
 

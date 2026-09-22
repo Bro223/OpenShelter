@@ -129,17 +129,37 @@ notice (single-sourced copy) when its report came back dampened.
 - **THEN** that row's `damped` field is true and the queue renders
   the "dampened" marker beside the report type
 
-### Requirement: The positive half of self-moderation is unchanged
+### Requirement: The positive half of self-moderation
 
-The auto-confirm promotion SHALL remain exactly as shipped: one
-`OPEN_CONFIRMED` report by a user other than the submitter promotes a
-USER row from NEW to CONFIRMED in the same transaction with an
-`AUTO_CONFIRM` audit row; the submitter's own positive report SHALL
-never promote. Trust weighting SHALL NOT gate the positive side.
+The auto-confirm promotion SHALL require three distinct community
+confirmers (`AUTO_CONFIRM_THRESHOLD = 3`): the verified users who filed
+an open (non-dismissed) `OPEN_CONFIRMED` report or whose current live
+tap is `OPEN`, each distinct user counted once, the row's submitter
+always excluded. When an `OPEN_CONFIRMED` report or an `OPEN` tap brings
+the tally to three, a USER row in review state NEW SHALL be promoted to
+CONFIRMED in the same transaction with an `AUTO_CONFIRM` audit row whose
+actor is the acting user — the one whose action crossed the threshold.
+The submitter's own positive action SHALL never promote, not even as
+the third. Trust weighting SHALL NOT gate the positive side; a
+dismissal drops the reporter from the tally but never demotes an
+already-confirmed row.
 
-#### Scenario: A single baseline cross-user positive report promotes
+#### Scenario: Two distinct confirmers do not promote
 
-- **WHEN** a verified user with no trust history files
+- **WHEN** two distinct verified users other than the submitter file
   `OPEN_CONFIRMED` on another user's NEW row
-- **THEN** the row becomes CONFIRMED and one AUTO_CONFIRM audit row
-  is written (identical to the pre-M9 behaviour)
+- **THEN** the row stays NEW and no AUTO_CONFIRM audit row is written
+
+#### Scenario: The third distinct confirmer promotes
+
+- **WHEN** the third distinct non-submitter confirmation arrives
+  (report or OPEN tap) on a NEW row
+- **THEN** the row becomes CONFIRMED and one AUTO_CONFIRM audit row is
+  written with the acting user as actor of record
+
+#### Scenario: The submitter's own confirmation never counts
+
+- **WHEN** the submitter of a NEW row files `OPEN_CONFIRMED` or taps
+  OPEN as the third positive action on their own row
+- **THEN** the row stays NEW (their confirmation never verifies their
+  own shelter)

@@ -134,9 +134,11 @@ replace(s) the framework boilerplate.
 #### Scenario: Deferrals are honest
 
 - **WHEN** the README describes v1 scope
-- **THEN** it explicitly lists the true deferred items (paging / nearest-bbox search,
-  i18n for feature pages (app chrome is trilingual EN/ET/RU — `core/i18n`, the translate
-  pipe, the language switcher, pre-paint locale), MapLibre migration, httpOnly-cookie
+- **THEN** it explicitly lists the true deferred items (server-side
+  nearest search — the viewport bbox filter + paging are shipped
+  (`shelter-bbox-paging`) —, i18n for the remaining feature pages (app
+  chrome is trilingual EN/ET/RU — `core/i18n`, the translate pipe, the
+  language switcher, pre-paint locale), MapLibre migration, httpOnly-cookie
   auth, SSR/prerender, e2e framework) as deferrals rather than implying they exist —
   while `GET /account/me` is documented as a SHIPPED feature (implemented with the
   account-profile change), not a deferral
@@ -263,6 +265,15 @@ behavior.
 The two locale catalogs SHALL stay key-complete: every message key present
 in one catalog SHALL be present in the other (no untranslated/empty strings
 may silently ship).
+
+> **Note (2026-09-22, SD-3 docs pass):** the two-locale pin above is
+> superseded by the live code — `core/i18n/locale.ts`
+> `LOCALES = ['en', 'et', 'ru']`, all three catalogs shipped and
+> key-complete — but the requirement text is left as written: the active
+> `i18n-ru` change owns the MODIFIED/RENAMED three-locale contract here,
+> and the Russian catalog is machine-assisted, awaiting a native
+> speaker's review (the open native-language question). This requirement
+> updates when `i18n-ru` archives.
 
 #### Scenario: Switching language re-renders the chrome
 

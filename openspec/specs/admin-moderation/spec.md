@@ -112,17 +112,19 @@ shelter reference, reporter profile name and email, age) newest first.
 
 The frontend SHALL provide a `/admin` route, reachable only for
 `isAdmin` users (non-admin visit → redirect to `/`), with a nav item
-rendered only for admins. The page SHALL have two tabs — Shelters
-(table with inline Hide/Activate and Delete-with-confirm on user rows;
-registry rows read-only; text search) and Shelter reports (queue with
-dismiss; hidden-shelter rows highlighted) — built on the existing design
+rendered only for admins. The page SHALL have nine tabs — Unconfirmed
+(the community review queue), Shelters (table with inline Hide/Activate
+and Delete-with-confirm on user rows; registry rows read-only; text
+search), Shelter reports (queue with dismiss; hidden-shelter rows
+highlighted), Alerts, Users, Guidance, Media library, Settings and Audit
+log — built on the existing design
 tokens with 48px minimum action targets. The account page SHALL show an
 "Admin" badge for the admin account.
 
 #### Scenario: Admin sees the panel
 
 - **WHEN** the admin is logged in and opens the app
-- **THEN** the nav offers "Admin" and `/admin` renders the two tabs
+- **THEN** the nav offers "Admin" and `/admin` renders the nine tabs
 
 #### Scenario: Regular user never sees it
 

@@ -378,28 +378,34 @@ geolocation. A failure renders the error line and no distance line.
 
 ### Requirement: Reported and occupancy presentation
 
-Shelters with `nonexistentReports > 0` SHALL render an orange reported
-marker on the map and an orange "Reported" badge on the list row (the
-orange is the single "reported" affordance; provenance colors apply only
-to unreported shelters). The `openStatus` block (`state` = OPEN/CLOSED, fresh ≤ 2 h) SHALL render as an amber
-"Reported closed" or green "Confirmed open" badge on the list row and
-detail header. Fresh occupancy SHALL render as a neutral badge with
+Shelters with an open report of EITHER kind — `nonexistentReports > 0`
+or `inaccurateReports > 0` (a dismissed report stops counting) — SHALL
+render an orange reported marker on the map and an orange "Reported (n)"
+badge on the list row, where n is the open trust-report total
+(`nonexistentReports` + `inaccurateReports`) (the orange is the single
+"reported" affordance; provenance colors apply only
+to unreported shelters). The `openStatus` block (`state` = OPEN/CLOSED, fresh ≤ 2 h) SHALL
+render a badge only for a fresh CLOSED state — "Reported closed" at
+exactly one fresh agreeing tap, "Closed" at two+ — on the list row and
+detail header; a fresh OPEN state renders no badge (open is the
+default). Fresh occupancy SHALL render as a neutral badge with
 recency ("Full · 12 min ago"; hedged "Reported full" for lone reports) —
 never styled as success or crisis. Auto-hidden shelters SHALL NOT appear
 on the map or in the list at all.
 
 #### Scenario: Reported shelter gets the orange state
 
-- **WHEN** a shelter has at least one non-existence report and is still
-  active
+- **WHEN** a shelter has an open report of either kind (a non-existence
+  report or an inaccurate-information report) and is still active
 - **THEN** its marker is orange and its list row shows the "Reported"
   badge
 
-#### Scenario: Closed flag shows, shelter stays
+#### Scenario: Closed state shows, shelter stays
 
-- **WHEN** a shelter's status flag is REPORTED_CLOSED
-- **THEN** the list row and detail header show "Reported closed" and the
-  shelter remains mappable
+- **WHEN** a shelter's `openStatus` block carries a fresh CLOSED state
+- **THEN** the list row and detail header show "Reported closed" (one
+  fresh agreeing tap) or "Closed" (two+) and the shelter remains
+  mappable
 
 #### Scenario: Occupancy badge with recency
 

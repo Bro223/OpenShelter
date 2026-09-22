@@ -9,10 +9,11 @@
 - shelter data ingested from public registries (Päästeamet / municipalities),
 - user-submitted shelters with **community reports + confirmation** (no moderator — the report
   and confirmation system IS the moderation; each row carries a `ReviewStatus` that moves
-  NEW → CONFIRMED via an `OPEN_CONFIRMED` report from a non-submitter, or via the rare admin
-  CONFIRM),
-- a community trust layer (shelter/occupancy reports — the 5th "does not exist" report auto-hides
-  the shelter),
+  NEW → CONFIRMED when three distinct non-submitter confirmations (open `OPEN_CONFIRMED`
+  reports and/or current OPEN taps, each counted once) cross the threshold, or via the rare
+  admin CONFIRM),
+- a community trust layer (shelter/occupancy reports — the trust-weighted "does not exist"
+  tally reaching 5 points auto-hides the shelter),
 - a single **env-provisioned admin** (admin-moderation) with a moderation API for the trust layer
   (user-shelter hide/restore/delete, shelter-report triage, the rare CONFIRM/REJECT override) —
   provisioned from
@@ -95,8 +96,10 @@ This task pack covers the **backend only**.
     for that user.
 11. **No moderator.** User-submitted shelters are created `ACTIVE` immediately, and quality is
     governed by community reports + confirmation: each USER row carries a `ReviewStatus` that
-    moves NEW → CONFIRMED automatically when a user OTHER than the submitter reports it
-    `OPEN_CONFIRMED` (audited `AUTO_CONFIRM`), or via the rare admin CONFIRM; admin REJECT
+    moves NEW → CONFIRMED automatically when its tally of distinct community confirmers —
+    verified users other than the submitter with an open `OPEN_CONFIRMED` report or a current
+    OPEN tap, each counted once — reaches three (audited `AUTO_CONFIRM`, the crossing user as
+    actor), or via the rare admin CONFIRM; admin REJECT
     (reason required) sets REJECTED and hides the row via `status = INACTIVE`. There is no star
     rating and no per-user review row — `ShelterReport` (typed, unique per shelter+user+type)
     and `ShelterOccupancyReport` are the only community writes.

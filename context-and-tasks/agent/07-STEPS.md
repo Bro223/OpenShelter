@@ -352,7 +352,8 @@ V9 review-report table with the removed star-rating model). Every report FK is
   (not a count over the report tables) because an occupancy re-PUT updates one row and
   would be uncountable.
 - `shelters.auto_hide_disarmed BOOLEAN NOT NULL DEFAULT FALSE` — the auto-hide disarm flag
-  (FALSE while the shelter may still be auto-hidden by the 5th NON_EXISTENT report; a manual
+  (FALSE while the shelter may still be auto-hidden by the trust-weighted NON_EXISTENT
+  tally reaching 5 points — five baseline reporters, the 5th report; a manual
   admin restore sets it TRUE — the admin-moderation change lands the write path, the condition
   is honoured from day one).
 
@@ -366,10 +367,14 @@ registered user (the same `canWrite()` gate and error vocabulary as submissions)
 /api/shelters/mine` and `GET /api/shelters/{id}` keep all statuses. `POST /api/shelters`
 rejects the 11th ACTIVE USER shelter with 409 (ADMIN kind exempt — the `isAdmin` seam).
 
-**Rules** — auto-hide fires exactly on the 4→5 NON_EXISTENT insert (an ACTIVE shelter whose
-`autoHideDisarmed` is `false`; after a manual status change the count is past 4, so later
-reports never re-hide); CLOSED vs OPEN_CONFIRMED net to a display-only flag (`closed >
-confirmed` → REPORTED_CLOSED; both ≥ 1 → CONFIRMED_OPEN, **a tie counts as confirmed open**);
+**Rules** — auto-hide fires exactly on the insert that brings the trust-weighted
+NON_EXISTENT tally (distinct reporters' derived weights, damped 0, dismissed excluded)
+from below 5 to at least 5 (an ACTIVE shelter whose `autoHideDisarmed` is `false`;
+after a manual status change the tally is already ≥ 5, so later
+reports never re-hide); the open/closed taps derive the display-only `openStatus`
+block at read time (the latest fresh ≤ 2 h tap wins; 1 fresh agreeing tap = hedged
+"Reported closed", 2+ = firm "Closed"; a fresh OPEN renders no badge — the V9
+"closed vs confirmed" net flag is retired, marked in `06-CONTEXT-API.md`);
 occupancy display is 2 h-fresh at read time, latest band wins, hedged at one agreeing report,
 firm at two+, silent when stale; the per-user report throttle is 10 report-type actions per
 rolling hour (any target/type, `REPORTS_MAX_ACTIONS_PER_HOUR`, 0 disables) with the
@@ -486,10 +491,13 @@ NULL DEFAULT `NEW`; backfill — USER rows `NEW`, registry rows `CONFIRMED`, D3)
 `shelters.location_kind` (CHECK `PUBLIC`/`PRIVATE`, D7) and the append-only
 `moderation_actions` table (D4 — `shelter_id` deliberately has NO FK: a delete records its
 audit row in the same transaction, the id dangles, the read-time join renders "Deleted
-shelter"). Domain: `ReviewStatus` + `LocationKind`. The `OPEN_CONFIRMED` report from a user
-OTHER than the submitter promotes `NEW → CONFIRMED` in the same transaction with an
-`AUTO_CONFIRM` audit row (D2 — the primary promotion path; the submitter's own positive
-report never promotes; registry / already-confirmed rows untouched). Admin:
+shelter"). Domain: `ReviewStatus` + `LocationKind`. The distinct-confirmer tally — verified
+users other than the submitter with an open `OPEN_CONFIRMED` report or a current OPEN tap,
+each counted once — reaching three promotes `NEW → CONFIRMED` in the same transaction as the
+crossing action with an `AUTO_CONFIRM` audit row (D2 — the primary promotion path; the
+threshold was one cross-user report at V11, three distinct confirmers since
+community-self-moderation; the crossing user is the actor of record; the submitter's own
+positive action never promotes; registry / already-confirmed rows untouched). Admin:
 `POST /admin/shelters/{id}/review` (`CONFIRM` / `REJECT` — reason required, REJECT also flips
 `status = INACTIVE` via the existing hide mechanism; USER rows only, registry → 409) and
 `GET /admin/audit` (newest first, limit 1..200 default 100, read-time name resolution).
@@ -500,11 +508,16 @@ writes its row in the SAME transaction (D4). DTOs carry `reviewStatus` (+ `revie
 `/mine` and admin rows) + `locationKind`; `CreateShelterRequest` accepts `locationKind`
 (default `PUBLIC`).
 
-**Frontend (D5–D7):** marker palette — community `NEW` rows render yellow
-(the unified yellow family, one value with `--color-verified`; `--color-new`
-token, documented in `styles.scss`; `shelter-marker--new` class), `CONFIRMED`
-rows green, registry + reported states unchanged — the map legend is now **Registry / New
-community / Confirmed community / Reported** (D5). List rows + detail show "Newly added" /
+**Frontend (D5–D7):** marker palette — community rows render the single unified yellow
+community tone (one value with `--color-verified`; `--color-new` token, documented in
+`styles.scss`) — NEW is not a marker tone (the `.shelter-marker--new` rule is deliberately
+absent, pinned in `design-tokens.spec.ts`): the pin carries the submitter's verification
+depth as shape (triangle = one confirmed channel, circle = two+) when the API reports it,
+otherwise the community tone — registry + reported states unchanged. The map legend (D5;
+since wave 7 the legend IS the pin-tone filter) renders six entries: **Registry / Confirmed
+by community (the community tone) / Added by a partially verified user (triangle) / Added by
+a fully verified user (circle) / Reported** (the five pin-tone entries are the `?tones=`
+filter, display-only) plus the inert searched-address anchor entry. List rows + detail show "Newly added" /
 "Community-checked" badges for USER rows (replacing the old "User-submitted" provenance text)
 
 - the "Private location" badge (D7) + the unverified warning on NEW detail pages. The map CTA
@@ -523,7 +536,8 @@ submit-success copy ("listed, marked as newly added — community reports confir
 non-promotion, admin CONFIRM/REJECT, restore → NEW, audit rows, registry 409s,
 `locationKind` round-trip) and `npx tsc --noEmit` + prettier green. Frontend: `npx ng test`
 green — **764 tests across 38 spec files** (counted 2026-09-13). Live-verify (dev backend
-restart: submit → NEW/amber → confirm report → green; reject → hidden) is still owed — the
+restart: submit → NEW (the unified-yellow "Newly added" badge) → three distinct
+confirmations → "Community-checked"; reject → hidden) is still owed — the
 watchdog pass that closed this change cannot restart the protected dev server.
 
 **STOP — final review.**

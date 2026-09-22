@@ -1050,7 +1050,7 @@ export const EN: Messages = {
   'legal.privacy.location.p1.before': 'We only ever see your location when ',
   'legal.privacy.location.p1.em': 'you',
   'legal.privacy.location.p1.after':
-    ' ask for it. The "Show shelters around you" button and the "Use my location" option on the submit form first show your browser\'s own permission prompt. If you decline, nothing changes.',
+    ' ask for it. The "Show shelters around you" button on the map, the "Distance from you" action on a shelter detail page and the "Use my location" option on the submit form first show your browser\'s own permission prompt. If you decline, nothing changes.',
 
   'legal.privacy.location.p2.before': 'On the map, the nearest shelter is worked out ',
   'legal.privacy.location.p2.strong': 'inside your browser',
@@ -1072,7 +1072,7 @@ export const EN: Messages = {
   'legal.privacy.cookies.li1.after': ' that keeps you logged in across page reloads;',
   'legal.privacy.cookies.li2.before': 'your ',
   'legal.privacy.cookies.li2.strong': 'language preference',
-  'legal.privacy.cookies.li2.after': ' (Estonian or English);',
+  'legal.privacy.cookies.li2.after': ' (Estonian, English or Russian);',
   'legal.privacy.cookies.li3.before': 'your ',
   'legal.privacy.cookies.li3.strong': 'display preference',
   'legal.privacy.cookies.li3.after': ' (high-contrast mode).',

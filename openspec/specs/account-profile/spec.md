@@ -2,8 +2,7 @@
 
 ## Purpose
 
-The authenticated account page that shows the user their own profile — name, email, phone and
-national ID code — lets them correct their name (password-confirmed), and shows
+The authenticated account page that shows the user their own profile — name, email and phone — lets them correct their name (password-confirmed), and shows
 verification as a per-contact label ("Verified" next to a verified email/phone, "Complete
 verification" next to an unverified one) — all backed by a real `GET /account/me` profile fetch so
 the UI is never guessing claims.
@@ -13,7 +12,7 @@ the UI is never guessing claims.
 ### Requirement: Real profile fetch (GET /account/me)
 
 The backend SHALL expose `GET /account/me` for an authenticated user returning their profile —
-name, email, phone, nationalIdCode — together with the REAL verification-claim set (the
+name, email, phone — together with the REAL verification-claim set (the
 EMAIL/PHONE levels that are actually verified, not an optimistic mirror) and an `isAdmin`
 boolean (true iff the user's kind is `ADMIN`). The frontend SHALL fetch this profile at boot
 (after silent refresh) and after login, keep it in the session store, and re-fetch it after a
@@ -23,7 +22,7 @@ expose `isAdmin` for the nav item and the `/admin` route guard.
 #### Scenario: Authenticated user fetches their profile
 
 - **WHEN** an authenticated user calls `GET /account/me`
-- **THEN** the response contains the user's name, email, phone, national ID code, the set of
+- **THEN** the response contains the user's name, email, phone, the set of
   verification levels that are actually verified for this account, and `isAdmin`
 
 #### Scenario: Unauthenticated user calls GET /account/me

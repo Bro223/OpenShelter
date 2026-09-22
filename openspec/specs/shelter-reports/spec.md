@@ -35,29 +35,44 @@ SHALL carry shelter id, user id, type, optional detail, and creation time.
 - **WHEN** a guest or an unverified registered user calls the endpoint
 - **THEN** the request fails exactly like a submission attempt (no report stored)
 
-### Requirement: Auto-hide on five non-existence reports
+### Requirement: Auto-hide on the trust-weighted non-existence tally
 
-When the report count of type `NON_EXISTENT` for a shelter reaches exactly
-5, the system SHALL set the shelter's status to `INACTIVE` (soft
-auto-hide; the row and its reports are retained). The transition
-SHALL trigger only on the insert that brings the count to 5; after any
-manual status change (admin restore or author action), further
-`NON_EXISTENT` reports SHALL increment the count but SHALL NOT re-hide the
-shelter. A hidden shelter SHALL be excluded from the public list and the
-map, SHALL remain visible in the owner's /mine list (marked hidden), and
-SHALL remain fetchable by id for the owner and admins.
+When the report insert that brings a shelter's trust-weighted hide
+tally — the sum of the distinct `NON_EXISTENT` reporters' derived trust
+weights, dampened reports contributing 0 and admin-dismissed reports
+excluded entirely — crosses from below 5 points to at least 5, the
+system SHALL set the shelter's status to `INACTIVE` (soft auto-hide; the
+row and its reports are retained). Five baseline (weight-1) reporters
+still hide on the fifth report; trusted reporters (weight 2–3) reach
+the tally faster, and a set of dampened or dismissed reports alone
+never hides. The transition SHALL trigger only on the crossing insert;
+after any manual status change (admin restore or author action),
+further `NON_EXISTENT` reports SHALL increment the tally but SHALL NOT
+re-hide the shelter. A hidden shelter SHALL be excluded from the public
+list and the map, SHALL remain visible in the owner's /mine list (marked
+hidden), and SHALL remain fetchable by id for the owner and admins.
 
-#### Scenario: fifth non-existence report hides the shelter
+#### Scenario: Five baseline reporters hide on the fifth report
 
-- **WHEN** the 5th distinct user's `NON_EXISTENT` report for a shelter is
-  stored
-- **THEN** the shelter becomes `INACTIVE` and disappears from the public
-  list and map
+- **WHEN** five distinct verified users with no trust history file
+  `NON_EXISTENT` reports on an ACTIVE, armed shelter
+- **THEN** the shelter stays ACTIVE and only flagged through the first
+  four reports, and becomes `INACTIVE` exactly on the fifth,
+  disappearing from the public list and map
 
-#### Scenario: reports before the threshold only flag
+#### Scenario: Trusted reporters reach the threshold faster
 
-- **WHEN** a shelter has 1–4 `NON_EXISTENT` reports
-- **THEN** it stays `ACTIVE`, stays public, and shows the reported state
+- **WHEN** two weight-2 reporters file `NON_EXISTENT` reports on an
+  ACTIVE shelter and a third, baseline reporter files the third
+- **THEN** the tally is 2 + 2 + 1 = 5 and the shelter is hidden on
+  the third report
+
+#### Scenario: Dampened and dismissed reports count nothing
+
+- **WHEN** every `NON_EXISTENT` report on an ACTIVE shelter is
+  dampened or admin-dismissed
+- **THEN** the tally stays at 0 and those reports never auto-hide the
+  shelter
 
 #### Scenario: no re-hide after a manual restore
 
@@ -163,7 +178,11 @@ when the submitting user already has 10 shelters with `source=USER` and
 ### Requirement: Reported-state derivation is server-side
 
 The public shelter DTO SHALL carry the derived state consumed by the UI:
-`nonexistentReports` (int, 0 when none), an open/closed block
+`nonexistentReports` (int, 0 when none), `inaccurateReports` (int, 0 when
+none — the open `WRONG_LOCATION` + `OTHER` subset; a dismissed report
+stops counting) — the reported state is the OR of the two: either open
+report kind at > 0 drives the orange reported marker and badge — an
+open/closed block
 `openStatus` (`state` = `OPEN` | `CLOSED` — the latest fresh (≤ 2 h)
 tap's state, `reportCount` = the number of fresh taps agreeing with that
 state, `reportedAt` = the newest fresh tap's time — null when nothing is

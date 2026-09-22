@@ -5,9 +5,10 @@
 ### Requirement: The UI surfaces the stamp and the counts
 
 The orange reported badge SHALL read "Reported (n)" where n is the
-NON_EXISTENT count (map row and detail header). The shelter detail
-header SHALL show the verification fact and the report fact as TWO
-separate, self-contained lines — the copy SHALL NOT join them into one
+open trust-report total — `nonexistentReports` + `inaccurateReports`
+(the same OR of the two that drives the badge) (map row and detail
+header). The shelter detail header SHALL show the verification fact
+and the report fact as TWO separate, self-contained lines — the copy SHALL NOT join them into one
 string (the previous "·"-joined line is removed):
 
 - The VERIFICATION line: "Last verified against the registry {ago}"
