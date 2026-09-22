@@ -105,7 +105,7 @@ class GuidanceTranslationIT extends AbstractPersistenceIT {
 
     private GuidancePost publish(String title, String locale) {
         GuidancePost post = guidance.create(authorId, title, null, "<p>body-" + locale + "</p>",
-                locale, false, null, null, null, null);
+                locale, false, null, null, null, null).post();
         guidance.publish(authorId, post.getId());
         return post;
     }

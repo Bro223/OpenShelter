@@ -7,6 +7,7 @@ import ee.sheltermap.domain.MediaAsset;
 import ee.sheltermap.guidance.GuidanceNotFoundException;
 import ee.sheltermap.guidance.GuidanceSearch;
 import ee.sheltermap.guidance.GuidanceService;
+import ee.sheltermap.guidance.GuidanceService.SavedPost;
 import ee.sheltermap.guidance.GuidanceValidationException;
 import ee.sheltermap.guidance.MediaAssetRepository;
 import ee.sheltermap.guidance.MediaService;
@@ -283,11 +284,12 @@ public class AdminGuidanceController {
      * Create a post (D4): DRAFT by default; an explicit PUBLISHED in the
      * body makes it a one-shot "write and publish". 200 with the created
      * post; 400 validation; 409 an admin-supplied slug collision naming
-     * the slug; 404 a heroImageId with no such asset. A pending hero
-     * import URL (guidance-hero-import) is stored with the draft and
-     * consumed at publish — in the one-shot PUBLISHED create it is
-     * imported first, and a failed import fails the whole create (400
-     * policy/non-image, 413 over cap, 502 unfetchable).
+     * the slug; 404 a heroImageId with no such asset. A hero import URL
+     * (guidance-hero-import) is fetched, validated and stored AT SAVE
+     * (draft and one-shot PUBLISHED alike): a failed import never blocks
+     * the create — the post is stored anyway and the 200 body's
+     * {@code heroImportError} names the failure (the URL is kept for a
+     * retry on the next save).
      */
     @PostMapping
     @Operation(summary = "Create a guidance post",
@@ -296,40 +298,45 @@ public class AdminGuidanceController {
                     + "when omitted; an explicit slug is used exactly as given "
                     + "(collision → 409 naming the slug). 200 with the created "
                     + "post; 400 validation (title/body required, alt mandatory iff "
-                    + "a hero is set); 409 slug collision; 404 unknown heroImageId.")
+                    + "a hero is set); 409 slug collision; 404 unknown heroImageId. "
+                    + "A heroImportUrl is fetched, validated and stored at save: a "
+                    + "failed import never blocks the create — heroImportError in "
+                    + "the 200 body names it and the URL is kept for a retry.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "The created post",
+            @ApiResponse(responseCode = "200", description = "The created post "
+                    + "(heroImportError set when its hero import failed at save — "
+                    + "the post was still created)",
                     content = @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
             @ApiResponse(responseCode = "400", description = "Validation failure "
                     + "(required fields, the alt/hero pairing, the slug shape, the import URL shape)"),
             @ApiResponse(responseCode = "409", description = "An admin-supplied slug "
                     + "another post already holds (naming the slug)"),
             @ApiResponse(responseCode = "404", description = "heroImageId with no such asset"),
-            @ApiResponse(responseCode = "413", description = "The one-shot hero import "
-                    + "exceeded the size cap"),
-            @ApiResponse(responseCode = "502", description = "The one-shot hero import "
-                    + "could not be fetched (timeout / network / upstream 5xx)"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
     public AdminGuidancePostDto create(@Valid @RequestBody CreateGuidancePostRequest request) {
         long adminId = adminAccess.requireAdmin();
-        GuidancePost post = guidance.create(adminId, request.title(), request.slug(),
+        SavedPost saved = guidance.create(adminId, request.title(), request.slug(),
                 request.body(), request.locale(), request.pinned(), request.heroImageId(),
                 request.heroImageAlt(), request.heroImportUrl(),
                 request.status() == null ? GuidanceStatus.DRAFT : request.status());
-        return toAdminDto(post, heroIndexFor(post));
+        return toAdminDto(saved.post(), heroIndexFor(saved.post()), null, saved.heroImportError());
     }
 
     /**
      * Full replace of the editable fields (D3): the slug is kept when
      * omitted; the body is re-sanitized (D2); the publication state is
      * NOT editable here (publish/unpublish own it). 200 with the updated
-     * post; 400/404/409 the same vocabulary as create.
+     * post; 400/404/409 the same vocabulary as create. A hero import URL
+     * is fetched AT SAVE, draft or published alike (the Wave 9 trigger):
+     * a changed URL re-imports, and a failed import never blocks the
+     * update — the 200 body's {@code heroImportError} names it and the
+     * URL is kept for a retry on the next save.
      *
      * <p>With {@code ?locale=} (admin-locale-scope) the content fields
      * (title, slug, body, hero alt) are written to THAT locale's
      * translation row while the post-level fields (pinned, the hero
-     * reference, the pending import) stay shared on the post. Editing in
+     * reference, the import URL) stay shared on the post. Editing in
      * the post's own locale is exactly the unscoped semantics (including
      * the home-locale move); a foreign-locale edit never moves the home
      * (400) and 404s when the post has no row in the locale.
@@ -339,18 +346,22 @@ public class AdminGuidanceController {
             description = "Full replace of the editable fields; the slug is kept "
                     + "when omitted (a given slug that another post holds → 409 "
                     + "naming it). The body is re-sanitized — the stored value is "
-                    + "the sanitizer output. 200 with the updated post; 404 "
-                    + "unknown id. With ?locale= the content fields are written to "
-                    + "that locale's translation (the post-level fields stay shared); "
-                    + "editing in the post's own locale is the unscoped semantics, a "
-                    + "foreign-locale edit never moves the home locale (400) and 404s "
-                    + "when the post has no translation in the locale.")
+                    + "the sanitizer output. A heroImportUrl is fetched, validated "
+                    + "and stored at save (draft or published): a failed import "
+                    + "never blocks the update — heroImportError in the 200 body "
+                    + "names it. 200 with the updated post; 404 unknown id. With "
+                    + "?locale= the content fields are written to that locale's "
+                    + "translation (the post-level fields stay shared); editing in "
+                    + "the post's own locale is the unscoped semantics, a "
+                    + "foreign-locale edit never moves the home locale (400) and "
+                    + "404s when the post has no translation in the locale.")
     @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "The updated post",
+            @ApiResponse(responseCode = "200", description = "The updated post "
+                    + "(heroImportError set when its hero import failed at save — "
+                    + "the post was still updated)",
                     content = @Content(schema = @Schema(implementation = AdminGuidancePostDto.class))),
             @ApiResponse(responseCode = "400", description = "Validation failure (incl. a "
-                    + "pending import URL on a published post, a home-locale move through "
-                    + "a foreign-locale edit)"),
+                    + "home-locale move through a foreign-locale edit)"),
             @ApiResponse(responseCode = "409", description = "Slug collision (naming the slug)"),
             @ApiResponse(responseCode = "404", description = "Unknown post id (or a "
                     + "heroImageId with no such asset; scoped: no translation in the locale)"),
@@ -362,23 +373,24 @@ public class AdminGuidanceController {
                                                + "land on its translation row.")
                                        @RequestParam(required = false) String locale,
                                        @Valid @RequestBody UpdateGuidancePostRequest request) {
-        adminAccess.requireAdmin();
+        long adminId = adminAccess.requireAdmin();
         String resolved = guidance.optionalAdminLocale(locale);
-        GuidancePost post;
+        SavedPost saved;
         if (resolved == null) {
-            post = guidance.update(id, request.title(), request.slug(),
+            saved = guidance.update(adminId, id, request.title(), request.slug(),
                     request.body(), request.locale(), request.pinned(), request.heroImageId(),
                     request.heroImageAlt(), request.heroImportUrl());
         } else {
-            post = guidance.updateInLocale(id, resolved, request.title(), request.slug(),
+            saved = guidance.updateInLocale(adminId, id, resolved, request.title(), request.slug(),
                     request.body(), request.locale(), request.pinned(), request.heroImageId(),
                     request.heroImageAlt(), request.heroImportUrl());
         }
+        GuidancePost post = saved.post();
         GuidanceTranslation content = null;
         if (resolved != null) {
             content = guidance.translationInLocale(id, resolved).orElse(null);
         }
-        return toAdminDto(post, heroIndexFor(post), content);
+        return toAdminDto(post, heroIndexFor(post), content, saved.heroImportError());
     }
 
     /**
@@ -440,30 +452,23 @@ public class AdminGuidanceController {
     /**
      * Publish (D4): stamps publishedAt from the server clock. Idempotent
      * — an already-published post is a 204 no-op that writes NO audit
-     * row and keeps its earlier stamp. A pending hero import (the
-     * post's {@code heroImportUrl}) is consumed here: the server fetches,
-     * validates and stores the image inside this call, and a failed
-     * import fails the publish (400 policy/non-image, 413 over cap,
-     * 502 unfetchable) leaving the post a DRAFT. 204; 404 unknown id.
+     * row and keeps its earlier stamp. The hero import moved to SAVE
+     * time (the Wave 9 trigger): publish no longer fetches, validates or
+     * stores anything — a post with an unimported or failed hero URL
+     * publishes exactly as stored (the URL stays for a retry on the next
+     * save). 204; 404 unknown id.
      */
     @PostMapping("/{id}/publish")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Publish a guidance post",
             description = "Stamps publishedAt (a re-publish stamps a FRESH "
-                    + "instant). A pending hero import URL is fetched, validated "
-                    + "and stored first — a failed import fails the publish. "
-                    + "Idempotent: already published (and no pending import) → 204 "
-                    + "no-op, NO audit row. 204; 400/413/502 import failure; "
-                    + "404 unknown id.")
+                    + "instant). Idempotent: already published → 204 no-op, NO "
+                    + "audit row. The hero image is imported at SAVE (create / "
+                    + "update) — publish itself never fetches, so it cannot "
+                    + "fail for an image reason. 204; 404 unknown id.")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "204", description = "Published (or already "
                     + "published — no-op)"),
-            @ApiResponse(responseCode = "400", description = "The pending hero import "
-                    + "was refused (URL policy, non-image body) or the URL is broken"),
-            @ApiResponse(responseCode = "413", description = "The pending hero import "
-                    + "exceeded the size cap"),
-            @ApiResponse(responseCode = "502", description = "The pending hero import "
-                    + "could not be fetched (timeout / network / upstream 5xx)"),
             @ApiResponse(responseCode = "404", description = "Unknown post id"),
             @ApiResponse(responseCode = "403", description = "Authenticated non-admin")
     })
@@ -689,9 +694,22 @@ public class AdminGuidanceController {
      * post's home columns (the legacy read — the DTO's {@code locale} is
      * then the home locale, as before). {@code homeLocale} is always the
      * post's own, and {@code sortOrder} the shared stored manual position.
+     * READS pass a {@code null} heroImportError — the import's failure is
+     * carried by the WRITE responses only (create/update).
      */
     private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes,
                                             GuidanceTranslation content) {
+        return toAdminDto(post, heroes, content, null);
+    }
+
+    /**
+     * The write-response variant: {@code heroImportError} carries the
+     * hero import that FAILED at this save (the post was still stored —
+     * a failed import never blocks a save); {@code null} when no import
+     * ran or it succeeded.
+     */
+    private AdminGuidancePostDto toAdminDto(GuidancePost post, Map<Long, MediaAsset> heroes,
+                                            GuidanceTranslation content, String heroImportError) {
         MediaAsset hero = post.getHeroImageId() == null ? null : heroes.get(post.getHeroImageId());
         String title = content != null ? content.getTitle() : post.getTitle();
         String slug = content != null ? content.getSlug() : post.getSlug();
@@ -715,7 +733,8 @@ public class AdminGuidanceController {
                 post.getCreatedBy(),
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
-                hero == null ? null : media.derivativeSrcset(hero));
+                hero == null ? null : media.derivativeSrcset(hero),
+                heroImportError);
     }
 
     private GuidanceTranslationDto toTranslationDto(GuidanceTranslation t) {

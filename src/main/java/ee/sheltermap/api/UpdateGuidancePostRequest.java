@@ -15,8 +15,10 @@ import jakarta.validation.constraints.Size;
  * endpoints (D4: their stamps own {@code publishedAt}).
  * {@code heroImageId} {@code null} clears the hero (the previous asset
  * stays in the library, D8). {@code heroImportUrl} (guidance-hero-import)
- * {@code null} clears a pending import; a non-null URL on an
- * already-published post is a 400 (unpublish first — the V25 CHECK).
+ * {@code null} clears the import URL; a non-null URL is fetched, validated
+ * and stored AT SAVE, draft or published alike (the Wave 9 trigger) — a
+ * failed import never blocks the update (the response's
+ * {@code heroImportError} names it, the URL is kept for a retry).
  */
 public record UpdateGuidancePostRequest(
         @NotBlank @Size(max = 255) String title,

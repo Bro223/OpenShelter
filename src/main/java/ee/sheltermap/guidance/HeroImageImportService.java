@@ -4,6 +4,7 @@ import ee.sheltermap.domain.MediaAsset;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.InetAddress;
@@ -20,11 +21,18 @@ import java.util.function.LongSupplier;
 /**
  * Imports a remote image into the media library (guidance-hero-import):
  * the admin pastes an http(s) URL into a post's hero field, and this
- * service — called INSIDE the publish transaction — downloads, validates
- * and stores the image under a generated name, returning the asset the
- * post links as its hero. Any failure propagates, the publish transaction
- * rolls back, and the post stays a DRAFT with the URL intact (a post is
- * never published with a hero that could not be fetched and validated).
+ * service — called at SAVE time (create and update, draft or published
+ * alike) — downloads, validates and stores the image under a generated
+ * name, returning the asset the post links as its hero.
+ *
+ * <p>The import runs in its OWN transaction (REQUIRES_NEW): a failure
+ * anywhere rolls back the asset row (the just-written file is removed by
+ * the store step) and propagates to the save, which STORES THE POST
+ * ANYWAY — a failed import never blocks a save; the save surfaces the
+ * error against the hero field and keeps the URL for a retry on the next
+ * save, the hero falling back to the request's library reference or the
+ * previously stored one. A success commits the library row before the
+ * caller links it as the hero.
  *
  * <p>The walk and its guards, in order (each pinned by a test):
  * <ol>
@@ -148,12 +156,13 @@ public class HeroImageImportService {
     /**
      * Fetches, validates and stores the image at {@code url}.
      *
-     * <p>Joins the caller's transaction ({@code REQUIRED}) — the publish
-     * (or one-shot create-and-publish) starts it — so a failure anywhere
-     * rolls back the post write and the asset row together, and a
-     * success commits the hero link and the library row atomically.
-     * The network I/O is bounded by the walk budget, so the transaction
-     * is held for at most that long (an admin-only operation, by design).
+     * <p>Runs in its OWN transaction ({@code REQUIRES_NEW}): a failure
+     * anywhere rolls back the asset row WITHOUT touching the caller's
+     * save, which stores the post regardless and surfaces the error;
+     * a success commits the library row before the caller links it as
+     * the hero. The network I/O is bounded by the walk budget, so the
+     * transaction is held for at most that long (an admin-only
+     * operation, by design).
      *
      * @param adminId  the acting admin — stamped on the asset as uploader
      * @param url      the admin-supplied URL (re-validated here — the
@@ -170,7 +179,7 @@ public class HeroImageImportService {
      * @throws UnsupportedImageException      400 — not a readable JPEG/PNG/WebP,
      *                                        or over the pixel cap
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MediaAsset importHero(long adminId, String url) {
         URI current = validatedEntry(url);
         long deadlineNanos = monotonicNanos.getAsLong() + budget.toNanos();
@@ -304,9 +313,11 @@ public class HeroImageImportService {
      * The terminal response: status, content and pixel checks (guards 6
      * and 7), the P2-9 derivative render (in memory — a derivative that
      * fails the content gate fails the import here, before anything
-     * touches disk: the post stays a DRAFT, the existing failure
-     * behaviour), then the store — original file first, row second,
-     * derivative files last, with the orphan cleanup of the upload path.
+     * touches disk: the import's own transaction rolls back and the save
+     * surfaces the failure, the post keeping its previous hero and the
+     * URL for a retry), then the store — original file first, row
+     * second, derivative files last, with the orphan cleanup of the
+     * upload path.
      */
     private MediaAsset store(long adminId, String sourceUrl,
                              HeroImageFetchClient.FetchedImage response) {

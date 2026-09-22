@@ -117,7 +117,7 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
     private long createPost(String title, boolean published) {
         GuidancePost post = guidance.create(adminId, title, null, "<p>body-" + title + "</p>",
                 null, false, null, null, null,
-                published ? GuidanceStatus.PUBLISHED : null);
+                published ? GuidanceStatus.PUBLISHED : null).post();
         return post.getId();
     }
 
@@ -357,7 +357,7 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
     private long createPost(String title, String locale, boolean published) {
         GuidancePost post = guidance.create(adminId, title, null, "<p>body-" + title + "</p>",
                 locale, false, null, null, null,
-                published ? GuidanceStatus.PUBLISHED : null);
+                published ? GuidanceStatus.PUBLISHED : null).post();
         return post.getId();
     }
 
@@ -553,7 +553,7 @@ class GuidanceOrderIT extends AbstractPersistenceIT {
 
         // Push the (soon-to-be-pinned) post to the LARGEST manual position.
         guidance.reorder(adminId, List.of(b, c, a));
-        guidance.update(a, "Pinned A", null, "<p>body-Pinned A</p>", null, true, null, null, null);
+        guidance.update(adminId, a, "Pinned A", null, "<p>body-Pinned A</p>", null, true, null, null, null);
 
         // The pinned head block sits above every non-pinned post regardless
         // of its sort_order value.

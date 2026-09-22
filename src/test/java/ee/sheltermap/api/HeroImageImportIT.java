@@ -48,11 +48,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Endpoint acceptance for the hero-image import (guidance-hero-import) —
- * full-stack MockMvc against the REAL security chain and the REAL
- * {@link JdkHeroImageFetchClient} (real streaming, real redirects, real
- * size-cap abort, real read-stall watchdog) pointed at a local
- * {@link HttpServer}.
+ * Endpoint acceptance for the hero-image import (guidance-hero-import,
+ * at SAVE time — the Wave 9 trigger) — full-stack MockMvc against the
+ * REAL security chain and the REAL {@link JdkHeroImageFetchClient}
+ * (real streaming, real redirects, real size-cap abort, real read-stall
+ * watchdog) pointed at a local {@link HttpServer}.
  *
  * <p>The ADDRESS policy seam ({@link HeroAddressResolver}) is the one
  * stubbed layer — the same seam discipline {@code LocationResolveIT}
@@ -63,15 +63,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * (resolves to 127.0.0.1) and IP literals (resolve to themselves, like
  * plain DNS — the redirect-to-127.0.0.1 case).
  *
- * <p>Covers the spec's scenarios: a valid image is imported and linked;
- * a text file served as image/png is refused; an oversized body is
- * refused at the cap (and aborted, not buffered); a redirect to
- * 127.0.0.1 is refused; a file: URL is refused; a URL with credentials
- * is refused; an image over the pixel cap is refused; and a failed
- * import leaves the post a DRAFT with a readable error.
+ * <p>The trigger is SAVE (create/update): a failed import NEVER blocks
+ * the save — the post is stored anyway and the response body's
+ * {@code heroImportError} carries the failure (no more 400/413/502
+ * import failures; write-time 400s for URL shape remain). Covers the
+ * spec's scenarios: a valid image is imported and linked at save;
+ * a text file served as image/png is refused (with the save still
+ * succeeding); an oversized body is refused at the cap (and aborted,
+ * not buffered); a redirect to 127.0.0.1 is refused; a file: URL is
+ * refused; a URL with credentials is refused; an image over the pixel
+ * cap is refused; a changed URL re-imports at save; and publish itself
+ * no longer fetches anything.
  */
 @AutoConfigureMockMvc
 @Transactional
+// PER_CLASS so the @AfterAll cleanup below can be an instance method
+// (it needs the injected DataSource — a static one could not reach it).
+@org.junit.jupiter.api.TestInstance(org.junit.jupiter.api.TestInstance.Lifecycle.PER_CLASS)
 @TestPropertySource(properties = {
         "app.admin.email=import-admin@example.ee",
         "app.admin.password=import-admin-pass",
@@ -254,6 +262,9 @@ class HeroImageImportIT extends AbstractPersistenceIT {
     @Autowired
     JdbcTemplate jdbc;
 
+    @Autowired
+    javax.sql.DataSource dataSource;
+
     private String admin;
 
     @org.junit.jupiter.api.BeforeEach
@@ -266,8 +277,59 @@ class HeroImageImportIT extends AbstractPersistenceIT {
         admin = JsonPath.read(result.getResponse().getContentAsString(), "$.accessToken");
     }
 
-    /** Creates a draft post with a pending hero import; returns its id. */
-    private long createDraftWithImport(String title, String url) throws Exception {
+    /**
+     * Per-test sweep of the previous test's committed imports (a
+     * REQUIRES_NEW success outlives the test rollback) so every test
+     * starts with a clean media table — the count assertions rely on
+     * that. Safe HERE on a raw connection: this test's own Spring
+     * transaction is open but has executed NO SQL yet (the test method
+     * has not run), so it holds no lock the DELETE could wait on —
+     * unlike an @AfterEach placement, where the still-open test
+     * transaction's post row holds a KEY SHARE on the imported asset
+     * and the DELETE deadlocks against it (the run of 2026-09-22 proved
+     * it: a main thread parked on the socket read for 3+ hours).
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void cleanLeakedImportedAssets() {
+        deleteImportedAssets();
+    }
+
+    /**
+     * The final sweep: the import commits in its OWN transaction
+     * (REQUIRES_NEW — a failed import must not poison the save's), so a
+     * SUCCESSFUL import outlives this class' {@code @Transactional} test
+     * rollback. The cleanup must therefore run on a connection OUTSIDE
+     * the test transaction (a {@code JdbcTemplate} delete would join it
+     * and roll back with it); without it the last test's imported assets
+     * would leak into every later IT's media-asset counts (uploads carry
+     * a null source_url and are never touched).
+     *
+     * <p>{@code @AfterAll} (instance method — see the class' PER_CLASS
+     * lifecycle, needed to reach the injected DataSource): by then every
+     * test transaction has been rolled back, so the DELETE waits on
+     * nothing.
+    @org.junit.jupiter.api.AfterAll
+    void removeLeakedImportedAssets() {
+        deleteImportedAssets();
+    }
+
+    /** The raw-connection sweep (auto-commit — OUTSIDE any test
+     *  transaction, by design; see the callers' javadoc). */
+    private void deleteImportedAssets() {
+        try (java.sql.Connection conn = dataSource.getConnection();
+             java.sql.Statement st = conn.createStatement()) {
+            st.executeUpdate("DELETE FROM media_assets WHERE source_url IS NOT NULL");
+        } catch (java.sql.SQLException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Saves a draft post with a hero import URL — the save that TRIGGERS
+     * the import (the Wave 9 trigger: create, draft status). Always 200
+     * (a failed import never blocks a save); returns the response body.
+     */
+    private String saveDraftWithImport(String title, String url) throws Exception {
         MvcResult result = mvc.perform(post("/admin/guidance")
                         .header("Authorization", "Bearer " + admin)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -276,7 +338,24 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                                 .getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isOk())
                 .andReturn();
-        return ((Number) JsonPath.read(result.getResponse().getContentAsString(), "$.id")).longValue();
+        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    private static long idOf(String body) {
+        return ((Number) JsonPath.read(body, "$.id")).longValue();
+    }
+
+    /**
+     * The number of imported (source_url-carrying) asset rows — the
+     * diff baseline: the import commits in its OWN transaction (a failed
+     * one must not poison the save's), so earlier tests' successful
+     * imports outlive this class' per-test rollback; an assertion is
+     * therefore scoped to what THIS save wrote (the diff), and the
+     * class' {@code @AfterAll} reclaims the leftovers for the other ITs.
+     */
+    private long importedAssetCount() {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM media_assets WHERE source_url IS NOT NULL", Long.class);
     }
 
     private void publish(long id) throws Exception {
@@ -286,35 +365,44 @@ class HeroImageImportIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void aValidPngIsImportedAndLinkedToThePost() throws Exception {
-        long id = createDraftWithImport("Imported hero",
-                "http://public.image:" + port + "/photo.png");
+    void aValidPngIsImportedAndLinkedToThePostAtSave() throws Exception {
+        String url = "http://public.image:" + port + "/photo.png";
 
-        // The draft carries the pending URL, no asset yet.
+        // The CREATE saves the draft AND imports the hero: the 200 body
+        // already carries the imported asset, the URL is kept as provenance.
+        String created = saveDraftWithImport("Imported hero", url);
+        long id = idOf(created);
+        assertThat((Object) JsonPath.read(created, "$.heroImportError")).isNull();
+        long assetId = ((Number) JsonPath.read(created, "$.heroImageId")).longValue();
+
+        // The draft (not yet published) is inspectable with its hero.
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.heroImportUrl").value("http://public.image:" + port + "/photo.png"))
-                .andExpect(jsonPath("$.heroImageId").isEmpty());
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.heroImageId").value(assetId))
+                .andExpect(jsonPath("$.heroImportUrl").value(url))
+                .andExpect(jsonPath("$.heroImageUrl").value(org.hamcrest.Matchers.matchesPattern("/api/media/[a-f0-9]{32}\\.png")));
 
+        // Publish is a pure stamp (204) — it fetches nothing.
         publish(id);
 
-        // Published with the imported asset as hero; the URL is consumed.
+        // Published with the imported asset as hero; the URL still kept.
         MvcResult published = mvc.perform(get("/admin/guidance/" + id)
                         .header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk())
                 .andReturn();
         String body = published.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        long assetId = ((Number) JsonPath.read(body, "$.heroImageId")).longValue();
+        assertThat(((Number) JsonPath.read(body, "$.heroImageId")).longValue()).isEqualTo(assetId);
         String heroUrl = JsonPath.read(body, "$.heroImageUrl");
         String storedName = heroUrl.substring("/api/media/".length());
         assertThat(heroUrl).matches("/api/media/[a-f0-9]{32}\\.png");
-        assertThat((Object) JsonPath.read(body, "$.heroImportUrl")).isNull();
+        assertThat((Object) JsonPath.read(body, "$.heroImportUrl")).isEqualTo(url);
         assertThat((Object) JsonPath.read(body, "$.heroImageAlt")).isEqualTo("An alt");
 
         // The asset row: sniffed type + the recorded origin (takedown trail).
         List<String> sourceUrls = jdbc.queryForList(
                 "SELECT source_url FROM media_assets WHERE id = ?", String.class, assetId);
-        assertThat(sourceUrls).containsExactly("http://public.image:" + port + "/photo.png");
+        assertThat(sourceUrls).containsExactly(url);
         List<String> types = jdbc.queryForList(
                 "SELECT content_type FROM media_assets WHERE id = ?", String.class, assetId);
         assertThat(types).containsExactly("image/png");
@@ -327,63 +415,66 @@ class HeroImageImportIT extends AbstractPersistenceIT {
     }
 
     @Test
-    void aTextFileServedAsImagePngIsRefusedAndTheDraftStays() throws Exception {
-        long id = createDraftWithImport("Fake png",
-                "http://public.image:" + port + "/fake.png");
+    void aTextFileServedAsImagePngIsRefusedButTheSaveStillSucceeds() throws Exception {
+        String url = "http://public.image:" + port + "/fake.png";
+        long baseline = importedAssetCount();
 
-        mvc.perform(post("/admin/guidance/" + id + "/publish")
-                        .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("readable JPEG, PNG or WebP")));
+        // The import is refused at save — but the save itself is a 200
+        // with the failure in heroImportError (never a broken save).
+        String created = saveDraftWithImport("Fake png", url);
+        long id = idOf(created);
+        assertThat((String) JsonPath.read(created, "$.heroImportError"))
+                .contains("readable JPEG, PNG or WebP");
 
-        // Still a DRAFT with the URL intact; no asset row was written.
+        // The DRAFT is stored with the URL intact for a retry; no asset
+        // row was written, no hero.
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.heroImportUrl").value("http://public.image:" + port + "/fake.png"))
+                .andExpect(jsonPath("$.heroImportUrl").value(url))
                 .andExpect(jsonPath("$.heroImageId").isEmpty());
-        Integer assets = jdbc.queryForObject(
-                "SELECT count(*) FROM media_assets WHERE source_url IS NOT NULL", Integer.class);
-        assertThat(assets).isZero();
+        // No NEW imported asset row (the diff — see importedAssetCount).
+        assertThat(importedAssetCount()).isEqualTo(baseline);
+
+        // Publish is unaffected by the failed import (the Wave 9 red-proof
+        // at endpoint level: it used to fail the publish).
+        publish(id);
+        mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.heroImageId").isEmpty());
     }
 
     @Test
     void anOversizedBodyIsRefusedAtTheCapAndAborted() throws Exception {
-        long id = createDraftWithImport("Big png",
-                "http://public.image:" + port + "/big.png");
+        String url = "http://public.image:" + port + "/big.png";
+        long baseline = importedAssetCount();
 
-        mvc.perform(post("/admin/guidance/" + id + "/publish")
-                        .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isPayloadTooLarge())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("2048")));
+        // The 2 KiB cap fires at SAVE: the post is still stored (200),
+        // the failure in the body, the URL kept for a retry — not via a
+        // timeout.
+        String created = saveDraftWithImport("Big png", url);
+        long id = idOf(created);
+        assertThat((String) JsonPath.read(created, "$.heroImportError")).contains("2048");
 
-        // The 413 fired at the 2 KiB cap, not via a timeout: the draft
-        // keeps its URL for a retry and no asset row exists.
-        // (The client-side "nothing buffered past the cap" invariant is
-        // proven deterministically in JdkHeroImageFetchClientTest — TCP
-        // socket buffering makes the server-side view of the abort racy.)
+        // No asset row exists. (The client-side "nothing buffered past
+        // the cap" invariant is proven deterministically in
+        // JdkHeroImageFetchClientTest — TCP socket buffering makes the
+        // server-side view of the abort racy.)
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.heroImportUrl").value(
-                        "http://public.image:" + port + "/big.png"));
-        Integer assets = jdbc.queryForObject(
-                "SELECT count(*) FROM media_assets WHERE source_url IS NOT NULL", Integer.class);
-        assertThat(assets).isZero();
+                .andExpect(jsonPath("$.heroImportUrl").value(url));
+        // No NEW imported asset row (the diff — see importedAssetCount).
+        assertThat(importedAssetCount()).isEqualTo(baseline);
     }
 
     @Test
     void aRedirectTo127001IsRefusedAndNeverFetched() throws Exception {
         secretRequests.set(0);
-        long id = createDraftWithImport("Redirect loopback",
-                "http://public.image:" + port + "/redirect-to-loopback");
+        String url = "http://public.image:" + port + "/redirect-to-loopback";
 
-        mvc.perform(post("/admin/guidance/" + id + "/publish")
-                        .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("127.0.0.1")));
+        String created = saveDraftWithImport("Redirect loopback", url);
+        long id = idOf(created);
+        assertThat((String) JsonPath.read(created, "$.heroImportError")).contains("127.0.0.1");
 
         // The hop target was re-validated BEFORE being fetched: the secret
         // route never saw a request. The post stays a DRAFT.
@@ -392,7 +483,8 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                 .as("the redirect target 127.0.0.1 was never fetched")
                 .isZero();
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
-                .andExpect(jsonPath("$.status").value("DRAFT"));
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.heroImportUrl").value(url));
     }
 
     @Test
@@ -445,46 +537,55 @@ class HeroImageImportIT extends AbstractPersistenceIT {
 
     @Test
     void anImageOverThePixelCapIsRefused() throws Exception {
-        long id = createDraftWithImport("Huge dims",
-                "http://public.image:" + port + "/huge-dims.png");
+        String url = "http://public.image:" + port + "/huge-dims.png";
+        long baseline = importedAssetCount();
 
         // A 33-byte file whose header claims 100001 px — refused at the
-        // 10000 px per-side cap (the decompression-bomb guard).
-        mvc.perform(post("/admin/guidance/" + id + "/publish")
-                        .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("10000")));
+        // 10000 px per-side cap (the decompression-bomb guard); the save
+        // itself still succeeds (200) with the failure in the body.
+        String created = saveDraftWithImport("Huge dims", url);
+        long id = idOf(created);
+        assertThat((String) JsonPath.read(created, "$.heroImportError")).contains("10000");
 
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.heroImportUrl").value(url))
                 .andExpect(jsonPath("$.heroImageId").isEmpty());
-        Integer assets = jdbc.queryForObject(
-                "SELECT count(*) FROM media_assets WHERE source_url IS NOT NULL", Integer.class);
-        assertThat(assets).isZero();
+        // No NEW imported asset row (the diff — see importedAssetCount).
+        assertThat(importedAssetCount()).isEqualTo(baseline);
     }
 
     @Test
     void aFailedFetchLeavesTheDraftWithAReadableError() throws Exception {
-        long id = createDraftWithImport("Missing hero",
-                "http://public.image:" + port + "/missing.png");
+        String url = "http://public.image:" + port + "/missing.png";
 
-        mvc.perform(post("/admin/guidance/" + id + "/publish")
-                        .header("Authorization", "Bearer " + admin))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("404")));
+        // The 404 upstream surfaces in the save's heroImportError — the
+        // draft is stored anyway, the URL kept for a retry.
+        String created = saveDraftWithImport("Missing hero", url);
+        long id = idOf(created);
+        assertThat((String) JsonPath.read(created, "$.heroImportError")).contains("404");
 
         mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
                 .andExpect(jsonPath("$.status").value("DRAFT"))
-                .andExpect(jsonPath("$.heroImportUrl").value(
-                        "http://public.image:" + port + "/missing.png"));
+                .andExpect(jsonPath("$.heroImportUrl").value(url));
+
+        // And the publish — a pure stamp — goes through as well.
+        publish(id);
+        mvc.perform(get("/admin/guidance/" + id).header("Authorization", "Bearer " + admin))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
+                .andExpect(jsonPath("$.heroImageId").isEmpty());
     }
 
     @Test
-    void aPublicRedirectHopIsFollowedAndImported() throws Exception {
-        long id = createDraftWithImport("Public hop",
-                "http://public.image:" + port + "/redirect-ok");
+    void aPublicRedirectHopIsFollowedAndImportedAtSave() throws Exception {
+        String url = "http://public.image:" + port + "/redirect-ok";
+
+        // The public hop is followed (and re-validated) at SAVE — the 200
+        // body already carries the imported asset.
+        String created = saveDraftWithImport("Public hop", url);
+        long id = idOf(created);
+        assertThat((Object) JsonPath.read(created, "$.heroImportError")).isNull();
+        assertThat(((Number) JsonPath.read(created, "$.heroImageId")).longValue()).isPositive();
 
         publish(id);
 
@@ -492,11 +593,11 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PUBLISHED"))
                 .andExpect(jsonPath("$.heroImageId").isNumber())
-                .andExpect(jsonPath("$.heroImportUrl").isEmpty());
+                .andExpect(jsonPath("$.heroImportUrl").value(url));
     }
 
     @Test
-    void aPublishedPostCannotTakeAPendingImportUrl() throws Exception {
+    void aPublishedPostTakesAnImportUrlAtSave() throws Exception {
         // Draft without a URL → publish (plain).
         MvcResult created = mvc.perform(post("/admin/guidance")
                         .header("Authorization", "Bearer " + admin)
@@ -505,10 +606,11 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                                 .getBytes(StandardCharsets.UTF_8)))
                 .andExpect(status().isOk())
                 .andReturn();
-        long id = ((Number) JsonPath.read(created.getResponse().getContentAsString(), "$.id")).longValue();
+        long id = idOf(created.getResponse().getContentAsString(StandardCharsets.UTF_8));
         publish(id);
 
-        // Trying to attach a pending import to the LIVE post is a 400.
+        // A save (PUT) on the LIVE post with a URL imports it AT SAVE —
+        // the Wave 9 trigger (the old 400 "unpublish first" is gone).
         mvc.perform(put("/admin/guidance/" + id)
                         .header("Authorization", "Bearer " + admin)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -516,8 +618,45 @@ class HeroImageImportIT extends AbstractPersistenceIT {
                                 + "\"heroImageAlt\":\"alt\",\"heroImportUrl\":\"http://public.image:"
                                 + port + "/photo.png\"}")
                                 .getBytes(StandardCharsets.UTF_8)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(
-                        org.hamcrest.Matchers.containsString("unpublish")));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.heroImportError").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.heroImageId").isNumber())
+                .andExpect(jsonPath("$.heroImportUrl")
+                        .value("http://public.image:" + port + "/photo.png"));
+    }
+
+    @Test
+    void aChangedUrlReimportsAtSaveAndASameUrlResaveDoesNotRefetch() throws Exception {
+        String urlA = "http://public.image:" + port + "/photo.png";
+
+        String created = saveDraftWithImport("Refetch hero", urlA);
+        long id = idOf(created);
+        long firstAssetId = ((Number) JsonPath.read(created, "$.heroImageId")).longValue();
+        assertThat(firstAssetId).isPositive();
+
+        // A CHANGED URL (the public-redirect hop): the import runs again
+        // at save, the new asset supersedes the previous hero.
+        String urlB = "http://public.image:" + port + "/redirect-ok";
+        MvcResult updated = mvc.perform(put("/admin/guidance/" + id)
+                        .header("Authorization", "Bearer " + admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(("{\"title\":\"Refetch hero\",\"body\":\"<p>b</p>\","
+                                + "\"heroImageAlt\":\"alt\",\"heroImportUrl\":\"" + urlB + "\"}")
+                                .getBytes(StandardCharsets.UTF_8)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String body = updated.getResponse().getContentAsString(StandardCharsets.UTF_8);
+        long secondAssetId = ((Number) JsonPath.read(body, "$.heroImageId")).longValue();
+        assertThat(secondAssetId).isNotEqualTo(firstAssetId);
+        assertThat((Object) JsonPath.read(body, "$.heroImportUrl")).isEqualTo(urlB);
+
+        // The superseded asset stays in the library (the D8 replace rule).
+        // Scoped to this test's own URLs (the class' @AfterAll reclaims
+        // the committed imports for the other ITs — see
+        // importedAssetCount's javadoc).
+        List<Long> assetIds = jdbc.queryForList(
+                "SELECT id FROM media_assets WHERE source_url IN (?, ?) ORDER BY id", Long.class,
+                urlA, urlB);
+        assertThat(assetIds).containsExactlyInAnyOrder(firstAssetId, secondAssetId);
     }
 }

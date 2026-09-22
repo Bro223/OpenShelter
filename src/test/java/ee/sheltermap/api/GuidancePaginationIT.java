@@ -220,7 +220,7 @@ class GuidancePaginationIT extends AbstractPersistenceIT {
 
     private long createPost(long authorId, String title, String locale, boolean pinned) {
         GuidancePost post = guidance.create(authorId, title, null, "<p>body</p>", locale,
-                pinned, null, null, null, null);
+                pinned, null, null, null, null).post();
         return post.getId();
     }
 

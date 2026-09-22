@@ -79,17 +79,23 @@ import java.util.Set;
  * invariants) keep the other languages' slots untouched and lose no
  * post.
  *
- * <p>Hero import (guidance-hero-import): a post may carry a PENDING hero
- * import — an admin-supplied http(s) URL in {@code heroImportUrl} instead
- * of a library reference. The URL is consumed at the moment the post
- * TRANSITIONS to PUBLISHED: {@link #publish} (and the one-shot
- * create-and-publish) run {@link HeroImageImportService} inside the
- * publish transaction and link the stored asset as the hero. A failed
- * fetch or validation fails the publish (400/413/502 vocabulary, readable
- * message) and the post stays a DRAFT with the URL intact — a post is
- * never published with a hero that could not be fetched and validated.
- * A published post cannot TAKE a pending URL (the V25 CHECK is
- * structural; setting one is a 400 — unpublish first).
+ * <p>Hero import (guidance-hero-import, the save-time trigger): a post's
+ * hero may be given as an admin-supplied http(s) URL in
+ * {@code heroImportUrl} instead of a library reference. {@link #create},
+ * {@link #update} and {@link #updateInLocale} run
+ * {@link HeroImageImportService} at SAVE time — draft or published alike
+ * — and link the stored asset as the hero. A re-save with the SAME url
+ * whose import already produced the current hero is idempotent (no
+ * re-fetch); a CHANGED url re-imports. A failed fetch or validation
+ * NEVER blocks the save: the post is stored with the url kept (retryable
+ * on the next save) and the failure surfaced against the hero field in
+ * the write response ({@link SavedPost#heroImportError()}), the hero
+ * falling back to the request's library reference or the previously
+ * stored one — a hero is always a validated stored asset or nothing, so
+ * no page ever renders from a URL the server has not fetched and
+ * validated. {@link #publish} no longer imports (a pure stamp —
+ * publishing is never the moment an image can fail for the first time),
+ * so no post is unpublishable because of an image problem.
  *
  * <p>Audit (D12): publish / unpublish / delete call
  * {@link ModerationAuditLog#recordLabeled} inside this service's
@@ -147,7 +153,7 @@ public class GuidanceService {
     private final Clock clock;
     /** The app's primary language (D11: mirrors the frontend's DEFAULT_LOCALE). */
     private final String defaultLocale;
-    /** The remote-hero importer (guidance-hero-import) — runs inside the publish transaction. */
+    /** The remote-hero importer (guidance-hero-import) — runs at save time, in its own transaction. */
     private final HeroImageImportService heroImport;
     /** The per-locale translation rows (bilingual-guidance, V26). */
     private final GuidanceTranslationRepository translations;
@@ -174,6 +180,17 @@ public class GuidanceService {
         this.heroImport = Objects.requireNonNull(heroImport, "heroImport");
         this.translations = Objects.requireNonNull(translations, "translations");
         this.ordering = new GuidanceOrderingService(posts, translations, audit);
+    }
+
+    /**
+     * One save's outcome (the save-time hero import): the stored post and
+     * the import's failure — {@code null} when no import ran on this
+     * save or it succeeded. A non-null error NEVER blocked the save: the
+     * post was stored anyway, the URL kept for a retry on the next save,
+     * the hero fallen back (the request's library reference, or the
+     * previously stored one).
+     */
+    public record SavedPost(GuidancePost post, String heroImportError) {
     }
 
     // ------------------------------------------------------------- reads
@@ -387,54 +404,48 @@ public class GuidanceService {
      * explicitly asks. The slug is generated from the title when omitted
      * (auto collisions take {@code -2}, {@code -3}, ...); an explicit
      * slug is validated and used exactly as given (collision → 409).
-     * The stored body is the sanitizer output (D2). A pending hero import
-     * ({@code heroImportUrl}) is carried by the draft and consumed at
-     * publish — except in the one-shot PUBLISHED create, where it is
-     * imported BEFORE the post is written, so a failed fetch fails the
-     * whole create (nothing is stored).
+     * The stored body is the sanitizer output (D2). A hero import URL
+     * ({@code heroImportUrl}) is fetched, validated and stored AT SAVE
+     * (the Wave 9 trigger — a draft and the one-shot PUBLISHED create
+     * alike): a successful import links the asset as the hero
+     * (superseding any {@code heroImageId}); a failed one never blocks
+     * the create — the post is stored in the requested status with the
+     * URL kept and the error in {@link SavedPost#heroImportError()}.
      *
      * @throws GuidanceValidationException 400 — missing/oversized title or body, a
      *                                     malformed custom slug, a malformed heroImportUrl,
      *                                     alt without a hero (or a hero without alt)
      * @throws SlugAlreadyUsedException    409 — an admin-supplied slug another post holds
      * @throws GuidanceNotFoundException   404 — a heroImageId with no such asset
-     * @throws HeroImportRefusedException      400 — the one-shot import was refused by policy
-     * @throws HeroImportUnreachableException  502 — the one-shot import could not be fetched
-     * @throws MediaTooLargeException          413 — the one-shot import exceeded the cap
-     * @throws UnsupportedImageException       400 — the one-shot import is not a readable image
      */
     @Transactional
-    public GuidancePost create(long adminId, String title, String slug, String body,
-                               String locale, boolean pinned, Long heroImageId,
-                               String heroImageAlt, String heroImportUrl,
-                               GuidanceStatus requestedStatus) {
+    public SavedPost create(long adminId, String title, String slug, String body,
+                            String locale, boolean pinned, Long heroImageId,
+                            String heroImageAlt, String heroImportUrl,
+                            GuidanceStatus requestedStatus) {
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
         String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        Long heroId = heroImageId;
-        // A one-shot "write and publish" carrying a pending hero import
-        // publishes with the imported asset: the import runs BEFORE the
-        // post is written, so a failed fetch or validation fails the
-        // whole create — the same rule as the publish endpoint.
-        if (requestedStatus == GuidanceStatus.PUBLISHED && cleanImportUrl != null) {
-            MediaAsset imported = heroImport.importHero(adminId, cleanImportUrl);
-            heroId = imported.getId();
-            cleanImportUrl = null; // consumed
-        }
-        requireHeroPairing(heroId, heroImageAlt, cleanImportUrl);
+        requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = slug == null || slug.isBlank()
                 ? GuidanceValidation.nextGeneratedSlug(cleanTitle, posts::existsBySlug)
                 : GuidanceValidation.resolveSuppliedSlug(slug, null, posts::existsBySlug);
+        // The save-time hero import (the Wave 9 trigger) runs AFTER every
+        // write-time validation above (400/404/409) — a doomed create
+        // never spends a network fetch.
+        HeroResolution hero = resolveHeroOnSave(adminId, null, heroImageId, cleanImportUrl);
 
         GuidancePost post = GuidancePost.draft(finalSlug, cleanTitle, cleanBody, cleanLocale,
-                pinned, heroId, heroAlt, cleanImportUrl, posts.maxSortOrder() + 1, adminId, now);
+                pinned, hero.heroImageId(), heroAlt, hero.heroImportUrl(), posts.maxSortOrder() + 1, adminId, now);
         if (requestedStatus == GuidanceStatus.PUBLISHED) {
             // One-shot "write and publish" (D4) — the same stamp the
             // publish endpoint would write. This is a CREATE, not a
-            // lifecycle transition: no separate publish audit row.
+            // lifecycle transition: no separate publish audit row. A
+            // failed import does not demote the requested status — the
+            // post is stored as asked, hero-less where the import failed.
             post.publish(now);
         }
         GuidancePost saved = posts.save(post);
@@ -442,53 +453,50 @@ public class GuidanceService {
         // backfill's invariant, kept for new posts too) — so the public reads
         // (which key off translations) see it in its own locale.
         saveOwnTranslation(saved, now);
-        return saved;
+        return new SavedPost(saved, hero.error());
     }
 
     /**
      * Full replace of the editable fields (D3): title, body, locale,
-     * pinned, hero (id + alt + pending import URL). The slug is kept when omitted; when given,
-     * it is validated and must not collide with ANOTHER post (409 naming
-     * the slug). The stored body is re-sanitized (D2) — the sanitizer
-     * runs on update exactly as on create. A pending import URL is stored as-is (consumed at
-     * the NEXT publish) — except on an already-published post, where it is a 400: a published
-     * post carries no pending import (the V25 CHECK), so the workflow is unpublish → edit →
-     * publish.
+     * pinned, hero (id + alt + import URL). The slug is kept when omitted;
+     * when given, it is validated and must not collide with ANOTHER post
+     * (409 naming the slug). The stored body is re-sanitized (D2). The
+     * hero import URL is fetched AT SAVE, draft or published alike (the
+     * Wave 9 trigger): a changed URL re-imports (the new asset supersedes
+     * the previous hero — the replaced asset stays in the library, D8);
+     * a URL whose import already produced the current hero re-saves
+     * without a re-fetch; a failed import never blocks the update — the
+     * post is stored with the URL kept and the error in
+     * {@link SavedPost#heroImportError()}. Clearing the URL (and the hero
+     * id) clears the hero (the imported asset stays in the library, D8).
      *
-     * @throws GuidanceValidationException 400 — same vocabulary as {@link #create},
-     *                                     plus a pending import URL on a published post
+     * @throws GuidanceValidationException 400 — same vocabulary as {@link #create}
      * @throws SlugAlreadyUsedException    409 — the given slug is held by another post
      * @throws GuidanceNotFoundException   404 — unknown post id, or a heroImageId
      *                                     with no such asset
      */
     @Transactional
-    public GuidancePost update(long id, String title, String slug, String body,
-                               String locale, boolean pinned, Long heroImageId,
-                               String heroImageAlt, String heroImportUrl) {
+    public SavedPost update(long adminId, long id, String title, String slug, String body,
+                            String locale, boolean pinned, Long heroImageId,
+                            String heroImageAlt, String heroImportUrl) {
         GuidancePost post = requirePost(id);
         Instant now = clock.instant();
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanLocale = GuidanceValidation.localeOrDefault(locale, defaultLocale);
         String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        if (post.isPublished() && cleanImportUrl != null) {
-            // A published post cannot take a pending import (the V25
-            // CHECK makes this structural — a live post's hero is always
-            // a live asset or nothing): unpublishing first is the
-            // workflow, so the 400 says so instead of letting the DB
-            // reject the write with an integrity error.
-            throw new GuidanceValidationException(
-                    "A published post cannot take a pending hero import — unpublish it "
-                            + "first, or pick a hero from the media library");
-        }
         requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         String finalSlug = GuidanceValidation.resolveSuppliedSlug(slug, post.getSlug(),
                 posts::existsBySlug);
         String oldLocale = post.getLocale();
+        // The save-time hero import (the Wave 9 trigger) — after every
+        // write-time validation, so a doomed update never spends a
+        // network fetch.
+        HeroResolution hero = resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
 
-        post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, heroImageId,
-                heroAlt, cleanImportUrl, now);
+        post.update(finalSlug, cleanTitle, cleanBody, cleanLocale, pinned, hero.heroImageId(),
+                heroAlt, hero.heroImportUrl(), now);
         GuidancePost saved = posts.save(post);
         if (!oldLocale.equals(cleanLocale)) {
             // The post's home locale moved: drop the old own-locale row so the
@@ -498,7 +506,7 @@ public class GuidanceService {
         // Re-sync the (possibly new) own-locale translation from the post's
         // home content — the V26 invariant, kept on every update.
         saveOwnTranslation(saved, now);
-        return saved;
+        return new SavedPost(saved, hero.error());
     }
 
     /**
@@ -540,16 +548,16 @@ public class GuidanceService {
      *                                     held by another translation
      */
     @Transactional
-    public GuidancePost updateInLocale(long id, String editLocale, String title, String slug,
-                                       String body, String homeLocale, boolean pinned,
-                                       Long heroImageId, String heroImageAlt,
-                                       String heroImportUrl) {
+    public SavedPost updateInLocale(long adminId, long id, String editLocale, String title, String slug,
+                                    String body, String homeLocale, boolean pinned,
+                                    Long heroImageId, String heroImageAlt,
+                                    String heroImportUrl) {
         GuidancePost post = requirePost(id);
         String editL = GuidanceValidation.requireLocale(editLocale);
         if (editL.equals(post.getLocale())) {
             // Editing in the post's own language: the unscoped full replace
             // (home columns + home-locale move + home row sync — unchanged).
-            return update(id, title, slug, body, homeLocale, pinned, heroImageId,
+            return update(adminId, id, title, slug, body, homeLocale, pinned, heroImageId,
                     heroImageAlt, heroImportUrl);
         }
         // A foreign-locale edit never moves the home: a blank declaration
@@ -563,6 +571,9 @@ public class GuidanceService {
                             + "editing a " + editL + " translation — the home locale moves "
                             + "only through the post's own-locale edit");
         }
+        // The save-time hero decision (the Wave 9 trigger): a foreign-
+        // locale save imports the URL exactly like the home-locale one —
+        // the hero reference is post-level, shared by every translation.
         // The content target, resolved BEFORE anything is written (fail
         // first): a 404 when the post has no row in the edit locale.
         GuidanceTranslation translation = translations.findByPostIdAndLocale(id, editL)
@@ -571,13 +582,6 @@ public class GuidanceService {
         String cleanTitle = requireTitle(title);
         String cleanBody = sanitize(body);
         String cleanImportUrl = normalizeImportUrl(heroImportUrl);
-        if (post.isPublished() && cleanImportUrl != null) {
-            // A published post cannot take a pending import (the V25 CHECK
-            // makes this structural): unpublishing first is the workflow.
-            throw new GuidanceValidationException(
-                    "A published post cannot take a pending hero import — unpublish it "
-                            + "first, or pick a hero from the media library");
-        }
         requireHeroPairing(heroImageId, heroImageAlt, cleanImportUrl);
         String heroAlt = heroImageAlt == null ? null : heroImageAlt.trim();
         boolean hasHero = heroImageId != null || cleanImportUrl != null;
@@ -590,8 +594,9 @@ public class GuidanceService {
         String postAlt = hasHero
                 ? (oldHomeAlt == null || oldHomeAlt.isBlank() ? heroAlt : oldHomeAlt)
                 : null;
+        HeroResolution hero = resolveHeroOnSave(adminId, post, heroImageId, cleanImportUrl);
         post.update(post.getSlug(), post.getTitle(), post.getBodyHtml(), post.getLocale(),
-                pinned, heroImageId, postAlt, cleanImportUrl, now);
+                pinned, hero.heroImageId(), postAlt, hero.heroImportUrl(), now);
         GuidancePost saved = posts.save(post);
         if (!Objects.equals(oldHomeAlt, postAlt)) {
             // The home alt moved with the hero: re-sync the home row (the
@@ -604,7 +609,7 @@ public class GuidanceService {
                 candidate -> translations.existsByLocaleAndSlug(editL, candidate));
         translation.update(finalSlug, cleanTitle, cleanBody, heroAlt, now);
         translations.save(translation);
-        return saved;
+        return new SavedPost(saved, hero.error());
     }
 
     /**
@@ -613,44 +618,29 @@ public class GuidanceService {
      * already-published post is a no-op that writes NO audit row and
      * keeps its earlier stamp (the 204 is the controller's answer).
      *
-     * <p>A pending hero import (guidance-hero-import) is consumed HERE,
-     * inside this transaction: the import runs first, and only a
-     * SUCCESSFUL import links the asset. Any failure — a refused URL,
-     * an unfetchable host, an oversized body, a non-image body, an
-     * over-pixel body, a storage failure — propagates, the transaction
-     * rolls back, and the post stays a DRAFT with the URL intact.
+     * <p>The hero import moved to SAVE time (the Wave 9 trigger): publish
+     * no longer fetches, validates or stores anything — a post with an
+     * unimported or failed hero URL publishes exactly as stored (the URL
+     * stays for a retry on the next save), so publishing is never the
+     * moment an image can fail for the first time, and no post is
+     * unpublishable because of an image problem.
      *
      * @throws GuidanceNotFoundException 404 — unknown id
-     * @throws HeroImportRefusedException      400 — the import was refused by policy /
-     *                                          the URL is broken
-     * @throws HeroImportUnreachableException  502 — the import could not be fetched
-     * @throws MediaTooLargeException          413 — the import exceeded the cap
-     * @throws UnsupportedImageException       400 — the import is not a readable image
      */
     @Transactional
     public void publish(long adminId, long id) {
         GuidancePost post = requirePost(id);
-        boolean wasPublished = post.isPublished();
-        boolean hadPendingImport = post.getHeroImportUrl() != null;
-        if (hadPendingImport) {
-            MediaAsset imported = heroImport.importHero(adminId, post.getHeroImportUrl());
-            post.linkImportedHero(imported.getId());
-        }
-        if (wasPublished && !hadPendingImport) {
+        if (post.isPublished()) {
             // Idempotent no-op: no save, NO audit row (the D4 rule).
             return;
-        }
-        if (!wasPublished) {
-            post.publish(clock.instant());
         }
         // sort_order is NEVER touched here (guidance-manual-order D4): a
         // re-publish stamps a fresh publishedAt, but the post's slot is its
         // stored manual position — it does not re-enter the list at the top.
+        post.publish(clock.instant());
         posts.save(post);
-        if (!wasPublished) {
-            audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_PUBLISH,
-                    auditLabel(post), null);
-        }
+        audit.recordLabeled(adminId, ModerationAuditLog.Action.GUIDANCE_PUBLISH,
+                auditLabel(post), null);
     }
 
     /**
@@ -780,9 +770,9 @@ public class GuidanceService {
 
     /**
      * Alt mandatory iff a hero is set — a hero being a stored-asset
-     * reference OR a pending import URL (both directions 400; the V23
-     * CHECK mirrors the reference half). A hero id must name a live
-     * asset (unknown id → 404).
+     * reference OR an import URL (both directions 400; the V23 CHECK
+     * mirrors the reference half). A hero id must name a live asset
+     * (unknown id → 404).
      */
     private void requireHeroPairing(Long heroImageId, String heroImageAlt, String heroImportUrl) {
         boolean hasHero = heroImageId != null || heroImportUrl != null;
@@ -800,13 +790,87 @@ public class GuidanceService {
     }
 
     /**
-     * The admin-supplied pending-import URL, normalized (trimmed) and
-     * shape-checked BEFORE it is stored (the fetch-time policy
-     * re-validates everything — this is the early 400 that saves the
-     * admin a publish round-trip): a parseable absolute http(s) URL
-     * with a host and no embedded credentials. Blank means "no pending
-     * import" (null) — clearing a hero URL is a null, like clearing the
-     * hero id.
+     * One save's hero decision (the save-time import, the Wave 9 trigger):
+     * the hero reference and import URL to WRITE, plus the import's
+     * failure ({@code null} when no import ran or it succeeded). A
+     * non-null error never blocked the save — see {@link #resolveHeroOnSave}.
+     */
+    private record HeroResolution(Long heroImageId, String heroImportUrl, String error) {
+    }
+
+    /**
+     * The save-time hero decision (guidance-hero-import, the Wave 9
+     * trigger move — the import runs when the post is SAVED, draft or
+     * published alike, not when it is published):
+     * <ul>
+     *   <li>no URL in the request → the hero is the request's library
+     *       reference (or nothing); any stored URL is cleared (a cleared
+     *       hero imports nothing);</li>
+     *   <li>the URL is set and the post's CURRENT hero is exactly this
+     *       URL's own import (its asset's {@code source_url} records it)
+     *       → idempotent re-save: no re-fetch, no duplicate asset;</li>
+     *   <li>otherwise — a new/changed URL, a retry after a failed import,
+     *       or a create — {@link HeroImageImportService} fetches,
+     *       validates and stores the image (in its OWN transaction, so a
+     *       failure cannot roll back this save): success links the new
+     *       asset (superseding the previous hero — the replaced asset
+     *       stays in the library, D8); failure keeps the URL for a retry
+     *       on the next save and falls the hero back to the request's
+     *       library reference, or — none given — to what the post
+     *       already had. A hero is always a validated stored asset or
+     *       nothing: no broken reference, no placeholder — a published
+     *       post's live hero is never lost to a failed fetch, and a
+     *       fresh post is simply hero-less, which renders fine.</li>
+     * </ul>
+     */
+    private HeroResolution resolveHeroOnSave(long adminId, GuidancePost post,
+                                             Long requestHeroImageId, String cleanImportUrl) {
+        if (cleanImportUrl == null) {
+            return new HeroResolution(requestHeroImageId, null, null);
+        }
+        if (post != null && isHeroImportedFrom(post, cleanImportUrl)) {
+            // The current hero IS this URL's import — a re-save with the
+            // same URL does not re-fetch (the admin changed no hero).
+            return new HeroResolution(post.getHeroImageId(), cleanImportUrl, null);
+        }
+        try {
+            MediaAsset imported = heroImport.importHero(adminId, cleanImportUrl);
+            return new HeroResolution(imported.getId(), cleanImportUrl, null);
+        } catch (HeroImportRefusedException | HeroImportUnreachableException
+                 | MediaTooLargeException | UnsupportedImageException ex) {
+            // A failed import NEVER blocks the save — the error is
+            // returned to the write response (the admin sees it against
+            // the hero field), the post is stored with the URL kept, and
+            // the hero falls back as described above.
+            Long fallback = requestHeroImageId != null ? requestHeroImageId
+                    : (post == null ? null : post.getHeroImageId());
+            return new HeroResolution(fallback, cleanImportUrl, ex.getMessage());
+        }
+    }
+
+    /**
+     * Whether the post's current hero is the imported asset of exactly
+     * {@code url} (the asset's recorded origin, {@code source_url}) —
+     * the idempotency check that keeps a same-URL re-save from minting a
+     * duplicate asset. A hero whose origin is null (a plain library pick)
+     * is never "imported from" a URL.
+     */
+    private boolean isHeroImportedFrom(GuidancePost post, String url) {
+        if (post.getHeroImageId() == null) {
+            return false;
+        }
+        return mediaAssets.findById(post.getHeroImageId())
+                .map(asset -> url.equals(asset.getSourceUrl()))
+                .orElse(false);
+    }
+
+    /**
+     * The admin-supplied import URL, normalized (trimmed) and shape-
+     * checked BEFORE it is stored (the fetch-time policy re-validates
+     * everything — this is the early 400 that saves the admin a save
+     * round-trip): a parseable absolute http(s) URL with a host and no
+     * embedded credentials. Blank means "no import URL" (null) —
+     * clearing the hero URL is a null, like clearing the hero id.
      *
      * @throws GuidanceValidationException 400 — a malformed, non-http(s),
      *                                       hostless or credentialed URL

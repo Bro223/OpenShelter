@@ -190,7 +190,7 @@ class ShelterPagingCostIT extends AbstractPersistenceIT {
         long authorId = saveUser(users, "w2acost@example.ee", "+37250099901").getId();
         for (int i = 1; i <= POSTS; i++) {
             long id = guidance.create(authorId, "W2A-COST post " + i, null, "<p>b</p>", "en",
-                    false, null, null, null, null).getId();
+                    false, null, null, null, null).post().getId();
             guidance.publish(authorId, id);
         }
 

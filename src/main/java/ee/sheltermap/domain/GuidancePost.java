@@ -13,11 +13,15 @@ import java.util.Objects;
  * post with a {@code null} hero renders no image element at all. Alt text
  * is mandatory iff a hero is set (the V23 CHECK mirrors the same rule).
  *
- * <p>The {@code heroImportUrl} (guidance-hero-import) is a PENDING IMPORT,
- * not a hero: an admin-supplied http(s) URL the server fetches, validates
- * and stores at publish time. A published post carries none (the V25
- * CHECK), and {@link #linkImportedHero(Long)} consumes it together with the
- * link to the imported asset.
+ * <p>The {@code heroImportUrl} (guidance-hero-import) is the hero's SOURCE
+ * URL: an admin-supplied http(s) URL the server fetches, validates and
+ * stores at SAVE time (create and update, draft or published alike). A
+ * successful import links the stored asset as the hero and keeps the URL
+ * on the post as provenance (the asset's {@code source_url} records the
+ * same origin); a failed import leaves the post's previous hero (or no
+ * hero) in place and keeps the URL for a retry on the next save. The hero
+ * itself is always a stored-asset reference or {@code null} — a page never
+ * renders from the URL.
  *
  * <p>Publication state (D4): publishing stamps {@code publishedAt} from
  * the instant the caller passes (the service's injected Clock);
@@ -46,7 +50,7 @@ public class GuidancePost {
     private boolean pinned;
     private Long heroImageId;
     private String heroImageAlt;
-    /** Pending hero import (guidance-hero-import): {@code null} when there is none. */
+    /** The hero's source URL (guidance-hero-import): {@code null} when the hero is a plain library reference (or absent). */
     private String heroImportUrl;
     /** The stored manual position (guidance-manual-order D1); 1 = first. */
     private int sortOrder;
@@ -141,24 +145,6 @@ public class GuidancePost {
     }
 
     /**
-     * Consumes the pending hero import (guidance-hero-import): the imported
-     * asset becomes the hero — superseding any pre-set {@code heroImageId}
-     * (the replaced asset stays in the library, the D8 replace rule) — and
-     * the URL is cleared, so the V25 CHECK (no pending import on a
-     * published post) holds from this moment on. Called by the guidance
-     * service INSIDE the publish transaction, after the import succeeded.
-     * A post whose hero came only from a URL already has its alt set by the
-     * pairing rule, so nothing else moves here.
-     */
-    public void linkImportedHero(Long assetId) {
-        if (heroImportUrl == null) {
-            throw new IllegalStateException("no pending hero import to consume");
-        }
-        this.heroImageId = Objects.requireNonNull(assetId, "assetId");
-        this.heroImportUrl = null;
-    }
-
-    /**
      * Publishes: stamps {@code publishedAt} and moves {@code updatedAt}
      * to the caller's instant. Idempotent — a second call on a published
      * post keeps the earlier stamp (the "publishing twice is a no-op"
@@ -189,10 +175,9 @@ public class GuidancePost {
     /**
      * Clears the hero image (id and alt together, D8): the post stays
      * fully renderable — no image element, title and body intact. The
-     * asset itself is untouched in the media library. A PENDING import URL
-     * is left alone when it is present — the import was never consumed,
-     * so the next publish re-imports it (a delete of one asset does not
-     * burn the admin's URL).
+     * asset itself is untouched in the media library. The import URL is
+     * left alone when it is present — the next save re-imports it (a
+     * delete of one asset does not burn the admin's URL).
      */
     public void clearHero() {
         this.heroImageId = null;
@@ -303,9 +288,12 @@ public class GuidancePost {
     }
 
     /**
-     * The pending hero-import URL (guidance-hero-import); {@code null} when
-     * the hero is a plain library reference (or absent). Never exposed on
-     * the public surface — admin read only.
+     * The hero's source URL (guidance-hero-import): the admin-supplied
+     * import URL, fetched at save time; kept after a successful import as
+     * the hero's provenance (the imported asset's {@code source_url}
+     * records the same origin) and retryable after a failed one.
+     * {@code null} when the hero is a plain library reference (or absent).
+     * Never exposed on the public surface — admin read only.
      */
     public String getHeroImportUrl() {
         return heroImportUrl;

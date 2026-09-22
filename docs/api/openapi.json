@@ -101,6 +101,9 @@
           "heroImageUrl" : {
             "type" : "string"
           },
+          "heroImportError" : {
+            "type" : "string"
+          },
           "heroImportUrl" : {
             "type" : "string"
           },
@@ -2871,7 +2874,7 @@
         }
       },
       "post" : {
-        "description" : "DRAFT by default; an explicit status PUBLISHED publishes in one call. The slug is generated from the title when omitted; an explicit slug is used exactly as given (collision → 409 naming the slug). 200 with the created post; 400 validation (title/body required, alt mandatory iff a hero is set); 409 slug collision; 404 unknown heroImageId.",
+        "description" : "DRAFT by default; an explicit status PUBLISHED publishes in one call. The slug is generated from the title when omitted; an explicit slug is used exactly as given (collision → 409 naming the slug). 200 with the created post; 400 validation (title/body required, alt mandatory iff a hero is set); 409 slug collision; 404 unknown heroImageId. A heroImportUrl is fetched, validated and stored at save: a failed import never blocks the create — heroImportError in the 200 body names it and the URL is kept for a retry.",
         "operationId" : "create_1",
         "requestBody" : {
           "content" : {
@@ -2892,7 +2895,7 @@
                 }
               }
             },
-            "description" : "The created post"
+            "description" : "The created post (heroImportError set when its hero import failed at save — the post was still created)"
           },
           "400" : {
             "content" : {
@@ -2954,16 +2957,6 @@
             },
             "description" : "An admin-supplied slug another post already holds (naming the slug)"
           },
-          "413" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/AdminGuidancePostDto"
-                }
-              }
-            },
-            "description" : "The one-shot hero import exceeded the size cap"
-          },
           "415" : {
             "content" : {
               "application/json" : {
@@ -2993,16 +2986,6 @@
               }
             },
             "description" : "Unexpected server error — the uniform error body."
-          },
-          "502" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/AdminGuidancePostDto"
-                }
-              }
-            },
-            "description" : "The one-shot hero import could not be fetched (timeout / network / upstream 5xx)"
           }
         },
         "summary" : "Create a guidance post",
@@ -3390,7 +3373,7 @@
         }
       },
       "put" : {
-        "description" : "Full replace of the editable fields; the slug is kept when omitted (a given slug that another post holds → 409 naming it). The body is re-sanitized — the stored value is the sanitizer output. 200 with the updated post; 404 unknown id. With ?locale= the content fields are written to that locale's translation (the post-level fields stay shared); editing in the post's own locale is the unscoped semantics, a foreign-locale edit never moves the home locale (400) and 404s when the post has no translation in the locale.",
+        "description" : "Full replace of the editable fields; the slug is kept when omitted (a given slug that another post holds → 409 naming it). The body is re-sanitized — the stored value is the sanitizer output. A heroImportUrl is fetched, validated and stored at save (draft or published): a failed import never blocks the update — heroImportError in the 200 body names it. 200 with the updated post; 404 unknown id. With ?locale= the content fields are written to that locale's translation (the post-level fields stay shared); editing in the post's own locale is the unscoped semantics, a foreign-locale edit never moves the home locale (400) and 404s when the post has no translation in the locale.",
         "operationId" : "update_2",
         "parameters" : [ {
           "name" : "id",
@@ -3428,7 +3411,7 @@
                 }
               }
             },
-            "description" : "The updated post"
+            "description" : "The updated post (heroImportError set when its hero import failed at save — the post was still updated)"
           },
           "400" : {
             "content" : {
@@ -3438,7 +3421,7 @@
                 }
               }
             },
-            "description" : "Validation failure (incl. a pending import URL on a published post, a home-locale move through a foreign-locale edit)"
+            "description" : "Validation failure (incl. a home-locale move through a foreign-locale edit)"
           },
           "401" : {
             "content" : {
@@ -3530,7 +3513,7 @@
     },
     "/admin/guidance/{id}/publish" : {
       "post" : {
-        "description" : "Stamps publishedAt (a re-publish stamps a FRESH instant). A pending hero import URL is fetched, validated and stored first — a failed import fails the publish. Idempotent: already published (and no pending import) → 204 no-op, NO audit row. 204; 400/413/502 import failure; 404 unknown id.",
+        "description" : "Stamps publishedAt (a re-publish stamps a FRESH instant). Idempotent: already published → 204 no-op, NO audit row. The hero image is imported at SAVE (create / update) — publish itself never fetches, so it cannot fail for an image reason. 204; 404 unknown id.",
         "operationId" : "publish",
         "parameters" : [ {
           "name" : "id",
@@ -3553,7 +3536,7 @@
                 }
               }
             },
-            "description" : "The pending hero import was refused (URL policy, non-image body) or the URL is broken"
+            "description" : "Validation failure — the uniform error body."
           },
           "401" : {
             "content" : {
@@ -3605,16 +3588,6 @@
             },
             "description" : "Conflict (duplicate or forbidden state) — the uniform error body."
           },
-          "413" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description" : "The pending hero import exceeded the size cap"
-          },
           "415" : {
             "content" : {
               "application/json" : {
@@ -3644,16 +3617,6 @@
               }
             },
             "description" : "Unexpected server error — the uniform error body."
-          },
-          "502" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description" : "The pending hero import could not be fetched (timeout / network / upstream 5xx)"
           }
         },
         "summary" : "Publish a guidance post",

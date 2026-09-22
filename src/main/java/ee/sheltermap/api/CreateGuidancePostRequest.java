@@ -17,11 +17,13 @@ import jakarta.validation.constraints.Size;
  * defaults from {@code app.guidance.default-locale} when omitted (D11).
  * {@code heroImageId} + {@code heroImageAlt}: the alt is mandatory iff
  * the hero is set — the cross-field rule the service enforces (400).
- * {@code heroImportUrl} (guidance-hero-import): an OPTIONAL pending hero
- * import — an http(s) URL the server fetches, validates and stores at
- * publish time instead of picking a library asset. The alt is mandatory
- * iff a hero of EITHER kind is set; the URL is shape-checked at write
- * time (400) and fully policy-checked at publish time.
+ * {@code heroImportUrl} (guidance-hero-import): an OPTIONAL hero import
+ * — an http(s) URL the server fetches, validates and stores AT SAVE
+ * time (this create call) instead of picking a library asset. The alt is
+ * mandatory iff a hero of EITHER kind is set; the URL is shape-checked at
+ * write time (400) and fully policy-checked by the save-time import — a
+ * failed import never blocks the create (the response's
+ * {@code heroImportError} names it, the URL is kept for a retry).
  */
 public record CreateGuidancePostRequest(
         @NotBlank @Size(max = 255) String title,

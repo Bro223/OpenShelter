@@ -108,7 +108,7 @@ class AdminGuidanceSearchPagingIT extends AbstractPersistenceIT {
     /** Creates a post through the REAL service (committed). */
     private long createPost(String title, String body, String locale) {
         GuidancePost post = guidance.create(adminId, title, null, body, locale,
-                false, null, null, null, null);
+                false, null, null, null, null).post();
         return post.getId();
     }
 

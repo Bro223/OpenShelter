@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -93,6 +94,17 @@ class GuidanceServiceTest {
         return (url, maxBytes) -> new HeroImageFetchClient.FetchedImage(200, null, png(100, 50));
     }
 
+    /** How many times the seam was asked to fetch — proves the trigger's decisions. */
+    private final AtomicInteger fetches = new AtomicInteger();
+
+    /** A serving client that COUNTS its fetches (the re-fetch rule's evidence). */
+    private HeroImageFetchClient countingServingClient() {
+        return (url, maxBytes) -> {
+            fetches.incrementAndGet();
+            return new HeroImageFetchClient.FetchedImage(200, null, png(100, 50));
+        };
+    }
+
     /** The fake resolver answers one public address for every host (no DNS). */
     private static List<InetAddress> publicAddresses() throws UnknownHostException {
         return List.of(InetAddress.getByName("93.184.216.34"));
@@ -115,11 +127,11 @@ class GuidanceServiceTest {
     }
 
     private GuidancePost createDraft(String title) {
-        return service.create(ADMIN_ID, title, null, "<p>body</p>", null, false, null, null, null, null);
+        return service.create(ADMIN_ID, title, null, "<p>body</p>", null, false, null, null, null, null).post();
     }
 
     private GuidancePost createDraft(String title, String locale) {
-        return service.create(ADMIN_ID, title, null, "<p>body</p>", locale, false, null, null, null, null);
+        return service.create(ADMIN_ID, title, null, "<p>body</p>", locale, false, null, null, null, null).post();
     }
 
     private GuidancePost createAndPublish(String title, String locale) {
@@ -163,7 +175,7 @@ class GuidanceServiceTest {
         Instant now = clock.instant();
 
         GuidancePost post = service.create(ADMIN_ID, "First", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
 
         assertThat(post.isPublished()).isTrue();
         assertThat(post.getPublishedAt()).isEqualTo(now);
@@ -176,7 +188,7 @@ class GuidanceServiceTest {
         String hostile = "<p>ok</p><script>alert(1)</script>";
 
         GuidancePost post = service.create(ADMIN_ID, "T", null, hostile,
-                null, false, null, null, null, null);
+                null, false, null, null, null, null).post();
 
         // The stored value is the sanitizer OUTPUT, not the raw input (D2):
         // exactly what the sanitizer answers for the input, no script left.
@@ -189,9 +201,9 @@ class GuidanceServiceTest {
     @Test
     void localeDefaultsFromTheConfiguredPrimaryLanguage() {
         assertThat(service.create(ADMIN_ID, "D", null, "<p>b</p>", null, false, null, null, null, null)
-                .getLocale()).isEqualTo("en");
+                .post().getLocale()).isEqualTo("en");
         assertThat(service.create(ADMIN_ID, "E", null, "<p>b</p>", "et", false, null, null, null, null)
-                .getLocale()).isEqualTo("et");
+                .post().getLocale()).isEqualTo("et");
     }
 
     @Test
@@ -218,8 +230,8 @@ class GuidanceServiceTest {
         clock.advance(Duration.ofMinutes(5));
         String hostile = "<p>new</p><script>x</script>";
 
-        GuidancePost updated = service.update(post.getId(), "New Title", null,
-                hostile, null, true, null, null, null);
+        GuidancePost updated = service.update(ADMIN_ID, post.getId(), "New Title", null,
+                hostile, null, true, null, null, null).post();
 
         assertThat(updated.getSlug()).isEqualTo(post.getSlug());
         assertThat(updated.getTitle()).isEqualTo("New Title");
@@ -240,11 +252,11 @@ class GuidanceServiceTest {
         GuidancePost b = createDraft("B");
 
         // Its own slug is a no-op, not a collision.
-        service.update(a.getId(), "A", a.getSlug(), "<p>b</p>", null, false, null, null, null);
+        service.update(ADMIN_ID, a.getId(), "A", a.getSlug(), "<p>b</p>", null, false, null, null, null);
         assertThat(posts.findById(a.getId()).orElseThrow().getSlug()).isEqualTo(a.getSlug());
 
         // Another post's slug → 409 naming it, nothing changed.
-        assertThatThrownBy(() -> service.update(b.getId(), "B", a.getSlug(), "<p>b</p>",
+        assertThatThrownBy(() -> service.update(ADMIN_ID, b.getId(), "B", a.getSlug(), "<p>b</p>",
                 null, false, null, null, null))
                 .isInstanceOf(SlugAlreadyUsedException.class)
                 .hasMessageContaining(a.getSlug());
@@ -342,7 +354,7 @@ class GuidanceServiceTest {
                 () -> service.publish(ADMIN_ID, 999L),
                 () -> service.unpublish(ADMIN_ID, 999L),
                 () -> service.delete(ADMIN_ID, 999L, true),
-                () -> service.update(999L, "T", null, "<p>b</p>", null, false, null, null, null))) {
+                () -> service.update(ADMIN_ID, 999L, "T", null, "<p>b</p>", null, false, null, null, null))) {
             assertThatThrownBy(op::run).isInstanceOf(GuidanceNotFoundException.class);
         }
     }
@@ -367,7 +379,7 @@ class GuidanceServiceTest {
         // Pinning the LARGEST sortOrder floats it to the top — the pinned
         // head block sits above every non-pinned post regardless of value.
         service.reorder(ADMIN_ID, List.of(b.getId(), c.getId(), a.getId()));
-        service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null);
+        service.update(ADMIN_ID, a.getId(), "A", null, "<p>b</p>", null, true, null, null, null);
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(a.getId(), b.getId(), c.getId());
 
@@ -375,7 +387,7 @@ class GuidanceServiceTest {
         // NOT float to the top of the non-pinned block by its timestamp.
         clock.advance(Duration.ofHours(1));
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
                 .containsExactly(a.getId(), b.getId(), c.getId(), d.getId());
     }
@@ -392,7 +404,7 @@ class GuidanceServiceTest {
         // admin list is the LIVE PREVIEW of the public order (sortOrder
         // ascending), not the newest-updated order.
         clock.advance(Duration.ofMinutes(10));
-        service.update(a.getId(), "A edited", null, "<p>b</p>", null, false, null, null, null);
+        service.update(ADMIN_ID, a.getId(), "A edited", null, "<p>b</p>", null, false, null, null, null);
         assertThat(service.listForAdmin()).extracting(GuidancePost::getId)
                 .containsExactly(b.getId(), a.getId());
     }
@@ -416,10 +428,10 @@ class GuidanceServiceTest {
     void aCreateAndPublishLandsAtTheEndOfTheNonPinnedBlock() {
         GuidancePost a = createAndPublish("A", null);
         GuidancePost b = createAndPublish("B", null);
-        service.update(a.getId(), "A", null, "<p>b</p>", null, true, null, null, null); // pin a
+        service.update(ADMIN_ID, a.getId(), "A", null, "<p>b</p>", null, true, null, null, null); // pin a
 
         GuidancePost c = service.create(ADMIN_ID, "C", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
 
         // Below the pinned post, at the END of the non-pinned block.
         assertThat(service.listPublic(null)).extracting(PublicGuidanceView::getId)
@@ -608,9 +620,9 @@ class GuidanceServiceTest {
         // stamps from the injected Clock) and are forced onto one shared
         // sortOrder; 'b' is pushed off the shared value.
         GuidancePost c = service.create(ADMIN_ID, "C", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
         GuidancePost d = service.create(ADMIN_ID, "D", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
         assertThat(c.getPublishedAt()).isEqualTo(d.getPublishedAt());
         c.setSortOrder(9);
         posts.save(c);
@@ -701,7 +713,7 @@ class GuidanceServiceTest {
     @Test
     void aPostWithoutAHeroCarriesNullHeroFields() {
         GuidancePost post = service.create(ADMIN_ID, "No hero", null, "<p>b</p>",
-                null, false, null, null, null, GuidanceStatus.PUBLISHED);
+                null, false, null, null, null, GuidanceStatus.PUBLISHED).post();
 
         assertThat(post.getHeroImageId()).isNull();
         assertThat(post.getHeroImageAlt()).isNull();
@@ -744,10 +756,10 @@ class GuidanceServiceTest {
         MediaAsset oldAsset = newAsset(slug32("a"));
         MediaAsset fresh = newAsset(slug32("b"));
         GuidancePost post = service.create(ADMIN_ID, "H", null, "<p>b</p>",
-                null, false, oldAsset.getId(), "old alt", null, null);
+                null, false, oldAsset.getId(), "old alt", null, null).post();
         assertThat(media.referencedCountsByAssetId()).containsEntry(oldAsset.getId(), 1L);
 
-        service.update(post.getId(), "H", null, "<p>b</p>", null, false, fresh.getId(), "new alt", null);
+        service.update(ADMIN_ID, post.getId(), "H", null, "<p>b</p>", null, false, fresh.getId(), "new alt", null);
 
         assertThat(posts.findById(post.getId()).orElseThrow().getHeroImageId()).isEqualTo(fresh.getId());
         Map<Long, Long> counts = media.referencedCountsByAssetId();
@@ -959,8 +971,8 @@ class GuidanceServiceTest {
         GuidancePost en = createAndPublish("English original", "en");
         service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
 
-        GuidancePost saved = service.updateInLocale(en.getId(), "et", "Eesti uus tiitel", null,
-                "<p>uus et keha</p>", "en", true, null, null, null);
+        GuidancePost saved = service.updateInLocale(ADMIN_ID, en.getId(), "et", "Eesti uus tiitel", null,
+                "<p>uus et keha</p>", "en", true, null, null, null).post();
 
         // The et row carries the new content.
         GuidanceTranslation et = translations.findByPostIdAndLocale(en.getId(), "et").orElseThrow();
@@ -979,8 +991,8 @@ class GuidanceServiceTest {
         GuidancePost en = createAndPublish("English original", "en");
         service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
 
-        GuidancePost saved = service.updateInLocale(en.getId(), "en", "English changed", null,
-                "<p>new en body</p>", "en", false, null, null, null);
+        GuidancePost saved = service.updateInLocale(ADMIN_ID, en.getId(), "en", "English changed", null,
+                "<p>new en body</p>", "en", false, null, null, null).post();
         assertThat(saved.getTitle()).isEqualTo("English changed");
         // The home row stays in sync with the columns (the V26 invariant).
         assertThat(translations.findByPostIdAndLocale(en.getId(), "en").orElseThrow().getTitle())
@@ -994,7 +1006,7 @@ class GuidanceServiceTest {
     void aScopedUpdateToALocaleWithoutATranslationIs404AndWritesNothing() {
         GuidancePost en = createAndPublish("English original", "en");
 
-        assertThatThrownBy(() -> service.updateInLocale(en.getId(), "et", "Eesti", null,
+        assertThatThrownBy(() -> service.updateInLocale(ADMIN_ID, en.getId(), "et", "Eesti", null,
                 "<p>b</p>", "en", true, null, null, null))
                 .isInstanceOf(GuidanceNotFoundException.class);
 
@@ -1008,7 +1020,7 @@ class GuidanceServiceTest {
         GuidancePost en = createAndPublish("English original", "en");
         service.createTranslation(en.getId(), "et", null, "Eesti originaal", "<p>et keha</p>", null);
 
-        assertThatThrownBy(() -> service.updateInLocale(en.getId(), "et", "Eesti uus", null,
+        assertThatThrownBy(() -> service.updateInLocale(ADMIN_ID, en.getId(), "et", "Eesti uus", null,
                 "<p>uus keha</p>", "ru", false, null, null, null))
                 .isInstanceOf(GuidanceValidationException.class)
                 .hasMessageContaining("home locale");
@@ -1268,112 +1280,197 @@ class GuidanceServiceTest {
                 .containsExactly(en2.getId(), en1.getId());
     }
 
-    // ------------------------------------------------------------- hero import (guidance-hero-import)
+    // ------------------------------------------------------------- hero import (guidance-hero-import, at save time)
 
     @Test
-    void aPendingImportIsStoredOnTheDraftAndConsumedAtPublish() {
+    void aSuccessfulImportStoresTheAssetAndKeepsTheUrlAsProvenance() {
         fetch.set(servingPngClient());
-        GuidancePost post = service.create(ADMIN_ID, "Imported", null, "<p>b</p>",
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "Imported", null, "<p>b</p>",
                 null, false, null, "an alt", "https://images.example.com/hero.png", null);
+        GuidancePost post = saved.post();
 
-        // The draft carries the URL as a PENDING import — no asset yet.
-        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/hero.png");
-        assertThat(post.getHeroImageId()).isNull();
-        assertThat(media.findAll()).isEmpty();
-
-        service.publish(ADMIN_ID, post.getId());
-
-        GuidancePost published = posts.findById(post.getId()).orElseThrow();
-        assertThat(published.isPublished()).isTrue();
-        // Consumed: the URL is gone, the imported asset is the hero.
-        assertThat(published.getHeroImportUrl()).isNull();
-        assertThat(published.getHeroImageId()).isNotNull();
-        assertThat(published.getHeroImageAlt()).isEqualTo("an alt");
-        MediaAsset asset = media.findById(published.getHeroImageId()).orElseThrow();
+        // The import ran at save: the imported asset is the hero...
+        assertThat(saved.heroImportError()).isNull();
+        assertThat(post.getHeroImageId()).isNotNull();
+        assertThat(post.getHeroImageAlt()).isEqualTo("an alt");
+        MediaAsset asset = media.findById(post.getHeroImageId()).orElseThrow();
         assertThat(asset.getStoredFilename()).matches("^[a-f0-9]{32}\\.png$");
         assertThat(asset.getContentType()).isEqualTo("image/png");
-        // Attribution: the origin is recorded on the asset (takedown trail).
+        // ...and the URL stays on the post as its source of record
+        // (provenance + the retry input — the asset's source_url agrees;
+        // the takedown trail is intact).
+        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/hero.png");
         assertThat(asset.getSourceUrl()).isEqualTo("https://images.example.com/hero.png");
         assertThat(asset.getUploadedBy()).isEqualTo(ADMIN_ID);
-        // Exactly ONE audit row — the publish (the import writes no row of its own).
-        assertThat(audit.rows()).hasSize(1);
-        assertLabeledRow(audit.rows().get(0), ModerationAuditLog.Action.GUIDANCE_PUBLISH,
-                "Guidance post \"Imported\" (imported)");
-    }
-
-    @Test
-    void aFailedImportFailsThePublishAndTheDraftKeepsTheUrl() {
-        // refusingClient() is the default: every fetch is unreachable.
-        GuidancePost post = service.create(ADMIN_ID, "Broken", null, "<p>b</p>",
-                null, false, null, "an alt", "https://images.example.com/gone.png", null);
-
-        assertThatThrownBy(() -> service.publish(ADMIN_ID, post.getId()))
-                .isInstanceOf(HeroImportUnreachableException.class);
-
-        // The post stays a DRAFT with the URL intact — retryable after a
-        // fix; no asset, no hero, NO audit row.
-        GuidancePost draft = posts.findById(post.getId()).orElseThrow();
-        assertThat(draft.isPublished()).isFalse();
-        assertThat(draft.getHeroImportUrl()).isEqualTo("https://images.example.com/gone.png");
-        assertThat(draft.getHeroImageId()).isNull();
-        assertThat(media.findAll()).isEmpty();
+        // The import writes no audit row of its own.
         assertThat(audit.rows()).isEmpty();
     }
 
     @Test
-    void aOneShotCreateAndPublishWithAFailedImportStoresNothing() {
-        // refusingClient() is the default.
-        assertThatThrownBy(() -> service.create(ADMIN_ID, "X", null, "<p>b</p>",
-                null, false, null, "an alt", "https://images.example.com/x.png", GuidanceStatus.PUBLISHED))
-                .isInstanceOf(HeroImportUnreachableException.class);
-        assertThat(posts.findAllForAdmin()).isEmpty();
+    void aFailedImportNeverBlocksTheSaveAndKeepsTheUrlForRetry() {
+        // refusingClient() is the default: every fetch is unreachable.
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "Broken", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/gone.png", null);
+        GuidancePost post = saved.post();
+
+        // The post is stored anyway, with the failure surfaced on the save:
+        assertThat(saved.heroImportError())
+                .contains("https://images.example.com/gone.png").contains("unreachable");
+        assertThat(post.getStatus()).isEqualTo(GuidanceStatus.DRAFT);
+        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/gone.png");
+        // No asset, no hero, no audit row — the post is simply hero-less.
+        assertThat(post.getHeroImageId()).isNull();
         assertThat(media.findAll()).isEmpty();
+        assertThat(audit.rows()).isEmpty();
+
+        // Retry after a fix: the next save re-runs the import and heals.
+        fetch.set(servingPngClient());
+        GuidanceService.SavedPost retry = service.update(ADMIN_ID, post.getId(), "Broken", null,
+                "<p>b</p>", null, false, null, "an alt",
+                "https://images.example.com/gone.png");
+        assertThat(retry.heroImportError()).isNull();
+        assertThat(retry.post().getHeroImageId()).isNotNull();
+        assertThat(media.findById(retry.post().getHeroImageId()).orElseThrow().getSourceUrl())
+                .isEqualTo("https://images.example.com/gone.png");
     }
 
     @Test
-    void aOneShotCreateAndPublishImportsBeforeWriting() {
+    void aOneShotCreateAndPublishWithAFailedImportStillStoresThePost() {
+        // refusingClient() is the default — the one-shot PUBLISHED create
+        // no longer fails: the post is stored as asked, hero-less.
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "X", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/x.png",
+                GuidanceStatus.PUBLISHED);
+
+        assertThat(saved.heroImportError()).isNotBlank();
+        GuidancePost post = saved.post();
+        assertThat(post.isPublished()).isTrue();
+        assertThat(post.getHeroImageId()).isNull();
+        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/x.png");
+        assertThat(posts.findAllForAdmin()).hasSize(1);
+    }
+
+    @Test
+    void aOneShotCreateAndPublishImportsAtSave() {
         fetch.set(servingPngClient());
 
-        GuidancePost post = service.create(ADMIN_ID, "Direct", null, "<p>b</p>",
-                null, false, null, "an alt", "https://images.example.com/d.png", GuidanceStatus.PUBLISHED);
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "Direct", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/d.png",
+                GuidanceStatus.PUBLISHED);
 
+        assertThat(saved.heroImportError()).isNull();
+        GuidancePost post = saved.post();
         assertThat(post.isPublished()).isTrue();
-        assertThat(post.getHeroImportUrl()).isNull();
         assertThat(post.getHeroImageId()).isNotNull();
+        // The URL stays as provenance (the asset's source_url agrees).
+        assertThat(post.getHeroImportUrl()).isEqualTo("https://images.example.com/d.png");
         assertThat(media.findById(post.getHeroImageId()).orElseThrow().getSourceUrl())
                 .isEqualTo("https://images.example.com/d.png");
     }
 
     @Test
-    void aPublishedPostCannotTakeAPendingImport() {
+    void aPublishedPostTakesAnImportUrlAtSave() {
+        fetch.set(servingPngClient());
         GuidancePost post = createAndPublish("Live", "en");
 
-        assertThatThrownBy(() -> service.update(post.getId(), "Live", null, "<p>b</p>",
-                null, false, null, null, "https://images.example.com/x.png"))
-                .isInstanceOf(GuidanceValidationException.class)
-                .hasMessageContaining("unpublish");
-        // Untouched.
-        assertThat(posts.findById(post.getId()).orElseThrow().getHeroImportUrl()).isNull();
+        GuidanceService.SavedPost saved = service.update(ADMIN_ID, post.getId(), "Live", null,
+                "<p>b</p>", null, false, null, "an alt", "https://images.example.com/live.png");
+
+        // The Wave 9 trigger: the import runs at save even for a published
+        // post (the V25 pending-import CHECK is gone — V33).
+        assertThat(saved.heroImportError()).isNull();
+        assertThat(saved.post().getHeroImageId()).isNotNull();
+        assertThat(saved.post().getHeroImageAlt()).isEqualTo("an alt");
+        assertThat(saved.post().getHeroImportUrl()).isEqualTo("https://images.example.com/live.png");
+        MediaAsset asset = media.findById(saved.post().getHeroImageId()).orElseThrow();
+        assertThat(asset.getSourceUrl()).isEqualTo("https://images.example.com/live.png");
     }
 
     @Test
-    void aPendingImportUrlParticipatesInTheAltPairingRule() {
-        // A URL without alt → 400; a URL + alt → fine.
+    void aFailedImportKeepsTheHeroTheRequestNamed() {
+        MediaAsset asset = newAsset(slug32("a"));
+        GuidancePost post = service.create(ADMIN_ID, "Kept", null, "<p>b</p>",
+                null, false, asset.getId(), "old alt", null, null).post();
+        assertThat(post.getHeroImageId()).isEqualTo(asset.getId());
+
+        // A URL that fails at fetch: the request names a library hero —
+        // it is kept (never a broken or placeholder image), the URL
+        // stays for a retry.
+        fetch.set(refusingClient());
+        GuidanceService.SavedPost saved = service.update(ADMIN_ID, post.getId(), "Kept", null,
+                "<p>b</p>", null, false, asset.getId(), "old alt",
+                "https://images.example.com/gone.png");
+        assertThat(saved.heroImportError()).isNotBlank();
+        assertThat(saved.post().getHeroImageId()).isEqualTo(asset.getId());
+        assertThat(saved.post().getHeroImportUrl()).isEqualTo("https://images.example.com/gone.png");
+    }
+
+    @Test
+    void aFailedImportOnAnUpdateKeepsThePreviouslyStoredHero() {
+        MediaAsset asset = newAsset(slug32("a"));
+        GuidancePost post = service.create(ADMIN_ID, "Kept", null, "<p>b</p>",
+                null, false, asset.getId(), "an alt", null, null).post();
+
+        // No hero named in the request + a URL that fails: the previously
+        // stored hero must survive (a published post's live hero is never
+        // lost to a failed fetch).
+        fetch.set(refusingClient());
+        GuidanceService.SavedPost saved = service.update(ADMIN_ID, post.getId(), "Kept", null,
+                "<p>b</p>", null, false, null, "an alt",
+                "https://images.example.com/gone.png");
+        assertThat(saved.heroImportError()).isNotBlank();
+        assertThat(saved.post().getHeroImageId()).isEqualTo(asset.getId());
+        assertThat(saved.post().getHeroImportUrl()).isEqualTo("https://images.example.com/gone.png");
+    }
+
+    @Test
+    void aChangedUrlRefetchesAndASameUrlResaveDoesNot() {
+        fetch.set(countingServingClient());
+
+        GuidanceService.SavedPost first = service.create(ADMIN_ID, "Refetch", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/a.png", null);
+        assertThat(first.heroImportError()).isNull();
+        assertThat(fetches.get()).isEqualTo(1);
+        long firstAssetId = first.post().getHeroImageId();
+
+        // Same URL, same hero: the idempotent save — NO re-fetch.
+        GuidanceService.SavedPost resave = service.update(ADMIN_ID, first.post().getId(),
+                "Refetch", null, "<p>b</p>", null, false, null, "an alt",
+                "https://images.example.com/a.png");
+        assertThat(resave.heroImportError()).isNull();
+        assertThat(resave.post().getHeroImageId()).isEqualTo(firstAssetId);
+        assertThat(fetches.get()).isEqualTo(1);
+
+        // A CHANGED URL: the import runs again, the new asset supersedes.
+        GuidanceService.SavedPost refetched = service.update(ADMIN_ID, first.post().getId(),
+                "Refetch", null, "<p>b</p>", null, false, null, "an alt",
+                "https://images.example.com/b.png");
+        assertThat(refetched.heroImportError()).isNull();
+        assertThat(fetches.get()).isEqualTo(2);
+        assertThat(refetched.post().getHeroImageId()).isNotEqualTo(firstAssetId);
+        assertThat(refetched.post().getHeroImportUrl()).isEqualTo("https://images.example.com/b.png");
+        // The superseded asset stays in the library (the D8 replace rule).
+        assertThat(media.findById(firstAssetId)).isPresent();
+    }
+
+    @Test
+    void anImportUrlParticipatesInTheAltPairingRule() {
+        // A URL without alt → 400 at WRITE time — before any fetch.
+        fetch.set(countingServingClient());
         assertThatThrownBy(() -> service.create(ADMIN_ID, "H", null, "<p>b</p>",
                 null, false, null, null, "https://images.example.com/x.png", null))
                 .isInstanceOf(GuidanceValidationException.class)
                 .hasMessageContaining("heroImageAlt");
         assertThat(posts.findAllForAdmin()).isEmpty();
+        assertThat(fetches.get()).isZero();
 
-        // Both hero kinds at once is legal: the import supersedes the id at publish.
+        // Both hero kinds at once is legal: the import supersedes the id
+        // AT SAVE (the request's asset stays in the library, D8).
         MediaAsset asset = newAsset(slug32("a"));
-        fetch.set(servingPngClient());
         GuidancePost post = service.create(ADMIN_ID, "Both", null, "<p>b</p>",
-                null, false, asset.getId(), "an alt", "https://images.example.com/x.png", null);
-        service.publish(ADMIN_ID, post.getId());
-        GuidancePost published = posts.findById(post.getId()).orElseThrow();
-        assertThat(published.getHeroImageId()).isNotEqualTo(asset.getId());
-        // The superseded asset stays in the library (the D8 replace rule).
+                null, false, asset.getId(), "an alt", "https://images.example.com/x.png", null).post();
+        assertThat(post.getHeroImageId()).isNotEqualTo(asset.getId());
+        assertThat(fetches.get()).isEqualTo(1);
         assertThat(media.findById(asset.getId())).isPresent();
     }
 
@@ -1388,6 +1485,51 @@ class GuidanceServiceTest {
                     .as("url %s", bad);
         }
         assertThat(posts.findAllForAdmin()).isEmpty();
+        assertThat(fetches.get()).isZero();
+    }
+
+    /**
+     * WAVE 9 RED-PROOF (the owner's case): the import fires at SAVE —
+     * creating a DRAFT with a URL already fetches, validates and stores
+     * the image, so the fetched hero is inspectable while drafting.
+     * (RED against the old publish-only trigger: the draft carried a
+     * PENDING url and no asset — the fetch waited for publish.)
+     */
+    @Test
+    void savingADraftWithAUrlFetchesTheHeroAtSave() {
+        fetch.set(servingPngClient());
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "Owner case", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/hero.png", null);
+
+        // The draft ALREADY carries the imported asset — the fetch did not
+        // wait for publish.
+        assertThat(saved.post().getHeroImageId()).isNotNull();
+        assertThat(media.findById(saved.post().getHeroImageId()).orElseThrow().getSourceUrl())
+                .isEqualTo("https://images.example.com/hero.png");
+    }
+
+    /**
+     * WAVE 9 RED-PROOF: publish no longer fetches anything. A draft
+     * holding a URL whose import failed at save publishes as-is — a
+     * first-time import failure can no longer block or fail the publish.
+     * (RED against the old publish-time trigger: publish ran the import
+     * and threw with the default refusing client.)
+     */
+    @Test
+    void publishingNoLongerFetchesForTheFirstTime() {
+        // The default refusing client: under the new trigger the save
+        // attempts the import, fails, and still stores the post (a failed
+        // import never blocks a save).
+        GuidanceService.SavedPost saved = service.create(ADMIN_ID, "X", null, "<p>b</p>",
+                null, false, null, "an alt", "https://images.example.com/gone.png", null);
+        assertThat(saved.heroImportError()).isNotBlank();
+        long id = saved.post().getId();
+
+        // The publish is a pure stamp — it must not fetch (a fetch would
+        // throw with the default refusing client).
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> service.publish(ADMIN_ID, id));
+        assertThat(posts.findById(id).orElseThrow().isPublished()).isTrue();
     }
 
     // ------------------------------------------------------------- paging (guidance-index-paging)
@@ -1396,7 +1538,7 @@ class GuidanceServiceTest {
     private List<PublicGuidanceView> threeViews() {
         for (String title : List.of("Slice A", "Slice B", "Slice C")) {
             GuidancePost post = service.create(ADMIN_ID, title, null, "<p>b</p>",
-                    null, false, null, null, null, null);
+                    null, false, null, null, null, null).post();
             service.publish(ADMIN_ID, post.getId());
         }
         return service.listPublic(null);

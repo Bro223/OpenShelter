@@ -57,7 +57,7 @@ public class GuidancePostEntity {
     @Column(name = "hero_image_alt", length = 300)
     private String heroImageAlt;
 
-    /** Pending hero import (V25): a published post carries none (the V25 CHECK). */
+    /** The hero's source URL (V25, fetched at save time — the V25 pending-import CHECK was dropped in V33). */
     @Column(name = "hero_import_url", length = 2048)
     private String heroImportUrl;
 

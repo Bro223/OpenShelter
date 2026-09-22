@@ -14,9 +14,14 @@ import java.time.Instant;
  * full reference: {@code heroImageId} (the media-library picker's key),
  * the serving {@code heroImageUrl} and the stored alt — all three
  * {@code null} when the post has no hero. {@code heroImportUrl} is the
- * PENDING hero import (guidance-hero-import): the admin-supplied remote
- * URL consumed at the next publish ({@code null} when the hero is a
- * plain library reference — a published post always carries none).
+ * hero's source URL (guidance-hero-import): the admin-supplied remote
+ * URL, fetched at SAVE time (draft or published). Kept after a successful
+ * import as provenance (the imported asset's {@code source_url} records
+ * the same origin); retryable after a failed one. {@code heroImportError}
+ * is that import's failure on the save that produced this DTO — write
+ * responses only (list/detail reads and successful saves answer null):
+ * the post was still stored, the URL kept for a retry on the next save
+ * (a failed import never blocks a save).
  *
  * <p>Locale scope (admin-locale-scope): the content fields ({@code title},
  * {@code slug}, {@code bodyHtml}, {@code heroImageAlt}) are served in ONE
@@ -60,5 +65,9 @@ public record AdminGuidancePostDto(
         Instant createdAt,
         Instant updatedAt,
         /** P2-9: the hero's derivative {@code srcset} (one {@code w} descriptor per derivative on disk); null = plain src. */
-        String heroImageSrcset) {
+        String heroImageSrcset,
+        /** The hero import that FAILED at the save producing this DTO (write responses only —
+         *  list/detail reads and successful saves answer null): the post was still stored, the
+         *  URL kept for a retry — a failed import never blocks a save. */
+        String heroImportError) {
 }

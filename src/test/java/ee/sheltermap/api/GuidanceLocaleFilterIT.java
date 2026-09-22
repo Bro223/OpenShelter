@@ -87,7 +87,7 @@ class GuidanceLocaleFilterIT extends AbstractPersistenceIT {
 
     private String publish(long authorId, String title, String locale) {
         var post = guidance.create(authorId, title, null, "<p>body</p>", locale,
-                false, null, null, null, null);
+                false, null, null, null, null).post();
         guidance.publish(authorId, post.getId());
         return post.getSlug();
     }

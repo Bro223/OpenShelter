@@ -1,0 +1,25 @@
+-- Shelter Map — V33 (guidance-hero-import, the save-time trigger):
+-- drop the V25 pending-import CHECK.
+--
+-- The import moved from publish to SAVE (create and update, draft and
+-- published alike, Wave 9): the admin's hero URL is fetched, validated
+-- and stored when the post is saved. A saved post may therefore
+-- legitimately carry its import URL in EVERY state:
+--
+--   * as provenance after a successful import — the stored asset is the
+--     hero and the URL is where it came from (the asset's source_url
+--     records the same origin; the URL also lets a changed save
+--     re-import and an unchanged one stay idempotent);
+--   * as a retryable pending import after a FAILED one — a failed
+--     import never blocks the save, so the post keeps the URL and the
+--     next save retries it.
+--
+-- The property the CHECK defended is preserved by construction, not by
+-- the constraint: a page renders the hero ONLY from hero_image_id (a
+-- validated stored asset or nothing) — the import URL is never a
+-- rendering source, on any page, in any state.
+--
+-- (New migration on purpose — an applied migration is never amended;
+-- V25 keeps its history as the publish-time feature shipped.)
+
+ALTER TABLE guidance_posts DROP CONSTRAINT ck_guidance_posts_pending_import_only_draft;
