@@ -73,6 +73,45 @@
     gap: var(--space-6);
   }
 
+  /* The legend filter's affordance line (wave 7 — the legend IS the
+     filter): the one-line mechanic the toggle entries implement. It is
+     also their accessible description (aria-describedby) — the how is
+     text, never a colour cue. */
+  .legend-hint {
+    margin: 0;
+    font-size: var(--text-2xs);
+    color: var(--color-muted);
+  }
+
+  /* The toggle entries (wave 7): real <button>s — the UA button defaults
+     (font, text-align, border, padding, background) are undone the way
+     .shelter-row does, so a row reads as a legend row, not a button box.
+     The swatch keeps its EXACT marker classes (the single source of truth
+     for the pin geometry + colour) — the selection state styles the ROW,
+     never the swatch, so a selected entry renders the same pin the map
+     draws. The non-colour selection cue is the border + fill (shape); the
+     pressed state is aria-pressed, so colour is never the only cue. */
+  .legend-item--toggle {
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--color-border);
+    }
+
+    &.legend-item--selected {
+      border-color: var(--color-primary);
+      background: var(--color-bg-subtle);
+    }
+  }
+
   .legend-swatch {
     width: 12px; /* marker-size swatch, not spacing */
     height: 12px;

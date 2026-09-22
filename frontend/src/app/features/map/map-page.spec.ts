@@ -5,6 +5,9 @@ import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
+import { EN } from '../../core/i18n/en';
+import { ET } from '../../core/i18n/et';
+import { RU } from '../../core/i18n/ru';
 import type {
   GeocodeResult,
   ShelterDto,
@@ -1873,6 +1876,257 @@ describe('MapPage', () => {
       const how = element.querySelector('.map-page__how');
       expect(how?.textContent).toContain('Kuidas OpenShelter töötab');
       expect(how?.textContent).toContain('hädaabiteenus');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Legend filter (wave 7 — the legend IS the filter): the five pin-tone
+  // entries are real toggle buttons (accessible name + pressed state,
+  // keyboard operable); the selection persists in the URL only (?tones=,
+  // URL-only — no localStorage), is display-only (no refetch, never alters
+  // the loaded data), and the swatches keep reusing the EXACT marker classes
+  // (selection must not fork geometry or colour). The sixth entry — the
+  // anchor diamond, the "Searched address" browse reference point — is NOT a
+  // shelter pin tone, so it stays an inert legend entry.
+  // ---------------------------------------------------------------------------
+  describe('legend filter (the legend is the filter)', () => {
+    // One shelter per pin tone, already in the name-sorted order:
+    // registry (blue) / user (green) / partial (yellow triangle) / full
+    // (yellow circle) / reported (orange — beats everything).
+    const REGISTRY_ROW = shelter({ id: 31, name: 'Alpha Registry Shelter' });
+    const USER_ROW = shelter({
+      id: 32,
+      name: 'Bravo Community Shelter',
+      source: 'USER',
+      reviewStatus: 'NEW',
+    });
+    const PARTIAL_ROW = shelter({
+      id: 33,
+      name: 'Charlie Cellar',
+      source: 'USER',
+      reviewStatus: 'CONFIRMED',
+      submitterVerification: 'PHONE',
+    });
+    const FULL_ROW = shelter({
+      id: 34,
+      name: 'Delta Cellar',
+      source: 'USER',
+      reviewStatus: 'CONFIRMED',
+      submitterVerification: 'FULL',
+    });
+    const REPORTED_ROW = shelter({
+      id: 35,
+      name: 'Echo Reported Shelter',
+      source: 'USER',
+      reviewStatus: 'CONFIRMED',
+      nonexistentReports: 1,
+    });
+    const TONE_ROWS = [REGISTRY_ROW, USER_ROW, PARTIAL_ROW, FULL_ROW, REPORTED_ROW];
+
+    beforeEach(() => {
+      gateway.list.mockResolvedValue(TONE_ROWS);
+    });
+
+    /** The legend's toggle button carrying the swatch of `markerClass`. */
+    function toneToggle(element: HTMLElement, markerClass: string): HTMLButtonElement {
+      const swatch = element.querySelector<HTMLElement>(
+        `.map-legend .${markerClass}.legend-swatch`,
+      );
+      const button = swatch?.closest<HTMLButtonElement>('button.legend-item--toggle');
+      if (button === null || button === undefined) {
+        throw new Error(`legend toggle for ${markerClass} not rendered`);
+      }
+      return button;
+    }
+
+    it('renders the five pin tones as real toggle buttons (accessible name + pressed state); the anchor entry stays inert', async () => {
+      const { element } = await open('/map');
+      const legend = element.querySelector<HTMLElement>('.map-legend');
+      const toggles = [
+        ...legend!.querySelectorAll<HTMLButtonElement>('button.legend-item--toggle'),
+      ];
+      expect(toggles).toHaveLength(5);
+      // Accessible name = the entry's own label text.
+      expect(toggles[0].textContent).toContain('Registry (Päästeamet)');
+      expect(toggles[1].textContent).toContain('Confirmed by community');
+      expect(toggles[2].textContent).toContain('Added by a partially verified user');
+      expect(toggles[3].textContent).toContain('Added by a fully verified user');
+      expect(toggles[4].textContent).toContain('Reported');
+      // Initially nothing is selected; every toggle names the affordance
+      // line as its accessible description (the how is text, not a colour).
+      for (const button of toggles) {
+        expect(button.getAttribute('aria-pressed')).toBe('false');
+        expect(button.getAttribute('aria-describedby')).toBe('map-legend-hint');
+      }
+      // The affordance line is present with the EN mechanic copy.
+      const hint = legend!.querySelector<HTMLElement>('.legend-hint');
+      expect(hint?.textContent?.trim()).toBe('Click to select or unselect');
+      // The anchor entry (the "green square") is the browse reference point,
+      // not a shelter pin tone: it is a legend entry, never a filter.
+      const anchorEntry = legend!.querySelector('.shelter-marker--anchor');
+      expect(anchorEntry).not.toBeNull();
+      expect(anchorEntry!.closest('button')).toBeNull();
+      // Still exactly six entries — no entry added or removed.
+      expect(legend!.querySelectorAll('.legend-item')).toHaveLength(6);
+    });
+
+    it('selecting a tone filters the markers AND the list (display-only, no refetch)', async () => {
+      const { element, fixture } = await open('/map');
+      expect(leaflet.lastRendered).toEqual(TONE_ROWS);
+      const callsBefore = gateway.list.mock.calls.length;
+
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+
+      expect(gateway.list).toHaveBeenCalledTimes(callsBefore); // no refetch
+      expect(toneToggle(element, 'shelter-marker--reported').getAttribute('aria-pressed')).toBe(
+        'true',
+      );
+      // Markers and the sidebar follow the same filtered view.
+      expect(leaflet.lastRendered).toEqual([REPORTED_ROW]);
+      expect(rowNames(element)).toEqual(['Echo Reported Shelter']);
+    });
+
+    it('unselecting restores the full list', async () => {
+      const { element, fixture } = await open('/map');
+      const reported = toneToggle(element, 'shelter-marker--reported');
+      reported.click();
+      await settle(fixture);
+      expect(leaflet.lastRendered).toEqual([REPORTED_ROW]);
+
+      reported.click(); // unselect
+      await settle(fixture);
+      expect(reported.getAttribute('aria-pressed')).toBe('false');
+      expect(leaflet.lastRendered).toEqual(TONE_ROWS);
+      expect(rowNames(element)).toHaveLength(5);
+    });
+
+    it('multiple selections are a union, in the canonical (legend) URL order', async () => {
+      const { element, fixture } = await open('/map');
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+      toneToggle(element, 'shelter-marker--registry').click();
+      await settle(fixture);
+
+      expect(leaflet.lastRendered).toEqual([REGISTRY_ROW, REPORTED_ROW]); // name-sorted
+      // Click order was reported,registry — the URL reads canonical order.
+      expect(router.url).toBe('/map?tones=registry,reported');
+    });
+
+    it('the selection round-trips through the URL (URL-only persistence — no localStorage)', async () => {
+      const { element, fixture } = await open('/map');
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+      // The URL carries the selection ...
+      expect(router.url).toBe('/map?tones=reported');
+      // ... and NOTHING is stored client-side (no localStorage persistence).
+      expect(localStorage.length).toBe(0);
+
+      // "Reload" = the same URL with no in-memory state: leave, come back
+      // to the exact URL, and the filter applies from the URL alone.
+      await router.navigateByUrl('/login');
+      await settle(fixture);
+      await router.navigateByUrl('/map?tones=reported');
+      await settle(fixture);
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.textContent).toContain('Echo Reported Shelter');
+      expect(root.textContent).not.toContain('Alpha Registry Shelter');
+      expect(leaflet.lastRendered).toEqual([REPORTED_ROW]);
+    });
+
+    it('opens with the filter applied from the URL alone (a direct/shared link)', async () => {
+      const { element } = await open('/map?tones=full');
+      expect(leaflet.lastRendered).toEqual([FULL_ROW]);
+      expect(toneToggle(element, 'shelter-marker--full').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('clamps hand-typed values: an unknown tone drops and the URL normalizes in place', async () => {
+      await open('/map?tones=bogus');
+      expect(router.url).toBe('/map'); // the garbage value is dropped — no filter
+      expect(leaflet.lastRendered).toEqual(TONE_ROWS);
+    });
+
+    it('keeps the legal part of a mixed value and normalizes it to canonical order', async () => {
+      await open('/map?tones=reported,BOGUS,registry');
+      expect(router.url).toBe('/map?tones=registry,reported');
+      expect(leaflet.lastRendered).toEqual([REGISTRY_ROW, REPORTED_ROW]);
+    });
+
+    it('keyboard: Enter and Space toggle the selection (focus + keydown)', async () => {
+      const { element, fixture } = await open('/map');
+      const reported = toneToggle(element, 'shelter-marker--reported');
+      reported.focus();
+
+      reported.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(leaflet.lastRendered).toEqual([REPORTED_ROW]); // Enter selected
+
+      reported.dispatchEvent(
+        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(leaflet.lastRendered).toEqual(TONE_ROWS); // Space unselected
+    });
+
+    it('an empty filter result gets the shared empty state, not a blank map', async () => {
+      gateway.list.mockResolvedValue([REGISTRY_ROW]); // no reported shelter at all
+      const { element, fixture } = await open('/map');
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+
+      expect(leaflet.lastRendered).toEqual([]);
+      expect(element.querySelector('app-list-state')).not.toBeNull();
+      expect(text(fixture)).toContain('No shelters match this filter.');
+
+      // Unselecting restores the rows (the empty state is reversible).
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+      expect(leaflet.lastRendered).toEqual([REGISTRY_ROW]);
+      expect(element.querySelector('app-list-state')).toBeNull();
+    });
+
+    it('a source refetch keeps the selection (the filter is display state, orthogonal to the fetch)', async () => {
+      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
+        Promise.resolve(source === 'USER' ? [PARTIAL_ROW] : TONE_ROWS),
+      );
+      const { element, fixture } = await open('/map');
+      toneToggle(element, 'shelter-marker--reported').click();
+      await settle(fixture);
+      expect(leaflet.lastRendered).toEqual([REPORTED_ROW]);
+
+      // Source chip -> USER refetch: the tone selection must still apply
+      // (PARTIAL_ROW is not reported, so the filtered view is empty).
+      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips button.chip')][2].click();
+      await settle(fixture);
+      expect(gateway.list).toHaveBeenLastCalledWith('USER');
+      expect(leaflet.lastRendered).toEqual([]);
+      expect(router.url).toBe('/map?tones=reported');
+    });
+
+    it('selection never forks the swatch: the marker classes are byte-identical before and after', async () => {
+      const { element, fixture } = await open('/map');
+      const reported = toneToggle(element, 'shelter-marker--reported');
+      const swatch = reported.querySelector<HTMLElement>('.legend-swatch');
+      expect(swatch?.className).toBe('shelter-marker shelter-marker--reported legend-swatch');
+
+      reported.click();
+      await settle(fixture);
+
+      // The selection styles the ROW, never the swatch — the map pin class
+      // (and with it the geometry and the colour) cannot fork.
+      expect(swatch?.className).toBe('shelter-marker shelter-marker--reported legend-swatch');
+    });
+
+    it('the affordance line exists in all three catalogs (ET/RU machine-drafted, awaiting native review)', () => {
+      expect(EN['map.legend.hint']).toBe('Click to select or unselect');
+      expect(ET['map.legend.hint'].trim()).not.toHaveLength(0);
+      expect(RU['map.legend.hint'].trim()).not.toHaveLength(0);
+      // The catalog-identity guard already fails on a byte-identical ET/RU
+      // value; this pins the requirement for this key explicitly.
+      expect(ET['map.legend.hint']).not.toBe(EN['map.legend.hint']);
+      expect(RU['map.legend.hint']).not.toBe(EN['map.legend.hint']);
     });
   });
 });

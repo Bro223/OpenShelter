@@ -85,13 +85,17 @@ public class AdminGuidanceController {
     private final GuidanceService guidance;
     private final MediaAssetRepository mediaAssets;
     private final AdminAccess adminAccess;
+    /** The derivative-srcset builder (P2-9) — the disk-truth read of the hero's widths. */
+    private final MediaService media;
 
     public AdminGuidanceController(GuidanceService guidance,
                                    MediaAssetRepository mediaAssets,
-                                   AdminAccess adminAccess) {
+                                   AdminAccess adminAccess,
+                                   MediaService media) {
         this.guidance = guidance;
         this.mediaAssets = mediaAssets;
         this.adminAccess = adminAccess;
+        this.media = media;
     }
 
     /**
@@ -710,7 +714,8 @@ public class AdminGuidanceController {
                 post.getHeroImportUrl(),
                 post.getCreatedBy(),
                 post.getCreatedAt(),
-                post.getUpdatedAt());
+                post.getUpdatedAt(),
+                hero == null ? null : media.derivativeSrcset(hero));
     }
 
     private GuidanceTranslationDto toTranslationDto(GuidanceTranslation t) {

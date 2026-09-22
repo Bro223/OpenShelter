@@ -180,6 +180,10 @@ export const EN: Messages = {
   'map.legend.fullVerified': 'Added by a fully verified user',
   'map.legend.confirmed': 'Confirmed by community',
   'map.legend.reported': 'Reported',
+  // The legend filter's affordance line (wave 7 — the legend IS the filter):
+  // the one-line mechanic the pin-tone toggle entries implement. It doubles
+  // as the entries' accessible description (aria-describedby).
+  'map.legend.hint': 'Click to select or unselect',
   'map.geoNote':
     'Your browser asks first — your location is never sent to our servers and is used only to find the nearest shelter.',
   'map.aroundYou': 'Show shelters around you',

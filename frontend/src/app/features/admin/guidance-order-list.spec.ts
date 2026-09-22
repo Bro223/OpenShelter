@@ -118,6 +118,41 @@ describe('GuidanceOrderList presentation', () => {
     expect(rows[2]!.textContent).toContain('—');
   });
 
+  // ---- P2-9: the derivative srcset on the 40 px thumb ----------------------
+
+  it('the 40 px thumb carries the derivative srcset when the server has one (sizes = 40px)', async () => {
+    const srcset =
+      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
+      + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w';
+    // All three fixture rows carry a hero; only row 11's asset has
+    // derivatives on disk (the srcset is built from disk truth).
+    const rows = ORDERED_ROWS.map((row) =>
+      row.id === 11 ? { ...row, heroImageSrcset: srcset } : row,
+    );
+    const { el, fixture } = await render({ rows });
+    fixture.detectChanges();
+
+    const imgs = el.querySelectorAll<HTMLImageElement>('.admin-guidance-thumb');
+    expect(imgs.length).toBe(3);
+    expect(imgs[0]!.getAttribute('src')).toBe(PUBLISHED_11.heroImageUrl);
+    expect(imgs[0]!.getAttribute('srcset')).toBe(srcset);
+    expect(imgs[0]!.getAttribute('sizes')).toBe('40px');
+    // The other rows' assets have no derivatives: plain src only.
+    expect(imgs[1]!.hasAttribute('srcset')).toBe(false);
+    expect(imgs[2]!.hasAttribute('srcset')).toBe(false);
+  });
+
+  it('a post whose asset has no derivatives renders the plain src only (no srcset attribute)', async () => {
+    const { el, fixture } = await render(); // the default fixtures carry no srcset
+    fixture.detectChanges();
+
+    const imgs = el.querySelectorAll<HTMLImageElement>('.admin-guidance-thumb');
+    expect(imgs.length).toBe(3);
+    for (const img of Array.from(imgs)) {
+      expect(img.hasAttribute('srcset')).toBe(false);
+    }
+  });
+
   it('the loading state shows the spinner', async () => {
     const loading = await render({ rows: null });
     expect(loading.el.querySelector('app-loading-indicator')).not.toBeNull();

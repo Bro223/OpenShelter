@@ -8,56 +8,107 @@
     <div class="map-page__map">
       <div #mapEl class="map-page__leaflet"></div>
       <div class="map-legend" role="group" [attr.aria-label]="'map.legendAria' | t">
-        <span class="legend-item">
+        <!-- The legend IS the filter (wave 7): the five pin-tone entries
+             below are toggle buttons (select/unselect). The selection is
+             the URL's ?tones= param (URL-only — no localStorage) and is
+             display-only (no refetch). The hint line is the mechanic AND
+             the entries' accessible description (aria-describedby) — the
+             how is text, never a colour cue. -->
+        <p class="legend-hint" id="map-legend-hint">{{ 'map.legend.hint' | t }}</p>
+        <!-- Registry tone (blue) — toggle entry. -->
+        <button
+          type="button"
+          class="legend-item legend-item--toggle"
+          [class.legend-item--selected]="toneSelected('registry')"
+          [attr.aria-pressed]="toneSelected('registry')"
+          [attr.aria-describedby]="'map-legend-hint'"
+          (click)="toggleTone('registry')"
+          (keydown)="onToneToggleKey('registry', $event)"
+        >
           <span
             class="shelter-marker shelter-marker--registry legend-swatch"
             aria-hidden="true"
           ></span>
           {{ 'map.legend.registry' | t }}
-        </span>
+        </button>
         <!-- Community trust tone (community-review-queue D5): the community
              pin is still rendered — a community row whose submitter depth the
              API does not report keeps this tone. NEW is not a marker tone and
              not a legend entry (owner decision: the pin carries verification
              depth, not recency — the "Newly added" badge says NEW, never the
              pin). -->
-        <span class="legend-item">
+        <button
+          type="button"
+          class="legend-item legend-item--toggle"
+          [class.legend-item--selected]="toneSelected('user')"
+          [attr.aria-pressed]="toneSelected('user')"
+          [attr.aria-describedby]="'map-legend-hint'"
+          (click)="toggleTone('user')"
+          (keydown)="onToneToggleKey('user', $event)"
+        >
           <span class="shelter-marker shelter-marker--user legend-swatch" aria-hidden="true"></span>
           {{ 'map.legend.confirmed' | t }}
-        </span>
+        </button>
         <!-- Submitter verification depth (submitter-verification-badge, owner
              decision): the SHAPE carries it for community rows — a triangle at
              exactly one confirmed channel, a circle at two or more. The trust
              state (newly added / community-checked) stays on the row's badge
              text, so nothing is lost by moving the marker colour to the
              verification family. -->
-        <span class="legend-item">
+        <button
+          type="button"
+          class="legend-item legend-item--toggle"
+          [class.legend-item--selected]="toneSelected('partial')"
+          [attr.aria-pressed]="toneSelected('partial')"
+          [attr.aria-describedby]="'map-legend-hint'"
+          (click)="toggleTone('partial')"
+          (keydown)="onToneToggleKey('partial', $event)"
+        >
           <span
             class="shelter-marker shelter-marker--partial legend-swatch"
             aria-hidden="true"
           ></span>
           {{ 'map.legend.partialVerified' | t }}
-        </span>
-        <span class="legend-item">
+        </button>
+        <button
+          type="button"
+          class="legend-item legend-item--toggle"
+          [class.legend-item--selected]="toneSelected('full')"
+          [attr.aria-pressed]="toneSelected('full')"
+          [attr.aria-describedby]="'map-legend-hint'"
+          (click)="toggleTone('full')"
+          (keydown)="onToneToggleKey('full', $event)"
+        >
           <span class="shelter-marker shelter-marker--full legend-swatch" aria-hidden="true"></span>
           {{ 'map.legend.fullVerified' | t }}
-        </span>
+        </button>
         <!-- Reported state (shelter-trust-and-reports D6): the single
              orange "reported" affordance — beats the trust colour. -->
-        <span class="legend-item">
+        <button
+          type="button"
+          class="legend-item legend-item--toggle"
+          [class.legend-item--selected]="toneSelected('reported')"
+          [attr.aria-pressed]="toneSelected('reported')"
+          [attr.aria-describedby]="'map-legend-hint'"
+          (click)="toggleTone('reported')"
+          (keydown)="onToneToggleKey('reported', $event)"
+        >
           <span
             class="shelter-marker shelter-marker--reported legend-swatch"
             aria-hidden="true"
           ></span>
           {{ 'map.legend.reported' | t }}
-        </span>
+        </button>
         <!-- The origin marker (M8): the searched address the per-row
              "≈ N m straight line" distances are measured from. The
              diamond shape (not a circle) is the non-colour-only
              distinction from shelter markers; the swatch reuses the
              exact pin class. The label reuses the existing `map.searched`
              key — a dedicated `map.legend.anchor` key is requested from
-             the i18n lane (see the M8 report). -->
+             the i18n lane (see the M8 report). NOT a filter entry (wave 7):
+             it is the browse REFERENCE POINT (at most one, dropped by its
+             Clear action) — a UI marker, not a shelter pin tone — so it
+             stays an inert legend entry. -->
         <span class="legend-item">
           <span
             class="shelter-marker shelter-marker--anchor legend-swatch"

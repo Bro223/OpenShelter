@@ -32,6 +32,12 @@ import java.time.Instant;
  * (guidance-manual-order D1): the shared slot every translation of the
  * post sorts by (the public index orders by it ascending, with the
  * {@code publishedAt}/{@code id} tie-breakers).
+ *
+ * <p>{@code heroImageSrcset} (P2-9, additive) is the hero's derivative
+ * {@code srcset} string — one {@code w} descriptor per derivative that
+ * EXISTS on disk, in ascending width order, or {@code null} when the post's
+ * asset has none (a WebP original, a pre-feature upload) — the slot then
+ * renders the original via plain {@code heroImageUrl}.
  */
 public record AdminGuidancePostDto(
         long id,
@@ -52,5 +58,7 @@ public record AdminGuidancePostDto(
         String heroImportUrl,
         Long createdBy,
         Instant createdAt,
-        Instant updatedAt) {
+        Instant updatedAt,
+        /** P2-9: the hero's derivative {@code srcset} (one {@code w} descriptor per derivative on disk); null = plain src. */
+        String heroImageSrcset) {
 }

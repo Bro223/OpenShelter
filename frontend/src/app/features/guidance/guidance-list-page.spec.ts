@@ -335,6 +335,45 @@ describe('GuidanceListPage (/blog)', () => {
     expect(element.querySelectorAll('.guidance-list__posts a')).toHaveLength(1);
   });
 
+  // ---- P2-9: the derivative srcset on the 400 px card thumbnail ------------
+
+  it('the card thumbnail carries the derivative srcset when the server has one (sizes = 400px)', async () => {
+    const heroUrl = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    const srcset =
+      '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
+      + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w, '
+      + '/api/media/0123456789abcdef0123456789abcdef-t480.jpg 480w, '
+      + '/api/media/0123456789abcdef0123456789abcdef-t800.jpg 800w';
+    guidanceGateway.rows = [
+      guidancePost({
+        heroImageUrl: heroUrl,
+        heroImageAlt: 'A kettle on a camp stove',
+        heroImageSrcset: srcset,
+      }),
+    ];
+    const { element } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe(heroUrl);
+    expect(img?.getAttribute('srcset')).toBe(srcset);
+    expect(img?.getAttribute('sizes')).toBe('400px');
+  });
+
+  it('a post whose asset has no derivatives renders the plain src only (no srcset attribute)', async () => {
+    const mediaUrl = '/api/media/0123456789abcdef0123456789abcdef.jpg';
+    guidanceGateway.rows = [
+      guidancePost({ heroImageUrl: mediaUrl, heroImageAlt: 'A kettle on a camp stove' }),
+    ];
+    const { element } = await open('/blog');
+
+    const img = element.querySelector<HTMLImageElement>('.guidance-post__hero');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe(mediaUrl);
+    // No srcset attribute — the original renders via plain src.
+    expect(img?.hasAttribute('srcset')).toBe(false);
+  });
+
   it('renders a stored /api/media URL verbatim — no query string or cache-buster', async () => {
     // IMAGE-CACHING CONTRACT: the card thumbnail must hit the SAME browser
     // cache entry as the detail hero. The stored reference (a generated

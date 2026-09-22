@@ -65,10 +65,16 @@
               <div class="admin-guidance-title">
                 <!-- The hero thumbnail, only when the post has one. -->
                 @if (row.heroImageUrl; as heroUrl) {
+                  <!-- P2-9: the derivative srcset when the server has one for
+                       this hero (built from disk truth — null for a WebP
+                       original / pre-feature upload, then plain src only);
+                       sizes is the slot's fixed CSS width (40 px). -->
                   <img
                     class="admin-guidance-thumb"
                     [src]="heroUrl"
                     [alt]="row.heroImageAlt ?? ''"
+                    [attr.srcset]="row.heroImageSrcset ?? null"
+                    sizes="40px"
                     width="40"
                     height="40"
                     loading="lazy"

@@ -24,6 +24,12 @@ import java.util.Map;
  * reader's requested locale had no translation and the default-locale one
  * was served instead — a 200 with the flag, never a 404, so a language
  * switch never dead-ends on a "no such page" error.
+ *
+ * <p>{@code heroImageSrcset} (P2-9, additive) is the hero's derivative
+ * {@code srcset} string — one {@code w} descriptor per derivative that
+ * EXISTS on disk, in ascending width order, or {@code null} when the post's
+ * asset has none (a WebP original, a pre-feature upload) — the slot then
+ * renders the original via plain {@code heroImageUrl}.
  */
 public record GuidancePostDto(
         String slug,
@@ -36,5 +42,7 @@ public record GuidancePostDto(
         Instant publishedAt,
         Instant updatedAt,
         Map<String, String> alternates,
-        boolean localeFallback) {
+        boolean localeFallback,
+        /** P2-9: the hero's derivative {@code srcset} (one {@code w} descriptor per derivative on disk); null = plain src. */
+        String heroImageSrcset) {
 }

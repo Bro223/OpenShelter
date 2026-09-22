@@ -883,6 +883,14 @@ export interface GuidancePostDto {
   heroImageUrl: string | null;
   /** The stored hero alt text; null when the post has no hero. */
   heroImageAlt: string | null;
+  /**
+   * P2-9: the hero's derivative `srcset` string — one `w` descriptor per
+   * derivative that EXISTS on disk (built from disk truth server-side), or
+   * null when the post's asset has none (a WebP original, a pre-feature
+   * upload): the slot then renders the original via plain `src`. Optional
+   * — absent on responses from a pre-P2-9 backend.
+   */
+  heroImageSrcset?: string | null;
   /** Pinned posts sort first in the public index. */
   pinned: boolean;
   /**
@@ -973,6 +981,13 @@ export interface AdminGuidancePostDto {
   heroImageUrl: string | null;
   /** The stored hero alt; null when the post has no hero. */
   heroImageAlt: string | null;
+  /**
+   * P2-9: the hero's derivative `srcset` string — one `w` descriptor per
+   * derivative that EXISTS on disk (built from disk truth server-side), or
+   * null when the post's asset has none: the slot then renders the original
+   * via plain `src`. Optional — absent on responses from a pre-P2-9 backend.
+   */
+  heroImageSrcset?: string | null;
   /**
    * The PENDING hero import (guidance-hero-import): the admin-supplied
    * remote URL stored with the draft, fetched, validated and stored by

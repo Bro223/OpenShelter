@@ -194,6 +194,11 @@ export interface Messages {
    *  triangle at one confirmed channel, a circle at two or more. */
   'map.legend.partialVerified': string;
   'map.legend.fullVerified': string;
+  /** The legend filter's affordance line (wave 7 — the legend IS the
+   *  filter): the one-line mechanic the pin-tone toggle entries implement.
+   *  It doubles as the accessible description of every toggle entry
+   *  (aria-describedby), so the how is text, never a colour cue. */
+  'map.legend.hint': string;
   'map.geoNote': string;
   /** The around-you CTA label (the map's only geolocation trigger); the
    *  how.nearest + map.geocode copy quote this label, locale for locale. */

@@ -12,7 +12,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink, type Params } from '@angular/router';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
 import type { MessageKey } from '../../core/i18n/messages';
@@ -51,6 +51,7 @@ import {
   ESTONIA_ZOOM,
   LeafletService,
   SHELTER_ZOOM,
+  markerTone,
 } from '../../shared/leaflet-service';
 import {
   getCurrentPositionHighAccuracy,
@@ -67,6 +68,55 @@ const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
   { value: 'REGISTRY', labelKey: 'map.filter.registry' },
   { value: 'USER', labelKey: 'map.filter.user' },
 ];
+
+/** The legend's five SELECTABLE pin tones, in legend order (wave 7 — the
+ *  legend IS the filter). The order is the canonical URL order for the
+ *  `tones` param; the names are the markerTone() vocabulary (the same words
+ *  the marker classes use — `shelter-marker--{tone}`), so a selected entry
+ *  is exactly the pin the map draws. The sixth legend entry (the anchor
+ *  diamond, the searched ADDRESS) is a UI reference point, not a shelter
+ *  pin tone — it is deliberately not a member. */
+const LEGEND_TONES = ['registry', 'user', 'partial', 'full', 'reported'] as const;
+/** One selectable legend (pin-tone) entry. */
+type LegendTone = (typeof LEGEND_TONES)[number];
+
+/** Parse the URL's `tones` value into a legal set: split on ',', trim, keep
+ *  the known tone names (case-sensitive, exactly the marker vocabulary) and
+ *  drop the rest. Absent (null) or all-garbage → the empty set = no filter.
+ *  The clamp/normalize discipline of the paging/filter work: a hand-typed
+ *  value sanitizes to the nearest legal value, never an error. */
+function parseTones(raw: string | null): Set<LegendTone> {
+  const tones = new Set<LegendTone>();
+  if (raw !== null) {
+    for (const token of raw.split(',')) {
+      const name = token.trim();
+      if ((LEGEND_TONES as readonly string[]).includes(name)) {
+        tones.add(name as LegendTone);
+      }
+    }
+  }
+  return tones;
+}
+
+/** The canonical URL string for a tone set: legend order, comma-joined,
+ *  '' when empty (the omit-defaults convention — the default is the
+ *  ABSENCE of the param). */
+function canonicalTones(tones: ReadonlySet<LegendTone>): string {
+  return LEGEND_TONES.filter((tone) => tones.has(tone)).join(',');
+}
+
+/** Set equality over two tone sets (same members, either order). */
+function sameTones(a: ReadonlySet<LegendTone>, b: ReadonlySet<LegendTone>): boolean {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const tone of a) {
+    if (!b.has(tone)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /**
  * Message keys for the "Nearest shelter" action's inline errors
@@ -186,6 +236,13 @@ function nearestShelterAt(
  * practical chips are "Open" (client-side — the BE has no open/closed
  * param, it filters the loaded list + re-renders the markers) and
  * "Has capacity" (server-side `?hasCapacity=`). All composable.
+ * The LEGEND is the pin-tone filter (wave 7): the five tone entries are
+ * toggle buttons — the selection is the URL's `tones` param (URL-only,
+ * no localStorage, the paging/filter clamp+normalize discipline) and is
+ * display-only (the loaded list is filtered and the markers re-render
+ * from the same `sorted()` view — no refetch, the data is never
+ * altered). The sixth entry (the anchor diamond) is a UI reference
+ * point, not a tone — it is not a filter.
  * Selection & zoom (design decision 5): a shared selectedId signal — a row
  * click OR a marker click SELECTS the shelter and flies the map to it at
  * street level (SHELTER_ZOOM). The user STAYS on /map: the zoom is the
@@ -206,6 +263,11 @@ export class MapPage implements AfterViewInit, OnDestroy {
   private readonly geocode = inject(GeocodeGateway);
   private readonly leaflet = inject(LeafletService);
   private readonly store = inject(AuthStore);
+  /** The legend filter's URL seam (the view IS the URL — the paging/
+   *  filter idiom): the `tones` param is read on every query emission and
+   *  written on every toggle. */
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   /** The i18n seam: the shared shelter-copy helpers resolve their copy
    *  through the active locale (N7 i18n-completeness), and the anchor pin
    *  title is the localized `map.searched` label. */
@@ -266,6 +328,62 @@ export class MapPage implements AfterViewInit, OnDestroy {
     return kind === null ? null : GEOCODE_ERROR_KEY[kind];
   };
   protected readonly filter = signal<ShelterSourceFilter>('ALL');
+
+  // ---- legend filter (wave 7 — the legend IS the filter) ------------------
+  /** The selected pin tones (the legend's toggle entries). The URL's
+   *  `tones` param is the SINGLE source of truth (URL-only persistence —
+   *  no localStorage); this signal mirrors it for the display view. Empty
+   *  set = no filter (the default = the param's absence, the omit-defaults
+   *  convention). Display-only: a change re-renders the markers from the
+   *  filtered view — NO refetch, the loaded data is never altered. */
+  protected readonly selectedTones = signal<ReadonlySet<LegendTone>>(new Set());
+
+  /** The entry's pressed state (the template seam — the template stays
+   *  branch-free). */
+  protected toneSelected(tone: LegendTone): boolean {
+    return this.selectedTones().has(tone);
+  }
+
+  /**
+   * Toggle a legend entry: compute the next selection and write it to the
+   *  URL (the view IS the URL — the paging/filter idiom). The
+   * query-subscription sync (onQueryChange) applies it to the display view
+   *  and re-renders the markers. Display-only: no refetch.
+   */
+  protected toggleTone(tone: LegendTone): void {
+    const next = new Set(this.selectedTones());
+    if (next.has(tone)) {
+      next.delete(tone);
+    } else {
+      next.add(tone);
+    }
+    const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    const value = canonicalTones(next);
+    if (value === '') {
+      delete params['tones'];
+    } else {
+      params['tones'] = value;
+    }
+    void this.router.navigate([], { relativeTo: this.route, queryParams: params });
+  }
+
+  /**
+   * Keyboard activation for the legend entries (the page's own
+   * anchor-search keydown idiom, made explicit for the <button>): Enter
+   * and Space toggle the selection. preventDefault() suppresses the
+   * button's native activation click (and the Space page-scroll), so every
+   * keystroke toggles EXACTLY once — and the path is testable (jsdom
+   * synthesises no click from a keydown).
+   */
+  protected onToneToggleKey(tone: LegendTone, event: Event): void {
+    if (!(event instanceof KeyboardEvent)) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.toggleTone(tone);
+    }
+  }
 
   // ---- shelter filters ------------------------------------------------------
   /** Has capacity toggle chip -> `hasCapacity=true` (server-side). */
@@ -331,12 +449,20 @@ export class MapPage implements AfterViewInit, OnDestroy {
 
   /**
    * Sidebar rows: the "Open" chip's client-side filter first, then the
-   * distance sort — the around-you user position wins (the action's
-   * ranking), the browse anchor next, the stable name sort is the
-   * default and the tiebreak everywhere (05-CONTEXT-MAP).
+   * legend tone filter (wave 7 — display-only, keyed on the SAME
+   * markerTone() the map draws with, so a selected entry is exactly the
+   * pin the map renders and the filter can never fork the geometry or the
+   * colour), then the distance sort — the around-you user position wins
+   * (the action's ranking), the browse anchor next, the stable name sort
+   * is the default and the tiebreak everywhere (05-CONTEXT-MAP).
    */
   protected readonly sorted = computed<ShelterDto[]>(() => {
-    const rows = this.shelters().filter((row) => !this.openOnly() || isOpenRowShared(row));
+    const tones = this.selectedTones();
+    const rows = this.shelters().filter(
+      (row) =>
+        (!this.openOnly() || isOpenRowShared(row)) &&
+        (tones.size === 0 || tones.has(markerTone(row))),
+    );
     const list = [...rows];
     const userPosition = this.userPosition();
     if (userPosition !== null) {
@@ -367,9 +493,27 @@ export class MapPage implements AfterViewInit, OnDestroy {
     });
   });
 
-  /** Zero rows for the current filter — only when the fetch settled cleanly. */
+  /** Zero rows for the CURRENT view (the legend tone filter + the Open chip
+   *  applied to the loaded list) — only when the fetch settled cleanly.
+   *  `sorted()`, not `shelters()`: a filter that matches nothing must get
+   *  the shared empty state, never a blank map. */
   protected readonly showEmpty = computed(
-    () => !this.loading() && this.error() === null && this.shelters().length === 0,
+    () => !this.loading() && this.error() === null && this.sorted().length === 0,
+  );
+
+  /** The legend filter's URL sync (the view IS the URL — the paging/filter
+   *  idiom applied to the display-only `tones` param): every emission
+   *  (the initial navigation and every query change — a toggle, a
+   *  back-button step, a hand-typed URL) parses + clamps the tones,
+   *  normalizes a hand-typed value in place (replaceUrl — no history entry
+   *  for the cosmetic fix), and applies a changed selection to the display
+   *  view. The initial emission lands before the map exists (create runs in
+   *  ngAfterViewInit), so its marker re-render is a no-op there — the first
+   *  load's success path renders from the already-filtered view. Declared
+   *  after `sorted`/`showEmpty`: the field initializers run in order, and
+   *  the first emission calls sorted(). Unsubscribed in ngOnDestroy. */
+  private readonly querySub = this.route.queryParams.subscribe((params) =>
+    this.onQueryChange(params),
   );
 
   /** Monotonic fetch sequence — a stale (out-of-order) response is dropped. */
@@ -394,9 +538,11 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.load('ALL');
   }
   ngOnDestroy(): void {
-    // Cancel any in-flight response, then drop the map instance + listeners.
+    // Cancel any in-flight response, drop the URL sync, then drop the map
+    // instance + listeners.
     this.destroyed = true;
     this.fetchSeq++;
+    this.querySub.unsubscribe();
     this.leaflet.destroy();
   }
 
@@ -716,6 +862,41 @@ export class MapPage implements AfterViewInit, OnDestroy {
       },
       { injector: this.injector },
     );
+  }
+
+  /**
+   * Parse + clamp the `tones` param, then apply a changed selection to the
+   * display view. A value outside the tone vocabulary (a hand-typed token,
+   * a stale share) sanitizes to the nearest legal value (the known members
+   * stay, the rest drop; an empty result is the param's ABSENCE — the
+   * omit-defaults convention) and the URL is normalized in place
+   * (replaceUrl), so the control and the URL can never quietly disagree.
+   * A changed selection re-renders the markers from the filtered view —
+   * display-only, NO refetch (the loaded data is never altered).
+   */
+  private onQueryChange(params: Params): void {
+    const raw = params['tones'] ?? null;
+    const parsed = parseTones(raw);
+    const canonical = canonicalTones(parsed);
+    if (raw !== null && canonical !== raw) {
+      const next: Record<string, string> = { ...params };
+      if (canonical === '') {
+        delete next['tones'];
+      } else {
+        next['tones'] = canonical;
+      }
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: next,
+        replaceUrl: true,
+      });
+      return; // the normalized emission applies the filter there
+    }
+    if (sameTones(parsed, this.selectedTones())) {
+      return;
+    }
+    this.selectedTones.set(parsed);
+    this.leaflet.renderShelters(this.sorted());
   }
 
   private load(source: ShelterSourceFilter): void {

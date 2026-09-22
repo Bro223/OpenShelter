@@ -182,6 +182,9 @@ export const ET: Messages = {
   'map.legend.fullVerified': 'Lisanud täielikult kinnitatud kasutaja',
   'map.legend.confirmed': 'Kogukonna poolt kinnitatud',
   'map.legend.reported': 'Teatatud',
+  // Legend filter affordance line (wave 7). MACHINE DRAFT — awaiting native
+  // Estonian review; do not treat as final.
+  'map.legend.hint': 'Klõpsa, et valida või tühista',
   'map.geoNote':
     'Sinu brauser küsib esmalt luba. Asukohta ei saadeta kunagi meie serveritesse ja seda kasutatakse ainult lähima varjupaiga leidmiseks.',
   'map.aroundYou': 'Näita varjupaiku minu ümbruses',

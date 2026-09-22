@@ -194,6 +194,9 @@ export const RU: Messages = {
   'map.legend.fullVerified': 'Добавлено полностью подтверждённым пользователем',
   'map.legend.confirmed': 'Подтверждено сообществом',
   'map.legend.reported': 'Сообщено',
+  // Legend filter affordance line (wave 7). MACHINE DRAFT — awaiting native
+  // Russian review; do not treat as final.
+  'map.legend.hint': 'Нажмите, чтобы выбрать или снять выделение',
   'map.geoNote':
     'Сначала браузер спросит разрешение. Местоположение никогда не отправляется на наши серверы и используется только для поиска ближайшего укрытия.',
   'map.aroundYou': 'Показать укрытия рядом с вами',

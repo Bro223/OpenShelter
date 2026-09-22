@@ -95,6 +95,9 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "heroImageSrcset" : {
+            "type" : "string"
+          },
           "heroImageUrl" : {
             "type" : "string"
           },
@@ -699,6 +702,9 @@
             "type" : "string"
           },
           "heroImageAlt" : {
+            "type" : "string"
+          },
+          "heroImageSrcset" : {
             "type" : "string"
           },
           "heroImageUrl" : {

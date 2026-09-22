@@ -61,10 +61,14 @@ public class GuidanceController {
 
     private final GuidanceService guidance;
     private final MediaAssetRepository mediaAssets;
+    /** The derivative-srcset builder (P2-9) — the disk-truth read of the hero's widths. */
+    private final MediaService media;
 
-    public GuidanceController(GuidanceService guidance, MediaAssetRepository mediaAssets) {
+    public GuidanceController(GuidanceService guidance, MediaAssetRepository mediaAssets,
+                              MediaService media) {
         this.guidance = guidance;
         this.mediaAssets = mediaAssets;
+        this.media = media;
     }
 
     /**
@@ -224,6 +228,7 @@ public class GuidanceController {
                 view.getPublishedAt(),
                 view.getUpdatedAt(),
                 view.getAlternates(),
-                view.isLocaleFallback());
+                view.isLocaleFallback(),
+                hero == null ? null : media.derivativeSrcset(hero));
     }
 }

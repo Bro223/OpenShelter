@@ -63,10 +63,17 @@
                      whenever a hero exists). A null alt with a present URL
                      = decorative empty alt — never the post title, which
                      would duplicate the link text. -->
+                <!-- P2-9: the derivative srcset when the server has one for
+                     this hero (built from disk truth — null for a WebP
+                     original / pre-feature upload, then plain src only);
+                     sizes is the slot's fixed CSS width (400 px, the card
+                     box). -->
                 <img
                   class="guidance-post__hero"
                   [src]="heroUrl"
                   [alt]="post.heroImageAlt ?? ''"
+                  [attr.srcset]="post.heroImageSrcset ?? null"
+                  sizes="400px"
                   width="400"
                   height="300"
                   loading="lazy"
