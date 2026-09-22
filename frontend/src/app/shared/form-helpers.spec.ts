@@ -5,13 +5,10 @@ import {
   CODE_SIX_DIGITS,
   capacityValidator,
   nameBlankValidator,
-  readCoordinate,
 } from './form-helpers';
 
 /**
- * Direct table spec of the shared form helpers — the last shared/*
- * module without a spec, though all four exports are production-used
- * (the /submit and contributions-panel shelter forms). Each export gets a
+ * Direct table spec of the shared form helpers. Each export gets a
  * table with valid / invalid / empty / boundary rows; the capacity table
  * reads the exported bounds, so a bounds change moves the boundary rows
  * with it.
@@ -32,41 +29,6 @@ describe('CODE_SIX_DIGITS (the OTP input pattern)', () => {
 
   it.each(rows)('$note', ({ value, matches }) => {
     expect(CODE_SIX_DIGITS.test(value)).toBe(matches);
-  });
-});
-
-describe('readCoordinate (a coordinate out of a number control)', () => {
-  const rows = [
-    {
-      value: 59.437 as number | string | null,
-      expected: 59.437,
-      note: 'a plain number passes through',
-    },
-    { value: 0, expected: 0, note: 'zero is a coordinate, not an empty input' },
-    { value: -12.5, expected: -12.5, note: 'a negative number passes through' },
-    { value: Number.NaN, expected: null, note: 'a non-finite number (NaN) is treated as empty' },
-    {
-      value: Number.POSITIVE_INFINITY,
-      expected: null,
-      note: 'a non-finite number (Infinity) is treated as empty',
-    },
-    { value: null, expected: null, note: 'an empty input (null) stays null' },
-    { value: '', expected: null, note: 'an empty string stays null' },
-    { value: '   ', expected: null, note: 'whitespace-only stays null' },
-    { value: '59.437', expected: 59.437, note: 'a numeric string parses' },
-    {
-      value: '  24.754  ',
-      expected: 24.754,
-      note: 'a padded numeric string parses (Number trims)',
-    },
-    { value: '0', expected: 0, note: 'the string "0" parses (it is not empty)' },
-    { value: '-12.5', expected: -12.5, note: 'a negative numeric string parses' },
-    { value: 'abc', expected: null, note: 'a non-numeric string stays null' },
-    { value: '12.5.6', expected: null, note: 'a malformed number stays null' },
-  ];
-
-  it.each(rows)('$note', ({ value, expected }) => {
-    expect(readCoordinate(value)).toBe(expected);
   });
 });
 

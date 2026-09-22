@@ -848,6 +848,7 @@ export const EN: Messages = {
   'admin.guidance.success.deleted': 'Post deleted.',
   'admin.guidance.success.reordered': 'Order saved.',
   'admin.guidance.success.translationCreated': 'Translation created.',
+  'admin.guidance.success.translationUpdated': 'Translation updated.',
   'admin.guidance.success.translationDeleted': 'Translation deleted.',
 
   'admin.guidance.editor.createTitle': 'New guidance post',
@@ -923,13 +924,17 @@ export const EN: Messages = {
     "The post's home language is {home}. Saving changes only the {locale} content — the other languages keep their own text.",
   'admin.guidance.editor.translatingIn':
     'You are adding the {locale} translation of this post — the other languages are untouched.',
+  'admin.guidance.editor.editingTranslationIn':
+    'You are editing the {locale} translation of this post — the other languages are untouched.',
   'admin.guidance.editor.translationTitle': 'Add a translation',
+  'admin.guidance.editor.translationEditTitle': 'Edit a translation',
   'admin.guidance.editor.translations.title': 'Translations',
   'admin.guidance.editor.translations.loading': 'Loading translations…',
   'admin.guidance.editor.translations.empty':
     "No translations yet — only the post's home language.",
   'admin.guidance.editor.translations.home': 'home',
   'admin.guidance.editor.translations.add': 'Add {locale} translation',
+  'admin.guidance.editor.translations.edit': 'Edit translation',
   'admin.guidance.editor.translations.delete': 'Delete translation',
   'admin.guidance.editor.translations.delete.confirm':
     'Delete the {locale} translation of this post? The {locale} text is removed; the post and its other languages stay.',

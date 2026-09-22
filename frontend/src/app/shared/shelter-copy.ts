@@ -187,26 +187,6 @@ export function communityBadgeClass(shelter: {
  */
 
 /**
- * The detail-page note for PRIVATE rows (community-review-queue D7):
- * resident-offered, not an official facility. The public template renders
- * this through the `t` pipe (`'shelter.privateNote' | t`); the const
- * stays for the un-routed admin call sites (EN catalog value).
- */
-export const PRIVATE_LOCATION_NOTE = EN['shelter.privateNote'];
-
-/**
- * The unverified warning for community rows (community-review-queue, map-
- * browse delta): shown as a block on the detail page of USER rows in the
- * NEW state (CONFIRMED rows keep the "Community-checked" badge and no
- * warning), and as a line under the around-you result when the highlighted
- * row is community (any review status). Muted styling at the point of use:
- * a caveat, not the crisis orange. The public templates render this
- * through the `t` pipe (`'shelter.unverifiedWarning' | t`); the const
- * stays for the un-routed admin call sites (EN catalog value).
- */
-export const COMMUNITY_UNVERIFIED_WARNING = EN['shelter.unverifiedWarning'];
-
-/**
  * The "reported inaccurate" warning
  * (moderation-dashboard-completion): the single-sourced sentence for a
  * moderator-marked row. A marked row stays visible with status and trust
@@ -334,24 +314,9 @@ export function hasTrustBadges(shelter: {
   );
 }
 
-// Report-submitted notices (shelter-trust-and-reports D6; the dampened
-// variant is community-self-moderation): the detail page banner picks
-// its text from the report's write outcome. The keys live in the
-// catalog (shelter.notice.*); the consts stay for the un-routed call
-// sites and are the EN catalog values — one source.
-
-/** Plain success notice after a stored shelter report. */
-export const REPORT_SUBMITTED = EN['shelter.notice.reportSubmitted'];
-
-/**
- * Dampened report notice (community-self-moderation D3/D4; M8 honesty):
- * the report was STORED but the server weighted it 0 — the reporter has
- * their own other listing of a similar location, a self-interested vote
- * that contributes 0 to the trust-weighted hide tally. The copy says
- * plainly what "weighted 0" means for the user (it does not count toward
- * hiding the shelter) and why — the damping rule is no longer silent.
- */
-export const REPORT_SUBMITTED_DAMPED = EN['shelter.notice.reportSubmittedDamped'];
+// Report-submitted notices: the detail page banner picks its text from
+// the report's write outcome through the `t` pipe (shelter.notice.*) —
+// the keys live in the catalog, no frozen const.
 
 /**
  * Firm band heads (D4) — >= 2 fresh reports agreeing with the latest

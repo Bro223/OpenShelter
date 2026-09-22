@@ -599,7 +599,6 @@ export interface AdminShelterDto {
 
 /** Optional filters for GET /admin/shelters (absent = omitted from the URL). */
 export interface AdminShelterFilters {
-  status?: ShelterStatus;
   /** The frontend-facing source grouping the backend now speaks
    *  (REGISTRY = Päästeamet + municipality imports; USER = community
    *  submissions) — the same grouping as the public map filter. */
@@ -1143,6 +1142,15 @@ export interface MediaAssetDto {
   createdAt: string;
   /** How many posts use the asset as their hero image (0 = unused). */
   reusedBy: number;
+  /**
+   * P2-9: the thumbnail `srcset` string — one `w` descriptor per
+   * derivative the server has on disk (e.g.
+   * `/api/media/<name>-t96.png 96w, /api/media/<name>-t192.png 192w`).
+   * Null/absent when the asset has no derivatives (a WebP original, a
+   * pre-feature upload, a skipped decode) — the slot then renders the
+   * original via plain `src` (the srcset is built from disk truth).
+   */
+  srcset?: string | null;
 }
 
 /* ------------------------------------------------------------------ */

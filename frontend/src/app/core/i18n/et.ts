@@ -852,6 +852,7 @@ export const ET: Messages = {
   'admin.guidance.success.deleted': 'Post kustutatud.',
   'admin.guidance.success.reordered': 'Järjestus salvestatud.',
   'admin.guidance.success.translationCreated': 'Tõlge loodud.',
+  'admin.guidance.success.translationUpdated': 'Tõlge uuendatud.',
   'admin.guidance.success.translationDeleted': 'Tõlge kustutatud.',
 
   'admin.guidance.editor.createTitle': 'Uus juhistepost',
@@ -930,12 +931,16 @@ export const ET: Messages = {
     'Posti kodukeel on {home}. Salvestamine muudab ainult {locale} sisu — teised keeled jäävad puutumata.',
   'admin.guidance.editor.translatingIn':
     'Lisate selle postituse {locale} keele tõlge — teised keeled jäävad puutumata.',
+  'admin.guidance.editor.editingTranslationIn':
+    'Muudate selle postituse {locale} keele tõlge — teised keeled jäävad puutumata.',
   'admin.guidance.editor.translationTitle': 'Lisa tõlge',
+  'admin.guidance.editor.translationEditTitle': 'Muuda tõlge',
   'admin.guidance.editor.translations.title': 'Tõlged',
   'admin.guidance.editor.translations.loading': 'Laen tõlge…',
   'admin.guidance.editor.translations.empty': 'Tõlge pole veel — ainult postituse emakeel.',
   'admin.guidance.editor.translations.home': 'emakeel',
   'admin.guidance.editor.translations.add': 'Lisa {locale} keele tõlge',
+  'admin.guidance.editor.translations.edit': 'Muuda tõlge',
   'admin.guidance.editor.translations.delete': 'Kustuta tõlge',
   'admin.guidance.editor.translations.delete.confirm':
     'Kustutada selle postituse {locale} keele tõlge? {locale} keele tekst eemaldatakse; postitus ja teised keeled jäävad alles.',

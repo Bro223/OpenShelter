@@ -421,6 +421,17 @@ export class AdminPage implements OnInit, OnDestroy {
    *  prefill and the save payload pick the mode).
    */
   protected readonly translationTarget = signal<string | null>(null);
+  /**
+   * The locale whose EXISTING translation row the open editor is editing
+   *  in place (bilingual-guidance); null = not in translation-edit mode.
+   *  The template branches on it so the editor RECREATES on a switch
+   *  (the prefill and the save payload pick the mode) — the post fetch
+   *  behind it is scoped to the locale being edited, so the form shows
+   *  THAT row. The home-locale row never takes this mode (its edit is
+   *  the ordinary post edit that re-syncs the home row — the V26
+   *  invariant), so the row's buttons are offered for foreign rows only.
+   */
+  protected readonly translationEditTarget = signal<string | null>(null);
   /** The translation delete's two-tap confirm, keyed by LOCALE (the shared
    *  primitive; the home-locale row is never offered the trigger — the
    *  server 400s deleting it). */
@@ -1814,9 +1825,11 @@ export class AdminPage implements OnInit, OnDestroy {
     this.clearFeedback();
     this.guidanceEditorError.set(null);
     this.guidanceDeleteConfirm.disarm();
-    // A fresh open: no pending translation authoring, no stale rows (the
-    // edit-mode load below refetches the list for this post).
+    // A fresh open: no pending translation authoring or edit mode, no
+    // stale rows (the edit-mode load below refetches the list for this
+    // post).
     this.translationTarget.set(null);
+    this.translationEditTarget.set(null);
     this.guidanceTranslations.set(null);
     this.translationDeleteConfirm.disarm();
     this.ensureMediaLoaded();
@@ -1870,8 +1883,9 @@ export class AdminPage implements OnInit, OnDestroy {
     this.guidanceEditorLoading.set(false);
     this.guidanceEditorError.set(null);
     // The translations section is part of the open editor: no pending
-    // authoring mode, no stale rows, no armed delete confirm.
+    // authoring or edit mode, no stale rows, no armed delete confirm.
     this.translationTarget.set(null);
+    this.translationEditTarget.set(null);
     this.guidanceTranslations.set(null);
     this.translationDeleteConfirm.disarm();
   }
@@ -1963,6 +1977,32 @@ export class AdminPage implements OnInit, OnDestroy {
         this.success.set(this.i18n.t('admin.guidance.success.translationCreated'));
         this.translationTarget.set(null);
         await this.loadGuidanceTranslations(save.id);
+        return;
+      }
+      if (save.updateTranslation !== undefined && save.id !== null) {
+        // Translation EDIT (bilingual-guidance): the EXISTING row for the
+        // target locale — the UPDATE endpoint (never the create one —
+        // the row exists; never the post-level update — that writes the
+        // home locale's columns, a different row). The bound post is the
+        // EDIT-locale-scoped fetch, so after the save it is re-fetched in
+        // the CONTENT locale: the editor re-opens in the ordinary edit
+        // mode on the row a content-locale save would target (the content
+        // language is unchanged). The translation list re-loads; the
+        // post-level row patch is not applied — the edited locale's row
+        // is not the content-locale row.
+        const { locale, request } = save.updateTranslation;
+        await this.admin.updateGuidanceTranslation(save.id, locale, request);
+        this.success.set(this.i18n.t('admin.guidance.success.translationUpdated'));
+        try {
+          const restored = await this.admin.getGuidancePost(save.id, this.i18n.contentLocale());
+          this.translationEditTarget.set(null);
+          this.guidanceEditor.set(restored);
+          await this.loadGuidanceTranslations(save.id);
+        } catch {
+          // The post went away concurrently (deleted mid-edit): close the
+          // editor, the success is kept (the row itself was updated).
+          this.closeGuidanceEditor();
+        }
         return;
       }
       let result: AdminGuidancePostDto;
@@ -2157,6 +2197,49 @@ export class AdminPage implements OnInit, OnDestroy {
   startTranslation(locale: string): void {
     this.translationDeleteConfirm.disarm();
     this.translationTarget.set(locale);
+  }
+
+  /**
+   * The per-locale edit trigger (the foreign row's Edit button —
+   *  bilingual-guidance): the on-screen row is the CONTENT-locale row,
+   *  so the row being edited needs its own scoped fetch first; then the
+   *  template's branch switch recreates the editor in translation-edit
+   *  mode (the prefill shows THAT row — the slug prefilled, a blank
+   *  slug keeps it; Save emits the update-translation payload for the
+   *  UPDATE endpoint). The home-locale row never reaches this (its
+   *  buttons are not offered). On a scoped fetch FAILURE the current
+   *  editor stays as-is (no switch — the rows are intact, the editor
+   *  banner carries the message).
+   */
+  async startTranslationEdit(locale: string): Promise<void> {
+    const post = this.guidanceEditorPost();
+    if (post === null || this.guidanceEditor() === 'new') {
+      return;
+    }
+    this.translationDeleteConfirm.disarm();
+    this.busy.set(true);
+    this.guidanceEditorLoading.set(true);
+    this.guidanceEditorError.set(null);
+    const seq = ++this.editorFetchSeq;
+    try {
+      const scoped = await this.admin.getGuidancePost(post.id, locale);
+      if (seq !== this.editorFetchSeq) {
+        return;
+      }
+      this.guidanceEditor.set(scoped);
+      this.translationEditTarget.set(locale);
+      this.revealEditor();
+    } catch (error) {
+      if (seq !== this.editorFetchSeq) {
+        return;
+      }
+      this.guidanceEditorError.set(bannerMessage(error, 'shelter', (key) => this.i18n.t(key)));
+    } finally {
+      if (seq === this.editorFetchSeq) {
+        this.guidanceEditorLoading.set(false);
+      }
+      this.busy.set(false);
+    }
   }
 
   /** Step 1 of the two-tap translation delete: arm the confirm strip for

@@ -272,6 +272,7 @@ const GUIDANCE_PUBLISHED_EN: AdminGuidancePostDto = {
   slug: 'sheltering-during-a-drone-strike',
   title: 'Sheltering during a drone strike',
   bodyHtml: '<p>Move to the shelter.</p>',
+  heroImageAlt: 'Basement, view from the entrance',
 };
 
 const MEDIA_ROW: MediaAssetDto = {
@@ -318,7 +319,6 @@ class FakeAdminGateway {
   listUsers = vi.fn();
   suspendUser = vi.fn();
   unsuspendUser = vi.fn();
-  listGuidancePosts = vi.fn();
   listGuidancePostsPage = vi.fn();
   getGuidancePost = vi.fn();
   createGuidancePost = vi.fn();
@@ -328,10 +328,11 @@ class FakeAdminGateway {
   deleteGuidancePost = vi.fn();
   reorderGuidanceOrder = vi.fn();
   // The translations (bilingual-guidance): the post's per-locale rows —
-  // list/create/delete (the home-locale row is the post itself; the
-  // ordinary scoped edit covers updating an existing row).
+  // list/create/update/delete (the home-locale row is the post itself;
+  // its edit is the ordinary post edit, never these endpoints).
   listGuidanceTranslations = vi.fn();
   createGuidanceTranslation = vi.fn();
+  updateGuidanceTranslation = vi.fn();
   deleteGuidanceTranslation = vi.fn();
   listMediaAssets = vi.fn();
   uploadMediaAsset = vi.fn();
@@ -411,6 +412,7 @@ describe('AdminPage', () => {
     // fetch's .catch — which closes the editor by design.)
     admin.listGuidanceTranslations.mockResolvedValue([]);
     admin.createGuidanceTranslation.mockResolvedValue(TRANSLATION_ROW_RU);
+    admin.updateGuidanceTranslation.mockResolvedValue(undefined);
     admin.deleteGuidanceTranslation.mockResolvedValue(undefined);
     publicGuidance.list.mockResolvedValue([]);
     TestBed.configureTestingModule({
@@ -2406,6 +2408,140 @@ describe('AdminPage', () => {
       );
       // …and the section re-loaded the rows.
       expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+    });
+
+    it('the Edit trigger is offered on foreign rows only (never the home row) and opens a scoped editor in translation-edit mode', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      // 1st fetch: the open (content locale et); 2nd: the scoped edit (en).
+      admin.getGuidancePost
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED)
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED_EN);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = () => element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      // The home row (et) carries neither trigger; the foreign row (en)
+      // carries exactly one Edit button.
+      const editButtons = [...section().querySelectorAll('button')].filter((b) =>
+        b.textContent?.includes('Edit translation'),
+      );
+      expect(editButtons.length).toBe(1);
+      expect(section().querySelectorAll('[data-confirm-trigger]').length).toBe(1);
+
+      editButtons[0]!.click();
+      await settle(fixture);
+
+      // The scoped fetch went out for the edited locale …
+      expect(admin.getGuidancePost).toHaveBeenLastCalledWith(11, 'en');
+      // …and the editor re-created in translation-edit mode on that row.
+      expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+        'Edit a translation',
+      );
+      expect(element.textContent).toContain(
+        'You are editing the en translation of this post',
+      );
+      const titleInput = element.querySelector<HTMLInputElement>('#ge-title')!;
+      const slugInput = element.querySelector<HTMLInputElement>('#ge-slug')!;
+      expect(titleInput.value).toBe('Sheltering during a drone strike');
+      expect(slugInput.value).toBe('sheltering-during-a-drone-strike');
+    });
+
+    it('saving a translation edit calls the UPDATE endpoint (never the post update or the create endpoint), toasts, and re-opens the ordinary editor on the content-locale row', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      // 1st: the open (et); 2nd: the scoped edit (en); 3rd: the restore
+      // (et again — the editor re-opens on the content-locale row).
+      admin.getGuidancePost
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED)
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED_EN)
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      [...section.querySelectorAll('button')]
+        .find((b) => b.textContent?.includes('Edit translation'))
+        ?.click();
+      await settle(fixture);
+
+      // Blank the slug: the payload must OMIT it (the row keeps its slug).
+      const slugInput = element.querySelector<HTMLInputElement>('#ge-slug')!;
+      slugInput.value = '';
+      slugInput.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+      buttonByText(element, 'Save')!.click();
+      await settle(fixture);
+
+      expect(admin.updateGuidanceTranslation).toHaveBeenCalledTimes(1);
+      expect(admin.updateGuidanceTranslation.mock.calls[0]![0]).toBe(11);
+      expect(admin.updateGuidanceTranslation.mock.calls[0]![1]).toBe('en');
+      expect(admin.updateGuidanceTranslation.mock.calls[0]![2]).toEqual({
+        title: 'Sheltering during a drone strike',
+        body: '<p>Move to the shelter.</p>',
+        heroImageAlt: 'Basement, view from the entrance',
+      });
+      expect(admin.updateGuidancePost).not.toHaveBeenCalled();
+      expect(admin.createGuidanceTranslation).not.toHaveBeenCalled();
+      expect(admin.createGuidancePost).not.toHaveBeenCalled();
+      expect(element.textContent).toContain('Translation updated.');
+      // The editor STAYED open, back in the ordinary edit mode on the
+      // content-locale row (the scoped restore fetch) …
+      expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+        'Edit guidance post',
+      );
+      expect(element.querySelector<HTMLInputElement>('#ge-title')!.value).toBe(
+        GUIDANCE_PUBLISHED.title,
+      );
+      // …and the section re-loaded the rows.
+      expect(admin.listGuidanceTranslations).toHaveBeenCalledTimes(2);
+    });
+
+    it('a failed translation-edit save (slug collision) keeps the editor open in edit mode with the server message', async () => {
+      admin.listShelters.mockResolvedValue(paged([]));
+      admin.listGuidancePostsPage.mockResolvedValue(paged([GUIDANCE_DRAFT, GUIDANCE_PUBLISHED]));
+      admin.listMediaAssets.mockResolvedValue(paged([]));
+      admin.getGuidancePost
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED)
+        .mockResolvedValueOnce(GUIDANCE_PUBLISHED_EN);
+      admin.listGuidanceTranslations.mockResolvedValue(TRANSLATION_ROWS);
+      admin.updateGuidanceTranslation.mockRejectedValue(
+        apiError(409, 'slug "sheltering-during-a-drone-strike" is already in use', '/x'),
+      );
+      const { element, fixture } = await openAdmin();
+      await switchTab('Guidance', element, fixture);
+      const row = element.querySelectorAll('tbody tr')[1]!;
+      buttonByText(row.querySelector('td.admin-cell--actions')!, 'Edit')!.click();
+      await settle(fixture);
+
+      const section = element.querySelector<HTMLElement>('.admin-guidance-translations')!;
+      [...section.querySelectorAll('button')]
+        .find((b) => b.textContent?.includes('Edit translation'))
+        ?.click();
+      await settle(fixture);
+
+      buttonByText(element, 'Save')!.click();
+      await settle(fixture);
+
+      expect(admin.updateGuidanceTranslation).toHaveBeenCalledTimes(1);
+      // The editor STAYED open in translation-edit mode (the draft is
+      // kept) and the server message is echoed verbatim.
+      expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+        'Edit a translation',
+      );
+      expect(element.textContent).toContain(
+        'slug "sheltering-during-a-drone-strike" is already in use',
+      );
     });
 
     it('deleting a translation is two-tap: the first tap only arms, Cancel disarms, the confirm sends the DELETE', async () => {

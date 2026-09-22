@@ -120,6 +120,7 @@ const NEW_ASSET: MediaAssetDto = {
     [busy]="busy"
     [serverError]="error()"
     [translationTarget]="target"
+    [translationEditMode]="editMode"
     (save)="onSave($event)"
     (cancel)="cancelled = true"
   />`,
@@ -131,6 +132,10 @@ class Host {
    *  ordinary create/edit form (set BEFORE the first detectChanges, like
    *  the page binds it — the branch switch recreates the editor). */
   target: string | null = null;
+  /** The translation-EDIT locale (the existing row is edited in place —
+   *  the page fetched the post scoped to this locale already); null =
+   *  not in translation-edit mode. */
+  editMode: string | null = null;
   busy = false;
   error = signal<string | null>(null);
   lastSave: GuidanceEditorSave | null = null;
@@ -162,6 +167,7 @@ function createHost(
   post: AdminGuidancePostDto | null = EDIT_POST,
   assets: MediaAssetDto[] | null = MEDIA_ASSETS,
   target: string | null = null,
+  editMode: string | null = null,
 ): EditorHarness {
   const admin = new FakeAdminGateway();
   TestBed.configureTestingModule({
@@ -172,6 +178,7 @@ function createHost(
   fixture.componentInstance.post = post;
   fixture.componentInstance.assets = assets;
   fixture.componentInstance.target = target;
+  fixture.componentInstance.editMode = editMode;
   fixture.detectChanges();
   const debug = fixture.debugElement.query(By.directive(GuidanceEditor))!;
   if (!debug) {
@@ -819,6 +826,61 @@ describe('GuidanceEditor', () => {
     buttonByText(h.element, 'Choose from the media library')!.click();
     h.fixture.detectChanges();
     expect(h.element.textContent).toContain('No images in the media library yet');
+  });
+
+  // ---- P2-9: the derivative srcset on the image slots ----------------------
+
+  it('the picker items carry the derivative srcset when the asset has one (sizes = the 72 px slot)', () => {
+    const withSrcset: MediaAssetDto[] = [
+      {
+        ...MEDIA_ASSETS[0]!,
+        srcset:
+          '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w, '
+          + '/api/media/0123456789abcdef0123456789abcdef-t192.jpg 192w',
+      },
+      MEDIA_ASSETS[1]!, // no srcset (e.g. a WebP original)
+    ];
+    const h = createHost(null, withSrcset);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+
+    const imgs = h.element.querySelectorAll<HTMLImageElement>('.hero-picker__item img');
+    expect(imgs.length).toBe(2);
+    expect(imgs[0]!.getAttribute('srcset')).toBe(withSrcset[0]!.srcset);
+    expect(imgs[0]!.getAttribute('sizes')).toBe('72px');
+    // An asset without derivatives: no srcset attribute — plain src only.
+    expect(imgs[1]!.hasAttribute('srcset')).toBe(false);
+  });
+
+  it('the current hero thumb carries the derivative srcset of the picked asset', () => {
+    const withSrcset: MediaAssetDto[] = [
+      {
+        ...MEDIA_ASSETS[0]!,
+        srcset: '/api/media/0123456789abcdef0123456789abcdef-t96.jpg 96w',
+      },
+    ];
+    const h = createHost(null, withSrcset);
+    (inputById(h.element, 'ge-hero-none') as HTMLInputElement).click();
+    h.fixture.detectChanges();
+    buttonByText(h.element, 'Choose from the media library')!.click();
+    h.fixture.detectChanges();
+    h.element.querySelectorAll<HTMLButtonElement>('.hero-picker__item')[0]!.click();
+    h.fixture.detectChanges();
+
+    const thumb = h.element.querySelector<HTMLImageElement>('.guidance-editor__hero-thumb');
+    expect(thumb?.getAttribute('srcset')).toBe(withSrcset[0]!.srcset);
+    expect(thumb?.getAttribute('sizes')).toBe('56px');
+  });
+
+  it('a stored hero not on the loaded library page degrades to plain src (no srcset)', () => {
+    // heroImageId 5 is stored, but the library page is empty — the post
+    // fallback branch has no srcset to offer (documented degradation).
+    const h = createHost(EDIT_POST, []);
+    const thumb = h.element.querySelector<HTMLImageElement>('.guidance-editor__hero-thumb');
+    expect(thumb?.getAttribute('src')).toBe(EDIT_POST.heroImageUrl);
+    expect(thumb?.hasAttribute('srcset')).toBe(false);
   });
 
   it('Cancel emits cancel (the page closes the editor and keeps no draft)', () => {
@@ -1712,6 +1774,105 @@ describe('translation authoring (bilingual-guidance)', () => {
       title: NO_HERO_DRAFT.title,
       body: NO_HERO_DRAFT.bodyHtml,
       heroImageAlt: null,
+    });
+  });
+});
+
+// ---- translation editing (bilingual-guidance) -------------------------------
+//
+// The editor's FOURTH mode: the page recreates it (the template branch)
+// with the `translationEditMode` locale — the post was fetched SCOPED to
+// that locale (the prefill shows that row, the slug prefilled), and Save
+// emits the update-translation payload for the UPDATE endpoint (the row
+// exists — never the create endpoint, never the post-level update).
+
+/** The EN-scoped detail of EDIT_POST — the row translation-edit mode
+ *  would prefill (the page's scoped fetch result). */
+const EDIT_POST_EN: AdminGuidancePostDto = {
+  ...EDIT_POST,
+  locale: 'en',
+  slug: 'sheltering-during-a-drone-strike',
+  title: 'Sheltering during a drone strike',
+  bodyHtml: '<p>Move to the shelter.</p>',
+  heroImageAlt: 'Basement, view from the entrance',
+};
+
+describe('translation editing (bilingual-guidance)', () => {
+  it('prefills from the scoped row (title, body, alt, the slug PREFILLED) and Save emits the update-translation payload — never the update, create, or create-translation payloads', () => {
+    const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
+    expect(inputById(h.element, 'ge-title')!.value).toBe(EDIT_POST_EN.title);
+    expect(inputById(h.element, 'ge-slug')!.value).toBe(EDIT_POST_EN.slug);
+    expect(inputById(h.element, 'ge-alt')!.value).toBe(EDIT_POST_EN.heroImageAlt);
+    expect(rootOf(h).innerHTML).toContain('Move to the shelter');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    const save = h.host.lastSave;
+    expect(save?.id).toBe(EDIT_POST.id);
+    expect(save?.update).toBeUndefined();
+    expect(save?.create).toBeUndefined();
+    expect(save?.createTranslation).toBeUndefined();
+    expect(save?.updateTranslation).toEqual({
+      locale: 'en',
+      request: {
+        slug: EDIT_POST_EN.slug,
+        title: EDIT_POST_EN.title,
+        body: EDIT_POST_EN.bodyHtml,
+        heroImageAlt: EDIT_POST_EN.heroImageAlt,
+      },
+    });
+  });
+
+  it('a BLANKED slug is omitted from the payload (the row keeps its current slug); a typed slug is carried', () => {
+    const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
+    typeValue(inputById(h.element, 'ge-slug')!, '', h.fixture);
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.host.lastSave?.updateTranslation?.request.slug).toBeUndefined();
+    typeValue(inputById(h.element, 'ge-slug')!, 'sheltering-revised', h.fixture);
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    expect(h.host.lastSave?.updateTranslation?.request.slug).toBe('sheltering-revised');
+  });
+
+  it('the heading and the language line name the mode; the post-level fields are off the form and the home-locale note is replaced', () => {
+    const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
+    expect(h.element.querySelector('.guidance-editor__heading')!.textContent).toContain(
+      'Edit a translation',
+    );
+    expect(h.element.textContent).toContain('You are editing the en translation of this post');
+    expect(inputById(h.element, 'ge-locale')).toBeNull();
+    expect(inputById(h.element, 'ge-pinned')).toBeNull();
+    expect(inputById(h.element, 'ge-hero-none')).toBeNull();
+    expect(h.element.querySelector('.guidance-editor__hero-choices')).toBeNull();
+    // The shared hero is SHOWN (read-only — the remove action is
+    // post-level and off this form).
+    expect(h.element.querySelector('.guidance-editor__hero-current')).not.toBeNull();
+    expect(buttonByText(h.element, 'Remove image')).toBeNull();
+    expect(h.element.textContent).not.toContain('home language');
+  });
+
+  it('a hero post with a CLEARED alt blocks Save (the pairing rule follows the post\'s shared hero)', () => {
+    const h = createHost(EDIT_POST_EN, MEDIA_ASSETS, null, 'en');
+    typeValue(inputById(h.element, 'ge-alt')!, '', h.fixture);
+    h.editor.onSave();
+    expect(h.host.lastSave).toBeNull();
+    expect(h.element.textContent).toContain('Alt text is required when a hero image is chosen.');
+  });
+
+  it('a heroless post saves with heroImageAlt null (the pair is absent, not missing)', () => {
+    const h = createHost(NO_HERO_DRAFT, MEDIA_ASSETS, null, 'en');
+    h.editor.onSave();
+    h.fixture.detectChanges();
+    // The slug is prefilled (edit mode) and non-blank — it travels; a
+    // blanked slug is omitted (the other test pins that direction).
+    expect(h.host.lastSave?.updateTranslation).toEqual({
+      locale: 'en',
+      request: {
+        slug: NO_HERO_DRAFT.slug,
+        title: NO_HERO_DRAFT.title,
+        body: NO_HERO_DRAFT.bodyHtml,
+        heroImageAlt: null,
+      },
     });
   });
 });

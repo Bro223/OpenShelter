@@ -14,10 +14,12 @@ import { ConfirmAction } from '../../shared/confirm-action';
  * section renders the rows and owns the two-tap delete strip's UI.
  *
  * Add a missing locale (the editor recreates in translation-authoring
- * mode, prefilled from the on-screen row); delete a foreign one (the
- * two-tap confirm — the home-locale row is the post itself and is never
- * offered the trigger). Editing an existing one is the ordinary scoped
- * edit (the content-language select).
+ * mode, prefilled from the on-screen row); edit an existing foreign one
+ * (the editor recreates in translation-edit mode, scoped to that row's
+ * locale — the UPDATE endpoint); delete a foreign one (the two-tap
+ * confirm — the home-locale row is the post itself and is never offered
+ * the triggers: its edit is the ordinary post edit that re-syncs the
+ * home row, the V26 invariant).
  */
 @Component({
   selector: 'app-guidance-translations',
@@ -43,6 +45,10 @@ export class GuidanceTranslations {
    *  ordinary edit form) — while set, the add-buttons are held and the
    *  delete triggers stay hidden (the editor is recreating). */
   readonly translationTarget = input<string | null>(null);
+  /** The locale whose EXISTING translation row the editor is editing in
+   *  place (null = not in translation-edit mode) — the add-buttons and
+   *  the row triggers stay hidden while set, like authoring mode. */
+  readonly translationEditMode = input<string | null>(null);
   /** The two-tap delete confirm, keyed by LOCALE: the PAGE owns the
    *  instance (the editor-close paths disarm it); this template renders
    *  the trigger and the strip. (Repo convention: explicit default —
@@ -58,6 +64,9 @@ export class GuidanceTranslations {
   /** The add-buttons' target locale (the editor recreates in
    *  translation-authoring mode — the page's startTranslation). */
   readonly start = output<string>();
+  /** The edit trigger for an existing foreign row (the editor recreates
+   *  in translation-edit mode — the page's startTranslationEdit). */
+  readonly editTranslation = output<string>();
   /** The two-tap delete: tap 1 (arm) / Cancel / tap 2 (the DELETE goes
    *  out from the page). */
   readonly requestDelete = output<string>();
@@ -68,6 +77,10 @@ export class GuidanceTranslations {
 
   onStart(locale: string): void {
     this.start.emit(locale);
+  }
+
+  onEditTranslation(locale: string): void {
+    this.editTranslation.emit(locale);
   }
 
   onRequestDelete(locale: string): void {

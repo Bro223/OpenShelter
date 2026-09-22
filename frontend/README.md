@@ -26,11 +26,12 @@ plan M0–M6, all milestones complete). OpenSpec change history: `openspec/chang
 ## Quick start (dev)
 
 Prereqs: a running backend on `http://localhost:8080` (repo root: Docker Postgres +
-`mvn spring-boot:run` — see the root [README](../README.md)) and Node 22+.
+`./dev-start.sh` — see the root [README](../README.md)) and Node 26+ / npm 11+
+(`package.json` `engines`).
 
 ```bash
 cd frontend
-npm install
+npm install            # CI installs with `npm ci` against the committed lockfile
 
 npm start              # ng serve → http://localhost:5173 (same-origin API via dev proxy)
 npm run start:host     # same, but bound to 0.0.0.0 — reachable from other machines/containers
@@ -44,8 +45,12 @@ milestone manual reviews used (backend `:8080` + frontend `:5173`).
 
 **API base in dev.** The SPA calls the API same-origin (`apiUrl: ''` in
 `environment.development.ts`); `npm start` / `npm run start:host` run the dev
-server with `--proxy-config proxy.conf.json`, which forwards `/api`, `/auth`,
-`/account`, `/verify` and `/admin` to `http://localhost:8080` on the host. This is what
+server with `--proxy-config proxy.conf.js`, which forwards `/api`, `/auth`,
+`/account`, `/verify/` and `/admin/` to `http://localhost:8080` on the host.
+`/account` is not a plain key: it is both an Angular route and an API path, so
+the `.js` config keys on the request (a browser navigation gets
+`index.html`, the API calls proxy — the failure modes of a bare `/account`
+or `/account/` JSON key are documented in the file). This is what
 makes the app work when the page is loaded from _another_ machine — the API
 calls ride the same connection to the dev server instead of pointing at the
 viewer's own localhost.
@@ -148,14 +153,20 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   tooling keeps the rationale here, not in the file): the default route `/map` is a
   Leaflet map, so Leaflet + Angular core must be in the **initial** bundle; the CLI's
   500 kB default warning is unreachable without dropping the map from first paint.
-  Seven routes are `loadComponent`-lazy (admin, shelter detail, submit, privacy,
-  terms, the two /blog guidance routes). Measured initial total on a fresh build
-  (2026-09-22): **723.26 kB raw / 175.99 kB transfer** — this **exceeds**
-  `maximumWarning: 560kB` by 163.26 kB, so a fresh build prints a bundle-budget
-  warning (eight component SCSS budgets warn as well, largest first: map-page
-  8.40 kB, admin-page 6.68 kB, shelter-detail-page 6.10 kB, page-shell 4.92 kB,
-  guidance-editor 4.27 kB, submit-shelter-page 4.11 kB, guidance-translations
-  4.08 kB, guidance-order-list 4.04 kB — all against the 4 kB warning). The
+  Twelve routes are `loadComponent`-lazy: the five auth/account routes (login,
+  register, reset, verify, account — none is needed for first paint), admin,
+  shelter detail, submit, privacy, terms and the two /blog guidance routes.
+  The initial budget was re-baselined at the then-measured initial total
+  (`maximumWarning: 741401b` — the previous 560 kB warning budget sat under the
+  measured bundle and was permanently red, so it guarded nothing). Measured
+  initial total on a fresh build (2026-09-22, after the five auth/account
+  routes went lazy): **607.60 kB raw / 156.76 kB transfer** — under the
+  741401 b warning, so a fresh build prints no initial-budget warning (ten
+  component SCSS budgets warn instead, largest first, all against the 4 kB
+  warning: map-page 6.91 kB, shelter-detail-page 5.46 kB, page-shell 4.92 kB,
+  guidance-translations 4.75 kB, guidance-order-list 4.71 kB, guidance-panel
+  4.52 kB, media-panel 4.38 kB, guidance-editor 4.27 kB, shelters-panel
+  4.18 kB, submit-shelter-page 4.11 kB). The
   `anyComponentStyle` budget
   stays at its defaults (4 kB warning / **10 kB error** — no exception, and the
   30 kB exception a previous lane added for the Quill theme was reverted
@@ -167,7 +178,7 @@ itself is documented in the root [`docs/deploy/spa-csp.md`](../docs/deploy/spa-c
   admin editor and costs the initial bundle nothing — see
   [`docs/rich-text-editor.md`](docs/rich-text-editor.md) and
   [`src/vendor/quill/README.md`](src/vendor/quill/README.md). Trimming
-  the initial bundle, or raising the warning with a recorded rationale,
+  the initial bundle further, or raising the warning with a recorded rationale,
   is open work; `maximumError: 1MB` is unchanged.
 - **dist sanity** (M6): hashed assets referenced by `index.html`, Leaflet media
   (marker icons) copied under `media/`, favicon (`.ico` + `.svg`) present, all

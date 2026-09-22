@@ -1085,6 +1085,8 @@ export interface Messages {
   'admin.guidance.success.reordered': string;
   /** Translation authoring success lines (bilingual-guidance). */
   'admin.guidance.success.translationCreated': string;
+  /** The translation-edit success (the update endpoint's 200). */
+  'admin.guidance.success.translationUpdated': string;
   'admin.guidance.success.translationDeleted': string;
 
   // guidance editor (the create/edit form). The body is a plain textarea
@@ -1176,8 +1178,13 @@ export interface Messages {
    *  prefilled from the language on screen — translate from what you see).
    *  `{locale}` is the target locale code. */
   'admin.guidance.editor.translatingIn': string;
+  /** The language line in translation-EDIT mode (the existing row for
+   *  `{locale}` is being replaced in place). */
+  'admin.guidance.editor.editingTranslationIn': string;
   /** The editor heading in translation-authoring mode. */
   'admin.guidance.editor.translationTitle': string;
+  /** The editor heading in translation-edit mode. */
+  'admin.guidance.editor.translationEditTitle': string;
   /** The translations section (bilingual-guidance): the post's per-locale
    *  rows — add a missing one, delete a foreign one (the home-locale row
    *  is the post itself and cannot be deleted). */
@@ -1189,6 +1196,9 @@ export interface Messages {
   'admin.guidance.editor.translations.home': string;
   /** The per-locale add button. `{locale}` is the target locale code. */
   'admin.guidance.editor.translations.add': string;
+  /** The foreign row's edit trigger (the editor recreates in
+   *  translation-edit mode, scoped to that locale's row). */
+  'admin.guidance.editor.translations.edit': string;
   /** The foreign row's delete trigger (the two-tap confirm follows). */
   'admin.guidance.editor.translations.delete': string;
   /** The delete's two-tap prompt. `{locale}` is the target locale code. */

@@ -151,14 +151,6 @@ export const BLACK_AND_YELLOW_TOKENS: Readonly<Record<string, string>> = {
 /** The token names — clearing removes exactly what was set. */
 export const BLACK_AND_YELLOW_TOKEN_NAMES: readonly string[] = Object.keys(BLACK_AND_YELLOW_TOKENS);
 
-/** The <html> surface the theme is applied to: the attribute seam (for
- *  the ThemeStore) + the style object (the runtime tokens). */
-export type ThemeRoot = {
-  setAttribute(name: string, value: string): void;
-  removeAttribute(name: string): void;
-  style: ThemeStyleRoot['style'];
-};
-
 /** The token appliers only need the style object (the pre-paint script's
  *  fake roots carry it without the attribute seam). */
 export type ThemeStyleRoot = {

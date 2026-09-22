@@ -112,11 +112,6 @@ export function isSiteTextLink(key: string): boolean {
   return SITE_TEXT_LINK_KEYS.some((k) => k === key);
 }
 
-/** True when the key is in the allowlist (the admin may edit it). */
-export function isSiteTextKey(key: string): boolean {
-  return SITE_TEXT_KEYS.some((k) => k === key);
-}
-
 /** The admin UI's block order: Popup → Header → Footer. */
 export interface SiteTextBlock {
   /** Stable id for the DOM/ARIA; the heading is a catalog key rendered

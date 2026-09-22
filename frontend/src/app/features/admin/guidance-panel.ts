@@ -77,6 +77,9 @@ export class GuidancePanel {
   /** The locale the open editor is authoring a NEW translation in;
    *  null = the ordinary create/edit form. */
   readonly translationTarget = input<string | null>(null);
+  /** The locale whose EXISTING translation row the open editor is
+   *  editing in place; null = not in translation-edit mode. */
+  readonly translationEditTarget = input<string | null>(null);
   /** The open post's translation rows (null = not loaded). */
   readonly translations = input<GuidanceTranslationDto[] | null>(null);
   /** The translation delete's two-tap confirm (the PAGE owns the
@@ -114,6 +117,7 @@ export class GuidancePanel {
   readonly closeEditor = output<void>();
   readonly savePost = output<GuidanceEditorSave>();
   readonly startTranslation = output<string>();
+  readonly editTranslation = output<string>();
   readonly requestDeleteTranslation = output<string>();
   readonly cancelDeleteTranslation = output<void>();
   readonly confirmDeleteTranslation = output<string>();
@@ -154,6 +158,10 @@ export class GuidancePanel {
 
   onStartTranslation(locale: string): void {
     this.startTranslation.emit(locale);
+  }
+
+  onEditTranslation(locale: string): void {
+    this.editTranslation.emit(locale);
   }
 
   onRequestDeleteTranslation(locale: string): void {

@@ -21,7 +21,15 @@
             }}</span>
           }
           <span class="admin-guidance-translations__slug">{{ tr.slug }}</span>
-          @if (translationTarget() === null && tr.locale !== homeLocale) {
+          @if (translationTarget() === null && translationEditMode() === null && tr.locale !== homeLocale) {
+            <button
+              type="button"
+              class="btn btn--ghost"
+              (click)="onEditTranslation(tr.locale)"
+              [disabled]="busy()"
+            >
+              {{ 'admin.guidance.editor.translations.edit' | t }}
+            </button>
             @if (!armed(tr.locale)) {
               <button
                 type="button"
@@ -73,7 +81,7 @@
       type="button"
       class="btn btn--ghost admin-guidance-translations__add"
       (click)="onStart(l)"
-      [disabled]="busy() || translationTarget() !== null"
+      [disabled]="busy() || translationTarget() !== null || translationEditMode() !== null"
     >
       {{ 'admin.guidance.editor.translations.add' | t: { locale: l } }}
     </button>

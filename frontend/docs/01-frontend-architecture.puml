@@ -291,13 +291,14 @@ package "features" {
   package "admin" {
     ' admin-moderation - own folder (the no-cross-feature-imports rule holds)
     class AdminPage
-    ' /admin (lazy, AdminGuard) - SIX tabs, each a table with 48px action
+    ' /admin (lazy, AdminGuard) - NINE tabs, each a table with 48px action
     ' targets on the existing tokens: Unconfirmed (USER + NEW queue with the
     ' manual Confirm/Reject), Shelters (search + inline Hide/Activate, two-
     ' tap Delete; registry rows read-only), Reports (the shelter-report queue
     ' + dismiss, dismissed rows dimmed, "Restore shelter" shortcut), Alerts
-    ' (the in-memory throttle-abuse ring), Users (suspend/unsuspend) and
-    ' Audit (the moderation trail).
+    ' (the in-memory throttle-abuse ring), Users (suspend/unsuspend),
+    ' Guidance (post authoring + editor + translations, manual order),
+    ' Media (the media library) and Audit (the moderation trail).
     ' Mutations patch the in-memory row (204, no body); a rejected mutation
     ' surfaces the server message via the page-level banner.
   }
@@ -425,17 +426,22 @@ end note
 note as Routes
   '/ -> redirect'        public       -> MapPage      (M2 stub; real map M4)
   /map               public       -> MapPage        (M2 stub page; Leaflet map in M4)
-  /login             GuestGuard   -> LoginPage      (M2)
-  /register          GuestGuard   -> RegisterPage   (M2)
-  /reset             GuestGuard   -> ResetPage      (M2)
-  /verify            AuthGuard    -> VerifyPage        (M3 DONE)
-  /account           AuthGuard    -> AccountPage       (M3 page; post-M6 account-profile wave: full profile)
+  /login             GuestGuard   -> LoginPage      (M2, lazy - bundle budget)
+  /register          GuestGuard   -> RegisterPage   (M2, lazy - bundle budget)
+  /reset             GuestGuard   -> ResetPage      (M2, lazy - bundle budget)
+  /verify            AuthGuard    -> VerifyPage        (M3 DONE, lazy - bundle budget)
+  /account           AuthGuard    -> AccountPage       (M3 page; post-M6 account-profile wave: full profile; lazy - bundle budget)
   /shelters/:id      public       -> ShelterDetailPage(M5, lazy M6)
   /submit            AuthGuard + VerifiedGuard -> SubmitShelterPage (M5, lazy M6)
   /privacy           public       -> PrivacyPolicyPage (legal-recovery, lazy)
   /terms             public       -> TermsPage (legal-recovery, lazy)
+  /blog              public       -> GuidanceListPage   (crisis-guidance, lazy)
+  /blog/:slug        public       -> GuidanceDetailPage (crisis-guidance, lazy)
   /admin             AdminGuard     -> AdminPage          (admin-moderation, lazy)
-  ' M6: all routes data.title + TitleGuard; /shelters/:id and /submit
-  '     loadComponent-lazy for the documented bundle budget (so is /admin)
+  ' M6: all routes data.title + TitleGuard; twelve routes are
+  '     loadComponent-lazy for the documented bundle budget: the five
+  '     auth/account routes, /shelters/:id, /submit, /privacy, /terms,
+  '     the two /blog guidance routes and /admin. /map stays eager (Leaflet
+  '     is needed for first paint).
 end note
 @enduml

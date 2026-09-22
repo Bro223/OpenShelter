@@ -75,7 +75,6 @@ describe('AdminGateway', () => {
     api.getWithHeaders.mockReturnValue(of({ body: [], headers: new HttpHeaders() }));
 
     await gateway.listShelters({
-      status: 'INACTIVE',
       source: 'USER',
       q: 'kelder',
       limit: 10,
@@ -83,7 +82,7 @@ describe('AdminGateway', () => {
     });
 
     expect(api.getWithHeaders).toHaveBeenCalledWith(
-      '/admin/shelters?status=INACTIVE&source=USER&q=kelder&limit=10&offset=20',
+      '/admin/shelters?source=USER&q=kelder&limit=10&offset=20',
     );
   });
 
@@ -456,26 +455,6 @@ describe('AdminGateway', () => {
     createdAt: '2026-09-01T09:00:00Z',
     updatedAt: '2026-09-02T09:00:00Z',
   };
-
-  it('listGuidancePosts GETs the bare /admin/guidance (drafts included, server order)', async () => {
-    api.get.mockReturnValue(of([GUIDANCE_ROW]));
-
-    const rows = await gateway.listGuidancePosts();
-
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/guidance');
-    expect(rows).toEqual([GUIDANCE_ROW]);
-  });
-
-  it('listGuidancePosts with a locale GETs /admin/guidance?locale= (admin-locale-scope)', async () => {
-    api.get.mockReturnValue(of([GUIDANCE_ROW]));
-
-    const rows = await gateway.listGuidancePosts('et');
-
-    expect(api.get).toHaveBeenCalledTimes(1);
-    expect(api.get).toHaveBeenCalledWith('/admin/guidance?locale=et');
-    expect(rows).toEqual([GUIDANCE_ROW]);
-  });
 
   it('getGuidancePost with a locale GETs /admin/guidance/{id}?locale= (the locale-scoped detail)', async () => {
     api.get.mockReturnValue(of(GUIDANCE_ROW));

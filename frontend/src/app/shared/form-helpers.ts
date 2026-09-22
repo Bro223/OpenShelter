@@ -15,21 +15,6 @@ export const CODE_SIX_DIGITS = /^\d{6}$/;
 export const CAPACITY_MIN = 1;
 export const CAPACITY_MAX = 100_000;
 
-/**
- * Read a coordinate out of a number control (Angular's NumberValueAccessor
- * stores a number for a filled input and null for an empty one).
- */
-export function readCoordinate(value: number | string | null): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value !== 'string' || value.trim() === '') {
-    return null;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 /** Capacity is optional (null); when present it must be an integer in 1..100_000. */
 export function capacityValidator(control: AbstractControl): ValidationErrors | null {
   const value = control.value;

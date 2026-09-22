@@ -5,7 +5,9 @@
         ? 'admin.guidance.editor.createTitle'
         : translationTarget() !== null
           ? 'admin.guidance.editor.translationTitle'
-          : 'admin.guidance.editor.editTitle')
+          : translationEditMode() !== null
+            ? 'admin.guidance.editor.translationEditTitle'
+            : 'admin.guidance.editor.editTitle')
         | t
     }}
   </h2>
@@ -59,8 +61,8 @@
         {{
           (post() === null || translationTarget() !== null
             ? 'admin.guidance.editor.slugHint.create'
-            : 'admin.guidance.editor.slugHint.edit'
-          ) | t
+            : 'admin.guidance.editor.slugHint.edit')
+            | t
         }}
       </p>
       @if (slug().invalid && slug().touched) {
@@ -121,7 +123,7 @@
            translation row. While checked, the choice controls below are
            disabled (dimmed); checking it clears the hero
            choices, unchecking re-enables the controls. -->
-      @if (translationTarget() === null) {
+      @if (translationTarget() === null && translationEditMode() === null) {
         <label class="guidance-editor__check-label" for="ge-hero-none">
           <input id="ge-hero-none" type="checkbox" formControlName="noHero" (change)="onNoHeroChange($event)" />
           {{ i18nKeys.heroNone | t }}
@@ -130,10 +132,14 @@
 
       @if (selectedHero(); as hero) {
         <div class="guidance-editor__hero-current">
+          <!-- P2-9: the derivative srcset when the asset has one (null →
+               plain src; sizes = the slot's fixed 56 px CSS width). -->
           <img
             class="guidance-editor__hero-thumb"
             [src]="hero.url"
             [alt]="hero.name"
+            [attr.srcset]="hero.srcset ?? null"
+            sizes="56px"
             width="56"
             height="56"
             loading="lazy"
@@ -143,7 +149,7 @@
             <span class="guidance-editor__hero-name">{{ hero.name }}</span>
             <!-- The remove action is edit/create mode only: a translation
                  row carries no hero reference (it is post-level shared). -->
-            @if (translationTarget() === null) {
+            @if (translationTarget() === null && translationEditMode() === null) {
               <button
                 type="button"
                 class="btn btn--ghost"
@@ -157,7 +163,7 @@
         </div>
       }
 
-      @if (translationTarget() === null) {
+      @if (translationTarget() === null && translationEditMode() === null) {
         <div class="guidance-editor__hero-choices" [class.guidance-editor__hero-choices--disabled]="noHero().value">
         <button
           type="button"
@@ -184,9 +190,14 @@
                   (click)="selectHero(asset)"
                   [disabled]="busy() || uploading() || noHero().value"
                 >
+                  <!-- P2-9: the derivative srcset when the asset has one
+                       (null → plain src; sizes = the slot's fixed 72 px
+                       CSS width). -->
                   <img
                     [src]="asset.url"
                     [alt]="asset.originalFilename"
+                    [attr.srcset]="asset.srcset ?? null"
+                    sizes="72px"
                     width="72"
                     height="72"
                     loading="lazy"
@@ -278,7 +289,7 @@
       }
     </div>
 
-    @if (translationTarget() === null) {
+    @if (translationTarget() === null && translationEditMode() === null) {
       <div class="field">
         <label for="ge-locale">{{ 'admin.guidance.editor.localeLabel' | t }}</label>
         <input id="ge-locale" type="text" formControlName="locale" maxlength="5" autocomplete="off" />
@@ -289,7 +300,7 @@
       </div>
     }
 
-    @if (translationTarget() === null) {
+    @if (translationTarget() === null && translationEditMode() === null) {
       <div class="field">
         <label class="guidance-editor__check-label" for="ge-pinned">
           <input id="ge-pinned" type="checkbox" formControlName="pinned" />

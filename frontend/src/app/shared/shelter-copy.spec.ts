@@ -1,10 +1,6 @@
 import {
-  COMMUNITY_UNVERIFIED_WARNING,
   OCCUPANCY_FIRM_KEY,
   OCCUPANCY_HEDGED_KEY,
-  PRIVATE_LOCATION_NOTE,
-  REPORT_SUBMITTED,
-  REPORT_SUBMITTED_DAMPED,
   isPrivateLocation,
   shelterStatusText,
   occupancyText,
@@ -74,18 +70,6 @@ describe('sourceTrustLabel (pinned copy)', () => {
 });
 
 describe('community + private copy (community-review-queue)', () => {
-  it('the unverified warning is the exact pinned sentence', () => {
-    expect(COMMUNITY_UNVERIFIED_WARNING).toBe(
-      'This location was submitted by a community member and has not been officially verified. Do not rely on it during an emergency.',
-    );
-  });
-
-  it('the private note is the exact pinned string (the badge is the catalog key rendered through the t pipe)', () => {
-    expect(PRIVATE_LOCATION_NOTE).toBe(
-      'This is a resident-offered location, not an official facility.',
-    );
-  });
-
   it('isPrivateLocation: only the declared PRIVATE kind', () => {
     expect(isPrivateLocation({ locationKind: 'PRIVATE' })).toBe(true);
     expect(isPrivateLocation({ locationKind: 'PUBLIC' })).toBe(false);
@@ -254,22 +238,6 @@ describe('the derived-status rule stays single-sourced (chip + badge follow the 
         expect(badge, `badge for ${JSON.stringify(row)}`).toBe(shelterStatusText(row));
       }
     }
-  });
-});
-
-describe('report-submitted notices (D6; dampened variant M9)', () => {
-  it('plain notice is pinned', () => {
-    expect(REPORT_SUBMITTED).toBe('Your report was submitted.');
-  });
-
-  it('dampened notice says the report was recorded but weighted 0, and why (M8)', () => {
-    expect(REPORT_SUBMITTED_DAMPED).toBe(
-      'Your report was recorded but weighted 0 — because you have your own listing of a similar location, it does not count toward hiding this shelter.',
-    );
-  });
-
-  it('the two notices are distinct', () => {
-    expect(REPORT_SUBMITTED_DAMPED).not.toBe(REPORT_SUBMITTED);
   });
 });
 
@@ -506,10 +474,6 @@ describe('locale seam (N7 i18n-completeness)', () => {
     reportCount: number,
     lastReportedAt: string,
   ): ShelterOccupancy => ({ band, reportCount, lastReportedAt });
-
-  it('the no-callback path IS the EN catalog (un-routed call sites keep their copy)', () => {
-    expect(COMMUNITY_UNVERIFIED_WARNING).toBe(EN['shelter.unverifiedWarning']);
-  });
 
   it('sourceTrustLabel resolves the account.contrib.* twins in the active locale', () => {
     expect(sourceTrustLabel({ source: 'PAASETEAMET', reviewStatus: 'CONFIRMED' }, et)).toBe(

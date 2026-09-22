@@ -70,11 +70,24 @@
       <!-- Translation authoring (bilingual-guidance): the branch
            switches on the target locale so the editor RECREATES on a
            switch (the prefill and the save payload pick the mode);
-           the ordinary edit form is the null branch. -->
-      @if (translationTarget() === null) {
+           the ordinary edit form is the null branch. Translation-EDIT
+           mode is the third branch (the same recreation — the scoped
+           post was fetched for the edited locale). -->
+      @if (translationTarget() !== null) {
+        <app-guidance-editor
+          [post]="editorPost()"
+          [translationTarget]="translationTarget()"
+          [busy]="busy()"
+          [serverError]="editorError()"
+          [mediaAssets]="mediaAssets()"
+          (save)="onSavePost($event)"
+          (cancel)="onCloseEditor()"
+        />
+      } @else if (translationEditTarget() !== null) {
         <app-guidance-editor
           [post]="editorPost()"
           [translationTarget]="null"
+          [translationEditMode]="translationEditTarget()"
           [busy]="busy()"
           [serverError]="editorError()"
           [mediaAssets]="mediaAssets()"
@@ -84,7 +97,7 @@
       } @else {
         <app-guidance-editor
           [post]="editorPost()"
-          [translationTarget]="translationTarget()"
+          [translationTarget]="null"
           [busy]="busy()"
           [serverError]="editorError()"
           [mediaAssets]="mediaAssets()"
@@ -98,18 +111,21 @@
          rows under the open editor (edit mode only — a create-mode
          post has no id yet). Add a missing locale (the editor
          recreates in translation-authoring mode, prefilled from the
-         on-screen row); delete a foreign one (the two-tap confirm —
-         the home-locale row is the post itself and is never offered
-         the trigger). Editing an existing one is the ordinary scoped
-         edit (the content-language select). -->
+         on-screen row); edit an existing foreign one (the editor
+         recreates in translation-edit mode, scoped to that row's
+         locale — the UPDATE endpoint); delete a foreign one (the
+         two-tap confirm — the home-locale row is the post itself and
+         is never offered the triggers). -->
     @if (editorPost(); as p) {
       <app-guidance-translations
         [post]="p"
         [rows]="translations()"
         [busy]="busy()"
         [translationTarget]="translationTarget()"
+        [translationEditMode]="translationEditTarget()"
         [deleteConfirm]="translationDeleteConfirm()"
         (start)="onStartTranslation($event)"
+        (editTranslation)="onEditTranslation($event)"
         (requestDelete)="onRequestDeleteTranslation($event)"
         (cancelDelete)="onCancelDeleteTranslation()"
         (confirmDelete)="onConfirmDeleteTranslation($event)"

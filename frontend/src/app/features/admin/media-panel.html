@@ -60,10 +60,17 @@
         @for (row of rows() ?? []; track row.id) {
           <tr class="admin-row">
             <td>
+              <!-- P2-9: the derivative srcset when the server has one for
+                   this asset (built from disk truth — null for a WebP
+                   original / pre-feature upload, then plain src only);
+                   sizes is the slot's fixed CSS width (48 px, the 2×-
+                   pixel-ratio candidate comes from the 192w entry). -->
               <img
                 class="admin-media-thumb"
                 [src]="row.url"
                 [alt]="row.originalFilename"
+                [attr.srcset]="row.srcset ?? null"
+                sizes="48px"
                 width="40"
                 height="40"
                 loading="lazy"

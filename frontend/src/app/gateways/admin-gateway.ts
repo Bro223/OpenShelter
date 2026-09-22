@@ -263,20 +263,6 @@ export class AdminGateway {
   // ------------------------------------------------------------------
 
   /**
-   * GET /admin/guidance -> AdminGuidancePostDto[] — unscoped (no `locale`): every
-   * post, drafts included, in the stored manual order (the list renders in the
-   * server's order — no client sort). Scoped (admin-locale-scope, `locale` given):
-   * only the posts that HAVE content in that locale — a translation row there or
-   * the post's home being it — each carrying that locale's title/slug/body/alt
-   * (the DTO's `locale` names the content locale, `homeLocale` the post's own).
-   * The stored (sanitized) bodyHtml is returned — the editor round-trips what is
-   * stored.
-   */
-  listGuidancePosts(locale?: string): Promise<AdminGuidancePostDto[]> {
-    return lastValueFrom(this.api.get<AdminGuidancePostDto[]>(guidanceListPath(locale)));
-  }
-
-  /**
    * GET /admin/guidance?locale=&q=&limit=&offset= -> PagedRows — the paged,
    * searched admin list (admin-guidance-search / admin-page-size). The
    * search filter runs over the RENDERED content (scoped: the locale's
@@ -538,11 +524,6 @@ function localeQuery(locale?: string): string {
   return locale ? `?locale=${encodeURIComponent(locale)}` : '';
 }
 
-/** GET /admin/guidance[?locale=] — the optional locale scope. */
-function guidanceListPath(locale?: string): string {
-  return `/admin/guidance${localeQuery(locale)}`;
-}
-
 /** The paged admin guidance list's options (absent = omitted from the URL). */
 export interface GuidanceAdminListOptions {
   locale?: string;
@@ -622,9 +603,6 @@ function pagedResult<T>(body: T[], headers: HttpHeaders): PagedRows<T> {
 
 function adminSheltersPath(filters?: AdminShelterFilters): string {
   const params: string[] = [];
-  if (filters?.status !== undefined) {
-    params.push(`status=${filters.status}`);
-  }
   if (filters?.source !== undefined) {
     params.push(`source=${filters.source}`);
   }

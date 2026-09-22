@@ -1,12 +1,7 @@
 import type { Routes } from '@angular/router';
 import { titleGuard } from './core/title';
 import { authGuard, adminGuard, guestGuard, verifiedGuard } from './core/guards';
-import { LoginPage } from './features/auth/login-page';
-import { RegisterPage } from './features/auth/register-page';
-import { ResetPage } from './features/auth/reset-page';
 import { MapPage } from './features/map/map-page';
-import { VerifyPage } from './features/account/verify-page';
-import { AccountPage } from './features/account/account-page';
 
 /**
  * Route map (01 puml):
@@ -31,39 +26,48 @@ import { AccountPage } from './features/account/account-page';
  *  - every route carries `data.title` + titleGuard — the browser tab
  *    shows "<Page> — OpenShelter" (core/title.ts, tested in title.spec.ts).
  *    /shelters/:id and /submit are loadComponent-lazy (bundle budget —
- *    see the angular.json budgets note); leaflet stays initial because
- *    the default /map route needs it.
+ *    see the angular.json budgets note); the five auth/account routes
+ *    (login, register, reset, verify, account) are lazy for the same
+ *    reason — none of them is needed for first paint of the map. Leaflet
+ *    stays initial because the default /map route needs it.
  */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'map' },
   { path: 'map', component: MapPage, data: { title: 'title.map' }, canActivate: [titleGuard] },
+  // Lazy (bundle budget): the auth flow is only needed once a visitor
+  // leaves the map — never for first paint.
   {
     path: 'login',
-    component: LoginPage,
+    loadComponent: () => import('./features/auth/login-page').then((m) => m.LoginPage),
     data: { title: 'title.login' },
     canActivate: [titleGuard, guestGuard],
   },
   {
     path: 'register',
-    component: RegisterPage,
+    loadComponent: () =>
+      import('./features/auth/register-page').then((m) => m.RegisterPage),
     data: { title: 'title.register' },
     canActivate: [titleGuard, guestGuard],
   },
   {
     path: 'reset',
-    component: ResetPage,
+    loadComponent: () => import('./features/auth/reset-page').then((m) => m.ResetPage),
     data: { title: 'title.reset' },
     canActivate: [titleGuard, guestGuard],
   },
+  // Lazy (bundle budget): verification only happens after a login.
   {
     path: 'verify',
-    component: VerifyPage,
+    loadComponent: () =>
+      import('./features/account/verify-page').then((m) => m.VerifyPage),
     data: { title: 'title.verify' },
     canActivate: [titleGuard, authGuard],
   },
+  // Lazy (bundle budget): the account page only exists for signed-in users.
   {
     path: 'account',
-    component: AccountPage,
+    loadComponent: () =>
+      import('./features/account/account-page').then((m) => m.AccountPage),
     data: { title: 'title.account' },
     canActivate: [titleGuard, authGuard],
   },

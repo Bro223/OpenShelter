@@ -634,6 +634,41 @@ describe('design tokens (M6)', () => {
     expect(offenders, 'the yellow family must be one value per theme').toEqual([]);
   });
 
+  it('the NEW marker is a RING (the W4-D shape gap): a surface-coloured hole in the yellow disc — the silhouette, not a second hue, distinguishes it from the filled verified circle', () => {
+    // The owner-visible marker gap (W4-D): NEW and VERIFIED (two+ channels)
+    // were BOTH filled yellow circles — the unification made the hue one
+    // value, so the state was invisible on the map. The fix rides on
+    // SHAPE (WCAG 1.4.1, the anchor diamond's rationale): NEW becomes a
+    // ring (a surface-coloured hole in the disc) while --full stays a solid
+    // fill. These pins keep the decision single-sourced in the marker
+    // class: any legend swatch that reuses .shelter-marker--new inherits
+    // the ring by construction, and the fill stays --color-new (the value
+    // equality is the pin above — the reported red-orange stays its own
+    // family, untouched here).
+    const block = balancedBlock(stylesCss, /^\.shelter-marker--new \{$/);
+    expect(block, '.shelter-marker--new rule missing from styles.scss').not.toBeNull();
+    // The fill stays the unified yellow — no re-split of the family.
+    expect(block).toContain('background: var(--color-new)');
+    // The ring's hole: a centred pseudo-element disc in the surface
+    // colour (the same colour as the pin's 2px edge).
+    const hole = balancedBlock(block!, /&::after \{$/);
+    expect(hole, '.shelter-marker--new &::after (the ring hole) missing').not.toBeNull();
+    expect(hole).toContain('position: absolute');
+    expect(hole).toContain('border-radius: 50%');
+    expect(hole).toContain('background: var(--color-bg-surface)');
+    // The FILLED verified circle must stay a solid disc — if it ever
+    // gains the same hole, the two silhouettes merge and the gap re-opens.
+    const full = balancedBlock(stylesCss, /^\.shelter-marker--full \{$/);
+    expect(full, '.shelter-marker--full rule missing from styles.scss').not.toBeNull();
+    expect(full).toContain('background: var(--color-verified)');
+    expect(full).not.toContain('::after');
+    // The reported pin is untouched: still the solid red-orange fill.
+    const reported = balancedBlock(stylesCss, /^\.shelter-marker--reported \{$/);
+    expect(reported, '.shelter-marker--reported rule missing from styles.scss').not.toBeNull();
+    expect(reported).toContain('background: var(--color-reported)');
+    expect(reported).not.toContain('::after');
+  });
+
   it('every contrast-checked text pair meets 4.5:1 and border pairs 3:1, in every theme', () => {
     // The list itself must stay non-vacuous: a gutted CONTRAST_CHECKS
     // (e.g. TEXT_PAIRS emptied) would pass every test below it — the

@@ -881,6 +881,7 @@ export const RU: Messages = {
   'admin.guidance.success.deleted': 'Материал удалён.',
   'admin.guidance.success.reordered': 'Порядок сохранён.',
   'admin.guidance.success.translationCreated': 'Перевод создан.',
+  'admin.guidance.success.translationUpdated': 'Перевод обновлён.',
   'admin.guidance.success.translationDeleted': 'Перевод удалён.',
 
   'admin.guidance.editor.createTitle': 'Новый материал',
@@ -980,13 +981,17 @@ export const RU: Messages = {
     'Домашний язык поста — {home}. Сохранение меняет только контент {locale} — у остальных языков свой текст.',
   'admin.guidance.editor.translatingIn':
     'Вы добавляете перевод этого материала на язык {locale} — остальные языки не изменятся.',
+  'admin.guidance.editor.editingTranslationIn':
+    'Вы редактируете перевод этого материала на языке {locale} — остальные языки не изменятся.',
   'admin.guidance.editor.translationTitle': 'Добавить перевод',
+  'admin.guidance.editor.translationEditTitle': 'Редактировать перевод',
   'admin.guidance.editor.translations.title': 'Переводы',
   'admin.guidance.editor.translations.loading': 'Загрузка переводов…',
   'admin.guidance.editor.translations.empty':
     'Переводов пока нет — только домашний язык материала.',
   'admin.guidance.editor.translations.home': 'домашний',
   'admin.guidance.editor.translations.add': 'Добавить перевод на {locale}',
+  'admin.guidance.editor.translations.edit': 'Изменить перевод',
   'admin.guidance.editor.translations.delete': 'Удалить перевод',
   'admin.guidance.editor.translations.delete.confirm':
     'Удалить перевод этого материала на языке {locale}? Текст на этом языке будет удалён; сам материал и остальные языки останутся.',

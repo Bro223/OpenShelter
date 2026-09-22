@@ -33,6 +33,7 @@ import type {
   MediaAssetDto,
   UpdateGuidancePostRequest,
   CreateGuidancePostRequest,
+  UpdateGuidanceTranslationRequest,
 } from '../../core/models';
 import { nameBlankValidator } from '../../shared/form-helpers';
 import { BannerComponent } from '../../shared/banner.component';
@@ -110,7 +111,11 @@ export const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  *  (the POST body) and a given id to the update endpoint (the PUT body).
  *  Translation authoring (bilingual-guidance) is a third shape: a given id
  *  with a `createTranslation` payload — the NEW row for that locale (the
- *  create endpoint, never the update one: the row does not exist yet). */
+ *  create endpoint, never the update one: the row does not exist yet).
+ *  Translation editing is the fourth: a given id with an `updateTranslation`
+ *  payload — the EXISTING row for that locale (the update endpoint; the
+ *  home-locale row never takes this shape — its edit is the ordinary
+ *  post edit that re-syncs the home row, the V26 invariant). */
 export interface GuidanceEditorSave {
   /** null = create (no id yet); the post id for an edit. */
   id: number | null;
@@ -123,6 +128,11 @@ export interface GuidanceEditorSave {
    *  POST /admin/guidance/{id}/translations payload (the target `locale`
    *  required). */
   createTranslation?: CreateGuidanceTranslationRequest;
+  /** Translation-edit mode (bilingual-guidance): the target `locale` (the
+   *  endpoint's path key) + the PUT
+   *  /admin/guidance/{id}/translations/{locale} body — the EXISTING row
+   *  for that locale. */
+  updateTranslation?: { locale: string; request: UpdateGuidanceTranslationRequest };
 }
 
 /**
@@ -548,6 +558,19 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  create-translation payload for the target locale.
    */
   readonly translationTarget = input<string | null>(null);
+  /**
+   * The locale whose EXISTING translation row the form is editing in
+   * place (bilingual-guidance); null = not in translation-edit mode.
+   * Non-null = translation-edit mode (edit mode only): the parent scoped
+   * the post fetch to this locale (the form is prefilled from THAT row —
+   * the slug prefilled, a blank slug keeps it on save), the POST-level
+   * fields are off the form exactly as in authoring mode, and Save
+   * emits the update-translation payload for the target locale (the
+   * UPDATE endpoint — the row exists). The home-locale row never takes
+   * this mode: editing it is the ordinary post edit (the path that
+   * re-syncs the home row, the V26 invariant).
+   */
+  readonly translationEditMode = input<string | null>(null);
 
   readonly save = output<GuidanceEditorSave>();
   readonly cancel = output<void>();
@@ -687,7 +710,7 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    *  images (hero-only). The toolbar IS the feature set: whatever is not
    *  offered here does not survive the server sanitizer. */
   private static readonly TOOLBAR: ReadonlyArray<ReadonlyArray<QuillToolbarControl>> = [
-    [{ header: [2, 3, false] }],
+    [{ header: [...BODY_EDITOR_HEADER_VALUES, false] }],
     [{ list: 'bullet' }, { list: 'ordered' }],
     ['bold', 'italic', 'link'],
   ];
@@ -1067,6 +1090,10 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     if (target !== null) {
       return this.i18n.t('admin.guidance.editor.translatingIn', { locale: target });
     }
+    const editMode = this.translationEditMode();
+    if (editMode !== null) {
+      return this.i18n.t('admin.guidance.editor.editingTranslationIn', { locale: editMode });
+    }
     return this.i18n.t('admin.guidance.editor.editingIn', { locale: post.locale });
   }
 
@@ -1078,10 +1105,15 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
    */
   protected homeLocaleNote(): string | null {
     const post = this.post();
-    // Translation authoring replaces the note: the line above already says
-    // the other languages are untouched (and the home declaration is off
-    // the form anyway).
-    if (post === null || this.translationTarget() !== null || post.locale === post.homeLocale) {
+    // Translation authoring AND translation editing replace the note: the
+    // line above already says the other languages are untouched (and the
+    // home declaration is off the form anyway).
+    if (
+      post === null ||
+      this.translationTarget() !== null ||
+      this.translationEditMode() !== null ||
+      post.locale === post.homeLocale
+    ) {
       return null;
     }
     return this.i18n.t('admin.guidance.editor.homeLocaleNote', {
@@ -1101,20 +1133,26 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     return [...this.heroUploads(), ...(this.mediaAssets() ?? [])];
   }
 
-  protected selectedHero(): { url: string; name: string } | null {
+  protected selectedHero(): { url: string; name: string; srcset: string | null } | null {
     const id = this.heroImageId().value;
     if (id === null) {
       return null;
     }
     const match = this.pickerAssets().find((a) => a.id === id);
     if (match) {
-      return { url: match.url, name: match.originalFilename };
+      // P2-9: the asset's derivative srcset (null → the slot renders the
+      // original via plain src).
+      return { url: match.url, name: match.originalFilename, srcset: match.srcset ?? null };
     }
     const post = this.post();
     if (post === null || post.heroImageUrl === null) {
       return null;
     }
-    return { url: post.heroImageUrl, name: post.heroImageAlt ?? post.title };
+    // The hero is not on the loaded library page (an imported hero, or a
+    // page past the current one): no srcset is available here — the slot
+    // renders the original (the same degradation as an asset without
+    // derivatives).
+    return { url: post.heroImageUrl, name: post.heroImageAlt ?? post.title, srcset: null };
   }
 
   // ---- hero picker -------------------------------------------------------
@@ -1279,6 +1317,31 @@ export class GuidanceEditor implements OnInit, AfterViewInit {
     };
     const post = this.post();
     const translationTarget = this.translationTarget();
+    const translationEdit = this.translationEditMode();
+    if (post !== null && translationEdit !== null) {
+      // Translation edit (bilingual-guidance): emit the EXISTING row's
+      // payload for the target locale — the update endpoint, never the
+      // create one (the row exists; a duplicate would 409 server-side,
+      // but the UI must not even offer the other path). The home-locale
+      // row never takes this shape (its edit is the ordinary post edit,
+      // which re-syncs the home row — the V26 invariant). A blank slug is
+      // omitted: the row keeps its current one. The alt travels only with
+      // a hero of EITHER kind (the pairing rule guarantees: hasHero ->
+      // alt non-blank, !hasHero -> alt blank; null clears it).
+      this.save.emit({
+        id: post.id,
+        updateTranslation: {
+          locale: translationEdit,
+          request: {
+            title,
+            ...(slug === '' ? {} : { slug }),
+            body,
+            heroImageAlt: hasHero ? alt : null,
+          },
+        },
+      });
+      return;
+    }
     if (post !== null && translationTarget !== null) {
       // Translation authoring (bilingual-guidance): emit the NEW-row
       // payload for the target locale — the create endpoint, never the
