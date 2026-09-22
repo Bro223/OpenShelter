@@ -37,6 +37,17 @@
              (crisis-guidance D2). Bumps need review: the parser behaviour
              is part of the security boundary, not just a version number. -->
         <jsoup.version>1.23.2</jsoup.version>
+        <!-- W3-C dependency-advisory bumps. These OVERRIDE the versions the
+             Boot 3.5.16 parent manages (tomcat 10.1.55, jackson-bom 2.21.4,
+             commons-lang3 3.17.0) — the same-property-name override is the
+             sanctioned Boot mechanism, so no dependencyManagement entry is
+             needed. Each is a patch/minor bump WITHIN the managed line
+             (no major, no API change); the full suite is the behavior proof.
+             The matching suppressions in dependency-check-suppressions.xml
+             are deleted as the acceptance proof. -->
+        <tomcat.version>10.1.60</tomcat.version>
+        <jackson-bom.version>2.21.7</jackson-bom.version>
+        <commons-lang3.version>3.19.0</commons-lang3.version>
     </properties>
 
     <dependencies>
@@ -107,7 +118,7 @@
         <dependency>
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.78.1</version>
+            <version>1.86</version>
         </dependency>
         <!-- EPSG:3301 (L-EST97) -> EPSG:4326 (WGS84) for Maa-amet WFS coordinates -->
         <dependency>

@@ -9,44 +9,25 @@
   when the owning lane bumps the dependency; an entry without a reason
   and an owner must not be added.
 
-  Measured 2026-09-22 against branch feature/frontend HEAD (NVD feed,
-  plugin 12.1.9): both findings are CVSS v3.1 base 5.3 (MEDIUM) — below
-  the failure threshold, so the gate passes on HEAD as-is. They are
-  suppressed here on purpose: an untracked advisory that crosses the
-  threshold in a future NVD revision would fail the build silently,
-  and the dependency bump belongs to W3-C, not to this enforcement lane.
+  ACTIVE FINDINGS: none.
+
+  The two entries this file once carried (W2-C, measured 2026-09-22 against
+  branch feature/frontend HEAD, plugin 12.1.9) were both CVSS v3.1 base 5.3
+  (MEDIUM — below the CVSS 7 gate threshold) and both owned by W3-C:
+    - commons-lang3 3.17.0 / CVE-2025-48924 (uncontrolled recursion) —
+      W3-C bumped commons-lang3 to 3.19.0 (fix landed at 3.18.0); entry
+      deleted.
+    - jackson-databind 2.21.4 / CVE-2026-54515 (case-insensitive-binding
+      deserializer leak) — W3-C bumped jackson-bom to 2.21.7 (fix landed at
+      2.21.5); entry deleted.
+  W3-C also bumped tomcat 10.1.55 -> 10.1.60 and bcprov 1.78.1 -> 1.86 on
+  the same pass (advisory-driven, not tracked here because neither was a
+  suppressed below-threshold finding — they sat inside the managed Boot line
+  and the explicit BC pin respectively). Re-add an entry below (CVE,
+  dependency, fix version, owner, expiry) whenever a future scan surfaces a
+  below-threshold finding you are deliberately not fixing yet.
 -->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0"
               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
               xsi:schemaLocation="https://jeremylong.github.io/DependencyCheck/dependency-suppression/1.3.0 https://jeremylong.github.io/DependencyCheck/css/dependency-suppression-1.3.0.xsd">
-
-    <!-- Apache Commons Lang uncontrolled-recursion DoS (ClassUtils.getClass
-         on very long input). We never parse untrusted class names — the
-         API is JSON-only and class loading is not reachable from input.
-         Fix: commons-lang3 3.18.0 — owner W3-C (dependency bumps). -->
-    <suppress>
-        <note>commons-lang3 3.17.0: CVSS 5.3 MEDIUM at measurement; below the
-              CVSS 7 gate threshold. W3-C owns the bump to 3.18.0; delete
-              this entry when the version moves.</note>
-        <cvssVersion>3.1</cvssVersion>
-        <cvssScore minimum="5.3" maximum="6.9"/>
-        <packageUrl regex="true">^pkg:maven/org\.apache\.commons/commons-lang3@3\.17\.0$</packageUrl>
-        <vulnerabilityName>CVE-2025-48924</vulnerabilityName>
-    </suppress>
-
-    <!-- jackson-databind case-insensitive-binding deserializer leak. The
-         app binds JSON request DTOs only; the @JsonFormat
-         ACCEPT_CASE_INSENSITIVE_PROPERTIES trigger is not used anywhere in
-         src/main. Fix: jackson-databind 2.21.5 (arrives with the Boot
-         parent line W3-C bumps). -->
-    <suppress>
-        <note>jackson-databind 2.21.4: CVSS 5.3 MEDIUM at measurement; below
-              the CVSS 7 gate threshold. W3-C owns the bump to 2.21.5+;
-              delete this entry when the version moves.</note>
-        <cvssVersion>3.1</cvssVersion>
-        <cvssScore minimum="5.3" maximum="6.9"/>
-        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson-databind@2\.21\.4$</packageUrl>
-        <vulnerabilityName>CVE-2026-54515</vulnerabilityName>
-    </suppress>
-
 </suppressions>
