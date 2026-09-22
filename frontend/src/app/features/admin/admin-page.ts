@@ -17,9 +17,7 @@ import { FormControl, Validators } from '@angular/forms';
 import localeEnGB from '@angular/common/locales/en-GB';
 import { ActivatedRoute, Router, type Params } from '@angular/router';
 import type {
-  AdminAlertKind,
   AdminAlertRow,
-  AdminAuditAction,
   AdminAuditRow,
   AdminGuidancePostDto,
   AdminShelterDto,
@@ -231,9 +229,13 @@ export class AdminPage implements OnInit, OnDestroy {
    *  The un-paged queue lives in queueRows (the Unconfirmed tab). */
   protected readonly shelterRows = signal<AdminShelterDto[] | null>(null);
   protected readonly shelterLoadError = signal<string | null>(null);
-  /** The active name/address search term (set on submit — the server does
-   *  the substring match). It stays a tab-local control: the paged view's
-   *  URL-backed params are the source filter, page and size. */
+  /** The APPLIED name/address search term — the URL's `shelterQ` (the
+   *  tab-scoped param: the guidance tab keeps its own `q` on the shared
+   *  route — each tab's list filters on its OWN search, so a shelters
+   *  search never narrows the guidance list and vice versa): set by
+   *  syncSheltersFromParams from the URL, the server does the substring
+   *  match. The paged view's URL-backed params are the search term,
+   *  source filter, page and size. */
   protected readonly shelterQuery = signal('');
   /** Search input (public so specs can drive it — page convention). */
   readonly searchQuery = new FormControl('', { nonNullable: true });
@@ -707,22 +709,39 @@ export class AdminPage implements OnInit, OnDestroy {
     this.loadGuidance();
   }
 
-  /** The Shelters tab's view (the URL's source + shelterPage/shelterSize)
-   *  into the signals — the local search term stays where it is (the
-   *  form control) and is part of the key, so a search submit's URL
-   *  change re-loads with the new term. */
+  /** The Shelters tab's view (the URL's shelterQ + source +
+   *  shelterPage/shelterSize) into the signals, loading when `firstVisit`
+   *  (the lazy-load rule) or the view actually changed. The search term is
+   *  URL-BACKED (the tab-scoped `shelterQ` — the guidance tab's `q` is a
+   *  DIFFERENT param, so a shelters search never filters the guidance
+   *  list): a hand-opened /admin?shelterQ=… or a refresh re-applies it
+   *  instead of silently widening to the full list. The input follows the
+   *  APPLIED term (one source of truth); an unchanged term (a page/size
+   *  step) leaves the field alone — an unsubmitted draft is user state,
+   *  not view state. */
   private syncSheltersFromParams(params: Params, firstVisit: boolean): void {
+    const q = (params['shelterQ'] ?? '').trim();
     const source = parseSourceFilter(params['source'] ?? null);
     const page = parsePage(params['shelterPage'] ?? null);
     const size = parseSize(params['shelterSize'] ?? null);
-    const key = [source, page, size, this.shelterQuery()].join('|');
-    // In-flight window included: a chip/page change that lands while a
-    // fetch is running re-loads with the new view (the sequence guard
-    // drops the superseded response — see shelterFetchSeq).
+    const key = [q, source, page, size].join('|');
+    // In-flight window included: a chip/page/search change that lands
+    // while a fetch is running re-loads with the new view (the sequence
+    // guard drops the superseded response — see shelterFetchSeq).
     if (!firstVisit && key === this.sheltersViewKey) {
       return;
     }
     this.sheltersViewKey = key;
+    // One source of truth (the URL's `shelterQ`): when the APPLIED term
+    // changes, the input (the filter's editor) follows it — a hand-opened
+    // /admin?shelterQ=… or a history step pre-fills the field instead of
+    // leaving it disagreeing with the filter. An unchanged term leaves the
+    // field alone. emitEvent: false — a view write, not user input.
+    const prevQ = this.shelterQuery();
+    this.shelterQuery.set(q);
+    if (q !== prevQ) {
+      this.searchQuery.setValue(q, { emitEvent: false });
+    }
     this.shelterSource.set(source);
     this.shelterPage.set(page);
     this.shelterSize.set(size);
@@ -1012,32 +1031,23 @@ export class AdminPage implements OnInit, OnDestroy {
     }
   }
 
-  /** Search submit: capture the term and re-query (the server does the
-   *  name/address substring match — no client-side filtering). A new
-   *  filter has its own page 1 (keeping the old page number would often
-   *  land out-of-range). */
+  /** Search submit: the term goes to the URL (`shelterQ`) — that emission
+   * is what re-loads with the new term (the server does the name/address
+   * substring match — no client-side filtering). A new filter has its own
+   * page 1 (keeping the old page number would often land out-of-range).
+   * An empty term removes the param, so the full list comes back with the
+   * unfiltered total. The form's native submit is prevented in the panel
+   * (a reload would be the only thing between the in-SPA state and the
+   * URL). */
   onSearchSubmit(): void {
-    this.shelterQuery.set(this.searchQuery.value.trim());
+    const term = this.searchQuery.value.trim();
+    this.shelterQuery.set(term);
     this.clearFeedback();
     this.shelterDeleteConfirm.disarm();
     this.closeHistory();
     this.closeInfo();
     this.closeInaccurate();
-    if (this.shelterPage() > 1) {
-      // The page reset changes the URL — the emission re-loads with the
-      // new term (the term is tab-local, part of the view key).
-      this.navigateShelters({ page: 1 });
-    } else {
-      // The page is already 1 and the term is not a URL param — the
-      // navigation would be a no-op, so load directly.
-      this.sheltersViewKey = [
-        this.shelterSource(),
-        this.shelterPage(),
-        this.shelterSize(),
-        this.shelterQuery(),
-      ].join('|');
-      this.loadShelters();
-    }
+    this.navigateShelters({ page: 1, q: term });
   }
 
   /** The source chip (admin Shelters tab): write `source` to the URL
@@ -1059,13 +1069,21 @@ export class AdminPage implements OnInit, OnDestroy {
   /** Write the Shelters tab's view to the URL (merging the other tab's
    *  params — the tabs share one route); the query emission re-loads via
    *  the sync. Defaults are omitted from the URL (page 1, size 20, no
-   *  source filter). */
+   *  source filter, no search). */
   private navigateShelters(view: {
     page?: number;
     size?: number;
     source?: ShelterSourceFilter;
+    q?: string;
   }): void {
     const params: Record<string, string> = { ...this.route.snapshot.queryParams };
+    if (view.q !== undefined) {
+      if (view.q === '') {
+        delete params['shelterQ'];
+      } else {
+        params['shelterQ'] = view.q;
+      }
+    }
     if (view.source !== undefined) {
       if (view.source === 'ALL') {
         delete params['source'];

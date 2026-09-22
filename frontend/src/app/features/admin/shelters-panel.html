@@ -1,9 +1,11 @@
 <!-- The paged list's controls: the name/address search (submit on
-     Enter or button — the server does the substring match) and the
-     source chips (All / Registry / Community — the URL-backed filter
-     that composes with the search, AND on the server). -->
+     Enter or button — the server does the substring match; the default
+     is prevented, a native submit would reload the page and drop the
+     in-SPA state) and the source chips (All / Registry / Community —
+     the URL-backed filter that composes with the search, AND on the
+     server). -->
 <div class="admin-shelters-toolbar">
-  <form class="admin-search" (submit)="onSearchSubmit()">
+  <form class="admin-search" (submit)="$event.preventDefault(); onSearchSubmit()">
     <div class="field admin-search__field">
       <label for="admin-search">{{ 'admin.shelters.search.label' | t }}</label>
       <input

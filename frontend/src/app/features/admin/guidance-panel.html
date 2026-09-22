@@ -20,7 +20,10 @@
      the button), never per-keystroke; the term is URL-backed (`q`),
      scoped to the content locale's list, and a submit/clear resets
      the page to 1. The Clear button appears while a term is active. -->
-<form class="admin-search admin-guidance-search" (submit)="onSearchSubmit()">
+<form
+  class="admin-search admin-guidance-search"
+  (submit)="$event.preventDefault(); onSearchSubmit()"
+>
   <div class="field admin-search__field">
     <label for="guidance-search">{{ 'admin.guidance.search.label' | t }}</label>
     <input
@@ -31,7 +34,9 @@
       autocomplete="off"
     />
   </div>
-  <button type="submit" class="btn btn--ghost" [disabled]="busy()">{{ 'admin.guidance.search.button' | t }}</button>
+  <button type="submit" class="btn btn--ghost" [disabled]="busy()">
+    {{ 'admin.guidance.search.button' | t }}
+  </button>
   @if (appliedQuery() !== '') {
     <button type="button" class="btn btn--ghost" [disabled]="busy()" (click)="onSearchClear()">
       {{ 'admin.guidance.search.clear' | t }}
@@ -40,12 +45,7 @@
 </form>
 
 @if (editor() === null) {
-  <button
-    type="button"
-    class="btn btn--primary"
-    (click)="onOpenEditor(null)"
-    [disabled]="busy()"
-  >
+  <button type="button" class="btn btn--primary" (click)="onOpenEditor(null)" [disabled]="busy()">
     {{ 'admin.guidance.create' | t }}
   </button>
 }
@@ -53,10 +53,7 @@
 @if (editor() !== null) {
   <div class="admin-editor">
     @if (editorLoading()) {
-      <app-loading-indicator
-        class="admin-state"
-        [message]="'admin.guidance.editor.loading' | t"
-      />
+      <app-loading-indicator class="admin-state" [message]="'admin.guidance.editor.loading' | t" />
     } @else if (editor() === 'new') {
       <app-guidance-editor
         [post]="null"

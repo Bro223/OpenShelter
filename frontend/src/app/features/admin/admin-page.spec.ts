@@ -979,6 +979,42 @@ describe('AdminPage', () => {
     expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'kelder', limit: 20, offset: 0 }); // trimmed
   });
 
+  it('search submit does not reload the page: the form default is prevented and the filtered page renders in place', async () => {
+    const full = { rows: [USER_ROW, REGISTRY_ROW], total: 2 };
+    admin.listShelters
+      .mockResolvedValueOnce(full) // the queue (ngOnInit)
+      .mockResolvedValueOnce(full) // the shelters tab's page 1
+      .mockResolvedValueOnce({ rows: [REGISTRY_ROW], total: 1 }); // the searched page
+    const { element, fixture } = await openAdmin();
+    await toShelters(element, fixture);
+
+    const input = element.querySelector<HTMLInputElement>('#admin-search')!;
+    typeValue(input, 'Linna', fixture);
+    const form = element.querySelector('form.admin-search') as HTMLFormElement;
+    const submit = new Event('submit', { bubbles: true, cancelable: true });
+    form.dispatchEvent(submit);
+    await fixture.whenStable();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    fixture.detectChanges();
+
+    // The native form submission — a FULL document reload in a real
+    // browser — is prevented at the form: an un-prevented submit IS the
+    // owner's "the page reloads". A synthetic dispatch alone can never
+    // submit (only a user gesture can), so without this assertion the
+    // suite cannot see the defect.
+    expect(submit.defaultPrevented).toBe(true);
+    // The server does the filtering — the request carries the term…
+    expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'Linna', limit: 20, offset: 0 });
+    // …and its response is the list that renders (the matched row stays,
+    // the rest of the fetched page does not — no client-side filter over
+    // one page, no stale rows).
+    const names = [...element.querySelectorAll('td.admin-cell--name')].map(
+      (c) => c.textContent ?? '',
+    );
+    expect(names.some((n) => n.includes('Linna Varjend'))).toBe(true);
+    expect(names.some((n) => n.includes('Kommunaali Varjend'))).toBe(false);
+  });
+
   it('a 409 from the status endpoint surfaces the server message; the row is unchanged', async () => {
     admin.listShelters.mockResolvedValue(paged([USER_ROW]));
     admin.setShelterStatus.mockRejectedValue(
@@ -2004,7 +2040,11 @@ describe('AdminPage', () => {
     typeValue(inputById(element, 'ge-title')!, 'Uus juhis (mustand)', fixture);
     typeValue(inputById(element, 'ge-body')!, '<p>Keha</p>', fixture);
     // The hero is an import URL (the alt is mandatory iff a hero is set).
-    typeValue(inputById(element, 'ge-hero-import-url')!, 'https://cdn.example.com/kelder.jpg', fixture);
+    typeValue(
+      inputById(element, 'ge-hero-import-url')!,
+      'https://cdn.example.com/kelder.jpg',
+      fixture,
+    );
     typeValue(inputById(element, 'ge-alt')!, 'Kelder, vaade sissepääsust', fixture);
     buttonByText(element, 'Save')!.click();
     await settle(fixture);
@@ -2020,8 +2060,9 @@ describe('AdminPage', () => {
     expect(element.textContent).not.toContain('Post created.');
     expect(element.textContent).toContain('The host serving the hero image could not be fetched');
     // The URL stays in the field for a retry (the saved row is re-bound).
-    expect((inputById(element, 'ge-hero-import-url')! as HTMLInputElement).value)
-      .toBe('https://cdn.example.com/kelder.jpg');
+    expect((inputById(element, 'ge-hero-import-url')! as HTMLInputElement).value).toBe(
+      'https://cdn.example.com/kelder.jpg',
+    );
   });
 
   it('edit: opens with the fetched post; Save PUTs the update body (no status field)', async () => {
@@ -2217,7 +2258,9 @@ describe('AdminPage', () => {
     // The publish conjured no hero: the row still has no stored asset
     // (the failed import left it hero-less — the URL stays in the row's
     // STATE for a retry, the table does not render the URL itself).
-    expect(element.querySelectorAll('tbody tr')[0]!.querySelector('img.admin-guidance-thumb')).toBeNull();
+    expect(
+      element.querySelectorAll('tbody tr')[0]!.querySelector('img.admin-guidance-thumb'),
+    ).toBeNull();
   });
 
   it('publish WITHOUT an import URL does not re-fetch the detail (the status patch is enough)', async () => {
@@ -2449,9 +2492,7 @@ describe('AdminPage', () => {
       expect(element.querySelector('.guidance-editor__heading')!.textContent).toContain(
         'Edit a translation',
       );
-      expect(element.textContent).toContain(
-        'You are editing the en translation of this post',
-      );
+      expect(element.textContent).toContain('You are editing the en translation of this post');
       const titleInput = element.querySelector<HTMLInputElement>('#ge-title')!;
       const slugInput = element.querySelector<HTMLInputElement>('#ge-slug')!;
       expect(titleInput.value).toBe('Sheltering during a drone strike');
@@ -3239,6 +3280,112 @@ describe('AdminPage', () => {
       expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
         locale: 'en',
         q: 'kelder',
+        limit: 20,
+        offset: 0,
+      });
+    });
+
+    it("shelters search: submit writes shelterQ to the URL, resets the page to 1; an empty submit removes it (tab-scoped — never the guidance tab's q)", async () => {
+      admin.listShelters
+        .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }) // the queue (ngOnInit)
+        .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }) // the shelters page 1
+        .mockResolvedValueOnce({ rows: [USER_ROW_HIDDEN], total: 25 }) // the shelters page 2
+        .mockResolvedValueOnce({ rows: [REGISTRY_ROW], total: 1 }) // the searched page 1
+        .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }); // the cleared page 1
+      const { element, fixture } = await openAdmin();
+      await toShelters(element, fixture);
+      // Defaults are omitted from the URL (page 1, size 20, no search).
+      expect(router.url).toBe('/admin');
+      // Page 2 through the shared control.
+      nextButton(element).click();
+      await settle(fixture);
+      expect(router.url).toContain('shelterPage=2');
+      // The submit: the term lands in the URL (the tab-scoped `shelterQ`
+      // — the guidance tab keeps its own `q` on the shared route) AND the
+      // page resets to 1 (a new filter has its own page 1).
+      const input = element.querySelector<HTMLInputElement>('#admin-search')!;
+      typeValue(input, '  kelder  ', fixture);
+      (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toContain('shelterQ=kelder');
+      expect(router.url).not.toContain('shelterPage');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'kelder', limit: 20, offset: 0 });
+      // The empty submit clears: the param is gone, the unfiltered scope
+      // (and its un-paged total) is back.
+      typeValue(input, '', fixture);
+      (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toBe('/admin');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ limit: 20, offset: 0 });
+    });
+
+    it('a shelters search does not leak into the guidance list: the tabs keep their own search params (shelterQ vs q)', async () => {
+      admin.listShelters.mockResolvedValue({ rows: [USER_ROW], total: 25 });
+      admin.listGuidancePostsPage.mockResolvedValue({ rows: [GUIDANCE_PUBLISHED], total: 1 });
+      const { element, fixture } = await openAdmin();
+      await toShelters(element, fixture);
+
+      const input = element.querySelector<HTMLInputElement>('#admin-search')!;
+      typeValue(input, 'kelder', fixture);
+      (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+      expect(router.url).toContain('shelterQ=kelder');
+
+      // The other list is NOT filtered by the shelters term: the guidance
+      // tab lazy-loads UNFILTERED (its own `q` is absent) and its input
+      // stays empty — the shelterQ param persists in the URL (the search
+      // survives a round trip) but applies to the shelters list only.
+      await switchTab('Guidance', element, fixture);
+      expect(admin.listGuidancePostsPage).toHaveBeenLastCalledWith({
+        locale: 'en',
+        limit: 20,
+        offset: 0,
+      });
+      const guidanceInput = element.querySelector<HTMLInputElement>('#guidance-search')!;
+      expect(guidanceInput.value).toBe('');
+      expect(router.url).toContain('shelterQ=kelder');
+    });
+
+    it('a hand-opened /admin?shelterQ=… pre-fills the shelters search input and loads the filtered scope (the term survives a reload)', async () => {
+      admin.listShelters.mockResolvedValue({ rows: [REGISTRY_ROW], total: 1 });
+      const { element, fixture } = await openAdmin();
+      await router.navigate(['/admin'], { queryParams: { shelterQ: 'kelder' } });
+      await fixture.whenStable();
+      await toShelters(element, fixture);
+      // The applied filter AND the input agree: the URL's term is in the
+      // field — a refresh of a searched list re-applies it instead of
+      // silently widening to the full list (the URL is the ONE source of
+      // truth for the tab's view).
+      const input = element.querySelector<HTMLInputElement>('#admin-search') as HTMLInputElement;
+      expect(input.value).toBe('kelder');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({ q: 'kelder', limit: 20, offset: 0 });
+    });
+
+    it('a search with no matches shows the FILTERED empty state (the plain empty state is for the unfiltered scope)', async () => {
+      admin.listShelters
+        .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }) // the queue (ngOnInit)
+        .mockResolvedValueOnce({ rows: [USER_ROW], total: 25 }) // the shelters page 1
+        .mockResolvedValueOnce({ rows: [], total: 0 }); // the searched scope: empty
+      const { element, fixture } = await openAdmin();
+      await toShelters(element, fixture);
+
+      const input = element.querySelector<HTMLInputElement>('#admin-search')!;
+      typeValue(input, 'does-not-exist', fixture);
+      (element.querySelector('form.admin-search') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { bubbles: true, cancelable: true }),
+      );
+      await settle(fixture);
+
+      const state = element.querySelector('.admin-state') as HTMLElement | null;
+      expect(state?.textContent).toContain('No shelters match the current filter.');
+      expect(admin.listShelters).toHaveBeenLastCalledWith({
+        q: 'does-not-exist',
         limit: 20,
         offset: 0,
       });

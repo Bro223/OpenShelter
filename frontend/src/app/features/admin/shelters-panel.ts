@@ -28,8 +28,10 @@ import {
 
 /**
  * The Shelters tab panel: every row incl. hidden — the name/address
- * search (submit-based, the server does the substring match), the source
- * chips (All / Registry / Community), the paged table, the inline
+ * search (submit-based, the server does the substring match; the term is
+ * URL-backed — the tab-scoped `shelterQ`, the page owns the control and
+ * the submit's URL), the source chips (All / Registry / Community), the
+ * paged table, the inline
  * history / info-request / mark-inaccurate panels and the two-tap
  * delete confirm for USER rows (registry rows are read-only — D4:
  * import-owned, the UI never offers actions for them).
