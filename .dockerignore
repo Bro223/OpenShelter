@@ -1,0 +1,28 @@
+# Docker build context exclusions (W2-C).
+#
+# The backend image only needs pom.xml + src/ — everything else is either
+# large, irrelevant, or a credential that must never reach an image layer.
+
+.git
+.env
+.env.*
+!.env.example
+
+# Build output and caches
+target/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+data/
+
+# The SPA is built and deployed separately; it is not part of this image.
+frontend/
+
+# Docs, reviews and tooling state — read by humans and agents, not the JVM.
+docs/
+reviews/
+qa/
+openspec/
+context-and-tasks/
+scripts/
+.github/

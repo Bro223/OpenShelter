@@ -21,6 +21,12 @@
         <java.version>21</java.version>
         <jjwt.version>0.12.7</jjwt.version>
         <testcontainers.version>2.0.5</testcontainers.version>
+        <!-- Enforcement-lane (W2-C) tool versions. These are BUILD tooling,
+             not app dependencies: they never enter the runtime classpath. -->
+        <pmd.version>3.27.0</pmd.version>
+        <pmd-core.version>7.27.0</pmd-core.version>
+        <jacoco.version>0.8.13</jacoco.version>
+        <dependency-check.version>12.1.9</dependency-check.version>
         <!-- 2.8.x is the springdoc line aligned to Boot 3.4.x/3.5.x / Java 21.
              2.6.x is binary-incompatible with Spring 6.2 (it calls the
              ControllerAdviceBean(Object) constructor removed in 6.2 —
@@ -206,6 +212,145 @@
                         <include>**/*IT.java</include>
                     </includes>
                 </configuration>
+            </plugin>
+
+            <!-- Static analysis (W2-C, P2-16): PMD, high severity only.
+                 All standard Java categories, failing on high-or-worse
+                 (minimumPriority=2 / failurePriority=2). Two rules that
+                 conflict with the codebase's documented SLF4J idiom are
+                 lowered to priority 5 in pmd-ruleset.xml (reasons
+                 documented there); the pre-existing findings measured at
+                 landing are excluded via pmd-exclude-from-failure.properties
+                 (that file is the manifest of the excluded debt, owned per
+                 lane). `mvn verify` runs the check; a NEW high-severity
+                 finding fails the build. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${pmd.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>net.sourceforge.pmd</groupId>
+                        <artifactId>pmd-core</artifactId>
+                        <version>${pmd-core.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>net.sourceforge.pmd</groupId>
+                        <artifactId>pmd-java</artifactId>
+                        <version>${pmd-core.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <targetJdk>21</targetJdk>
+                    <failOnViolation>true</failOnViolation>
+                    <printFailingErrors>true</printFailingErrors>
+                    <!-- PMD 7 severity is derived from priority: 1 = critical,
+                         2 = high, 3 = medium, 4-5 = low. Report AND fail on
+                         high-or-worse only (the plan's first gate level);
+                         medium findings still appear in target/pmd.xml as
+                         warnings, they just do not fail the build. -->
+                    <minimumPriority>2</minimumPriority>
+                    <failurePriority>2</failurePriority>
+                    <!-- pmd-ruleset.xml: all standard Java categories
+                         (the plan's first gate level) plus two documented
+                         priority-5 overrides for rules that conflict with
+                         this codebase's SLF4J idiom. The pre-existing
+                         findings measured at landing are excluded via
+                         pmd-exclude-from-failure.properties (that file is
+                         the manifest of the excluded debt), so the gate
+                         fails on NEW violations only. -->
+                    <rulesets>
+                        <ruleset>pmd-ruleset.xml</ruleset>
+                    </rulesets>
+                    <excludeFromFailureFile>pmd-exclude-from-failure.properties</excludeFromFailureFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Coverage gate (W2-C, P2-16): the floor is the MEASURED line
+                 coverage of HEAD at landing (2026-09-22, branch
+                 feature/frontend, clean git-archive checkout, full suite:
+                 1172 tests, JaCoCo 0.8.13): 6291/6703 lines = 0.9385.
+                 The floor sits at 0.93 — below the measurement, never
+                 above it, per the plan. Raising it is a decision with a
+                 new measurement in the commit message; lowering it needs
+                 one too. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.93</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Dependency scan (W2-C, P2-16): OWASP Dependency-Check
+                 against the NVD feed, failing on CVSS >= 7. Known findings
+                 that this branch legitimately carries (the dependency
+                 bump is W3-C, not this lane) are documented one-by-one in
+                 dependency-check-suppressions.xml with their owner and
+                 expiry — a suppression without a reason and a lane is a
+                 hole in the gate. -->
+            <plugin>
+                <groupId>org.owasp</groupId>
+                <artifactId>dependency-check-maven</artifactId>
+                <version>${dependency-check.version}</version>
+                <configuration>
+                    <!-- File-backed NVD database: the plugin default is an
+                         in-memory H2 that re-downloads the ~400k-record NVD
+                         feed on EVERY run; the file DB under ~/.dependency-check
+                         is cached in CI (actions/cache) so only the delta is
+                         fetched. -->
+                    <dataDirectory>${user.home}/.dependency-check</dataDirectory>
+                    <suppressionFiles>dependency-check-suppressions.xml</suppressionFiles>
+                    <failBuildOnCVSS>7</failBuildOnCVSS>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

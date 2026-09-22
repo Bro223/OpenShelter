@@ -1,0 +1,205 @@
+# OpenShelter CI — the enforcement lane (W2-C, reviews/12-summary.md P2-16).
+#
+# Four jobs, four gates:
+#
+#   backend        — the full suite (unit + IT, Postgres service container) plus
+#                    every build-time gate that `mvn verify` runs: PMD
+#                    (high severity), the JaCoCo coverage floor, and the OWASP
+#                    dependency scan. This is the gate set a push/PR must pass.
+#
+#   clean-checkout — re-runs the FILE-BASED guards (DocumentationFactsTest,
+#                    TestConfigOverlayTest) and the frontend architecture
+#                    guard against a FRESH `git archive HEAD`, not the working
+#                    tree. A checkout that is red while the working tree is
+#                    green — the README.md:645 failure (P1-6): the README cited
+#                    a gitignored file that existed on the reviewer's disk —
+#                    cannot merge. The working tree passes such checks by
+#                    accident of local state; only the archive is the truth.
+#
+#   frontend       — the Angular suite (`ng test`) and the production build.
+#
+#   docker         — builds the multi-stage image and boots it against a real
+#                    Postgres, asserting /actuator/health answers UP. Proves
+#                    "the image builds and starts" on every push.
+#
+# No secrets are read or written by any job.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The ITs can run without Docker via the it.db.* fallback
+  # (AbstractPersistenceIT); here the service container below supplies them,
+  # so no Testcontainers-in-Docker is needed and the job is faster.
+  IT_DB_URL: jdbc:postgresql://127.0.0.1:5432/sheltermap_it
+  IT_DB_USER: sheltermap
+  IT_DB_PASSWORD: sheltermap
+
+jobs:
+  backend:
+    name: backend (JDK 27, mvn verify, Postgres 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sheltermap_it
+          POSTGRES_USER: sheltermap
+          POSTGRES_PASSWORD: sheltermap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sheltermap -d sheltermap_it"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 27
+          cache: maven
+
+      # The OWASP scan downloads the NVD vulnerability feed into
+      # ~/.dependency-check on first run (hundreds of MB) — cache it per
+      # plugin version.
+      - name: Cache OWASP NVD data
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check
+          key: dependency-check-${{ hashFiles('pom.xml') }}
+          restore-keys: |
+            dependency-check-
+
+      - name: Build and test (unit + IT, PMD, coverage floor, dependency scan)
+        run: >
+          mvn -B -ntp verify
+          -Dit.db.url="$IT_DB_URL"
+          -Dit.db.username="$IT_DB_USER"
+          -Dit.db.password="$IT_DB_PASSWORD"
+
+  clean-checkout:
+    name: clean checkout (guards against git archive, not the working tree)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract a pristine tree (no local bytes, no gitignored files)
+        run: |
+          mkdir -p "$RUNNER_TEMP/clean"
+          git archive HEAD | tar -x -C "$RUNNER_TEMP/clean"
+          echo "CLEAN_DIR=$RUNNER_TEMP/clean" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 27
+          cache: maven
+
+      - name: Backend file-based guards (doc facts, config overlay)
+        working-directory: "$CLEAN_DIR"
+        run: >
+          mvn -B -ntp -q test
+          -Dtest='DocumentationFactsTest,TestConfigOverlayTest'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: "$CLEAN_DIR/frontend/package-lock.json"
+
+      - name: Frontend architecture guard (from the archive)
+        working-directory: "$CLEAN_DIR/frontend"
+        run: |
+          npm ci
+          npx ng test --watch=false --include='**/architecture.spec.ts'
+
+  frontend:
+    name: frontend (ng test, ng build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx ng test --watch=false
+
+      - run: npx ng build
+
+  docker:
+    name: image builds and starts (healthcheck UP)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: sheltermap
+          POSTGRES_USER: sheltermap
+          POSTGRES_PASSWORD: sheltermap
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sheltermap -d sheltermap"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: sheltermap:ci
+
+      # The app is fail-closed outside dev/test (ProdJwtGuard,
+      # DevEndpointsGuard, DataSourceCredentialGuard) and the PII-at-rest
+      # keys are required in EVERY profile (PiiKeys) — so the CI boot uses
+      # the `dev` profile against the service Postgres with the published
+      # dev credentials, and FRESH throwaway PII keys generated inside the
+      # job. No secret is read from or written to the repository: the keys
+      # exist for the lifetime of one container only.
+      - name: Boot the image and wait for /actuator/health
+        run: |
+          PII_AES=$(openssl rand -base64 32)
+          PII_HMAC=$(openssl rand -base64 32)
+          docker run -d --name sheltermap \
+            -p 8080:8080 \
+            -e SPRING_PROFILES_ACTIVE=dev \
+            -e DB_URL=jdbc:postgresql://localhost:5432/sheltermap \
+            -e DB_USERNAME=sheltermap \
+            -e DB_PASSWORD=sheltermap \
+            -e PII_AES_KEY="$PII_AES" \
+            -e PII_HMAC_KEY="$PII_HMAC" \
+            sheltermap:ci
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8080/actuator/health \
+                > /tmp/health.json; then
+              echo "UP: $(cat /tmp/health.json)"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs sheltermap || true
+          echo "health never came up" >&2
+          exit 1
