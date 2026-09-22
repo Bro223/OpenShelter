@@ -22,7 +22,6 @@ import type {
   ShelterDto,
   ShelterOccupancy,
   ShelterSource,
-  ShelterSourceFilter,
   ShelterTrustFilter,
   GeocodeResult,
 } from '../../core/models';
@@ -60,22 +59,20 @@ import {
   haversineKm,
 } from '../../shared/geolocation';
 
-/** The three source-filter chips (server-side `?source=` refetch, design 4).
- *  `value` is the API param (never translated); the label is a message key
- *  resolved through the `t` pipe in the template (i18n-et-en). */
-const SOURCE_FILTERS: { value: ShelterSourceFilter; labelKey: MessageKey }[] = [
-  { value: 'ALL', labelKey: 'map.filter.all' },
-  { value: 'REGISTRY', labelKey: 'map.filter.registry' },
-  { value: 'USER', labelKey: 'map.filter.user' },
-];
-
 /** The legend's five SELECTABLE pin tones, in legend order (wave 7 — the
  *  legend IS the filter). The order is the canonical URL order for the
  *  `tones` param; the names are the markerTone() vocabulary (the same words
  *  the marker classes use — `shelter-marker--{tone}`), so a selected entry
  *  is exactly the pin the map draws. The sixth legend entry (the anchor
  *  diamond, the searched ADDRESS) is a UI reference point, not a shelter
- *  pin tone — it is deliberately not a member. */
+ *  pin tone — it is deliberately not a member.
+ *
+ *  The legend is the page's ONLY filter control (wave 8): the source-kind
+ *  chips (All / Registry / User) were removed as the leftover duplicate of
+ *  the legend filter — the registry-versus-user distinction they carried is
+ *  the legend's registry entry vs. its four community tones (unverified /
+ *  partial / full / reported). Display-only: the loaded list is filtered
+ *  client-side, never refetched by source. */
 const LEGEND_TONES = ['registry', 'user', 'partial', 'full', 'reported'] as const;
 /** One selectable legend (pin-tone) entry. */
 type LegendTone = (typeof LEGEND_TONES)[number];
@@ -187,10 +184,9 @@ function nearestShelterAt(
  * route). The read-only shelter browse experience: a Leaflet map with
  * divIcon markers toned by the trust palette (community-review-queue D5:
  * registry blue, community rows the verification-depth shapes (the
- * unified yellow family) or the community tone when the depth is absent,
- * plus the reported-state orange override — the pin carries depth, not
- * recency) + a sidebar list, source-filter chips
- * that refetch server-side, the practical filter chips ("Open" /
+ * verified green family) or the neutral unverified tone when the depth is
+ * absent, plus the reported-state orange override — the pin carries depth,
+ * not recency) + a sidebar list, the practical filter chips ("Open" /
  * "Has capacity" — see the Filters note below), a legend, and
  * loading/empty/error states.
  *
@@ -232,17 +228,20 @@ function nearestShelterAt(
  *   the copy never claims a route. Canonical write-up: frontend/docs/
  *   agent/05-CONTEXT-MAP.md, "Distance numbers" section.
  *
- * Filters: the source chips refetch server-side (`?source=`); the
- * practical chips are "Open" (client-side — the BE has no open/closed
- * param, it filters the loaded list + re-renders the markers) and
- * "Has capacity" (server-side `?hasCapacity=`). All composable.
- * The LEGEND is the pin-tone filter (wave 7): the five tone entries are
+ * Filters (wave 8: the legend is the page's ONLY filter control — the
+ * source-kind chips are gone, the registry-versus-user distinction is the
+ * legend's registry entry vs. its four community tones): the LEGEND is the
+ * pin-tone filter (wave 7): the five tone entries are
  * toggle buttons — the selection is the URL's `tones` param (URL-only,
  * no localStorage, the paging/filter clamp+normalize discipline) and is
  * display-only (the loaded list is filtered and the markers re-render
  * from the same `sorted()` view — no refetch, the data is never
  * altered). The sixth entry (the anchor diamond) is a UI reference
- * point, not a tone — it is not a filter.
+ * point, not a tone — it is not a filter. "Open" (client-side — the BE
+ * has no open/closed param, it filters the loaded list + re-renders the
+ * markers) and "Has capacity" (server-side `?hasCapacity=`) compose with
+ * it. The list always fetches ALL sources (the `?source=` refetch went
+ * with the chips).
  * Selection & zoom (design decision 5): a shared selectedId signal — a row
  * click OR a marker click SELECTS the shelter and flies the map to it at
  * street level (SHELTER_ZOOM). The user STAYS on /map: the zoom is the
@@ -288,7 +287,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
    *  callback to the component's lifecycle (never fires after destroy). */
   private readonly injector = inject(EnvironmentInjector);
 
-  protected readonly sourceFilters = SOURCE_FILTERS;
   /** The shared source/trust copy, exposed to the template (Angular's
    *  template scope is the component class). The row badge shows the
    *  source label (registry) or the trust-state label (USER rows);
@@ -327,7 +325,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
     const kind = this.anchorError();
     return kind === null ? null : GEOCODE_ERROR_KEY[kind];
   };
-  protected readonly filter = signal<ShelterSourceFilter>('ALL');
 
   // ---- legend filter (wave 7 — the legend IS the filter) ------------------
   /** The selected pin tones (the legend's toggle entries). The URL's
@@ -535,7 +532,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     this.leaflet.markerClick = (id) => this.onMarkerClick(id);
     this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
-    this.load('ALL');
+    this.load();
   }
   ngOnDestroy(): void {
     // Cancel any in-flight response, drop the URL sync, then drop the map
@@ -544,18 +541,6 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.fetchSeq++;
     this.querySub.unsubscribe();
     this.leaflet.destroy();
-  }
-
-  /** Chip click — refetch with the server-side source param (no client
-   *  filter). Public so specs can drive it (page convention).
-   *  Re-selecting the ACTIVE chip retries the last failed refetch — the
-   *  equality guard must not swallow that click while an error banner is
-   *  up. */
-  setFilter(source: ShelterSourceFilter): void {
-    if (source === this.filter() && this.error() === null) {
-      return;
-    }
-    this.load(source);
   }
 
   /** Open toggle chip — flip + re-render the markers from the filtered
@@ -567,10 +552,10 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.renderShelters(this.sorted());
   }
 
-  /** Has capacity toggle chip — flip + refetch with the current source. */
+  /** Has capacity toggle chip — flip + refetch (ALL sources, wave 8). */
   toggleHasCapacity(): void {
     this.hasCapacity.update((active) => !active);
-    this.load(this.filter());
+    this.load();
   }
 
   /**
@@ -795,7 +780,7 @@ export class MapPage implements AfterViewInit, OnDestroy {
       // Empty list — refresh with the current filters; the selection lands
       // when the load settles (load's success path consumes the pending).
       this.pendingAnchorSelection = { latitude: result.latitude, longitude: result.longitude };
-      this.load(this.filter());
+      this.load();
     } else {
       this.selectRow(hit.row.id, 'center');
     }
@@ -899,16 +884,20 @@ export class MapPage implements AfterViewInit, OnDestroy {
     this.leaflet.renderShelters(this.sorted());
   }
 
-  private load(source: ShelterSourceFilter): void {
+  /**
+   * Load the shelter list (always ALL sources — the server-side `?source=`
+   * refetch went with the source chips, wave 8; source is a DISPLAY
+   * distinction the legend tones cover, never a fetch param here).
+   */
+  private load(): void {
     const seq = ++this.fetchSeq;
-    this.filter.set(source);
     this.error.set(null);
     this.loading.set(true);
-    // Trust filters compose with the source filter (D5); with none active
-    // the call is the plain list(source) shape — no second argument.
+    // Trust filters compose with the source (D5); with none active the
+    // call is the plain list('ALL') shape — no second argument.
     const trust = this.activeTrustFilter();
     const request =
-      trust === undefined ? this.gateway.list(source) : this.gateway.list(source, trust);
+      trust === undefined ? this.gateway.list('ALL') : this.gateway.list('ALL', trust);
     void request.then(
       (rows) => {
         if (seq !== this.fetchSeq) {

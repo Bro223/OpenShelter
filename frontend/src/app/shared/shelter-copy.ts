@@ -86,7 +86,8 @@ export function submitterVerificationKey(shelter: {
  * 'full' at two or more, null when there is nothing to show (registry rows, no
  * author, an older backend). The SHAPE carries the depth so the distinction
  * never rests on colour alone (WCAG 1.4.1) — the same rationale as the anchor
- * diamond. The colour family (verified yellow) is a second cue, not the only
+ * diamond. The colour family (verified green — the unverified user tone is
+ * the yellow) is a second cue, not the only
  * one. Shares the tone vocabulary with {@code markerTone}.
  */
 export function verificationTone(shelter: {
@@ -102,9 +103,11 @@ export function verificationTone(shelter: {
 /**
  * The community trust-state label (community-review-queue D5): a USER row
  * says what it IS in the trust lifecycle:
- *   NEW       -> "Newly added"       (unified yellow marker treatment —
- *   CONFIRMED -> "Community-checked" (--color-new == --color-verified: the
- *                  pin-colour unification merged the two into ONE tone)
+ *   NEW       -> "Newly added"       (the unverified yellow badge — the
+ *   CONFIRMED -> "Community-checked" badge follows the same unverified
+ *                  family pair; the badge TEXT carries the state — the
+ *                  submitter-verification depth is a separate dimension,
+ *                  carried by the pin SHAPE, never by this badge)
  *   REJECTED  -> "Rejected"          (hidden; /mine + admin surfaces only)
  * The keys are the contributions panel's catalog set (account.contrib.
  * badge.*) — the same words the /mine panel has rendered translated all
@@ -150,9 +153,11 @@ export function sourceTrustLabel(
 
 /**
  * The row's badge tone (community-review-queue D5): the badge follows the
- * marker's trust palette — after the pin-colour unification the NEW
- * ("Newly added") and CONFIRMED ("Community-checked") tones are ONE
- * yellow (--color-new == --color-verified); REJECTED keeps the danger one.
+ * marker's trust palette — after the wave-8 re-tint BOTH community tones
+ * (NEW "Newly added", CONFIRMED "Community-checked") ride the unverified
+ * yellow pair (the badge TEXT carries the state; the verified GREEN family
+ * is the pin's, via the shapes — never this badge); REJECTED keeps the
+ * danger one.
  * Registry rows get no modifier (their base badge fill already says
  * registry). Applied on every surface that renders the badge (map row,
  * detail header, admin list, /mine).

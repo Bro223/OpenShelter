@@ -188,7 +188,12 @@ export interface Messages {
   'map.title': string;
   'map.subtitle': string;
   'map.legend.registry': string;
-  'map.legend.confirmed': string;
+  /** The unverified community tone (wave-8 re-tint, owner decision: green
+   *  means verified, unverified is the YELLOW tone — the pin palette is
+   *  green/yellow/blue/red only, there is no grey in it): the community
+   *  pin a USER row whose submitter depth the API does not report keeps —
+   *  the trust-scale rung below the two verified shapes. */
+  'map.legend.unverified': string;
   'map.legend.reported': string;
   /** The submitter-verification shapes (submitter-verification-badge): a
    *  triangle at one confirmed channel, a circle at two or more. */
@@ -216,11 +221,6 @@ export interface Messages {
   'map.nearestEmpty.addFirst': string;
   'map.searched': string;
   'map.clear': string;
-  'map.filter.all': string;
-  'map.filter.registry': string;
-  'map.filter.user': string;
-  /** The filter-chips group aria-label. */
-  'map.filterSourcesAria': string;
   /** The marker legend group's aria-label. */
   'map.legendAria': string;
   /** The address-result list's aria-label. */

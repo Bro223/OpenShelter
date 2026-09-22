@@ -82,7 +82,7 @@ export const EN: Messages = {
   'how.what':
     'OpenShelter is an independent, community-maintained map of shelters in Estonia. It is not an emergency service or an official government system. In an emergency, call 112 and follow official instructions.',
   'how.sources':
-    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue "Registry" marker. Community locations are submitted by verified users and show as "New by community" until other users confirm them ("Confirmed by community"). A community submission is never automatically official.',
+    'Locations come from two sources. Official locations come from Estonian Rescue Board (Päästeamet) open data and show a blue Registry marker. Community locations are added by users: an unverified submitter shows a yellow triangle, a partially verified submitter a yellow circle, and a fully verified submitter a green circle. A location with an open report shows a red marker. A community submission is never automatically official.',
   'how.report':
     'Verified users can submit a shelter or report a listed location as closed, inaccurate, or no longer existing. Reports go to administrators, who review them and may hide or correct a location.',
   'how.nearest':
@@ -178,7 +178,11 @@ export const EN: Messages = {
   // The submitter-verification shapes (submitter-verification-badge).
   'map.legend.partialVerified': 'Added by a partially verified user',
   'map.legend.fullVerified': 'Added by a fully verified user',
-  'map.legend.confirmed': 'Confirmed by community',
+  // The unverified community tone (wave-8 re-tint — green means verified,
+  // unverified is the YELLOW tone; the pin palette is green/yellow/blue/
+  // red only, there is no grey in it): the community pin a USER row whose
+  // submitter depth the API does not report keeps.
+  'map.legend.unverified': 'Added by an unverified user',
   'map.legend.reported': 'Reported',
   // The legend filter's affordance line (wave 7 — the legend IS the filter):
   // the one-line mechanic the pin-tone toggle entries implement. It doubles
@@ -199,10 +203,6 @@ export const EN: Messages = {
   'map.nearestEmpty.addFirst': 'You can add the first one.',
   'map.searched': 'Searched address',
   'map.clear': 'Clear',
-  'map.filter.all': 'All',
-  'map.filter.registry': 'Registry',
-  'map.filter.user': 'User',
-  'map.filterSourcesAria': 'Filter shelters by source',
   'map.legendAria': 'Marker legend',
   'map.addressResultsAria': 'Address results',
   'map.trustFiltersAria': 'Shelter filters',

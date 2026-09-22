@@ -6,6 +6,7 @@ import { AccountGateway } from '../../gateways/account-gateway';
 import { AuthGateway } from '../../gateways/auth-gateway';
 import { ApiError } from '../../core/api-error';
 import type { RegisterRequest } from '../../core/models';
+import { I18nService } from '../../core/i18n/i18n.service';
 import { RegisterPage } from './register-page';
 
 /** Hand-written fake gateway — the page never sees HTTP. */
@@ -227,6 +228,43 @@ describe('RegisterPage', () => {
     expect(text).toContain('Account created');
     expect(text).toContain('log in, then verify');
     expect(gateway.login).not.toHaveBeenCalled();
+  });
+
+  it('post-registration CTA is a Log in CTA pointing at the login route (the link target, not just the label)', async () => {
+    // The owner-reported dead end: the success view's CTA carried the
+    // register submit label ("Create account") — nonsense right after
+    // creating the account. The CTA is the login route's OWN submit label
+    // (authPage.login.submit — the key /login's submit button uses)…
+    const i18n = TestBed.inject(I18nService);
+    const { page, fixture } = await open();
+    fillValid(page);
+    gateway.register.mockResolvedValue(undefined);
+
+    await page.submit();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Account created');
+    const cta = [...root.querySelectorAll('a.btn--primary')].find(
+      (a) => a.textContent?.trim() === i18n.t('authPage.login.submit'),
+    );
+    expect(cta, 'a CTA labeled with the login route\'s submit key').toBeDefined();
+    // …and its destination is the login route.
+    expect(cta!.getAttribute('href')).toBe('/login');
+  });
+
+  it('no CTA on the post-registration view points back to registration', async () => {
+    const { page, fixture } = await open();
+    fillValid(page);
+    gateway.register.mockResolvedValue(undefined);
+
+    await page.submit();
+    fixture.detectChanges();
+
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.textContent).toContain('Account created');
+    const targets = [...root.querySelectorAll('a')].map((a) => a.getAttribute('href'));
+    expect(targets).not.toContain('/register');
   });
 
   it('surfaces a 409 duplicate-email as an INLINE field error with the backend message (N16)', async () => {

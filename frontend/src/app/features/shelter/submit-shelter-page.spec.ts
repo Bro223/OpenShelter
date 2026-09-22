@@ -38,16 +38,28 @@ class FakeLeafletService {
   flyToCalls: [number, number][] = [];
   mapClick: ((lat: number, lng: number) => void) | null = null;
 
+  /** The real service's contract (leaflet-service.ts): create no-ops on a
+   *  null container or an already-live map (one per visit), and setPick/
+   *  flyTo no-op before create / after destroy. The fake mirrors it — a
+   *  fake that accepted pins on a never-created map let the edit-mode
+   *  dead-map bug hide behind a green suite. */
+  get alive(): boolean {
+    return this.created > this.destroyed;
+  }
   create = vi.fn((el: HTMLElement | null): void => {
-    if (el) {
+    if (el !== null && this.created === this.destroyed) {
       this.created++;
     }
   });
   setPick = vi.fn((lat: number | null, lng: number | null): void => {
-    this.pickCalls.push([lat, lng]);
+    if (this.alive) {
+      this.pickCalls.push([lat, lng]);
+    }
   });
   flyTo = vi.fn((lat: number, lng: number): void => {
-    this.flyToCalls.push([lat, lng]);
+    if (this.alive) {
+      this.flyToCalls.push([lat, lng]);
+    }
   });
   destroy = vi.fn(() => void this.destroyed++);
 }
@@ -203,7 +215,9 @@ describe('SubmitShelterPage (/submit)', () => {
     // SubmitShelterPage declares a page-scoped LeafletService provider; drop
     // it so the root-level fake is the one the page injects.
     TestBed.overrideComponent(SubmitShelterPage, { remove: { providers: [LeafletService] } });
-    router = TestBed.inject(Router);
+    // NB: no TestBed.inject here — the first inject instantiates the test
+    // module, and the real-service test must override the page's providers
+    // BEFORE that. open()/openEdit() inject the Router.
   });
 
   async function open(): Promise<{
@@ -211,6 +225,7 @@ describe('SubmitShelterPage (/submit)', () => {
     element: HTMLElement;
     fixture: ReturnType<typeof TestBed.createComponent>;
   }> {
+    router = TestBed.inject(Router);
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     await router.navigateByUrl('/submit');
@@ -1231,6 +1246,7 @@ describe('SubmitShelterPage (/submit)', () => {
     element: HTMLElement;
     fixture: ReturnType<typeof TestBed.createComponent>;
   }> {
+    router = TestBed.inject(Router);
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     await router.navigateByUrl(`/submit?edit=${editParam}`);
@@ -1267,6 +1283,40 @@ describe('SubmitShelterPage (/submit)', () => {
     expect(leaflet.pickCalls.at(-1)).toEqual([59.437, 24.754]);
     expect(element.textContent).toContain('59.43700, 24.75400');
     expect(element.textContent).not.toContain('Location from');
+  });
+
+  it('edit mode creates the mini-map on the form container once the row loads (no dead grey box)', async () => {
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    const { element } = await openEdit('7');
+
+    // The form (and its #mapEl container) mounts only AFTER the row lands —
+    // the one-shot ngAfterViewInit create ran while the container was
+    // still absent. The map must be created on the late-mounted container.
+    expect(element.querySelector('.submit-map')).not.toBeNull();
+    expect(leaflet.created).toBe(1);
+    // …and the saved pin must sit on the LIVE map: the prefill's
+    // setPick/flyTo ran before creation (a no-op in the real service), so
+    // the re-pin after creation carries the point.
+    expect(leaflet.pickCalls.at(-1)).toEqual([59.437, 24.754]);
+    expect(leaflet.flyToCalls.at(-1)).toEqual([59.437, 24.754]);
+  });
+
+  it('edit mode mounts a live Leaflet map in .submit-map (real service, real DOM)', async () => {
+    // The fake models the service's contract; this runs the REAL service so
+    // the assertion is on what the browser actually gets: leaflet's DOM in
+    // the host (the owner's grey box = a host with none of it).
+    TestBed.overrideComponent(SubmitShelterPage, {
+      set: { providers: [{ provide: LeafletService, useClass: LeafletService }] },
+    });
+    gateway.mine.mockResolvedValue([EDIT_ROW]);
+    const { element } = await openEdit('7');
+
+    const host = element.querySelector<HTMLElement>('.submit-map');
+    expect(host).not.toBeNull();
+    expect(host!.classList.contains('leaflet-container')).toBe(true);
+    expect(host!.querySelector('.leaflet-tile-pane')).not.toBeNull();
+    // The saved pin is on the live map.
+    expect(host!.querySelector('.shelter-marker--pick')).not.toBeNull();
   });
 
   it('a PRIVATE row prefills the declaration checkbox', async () => {
@@ -1375,6 +1425,7 @@ describe('SubmitShelterPage (/submit)', () => {
         resolveMine = resolve;
       }),
     );
+    router = TestBed.inject(Router);
     const fixture = TestBed.createComponent(Host);
     fixture.detectChanges();
     await router.navigateByUrl('/submit?edit=7');

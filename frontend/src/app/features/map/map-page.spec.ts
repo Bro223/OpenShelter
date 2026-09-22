@@ -12,6 +12,7 @@ import type {
   GeocodeResult,
   ShelterDto,
   ShelterSourceFilter,
+  ShelterTrustFilter,
   VerificationLevel,
 } from '../../core/models';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -448,7 +449,7 @@ describe('MapPage', () => {
       ]);
     });
 
-    it('renders the six-entry legend: registry, community tone, the two verification shapes, reported, searched address', async () => {
+    it('renders the six-entry legend: registry, the unverified community tone, the two verified shapes, reported, searched address', async () => {
       const { element } = await open('/map');
 
       const legend = element.querySelector<HTMLElement>('.map-legend');
@@ -460,8 +461,9 @@ describe('MapPage', () => {
       // carries no recency swatch (a re-added one needs the pin-tone
       // decision first).
       expect(legend?.querySelector('.shelter-marker--new')).toBeNull();
-      // The community trust tone is STILL rendered: a row whose submitter
-      // depth the API does not report keeps this tone.
+      // The unverified community tone (wave-8 re-tint — green means
+      // verified, unverified is the YELLOW pin) is STILL rendered: a row
+      // whose submitter depth the API does not report keeps this tone.
       expect(legend?.querySelector('.shelter-marker--user')).not.toBeNull();
       // Submitter verification depth (submitter-verification-badge): the SHAPE
       // carries it — triangle at one confirmed channel, circle at two or more.
@@ -473,7 +475,7 @@ describe('MapPage', () => {
       // "222 m from WHAT" is answerable at a glance.
       expect(legend?.querySelector('.shelter-marker--anchor')).not.toBeNull();
       expect(legend?.textContent).toContain('Registry');
-      expect(legend?.textContent).toContain('Confirmed by community');
+      expect(legend?.textContent).toContain('Added by an unverified user');
       expect(legend?.textContent).toContain('Added by a partially verified user');
       expect(legend?.textContent).toContain('Added by a fully verified user');
       expect(legend?.textContent).toContain('Reported');
@@ -502,67 +504,36 @@ describe('MapPage', () => {
       expect(text(fixture)).not.toContain('No shelters match this filter.');
     });
 
-    it('filter chips refetch server-side with the matching source param', async () => {
+    it('the source-kind chips are gone — the legend is the only filter control, and the source distinction survives through it (wave 8)', async () => {
       const { element, fixture } = await open('/map');
-      // The SOURCE chips (the trust chips also carry the shared .chip class
-      // now — scope to their container).
-      const chips = [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')];
-      expect(chips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
-      expect(chips[0].classList.contains('chip--active')).toBe(true);
+      // No source-chip row at all (All / Registry / User was the leftover
+      // duplicate of the legend filter — removed, not re-hidden).
+      expect(element.querySelector('.filter-chips')).toBeNull();
+      // The list always loads ALL sources — no ?source= refetch exists
+      // anymore (the admin keeps its own source filter; this page does not).
+      expect(gateway.list).toHaveBeenCalledTimes(1);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
+      expect(leaflet.lastRendered).toEqual([BASEMENT, PARNU, TALLINN]);
 
-      chips[1].click(); // Registry
+      // The registry-versus-user distinction the chips carried IS the
+      // legend's registry entry vs. its community tones: selecting only the
+      // registry tone leaves exactly the registry rows, on the map AND in
+      // the list.
+      const registryToggle = element
+        .querySelector('.map-legend .shelter-marker--registry')!
+        .closest<HTMLButtonElement>('button.legend-item--toggle')!;
+      registryToggle.click();
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'REGISTRY']);
+      expect(gateway.list).toHaveBeenCalledTimes(1); // display-only — still no refetch
       expect(leaflet.lastRendered).toEqual([PARNU, TALLINN]);
-      expect(text(fixture)).toContain('Tallinn Central Shelter');
-      expect(text(fixture)).toContain('Pärnu Municipal Shelter');
-      expect(text(fixture)).not.toContain('Community Cellar');
-      expect(chips[1].classList.contains('chip--active')).toBe(true);
-      expect(chips[0].classList.contains('chip--active')).toBe(false);
+      expect(rowNames(element)).toEqual(['Pärnu Municipal Shelter', 'Tallinn Central Shelter']);
 
-      chips[2].click(); // User
+      registryToggle.click(); // unselect — everything returns
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'REGISTRY', 'USER']);
-      expect(leaflet.lastRendered).toEqual([BASEMENT]);
-      expect(text(fixture)).not.toContain('Pärnu Municipal Shelter');
-
-      chips[0].click(); // back to All
-      await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
       expect(leaflet.lastRendered).toEqual([BASEMENT, PARNU, TALLINN]);
     });
 
-    it('clicking the active chip is a no-op (no redundant refetch)', async () => {
-      const { element, fixture } = await open('/map');
-      const allChip = element.querySelector<HTMLButtonElement>('.chip');
-
-      allChip?.click();
-      await settle(fixture);
-
-      expect(gateway.list).toHaveBeenCalledTimes(1); // only the initial ALL fetch
-    });
-
-    it('a failed filter refetch can be retried by re-selecting the active chip (N8)', async () => {
-      let calls = 0;
-      gateway.list.mockImplementation(() => {
-        calls++;
-        return calls === 1 ? Promise.reject(ApiError.fromNetwork()) : Promise.resolve(ALL_ROWS);
-      });
-      const { element, fixture } = await open('/map');
-      // The initial ALL fetch failed — the banner is up.
-      expect(element.querySelector('.banner--error')).not.toBeNull();
-
-      const allChip = element.querySelector<HTMLButtonElement>('.chip');
-      allChip?.click(); // same (active) filter — must retry, not no-op
-      await settle(fixture);
-
-      expect(gateway.list).toHaveBeenCalledTimes(2);
-      expect(gateway.list).toHaveBeenLastCalledWith('ALL');
-      expect(leaflet.lastRendered).toEqual([BASEMENT, PARNU, TALLINN]);
-      expect(element.querySelector('.banner--error')).toBeNull();
-    });
-
-    it('a 429 filter refetch shows the shared rate-limited copy, not raw backend text (N9)', async () => {
+    it('a 429 list fetch shows the shared rate-limited copy, not raw backend text (N9)', async () => {
       gateway.list.mockRejectedValue(
         ApiError.fromHttp(
           429,
@@ -581,23 +552,6 @@ describe('MapPage', () => {
       const banner = element.querySelector('.banner--error') as HTMLElement | null;
       expect(banner?.textContent).toContain('Too many attempts — please wait a moment');
       expect(banner?.textContent).not.toContain('rate limited');
-    });
-
-    it('shows an empty state (map stays usable) when no shelters match the filter', async () => {
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(source === 'USER' ? [] : ALL_ROWS),
-      );
-      const { element, fixture } = await open('/map');
-      expect(text(fixture)).not.toContain('No shelters match this filter.');
-
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User
-      await settle(fixture);
-
-      expect(text(fixture)).toContain('No shelters match this filter.');
-      expect(element.querySelector('.shelter-list')).toBeNull();
-      expect(element.querySelector('.banner')).toBeNull(); // not an error
-      expect(leaflet.lastRendered).toEqual([]); // map re-rendered empty, still present
-      expect(document.querySelector('.map-page__leaflet')).not.toBeNull();
     });
 
     it('shows the error banner (chrome intact) when the backend is unreachable', async () => {
@@ -689,31 +643,33 @@ describe('MapPage', () => {
       expect(element.querySelector('.shelter-row__details')).not.toBeNull();
     });
 
-    it('drops an out-of-order (stale) filter response in favour of the newer one', async () => {
+    it('drops an out-of-order (stale) refetch response in favour of the newer one', async () => {
       let resolveAll: (rows: ShelterDto[]) => void = () => {};
-      let resolveUser: (rows: ShelterDto[]) => void = () => {};
+      let resolveCap: (rows: ShelterDto[]) => void = () => {};
       gateway.list.mockImplementation(
-        (source: ShelterSourceFilter) =>
+        (_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
           new Promise<ShelterDto[]>((resolve) => {
-            if (source === 'ALL') {
-              resolveAll = resolve;
+            if (trust?.hasCapacity) {
+              resolveCap = resolve;
             } else {
-              resolveUser = resolve;
+              resolveAll = resolve;
             }
           }),
       );
       const { element, fixture } = await open('/map'); // ALL fetch pending
-      // Chips stay enabled while loading — a second filter click queues a newer fetch.
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User
+      // The trust chip stays enabled while loading (no disabled binding) —
+      // a click queues a newer fetch (the only refetch left on the page
+      // after the source chips went, wave 8).
+      element.querySelectorAll<HTMLButtonElement>('button.trust-chip')[1].click(); // Has capacity
       await settle(fixture);
-      expect(gateway.list.mock.calls.map((c) => c[0])).toEqual(['ALL', 'USER']);
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
 
       resolveAll(ALL_ROWS); // the STALE response arrives first
       await settle(fixture);
       expect(leaflet.lastRendered).toEqual([]); // dropped — never rendered
       expect(text(fixture)).not.toContain('Tallinn Central Shelter');
 
-      resolveUser([BASEMENT]); // the newer one lands
+      resolveCap([BASEMENT]); // the newer one lands
       await settle(fixture);
       expect(leaflet.lastRendered).toEqual([BASEMENT]);
       expect(text(fixture)).toContain('Community Cellar');
@@ -1060,16 +1016,16 @@ describe('MapPage', () => {
       expect(leaflet.flyToCalls).toEqual([[USER_POSITION.latitude, USER_POSITION.longitude, 14]]);
     });
 
-    it('a locate settling after a failed filter refetch does not offer the empty state beside the banner (F5)', async () => {
+    it('a locate settling after a failed trust refetch does not offer the empty state beside the banner (F5)', async () => {
       const geo = deferredGeolocation();
       setGeolocation(geo.fake);
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        source === 'ALL' ? Promise.resolve([NEAR, FAR]) : Promise.reject(ApiError.fromNetwork()),
+      gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
+        trust?.hasCapacity ? Promise.reject(ApiError.fromNetwork()) : Promise.resolve([NEAR, FAR]),
       );
       const { element, fixture } = await open('/map');
 
       cta(element).click(); // locate in flight
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][1].click(); // Registry refetch
+      element.querySelectorAll<HTMLButtonElement>('button.trust-chip')[1].click(); // Has capacity refetch
       await settle(fixture);
       // The refetch failed: the list is empty and the banner is up.
       expect(element.querySelector('.banner--error')).not.toBeNull();
@@ -1119,10 +1075,10 @@ describe('MapPage', () => {
       expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
     });
 
-    it('a filter change clears the Nearest result line (D2)', async () => {
+    it('a refetch clears the Nearest result line (D2)', async () => {
       setGeolocation(stubGeolocation({ position: USER_POSITION }));
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(source === 'ALL' ? [NEAR, FAR, ALPHA_FAR] : [FAR]),
+      gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
+        Promise.resolve(trust?.hasCapacity ? [FAR] : [NEAR, FAR, ALPHA_FAR]),
       );
       const { element, fixture } = await open('/map');
 
@@ -1134,7 +1090,7 @@ describe('MapPage', () => {
       // (name order would put Aegviidu first).
       expect(rowNames(element)).toEqual(['Kalamaja Shelter', 'Nõmme Shelter', 'Aegviidu Shelter']);
 
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][1].click(); // Registry
+      element.querySelectorAll<HTMLButtonElement>('button.trust-chip')[1].click(); // Has capacity refetch
       await settle(fixture);
 
       // The refetch replaced the list — the stale one-line result is gone
@@ -1436,15 +1392,7 @@ describe('MapPage', () => {
   // ---------------------------------------------------------------------------
   describe('scroll the row into view (marker click / nearest)', () => {
     beforeEach(() => {
-      gateway.list.mockImplementation((source: ShelterSourceFilter) => {
-        let rows: ShelterDto[] = [];
-        if (source === 'ALL') {
-          rows = ALL_ROWS;
-        } else if (source === 'USER') {
-          rows = [BASEMENT];
-        }
-        return Promise.resolve(rows);
-      });
+      gateway.list.mockResolvedValue(ALL_ROWS);
     });
 
     it('a marker click scrolls the matching row into view with block: nearest (smooth)', async () => {
@@ -1487,11 +1435,17 @@ describe('MapPage', () => {
 
     it('a marker click for a shelter absent from the list (filtered out) does not throw and does not scroll', async () => {
       const { element, fixture } = await open('/map');
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips .chip')][2].click(); // User filter
+      // Unverified tone: TALLINN (a registry row) is filtered out of the
+      // list — a marker click arriving for it anyway (the filter changed
+      // between the map render and the click) must degrade silently.
+      const userToggle = element
+        .querySelector('.map-legend .shelter-marker--user')!
+        .closest<HTMLButtonElement>('button.legend-item--toggle')!;
+      userToggle.click();
       await settle(fixture);
       scrollSpy.mockClear();
 
-      leaflet.markerClick!(TALLINN.id); // TALLINN is not in the USER list
+      leaflet.markerClick!(TALLINN.id); // TALLINN is not in the filtered list
       await settle(fixture);
 
       expect(scrollSpy).not.toHaveBeenCalled();
@@ -1564,7 +1518,7 @@ describe('MapPage', () => {
       return { open: chips[0], hasCapacity: chips[1] };
     }
 
-    it('renders the Open / Has capacity toggle chips beside the source chips (no rating control — M11)', async () => {
+    it('renders the Open / Has capacity toggle chips — and no source-chip row (no rating control — M11, wave 8)', async () => {
       const { element } = await open('/map');
 
       const { open: openChip, hasCapacity } = trustControls(element);
@@ -1576,13 +1530,11 @@ describe('MapPage', () => {
       expect(hasCapacity.getAttribute('aria-pressed')).toBe('false');
       expect(element.querySelector('.filter-rating')).toBeNull();
       expect(element.querySelector('select')).toBeNull();
-      // The source chips (three of them) stay untouched, still first in the
-      // row (scoped to their container — the trust chips share the .chip
-      // class via the shared control).
-      const sourceChips = [
-        ...element.querySelectorAll<HTMLButtonElement>('.filter-chips button.chip'),
-      ];
-      expect(sourceChips.map((c) => c.textContent?.trim())).toEqual(['All', 'Registry', 'User']);
+      // Wave 8: the source-kind chip row is GONE — the trust chips are the
+      // only .chip buttons on the page, and the source distinction is the
+      // legend's registry entry vs. its community tones.
+      expect(element.querySelector('.filter-chips')).toBeNull();
+      expect(element.querySelectorAll('button.chip')).toHaveLength(2);
     });
 
     it('toggling Open filters the loaded list CLIENT-side (no refetch, markers follow)', async () => {
@@ -1656,27 +1608,37 @@ describe('MapPage', () => {
       expect(gateway.list).toHaveBeenLastCalledWith('ALL');
     });
 
-    it('the chips combine with the source chips (User + Open + Has capacity)', async () => {
-      gateway.list.mockImplementation(() => Promise.resolve([BASEMENT, TALLINN]));
+    it('the chips combine with the legend tone selection (unverified tone + Open + Has capacity)', async () => {
+      gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
+        Promise.resolve(trust?.hasCapacity ? [TALLINN] : [BASEMENT, TALLINN]),
+      );
       const { element, fixture } = await open('/map');
       const { open: openChip, hasCapacity } = trustControls(element);
 
-      [...element.querySelectorAll<HTMLButtonElement>('button.chip')][2].click(); // User
+      // Unverified tone selected (BASEMENT is a USER row without a reported
+      // depth): only the community row shows, display-only.
+      const userToggle = element
+        .querySelector('.map-legend .shelter-marker--user')!
+        .closest<HTMLButtonElement>('button.legend-item--toggle')!;
+      userToggle.click();
       await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('USER');
-      openChip.click();
+      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+
+      openChip.click(); // client-side — BASEMENT is open (nothing fresh), stays
       fixture.detectChanges();
-      hasCapacity.click();
+      expect(leaflet.lastRendered).toEqual([BASEMENT]);
+
+      hasCapacity.click(); // server-side — the ONLY refetch param left on the page
       await settle(fixture);
 
       // One server request carrying the server-side filter only — "Open"
-      // never reaches the query string (client-side).
-      expect(gateway.list).toHaveBeenLastCalledWith('USER', { hasCapacity: true });
-      // The client filter applies on top of the response: TALLINN is open,
-      // BASEMENT is open too — both stay, name-sorted.
-      expect(leaflet.lastRendered).toEqual([BASEMENT, TALLINN]);
-      expect(text(fixture)).toContain('Community Cellar');
-      expect(text(fixture)).toContain('Tallinn Central Shelter');
+      // never reaches the query string (client-side) and there is no source
+      // param (the list is always ALL, wave 8).
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
+      // The tone selection applies on top of the fresh response: TALLINN is
+      // a registry row, so the filtered view is empty.
+      expect(leaflet.lastRendered).toEqual([]);
+      expect(router.url).toBe('/map?tones=user');
     });
 
     it('a Has capacity refetch failure can be retried by toggling the same chip (N8 shape)', async () => {
@@ -1891,8 +1853,9 @@ describe('MapPage', () => {
   // ---------------------------------------------------------------------------
   describe('legend filter (the legend is the filter)', () => {
     // One shelter per pin tone, already in the name-sorted order:
-    // registry (blue) / user (green) / partial (yellow triangle) / full
-    // (yellow circle) / reported (orange — beats everything).
+    // registry (blue) / user (yellow — the unverified tone, wave-8 re-tint)
+    // / partial (green triangle) / full (green circle) / reported (red —
+    // beats everything).
     const REGISTRY_ROW = shelter({ id: 31, name: 'Alpha Registry Shelter' });
     const USER_ROW = shelter({
       id: 32,
@@ -1948,7 +1911,7 @@ describe('MapPage', () => {
       expect(toggles).toHaveLength(5);
       // Accessible name = the entry's own label text.
       expect(toggles[0].textContent).toContain('Registry (Päästeamet)');
-      expect(toggles[1].textContent).toContain('Confirmed by community');
+      expect(toggles[1].textContent).toContain('Added by an unverified user');
       expect(toggles[2].textContent).toContain('Added by a partially verified user');
       expect(toggles[3].textContent).toContain('Added by a fully verified user');
       expect(toggles[4].textContent).toContain('Reported');
@@ -2079,6 +2042,11 @@ describe('MapPage', () => {
       expect(leaflet.lastRendered).toEqual([]);
       expect(element.querySelector('app-list-state')).not.toBeNull();
       expect(text(fixture)).toContain('No shelters match this filter.');
+      // The map stays usable (the empty state is not an error and does not
+      // destroy the map surface).
+      expect(element.querySelector('.shelter-list')).toBeNull();
+      expect(element.querySelector('.banner')).toBeNull();
+      expect(document.querySelector('.map-page__leaflet')).not.toBeNull();
 
       // Unselecting restores the rows (the empty state is reversible).
       toneToggle(element, 'shelter-marker--reported').click();
@@ -2087,20 +2055,24 @@ describe('MapPage', () => {
       expect(element.querySelector('app-list-state')).toBeNull();
     });
 
-    it('a source refetch keeps the selection (the filter is display state, orthogonal to the fetch)', async () => {
-      gateway.list.mockImplementation((source: ShelterSourceFilter) =>
-        Promise.resolve(source === 'USER' ? [PARTIAL_ROW] : TONE_ROWS),
+    it('a hasCapacity refetch keeps the tone selection (the filter is display state, orthogonal to the fetch)', async () => {
+      // The only refetch left on this page is "Has capacity" (the source
+      // refetch went with the chips, wave 8) — the tone selection must
+      // survive it the same way it survived the old source refetch.
+      gateway.list.mockImplementation((_source: ShelterSourceFilter, trust?: ShelterTrustFilter) =>
+        Promise.resolve(trust?.hasCapacity ? [PARTIAL_ROW] : TONE_ROWS),
       );
       const { element, fixture } = await open('/map');
       toneToggle(element, 'shelter-marker--reported').click();
       await settle(fixture);
       expect(leaflet.lastRendered).toEqual([REPORTED_ROW]);
 
-      // Source chip -> USER refetch: the tone selection must still apply
-      // (PARTIAL_ROW is not reported, so the filtered view is empty).
-      [...element.querySelectorAll<HTMLButtonElement>('.filter-chips button.chip')][2].click();
+      const hasCapacityChip = element.querySelectorAll<HTMLButtonElement>('button.trust-chip')[1];
+      hasCapacityChip.click();
       await settle(fixture);
-      expect(gateway.list).toHaveBeenLastCalledWith('USER');
+      // PARTIAL_ROW is not reported, so the filtered view is empty — the
+      // selection applied on top of the fresh response.
+      expect(gateway.list).toHaveBeenLastCalledWith('ALL', { hasCapacity: true });
       expect(leaflet.lastRendered).toEqual([]);
       expect(router.url).toBe('/map?tones=reported');
     });

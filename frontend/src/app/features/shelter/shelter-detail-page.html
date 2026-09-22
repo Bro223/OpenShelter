@@ -14,8 +14,9 @@
         @if (shelter(); as s) {
           <!-- Source/trust badge (community-review-queue D5): registry rows
                say which registry; USER rows say their trust state (NEW =
-               "Newly added" yellow — the unified yellow family,
-               CONFIRMED = "Community-checked" green). -->
+               "Newly added", CONFIRMED = "Community-checked" — both ride
+               the unverified yellow pair; the badge text carries the
+               state, wave-8). -->
           <span class="badge" [ngClass]="communityBadgeClass(s)">
             {{ sourceTrustLabel(s) }}
           </span>

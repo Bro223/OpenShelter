@@ -90,24 +90,28 @@
      = 5.18:1 (WCAG AA ≥ 4.5). */
   --color-reported: #c2410c;
 
-  /* New community state (community-review-queue D5) — the marker tone for
-     USER rows in review_status NEW. ONE value with --color-verified (owner
-     decision, the yellow-family unification): the amber read as yellow next
-     to the verified pins, so the family is ONE yellow and the state rides
-     on the marker shape + the row's badge text ("Newly added"), never on a
-     third hue. The reported red-orange stays distinct in every theme
-     (#c2410c, hue ~18° vs ~50° here). The badge tint derived from this
-     family is --color-badge-new. */
-  --color-new: #ffd400;
-  /* Submitter-verified marker fill (submitter-verification-badge): the ONE
-     yellow-family value — shared by BOTH verification shapes (the depth is
-     carried by the shape, not by a second colour) AND the NEW state
-     (--color-new is unified with this token, owner decision). One value on
-     purpose: Leaflet renders OSM tiles, which are light in every app theme.
-     On the light tiles the fill-vs-tile ratio is 1.43:1; the 2px
-     --color-bg-surface edge + the hue carry the marker (the documented
-     marker trade-off every tone in the palette lives with). */
-  --color-verified: #ffd400;
+  /* Community trust family (community-review-queue D5; wave-8 re-tint, owner
+     decision — GREEN MEANS VERIFIED): ONE value with --color-verified.
+     The state rides on the marker shape + the row's badge text, never on a
+     second hue. The reported red stays reserved and distinct in every
+     theme (#c2410c, hue ~18° vs ~156° here). The "Newly added" badge is
+     the SOLID yellow chip (wave-8 owner ruling: solid --color-warning fill
+     + --color-bg-surface text — see the .badge.badge--new rule below; the
+     old --color-badge-new tint token was retired with it). */
+  --color-new: #237a57;
+  /* Submitter-verified marker fill (submitter-verification-badge; wave-8
+     re-tint): the ONE green-family value — shared by BOTH verification
+     shapes (triangle = one confirmed channel, circle = two or more; the
+     depth is carried by the shape, not by a second colour) AND the NEW
+     state (--color-new is unified with this token, owner decision). The
+     value is --color-success, the app's verification green — the colour
+     the owner reads as "verified" in the rest of the UI (verify page,
+     account verification state). One value on purpose: Leaflet renders
+     OSM tiles, which are light in every app theme — it holds 5.26:1 on
+     the white tile background, so the 2px --color-bg-surface edge
+     carries the silhouette. The UNVERIFIED user tone is the yellow
+     --color-shelter-user — yellow reads "not yet", never "verified". */
+  --color-verified: #237a57;
 
   /* Borders — quiet by design, below 3:1 on purpose (the documented
      exemption in design-tokens.spec.ts: the control is identified by its
@@ -129,17 +133,17 @@
    *
    * NOTE (warning tone): the token carries TEXT (the warning banner, the
    *   badge--closed / badge--inaccurate badges, .admin-inaccurate on the
-   *   page surface, the "Newly added" badge), so it must hold 4.5:1 on
+   *   page surface, the /mine info-request chip), so it must hold 4.5:1 on
    *   every fill it sits on. The owner's #a66a00 fails on white at 4.48:1
    *   and is 3.64:1 on the old amber badge tint → darkened to #965a00:
-   *   5.59:1 on white, 5.24:1 on warning-bg, 4.87:1 on badge-new (the
-   *   unified pale-yellow tint; the pair is spec-enforced at 4.5:1).
+   *   5.59:1 on white, 5.24:1 on warning-bg (the pair is spec-enforced at
+   *   4.5:1).
    */
   --color-danger: #b33a3a; /* page-level error text (banners, field errors) — 5.86:1 on the surface */
   --color-danger-bg: #fbeded; /* light tint of the danger red — danger on it = 5.15:1 */
   --color-danger-border: #efc9c9; /* mid tint of the danger red (decorative border) */
   --color-error: #b33a3a; /* admin moderation inline error text — unified with --color-danger (see note) */
-  --color-warning: #965a00; /* darker ochre (see note) — 5.24:1 on warning-bg, 4.87:1 on badge-new */
+  --color-warning: #965a00; /* darker ochre (see note) — 5.24:1 on warning-bg */
   --color-warning-bg: #fff7e6; /* pale amber tint — warning on it = 5.24:1 */
   --color-warning-border: #ffd591; /* amber border (decorative) */
   --color-info: #16598a; /* re-derived from the new blue family — the darker, quieter cousin of the primary; 6.50:1 on info-bg */
@@ -150,22 +154,26 @@
   --color-success-border: #bfe0d2; /* mid tint of the success green (decorative) */
   --color-success-bg-soft: #f3faf6; /* fully-verified panel fill — softest tint */
 
-  /* Source badges (shelter detail page) — light tints of the marker hues;
+  /* Source badges (shelter detail page) — tints of the marker hues;
      each takes its marker token as TEXT and every pair passes 4.5:1
-     (registry 4.86:1, user 4.50:1, warning on amber 4.53:1). */
+     (registry 4.86:1, the Community-checked pair 4.67:1). */
   --color-badge-registry: #e2edf7; /* light tint of the official blue */
-  --color-badge-user: #e8f3ea; /* light tint of the community green */
-  /* New community state (community-review-queue D5): pale YELLOW fill of
-     the unified family (the amber tint re-tinted onto the #ffd400 hue when
-     the yellow family unified), text = --color-warning (#965a00 on
-     #fbf0bf = 4.87:1, spec-enforced at 4.5:1) — the trust-state badge for
-     NEW rows and the /mine info-request chip. */
-  --color-badge-new: #fbf0bf;
+  --color-badge-user: #eaf4eb; /* pale green tint — the "Community-checked" pair (verified text on it = 4.67:1) */
 
   /* Map + markers (global for the reason above: leaflet builds the marker
      DOM outside Angular, so component-scoped styles cannot reach it). */
   --color-shelter-registry: #1769aa; /* registry (Päästeamet / municipality) — doubles as the badge text */
-  --color-shelter-user: #2e7d32; /* user-submitted — community rows stay green */
+  /* Unverified community tone (wave-8 re-tint, owner decision: the pin
+     palette is green / yellow / blue / red — UNVERIFIED is the yellow,
+     the community green became the verified family): the yellow the
+     verified pins used, now meaning "not yet verified" instead. The
+     fill-vs-tile contrast is the documented trade-off every marker tone
+     lives with (the 2px --color-bg-surface edge + the hue carry the pin).
+     FILL-ONLY: it paints the unverified triangle and the half-verified
+     circle — it never serves as TEXT (yellow on a tint is ~1.4:1 in light;
+     the Community-checked badge text is the verified green — the enforced
+     pair in design-tokens.spec.ts). */
+  --color-shelter-user: #ffd400; /* unverified community tone — yellow, never green */
   /* The selected/active-state hue (it was red — red now means "reported"
      and nothing else): darkened from the owner's #168c8c (4.07:1 on white
      — fails AA) to this value: 6.04:1 on the surface, 5.58:1 on bg,
@@ -279,10 +287,12 @@
      info #8ac6f5          on info-bg / surface         8.9 / 10.1
      success #7fd49a       on success-bg / soft / srf  8.6 /  9.1 / 10.3
      badge blue #7db8f0    on badge-registry #14263a   7.3 (detail page badge)
-     badge green #7ac98a   on badge-user #11301d       7.2
-     same pairs            on the map row's 8% color-mix fills  7.7 / 8.1 (the
-                                   mixed fill is audit-enforced in
-                                   design-tokens.spec.ts MIXED_PAIRS)
+     badge green #7fd49a    on badge-user #11301d       8.0 ("Community-checked" badge)
+     badge surface #141414  on warning #f0b429          9.9 ("Newly added" badge — solid)
+     registry pair          on the map row's 8% color-mix fill  7.7 (the mixed
+                                   fill is audit-enforced in
+                                   design-tokens.spec.ts MIXED_PAIRS — the user
+                                   badge is the token fill above, not a mix)
      accent/pick #4dd0c4   on bg / surface / subtle    10.5 /  9.8 /  8.7 (the pick pin;
      the keyboard focus ring stays the primary blue — the component-scoped
      rings hardcode it, so a mixed focus colour was deliberately avoided)
@@ -305,13 +315,19 @@
      8.6:1, warning 10.6:1, info 10.8:1, success 11.1:1, error 9.9:1.
 
      Map context (D1): the MAP is not themed — OSM tiles stay light, so the
-     marker tokens keep their SOURCE coding (blue=registry, green=user,
-     teal=the selected pick — red means "reported" only).
-     --color-shelter-registry/user are brightened from #1769aa/
-     #2e7d32 because the SAME tokens double as source/trust-badge TEXT in the
+     marker tokens keep their TRUST coding (blue=registry, yellow=the
+     unverified community tone, green=the verified family, teal=the selected
+     pick — red means "reported" only; the wave-8 re-tint moved the green
+     from the user tone to the verified family and the yellow from the
+     verified pins to the unverified tone).
+     --color-shelter-registry is brightened from #1769aa, and
+     --color-shelter-user keeps the light-theme yellow #ffd400, because the
+     SAME tokens double as source/trust-badge TEXT in the
      component styles (map-page.scss .badge, shelter-detail-page.scss .badge —
-     untouched per D1) and dark blue/green text fails 4.5:1 on the dark
-     surfaces. On the light tiles the fill ratio drops (≈2.1:1) but the 2px
+     untouched per D1): the yellow doubles as badge text at 9.8:1 on the
+     dark tint, and it must not drift into the verified green. On the light
+     tiles the yellow fill ratio is the documented trade-off every marker
+     tone lives with, but the 2px
      --color-bg-surface border (#141414 here) plus the hue carry the marker —
      the documented trade-off of one token serving map + UI. --color-shelter-
      pick is the accent teal (the selected state; the light value = the
@@ -365,15 +381,15 @@
      text is --color-bg-surface (dark on the bright fill, 9.7:1). */
   --color-reported: #ffa94d;
 
-  /* New community state — unified with the verified yellow (ONE value with
-     --color-verified, owner decision); the brightened reported/CTA oranges
-     stay the distinct family. */
-  --color-new: #ffd400;
+  /* Community trust family — unified with the verified GREEN (ONE value with
+     --color-verified, owner decision; the wave-8 re-tint: green means
+     verified). The brightened reported/CTA oranges stay the distinct family. */
+  --color-new: #7fd49a;
   /* Submitter-verified marker fill (submitter-verification-badge): the ONE
-     yellow-family value — the same value as :root, shared with --color-new.
+     green-family value — the theme's success green, shared with --color-new.
      The theme layers override the same name set (the parity guard in
      design-tokens.spec.ts asserts both directions). */
-  --color-verified: #ffd400;
+  --color-verified: #7fd49a;
 
   /* Borders */
   --color-border: #666666; /* raised from D1's #5a5a5a — see the 3:1 note above */
@@ -397,14 +413,11 @@
 
   /* Source badges (dark tints; text = the brightened marker tokens below) */
   --color-badge-registry: #14263a;
-  --color-badge-user: #11301d;
-  /* New community state (community-review-queue D5): dark olive fill, text =
-     the brightened --color-warning (#f0b429 on #332b12 = 7.53:1). */
-  --color-badge-new: #332b12;
+  --color-badge-user: #11301d; /* dark green tint — the "Community-checked" pair (brightened verified text on it = 8.05:1) */
 
   /* Map + markers — map context, see the note above. */
   --color-shelter-registry: #7db8f0; /* brightened: doubles as badge text (UI) */
-  --color-shelter-user: #7ac98a; /* brightened: doubles as badge text (UI) */
+  --color-shelter-user: #ffd400; /* the unverified yellow (the light value) — marker fill only, never a text colour (UI) */
   --color-shelter-pick: #4dd0c4; /* the brightened accent — the pick pin is the selected state (see note above) */
   --color-map-placeholder: #e9eef2; /* unchanged — the map surface stays light */
 }
@@ -663,8 +676,8 @@ textarea {
   }
 }
 
-/* Filter chips — the shared pill control (the map's source/trust filter
-   chips and the admin's source chips are ONE control). The surface's
+/* Filter chips — the shared pill control (the map's practical filter chips
+   and the admin's source chips are ONE control). The surface's
    layout stays local (fill-the-row flex, 48px minimums); everything the
    pill itself says about itself lives here. */
 .chip {
@@ -697,10 +710,13 @@ textarea {
    flips to dark on the brightened fill); closed = the warning tint
    (a fresh OPEN row renders no badge at all — open is the default);
    occupancy = NEUTRAL ("space available" is not a celebration, "full" is
-   not a crisis); new = the amber trust tint (the --color-badge-new fill
-   with the dark-amber --color-warning text — the pair is pinned in
-   design-tokens.spec.ts); private = the neutral description chip
-   (what the location is, not a state). */
+   not a crisis); user ("Community-checked") = the green verified pair
+   (the --color-badge-user fill with the --color-verified text, 4.67:1
+   light / 8.05:1 dark); new ("Newly added") = the SOLID yellow chip
+   (wave-8 owner ruling: solid --color-warning fill, --color-bg-surface
+   text — 5.59:1 light, black text on the bright fill in the dark themes;
+   pinned in design-tokens.spec.ts); private = the neutral description
+   chip (what the location is, not a state). */
 .badge {
   font-size: var(--text-2xs);
   font-weight: var(--font-weight-semibold);
@@ -712,12 +728,12 @@ textarea {
 
 .badge.badge--user {
   background: var(--color-badge-user);
-  color: var(--color-shelter-user);
+  color: var(--color-verified);
 }
 
 .badge.badge--new {
-  background: var(--color-badge-new);
-  color: var(--color-warning);
+  background: var(--color-warning);
+  color: var(--color-bg-surface);
 }
 
 .badge.badge--private {
@@ -764,35 +780,20 @@ textarea {
   background: var(--color-shelter-registry);
 }
 
+/* Unverified community tone — the YELLOW TRIANGLE (wave-8 owner logic:
+   triangle = unverified user, yellow CIRCLE = half-verified user, green
+   circle = fully verified user — the shape AND the hue carry the state).
+   The triangle needs its edge drawn by pseudo-elements: `clip-path` on the
+   element itself clips the border away on the diagonal edges, which is why a
+   clipped triangle renders with no visible outline. Two clipped triangles —
+   the edge token behind, the fill in front, inset by scale() — reproduce the
+   circle's 2px border exactly.
+
+   REQUIRES A POSITIONED ANCESTOR: the pseudo-elements are absolute, so a
+   static host would resolve them against the nearest positioned ancestor
+   instead (map-page.scss .legend-swatch sets position: relative for exactly
+   this reason; Leaflet's own .leaflet-marker-icon is absolute). */
 .shelter-marker--user {
-  background: var(--color-shelter-user);
-}
-
-/* Submitter verification depth (submitter-verification-badge, owner decision):
-   the SHAPE carries the depth — a triangle at exactly one confirmed channel, a
-   circle at two or more — so the distinction never rests on colour alone
-   (WCAG 1.4.1; the anchor diamond below uses the same rationale). The yellow
-   family is the second cue — ONE value shared by both shapes AND the NEW
-   state (--color-new, unified with --color-verified, owner decision) — and
-   every shape carries the SAME 2px edge token as every other pin, so the map
-   and the legend read identically (an earlier dark outline here read as a
-   black border in the legend — owner report). Rows without a reported depth
-   keep the trust tones above. */
-.shelter-marker--full {
-  background: var(--color-verified);
-}
-
-.shelter-marker--partial {
-  /* The triangle needs its edge drawn by pseudo-elements: `clip-path` on the
-     element itself clips the border away on the diagonal edges, which is why a
-     clipped triangle renders with no visible outline. Two clipped triangles —
-     the edge token behind, the fill in front, inset by scale() — reproduce the
-     circle's 2px border exactly.
-
-     REQUIRES A POSITIONED ANCESTOR: the pseudo-elements are absolute, so a
-     static host would resolve them against the nearest positioned ancestor
-     instead (map-page.scss .legend-swatch sets position: relative for exactly
-     this reason; Leaflet's own .leaflet-marker-icon is absolute). */
   background: none;
   border: none;
   border-radius: 0;
@@ -823,9 +824,27 @@ textarea {
        swatch). Scaling about the bounding box centre — the first attempt — left
        an uneven gap, because a triangle's visual centre is not its box centre
        (owner report: the yellow triangle looked off-centre inside the edge). */
-    background: var(--color-verified);
+    background: var(--color-shelter-user);
     clip-path: polygon(50% 26.4%, 79.8% 86%, 20.2% 86%);
   }
+}
+
+/* Submitter verification depth (submitter-verification-badge, wave-8 owner
+   logic — yellow is "not fully verified", green is verified): the HALF-
+   verified circle (one confirmed channel) keeps the unverified yellow, the
+   FULL circle (two or more) is the verified green; the unverified tone is
+   the yellow TRIANGLE above. Shape + hue carry the depth — never colour
+   alone (WCAG 1.4.1; the anchor diamond below uses the same rationale) —
+   and every shape carries the SAME 2px edge token as every other pin, so
+   the map and the legend read identically (an earlier dark outline here
+   read as a black border in the legend — owner report). Rows with an open
+   report keep the reported tone below. */
+.shelter-marker--full {
+  background: var(--color-verified);
+}
+
+.shelter-marker--partial {
+  background: var(--color-shelter-user);
 }
 
 /* Reported state (shelter-trust-and-reports D1, W2-B): the single

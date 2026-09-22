@@ -84,8 +84,9 @@ export const ET: Messages = {
   'how.title': 'Kuidas OpenShelter töötab',
   'how.what':
     'OpenShelter on sõltumatu, kogukonna hallatav Eesti varjupaikade kaart. See ei ole hädaabiteenus ega ametlik riigisüsteem. Hädaolukorras helista 112 ja järgi ametlikke juhiseid.',
+  // MACHINE DRAFT (wave-8 re-tint copy) — awaiting native Estonian review.
   'how.sources':
-    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis "Register". Kogukonna asukohad lisavad kinnitatud kontoga kasutajad; need kuvatakse märgisega "Uus kogukonnalt" seni, kuni teised kasutajad on need kinnitanud ("Kogukonna poolt kinnitatud"). Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
+    'Asukohad pärinevad kahest allikast. Ametlikud asukohad pärinevad Päästeameti avaandmetest ja neil on sinine märgis „Register”. Kogukonna asukohad lisavad kasutajad: kinnitamata kasutajal on kollane kolmnurk, osaliselt kinnitatud kasutajal kollane ring ja täielikult kinnitatud kasutajal roheline ring. Avatud teatega asukoht on märgitud punase märgisega. Kogukonna esitus ei muutu kunagi automaatselt ametlikuks.',
   'how.report':
     'Kinnitatud kontoga kasutajad saavad lisada varjupaiga või teatada, et loetletud asukoht on suletud, ebatäpne või kadunud. Teated lähevad administraatoritele, kes need üle vaatavad ning võivad asukoha peita või parandada.',
   'how.nearest':
@@ -180,7 +181,11 @@ export const ET: Messages = {
   'map.legend.registry': 'Register (Päästeamet)',
   'map.legend.partialVerified': 'Lisanud osaliselt kinnitatud kasutaja',
   'map.legend.fullVerified': 'Lisanud täielikult kinnitatud kasutaja',
-  'map.legend.confirmed': 'Kogukonna poolt kinnitatud',
+  // Unverified community tone (wave 8 — green = verified, unverified is
+  // the YELLOW tone; the pin palette is green/yellow/blue/red only, there
+  // is no grey in it). MACHINE DRAFT — awaiting native Estonian review;
+  // do not treat as final.
+  'map.legend.unverified': 'Lisanud kinnitamata kasutaja',
   'map.legend.reported': 'Teatatud',
   // Legend filter affordance line (wave 7). MACHINE DRAFT — awaiting native
   // Estonian review; do not treat as final.
@@ -200,10 +205,6 @@ export const ET: Messages = {
   'map.nearestEmpty.addFirst': 'Saad lisada esimese.',
   'map.searched': 'Otsitud aadress',
   'map.clear': 'Kustuta',
-  'map.filter.all': 'Kõik',
-  'map.filter.registry': 'Register',
-  'map.filter.user': 'Kasutaja',
-  'map.filterSourcesAria': 'Filtreeri varjupaikaid allika järgi',
   'map.legendAria': 'Märgiste legenda',
   'map.addressResultsAria': 'Aadressi tulemused',
   'map.trustFiltersAria': 'Varjupaikade filtrid',

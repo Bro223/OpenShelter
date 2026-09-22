@@ -265,7 +265,91 @@ Constraints that make this safe and the reason it is one lane:
 **Dispatch after TAIL-FIXES releases `map-page.spec.ts` and the pin specs.**
 
 1. **Bring the legend out of the map element on small screens.** On mobile and tablet the legend overlays the map heavily enough that the map itself is hard to see. At the small breakpoints it must render **outside** the map container (e.g. below it in the page flow) rather than absolutely positioned over it, while staying inside/over the map at desktop widths where there is room. Verify at the real breakpoints rather than at one width, and check the interaction with the legend-as-filter control added in Wave 7 — the control must remain reachable and keyboard-operable in both placements, and the affordance line must still be visible next to it. Bootstrap/`styles.scss` breakpoint tokens are the single source; do not invent new breakpoints.
-2. **Remove the source-kind filter chips — `Kõik` (All), `Register` (Registry), `Kasutaja` (User).** They are the leftover duplicate of the Wave 7 legend filter, which was meant to absorb them; the owner wants them gone so there is exactly one filter control. Check for anything that still reads their state (URL parameter, a spec, an empty-state message, an accessibility label) and remove it coherently rather than deleting only the markup. If the legend filter does not yet cover the registry-versus-user distinction these chips carried, say so explicitly instead of silently losing the ability to filter by source.
+3. **Fix the colour semantics the NEW-pin removal exposed (owner-reported) — LANDED by MAP-UX-2.** `--color-shelter-user` was green, so an unverified submission looked verified. Corrected model, which matches the owner's own description ("from yellow to green, to become verified"): **unverified = yellow** (`#ffd400` in all themes) and **verified = green** (light `#237a57`, high-contrast and black-and-yellow `#7fd49a`), with `--color-new` unified to the verified value per theme. Shape still separates partial (triangle) from full (circle); registry stays blue, reported stays red-orange, picked stays teal. Badge tints were re-derived to match and the pairs are enforced in the contrast list, plus a test pinning colour-to-meaning and the absence of any grey. **A mid-flight instruction of mine said "unverified is neutral grey" — that was wrong and superseded; there is no grey in this palette.** `--color-shelter-user` (`styles.scss:168`, "user-submitted — community rows stay green") is rendered by `.shelter-marker--user` for any USER row with no verification, so a freshly added, unverified shelter now shows **green** — while the owner, like the rest of the UI, reads green as "verified". Before today such a row showed the NEW ring, which masked this; removing NEW exposed it.
+
+   Decision: **green means verified, and unverified is neutral.** Re-tint the verified family (`--color-verified` and its unified `--color-new`) to the green the owner expects, keep the shape distinction that separates partial (triangle) from full (circle), and give the unverified user tone a neutral grey so "not yet verified" cannot be mistaken for verified. Update every derived value — badge tints, the legend swatches (which reuse the marker classes), and the trust-scale wording — in **all three themes**, and put every resulting foreground/background pair into the enforced contrast list rather than describing it in a comment. The reported red-orange stays reserved and distinct; registry stays blue; picked stays teal. Pin the mapping with a test so a future re-tint cannot silently separate colour from meaning, and state the before/after token values in the report. 2. **Remove the source-kind filter chips — `Kõik` (All), `Register` (Registry), `Kasutaja` (User).** They are the leftover duplicate of the Wave 7 legend filter, which was meant to absorb them; the owner wants them gone so there is exactly one filter control. Check for anything that still reads their state (URL parameter, a spec, an empty-state message, an accessibility label) and remove it coherently rather than deleting only the markup. If the legend filter does not yet cover the registry-versus-user distinction these chips carried, say so explicitly instead of silently losing the ability to filter by source.
+
+---
+
+## Wave 9 — fetch the hero image when the post is saved (owner request, queued)
+
+The hero image is currently imported only when a post is **published**, so the owner cannot inspect the fetched image while drafting — and by the time he can see it, it is already public. The publish-time coupling is not a safety property.
+
+Change: import the hero on **save** (create and update), regardless of draft or published status, and re-import when the URL changes.
+
+What must NOT be removed — these are correctness, not theatre: the http/https-only scheme check, the no-user-info rule, the per-hop redirect address re-validation, the streaming size cap, the magic-byte type gate, the pixel-dimension cap, and derivative generation with its gates. A fetch that fails validation on save must **not** block saving: store the post, surface the failure to the admin as a clear message against the hero field, and leave no broken or placeholder image behind. State what the post's hero state is after a failed import (none, or the previous image) and why.
+
+Tests: saving a draft with a URL fetches it (the owner's case); changing the URL re-fetches; a URL failing each guard saves the post with the error surfaced and no image stored; a publish no longer triggers a first fetch that could fail after the fact.
+
+---
+
+## Wave 10 — one current-state model document, and a guard that keeps it true (owner request, queued)
+
+**Dispatch after MAP-UX lands** — it is changing the palette, and a sync lane running concurrently would document a model in transit.
+
+Owner's observation: documentation is out of sync with what the system does, which makes it harder for subagents to understand the context. The measurable cost today: a lane stopped mid-task to re-derive the pin palette because the docs disagreed with each other and with the code, and a colour decision was misread because the specs described a retired mapping.
+
+Two parts:
+1. **One authoritative current-state entry point** that a lane reads first, covering the live **trust ladder** (what each state means and which tone renders it), the **palette semantics** with the actual token values per theme, the **verification rule** (three distinct confirmers, submitter's own reports excluded), the **reported rule** (either report kind, dismissed excluded), the **paging and filter rules**, and the **legend-as-filter** contract — each claim carrying a `file:line` pointer to the code that implements it. State the standing rule explicitly: documents describe current state; history lives in dated blocks.
+2. **A guard that fails the build when a document contradicts the code** on anything machine-checkable: token values against the palette document, the verification-threshold constant against the trust document, the reported rule against the API document, the marker tone set against the map document. `DocumentationFactsTest` already pins Flyway ranges, controller mappings and cited paths — extend that mechanism rather than inventing a parallel one, and prove each new pin red by breaking the document in a throwaway copy.
+
+Evidence base already on disk and verified today: `reviews/stale-decisions/SD-1-colour-rendering.md`, `SD-2-catalogs-copy.md`, `SD-3-docs-and-contract.md`, `reviews/stale-decisions/SUMMARY.md`, and `reviews/15-delivery-audit.md` — seed the work from those rather than re-deriving from scratch.
+
+---
+
+## Wave 11 — complete documents review (owner request, queued)
+
+Not a spot-check: **every** document in the repository, each with a verdict, so the review is provably complete. Inventory at least `README.md`, `frontend/README.md`, `docs/**`, `docs/agent/**`, `frontend/docs/**`, `qa/**`, `openspec/specs/**`, `openspec/changes/**`, `context-and-tasks/**` and `reviews/**`, and produce a file-by-file table saying, for each: current-state claim, verified against code/measurement, historical (date-stamped and correctly scoped), or **false** with the contradiction cited.
+
+Acceptance: every claim is either verified with a `file:line` or measured value, or explicitly scoped as history; anything that cannot be verified is marked as such rather than softened. Extend the Wave 10 guard to every machine-checkable claim found, and prove each new pin red by breaking the document. Seed from the audits already on disk (`reviews/stale-decisions/*`, `reviews/15-delivery-audit.md`) but do not treat them as coverage — they were lens-based and incomplete by design.
+
+Batch as up to three lanes over disjoint document sets (root+frontend, engine docs+agent packs, specs+qa+context), with one merging pass.
+
+---
+
+## Wave 12 — comprehensive codebase review (owner request, queued)
+
+A full pass over the code, not another lens. Cover at minimum: structure and layering, dead code and duplication, correctness and concurrency, authorization and security, query cost and performance, error handling and logging, migration and data integrity, dependency and tooling hygiene, accessibility, i18n completeness, and **test quality** — including a mutation-check of every guard that claims to protect something, because this repository has already produced six guards that passed while their behaviour was gone.
+
+Two requirements that make it a review rather than a re-run of the twelve-agent sweep: it must name what it did **not** examine, and every finding must carry `file:line` plus a counter-check showing the finding is live. Batch as up to three lanes over disjoint subsystems with one merging pass, and sequence it after the current waves land so it reviews a settled tree.
+
+---
+
+## Wave 13 — guidance hero must not be distorted (owner request, queued)
+
+Owner report: the image on a guidance post looks **stretched**. He wants the original aspect ratio preserved, or at minimum no distortion.
+
+The stored derivatives already follow the original's aspect ratio by design, so suspect the **rendering** first: find every place a hero/guidance image is drawn with a fixed width *and* height and no aspect constraint, and check each rendered box against the file's real width/height ratio (measure both; do not eyeball). Then check the import path too — a resize that assigns a width and height independently would distort at the source, and any such case must be fixed there rather than masked in CSS.
+
+Preferred fix: let the box follow the image's own ratio (`aspect-ratio` from the real dimensions). Acceptable fallback where the design needs a fixed box: `object-fit: cover` so the image is cropped, never squashed — and state which slots you chose it for and why. Cover the public detail page, the public list card, the admin editor's hero picker and the selected-hero thumb, in all three themes, and keep the `srcset`/`sizes` wiring intact so a derivative is still chosen correctly at each slot.
+
+Tests: assert the rendered element's declared aspect or object-fit for each slot, and add a case with a deliberately non-square image (a real file, not a mocked dimension) so a future change cannot reintroduce stretching. Also check whether an uploaded portrait image distorts where a landscape one does not.
+
+---
+
+## Wave 14 — copy that earns its place (owner request, queued)
+
+**Blocked on MAP-UX-2 releasing the i18n catalogs.**
+
+Owner's observation: the subject is serious, but strings across the site read like **comments about the implementation** rather than information for the person reading them. His example — "For security, changing the email is confirmed by an SMS code sent to the phone number on your account — never to the new address." — explains *why we built it that way* instead of telling the user what will happen and what they must do. He wants such strings either **removed** or rewritten to carry real value, not decoration (his counter-example: describing a red button as clear and beautiful with rounded corners).
+
+The rule for the pass, and it is not a wording preference: **every user-facing string must state something the reader needs** — what will happen, what they must do, what it costs them, or what they can expect next. A string that explains our reasoning, argues for a design decision, describes an implementation, or comments on the UI is either deleted or replaced with the concrete fact. Test each candidate against: *if this disappeared, would the user make a worse decision?*
+
+Where to look: the auth and account flows, verification and contact-change copy, consent and legal summaries, the guidance/crisis surfaces, admin moderation copy, empty and error states, and the accessibility dialog. Prioritise the strings a user meets when they are stressed — crisis guidance and safety-critical instructions first, in the plainest register, no idioms, no reassurance that does not inform.
+
+Constraints: do not invent policy or promises, and do not change behaviour-announcing copy into something vaguer. Safety, legal and moderation strings need native-speaker sign-off — produce English source plus ET/RU drafts marked as awaiting review, and extend the owner review packet rather than treating machine output as final. Add or update the specs that pin copy so a removed string cannot silently return.
+
+---
+
+## Wave 15 — remove border-left accent styling (owner request, queued)
+
+**Blocked on MAP-UX-2 releasing `styles.scss` and the component stylesheets.**
+
+Owner: the `border-left: 3px solid var(--color-primary)` treatment (and its variants) reads as machine-generated and makes the site look unserious. Remove it everywhere, keeping a subtly different background instead.
+
+Sweep every form across all stylesheets — `border-left`, `border-inline-start`, shorthand `border`/`border-width` that sets a single side, and any token-based or `color-mix` variant — and replace each with a background distinction (a tint from the existing surface tokens). Keep the semantic meaning the border carried: a warning, a success note and an informational block must remain distinguishable **without** the border, in all three themes, and every resulting foreground/background pair must go into the **enforced** contrast list rather than being eyeballed. Check RTL and the two non-default themes explicitly, and keep the design-token spec's invariants satisfied (token declarations on one line, comments above).
+
+Acceptance: a grep for single-side border accents returns nothing outside the vendored files, the three themes are contrast-verified, and the affected specs are updated rather than deleted.
 
 ---
 

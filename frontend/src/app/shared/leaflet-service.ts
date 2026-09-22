@@ -53,12 +53,13 @@ export function inEstonia(latitude: number, longitude: number): boolean {
  * or an open inaccurate-information report; the OR of the two per the
  * backend contract note) wins over everything — the orange dot is the
  * single "reported" affordance (the red-orange stays a distinct family in
- * every theme; the yellow-family unification, owner decision, did not touch
+ * every theme; the wave-8 verified-green re-tint did not touch
  * it). For
- * community rows the SHAPE then carries the submitter's verification depth
- * (submitter-verification-badge, owner decision): `partial` is a triangle
- * at exactly one confirmed channel, `full` a circle at two or more — never
- * colour alone (WCAG 1.4.1, the same rationale as the anchor diamond). A
+ * community rows the SHAPE + HUE then carry the submitter's verification
+ * depth (submitter-verification-badge, wave-8 owner logic): `user`
+ * (depth absent) is the YELLOW TRIANGLE, `partial` (one confirmed channel)
+ * the YELLOW CIRCLE, `full` (two or more) the GREEN CIRCLE — never colour
+ * alone (WCAG 1.4.1, the same rationale as the anchor diamond). A
  * row whose depth the backend does not report (older API, deleted author)
  * keeps the community tone. There is deliberately NO recency term (owner
  * decision: the pin expresses verification depth, not recency — the NEW
@@ -103,8 +104,9 @@ export function markerTone(shelter: {
  * Markers are `L.divIcon` DOM pins (design decision 2 — no default icon
  * assets, no bundler asset-path pitfall): the tone follows the trust
  * palette — registry blue (Päästeamet + Municipal), community rows the
- * verification-depth shapes (the verified yellow family) or the community
- * tone when the depth is absent; reported rows keep the orange override.
+ * verification-depth shapes (the verified green family) or the unverified
+ * yellow community tone when the depth is absent; reported rows keep the
+ * red override.
  * The legend reuses the same classes, so the visual stays single-sourced.
  */
 @Injectable()

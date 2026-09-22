@@ -1,4 +1,5 @@
 import {
+  afterEveryRender,
   type AfterViewInit,
   ChangeDetectionStrategy,
   Component,
@@ -15,7 +16,12 @@ import { toApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
 import type { MessageKey } from '../../core/i18n/messages';
 import { TranslatePipe } from '../../core/i18n/translate-pipe';
-import type { CreateShelterRequest, GeocodeResult, MineShelterDto, ShelterDto } from '../../core/models';
+import type {
+  CreateShelterRequest,
+  GeocodeResult,
+  MineShelterDto,
+  ShelterDto,
+} from '../../core/models';
 import { GeocodeGateway } from '../../gateways/geocode-gateway';
 import { GeoGateway } from '../../gateways/geo-gateway';
 import { ShelterGateway } from '../../gateways/shelter-gateway';
@@ -154,6 +160,35 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
 
   private readonly mapEl = viewChild<ElementRef<HTMLElement>>('mapEl');
+
+  /** True while the mini-map instance is alive (the afterEveryRender hook
+   *  re-arms on the edit form's late-mounted container; the form never
+   *  unmounts mid-life, so this only flips back in ngOnDestroy). */
+  private mapAlive = false;
+
+  constructor() {
+    /**
+     * Fires after EVERY render of this component. In edit mode (M5) the
+     * form — and with it the #mapEl container — mounts only after the
+     * ?edit row has loaded, so ngAfterViewInit's one-shot create misses
+     * the container (create() no-ops on it) and the map would stay dead:
+     * an empty grey .submit-map box with no tiles and no pin (the owner's
+     * report). This re-creates the instance the moment the container is
+     * in the DOM (no-op while an instance is alive or the container is
+     * absent) and re-pins when the location is already picked (the edit
+     * prefill's setPick/flyTo ran on the missing map and no-oped) — the
+     * same idiom as the detail page's Location map.
+     */
+    afterEveryRender(() => {
+      if (this.ensureMap()) {
+        const picked = this.location();
+        if (picked !== null) {
+          this.leaflet.setPick(picked.latitude, picked.longitude);
+          this.leaflet.flyTo(picked.latitude, picked.longitude);
+        }
+      }
+    });
+  }
 
   readonly form = new FormGroup({
     name: new FormControl('', {
@@ -361,9 +396,12 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   /**
-   * The map container only exists once the view is rendered; a null
-   * container (should never happen) skips map creation but never breaks
-   * the page. Map click AND pick-marker drag -> the shared location state.
+   * Wires the pick callback (map click AND pick-marker drag -> the shared
+   * location state) and creates the mini-map when the container already
+   * exists (creation mode). In edit mode (M5) the form — and with it the
+   * #mapEl container — mounts only after the ?edit row has loaded, so the
+   * container is absent here: create() would no-op, and the
+   * afterEveryRender hook re-arms the moment the container appears.
    */
   ngAfterViewInit(): void {
     this.leaflet.mapClick = (latitude, longitude) => {
@@ -373,11 +411,30 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       // during a pin drag would fight the gesture).
       this.setLocation(latitude, longitude, 'map-pick', false, false);
     };
-    this.leaflet.create(this.mapEl()?.nativeElement ?? null, ESTONIA_CENTER, ESTONIA_ZOOM);
+    this.ensureMap();
+  }
+
+  /**
+   * Ensures the mini-map instance matches the rendered container: creates
+   * it when #mapEl is mounted and no instance is alive (first load, or the
+   * edit form's late-mounted container). No-op otherwise — safe to call
+   * from every render and every load outcome (the real create() is itself
+   * one-per-visit, so a stray call can never double the map).
+   * @returns true when a fresh instance was created on this call.
+   */
+  private ensureMap(): boolean {
+    const el = this.mapEl()?.nativeElement ?? null;
+    if (el === null || this.mapAlive) {
+      return false;
+    }
+    this.leaflet.create(el, ESTONIA_CENTER, ESTONIA_ZOOM);
+    this.mapAlive = true;
+    return true;
   }
 
   ngOnDestroy(): void {
     // Drop the mini-map instance + listeners (page-scoped, design decision 3).
+    this.mapAlive = false;
     this.leaflet.destroy();
   }
 
@@ -668,7 +725,9 @@ export class SubmitShelterPage implements OnInit, AfterViewInit, OnDestroy {
       // Creation: POST /api/shelters; edit: PUT /api/shelters/{id} with the
       // SAME payload shape (the backend re-checks identical constraints).
       const result =
-        editId === null ? await this.gateway.create(request) : await this.gateway.update(editId, request);
+        editId === null
+          ? await this.gateway.create(request)
+          : await this.gateway.update(editId, request);
       // No navigation: the row is public NOW (NEW state — an edit keeps the
       // row's status, so a published shelter stays published) — the success
       // panel links to the (already live) detail page.

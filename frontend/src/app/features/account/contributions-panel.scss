@@ -73,10 +73,12 @@
   }
 }
 
-/* Trust-state badge (community-review-queue): the /mine pill — NEW yellow
-   (the unified yellow family), REJECTED danger, CONFIRMED green. Same
-   vocabulary as the map/detail badges; the contrast pairs are pinned in
-   design-tokens.spec.ts. */
+/* Trust-state badge (community-review-queue): the /mine pill — the NEW
+   ("Newly added") and CONFIRMED ("Community-checked") chips are the
+   unverified-family pair (base rule — the wave-8 owner decision: the NEW
+   badge follows the row's yellow pin, so no local override), REJECTED
+   danger. Same vocabulary as the map/detail badges; the contrast pairs
+   are pinned in design-tokens.spec.ts. */
 .contrib-badge {
   display: inline-block;
   font-size: var(--text-2xs);
@@ -84,11 +86,14 @@
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-full);
   background: var(--color-badge-user);
-  color: var(--color-shelter-user);
+  color: var(--color-verified);
 
   &.badge--new {
-    background: var(--color-badge-new);
-    color: var(--color-warning);
+    /* Solid yellow chip (wave-8 owner ruling) — same rule as the global
+       .badge.badge--new; stated here because the /mine base pill would
+       otherwise win this scoped cascade. */
+    background: var(--color-warning);
+    color: var(--color-bg-surface);
   }
 
   &.badge--rejected {
@@ -97,11 +102,13 @@
     color: var(--color-danger);
   }
 
-  /* Info request: an OPEN moderator question — the amber
-     action chip (needs the submitter's one-time reply); answered requests
-     carry no chip. */
+  /* Info request: an OPEN moderator question — the warning-tone action
+     chip (needs the submitter's one-time reply); answered requests carry
+     no chip. The warning pair, not a trust-family tint: it is an action
+     state, not a trust state. */
   &.contrib-badge--info {
-    background: var(--color-badge-new);
+    background: var(--color-warning-bg);
+    border: 1px solid var(--color-warning-border);
     color: var(--color-warning);
   }
 }

@@ -404,16 +404,20 @@ describe('design tokens (M6)', () => {
     // Source/trust badge text on its fill (shelter-detail-page .badge).
     // The map rows use the same pair over a color-mix TINT — that computed
     // fill is a different surface and is enforced separately (MIXED_PAIRS
-    // below re-derives the mix and checks the pair per theme).
+    // below re-derives the mix and checks the pair per theme). Wave-8
+    // re-tint: the Community-checked badge text is the VERIFIED green
+    // (the badge is the "confirmed by a verified submitter" cue; the
+    // unverified/half-verified pins are the yellow marker tones and the
+    // NEW badge is the solid warning chip below) — 4.67:1 light /
+    // 8.05:1 dark, re-run by the spec on the literals.
     ['--color-shelter-registry', '--color-badge-registry'],
-    ['--color-shelter-user', '--color-badge-user'],
-    // Trust-state badge text on its fill (community-review-queue D5):
-    // the NEW community rows' "Newly added" badge (and the /mine
-    // info-request chip) on every surface. The badge rides on the
-    // UNIFIED yellow family (owner decision: the amber "new" hue was
-    // merged into the verified yellow) — the re-tinted fill is enforced
-    // here, not described in a comment.
-    ['--color-warning', '--color-badge-new'],
+    ['--color-verified', '--color-badge-user'],
+    // "Newly added" badge text on its solid fill (community-review-queue D5,
+    // wave-8 owner ruling — solid yellow chip, readable): fill =
+    // --color-warning (the theme's solid yellow), text = --color-bg-surface
+    // (white on the dark mustard in light, black on the bright fill in the
+    // dark themes) — the same pattern as the reported badge.
+    ['--color-bg-surface', '--color-warning'],
     // Chrome band (header + footer + <900 menu panel): every text pair on
     // the band, every theme. Light + high-contrast: the navy band —
     // 13.57 / 8.80 / 7.18 / 7.20:1 (the HC block pins the same values and
@@ -602,17 +606,22 @@ describe('design tokens (M6)', () => {
    *  fails if a NEW color-mix background appears without a declared
    *  entry, so a computed fill cannot hide a failure again. */
   const MIXED_PAIRS: { file: string; fg: string; base: string; min: number }[] = [
-    // The /map row's source badges (map-page.scss .badge / .badge--user):
-    // the registry/user token as text on its own tinted fill.
+    // The /map row's source badge (map-page.scss .badge--source): the
+    // registry token as text on its own 8% tinted fill.
     {
       file: 'app/features/map/map-page.scss',
       fg: '--color-shelter-registry',
       base: '--color-bg-surface',
       min: 4.5,
     },
+    // The same block's Community-checked chip (.badge--source.badge--user):
+    // the verified green on its own 8% mix (4.71:1 light). Yellow can't
+    // ride this pattern — yellow text on its own tint is 1.39:1 in light —
+    // so the unverified/half-verified pins use the fill-only marker tokens
+    // instead.
     {
       file: 'app/features/map/map-page.scss',
-      fg: '--color-shelter-user',
+      fg: '--color-verified',
       base: '--color-bg-surface',
       min: 4.5,
     },
@@ -643,20 +652,22 @@ describe('design tokens (M6)', () => {
     expect(extra, 'black-and-yellow tokens without a :root counterpart').toEqual([]);
   });
 
-  it('the unified yellow family is ONE value per theme: --color-new === --color-verified (owner decision)', () => {
-    // The yellow-family unification (owner decision): the "not yet
-    // verified / newly added" state and the verified family are ONE
-    // yellow — the state rides on the marker shape + the row's badge
-    // text, and the reported red-orange stays a distinct family in
-    // every theme. This pin is the enforced form of that decision: a
-    // future "fix" that re-splits the two values (a fresher amber for
-    // NEW) fails here instead of quietly re-introducing the two-hue
-    // yellow family the owner rejected (the pins read yellow-ward, not
-    // orange-ward). The marker fill-vs-tile contrast itself is the
-    // documented trade-off every marker tone lives with (the 2px
-    // --color-bg-surface edge + the hue carry the pin), so no 3:1
-    // indicator pair is enforced for it — the fill is the verified
-    // pin's already-shipped value in all three themes.
+  it('the unified verified family is ONE value per theme: --color-new === --color-verified (owner decision)', () => {
+    // The verified-family unification (owner decision, wave 8): the "newly
+    // added / not yet verified" state and the verified family are ONE value —
+    // GREEN means verified (the wave-8 re-tint: the verified family moved from
+    // yellow to the community green, and the unverified user tone moved to
+    // the yellow the verified pins used), the state rides on the marker
+    // shape + the row's badge
+    // text, and the reported red-orange stays a distinct family in every
+    // theme. This pin is the enforced form of that decision: a future
+    // "fix" that re-splits the two values (a fresher hue for NEW) fails
+    // here instead of quietly re-introducing the two-hue family the owner
+    // rejected. The marker fill-vs-tile contrast itself is the documented
+    // trade-off every marker tone lives with (the 2px --color-bg-surface
+    // edge + the hue carry the pin), so no 3:1 indicator pair is enforced
+    // for it — the fill is the verified pin's already-shipped value in all
+    // three themes.
     const offenders: string[] = [];
     const themes: [string, Map<string, string>][] = [
       ['light', rootTokens],
@@ -674,15 +685,173 @@ describe('design tokens (M6)', () => {
         offenders.push(`${theme}: --color-new ${fresh} ≠ --color-verified ${verified}`);
       }
     }
-    expect(offenders, 'the yellow family must be one value per theme').toEqual([]);
+    expect(offenders, 'the verified family must be one value per theme').toEqual([]);
   });
 
-  it('the yellow marker shapes are SOLID discs and the NEW tone is absent (the pin carries depth, not recency — owner decision)', () => {
+  it('the marker colours keep their meanings (wave-8 decision: green=verified, yellow=unverified, blue=registry, red-orange=reported, teal=picked)', () => {
+    // The colour->meaning mapping the owner reads in the rest of the UI:
+    // GREEN means verified (the partial triangle + the full circle),
+    // UNVERIFIED is YELLOW (the community pin tone — the pin palette is
+    // green/yellow/blue/red only; there is no grey in it),
+    // registry stays BLUE, the reserved red-orange stays REPORTED, the pick
+    // stays TEAL. A future re-tint that separates colour from meaning
+    // (verified re-painted yellow, the unverified tone painted green, the
+    // reported family drifting into the green band) fails here in every
+    // theme instead of shipping. The check is on HUE + SATURATION, not on
+    // the hex, so a legitimate shade adjustment within a meaning still
+    // passes; the enforced contrast pairs above keep the text pairs
+    // honest.
+    type Hsl = { h: number; s: number };
+    function hslOf(hex: string): Hsl {
+      let v = hex.replace('#', '').trim();
+      if (v.length === 3)
+        v = v
+          .split('')
+          .map((c) => c + c)
+          .join('');
+      const r = Number.parseInt(v.slice(0, 2), 16) / 255;
+      const g = Number.parseInt(v.slice(2, 4), 16) / 255;
+      const b = Number.parseInt(v.slice(4, 6), 16) / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const d = max - min;
+      let h = 0;
+      if (d !== 0) {
+        if (max === r) h = 60 * (((g - b) / d) % 6);
+        else if (max === g) h = 60 * ((b - r) / d + 2);
+        else h = 60 * ((r - g) / d + 4);
+      }
+      if (h < 0) h += 360;
+      const l = (max + min) / 2;
+      const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+      return { h, s };
+    }
+    const inBand = (hsl: Hsl, band: [number, number]): boolean => {
+      const [lo, hi] = band;
+      return lo <= hi ? hsl.h >= lo && hsl.h <= hi : hsl.h >= lo || hsl.h <= hi;
+    };
+    const rules: { token: string; band?: [number, number]; maxSat?: number; meaning: string }[] = [
+      {
+        token: '--color-verified',
+        band: [100, 165],
+        meaning:
+          'GREEN — FULLY verified (the circle only; light #237a57 = 155.9°, dark #7fd49a = 139.1°)',
+      },
+      {
+        token: '--color-new',
+        band: [100, 165],
+        meaning: 'GREEN — the unified NEW state of the verified family',
+      },
+      {
+        token: '--color-shelter-user',
+        band: [45, 65],
+        meaning:
+          'YELLOW — the unverified community tone (#ffd400 = 49.9°; the pin palette has no grey)',
+      },
+      { token: '--color-shelter-registry', band: [190, 260], meaning: 'BLUE — registry' },
+      {
+        token: '--color-shelter-pick',
+        band: [168, 200],
+        meaning: 'TEAL — the picked/anchor accent (kept clear of the green band: 180° / 174.5°)',
+      },
+      {
+        token: '--color-reported',
+        band: [330, 50],
+        meaning: 'red-ORANGE — reserved for reported, distinct from green',
+      },
+    ];
+    const offenders: string[] = [];
+    const themes: [string, Map<string, string>][] = [
+      ['light', rootTokens],
+      ['high-contrast', themeTokens],
+      ['black-and-yellow', byTokens],
+    ];
+    for (const [theme, tokens] of themes) {
+      for (const rule of rules) {
+        const value = tokens.get(rule.token);
+        if (value === undefined || !isPlainHex(value)) {
+          offenders.push(`${theme}: ${rule.token} missing or not a plain hex literal`);
+          continue;
+        }
+        const hsl = hslOf(value);
+        if (rule.band !== undefined && !inBand(hsl, rule.band)) {
+          offenders.push(
+            `${theme}: ${rule.token} ${value} (hue ${hsl.h.toFixed(0)}°) is not ${rule.meaning}`,
+          );
+        }
+        if (rule.maxSat !== undefined && hsl.s > rule.maxSat) {
+          offenders.push(
+            `${theme}: ${rule.token} ${value} (saturation ${(hsl.s * 100).toFixed(0)}%) is not ${rule.meaning}`,
+          );
+        }
+      }
+    }
+    expect(offenders, 'a re-tint separated a marker colour from its meaning').toEqual([]);
+  });
+
+  it('the marker classes keep their meaning tokens (the class->token mapping a re-tint cannot fork)', () => {
+    // The classes are what the map (leaflet-service) and the legend swatches
+    // both render — pinning each class to its token here means a re-tint can
+    // only move the WHOLE meaning (the hue test above keeps the meaning),
+    // never the assignment (e.g. painting .shelter-marker--user with the
+    // verified green while the legend still labels it unverified).
+    const mapping: [string, string, string][] = [
+      ['.shelter-marker--registry', 'background: var(--color-shelter-registry)', 'registry = blue'],
+      [
+        '.shelter-marker--user',
+        'background: var(--color-shelter-user)',
+        'unverified = the yellow triangle (the fill is the inner pseudo-element triangle)',
+      ],
+      [
+        '.shelter-marker--full',
+        'background: var(--color-verified)',
+        'fully-verified = the green circle',
+      ],
+      [
+        '.shelter-marker--partial',
+        'background: var(--color-shelter-user)',
+        'half-verified = the yellow circle (one confirmed channel)',
+      ],
+      [
+        '.shelter-marker--reported',
+        'background: var(--color-reported)',
+        'reported = the reserved red-orange',
+      ],
+      [
+        '.shelter-marker--pick',
+        'background: var(--color-shelter-pick)',
+        'picked = the teal accent',
+      ],
+      [
+        '.shelter-marker--anchor',
+        'background: var(--color-shelter-pick)',
+        'the browse anchor reuses the pick teal',
+      ],
+    ];
+    for (const [selector, declaration, why] of mapping) {
+      const block = balancedBlock(
+        stylesCss,
+        new RegExp(`^${selector.replace(/[-[.\]]/g, '\\$&')} \{$`),
+      );
+      expect(block, `${selector} rule missing from styles.scss (${why})`).not.toBeNull();
+      expect(block, `${selector} must keep ${declaration} (${why})`).toContain(declaration);
+    }
+    // The unverified triangle fill must NEVER take the verified green, in
+    // either direction of the fork (the whole block is checked: base rule +
+    // the nested pseudo-element edge/fill).
+    const user = balancedBlock(stylesCss, /^\.shelter-marker--user \{$/);
+    expect(user, 'the .shelter-marker--user rule is missing').not.toBeNull();
+    expect(user).not.toContain('var(--color-verified)');
+    const reported = balancedBlock(stylesCss, /^\.shelter-marker--reported \{$/);
+    expect(reported).not.toContain('var(--color-verified)');
+  });
+
+  it('the verified marker shapes are SOLID discs and the recency tone is absent (the pin carries depth, not recency — owner decision)', () => {
     // The NEW state left the pin entirely (owner decision — it rides on
     // the "Newly added" badge on the sidebar row, the detail page and the
     // admin list), so the ring geometry that used to carry it is gone and
     // a spec asserting removed geometry would be worse than none. What
-    // survives is the silhouette contract of the remaining yellow family:
+    // survives is the silhouette contract of the remaining verified family:
     // the FILLED verified circle (--full, two+ confirmed channels) must
     // stay a solid disc, and the reported pin stays its solid red-orange
     // fill — if either ever gains a ::after hole or a second shape, the
@@ -955,6 +1124,61 @@ describe('design tokens (M6)', () => {
     const media = balancedBlock(map, /^@media \(max-width: 900px\) \{$/);
     expect(media, 'map-page.scss must contain a narrow-width @media block').not.toBeNull();
     expect(media).toContain('flex-direction: column');
+  });
+
+  it('the legend leaves the map at the narrow breakpoint (over it at ≥900px, in flow below it at every width <900px)', () => {
+    // Wave 8 (the owner's overlay-obscures-the-map report): the legend moved
+    // OUT of the map element — it is a .map-page__layout child (DOM order
+    // map → legend → sidebar, so the tab order is unchanged) and the
+    // placement is pure CSS at the documented breakpoint (900px, the
+    // --bp-narrow value — no new breakpoints). Desktop (≥900px): the BASE
+    // rule is the absolute overlay; the layout is its containing block and
+    // the map fills the layout's left column corner-to-corner, so the
+    // overlay sits exactly where the old in-map legend sat. Narrow (every
+    // width <900px — mobile 375 and up, all tablets): position: static puts
+    // it IN FLOW between the map and the sidebar — below the map, never
+    // over it. The entries are real <button>s in both placements (map-
+    // page.spec.ts pins keyboard + aria-pressed + the hint line), so
+    // operability is placement-independent.
+    const map = withoutCssComments(
+      readFileSync(`${SRC_DIR}/app/features/map/map-page.scss`, 'utf8'),
+    );
+    const html = readFileSync(`${SRC_DIR}/app/features/map/map-page.html`, 'utf8');
+    // The DOM move itself: the leaflet container is closed, the map wrapper
+    // is closed, and ONLY THEN does the legend start — it is no longer a
+    // child of .map-page__map.
+    expect(
+      html,
+      'map-page.html must render the legend as a sibling of the map element (wave 8)',
+    ).toMatch(
+      /<div #mapEl class="map-page__leaflet"><\/div>\s*<\/div>[\s\S]*?<div class="map-legend"/,
+    );
+    // Desktop placement: the base rule is the overlay, the layout is the
+    // containing block.
+    const legend = balancedBlock(map, /^\.map-legend \{$/);
+    expect(legend, '.map-legend rule missing from map-page.scss').not.toBeNull();
+    expect(legend, 'the base .map-legend rule must be the desktop overlay').toContain(
+      'position: absolute',
+    );
+    const layout = balancedBlock(map, /^\.map-page__layout \{$/);
+    expect(layout, '.map-page__layout rule missing from map-page.scss').not.toBeNull();
+    expect(layout, "the layout must be the legend overlay's containing block").toContain(
+      'position: relative',
+    );
+    // Narrow placement: the @media block restyles the legend to in-flow.
+    // Extracted by brace balancing (all occurrences — an @media-wrapped rule
+    // is a rule too), so a comment cannot satisfy the check.
+    const media = balancedBlock(map, /^@media \(max-width: 900px\) \{$/);
+    expect(media, 'map-page.scss must contain a narrow-width @media block').not.toBeNull();
+    const narrowLegend = allBalancedBlocks(media!, /\.map-legend \{/);
+    expect(narrowLegend, 'the narrow @media block must restyle .map-legend').toHaveLength(1);
+    expect(narrowLegend[0], 'the narrow legend must be in-flow (static), below the map').toContain(
+      'position: static',
+    );
+    // The swatch geometry is the marker classes' single source (styles.scss
+    // + the base .legend-swatch rule) — the narrow rule may only change the
+    // LAYOUT axis, never the swatch size or classes.
+    expect(narrowLegend[0]).not.toMatch(/legend-swatch/);
   });
 
   it('admin tables — the row separator is ONE continuous rule: no class on a <td> may declare a display (a flex td stops its border-bottom at the box content height, so a taller sibling splits the row line into staggered segments)', () => {

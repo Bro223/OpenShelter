@@ -28,6 +28,13 @@
   display: flex;
   gap: var(--space-20);
   align-items: stretch;
+  /* The legend's desktop containing block (wave 8): .map-legend is a
+     SIBLING of .map-page__map (it moved out of the map element for the
+     narrow placement) and is absolutely positioned over the map's
+     bottom-left corner at wide widths — the map starts at the layout's
+     top-left and stretches to its bottom (align-items: stretch), so the
+     overlay sits exactly where the in-map legend sat. */
+  position: relative;
   /* Flex-fill the remaining height; the 725px min keeps the map at a
      usable size on the typical desktop (below it the page scrolls). */
   flex: 1;
@@ -51,7 +58,17 @@
 }
 
 /* Legend swatches reuse the exact marker classes from styles.scss (the
-   single source of truth for marker colours); only the size differs here. */
+   single source of truth for marker colours); only the size differs here.
+   PLACEMENT (wave 8 — the owner's overlay-obscures-the-map report): the
+   legend is a SIBLING of the map element (map-page__layout child, DOM order
+   map → legend → sidebar). The BASE rule below is the DESKTOP placement
+   (≥900px): the absolute overlay over the map's bottom-left corner (the
+   layout is its containing block — see the .map-page__layout note). At the
+   narrow breakpoint the @media block below switches it to position: static
+   so the stacked column renders it IN FLOW below the map (a wrapping row
+   band) instead of on top of it. The entries are real buttons in BOTH
+   placements, so keyboard operability + the hint line's aria-describedby
+   are placement-independent (pinned in map-page.spec.ts). */
 .map-legend {
   position: absolute;
   left: var(--space-12);
@@ -374,27 +391,15 @@
   }
 }
 
-/* The shared .chip control (styles.scss) carries the pill styling;
-   layout-local only: the source chips FILL the row equally (the row spans
-   the shelter list's width, so the chips' edges line up with it). */
-.filter-chips {
-  display: flex;
-  gap: var(--space-6);
-  flex-wrap: wrap;
-
-  .chip {
-    flex: 1;
-  }
-}
-
 /* Trust filters (shelter-trust-and-reports D6, review model gone): the
-   second row beside the source chips — the "Open" (client-side) and
-   "Has capacity" (server-side) toggle chips in the same visual language
-   (the combined selector keeps ONE style source for both chip kinds).
+   practical chips — the "Open" (client-side) and "Has capacity" (server-side)
+   toggle chips. (The source-kind chip row was removed in wave 8 — the legend
+   is the page's only filter control; the source distinction is the legend's
+   registry entry vs. its four community tones.)
    The shared .chip control (styles.scss) carries the pill styling — these
-   two trust chips carry the `chip` class too; layout-local only. Every
-   control is a new interactive target, so each carries the 48px
-   minimum (the pre-existing source chips keep their sizing). */
+   two trust chips carry the `chip` class too; layout-local only.
+   Every control is a new interactive target, so each carries the 48px
+   minimum. */
 .filter-trust {
   display: flex;
   gap: var(--space-6);
@@ -490,21 +495,34 @@
 }
 
 /* Source/trust badge (community-review-queue): the shared .badge pill
-   (styles.scss) carries the typography, shape and the registry/user
-   token fills; the map rows ride a COMPUTED 8% tint instead of the token
-   fill — a page-specific surface. The tint is contrast audit-enforced:
-   design-tokens.spec.ts MIXED_PAIRS re-derives the mix and requires
-   >= 4.5:1 in every theme. 12% measured 4.36:1 for the user pair (below
-   AA); note RAISING the tint makes the pair WORSE (the text is the same
-   hue as its own tint), so the percentage is pinned by the spec, not by
-   this comment. */
-.badge {
+   (styles.scss) carries the typography and shape. Only the SOURCE/TRUST
+   badge gets a row-specific fill — keyed on the `badge--source` class
+   (map-page.html), never on a broad .badge base: a broad scoped base
+   overrode the global trust badges (the reported badge shipped blue
+   instead of red) and the black-and-yellow owner-ruling override
+   ((0,3,1) uniform badge language — the registry badge stayed blue in
+   B&Y). Scoped to .badge--source (0,2,0), both win where they apply.
+   The registry chip rides a COMPUTED 8% tint (audit: design-tokens.spec.ts
+   MIXED_PAIRS re-derives the mix, >= 4.5:1 in every theme — note RAISING
+   the tint makes the pair WORSE, the text is the same hue as its own
+   tint, so the percentage is spec-pinned). The Community-checked chip
+   rides the verified GREEN 8% mix for the same reason yellow can't (its
+   text on its own tint would measure 1.39:1 in light); the Newly added
+   chip takes the solid warning fill + surface text (the global
+   .badge.badge--new pair, repeated here because this scoped rule would
+   otherwise win the cascade). */
+.badge--source {
   background: color-mix(in srgb, var(--color-shelter-registry) 8%, var(--color-bg-surface));
   color: var(--color-shelter-registry);
 
   &.badge--user {
-    background: color-mix(in srgb, var(--color-shelter-user) 8%, var(--color-bg-surface));
-    color: var(--color-shelter-user);
+    background: color-mix(in srgb, var(--color-verified) 8%, var(--color-bg-surface));
+    color: var(--color-verified);
+  }
+
+  &.badge--new {
+    background: var(--color-warning);
+    color: var(--color-bg-surface);
   }
 }
 
@@ -597,6 +615,21 @@
      values never applied. */
   .map-page__map .map-page__leaflet {
     height: 420px; /* page-specific layout dimension (documented exception) */
+  }
+
+  /* Legend out of the map (wave 8): static = in-flow, so the stacked
+     column renders it BETWEEN the map and the sidebar — below the map, never
+     over it, at every width <900px (mobile 375 and up, all tablets). The
+     vertical column becomes a wrapping ROW band: the affordance hint leads,
+     then the entries wrap on as many lines as the width allows — the
+     overlay's footprint (a ~200px column over the map) becomes ~2–3
+     content lines below it. Swatch geometry is untouched (the marker
+     classes are the single source; only the flex axis wraps). */
+  .map-legend {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
   .map-page__sidebar {
