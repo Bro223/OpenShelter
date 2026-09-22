@@ -277,8 +277,9 @@ outside dev/test); admin credentials env-only; `ddl-auto=validate` +
 versioned Flyway migrations (no runtime schema mutation); all SQL through
 JPA/parameterized queries (no string-built SQL); `/actuator/health` shows
 details only to authorized callers (`show-details: when-authorized`); the
-dev compose binds 5432 to the host interface — for anything non-local, bind
-`127.0.0.1` or drop the published port (recorded in `operations.md` §3); error bodies
+dev compose binds 5432 loopback-only (`127.0.0.1:5432:5432`, since
+2026-09-22) — for anything non-local, keep that bind or drop the
+published port entirely (recorded in `operations.md` §3); error bodies
 are a fixed `ErrorResponse` shape with no stack traces or SQL fragments.
 
 **Status: MITIGATED-RESIDUAL.** A dump still leaks: the dataset itself,

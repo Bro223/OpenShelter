@@ -3,7 +3,8 @@
 ## Purpose
 
 Public, read-only browsing of Estonia's shelters on an interactive map with a sidebar list and a
-source filter. This is the frontend capability that turns `GET /api/shelters` rows into an
+legend tone filter (the source chips are gone — the legend IS the filter). This is the
+frontend capability that turns `GET /api/shelters` rows into an
 accessible browse experience; it requires no authentication.
 
 ## Requirements
@@ -48,43 +49,69 @@ address (when present), and a source badge.
 - **WHEN** a shelter row has a null address (user-submitted rows)
 - **THEN** the sidebar row renders without an address line and without a layout break
 
-### Requirement: Source filter
+### Requirement: Legend tone filter and practical filter chips
 
-The map page SHALL offer source-filter chips (All, Registry, User) that refetch shelters from the
-server with the corresponding `?source=` value; filtering SHALL be server-side, not client-side.
-The same list endpoint SHALL additionally accept an optional trust filter, composable with the
-source filter: `hasCapacity=true`, which matches only shelters whose capacity data is present.
-The map page SHALL expose it as a `Has capacity` toggle chip beside the source chips. All filter
-states SHALL refetch from the server and clear/rebuild the list the same way the source chips
-do.
+The map page SHALL offer NO source-filter chips (the All / Registry / User
+chips shipped earlier were removed on 2026-09-22 as the legend's duplicate —
+the registry-versus-user distinction they carried is the legend's registry
+entry against its four community tones). The list SHALL always fetch ALL
+sources: the map page's own requests carry no `?source=` narrowing
+(`source=ALL` is the gateway's constant argument, never a user selection —
+the parameter remains a backend filter per the viewport/paging requirement,
+the page just does not vary it). The page's filter controls are the LEGEND
+and the two practical chips:
 
-#### Scenario: Filter by registry
+- The legend's five pin-tone entries (registry, the unverified user tone,
+  the two verified tones, and the reported tone) SHALL be toggle buttons —
+  the legend IS the tone filter. The selection SHALL be the URL's `tones`
+  parameter (URL-only state, no localStorage; legend order, comma-joined,
+  the parameter absent when the set is empty). A hand-typed value SHALL
+  sanitize in place to the nearest legal set (unknown names dropped), never
+  an error. An empty set (or an absent parameter) is the unfiltered view.
+  The filter SHALL be DISPLAY-ONLY: the loaded list is filtered and the
+  markers re-render from the same view — no refetch, and the fetched data
+  is never altered. The sixth legend entry (the address-search anchor
+  diamond) is a UI reference point, not a pin tone, and SHALL NOT be a
+  filter.
+- The `Open` chip SHALL keep the rows whose derived display status is not a
+  fresh CLOSED state; it is client-side (the backend has no open/closed
+  parameter) and refilters the loaded list WITHOUT a refetch.
+- The `Has capacity` chip SHALL refetch the list with `hasCapacity=true`
+  (ALL sources), keeping only shelters whose capacity data is present.
 
-- **WHEN** the user selects the Registry chip
-- **THEN** the page refetches with source REGISTRY and the map and list show only registry rows
-  (PAASETEAMET and MUNICIPALITY)
+#### Scenario: Selecting legend tones filters the loaded list
 
-#### Scenario: Filter by user submissions
+- **WHEN** the user toggles legend entries on or off
+- **THEN** the map and the sidebar show exactly the rows whose marker tone
+  is selected (every row when nothing is selected), the selection is
+  written to the `tones` URL parameter, and no list refetch happens
 
-- **WHEN** the user selects the User chip
-- **THEN** the page refetches with source USER and the map and list show only USER rows
+#### Scenario: The tone selection is URL state
 
-#### Scenario: Back to all
+- **WHEN** a user opens a URL whose `tones` parameter carries a legal set —
+  or an invalid hand-typed value
+- **THEN** the page applies that tone set to the loaded list, clamping an
+  invalid value to the nearest legal set without an error, and the view
+  and the URL agree
 
-- **WHEN** the user selects the All chip
-- **THEN** the page refetches with source ALL and shows every shelter again
-
-#### Scenario: Capacity filter hides shelters without capacity data
+#### Scenario: Has capacity refetches with all sources
 
 - **WHEN** the user toggles the `Has capacity` chip
-- **THEN** the page refetches with `hasCapacity=true` and only shelters with capacity data
-  remain
+- **THEN** the page refetches with `hasCapacity=true` (no `?source=`
+  narrowing) and only shelters with capacity data remain
+
+#### Scenario: Open filters without a refetch
+
+- **WHEN** the user toggles the `Open` chip
+- **THEN** the loaded list is filtered to the rows whose derived display
+  status is not a fresh CLOSED state, the markers re-render from the
+  filtered view, and no request is sent
 
 #### Scenario: Filters combine
 
-- **WHEN** the user selects the User chip and toggles `Has capacity`
-- **THEN** the request carries `source=USER&hasCapacity=true` and the list shows the
-  intersection
+- **WHEN** the user selects legend tones and activates one or both chips
+- **THEN** the view is the intersection of the tone selection, the Open
+  predicate, and (while the chip is on) the capacity-refetched list
 
 ### Requirement: Visual source distinction with legend
 

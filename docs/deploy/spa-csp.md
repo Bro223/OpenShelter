@@ -42,7 +42,7 @@ Apply this as the `Content-Security-Policy` response header on the SPA's
 document and static assets, at the proxy:
 
 ```
-script-src 'self' sha256-eEsoRzCi5dUPfjfiEAEbV+3sri1glfPnaHWpq5qf7ko= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+script-src 'self' sha256-3Wmiy+aAAuDTtbWePtJ6EDupdf4CePDMWZkU8L7reMw= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
 ```
 
 Notes on the non-obvious parts:
@@ -90,7 +90,7 @@ server {
     # ... your existing SPA serving (root, try_files, /vendor passthrough) ...
 
     add_header Content-Security-Policy
-        "script-src 'self' sha256-eEsoRzCi5dUPfjfiEAEbV+3sri1glfPnaHWpq5qf7ko= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+        "script-src 'self' sha256-3Wmiy+aAAuDTtbWePtJ6EDupdf4CePDMWZkU8L7reMw= sha256-uRaocgOj5NiVsHL0rjZSuS7oiMAjFXrAjPwRiKToi6c=; default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org; connect-src 'self' https://nominatim.openstreetmap.org; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         always;
 }
 ```

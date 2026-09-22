@@ -8,7 +8,7 @@ an env var, guard or endpoint changes.
 
 ## 1. Environments and the fail-closed boot guards
 
-The app is **fail-closed at boot** via five guards (do not "fix" a
+The app is **fail-closed at boot** via six guards (do not "fix" a
 refused boot by loosening a guard — make the environment correct instead):
 
 | Guard | Refuses to boot when | Why |
@@ -18,6 +18,16 @@ refused boot by loosening a guard — make the environment correct instead):
 | `DevSenderGuard` | the active profile set is not entirely `dev`/`test` **and** either `app.mail.provider` or `app.sms.provider` is still the `dev` console sender | a deploy cannot start with a console sender that logs every code in plaintext |
 | `ApiDocsGuard` | `SPRINGDOC_ENABLED` is on outside `dev`/`test` | the generated documentation surface cannot be exposed by accident |
 | `PiiKeys` | `PII_AES_KEY` / `PII_HMAC_KEY` are missing or not 32-byte base64 | the app cannot do its PII-at-rest job without real keys |
+| `DataSourceCredentialGuard` | the active profile set is not entirely `dev`/`test` **and** the RESOLVED `spring.datasource.password` is blank or still the published dev default | a deploy cannot start against a database whose password is public in the repo (it holds the PII ciphertext, the blind-index hashes and the code hashes) |
+
+Plus one boot-time WARNING that names a misconfiguration without
+refusing (refusing would break the documented dev workflow the default
+exists for): `LoopbackXffTrustGuard` — outside dev/test, the
+`app.ratelimit.trust-loopback` default (`true`; the local Angular dev
+proxy needs it) means ANY process that can reach the app's loopback
+interface can set `X-Forwarded-For` and choose its own rate-limit
+bucket — the warning names the `RATELIMIT_TRUST_LOOPBACK=false`
+remedy behind a real proxy.
 
 Profile usage:
 
@@ -29,7 +39,7 @@ Profile usage:
 - **test** — the Maven test classpath profile; ITs run on Testcontainers
   (or `-Dit.db.url=...` for a CI sandbox) with the fixed test PII keys.
   The guards treat it as dev-parity.
-- **production** — any other profile (e.g. `prod`): all three guards are
+- **production** — any other profile (e.g. `prod`): all six guards are
   active, the dev diagnostics are off, real providers must be
   explicitly configured. There is **no** `prod` application.yml —
   production is the base `application.yml` + environment, so a missing
@@ -85,10 +95,11 @@ the single most valuable artifact in this system.
   or a staging abuse test must not burn production sender reputation or
   quota. The per-contact caps are in-memory per process, so they do not
   coordinate across environments anyway.
-- **Never publish the database port.** `docker-compose.yml` maps `5432:5432`
-  for local work; for anything reachable beyond localhost, bind `127.0.0.1`
-  (`"127.0.0.1:5432:5432"`) or drop the published port entirely — the
-  compose credentials are the published dev defaults.
+- **Never publish the database port.** `docker-compose.yml` maps the
+  port loopback-only (`"127.0.0.1:5432:5432"`, since 2026-09-22) for
+  local work; for anything reachable beyond localhost, keep that bind
+  or drop the published port entirely — the compose credentials are the
+  published dev defaults.
 - **Same build, different env.** Deploy the same artifact to staging and
   production; only the environment differs (profile, env vars, proxy
   config). Staging should run the production profile (`prod`), not `dev` —

@@ -1,5 +1,18 @@
 # Design: guidance-hero-import
 
+> **Trigger reversal (2026-09-22, V33).** D1 and D2 below state the
+> SHIPPED design (save-time import, own-transaction import, failure
+> never blocks the save). The original design — publish-time import
+> inside the publish transaction, the URL a draft-only pending state
+> with the structural V25 CHECK — shipped on 2026-09-19 (9d6b294) and
+> was reversed the same week it was written into this document
+> (9d81d4a, V33). It is preserved under "Alternatives Considered" as
+> the first alternative, with the reversal stated: that option was
+> rejected IN DESIGN and then shipped anyway, and the option listed
+> as rejected (fetch at save time) is what the code does. The V25
+> migration header keeps the publish-time era's record; V33 records
+> the reversal.
+
 ## Context
 
 The surfaces this change leans on, all shipped (crisis-guidance):
@@ -21,8 +34,13 @@ The surfaces this change leans on, all shipped (crisis-guidance):
 - **The JDK `HttpClient` idiom** (`CsvRegistryClient`): no new
   dependency, a fixed User-Agent that identifies the caller
   upstream, bounded timeouts, streaming reads.
-- **The uniform error vocabulary** (`ApiErrorHandler`): each failure
-  class maps to an existing status — no new response body shape.
+- **The uniform error vocabulary** (`ApiErrorHandler` + the
+  `GuidanceValidationException` 400 family): a write-time shape
+  refusal is an ordinary 400; an import's failure is NOT an HTTP
+  error — it rides the write's 200 body as `heroImportError`, in
+  the same message families the import's exception classes carry
+  (`HeroImportRefusedException` / `HeroImportUnreachableException`
+  / `MediaTooLargeException`). No new response body shape.
 
 Repo conventions: Flyway with `ddl-auto: validate` (every mapped
 column exists with the same shape), domain + entity/mapper/
@@ -32,39 +50,65 @@ lookup).
 
 ## Decisions
 
-### D1 — The URL is a PENDING IMPORT, consumed at publish
+### D1 — The import runs AT SAVE (the Wave 9 trigger)
 
-The URL is NOT fetched at edit time. `guidance_posts.hero_import_url`
-holds the admin's URL while the post is a draft. NOTHING is fetched
-at create/update time — the write path stays offline and instant,
-an admin can edit the URL without triggering remote I/O, and the
-URL + alt pairing rule applies at write time exactly like the
-asset id. The import runs at publish (the moment the hero becomes
-public) and, on success, clears the URL and sets `hero_image_id`.
+The URL is fetched, validated and stored when the post is SAVED —
+create and update, draft and published alike (`GuidanceService
+.create`/`update` → `resolveHeroOnSave`, after every write-time
+validation, so a doomed save never spends a network fetch). A
+successful import links the asset as the hero (superseding any
+`heroImageId`) and the URL STAYS on the post as the hero's
+provenance (the asset's `source_url` records the same origin). A
+failed import never blocks the save: the post is stored as
+requested, the failure is named in the write response's
+`heroImportError` (against the hero field), the URL is kept for a
+retry on the next save, and the hero falls back to the request's
+library reference — or, on an update, to the post's existing hero
+(a live post's hero is never lost to a failed fetch; a fresh post
+is simply hero-less, which renders fine).
+
 Consequences:
 
-- the V25 CHECK `ck_guidance_posts_pending_import_only_draft`
-  (`hero_import_url IS NULL OR status <> 'PUBLISHED'`) makes the
-  invariant structural: a published post cannot carry a pending
-  URL, so "set a URL on a live post" is a 400 (service) that the
-  database would also refuse (belt and suspenders).
-- a failed publish leaves the URL on the draft: fix the URL (or the
-  upstream) and republish — no state to clean up, no retry
-  machinery.
+- a saved post may carry its import URL in EVERY state — provenance
+  after a success, a retryable pending import after a failure. The
+  V25 CHECK `ck_guidance_posts_pending_import_only_draft`
+  (`hero_import_url IS NULL OR status <> 'PUBLISHED'`) — which made
+  "a published post carries no pending URL" structural — is DROPPED
+  by V33; the "unpublish first" 400 for a URL on a live post is
+  gone (the IT `aPublishedPostTakesAnImportUrlAtSave` pins the
+  reverse).
+- re-saving a post whose current hero IS the import of the given
+  URL (its asset's `source_url` records it) does NOT re-fetch — no
+  duplicate asset; a changed URL re-imports and the replaced asset
+  stays in the library (crisis-guidance D8).
+- publish no longer fetches, validates or stores anything — a post
+  with a failed or unimported URL publishes exactly as stored, so
+  publishing is never the moment an image can fail for the first
+  time, and no post is unpublishable because of an image problem.
+- the property the dropped CHECK defended is preserved by
+  construction, not by constraint: a page renders the hero ONLY
+  from `hero_image_id` (a validated stored asset or nothing) — the
+  import URL is never a rendering source, on any page, in any
+  state.
 
-### D2 — The import runs INSIDE the publish transaction
+### D2 — The import runs in its OWN transaction (`REQUIRES_NEW`)
 
-The publish, the asset row and the hero link commit atomically — a
-failure anywhere rolls back all three, so a post can never publish
-with a half-written asset and no asset can appear without its post
-state. The price is a network call while a DB transaction is held:
-bounded by the walk budget (default 10s) and the publish is
-admin-only (rate-limited surface), so the exposure is one admin's
-publish pinning a connection for at most 10s — accepted, and
-documented in the threat model. (The alternative — fetch before
-the transaction — opens a window where the file is on disk but the
-post is not published, the exact orphan the upload path already
-avoids.)
+The import is `HeroImageImportService.importHero`,
+`@Transactional(propagation = Propagation.REQUIRES_NEW)`: a failure
+rolls back the asset row (the just-written file is removed by the
+store step) and propagates to the save, which STORES THE POST
+ANYWAY — the save and the import commit independently, so a failed
+import can never roll back the post and a success commits the
+library row before the caller links it as the hero. The price is a
+network call while the admin's save request is held: bounded by the
+walk budget (default 10s) and the save is admin-only
+(rate-limited surface), so the exposure is one admin's save pinning
+a connection for at most 10s — accepted, and documented in the
+threat model. (The pre-reversal design ran the fetch INSIDE the
+publish transaction for atomicity; the reversal makes atomicity
+irrelevant — the save cannot fail on the import, so there is
+nothing to roll back together, and a REQUIRES_NEW import also
+cannot wedge the save's transaction behind a failed fetch.)
 
 ### D3 — Two seams: address resolution and the single fetch
 
@@ -89,24 +133,27 @@ seams make the policy testable without a production DNS:
   against a local `HttpServer` (a loopback test server cannot pass
   the real address policy — the policy would correctly refuse it).
 
-### D4 — Error vocabulary: 400 policy, 502 upstream, 413 size
+### D4 — Error vocabulary: 400 shape at write time, field error at save time
 
-- **400 `HeroImportRefusedException`** — the input or the remote
-  ANSWER is wrong: scheme, credentials, disallowed resolved
-  address, disallowed redirect target, hop cap, empty body, remote
-  4xx, not-a-readable-image, over the pixel cap (the last reuses
-  `UnsupportedImageException` — same message family the upload
-  path uses). The admin can act on these by editing the URL.
-- **502 `HeroImportUnreachableException`** — upstream trouble,
-  retryable: DNS failure, connect failure, connect/read timeout or
-  stall, network reset, remote 5xx, the walk budget.
-- **413 `MediaTooLargeException`** — the existing upload
-  vocabulary; a downloaded image is an "uploaded" image from the
-  admin's point of view, and the message names the cap.
-
-All failures propagate to the controller and the publish's
-transaction rolls back — the post stays a DRAFT with the URL
-intact.
+- **400 at write time** (the existing `GuidanceValidationException`
+  vocabulary, before any I/O): a `heroImportUrl` that is not a
+  parseable absolute http(s) URL, is over 2048 chars, names no
+  host, or carries `user:pass@`. The admin can act on these by
+  editing the URL.
+- **`heroImportError` in the 200 write body** (NOT an HTTP error):
+  the import ran and failed — `HeroImportRefusedException`
+  (policy: disallowed resolved address, disallowed redirect target,
+  hop cap, empty body, remote 4xx, not-a-readable-image, over the
+  pixel cap — the last reusing `UnsupportedImageException`'s
+  message family), `HeroImportUnreachableException` (upstream
+  trouble, retryable: DNS failure, connect failure, connect/read
+  timeout or stall, network reset, remote 5xx, the walk budget) or
+  `MediaTooLargeException` (over `app.media.max-bytes`). The
+  exception classes and their `ApiErrorHandler` mappings (400 /
+  502 / 413) are KEPT — the message families are the vocabulary
+  and the handlers stay defensive — but the guidance save path
+  catches every one of them and surfaces the message as
+  `heroImportError` against the hero field instead.
 
 ### D5 — The pixel cap is NEW and applies to the import path
 
@@ -127,32 +174,58 @@ is a follow-up).
 The client's body read is a reader thread + a progress watchdog:
 each chunk updates a byte counter and a last-progress instant;
 past `app.media.max-bytes` the stream is closed immediately (the
-server sees the drop) and the 413 is raised — the buffer never
-exceeds cap + one 8 KiB chunk. No bytes for `import-read-timeout`
-closes the stream and fails the fetch (stall vocabulary). The
-response HEAD is deadline-polled via `sendAsync` (the JDK's own
-request `timeout()` is deliberately NOT used — it bounds the whole
-exchange, which would kill a legitimate near-cap download and it
-tears the stream down silently instead of failing it).
+server sees the drop) and the 413 vocabulary is raised — the
+buffer never exceeds cap + one 8 KiB chunk. No bytes for
+`import-read-timeout` closes the stream and fails the fetch (stall
+vocabulary). The response HEAD is deadline-polled via `sendAsync`
+(the JDK's own request `timeout()` is deliberately NOT used — it
+bounds the whole exchange, which would kill a legitimate near-cap
+download and it tears the stream down silently instead of failing
+it).
 
 ### D7 — `media_assets.source_url` (nullable) is cheap and worth it
 
 One nullable `VARCHAR(2048)` + index-free column (never queried by
 value). It records WHERE an imported image came from — the
 takedown trail (D9 of crisis-guidance): if a pasted URL turns out
-to be stolen content, the origin is one query away. Manual uploads
-carry NULL. It is exposed on `AdminGuidancePostDto`/media read
-paths only as part of the asset, never on the public surface.
+to be stolen content, the origin is one query away. It is ALSO the
+idempotency key of the save-time model (D1): the re-save check
+compares the URL against the current hero asset's `source_url`.
+Manual uploads carry NULL. It is exposed on `AdminGuidancePostDto`/
+media read paths only as part of the asset, never on the public
+surface.
 
 ## Alternatives Considered
 
+- **Fetch at PUBLISH time, the URL a draft-only pending import** —
+  the FIRST design (this document's original D1/D2): nothing
+  fetched at edit time, the import inside the publish transaction,
+  the V25 CHECK making "a published post carries no pending URL"
+  structural, a failed fetch failing the publish (post stays a
+  DRAFT), and a URL on a live post a 400 ("unpublish first").
+  SHIPPED 2026-09-19 (9d6b294, V25) — and then REVERSED on
+  2026-09-22 (9d81d4a, V33), when the import moved to save time.
+  The reversal: the owner edits see the hero right after saving
+  (a draft's broken hero is invisible to readers anyway, and a
+  published post with a failed import publishes hero-less instead
+  of being stuck unpublishable); the "unpublish first" dance for a
+  URL on a live post was the sharpest friction; and a save-time
+  failure is a FIELD error (the admin sees it against the hero
+  field), not a lifecycle failure. The design's own rejection
+  rationale (below, the first item) was neutralised by the failure
+  semantics: a save-time failure no longer 400s the write, so a
+  typo'd URL is a field error the admin can fix and re-save, and
+  the idempotency check (D1/D7) means re-editing the URL never
+  mints orphan assets.
 - **Fetch at edit time, store immediately** (the URL becomes an
   asset id the moment it is saved): better UX (the admin sees the
   image) but makes every draft edit do remote I/O, turns a typo'd
   URL into a 400 on save instead of at publish, and orphans assets
-  when the URL is re-edited. Rejected: the pending-import model
-  keeps the write path offline and failures on the publish where
-  the owner wanted them to fail.
+  when the URL is re-edited. Rejected in the original design — and
+  it is what the code does, in save-time form (the URL stays on
+  the post as provenance rather than becoming an asset id; the
+  failure and orphan concerns above are exactly why the failure
+  semantics had to change with the trigger).
 - **Per-domain allowlist instead of an address policy**: an
   allowlist is configuration churn (every new image host is a
   deploy) and gives false comfort — the address policy is the
@@ -160,9 +233,10 @@ paths only as part of the asset, never on the public surface.
   the owner, not a code one; if the owner wants one, it is a
   small addition in front of the resolver.
 - **Async import with a post state machine (IMPORTING /
-  IMPORT_FAILED)**: needed only if the publish surface were public
+  IMPORT_FAILED)**: needed only if the save surface were public
   or the walks unbounded. With a 10s budget on an admin-only
-  endpoint, synchronous-in-transaction is simpler and atomic.
+  endpoint, synchronous-in-the-save is simpler and gives the admin
+  immediate feedback.
 
 ## Residual Risks (stated in the threat model, not papered over)
 
@@ -177,5 +251,6 @@ paths only as part of the asset, never on the public surface.
   bytes served from our origin to every visitor. The sniff + pixel
   cap bounds what it can BE; whether the content is appropriate is
   the admin's (the admin is the threat model's insider).
-- **In-transaction network hold** (D2): one admin's publish can
-  hold a DB connection for up to the walk budget.
+- **In-request network hold** (D2): one admin's save can hold an
+  HTTP request (and, for the import's own transaction, a
+  connection) for up to the walk budget.

@@ -1,7 +1,7 @@
 # Review process — hierarchical multi-agent code review
 
 The reusable methodology behind the 2026-09-08 OpenShelter review
-(1 orchestrator + 4 leads + 13 children, all non-orchestrator agents on
+(1 orchestrator + 4 leads + 14 children, all non-orchestrator agents on
 `hpc-vllm/Qwen3.8-27B` via vLLM). This document is deliberately general —
 it captures the process, not the findings. The full verbatim output of the
 2026-09-08 run lives in `2026-09-08-review-output.md` (gitignored — see
@@ -96,7 +96,7 @@ self-contained. Required parts:
 
 ## Practical notes
 
-- **Single-vLLM-endpoint saturation.** 17 concurrent 27B agents on one vLLM
+- **Single-vLLM-endpoint saturation.** 18 concurrent 27B agents on one vLLM
   endpoint saturated it: children took 40–80 min wall. Budget for that; do
   not raise concurrency on a single endpoint — add capacity instead.
 - **960 s wait windows.** `subagent_wait_all` is capped near 960 s; the

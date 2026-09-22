@@ -72,14 +72,15 @@ enum SHALL be a 400. `?source=` remains accepted and is still sent by the fronte
 The UI SHALL NOT render provenance as its own chips, legend entries or
 marker colours. Provenance is server-derived metadata that the API exposes
 (the `?provenance=` filter); the map's visible trust signals remain the
-community-review-queue palette — the source chips (All / Registry / User)
-plus the Open and Has-capacity chips — together with the reported-state and
-private-home markers.
+community-review-queue palette — the legend tone filter (the legend IS the
+filter; the source chips were removed on 2026-09-22) plus the Open and
+Has-capacity chips — together with the reported-state and private-home
+markers.
 
 #### Scenario: The map offers no provenance chips
 
 - **WHEN** the map filter bar renders
-- **THEN** it offers the three source chips and the Open / Has-capacity
+- **THEN** it offers the legend tone entries and the Open / Has-capacity
   chips, and no chip or legend entry naming a provenance value
 
 #### Scenario: Provenance stays available through the API
@@ -97,12 +98,12 @@ render the row's label and badge tone from the DTO's `source` +
 registry ("Päästeamet registry" / "Municipal registry"), USER rows
 carry their trust-state label ("Newly added" / "Community-checked", and
 "Rejected" on the /mine + admin surfaces), and the badge tone follows
-the marker trust palette (the unified yellow family for NEW and
-CONFIRMED, the danger tone for REJECTED). An auto-hidden (INACTIVE)
-row keeps its trust-state label and is marked hidden on the surfaces
-that keep hidden rows (the /mine per-row "Hidden — reported by the
-community (N reports)" note; the admin list's status column) — there is
-no separate "reported inactive" chip. The DTO's `provenance` value
+the marker trust palette (NEW rides the unverified yellow badge pair,
+CONFIRMED the verified green pair, REJECTED keeps the danger one).
+An auto-hidden (INACTIVE) row keeps its trust-state label and is marked
+hidden on the surfaces that keep hidden rows (the /mine per-row
+"Hidden — reported by the community (N reports)" note; the admin
+list's status column) — there is no separate "reported inactive" chip. The DTO's `provenance` value
 still rides on every projection (server-derived), but the FE renders
 no chip from it.
 
