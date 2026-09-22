@@ -51,11 +51,8 @@ Mechanical error classes, fixed in this change (full list in the delivery report
 | `account.contributions` | `Minu esitused` | My contributions | `panused` (literal "contributions") reads like betting stakes; chose `esitused` ("submissions") to match the `esitada` verb used elsewhere in the catalog. A native speaker might prefer `Minu varjupaikad` or `Minu lisandid`. |
 | `error.verifyRateLimited` | `…(koodide arv päevas on piiratud).` | …(codes are limited per day). | Word order was adjusted but still sounds machine-made; `päevas`/`ööpäevas` choice is a guess. |
 | `account.working` | `Töötlen…` | Working… | Valid form of `töötlema` ("I am processing"), but `Käsitlen…` may be the more idiomatic UI phrasing. |
-| `account.identityCopy` | `Trükiviga registreerumisel ei sunni kunagi uut kontot looma — …` | A typo at registration never forces a new account — … | Grammatically correct but a heavy double-infinitive chain (`sunnima` + partitive + -ma); a native speaker would likely rephrase. |
 | `account.dataCopy` | `…JSON-fail, mis sisaldab kõik sinu kontoga seotut — …` | …a JSON file with everything tied to your account — … | `kõik … seotut` (all + partitive) is acceptable but `kogu` may be cleaner. |
-| `account.phoneProof` | `…— ainult SIM-kaardi kaotamine ei suuda kinnitust ümber suunata.` | …— losing your SIM alone cannot re-route verification. | Faithful but literal; the negative construction is the part a native speaker would most likely reword. |
 | `account.delete.adminCopy` | `See konto loodi deploy-keskkonna poolt…` | This account was provisioned by the deployment environment… | `deploy-keskkond` is an IT loanword; the formal form would be `kasutuselevõtu-keskkond`. Kept the loanword as common in Estonian IT writing, but it should be checked. |
-| `verify.subtitle` | `…koodid saadetakse väljaspool rakendust, üks iga kanali kohta.` | …the codes arrive out-of-band, one per channel. | `väljaspool rakendust` ("outside the app") is an approximation of "out-of-band" (delivered via SMS/email rather than in the app). |
 | `admin.guidance.order.hint` | `Postid ilmuvad külastajatele selles järjekorras — …` | The posts appear to visitors in this order — … | The verb `ilmuma` ("to appear") is the intransitive fix for `näevad`/`näivad` (`näha` is transitive) — the grammar is mechanical (dictionary transitivity), but the whole sentence still awaits native confirmation. |
 | `admin.siteTexts.hint1` | `…(näidatud kaaplasolderina)…` | …(shown as the placeholder)… | WORD CHOICE, not confirmed: the catalog has no existing Estonian word for "placeholder" (the `*Placeholder` keys carry sample text only; RU renders the concept as the loanword `плейсхолдер`), so the Estonian loanword `kaaplasolder` was used to mirror RU. `otsetekst` (the Estonian UI-localisation term) is the alternative. |
 | `admin.reports.notCounted` | `Arvestamata` | Not counted | Badge re-labelled (key renamed from `admin.reports.dampened`) to plain language: the domain term "dampened" communicated nothing — the owner (an Estonian speaker) read the EN "Dampened" and guessed the shelter was full (`täis`, the occupancy concept). `Arvestamata` ("not counted") is the participial form parallel to the sibling badge `Arveldatud` ("dismissed"). **Correction of a previously "fixed" string:** this replaces `Hõivendatud`, which reads as "soothed/calmed" — a comfort word (the same family as `mõnitatud`, see audit item 21), not a signal-damping term. Not confirmed by a native speaker. |
@@ -66,7 +63,6 @@ Mechanical error classes, fixed in this change (full list in the delivery report
 | Key | Current RU value | English | Why uncertain |
 | --- | --- | --- | --- |
 | `error.verifyRateLimited` | `…(число кодов в сутки ограничено).` | …(codes are limited per day). | `в сутки` is more formal/journalistic than `в день`; UI copy may prefer the latter. |
-| `verify.subtitle` | `…коды приходят вне приложения, по одному на каждый канал.` | …the codes arrive out-of-band, one per channel. | Same "out-of-band" approximation as ET. |
 | `account.success.exportDownloaded` | `Экспорт ваших данных загружен.` | Your data export has been downloaded. | `загружен` is ambiguous in Russian (uploaded/downloaded); `скачан` is unambiguous but colloquial. |
 | `account.delete.adminCopy` | `Этот аккаунт создан окружением развёртывания…` | This account was provisioned by the deployment environment… | Technical phrasing; fine, but `окружение развёртывания` is a calque of "deployment environment". |
 | `account.contrib.view` | `Просмотр` | View | Noun, while the neighbouring buttons in the same row are infinitives (`Удалить`); ET/EN use a verb form. Consistency call to make. |
@@ -537,7 +533,7 @@ the catalog):
 
 - legal.privacy.location.p3.strong — mitmugi (literary form of "never"); a native speaker would likely rephrase the whole "We never infer" sentence as Me ei järeldage kunagi … . The sentence is understandable as written.
 - legal.privacy.collect.p2.middle — OVERTAKEN BY THE DICTIONARY AUDIT (see the audit section below): the splice now reads **Me ei kogu …, ega kasuta …** (1st-person negative with the 2nd-sg form, consistent with the second verb). Dictionary-verified; native sign-off of the formal register is still outstanding.
-- legal.privacy.retention.p3.after — sisselülitab selle see, kes käitab deployt is a calque with awkward word order; deploy/deployt are IT loanwords (already used in the account admin copy).
+- legal.privacy.retention.p3.after — SUPERSEDED BY WAVE 14 (copy pass): the sentence — including the `sisselülitab selle see, kes käitab deployt` calque and the "this repository's development setup" reference — was rewritten; the new ET draft is listed in the Wave 14 section below and awaits native sign-off.
 - legal.privacy.thirdParties.p2 — importitud (past participle of importima) is correct but stiff.
 - legal.terms.rules.li1 — detailidega, mis on parima teadmise järgi täpsed is a calque of "details accurate to the best of your knowledge"; more natural: oma teada täpsete detailidega.
 - legal.terms.prohibited.li2 — OVERTAKEN IN PART BY THE DICTIONARY AUDIT: the sentence now reads **ilma et oleks neid eraomanikuna deklareeritud** (`eraomanina` → `eraomanikuna` dictionary-verified; `erakoju` → `erakodu` unified). The "heavy sentence, a native would rephrase" flag REMAINS.
@@ -549,7 +545,7 @@ the catalog):
 
 - Päästeamet is translated as Спасательный департамент (original name kept in parentheses on first mention) — a native reviewer may prefer to leave the Estonian name untranslated.
 - legal.terms.source.p1 — остаются подчинёнными собственным источникам is a heavy calque of "remains subject to its own sources"; a lawyer would likely rephrase.
-- legal.terms.liability.p1 — Настоящий пункт предназначен, чтобы быть разумным is a literal "intended to be reasonable"; acceptable legal phrasing, stands out as a calque.
+- legal.terms.liability.p1 — SUPERSEDED BY WAVE 14 (copy pass): the calque sentence ("Настоящий пункт предназначен, чтобы быть разумным…") was cut from the EN source and dropped in ET/RU with it; the remaining limitation clause is a standard legal formulation — legal review still outstanding.
 - legal.privacy.rights.p2 — Инспекция по защите данных Эстонии: the official Russian name of the Estonian Data Protection Inspectorate is not standardized; the chosen form is comprehensible.
 - e-mail in Latin script follows the pre-existing catalog-wide convention (same as the earlier account/map work).
 
@@ -617,3 +613,97 @@ owner's reviewer; the audit must not silently "improve" them:
 - RU: the клеённый-style machine-calque judgements, the `слаг` spelling
   (`admin.guidance.editor.slugLabel`/`slugHint.create`/`slugHint.edit`/
   `slugInvalid`), and the `аккаунт` house style — all unchanged.
+
+## Wave 14 — copy that earns its place (EN source-of-truth pass)
+
+Owner rule (BACKLOG-PLAN, Wave 14): **every user-facing string must state
+something the reader needs** — what will happen, what they must do, what it
+costs them, or what to expect next. A string that explains our reasoning,
+argues for a design decision, describes an implementation, or comments on
+the UI is deleted or replaced with the concrete fact. Test: *if it
+disappeared, would the user make a worse decision?*
+
+**Review status — read first:** EN is the new source of truth (the shipped
+catalog IS the copy). Every ET/RU value in this section is a **machine
+draft awaiting native-speaker sign-off** — the same standing as the rest of
+this packet. The legal rows additionally need **legal review** (see the
+legal section's review-status note). Where this section lists a key, it
+wins over the "Full listing" tables and the "Uncertain" tables above; the
+superseded rows for `account.identityCopy` (deleted), `account.phoneProof`
+and `verify.subtitle` (rewritten) were removed from the Uncertain tables.
+
+### Deleted
+
+| Key | Deleted EN | Why it failed the rule |
+| --- | --- | --- |
+| `account.identityCopy` | A typo at registration never forces a new account — the edit is confirmed with your current password. | "A typo at registration never forces a new account" argues for a design decision against a problem the user has not stated; the second clause duplicates `account.subtitle`. The now-empty `<p class="panel-copy">` in the Identity panel was removed with the key (account-page.html). |
+
+### Rewritten — verification and contact change (the owner's example surfaces)
+
+| Key | Before (EN) | After (EN) | Why before failed |
+| --- | --- | --- | --- |
+| `account.emailProof` | For security, changing the email is confirmed by an SMS code sent to the phone number on your account — never to the new address. | The change is confirmed with a 6-digit SMS code sent to the phone number on your account. No code is sent to the new address. | Owner's example: "For security, …" explains why we built it that way. The rewrite states what will happen and where — and where NOT — to look for the code. |
+| `account.phoneProof` | For security, changing the phone is confirmed by an email code sent to the email address on your account — losing your SIM alone cannot re-route verification. | The change is confirmed with a 6-digit email code sent to the email address on your account. No code is sent to the new number. | "losing your SIM alone cannot re-route verification" argues for the design. |
+| `account.subtitle` | Your profile and verification. The name can be corrected with a password confirmation; email and phone changes are proven cross-channel. | Your profile and verification. You can correct your name with your current password; email and phone changes are confirmed with a code sent to your other contact. | "proven cross-channel" is jargon; the mechanism is now in plain words. |
+| `account.delete.armed` | Erasure armed — select “Delete my account” to confirm. | The “Delete my account” button is now enabled. Selecting it erases your account permanently. | "Erasure armed" is metaphorical state commentary; the rewrite announces the state change and the consequence of the click (the string is a role=status live region — the announcement duty is kept). |
+| `verify.subtitle` | Verified accounts can submit shelters and report listed locations. Prove you own your email and phone — the codes arrive out-of-band, one per channel. | Verified accounts can submit shelters and report listed locations. One code is sent per channel — one to your email address and one to your phone number. | "out-of-band" is jargon; "Prove you own…" argues for the requirement. |
+| `submit.verifyHint` | This account no longer has a verified claim. | This account can no longer submit because its verification is no longer valid. | "verified claim" is domain jargon; the hint accompanies a 403 on submit, so the consequence (can no longer submit) and the state (verification no longer valid) are what the reader needs. |
+
+### Rewritten — consent and accessibility dialog
+
+| Key | Before (EN) | After (EN) | Why before failed |
+| --- | --- | --- | --- |
+| `consent.body` | OpenShelter stores only what it needs to work: a sign-in token that keeps you logged in, and your language and display preferences. It does not use advertising, analytics, or cross-site tracking, and it never sells your data. These are stored in your browser's local storage, not in advertising cookies, and are required for the application to function. | OpenShelter stores only what it needs to work: a sign-in token that keeps you logged in, and your language and display preferences. They are stored in your browser's local storage and are required for the application to function. It does not use advertising, analytics, or cross-site tracking, and it never sells your data. | "not in advertising cookies" argued against a premise the reader never raised; the storage facts now lead and the data-handling negations follow. The "never sells your data" promise is kept verbatim (it is a consent fact, not decoration; the banner spec pins it). |
+| `a11y.popup.body` | Choose how OpenShelter looks to you. Your choice applies immediately and is saved on this device. | Choose how OpenShelter looks to you. Your choice applies immediately. | "saved on this device" duplicated the footer's note; one fact per string (the footer keeps the storage/privacy fact). |
+| `a11y.option.highContrast.desc` | A dark background with bright, highly readable text. | A dark background with bright text. | "highly readable" argues for the option; the user can see what the option looks like. |
+| `a11y.option.blackYellow.desc` | Yellow text on a black background, for low vision and direct sunlight. | Yellow text on a black background. | "for low vision and direct sunlight" is the rationale for the option's existence, not a fact about the choice. |
+
+### Rewritten — legal pages (need legal review in addition to native sign-off)
+
+| Key | What changed (EN) | Why |
+| --- | --- | --- |
+| `legal.privacy.scope.p1` | Cut: "It is intended to describe the application's actual behaviour." | Meta-commentary about the document, not information for the reader. |
+| `legal.privacy.why.p2` | Cut: "This document is intended to describe the processing; it is not a legal opinion." (the [LEGAL BASIS TO BE CONFIRMED] sentence is kept) | Meta-disclaimer about the document's own status. |
+| `legal.privacy.retention.p3` | Now: "Enforcement of these periods is a deployment-level switch (RETENTION_ENABLED): where the switch is off, inactive accounts and old audit records are kept." (was: "Those periods are the app's retention rule. The scheduled job that enforces them is a deployment-level switch (…): it is off in this repository's development setup, and it is enabled by whoever operates a deployment. … are simply kept.") | "this repository's development setup" is repo-internal implementation commentary in a user-facing legal page; the user-facing fact is when the periods apply. |
+| `legal.privacy.security.p2` | Cut: "No security measure can guarantee absolute safety, but these measures reduce common risks." | Defensive commentary after the list of measures. |
+| `legal.privacy.cookies.p2` | Cut: "and there are no optional analytics or tracking technologies to accept or reject" | Explains why the banner has no reject button — a design decision, not reader information. |
+| `legal.terms.liability.p1` | Cut: "This paragraph is intended to be reasonable and is subject to legal review;" (the "does not exclude liability that cannot be excluded by law" scope clause is kept, re-spliced) | Meta-comment on the paragraph's own status. |
+| `legal.terms.rules.li4` | Cut: "to keep the list usable" | A purpose clause — reasoning. |
+
+### ET/RU drafts for the rewritten strings (awaiting native sign-off)
+
+| Key | ET draft | RU draft | Notes |
+| --- | --- | --- | --- |
+| `account.emailProof` | `Muudus kinnitatakse 6-kohalise SMS-koodiga, mis saadetakse sinu kontol olevale telefoninumberile. Uuele e-posti aadressile koodi ei saadeta.` | `Изменение подтверждается 6-значным SMS-кодом, отправленным на номер телефона вашего аккаунта. На новый адрес e-mail код не отправляется.` | Full new draft (the old value was deleted as rationale). |
+| `account.phoneProof` | `Muudus kinnitatakse 6-kohalise e-posti koodiga, mis saadetakse sinu kontol olevale e-posti aadressile. Uuele telefoninumberile koodi ei saadeta.` | `Изменение подтверждается 6-значным кодом, отправленным на адрес e-mail вашего аккаунта. На новый номер телефона код не отправляется.` | Full new draft; the SIM-reroute sentence was cut. |
+| `account.subtitle` | `Sinu profiil ja kinnitused. Nime saad parandada oma praeguse parooliga; e-posti ja telefoni muutused kinnitatakse koodiga, mis saadetakse sinu teisele kontaktile.` | `Ваш профиль и подтверждения. Имя можно исправить, указав текущий пароль; смена e-mail и телефона подтверждается кодом, отправленным на ваш другой контакт.` | `teisele kontaktile` / `другой контакт` — "your other contact"; check whether a native reviewer prefers naming email/phone explicitly. |
+| `account.delete.armed` | `Nupp „Kustuta minu konto“ on nüüd aktiivne. Selle valimine kustutab sinu konto jäädavalt.` | `Кнопка «Удалить мой аккаунт» теперь доступна. Её нажатие навсегда удаляет ваш аккаунт.` | The quoted label is the catalog's own `account.delete.button` value in each locale; ET quote marks use the „…“ pair. |
+| `verify.subtitle` | `Kinnitatud konto saab esitada varjupaiku ja teatada loetletud asukohtade kohta. Iga kanali kohta saadetakse üks kood — üks sinu e-posti aadressile ja üks sinu telefoninumberile.` | `Подтверждённые аккаунты могут добавлять укрытия и сообщать о указанных местах. На каждый канал отправляется один код — один на адрес e-mail и один на номер телефона.` | First sentence reuses the existing `verify.fullyVerifiedCopy` phrasing; the "out-of-band" approximation (`väljaspool rakendust` / `вне приложения`) is gone with the EN. |
+| `submit.verifyHint` | `See konto ei saa enam esitada, sest selle kinnitus ei kehti enam.` | `Этот аккаунт больше не может добавлять укрытия: его подтверждение недействительно.` | New draft; "verification no longer valid" without asserting the reason (lapsed vs revoked). |
+| `a11y.popup.body` | `Vali, kuidas OpenShelter sulle näeb välja. Sinu valik kohaldatakse kohe.` | `Выберите, как OpenShelter будет выглядеть для вас. Выбор применяется сразу.` | Trimmed from the existing value (the storage fact stays in `a11y.popup.footer`). |
+| `a11y.option.highContrast.desc` | `Tume taust ja heledad tähed.` | `Тёмный фон и яркий текст.` | Trimmed from the existing value. |
+| `a11y.option.blackYellow.desc` | `Kollane tekst musta taustal.` | `Жёлтый текст на чёрном фоне.` | Trimmed from the existing value. |
+| `consent.body` | `OpenShelter salvestab ainult selle, mida ta töötamiseks vajab: sisselogimistunnuse, mis hoiab sind sisse logitud, ja sinu keele- ja kuvamiseelistused. Need on salvestatud sinu brauseri lokaalses salvestusruumis ja on vajalikud, et rakendus toimiks. Reklaami, analüütikat ega saitidevahelist jälgimist ei kasutata ja sinu andmeid kunagi ei müüda.` | `OpenShelter хранит только то, что нужно для работы: токен входа, который держит вас в системе, и ваши языковые и визуальные настройки. Они хранятся в локальном хранилище вашего браузера и необходимы для работы приложения. Реклама, аналитика и отслеживание между сайтами не используются, и ваши данные никогда не продаются.` | Reordered (storage facts first, negations second); reuses existing terminology (`sisselogimistunnus`, `локальное хранилище`); "never sells" kept in all three. |
+| `legal.privacy.scope.p1` | `See poliitika kirjeldab, kuidas OpenShelter kogub, kasutab, salvestab ja kustutab sinu isikuandmeid, kui kasutad veebirakendust. See ei kehti väliste veebilehtede kohta, millele me viitame (Eesti Päästeamet, Maa-amet ja OpenStreetMap).` | `Настоящая политика описывает, как OpenShelter собирает, использует, хранит и удаляет персональные данные при использовании веб-приложения. Она не распространяется на внешние веб-сайты, на которые мы даём ссылки (Спасательный департамент, Maa-amet и OpenStreetMap).` | One sentence cut from the existing draft, no new wording. |
+| `legal.privacy.why.p2` | `Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED].` | `Правовое основание для каждой цели — [LEGAL BASIS TO BE CONFIRMED].` | One sentence cut; the placeholder is an owner decision. |
+| `legal.privacy.retention.p3.before` / `.after` | `Nende perioodide täitmist juhib deploy-tasemel lüliti (` … `): kui lüliti on väljas, jäävad mitteaktiivsed kontod ja vanad auditeerimise kirjed alles.` | `Введение этих сроков в действие — переключатель на уровне развёртывания (` … `): когда переключатель выключен, неактивные аккаунты и старые записи аудита сохраняются.` | NEW wording (the old sentence was cut): `deploy-tasemel lüliti` / `переключатель на уровне развёртывания` carry over the existing "deployment-level switch" terminology. |
+| `legal.privacy.security.p2` | `Rakendus rakendab piiranguid kinnituskoodidele, parooli lähtestamisele ja esitustele, saadab turvepäised iga vastusega ja nõuab asukohale ligipääsuks HTTPS-i.` | `Приложение применяет ограничения на коды подтверждения, сброс пароля и добавление содержимого, отправляет заголовки безопасности в каждом ответе и требует HTTPS для доступа к местоположению.` | One sentence cut; `turvepäised` (severity-4 flag) remains in the kept sentence. |
+| `legal.privacy.cookies.p2` | `Sinu juurdepääsutunnus hoitakse ainult mälus ja visatakse ära, kui suled vahekaardi. Kolmas isik neid üksusi ei saa.` | `Ваш токен доступа удерживается только в памяти и уничтожается, когда вы закрываете вкладку. Ни одна третья сторона не получает эти элементы.` | One clause cut from the existing draft. |
+| `legal.terms.liability.p1` | `Selles ulatuses, mida õigus lubab, ei võta OpenShelter vastutust otsuste eest, mille tehakse nimekirjale tuginedes, ja see ei välista vastutust, mida õigus ei lase välistada.` | `В той мере, в какой это допускается законом, OpenShelter не несёт ответственности за решения, принятые на основе списка, и это не исключает ответственность, которую по закону нельзя исключить.` | The meta sentence is gone; the kept scope clause was re-spliced into one sentence — legal review must confirm the splice reads as the same limitation. |
+| `legal.terms.rules.li4` | `Rakendus rakendab piiranguid: päevane piirang esitustele, piirang sellele, kui sageli ühekordseid koodid on võimalik taotleda, ja sarnaste dubleerivate esituste tuvastamine. Piirangu ületamine annab vea ja soovituse, kui kaua oodata; see ei ole keel.` | `Приложение применяет ограничения: дневной лимит на добавления, лимит на частоту запросов одноразовых кодов и обнаружение близких дубликатов. Превышение лимита приводит к ошибке и рекомендованному времени ожидания; это не блокировка.` | One purpose clause cut from the existing draft. |
+
+### Deliberately kept (passed the rule, noted for the owner)
+
+- `error.network` — "Cannot reach the backend. It may be offline — please try again later." Says what failed and the next step; "backend" is implementation-flavoured but the string announces a failure state, it does not comment on the implementation. Pinned verbatim by six feature specs.
+- `account.delete.adminCopy` — operator-facing copy that names the exact remediation (the ADMIN_EMAIL / ADMIN_PASSWORD env vars); the "why" is two words and the "what to do" is concrete.
+- `shelter.unverifiedWarning`, `how.guarantee`, `legal.terms.emergency.*` — safety-critical instructions; every clause tells what to do or what is not guaranteed.
+- `detail.pulse.estimateNote`, `shelter.notice.reportSubmittedDamped` — explain surprising behaviour the user must trust the numbers with.
+- Admin moderation copy (unconfirmed/shelters/reports/alerts/users/audit/site-texts) — scanned; every string states an action, a state, or a next step.
+
+### Deferred to the guidance lane (NOT changed in this pass)
+
+| Key | Current EN | Problem | Why deferred |
+| --- | --- | --- | --- |
+| `guidance.subtitle` | Practical guidance for crisis situations. | "Practical" is an evaluative adjective; the subtitle restates the page title. | The subtitle element and its spec are in `features/guidance/**` (owned by the guidance hero lane); deleting the element requires that lane. |
+| `guidance.empty` | No guidance yet — check back soon. | "check back soon" is reassurance that informs nothing (the fact is "no guidance yet"). | Pinned by `guidance-list-page.spec.ts` (guidance lane) as well as the shared `list-state.spec.ts`. |
+| `admin.guidance.editor.bodyHint` | Only the toolbar formatting survives saving — no H1 and no inline images, deliberately (the page owns the heading and the hero image). Pasted content keeps only the formatting the toolbar offers. | "deliberately (the page owns the heading and the hero image)" is rationale. | The guidance editor is owned by the guidance lane. |

@@ -1,6 +1,7 @@
 import { Component, type DebugElement, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { readFileSync } from 'node:fs';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -435,6 +436,56 @@ describe('GuidanceDetailPage (/blog/:slug)', () => {
       const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
       expect(img?.getAttribute('alt')).toBe('');
       expect(img?.getAttribute('alt')).not.toBe('Hero without alt');
+    });
+
+    // ---- Wave 13: a real non-square file (the stretch cannot come back) ----
+
+    it('a real non-square hero keeps its own ratio — a portrait file declares no fixed box', async () => {
+      // The project's ambient node:fs types only cover the utf8 overload —
+      // the cast (the specs' `as unknown as` idiom) reaches the base64 one.
+      const readBase64 = readFileSync as unknown as (path: string, encoding: 'base64') => string;
+      const portrait = 'data:image/png;base64,' +
+        readBase64(`${process.cwd()}/test/fixtures/hero/portrait-64x96.png`, 'base64');
+      // A REAL 64x96 file (2:3) — the browser decodes its intrinsic ratio;
+      // a landscape twin of the same fixture family (3:2) is the control.
+      const landscape = 'data:image/png;base64,' +
+        readBase64(`${process.cwd()}/test/fixtures/hero/landscape-96x64.png`, 'base64');
+
+      guidanceGateway.set(
+        'portrait-hero',
+        guidancePost({
+          slug: 'portrait-hero',
+          heroImageUrl: portrait,
+          heroImageAlt: 'A tower in snow',
+        }),
+      );
+      const { element } = await open('/blog/portrait-hero');
+
+      const img = element.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img?.getAttribute('src')).toBe(portrait);
+      // The natural-size contract (pinned in hero-geometry.spec.ts): the
+      // file's OWN ratio decides the box — no width/height attributes and
+      // no fixed box in the stylesheet, so a portrait (or a landscape) can
+      // never be squashed into a frame on this slot.
+      expect(img?.hasAttribute('width')).toBe(false);
+      expect(img?.hasAttribute('height')).toBe(false);
+
+      // The landscape twin takes the SAME declared treatment (the
+      // asymmetry guard: portrait and landscape are rendered by one
+      // rule, not two).
+      guidanceGateway.set(
+        'landscape-hero',
+        guidancePost({
+          slug: 'landscape-hero',
+          heroImageUrl: landscape,
+          heroImageAlt: 'A row of shelters',
+        }),
+      );
+      const { element: el2 } = await open('/blog/landscape-hero');
+      const img2 = el2.querySelector<HTMLImageElement>('.guidance-detail__hero');
+      expect(img2?.getAttribute('src')).toBe(landscape);
+      expect(img2?.hasAttribute('width')).toBe(false);
+      expect(img2?.hasAttribute('height')).toBe(false);
     });
 
     it('renders NO image element (and no empty frame) when the post has no hero', async () => {

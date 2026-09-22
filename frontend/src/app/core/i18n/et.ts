@@ -28,14 +28,14 @@ export const ET: Messages = {
   //  väärtustele, kui muudatust rea pole).
   'a11y.popup.title': 'Kättesaadavus',
   'a11y.popup.body':
-    'Vali, kuidas OpenShelter sulle näeb välja. Valik kehtib kohe ja salvestatakse sellesse seadmesse.',
+    'Vali, kuidas OpenShelter sulle näeb välja. Sinu valik kohaldatakse kohe.',
   'a11y.option.default': 'Vaikimisi',
   'a11y.option.default.desc': 'Tavaline heleda välimus.',
   'a11y.option.highContrast': 'Kõrge kontrast',
-  'a11y.option.highContrast.desc': 'Tume taust ja hele, selge kiri.',
+  'a11y.option.highContrast.desc': 'Tume taust ja heledad tähed.',
   'a11y.option.blackYellow': 'Must-kollane',
   'a11y.option.blackYellow.desc':
-    'Kollane kiri mustal taustal — madalale nägemisvõimele ja otsepäikesevalgusele.',
+    'Kollane tekst musta taustal.',
   'a11y.popup.footer':
     'Valik salvestatakse ainult sellesse seadmesse — seda ei jagata kellegi teisega.',
   'a11y.popup.close': 'Sulge',
@@ -74,7 +74,7 @@ export const ET: Messages = {
   // acknowledgment, not an accept/reject choice.
   'consent.title': 'Küpsistest ja brauseri salvestusruumist',
   'consent.body':
-    'OpenShelter salvestab ainult seda, mida ta toimimiseks vajab: sisselogimistunnus ning sinu keele- ja kuvamiseelistused. Me ei kasuta reklaami, analüütikat ega saitidevahelist jälgimist ega müü sinu andmeid. Need salvestatakse sinu brauseri kohalikku salvestusruumi, mitte reklaamiküpsistesse, ja on vajalikud selleks, et rakendus töötaks.',
+    'OpenShelter salvestab ainult selle, mida ta töötamiseks vajab: sisselogimistunnuse, mis hoiab sind sisse logitud, ja sinu keele- ja kuvamiseelistused. Need on salvestatud sinu brauseri lokaalses salvestusruumis ja on vajalikud, et rakendus toimiks. Reklaami, analüütikat ega saitidevahelist jälgimist ei kasutata ja sinu andmeid kunagi ei müüda.',
   'consent.acknowledge': 'Sain aru',
   'consent.privacyLink': 'Loe privaatsuspoliitikat',
 
@@ -346,7 +346,7 @@ export const ET: Messages = {
     'Sinu asukoht on nüüd loetletud ja märgitud uue lisandina. Kogukonna teated kinnitavad seda.',
   'submit.success.viewLocation': 'Vaata oma asukohta',
   'submit.success.viewContributions': 'Vaata oma esitusi',
-  'submit.verifyHint': 'Sellel kontol pole enam kinnitatud omanikku.',
+  'submit.verifyHint': 'See konto ei saa enam esitada, sest selle kinnitus ei kehti enam.',
   'submit.verifyHint.link': 'Mine kinnitusele',
   'submit.nameLabel': 'Nimi *',
   'submit.namePlaceholder': 'nt Kalamaja kogukonna varjupaik',
@@ -442,15 +442,13 @@ export const ET: Messages = {
   // --- konto leht (/account). Brand name ja ametlikud asutused jäävad
   // niisama nagu kogu sõnastikus.
   'account.subtitle':
-    'Sinu profiil ja kinnitused. Nime parandamine kinnitatakse praeguse parooliga; e-posti ja telefoni muutmine kinnitatakse teise kanali kaudu.',
+    'Sinu profiil ja kinnitused. Nime saad parandada oma praeguse parooliga; e-posti ja telefoni muutused kinnitatakse koodiga, mis saadetakse sinu teisele kontaktile.',
   'account.profileLoadError': 'Sinu profiili ei õnnestunud laadida. Seanss on endiselt aktiivne.',
   'account.retrying': 'Proovime uuesti…',
   'account.retry': 'Proovi uuesti',
   'account.identity': 'Identiteet',
   'account.name': 'Nimi',
   'account.adminBadge': 'Haldaja',
-  'account.identityCopy':
-    'Trükiviga registreerumisel ei sunni kunagi uut kontot looma — paranduse kinnitab sinu praegune parool.',
   'account.edit': 'Muuda',
   'account.currentPassword': 'Praegune parool',
   'account.nameRequired': 'Nimi on kohustuslik.',
@@ -472,7 +470,7 @@ export const ET: Messages = {
   'account.emailTooLong': 'E-posti aadress võib olla maksimaalselt 255 tähemärki.',
   'account.emailRequired': 'Kehtiv e-posti aadress on kohustuslik.',
   'account.emailProof':
-    'Turbe tõttu e-posti muutmine kinnitatakse SMS-koodiga, mis saadetakse sinu kontol olevale telefoninumbrule — mitte kunagi uuele aadressile.',
+    'Muudus kinnitatakse 6-kohalise SMS-koodiga, mis saadetakse sinu kontol olevale telefoninumberile. Uuele e-posti aadressile koodi ei saadeta.',
   'account.smsCode': 'SMS-kood',
   'account.codePlaceholder': '6-kohaline kood',
   'account.smsCodeRequired': 'Sisesta SMSis olev 6-kohaline kood.',
@@ -492,7 +490,7 @@ export const ET: Messages = {
   'account.phoneTooLong': 'Telefoninumber võib olla maksimaalselt 64 tähemärki.',
   'account.phoneRequired': 'Telefoninumber on kohustuslik.',
   'account.phoneProof':
-    'Turbe tõttu telefoni muutmine kinnitatakse e-posti koodiga, mis saadetakse sinu kontol olevale e-posti aadressile — ainult SIM-kaardi kaotamine ei suuda kinnitust ümber suunata.',
+    'Muudus kinnitatakse 6-kohalise e-posti koodiga, mis saadetakse sinu kontol olevale e-posti aadressile. Uuele telefoninumberile koodi ei saadeta.',
   'account.emailCode': 'E-posti kood',
   'account.emailCodeRequired': 'Sisesta e-kirjas olev 6-kohaline kood.',
   'account.emailCodeSentHint': 'Saatsime e-posti koodi sinu kontol olevale e-posti aadressile.',
@@ -512,7 +510,7 @@ export const ET: Messages = {
   'account.delete.copy':
     'Kustutab sinu konto ja kogu sellega seotud. Varjupaikad, mille sa deklareerisid privaatseks koduks, eemaldatakse; sinu esitatud avalikud varjupaikad jäävad kaardile ilma esitajata. Seda ei ole võimalik tagasi pöörata.',
   'account.delete.typeHint': 'Kinnitamiseks kirjuta DELETE',
-  'account.delete.armed': 'Kustutamine on valmis — kinnitamiseks vali „Kustuta minu konto".',
+  'account.delete.armed': 'Nupp „Kustuta minu konto“ on nüüd aktiivne. Selle valimine kustutab sinu konto jäädavalt.',
   'account.delete.button': 'Kustuta minu konto',
   'account.legal': 'Juriidiline',
   'account.legal.lead': 'Loe',
@@ -554,7 +552,7 @@ export const ET: Messages = {
   // --- kinnitus leht (/verify): kanalipõhised tõestusvoogud.
   'verify.title': 'Kinnita oma konto',
   'verify.subtitle':
-    'Kinnitatud konto saab esitada varjupaiku ja teatada loetletud asukohtade kohta. Tõesta, et e-post ja telefon on sinu omad — koodid saadetakse väljaspool rakendust, üks iga kanali kohta.',
+    'Kinnitatud konto saab esitada varjupaiku ja teatada loetletud asukohtade kohta. Iga kanali kohta saadetakse üks kood — üks sinu e-posti aadressile ja üks sinu telefoninumberile.',
   'verify.aria': 'Kinnituse olek',
   'verify.verified': 'Kinnitatud',
   'verify.notVerified': 'Kinnitamata',
@@ -906,10 +904,13 @@ export const ET: Messages = {
     'Pilt imporditakse salvestamisel. Kui allalaadimine ebaõnnestub, salvestatakse post siiski ja ebaõnnestumine näidatakse allpool — post hoiab eelmist pilti (või ei midagi) ja URL jääb uuesti proovimiseks.',
   /** Salvestusaja import ebaõnnestus salvestuses, mis posti salvestas
    *  (kirjutusvastuse heroImportError): serveri sõnumi (mis näidatakse
-   *  otse allpool) sissejuhatav rida — post SAlVESTATI, pilt ei
-   *  õnnestunud. */
+   *  otse allpool) sissejuhatav rida — see ei tohi paista kui salvestuse
+   *  ebaõnnestumine: post SAlVESTATI, see öeldakse esimesena, siis
+   *  võimalikud toimingud (kontrolli URL-i ja salvesta uuesti, või
+   *  tühjenda väli, et jätkata ilma pildita) ja kakas viitab serveri
+   *  põhjusele. */
   'admin.guidance.editor.hero.importFailed':
-    'Post salvestati, kuid pilti ei õnnestunud impordida:',
+    'Post salvestati, kuid pilti ei õnnestunud sellest URL-ist alla laadida. Kontrolli URL-i ja salvesta uuesti, et proovida veel kord, või tühjenda väli, et jätkata ilma pildita:',
   'admin.guidance.editor.altLabel': 'Pealtpildi alt-tekst (valikuga)',
   'admin.guidance.editor.altRequired': 'Kui pealtpilt on valitud, on alt-tekst kohustuslik.',
   'admin.guidance.editor.altForbidden': 'Eemalda alt-tekst või vali pealtpilt.',
@@ -1009,7 +1010,7 @@ export const ET: Messages = {
   'legal.privacy.who.p2.after':
     ' ega hädaabiteenus. Rakenduses kuvatud ametlikud varjupaikade andmed on importitud Eesti Päästeameti avandmetest, kuid rakendust ise käitatakse sõltumatult.',
   'legal.privacy.scope.p1':
-    'See poliitika kirjeldab, kuidas OpenShelter kogub, kasutab, salvestab ja kustutab sinu isikuandmeid, kui kasutad veebirakendust. Selle eesmärk on kirjeldada rakenduse tegelikku käitumist. See ei kehti väliste veebilehtede kohta, millele me viitame (Eesti Päästeamet, Maa-amet ja OpenStreetMap).',
+    'See poliitika kirjeldab, kuidas OpenShelter kogub, kasutab, salvestab ja kustutab sinu isikuandmeid, kui kasutad veebirakendust. See ei kehti väliste veebilehtede kohta, millele me viitame (Eesti Päästeamet, Maa-amet ja OpenStreetMap).',
 
   'legal.privacy.collect.p1':
     'Me kogume ainult seda, mida rakendus toimimiseks vajab. Kui lood kontu, salvestame:',
@@ -1049,7 +1050,7 @@ export const ET: Messages = {
   'legal.privacy.why.li5.after':
     ' - kuvatakse avalikul kaardil ja kasutatakse haldurite poolt modereerimiseks ja kuritarvituste ennetamiseks.',
   'legal.privacy.why.p2':
-    'Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED]. See dokument on mõeldud töötlemise kirjeldamiseks; see ei ole õigusarvamus.',
+    'Iga eesmärgi õiguslik alus on [LEGAL BASIS TO BE CONFIRMED].',
   'legal.privacy.verification.p1':
     'Kaarti saab vaadata ilma kontota. Varjupaiku või teateid esitamiseks pead looma konto ja kinnitama nii oma e-posti aadressi kui ka telefoninumbri. Kinnitamine toimib nii, et igale kontaktile saadetakse ühekordne kood; seni, kuni mõlemad on kinnitatud, saad sisse logida, kuid ei saa sisu esitada.',
   'legal.privacy.verification.p2':
@@ -1086,7 +1087,7 @@ export const ET: Messages = {
   'legal.privacy.cookies.li3.strong': 'kuvamiseelistused',
   'legal.privacy.cookies.li3.after': ' (kõrge kontrasti režiim).',
   'legal.privacy.cookies.p2':
-    'Sinu juurdepääsutunnus hoitakse ainult mälus ja visatakse ära, kui suled vahekaardi. Kolmas isik neid üksusi ei saa, ja valikulisi analüütika- või jälgimistehnoloogiaid, mida aktsepteerida või tagasi lükata, ei ole.',
+    'Sinu juurdepääsutunnus hoitakse ainult mälus ja visatakse ära, kui suled vahekaardi. Kolmas isik neid üksusi ei saa.',
 
   'legal.privacy.thirdParties.p1':
     'Me kasutame vähest kolmandate isikute teenuseid, igaüks neist ainult ühe kindla funktsiooni osutamiseks:',
@@ -1115,10 +1116,10 @@ export const ET: Messages = {
   'legal.privacy.retention.p2.strong2': '24 kuud',
   'legal.privacy.retention.p2.after': 'eemaldatakse.',
   'legal.privacy.retention.p3.before':
-    'Need perioodid on rakenduse säilitamisreegel. Plaaneeritud ülesanne, mis neid rakendab, on deploy-tasemel lüliti (',
+    'Nende perioodide täitmist juhib deploy-tasemel lüliti (',
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
   'legal.privacy.retention.p3.after':
-    '): selles repoo arenduskeskkonnas on see väljas ja sisselülitab selle see, kes käitab deployt. Deployis, kus ülesanne on väljas, jäävad mitteaktiivsed kontod ja vanad auditeerimise kirjed lihtsalt alles.',
+    '): kui lüliti on väljas, jäävad mitteaktiivsed kontod ja vanad auditeerimise kirjed alles.',
   'legal.privacy.retention.p4':
     'Avalikud kogukonna esitused ei eemaldata kunagi automaatselt: need jäävad kaardile ilma autorimärgistuseta, seni kuni moderaator neid eemaldab.',
 
@@ -1147,7 +1148,7 @@ export const ET: Messages = {
   'legal.privacy.security.p1.after':
     ' (AES-256-GCM). Otsingud, nagu sisse logimine ja dubleerumise kontroll, toimuvad eraldi ühesuunalisel indeksil, mida ei saa tagasi muuta sinu kontaktiks. Sinu parool on salvestatud ühesuunalise Argon2 rätina. Šifrivõtmeid hoitakse andmebaasist väljas, ja neid kunagi ei kirjutata koodi ega logidesse.',
   'legal.privacy.security.p2':
-    'Rakendus rakendab piiranguid kinnituskoodidele, parooli lähtestamisele ja esitustele, saadab turvepäised iga vastusega ja nõuab asukohale ligipääsuks HTTPS-i. Ükski turvameetme ei suuda garanteerida absoluutset turvalisust, kuid need meetmed vähendavad tavalisi riske.',
+    'Rakendus rakendab piiranguid kinnituskoodidele, parooli lähtestamisele ja esitustele, saadab turvepäised iga vastusega ja nõuab asukohale ligipääsuks HTTPS-i.',
 
   'legal.privacy.children.p1':
     'OpenShelter ei ole suunatud lastele ega kogu teadlikult laste isikuandmeid. Rakendus praegu ei kontrolli kasutaja vanust.',
@@ -1199,7 +1200,7 @@ export const ET: Messages = {
   'legal.terms.rules.li3':
     'Ära esita erakodu avaliku varjupaigana. Kui sa esitad asukoha, mis on erakodu, märki seda.',
   'legal.terms.rules.li4':
-    'Rakendus rakendab piiranguid, et nimekiri jääks kasutatavaks: päevane piirang esitustele, piirang sellele, kui sageli ühekordseid koodid on võimalik taotleda, ja sarnaste dubleerivate esituste tuvastamine. Piirangu ületamine annab vea ja soovituse, kui kaua oodata; see ei ole keel.',
+    'Rakendus rakendab piiranguid: päevane piirang esitustele, piirang sellele, kui sageli ühekordseid koodid on võimalik taotleda, ja sarnaste dubleerivate esituste tuvastamine. Piirangu ületamine annab vea ja soovituse, kui kaua oodata; see ei ole keel.',
 
   'legal.terms.prohibited.p1': 'Sul ei tohi:',
   'legal.terms.prohibited.li1':
@@ -1235,7 +1236,7 @@ export const ET: Messages = {
   'legal.terms.warranty.p1':
     'Nimekiri esitatakse sellisena, nagu see on, kogukonna heaks, ilma igasuguse garantiita. Me ei garanteeri, et ükski asukoht on avatud, turvaline, ligipääsetav, olemas, sobiv või endiselt töös.',
   'legal.terms.liability.p1':
-    'Selles ulatuses, mida õigus lubab, ei võta OpenShelter vastutust otsuste eest, mille tehakse nimekirjale tuginedes. See lõik on mõeldud olema mõistlik ja on õigusliku läbivaatamise all; see ei püüa välistada vastutust, mida õigus ei lase välistada.',
+    'Selles ulatuses, mida õigus lubab, ei võta OpenShelter vastutust otsuste eest, mille tehakse nimekirjale tuginedes, ja see ei välista vastutust, mida õigus ei lase välistada.',
   'legal.terms.thirdParty.p1.before':
     'Rakendus viitab välistele teenustele, sealhulgas Eesti Päästeamet, Maa-amet ja OpenStreetMap. Me ei vastuta nende teenuste sisu ega kättesaadavuse eest. Kuidas isikuandmeid teenusepakkujatega jagatakse, on kirjeldatud ',
   'legal.terms.thirdParty.p1.link': 'privaatsuspoliitikas',

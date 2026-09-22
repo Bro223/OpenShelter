@@ -35,6 +35,97 @@ class MediaImageInspectorTest {
         assertThat(info.height()).isEqualTo(480);
     }
 
+    // ---- EXIF orientation (Wave 13: the portrait-upload distortion) --------
+    //
+    // A phone portrait photo stores LANDSCAPE sensor pixels plus an EXIF
+    // Orientation tag; the browser rotates it at render time. The stored
+    // dimensions must be the VISUAL ones (what the reader sees), otherwise
+    // the derivative width set and the library's W x H column disagree with
+    // what every browser shows for the same file.
+
+    @Test
+    void jpegWithExifOrientation6ReportsVisualDimensions() {
+        // Raw 640x480 sensor pixels + orientation 6 (rotate 90 CW):
+        // the visual photo is 480 wide x 640 tall.
+        ImageInfo info = inspect(jpegExif(640, 480, 6)).orElseThrow();
+        assertThat(info.width()).isEqualTo(480);
+        assertThat(info.height()).isEqualTo(640);
+        assertThat(info.orientation()).isEqualTo(6);
+    }
+
+    @Test
+    void exifOrientations5To8SwapWidthAndHeight() {
+        for (int orientation : new int[]{5, 6, 7, 8}) {
+            ImageInfo info = inspect(jpegExif(640, 480, orientation)).orElseThrow();
+            assertThat(info).as("orientation %d", orientation).isNotNull();
+            assertThat(info.width()).as("orientation %d", orientation).isEqualTo(480);
+            assertThat(info.height()).as("orientation %d", orientation).isEqualTo(640);
+            assertThat(info.orientation()).isEqualTo(orientation);
+        }
+    }
+
+    @Test
+    void exifOrientations2To4KeepTheRawDimensions() {
+        // Mirrors / 180 do not change which side is the width.
+        for (int orientation : new int[]{2, 3, 4}) {
+            ImageInfo info = inspect(jpegExif(640, 480, orientation)).orElseThrow();
+            assertThat(info).as("orientation %d", orientation).isNotNull();
+            assertThat(info.width()).as("orientation %d", orientation).isEqualTo(640);
+            assertThat(info.height()).as("orientation %d", orientation).isEqualTo(480);
+            assertThat(info.orientation()).isEqualTo(orientation);
+        }
+    }
+
+    @Test
+    void aJpegWithoutExifReportsOrientationOne() {
+        ImageInfo info = inspect(jpeg(640, 480)).orElseThrow();
+        assertThat(info.orientation()).isEqualTo(1);
+        assertThat(info.width()).isEqualTo(640);
+        assertThat(info.height()).isEqualTo(480);
+    }
+
+    @Test
+    void pngAndWebPFixturesCarryOrientationOne() {
+        assertThat(inspect(png(1024, 768)).orElseThrow().orientation()).isEqualTo(1);
+        assertThat(inspect(webpVp8(320, 240)).orElseThrow().orientation()).isEqualTo(1);
+    }
+
+    @Test
+    void anApp1ThatIsNotExifIsIgnored() {
+        // An APP1 segment whose payload does not start with "Exif\\0\\0"
+        // (e.g. XMP) must not be mistaken for an orientation source.
+        ImageInfo info = inspect(jpegApp1(640, 480, "XMPPackedData")).orElseThrow();
+        assertThat(info.orientation()).isEqualTo(1);
+        assertThat(info.width()).isEqualTo(640);
+        assertThat(info.height()).isEqualTo(480);
+    }
+
+    @Test
+    void aTruncatedExifHeaderFallsBackToOrientationOne() {
+        // The SOF is reachable only past a truncated APP1: the scanner must
+        // jump by the segment length (not crash) and the orientation stays
+        // the normal default.
+        byte[] truncated = head(jpegExif(640, 480, 6), 24); // mid-APP1
+        assertThat(inspect(truncated)).isEmpty(); // no SOF in the truncation
+        // ...and the SAME APP1 cut AFTER the SOF is present: orientation
+        // unreadable, dimensions from the SOF.
+        ImageInfo info = inspect(jpegExifWithTrailingApp1(640, 480, 6)).orElseThrow();
+        assertThat(info.orientation()).isEqualTo(1);
+        assertThat(info.width()).isEqualTo(640);
+        assertThat(info.height()).isEqualTo(480);
+    }
+
+    @Test
+    void anExifOrientationOutside1To8IsIgnored() {
+        for (int value : new int[]{0, 9, 100, 255}) {
+            ImageInfo info = inspect(jpegExif(640, 480, value)).orElseThrow();
+            assertThat(info).as("value %d", value).isNotNull();
+            assertThat(info.orientation()).as("value %d", value).isEqualTo(1);
+            assertThat(info.width()).as("value %d", value).isEqualTo(640);
+            assertThat(info.height()).as("value %d", value).isEqualTo(480);
+        }
+    }
+
     @Test
     void webpLossyDimensionsFromVp8() {
         ImageInfo info = inspect(webpVp8(320, 240)).orElseThrow();
@@ -127,6 +218,87 @@ class MediaImageInspectorTest {
         b[25] = (byte) (height >> 8); b[26] = (byte) height;
         b[27] = (byte) (width >> 8); b[28] = (byte) width;
         b[29] = 3;                                       // component count
+        return b;
+    }
+
+    /**
+     * JPEG: SOI + an APP1 EXIF segment carrying the Orientation tag + SOF0.
+     * The TIFF header is little-endian ("II") — the form phone cameras
+     * emit; the layout mirrors the real APP1 the probes measured on disk.
+     */
+    private static byte[] jpegExif(int width, int height, int orientation) {
+        byte[] exif = exifPayload(orientation);
+        int app1Len = exif.length + 2; // the length field counts itself
+        byte[] b = new byte[4 + app1Len + 10];
+        b[0] = (byte) 0xFF; b[1] = (byte) 0xD8;          // SOI
+        b[2] = (byte) 0xFF; b[3] = (byte) 0xE1;          // APP1
+        b[4] = (byte) (app1Len >> 8); b[5] = (byte) app1Len;
+        System.arraycopy(exif, 0, b, 6, exif.length);
+        int sofi = 4 + app1Len;
+        b[sofi] = (byte) 0xFF; b[sofi + 1] = (byte) 0xC0; // SOF0
+        b[sofi + 2] = 0x00; b[sofi + 3] = 0x11;
+        b[sofi + 4] = 8;
+        b[sofi + 5] = (byte) (height >> 8); b[sofi + 6] = (byte) height;
+        b[sofi + 7] = (byte) (width >> 8); b[sofi + 8] = (byte) width;
+        b[sofi + 9] = 3;
+        return b;
+    }
+
+    /** The EXIF payload: "Exif\\0\\0" + a one-entry little-endian IFD0. */
+    private static byte[] exifPayload(int orientation) {
+        byte[] b = new byte[32];
+        b[0] = 'E'; b[1] = 'x'; b[2] = 'i'; b[3] = 'f'; b[4] = 0; b[5] = 0;
+        b[6] = 'I'; b[7] = 'I'; b[8] = 0x2A; b[9] = 0;   // TIFF little-endian
+        b[10] = 8; b[11] = 0; b[12] = 0; b[13] = 0;      // IFD0 at offset 8
+        b[14] = 1; b[15] = 0;                            // one entry
+        b[16] = 0x12; b[17] = 0x01;                      // tag 0x0112 (Orientation)
+        b[18] = 3; b[19] = 0;                            // type SHORT
+        b[20] = 1; b[21] = 0; b[22] = 0; b[23] = 0;      // count 1
+        b[24] = (byte) orientation; b[25] = 0;           // value (LEFT-justified
+        // in the 4-byte field — little-endian short)
+        // next-IFD offset 0 — the default zero fill
+        return b;
+    }
+
+    /** JPEG with an APP1 whose payload is NOT an EXIF header. */
+    private static byte[] jpegApp1(int width, int height, String payloadStart) {
+        byte[] b = new byte[4 + 2 + payloadStart.length() + 10];
+        b[0] = (byte) 0xFF; b[1] = (byte) 0xD8;
+        b[2] = (byte) 0xFF; b[3] = (byte) 0xE1;
+        int app1Len = 2 + payloadStart.length();
+        b[4] = (byte) (app1Len >> 8); b[5] = (byte) app1Len;
+        for (int i = 0; i < payloadStart.length(); i++) {
+            b[6 + i] = (byte) payloadStart.charAt(i);
+        }
+        int sofi = 4 + app1Len;
+        b[sofi] = (byte) 0xFF; b[sofi + 1] = (byte) 0xC0;
+        b[sofi + 2] = 0x00; b[sofi + 3] = 0x11;
+        b[sofi + 4] = 8;
+        b[sofi + 5] = (byte) (height >> 8); b[sofi + 6] = (byte) height;
+        b[sofi + 7] = (byte) (width >> 8); b[sofi + 8] = (byte) width;
+        b[sofi + 9] = 3;
+        return b;
+    }
+
+    /** SOF0 first, then a truncated APP1 (the scanner reads the SOF before it). */
+    private static byte[] jpegExifWithTrailingApp1(int width, int height, int orientation) {
+        byte[] sofi = new byte[10];
+        sofi[0] = (byte) 0xFF; sofi[1] = (byte) 0xC0;
+        sofi[2] = 0x00; sofi[3] = 0x11;
+        sofi[4] = 8;
+        sofi[5] = (byte) (height >> 8); sofi[6] = (byte) height;
+        sofi[7] = (byte) (width >> 8); sofi[8] = (byte) width;
+        sofi[9] = 3;
+        byte[] exif = exifPayload(orientation);
+        // SOI + SOF + an APP1 whose length field claims more than is present:
+        // the scanner must not read past the end while looking for the SOF.
+        byte[] b = new byte[2 + sofi.length + 6];
+        b[0] = (byte) 0xFF; b[1] = (byte) 0xD8;
+        System.arraycopy(sofi, 0, b, 2, sofi.length);
+        int a = 2 + sofi.length;
+        b[a] = (byte) 0xFF; b[a + 1] = (byte) 0xE1;
+        b[a + 2] = 0x00; b[a + 3] = 0x24; // claims 36 bytes, 2 bytes follow
+        System.arraycopy(exif, 0, b, a + 4, 2);
         return b;
     }
 

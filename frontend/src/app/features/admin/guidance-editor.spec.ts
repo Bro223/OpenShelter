@@ -668,7 +668,7 @@ describe('GuidanceEditor', () => {
     const errors = Array.from(block.querySelectorAll('.field-error')).map((el) =>
       el.textContent?.trim(),
     );
-    expect(errors).toContain('The post was saved, but the image could not be imported:');
+    expect(errors).toContain('The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:');
     expect(errors).toContain(
       'The hero image URL answered HTTP 404 (the URL is broken — no retry will fix it)',
     );
@@ -680,7 +680,7 @@ describe('GuidanceEditor', () => {
       heroImportError: 'The host serving the hero image answered HTTP 500 (a retry may succeed)',
     });
     expect(h.element.textContent).toContain(
-      'The post was saved, but the image could not be imported:',
+      'The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:',
     );
     typeValue(
       inputById(h.element, 'ge-hero-import-url')!,
@@ -689,14 +689,14 @@ describe('GuidanceEditor', () => {
     );
     h.fixture.detectChanges();
     expect(h.element.textContent).not.toContain(
-      'The post was saved, but the image could not be imported:',
+      'The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:',
     );
   });
 
   it('a plain read (no heroImportError) shows no import-failure line', () => {
     const h = createHost(PENDING_IMPORT_DRAFT);
     expect(h.element.textContent).not.toContain(
-      'The post was saved, but the image could not be imported:',
+      'The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:',
     );
   });
 

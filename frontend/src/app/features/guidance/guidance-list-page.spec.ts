@@ -1,6 +1,7 @@
 import { Component, type DebugElement, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { readFileSync } from 'node:fs';
 import { provideRouter, Router } from '@angular/router';
 import { ApiError } from '../../core/api-error';
 import { I18nService } from '../../core/i18n/i18n.service';
@@ -372,6 +373,45 @@ describe('GuidanceListPage (/blog)', () => {
     expect(img?.getAttribute('src')).toBe(mediaUrl);
     // No srcset attribute — the original renders via plain src.
     expect(img?.hasAttribute('srcset')).toBe(false);
+  });
+
+  // ---- Wave 13: real non-square files (the stretch cannot come back) -------
+  //
+  // The declared geometry of every slot is pinned in app/hero-geometry
+  // .spec.ts (natural size / fixed box + cover, per slot). This case
+  // drives REAL image files — genuine intrinsic dimensions, not mocked
+  // numbers — through the card slot and pins the asymmetry guard the
+  // owner's report asked for: a PORTRAIT upload gets the same declared
+  // treatment as a landscape one, and the declared box is a cover crop,
+  // never a squash.
+
+  it('a real non-square hero — landscape AND portrait alike — renders through the declared 4/3 cover box', async () => {
+    // The project's ambient node:fs types only cover the utf8 overload —
+    // the cast (the specs' `as unknown as` idiom) reaches the base64 one.
+    const readBase64 = readFileSync as unknown as (path: string, encoding: 'base64') => string;
+    const dataUrl = (name: string): string =>
+      'data:image/png;base64,' + readBase64(`${process.cwd()}/test/fixtures/hero/${name}`, 'base64');
+    const landscape = dataUrl('landscape-96x64.png'); // a real 96x64 file (3:2)
+    const portrait = dataUrl('portrait-64x96.png'); // a real 64x96 file (2:3)
+    guidanceGateway.rows = [
+      guidancePost({ slug: 'landscape', title: 'Landscape hero', heroImageUrl: landscape }),
+      guidancePost({ slug: 'portrait', title: 'Portrait hero', heroImageUrl: portrait }),
+    ];
+    const { element } = await open('/blog');
+
+    const imgs = [...element.querySelectorAll<HTMLImageElement>('.guidance-post__hero')];
+    expect(imgs).toHaveLength(2);
+    for (const img of imgs) {
+      // The real file's bytes are served verbatim — the browser decodes
+      // the file's OWN ratio (3:2 / 2:3) and the slot must not fight it:
+      // the declared box (4/3 + object-fit: cover, hero-geometry.spec.ts)
+      // crops the file, and the same declaration applies to the portrait
+      // as to the landscape (no different code path, no different shape).
+      expect(img.getAttribute('src')).toMatch(/^data:image\/png;base64,/);
+      expect(img.getAttribute('width')).toBe('400');
+      expect(img.getAttribute('height')).toBe('300');
+      expect(Number(img.getAttribute('width')!) / Number(img.getAttribute('height')!)).toBeCloseTo(4 / 3, 6);
+    }
   });
 
   it('renders a stored /api/media URL verbatim — no query string or cache-buster', async () => {

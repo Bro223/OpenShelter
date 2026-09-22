@@ -27,14 +27,14 @@ export const EN: Messages = {
   // I18nService falls back to these values when no override row exists).
   'a11y.popup.title': 'Accessibility',
   'a11y.popup.body':
-    'Choose how OpenShelter looks to you. Your choice applies immediately and is saved on this device.',
+    'Choose how OpenShelter looks to you. Your choice applies immediately.',
   'a11y.option.default': 'Default',
   'a11y.option.default.desc': 'The standard light appearance.',
   'a11y.option.highContrast': 'High contrast',
-  'a11y.option.highContrast.desc': 'A dark background with bright, highly readable text.',
+  'a11y.option.highContrast.desc': 'A dark background with bright text.',
   'a11y.option.blackYellow': 'Black and yellow',
   'a11y.option.blackYellow.desc':
-    'Yellow text on a black background, for low vision and direct sunlight.',
+    'Yellow text on a black background.',
   'a11y.popup.footer': 'Your choice is stored on this device only — it is not shared with anyone.',
   'a11y.popup.close': 'Close',
 
@@ -72,7 +72,7 @@ export const EN: Messages = {
   // acknowledgment, not an accept/reject choice.
   'consent.title': 'About cookies and browser storage',
   'consent.body':
-    "OpenShelter stores only what it needs to work: a sign-in token that keeps you logged in, and your language and display preferences. It does not use advertising, analytics, or cross-site tracking, and it never sells your data. These are stored in your browser's local storage, not in advertising cookies, and are required for the application to function.",
+    "OpenShelter stores only what it needs to work: a sign-in token that keeps you logged in, and your language and display preferences. They are stored in your browser's local storage and are required for the application to function. It does not use advertising, analytics, or cross-site tracking, and it never sells your data.",
   'consent.acknowledge': 'Got it',
   'consent.privacyLink': 'Read the Privacy Policy',
 
@@ -344,7 +344,7 @@ export const EN: Messages = {
     'Your location is now listed and marked as newly added. Community reports confirm it.',
   'submit.success.viewLocation': 'View your location',
   'submit.success.viewContributions': 'View your contributions',
-  'submit.verifyHint': 'This account no longer has a verified claim.',
+  'submit.verifyHint': 'This account can no longer submit because its verification is no longer valid.',
   'submit.verifyHint.link': 'Go to verification',
   'submit.nameLabel': 'Name *',
   'submit.namePlaceholder': 'e.g. Kalamaja community shelter',
@@ -440,15 +440,13 @@ export const EN: Messages = {
   // --- account page (/account). Same verbatim rule: the EN strings ARE the
   // current committed account-surface template copy.
   'account.subtitle':
-    'Your profile and verification. The name can be corrected with a password confirmation; email and phone changes are proven cross-channel.',
+    'Your profile and verification. You can correct your name with your current password; email and phone changes are confirmed with a code sent to your other contact.',
   'account.profileLoadError': 'We could not load your profile. The session is still active.',
   'account.retrying': 'Retrying…',
   'account.retry': 'Retry',
   'account.identity': 'Identity',
   'account.name': 'Name',
   'account.adminBadge': 'Admin',
-  'account.identityCopy':
-    'A typo at registration never forces a new account — the edit is confirmed with your current password.',
   'account.edit': 'Edit',
   'account.currentPassword': 'Current password',
   'account.nameRequired': 'A name is required.',
@@ -470,7 +468,7 @@ export const EN: Messages = {
   'account.emailTooLong': 'Email must be 255 characters or fewer.',
   'account.emailRequired': 'A valid email is required.',
   'account.emailProof':
-    'For security, changing the email is confirmed by an SMS code sent to the phone number on your account — never to the new address.',
+    'The change is confirmed with a 6-digit SMS code sent to the phone number on your account. No code is sent to the new address.',
   'account.smsCode': 'SMS code',
   'account.codePlaceholder': '6-digit code',
   'account.smsCodeRequired': 'Enter the 6-digit code from the SMS.',
@@ -490,7 +488,7 @@ export const EN: Messages = {
   'account.phoneTooLong': 'Phone must be 64 characters or fewer.',
   'account.phoneRequired': 'A phone number is required.',
   'account.phoneProof':
-    'For security, changing the phone is confirmed by an email code sent to the email address on your account — losing your SIM alone cannot re-route verification.',
+    'The change is confirmed with a 6-digit email code sent to the email address on your account. No code is sent to the new number.',
   'account.emailCode': 'Email code',
   'account.emailCodeRequired': 'Enter the 6-digit code from the email.',
   'account.emailCodeSentHint': 'We sent an email code to the email address on your account.',
@@ -510,7 +508,7 @@ export const EN: Messages = {
   'account.delete.copy':
     'Erases your account and everything tied to it. Shelters you declared as a private home are removed; public shelters you submitted stay on the map without a submitter. This cannot be undone.',
   'account.delete.typeHint': 'Type DELETE to confirm',
-  'account.delete.armed': 'Erasure armed — select “Delete my account” to confirm.',
+  'account.delete.armed': 'The “Delete my account” button is now enabled. Selecting it erases your account permanently.',
   'account.delete.button': 'Delete my account',
   'account.legal': 'Legal',
   'account.legal.lead': 'Read the',
@@ -553,7 +551,7 @@ export const EN: Messages = {
   // --- verify page (/verify).
   'verify.title': 'Verify your account',
   'verify.subtitle':
-    'Verified accounts can submit shelters and report listed locations. Prove you own your email and phone — the codes arrive out-of-band, one per channel.',
+    'Verified accounts can submit shelters and report listed locations. One code is sent per channel — one to your email address and one to your phone number.',
   'verify.aria': 'Verification status',
   'verify.verified': 'Verified',
   'verify.notVerified': 'Not verified',
@@ -898,9 +896,13 @@ export const EN: Messages = {
     'The image is imported when you save. If the download fails, the post is still saved and the failure is shown below — the post keeps its previous image (or none), and the URL stays for a retry.',
   /** The save-time import failed at the save that stored the post (the
    *  write response's heroImportError): the lead-in above the server's
-   *  message (which renders directly below it). */
+   *  message (which renders directly below it). It must never read like
+   *  a save failure: the post WAS saved — it says so first, names what
+   *  the admin can do (check the URL and save again to retry, or clear
+   *  the field to continue without a hero), and the colon introduces
+   *  the server's reason. */
   'admin.guidance.editor.hero.importFailed':
-    'The post was saved, but the image could not be imported:',
+    'The post was saved, but the hero image could not be fetched from this URL. Check the URL and save again to retry, or clear the field to continue without a hero:',
   'admin.guidance.editor.altLabel': 'Hero image alt text (optional)',
   'admin.guidance.editor.altRequired': 'Alt text is required when a hero image is chosen.',
   'admin.guidance.editor.altForbidden': 'Remove the alt text or choose a hero image.',
@@ -1007,7 +1009,7 @@ export const EN: Messages = {
   'legal.privacy.who.p2.after':
     ' and not an emergency service. Official shelter data shown in the application is imported from the Estonian Rescue Board (Päästeamet) open data, but the application itself is operated independently.',
   'legal.privacy.scope.p1':
-    "This policy describes how OpenShelter collects, uses, stores and deletes personal data when you use the web application. It is intended to describe the application's actual behaviour. It does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and OpenStreetMap).",
+    "This policy describes how OpenShelter collects, uses, stores and deletes personal data when you use the web application. It does not apply to the external websites we link to (the Estonian Rescue Board, Maa-amet and OpenStreetMap).",
 
   'legal.privacy.collect.p1':
     'We collect only what the application needs to work. When you create an account we store:',
@@ -1048,7 +1050,7 @@ export const EN: Messages = {
   'legal.privacy.why.li5.after':
     ' - shown on the public map and used by administrators for moderation and abuse prevention.',
   'legal.privacy.why.p2':
-    'The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED]. This document is intended to describe the processing; it is not a legal opinion.',
+    'The legal basis for each purpose is [LEGAL BASIS TO BE CONFIRMED].',
   'legal.privacy.verification.p1':
     'You may browse the map without an account. To submit shelters or reports you must create an account and verify both your e-mail address and your phone number. Verification works by sending a one-time code to each contact; until both are verified you can sign in but cannot contribute.',
   'legal.privacy.verification.p2':
@@ -1085,7 +1087,7 @@ export const EN: Messages = {
   'legal.privacy.cookies.li3.strong': 'display preference',
   'legal.privacy.cookies.li3.after': ' (high-contrast mode).',
   'legal.privacy.cookies.p2':
-    'Your access token is held in memory only and is discarded when you close the tab. No third party receives these items, and there are no optional analytics or tracking technologies to accept or reject.',
+    'Your access token is held in memory only and is discarded when you close the tab. No third party receives these items.',
 
   'legal.privacy.thirdParties.p1':
     'We use a small number of third-party services, each only to deliver a specific function:',
@@ -1114,10 +1116,10 @@ export const EN: Messages = {
   'legal.privacy.retention.p2.strong2': '24 months',
   'legal.privacy.retention.p2.after': ' are removed.',
   'legal.privacy.retention.p3.before':
-    "Those periods are the app's retention rule. The scheduled job that enforces them is a deployment-level switch (",
+    "Enforcement of these periods is a deployment-level switch (",
   'legal.privacy.retention.p3.code': 'RETENTION_ENABLED',
   'legal.privacy.retention.p3.after':
-    "): it is off in this repository's development setup, and it is enabled by whoever operates a deployment. In a deployment where the job is off, inactive accounts and old audit records are simply kept.",
+    "): where the switch is off, inactive accounts and old audit records are kept.",
   'legal.privacy.retention.p4':
     'Public community submissions are never removed automatically: they stay on the map without attribution until a moderator removes them.',
 
@@ -1146,7 +1148,7 @@ export const EN: Messages = {
   'legal.privacy.security.p1.after':
     ' (AES-256-GCM). Lookups such as sign-in and duplicate checks run on a separate one-way index that cannot be turned back into your contact. Your password is stored as a one-way Argon2 hash. The encryption keys are kept outside the database and are never written into code or logs.',
   'legal.privacy.security.p2':
-    'The application applies rate limits on verification codes, password resets and submissions, sends security headers on every response, and requires HTTPS for location access. No security measure can guarantee absolute safety, but these measures reduce common risks.',
+    'The application applies rate limits on verification codes, password resets and submissions, sends security headers on every response, and requires HTTPS for location access.',
 
   'legal.privacy.children.p1':
     "OpenShelter is not directed at children and does not knowingly collect the personal data of children. The application does not currently check a user's age.",
@@ -1199,7 +1201,7 @@ export const EN: Messages = {
   'legal.terms.rules.li3':
     'Do not submit a private home as a public shelter. If you submit a location that is a private home, declare it as such.',
   'legal.terms.rules.li4':
-    'The application applies limits to keep the list usable: a daily cap on submissions, a cap on how often one-time codes may be requested, and detection of near-duplicate submissions. Exceeding a limit produces an error and a suggested wait; it is not a ban.',
+    'The application applies limits: a daily cap on submissions, a cap on how often one-time codes may be requested, and detection of near-duplicate submissions. Exceeding a limit produces an error and a suggested wait; it is not a ban.',
 
   'legal.terms.prohibited.p1': 'You must not:',
   'legal.terms.prohibited.li1':
@@ -1235,7 +1237,7 @@ export const EN: Messages = {
   'legal.terms.warranty.p1':
     'The list is provided as-is, for community benefit, without warranty of any kind. We do not guarantee that any location is open, safe, accessible, available, suitable or still operational.',
   'legal.terms.liability.p1':
-    'To the extent permitted by law, OpenShelter accepts no liability for decisions made in reliance on the list. This paragraph is intended to be reasonable and is subject to legal review; it does not attempt to exclude liability that cannot be excluded by law.',
+    'To the extent permitted by law, OpenShelter accepts no liability for decisions made in reliance on the list, and this does not exclude liability that cannot be excluded by law.',
   'legal.terms.thirdParty.p1.before':
     'The application links to external services, including the Estonian Rescue Board, Maa-amet and OpenStreetMap. We are not responsible for the content or availability of those services. How personal data is shared with service providers is described in the ',
   'legal.terms.thirdParty.p1.link': 'privacy policy',

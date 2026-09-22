@@ -551,7 +551,6 @@ export interface Messages {
   'account.identity': string;
   'account.name': string;
   'account.adminBadge': string;
-  'account.identityCopy': string;
   'account.edit': string;
   'account.currentPassword': string;
   'account.nameRequired': string;
@@ -1142,8 +1141,11 @@ export interface Messages {
   'admin.guidance.editor.hero.importNote': string;
   /** The save-time import FAILED at the save that stored the post
    *  (write response's `heroImportError`): the lead-in above the
-   *  server's message — the post WAS saved, the image is what failed.
-   *  The server message renders on its own line directly below. */
+   *  server's message. It must never read like a save failure — the
+   *  post WAS saved (said first), then the remedy (check the URL and
+   *  save again to retry, or clear the field to continue without a
+   *  hero), and the colon introduces the server's reason on its own
+   *  line directly below. */
   'admin.guidance.editor.hero.importFailed': string;
   /** The alt's label; the cross-field rule (mandatory iff a hero is set)
    *  is enforced in the UI with the two errors below, mirroring the

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
@@ -42,6 +43,120 @@ class MediaDerivativesTest {
             throw new IOException("no JPEG writer on this JDK");
         }
         return out.toByteArray();
+    }
+
+    // ---- EXIF orientation (Wave 13: the portrait-upload distortion) -------
+    //
+    // A phone portrait photo stores LANDSCAPE sensor pixels plus an EXIF
+    // Orientation tag (the browser rotates the ORIGINAL at render time).
+    // The derivatives must be rendered in the VISUAL orientation: a portrait
+    // upload must not get landscape derivative files whose pixels sit 90°
+    // off from what the detail page shows of the same photo.
+
+    @Test
+    void exifRotatedOriginalRendersDerivativesInVisualOrientation() throws Exception {
+        // Real 400x300 landscape-pixel JPEG + EXIF orientation 6 → the
+        // VISUAL photo is 300 wide x 400 tall (portrait).
+        byte[] original = withExifOrientation(realJpeg(400, 300), 6);
+        List<MediaDerivatives.RenderedDerivative> rendered =
+                MediaDerivatives.renderAll("image/jpeg", 300, 400, original, false);
+
+        // The no-upscale decision runs on the VISUAL width (300): 480/800
+        // would upscale.
+        assertThat(rendered).extracting(MediaDerivatives.RenderedDerivative::width)
+                .containsExactly(96, 192);
+
+        // The 96w derivative is PORTRAIT (96x128), not the raw-pixel
+        // landscape (96x72 the pre-fix renderer produced).
+        MediaImageInspector.ImageInfo info =
+                MediaImageInspector.inspect(rendered.get(0).bytes()).orElseThrow();
+        assertThat(info.width()).isEqualTo(96);
+        assertThat(info.height()).as("portrait derivative").isEqualTo(128);
+
+        // The PIXELS are rotated, not just the header: the test gradient
+        // runs red→raw-x, green→raw-y. The EXIF 6 correction (rotate the
+        // sensor buffer 90° clockwise) puts the raw BOTTOM-LEFT corner
+        // (pure green) at the visual TOP-LEFT. The unrotated render
+        // would put the raw top-left (red≈0, green≈0) there instead.
+        BufferedImage tiny = ImageIO.read(new ByteArrayInputStream(rendered.get(0).bytes()));
+        assertThat(tiny).isNotNull();
+        int[] rgb = rgb(tiny.getRGB(0, 0));
+        assertThat(rgb[1]).as("top-left green after the EXIF 6 rotation").isGreaterThan(192);
+        assertThat(rgb[0]).as("top-left red after the EXIF 6 rotation").isLessThan(96);
+    }
+
+    @Test
+    void exifOrientations5To8AllRenderInVisualOrientation() throws Exception {
+        // 90° CW (6) and 270° CW (8) swap the corners differently; both
+        // must come out as a 96x128 portrait derivative.
+        for (int orientation : new int[]{5, 6, 7, 8}) {
+            byte[] original = withExifOrientation(realJpeg(400, 300), orientation);
+            List<MediaDerivatives.RenderedDerivative> rendered =
+                    MediaDerivatives.renderAll("image/jpeg", 300, 400, original, false);
+            assertThat(rendered).as("orientation %d", orientation)
+                    .extracting(MediaDerivatives.RenderedDerivative::width)
+                    .containsExactly(96, 192);
+            MediaImageInspector.ImageInfo info =
+                    MediaImageInspector.inspect(rendered.get(0).bytes()).orElseThrow();
+            assertThat(info.height()).as("orientation %d", orientation).isEqualTo(128);
+        }
+    }
+
+    @Test
+    void aLandscapeOriginalWithoutExifRendersUnrotated() throws Exception {
+        // The control: a plain landscape JPEG (orientation 1 / none) keeps
+        // its pixels and its landscape derivatives — the portrait fix must
+        // not touch the landscape path.
+        byte[] original = realJpeg(400, 300);
+        List<MediaDerivatives.RenderedDerivative> rendered =
+                MediaDerivatives.renderAll("image/jpeg", 400, 300, original, false);
+
+        assertThat(rendered).extracting(MediaDerivatives.RenderedDerivative::width)
+                .containsExactly(96, 192);
+        MediaImageInspector.ImageInfo info =
+                MediaImageInspector.inspect(rendered.get(0).bytes()).orElseThrow();
+        assertThat(info.width()).isEqualTo(96);
+        assertThat(info.height()).isEqualTo(72);
+        // The top-left stays the raw top-left (red≈0, green≈0 — no rotation).
+        BufferedImage tiny = ImageIO.read(new ByteArrayInputStream(rendered.get(0).bytes()));
+        assertThat(tiny).isNotNull();
+        int[] rgb = rgb(tiny.getRGB(0, 0));
+        assertThat(rgb[0]).as("top-left red (unrotated)").isLessThan(96);
+        assertThat(rgb[1]).as("top-left green (unrotated)").isLessThan(96);
+    }
+
+    @Test
+    void theNoUpscaleRuleRunsOnTheVisualWidth() throws Exception {
+        // Visual 90x160 (a 160x90 sensor buffer with orientation 6): every
+        // width in the set (≥96) would upscale the VISUAL width → none.
+        byte[] original = withExifOrientation(realJpeg(160, 90), 6);
+        assertThat(MediaDerivatives.renderAll("image/jpeg", 90, 160, original, false)).isEmpty();
+    }
+
+    /** Insert a real EXIF APP1 (Orientation = {@code orientation}) after the SOI. */
+    private static byte[] withExifOrientation(byte[] jpeg, int orientation) {
+        byte[] exif = new byte[32];
+        exif[0] = 'E'; exif[1] = 'x'; exif[2] = 'i'; exif[3] = 'f';
+        exif[6] = 'I'; exif[7] = 'I'; exif[8] = 0x2A; exif[9] = 0;
+        exif[10] = 8;
+        exif[14] = 1; exif[15] = 0;
+        exif[16] = 0x12; exif[17] = 0x01;
+        exif[18] = 3; exif[19] = 0;
+        exif[20] = 1;                       // count 1 (little-endian u32)
+        exif[24] = (byte) orientation;      // value (LEFT-justified short)
+        int app1Len = exif.length + 2;
+        byte[] out = new byte[jpeg.length + app1Len + 2]; // SOI + marker + length + payload
+        out[0] = (byte) 0xFF; out[1] = (byte) 0xD8;
+        out[2] = (byte) 0xFF; out[3] = (byte) 0xE1;
+        out[4] = (byte) (app1Len >> 8); out[5] = (byte) app1Len;
+        System.arraycopy(exif, 0, out, 6, exif.length);
+        System.arraycopy(jpeg, 2, out, 6 + exif.length, jpeg.length - 2);
+        return out;
+    }
+
+    /** Split an sRGB int into its (red, green, blue) channels. */
+    private static int[] rgb(int srgb) {
+        return new int[]{(srgb >> 16) & 0xFF, (srgb >> 8) & 0xFF, srgb & 0xFF};
     }
 
     /** A smooth RGB gradient (deterministic, decodable, non-trivial). */

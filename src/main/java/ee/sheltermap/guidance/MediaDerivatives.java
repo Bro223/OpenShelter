@@ -49,6 +49,17 @@ import java.util.regex.Pattern;
  * target width is strictly BELOW the original's width — a 100 px asset
  * must not be "improved" into a 96 px asset, and a small asset simply
  * has no derivatives (its slots already show it at native size).
+ *
+ * <p><b>EXIF orientation (Wave 13).</b> The caller passes the VISUAL
+ * dimensions (the inspector swaps them for EXIF orientations 5–8), but
+ * {@code ImageIO} decodes SENSOR-orientation pixels — it never applies
+ * the tag. Before any resampling the decoded raster is therefore rotated
+ * into the visual orientation with the SAME tag the inspector reads
+ * ({@link MediaImageInspector#exifOrientationOf}): a portrait phone
+ * photo must yield portrait thumbnails, not landscape files that sit
+ * 90° off from the original the browser displays upright. (PNG's rarer
+ * oRRh chunk and WebP carry no orientation the JDK applies either;
+ * EXIF-tagged JPEG is the real-world case and the one handled here.)
  */
 public final class MediaDerivatives {
 
@@ -137,13 +148,23 @@ public final class MediaDerivatives {
         if (decoded.isEmpty()) {
             return List.of(); // undecodable — no width can succeed
         }
+        BufferedImage source = decoded.get();
+        // Wave 13 — the decoded raster is still in SENSOR orientation
+        // (ImageIO does not apply EXIF); the caller's dimensions are the
+        // VISUAL ones. Rotate the raster into the visual orientation
+        // first, so every derivative matches what the browser renders
+        // from the original.
+        int orientation = MediaImageInspector.exifOrientationOf(bytes);
+        if (orientation != 1) {
+            source = toVisualOrientation(source, orientation);
+        }
         List<RenderedDerivative> rendered = new ArrayList<>();
         for (int width : WIDTHS) {
             if (width >= sourceWidth) {
                 continue; // never an upscale
             }
             int targetHeight = Math.max(1, Math.round(sourceHeight * (float) width / sourceWidth));
-            byte[] out = encode(contentType, stagedDownscale(decoded.get(), width, targetHeight),
+            byte[] out = encode(contentType, stagedDownscale(source, width, targetHeight),
                     width, targetHeight);
             if (out == null) {
                 continue; // the encoder refused — skip this width
@@ -188,6 +209,46 @@ public final class MediaDerivatives {
         } catch (IOException | UncheckedIOException ex) {
             return Optional.empty();
         }
+    }
+
+    /**
+     * The EXIF-orientation correction: map every destination pixel to the
+     * source pixel a browser would show there, per the EXIF spec's
+     * orientation definitions (the same operations PIL's
+     * {@code exif_transpose} applies: 2 mirror horizontal, 3 rotate 180,
+     * 4 mirror vertical, 5 transpose, 6 rotate 90° CW, 7 transverse,
+     * 8 rotate 90° CCW). The result's dimensions are the VISUAL ones —
+     * orientations 5–8 swap them, which is the swap the inspector
+     * already applied to the stored dimensions, so the raster and the
+     * recorded width/height agree by construction.
+     */
+    private static BufferedImage toVisualOrientation(BufferedImage src, int orientation) {
+        int w = src.getWidth();
+        int h = src.getHeight();
+        boolean alpha = src.getColorModel().hasAlpha();
+        int outW = (orientation >= 5) ? h : w;
+        int outH = (orientation >= 5) ? w : h;
+        BufferedImage out = new BufferedImage(outW, outH,
+                alpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        for (int y = 0; y < outH; y++) {
+            for (int x = 0; x < outW; x++) {
+                int sx;
+                int sy;
+                switch (orientation) {
+                    case 2 -> { sx = w - 1 - x; sy = y; }               // mirror horizontal
+                    case 3 -> { sx = w - 1 - x; sy = h - 1 - y; }       // rotate 180
+                    case 4 -> { sx = x; sy = h - 1 - y; }               // mirror vertical
+                    case 5 -> { sx = y; sy = x; }                       // transpose (main diagonal)
+                    case 6 -> { sx = y; sy = h - 1 - x; }               // rotate 90° clockwise
+                    case 7 -> { sx = w - 1 - y; sy = h - 1 - x; }       // transverse (anti-diagonal)
+                    case 8 -> { sx = w - 1 - y; sy = x; }               // rotate 90° counter-clockwise
+                    default -> throw new IllegalStateException(
+                            "Unhandled EXIF orientation " + orientation);
+                }
+                out.setRGB(x, y, src.getRGB(sx, sy));
+            }
+        }
+        return out;
     }
 
     /**
